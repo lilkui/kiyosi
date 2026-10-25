@@ -51,6 +51,8 @@ Result<PricingResult> price_finite_difference(
         return std::unexpected(stable.error());
     }
 
+    double previous_boundary_time = time;
+    double american_put_boundary = strike;
     auto boundary = [&](double tau) {
         const bool call = option.option_type() == OptionType::call;
         const double log_rate_discount = curve_log_factor(market.risk_free_curve(), context.valuation_time(), time - tau, time);
@@ -64,7 +66,15 @@ Result<PricingResult> price_finite_difference(
                                         .price;
         const double high = american ? std::max({sign * (upper - strike), 0.0, continuation}) : continuation;
         const double discounted_strike = scaled_exponential(strike, log_rate_discount);
-        const double low = call ? 0.0 : (american ? std::max(strike, discounted_strike) : discounted_strike);
+        double low = call ? 0.0 : discounted_strike;
+        if (american && !call) {
+            // Knot-aligned rollback carries the best future exercise value at zero spot.
+            const double current = time - tau;
+            const double discount = curve_log_factor(market.risk_free_curve(), context.valuation_time(), current, previous_boundary_time);
+            american_put_boundary = std::max(strike, scaled_exponential(american_put_boundary, discount));
+            previous_boundary_time = current;
+            low = american_put_boundary;
+        }
         return Boundaries{low, high};
     };
     auto intrinsic = [&](double underlying) {

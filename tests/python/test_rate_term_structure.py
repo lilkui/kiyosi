@@ -603,6 +603,35 @@ class RateTermStructureTests(unittest.TestCase):
         else:
             self.assertAlmostEqual(gpu_price, engine.price(call, context), delta=0.08)
 
+    def test_american_put_exercise_at_intermediate_rate_knots(self):
+        middle = datetime(2025, 7, 1, tzinfo=UTC)
+        curve = RateTermStructure(
+            reference_time=REFERENCE,
+            times=[middle, MATURITY],
+            factors=[math.exp(0.1), 1.0],
+        )
+        model = BlackScholesMertonParameters(
+            risk_free_rate=curve, dividend_yield=0, volatility=0.2
+        )
+        option = AmericanOption(
+            option_type="put", strike=100, effective_date=START, expiry_date=END
+        )
+        engine = pricing.FiniteDifferenceVanillaEngine()
+        for valuation in (
+            REFERENCE,
+            datetime(2025, 4, 1, tzinfo=UTC),
+            middle,
+            datetime(2025, 10, 1, tzinfo=UTC),
+        ):
+            with self.subTest(valuation=valuation):
+                context = PricingContext(
+                    model_parameters=model, spot_price=0.01, valuation_time=valuation
+                )
+                expected = 100 * curve.factor(valuation, max(valuation, middle)) - 0.01
+                self.assertAlmostEqual(
+                    engine.price(option, context), expected, delta=1e-5
+                )
+
     def test_finite_difference_vanilla_and_barrier_curve_parities(self):
         context = market(dividend=0)
         terms = {

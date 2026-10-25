@@ -127,6 +127,24 @@ TEST_CASE("Nonflat American and barrier finite differences match vanilla identit
     CHECK_THAT(*first + *second, Catch::Matchers::WithinAbs(*expected, 0.004));
 }
 
+TEST_CASE("American puts retain optimal exercise at intermediate rate knots", "[rate-curves-fd]")
+{
+    const auto start = day(2025, 1, 1), middle = day(2025, 7, 1), end = day(2026, 1, 1);
+    const auto risk = make_rate_term_structure(start, {middle, end}, {std::exp(0.1), 1.0}).value();
+    const auto model = make_bsm_parameters(risk, 0.0, 0.2).value();
+    const auto option = make_american_option(OptionType::put, 100.0, start, end).value();
+    const FiniteDifferenceVanillaEngine engine;
+    for (const auto valuation : {start, day(2025, 4, 1), middle, day(2025, 10, 1)}) {
+        const auto context = make_pricing_context(model, 0.01, valuation).value();
+        const auto exercise_date = std::max(valuation, middle);
+        const double expected = 100.0 * risk.factor(valuation, exercise_date).value() - context.spot_price();
+        const auto price = engine.price(option, context);
+        REQUIRE(price);
+        CAPTURE(valuation.time_since_epoch().count());
+        CHECK_THAT(*price, Catch::Matchers::WithinAbs(expected, 1e-5));
+    }
+}
+
 TEST_CASE("Nonflat structured finite differences retain terminal payoff decompositions", "[rate-curves-fd]")
 {
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
