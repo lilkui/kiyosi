@@ -14,6 +14,7 @@
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
 #include "support/numerical.hpp"
+#include "pricing/detail/math.hpp"
 
 namespace {
 
@@ -119,17 +120,10 @@ TEST_CASE("Equivalent hit rebates and touch payments share discount validation",
             const auto context = *make_pricing_context(*make_bsm_parameters(-0.02, dividend, 0.2), 100.0, start);
             const auto rebate = AnalyticBarrierEngine{}.price(barrier, context);
             const auto payment = AnalyticBinaryBarrierEngine{}.price(touch, context);
-            if (dividend == -0.1) {
-                REQUIRE(rebate);
-                REQUIRE(payment);
-                CHECK_THAT(*rebate, Catch::Matchers::WithinAbs(*payment, 1e-12));
-                CHECK(*payment > 0.0);
-            } else {
-                REQUIRE_FALSE(rebate);
-                REQUIRE_FALSE(payment);
-                CHECK(rebate.error().category == ErrorCategory::invalid_result);
-                CHECK(payment.error().category == ErrorCategory::invalid_result);
-            }
+            REQUIRE(rebate);
+            REQUIRE(payment);
+            CHECK_THAT(*rebate, Catch::Matchers::WithinAbs(*payment, 1e-12));
+            CHECK(*payment > 0.0);
         }
     }
 }
@@ -471,8 +465,38 @@ TEST_CASE("Barrier hit rebates use the finite first-hit payment decomposition")
     CHECK_THAT(*result, Catch::Matchers::WithinAbs(10.0 * discounted_hit, 1e-6));
 }
 
-TEST_CASE("Barrier hit rebates reject an unstable negative-rate limit")
+TEST_CASE("Barrier hit rebates support negative-rate first-passage limits", "[barrier-hit-negative]")
 {
+    const auto independent_integral = [](double distance, double drift, double volatility, double rate, double time, double amount = 1.0) {
+        constexpr int intervals = 131072;
+        const auto integrand = [&](double fraction) {
+            if (fraction == 0.0) return 0.0;
+            const double hit_time = time * fraction * fraction;
+            const double standardized = (distance + drift * hit_time) / (volatility * std::sqrt(hit_time));
+            return 2.0 * time * fraction * distance / (volatility * std::sqrt(2.0 * std::numbers::pi * hit_time) * hit_time) *
+                   std::exp(std::log(amount) - 0.5 * standardized * standardized - rate * hit_time);
+        };
+        double sum = integrand(1.0);
+        for (int index = 1; index < intervals; ++index)
+            sum += (index % 2 == 0 ? 2.0 : 4.0) * integrand(static_cast<double>(index) / intervals);
+        return sum / (3.0 * intervals);
+    };
+    for (const double drift : {-0.04, 0.0, 0.04})
+        for (const bool up : {false, true})
+            for (const double distance : {0.001, 0.1, 1.0}) {
+                CAPTURE(drift, up, distance);
+                const auto actual = kiyosi::detail::barrier_hit_value(7.0, distance, up, drift, 0.2, 1.0, -0.02);
+                REQUIRE(actual);
+                const double expected = 7.0 * independent_integral(distance, up ? -drift : drift, 0.2, -0.02, 1.0);
+                CHECK_THAT(*actual, Catch::Matchers::WithinAbs(expected, 2e-8));
+            }
+    const auto near_barrier = kiyosi::detail::barrier_hit_value(7.0, 1e-300, false, 0.0, 0.2, 1.0, -0.02);
+    REQUIRE(near_barrier);
+    CHECK_THAT(*near_barrier, Catch::Matchers::WithinAbs(7.0, 1e-12));
+    const auto scaled = kiyosi::detail::barrier_hit_value(1e-300, 0.1, false, 0.0, 0.2, 1.0, -1000.0);
+    REQUIRE(scaled);
+    CHECK(*scaled > 1e130);
+    CHECK_THAT(*scaled, Catch::Matchers::WithinRel(independent_integral(0.1, 0.0, 0.2, -1000.0, 1.0, 1e-300), 1e-7));
     const auto valuation = day(2025, 1, 6);
     const auto expiry_date = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(-0.02, 0.0, 0.2);
@@ -487,8 +511,8 @@ TEST_CASE("Barrier hit rebates reject an unstable negative-rate limit")
                                                        .rebate_timing = kiyosi::RebateTiming::at_hit});
 
     const auto result = kiyosi::AnalyticBarrierEngine{}.price(barrier, context);
-    REQUIRE_FALSE(result.has_value());
-    CHECK(result.error().category == kiyosi::ErrorCategory::invalid_result);
+    REQUIRE(result);
+    CHECK_THAT(*result, Catch::Matchers::WithinAbs(10.0 * independent_integral(std::log(1.1), 0.04, 0.2, -0.02, 1.0), 2e-10));
 }
 
 TEST_CASE("Zero barrier rebates ignore payment timing", "[audit-fixes]")

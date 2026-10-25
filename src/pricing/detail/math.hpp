@@ -1,9 +1,11 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <numbers>
+#include <numeric>
 
 #include <kiyosi/core/day_count.hpp>
 #include <kiyosi/core/time.hpp>
@@ -100,6 +102,48 @@ inline double scaled_barrier_reflection_tail(double amount, double log_discount,
                     std::log(volatility) + std::log(root) - std::log(std::abs(numerator)) + std::log(inverse_sqrt_two_pi));
 }
 
+// Inverse square-root time removes the first-passage density's singularity at zero.
+inline Result<double> integrated_barrier_hit_value(double amount, double distance, double drift, double volatility, double time, double rate)
+{
+    if (amount == 0.0 || distance == 0.0) return amount;
+    const double root_time = std::sqrt(time);
+    const double lower = distance / volatility / root_time;
+    const double drift_width = drift / volatility * root_time;
+    if (lower == 0.0) return amount;
+    const double endpoint = -0.5 * (lower + drift_width) * (lower + drift_width) - rate * time;
+    const double coefficient = 0.5 * drift_width * drift_width + rate * time;
+    const double stationary = coefficient > 0.0 ? std::sqrt(lower * std::sqrt(2.0 * coefficient)) : 0.0;
+    const double peak = stationary > lower ? -lower * drift_width - lower * std::sqrt(2.0 * coefficient) : endpoint;
+    if (!std::isfinite(lower) || !std::isfinite(peak))
+        return std::unexpected(Error{ErrorCategory::invalid_result, "barrier hit integral is not representable"});
+    const double upper = lower + (lower < 1.0 ? 12.0 : 40.0 / lower);
+    const auto density = [&](double value) {
+        const double ratio = lower / value;
+        const double standardized = value + drift_width * ratio;
+        return std::exp(-0.5 * standardized * standardized - rate * time * ratio * ratio - peak);
+    };
+    const auto integrate = [&](auto&& self, double left, double right, std::array<double, 3> samples, double estimate, double tolerance, int depth) -> double {
+        const double center = std::midpoint(left, right);
+        const double low = density(std::midpoint(left, center)), high = density(std::midpoint(center, right));
+        const double first_half = (center - left) * (samples[0] + 4.0 * low + samples[1]) / 6.0;
+        const double last_half = (right - center) * (samples[1] + 4.0 * high + samples[2]) / 6.0;
+        const double refined = first_half + last_half;
+        if (depth == 0 || std::abs(refined - estimate) <= 15.0 * tolerance) return refined + (refined - estimate) / 15.0;
+        return self(self, left, center, std::array{samples[0], low, samples[1]}, first_half, tolerance / 2.0, depth - 1) +
+               self(self, center, right, std::array{samples[1], high, samples[2]}, last_half, tolerance / 2.0, depth - 1);
+    };
+    double integral = 0.0;
+    for (double left = lower; left < upper;) {
+        const double right = std::min(upper, 2.0 * left);
+        const double first = density(left), middle = density(std::midpoint(left, right)), last = density(right);
+        const double estimate = (right - left) * (first + 4.0 * middle + last) / 6.0;
+        integral += integrate(integrate, left, right, std::array{first, middle, last}, estimate, 1e-13 * (right - left) / std::max(1.0, upper - lower), 20);
+        left = right;
+    }
+    if (integral == 0.0) return 0.0;
+    return checked_price(scaled_exponential(amount, peak + std::log(2.0 * inverse_sqrt_two_pi) + std::log(integral)));
+}
+
 inline Result<double> barrier_hit_value(double amount, double distance, bool upper, double drift, double volatility, double t, double rate)
 {
     if (t == 0.0) return amount;
@@ -114,8 +158,7 @@ inline Result<double> barrier_hit_value(double amount, double distance, bool upp
     const double discriminant = signed_drift * signed_drift + 2.0 * rate * variance;
     const double scale = std::max({1.0, std::abs(signed_drift * signed_drift), std::abs(2.0 * rate * variance)});
     if (discriminant < 0.0 || (rate < 0.0 && discriminant <= 16.0 * std::numeric_limits<double>::epsilon() * scale))
-        return std::unexpected(Error{ErrorCategory::invalid_result,
-                                     "barrier hit discounting is numerically unstable"});
+        return integrated_barrier_hit_value(amount, distance, signed_drift, volatility, t, rate);
     const double root = std::sqrt(discriminant);
     const double root_time = volatility * std::sqrt(t);
     // Rationalize the small root difference to retain discounting as variance approaches zero.

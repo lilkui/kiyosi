@@ -8,6 +8,7 @@
 
 #include "monte_carlo_simulation.hpp"
 #include "monte_carlo_digital.hpp"
+#include "monte_carlo_barrier.hpp"
 
 namespace kiyosi::detail {
 
@@ -47,6 +48,16 @@ struct CudaDigitalRequest {
     int path_count{};
     std::uint64_t seed{};
     DigitalMonteCarloParameters parameters{};
+    bool antithetic{};
+    bool delta{};
+    bool gamma{};
+    int measure{};
+};
+
+struct CudaBarrierRequest {
+    int path_count{};
+    std::uint64_t seed{};
+    BarrierMonteCarloParameters parameters{};
     bool antithetic{};
     bool delta{};
     bool gamma{};
@@ -107,6 +118,9 @@ private:
 [[nodiscard]] CudaPricingResult cuda_european_price(CudaEuropeanRequest request, CudaWorkspace* workspace = nullptr);
 // Output slots are price, delta and gamma; unrequested Greek slots are zero.
 [[nodiscard]] CudaSpotPricingResult cuda_digital_prices(CudaDigitalRequest request, CudaWorkspace* workspace = nullptr);
+[[nodiscard]] CudaSpotPricingResult cuda_barrier_prices(CudaBarrierRequest request,
+                                                        std::span<const BarrierMonteCarloStep> steps,
+                                                        CudaWorkspace* workspace = nullptr);
 [[nodiscard]] CudaPricingResult cuda_american_price(
     CudaAmericanRequest request, CudaWorkspace* workspace = nullptr, bool cache_growth = false);
 [[nodiscard]] CudaPricingResult cuda_accumulator_price(

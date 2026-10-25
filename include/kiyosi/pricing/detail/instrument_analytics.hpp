@@ -20,6 +20,7 @@ class TouchOption;
 class DoubleTouchOption;
 class CoxRossRubinsteinVanillaEngine;
 class CoxRossRubinsteinDigitalEngine;
+class CoxRossRubinsteinBarrierEngine;
 class MonteCarloAutocallableEngine;
 
 namespace detail {
@@ -34,6 +35,10 @@ Result<ImpliedVolatilitySettings> prepare_implied_volatility(
 template <AutocallableProduct Note>
 [[nodiscard]] KIYOSI_EXPORT Result<ImpliedVolatilitySettings> prepare_implied_volatility(
     const MonteCarloAutocallableEngine&, const Note&, const PricingContext&, ImpliedVolatilitySettings);
+
+template <typename Option>
+Result<ImpliedVolatilitySettings> prepare_implied_volatility(
+    const CoxRossRubinsteinBarrierEngine&, const Option&, const PricingContext&, ImpliedVolatilitySettings);
 template <AutocallableProduct Note>
 Result<std::array<double, 2>> coupon_endpoint_prices(
     const MonteCarloAutocallableEngine&, const Note&, const Note&, const PricingContext&);

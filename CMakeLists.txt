@@ -138,6 +138,9 @@ target_sources(kiyosi
         src/pricing/engines/accumulator/monte_carlo.cpp
         src/pricing/engines/asian/analytic.cpp
         src/pricing/engines/barrier/analytic.cpp
+        src/pricing/engines/barrier/binomial.cpp
+        src/pricing/engines/barrier/integral.cpp
+        src/pricing/engines/barrier/monte_carlo.cpp
         src/pricing/engines/barrier/finite_difference.cpp
         src/pricing/engines/binary_barrier/analytic.cpp
         src/pricing/engines/digital/binomial.cpp
@@ -205,6 +208,9 @@ target_sources(kiyosi
             include/kiyosi/pricing/engines/accumulator/monte_carlo.hpp
             include/kiyosi/pricing/engines/asian/analytic.hpp
             include/kiyosi/pricing/engines/barrier/analytic.hpp
+            include/kiyosi/pricing/engines/barrier/binomial.hpp
+            include/kiyosi/pricing/engines/barrier/integral.hpp
+            include/kiyosi/pricing/engines/barrier/monte_carlo.hpp
             include/kiyosi/pricing/engines/barrier/finite_difference.hpp
             include/kiyosi/pricing/engines/barrier/double_finite_difference.hpp
             include/kiyosi/pricing/engines/binary_barrier/analytic.hpp

@@ -434,6 +434,43 @@ __global__ void simulate_digital_paths(SpotRequests<CudaDigitalRequest> requests
     }
 }
 
+__global__ void simulate_barrier_paths(SpotRequests<CudaBarrierRequest> requests,
+                                       const BarrierMonteCarloStep* steps, std::size_t step_count)
+{
+    const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    const auto request = requests.values[0];
+    if (path >= request.path_count) return;
+    curandStatePhilox4_32_10_t generator;
+    initialize_path_generator(request, path, generator);
+    double log_asset = request.parameters.log_spot;
+    double first_normal = 0.0;
+    bool touched = false;
+    double knocked_out = 0.0;
+    for (std::size_t index = 0; index < step_count; ++index) {
+        const auto step = steps[index];
+        const double normal = draw_path_normal(request, path, generator);
+        if (index == 0) first_normal = normal;
+        log_asset += step.simulation.drift + step.simulation.diffusion * normal;
+        const double asset = exp(log_asset);
+        if (!isfinite(asset) || asset <= 0.0) {
+            atomicExch(requests.invalid, 1);
+            return;
+        }
+        if (step.observe && request.parameters.breached(asset)) touched = true;
+        if (touched && !request.parameters.knock_in) {
+            knocked_out = (request.parameters.at_hit ? step.simulation.discount : request.parameters.terminal_discount).apply(request.parameters.rebate);
+            break;
+        }
+    }
+    const auto sample = request.parameters.sample(log_asset, first_normal, steps[0].simulation.diffusion,
+                                                  touched, knocked_out, request.delta, request.gamma);
+    for (int output = 0; output < requests.count; ++output) {
+        const int measure = requests.values[output].measure;
+        write_spot_payoff(requests, output, path, measure == 0 ? sample.price : measure == 1 ? sample.delta
+                                                                                             : sample.gamma);
+    }
+}
+
 template <bool single>
 __global__ void simulate_accumulator_spot_paths(
     SpotRequests<CudaAccumulatorRequest> requests, const SimulationStep* steps, std::size_t step_count)
@@ -709,6 +746,30 @@ CudaSpotPricingResult cuda_digital_prices(CudaDigitalRequest request, CudaWorksp
     auto result = spot_prices(std::span<const CudaDigitalRequest>{requests}.first(count), std::span<const SimulationStep>{}, workspace,
                               [](const auto& batch, const auto*, auto, int blocks, cudaStream_t stream) {
                                   simulate_digital_paths<<<blocks, threads_per_block, 0, stream>>>(batch);
+                              });
+    if (!request.delta && request.gamma) {
+        result.payoff_means[2] = result.payoff_means[1];
+        result.payoff_means[1] = 0.0;
+    }
+    return result;
+}
+
+CudaSpotPricingResult cuda_barrier_prices(CudaBarrierRequest request, std::span<const BarrierMonteCarloStep> steps,
+                                          CudaWorkspace* workspace)
+{
+    std::array<CudaBarrierRequest, 3> requests{request};
+    std::size_t count = 1;
+    if (request.delta) {
+        requests[count] = request;
+        requests[count++].measure = 1;
+    }
+    if (request.gamma) {
+        requests[count] = request;
+        requests[count++].measure = 2;
+    }
+    auto result = spot_prices(std::span<const CudaBarrierRequest>{requests}.first(count), steps, workspace,
+                              [](const auto& batch, const auto* device_steps, auto step_count, int blocks, cudaStream_t stream) {
+                                  simulate_barrier_paths<<<blocks, threads_per_block, 0, stream>>>(batch, device_steps, step_count);
                               });
     if (!request.delta && request.gamma) {
         result.payoff_means[2] = result.payoff_means[1];

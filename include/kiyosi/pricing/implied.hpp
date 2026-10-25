@@ -180,7 +180,7 @@ template <typename Engine, typename Option, typename Price, typename Prepare = s
 /// @param settings Positive bounds and convergence controls.
 /// Built-in Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
-/// CPU European Monte Carlo trials reuse per-solve samples with storage linear in path count.
+/// CPU vanilla European Monte Carlo trials reuse per-solve samples with storage linear in path count.
 /// CUDA accumulator and autocallable trials reuse a workspace local to each solve.
 /// A root is not guaranteed unique; known states with volatility-independent remaining
 /// cashflows, including fixed touch payments, are rejected.

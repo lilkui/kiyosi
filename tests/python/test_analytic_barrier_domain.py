@@ -379,7 +379,7 @@ class AnalyticBarrierDomainTests(unittest.TestCase):
                                 engine.price(instrument, context), expected, delta=1e-11
                             )
 
-    def test_equivalent_hit_rebates_and_touch_payments_share_discount_validation(self):
+    def test_equivalent_hit_rebates_and_touch_payments_match_first_passage(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for up in (False, True):
             level = 120 if up else 80
@@ -413,21 +413,35 @@ class AnalyticBarrierDomainTests(unittest.TestCase):
                         (pricing.AnalyticBarrierEngine(), barrier),
                         (pricing.AnalyticBinaryBarrierEngine(), touch),
                     )
-                    if dividend == -0.1:
-                        prices = [
-                            engine.price(option, context)
-                            for engine, option in contracts
-                        ]
-                        self.assertAlmostEqual(*prices, delta=1e-12)
-                        self.assertGreater(prices[1], 0)
-                    else:
-                        for engine, option in contracts:
-                            with self.assertRaises(kiyosi.KiyosiError) as error:
-                                engine.price(option, context)
-                            self.assertEqual(
-                                error.exception.category,
-                                kiyosi.ErrorCategory.INVALID_RESULT,
+                    distance = abs(math.log(level / 100))
+                    drift = (-0.02 - dividend - 0.02) * (1 if up else -1)
+
+                    def density(time, distance=distance, drift=drift):
+                        return (
+                            distance
+                            * math.exp(
+                                0.02 * time
+                                - (distance - drift * time) ** 2 / (0.08 * time)
                             )
+                            / (0.2 * math.sqrt(2 * math.pi * time**3))
+                        )
+
+                    panels = 16_384
+                    expected = (
+                        7
+                        * (
+                            density(1)
+                            + math.fsum(
+                                (4 if index % 2 else 2) * density(index / panels)
+                                for index in range(1, panels)
+                            )
+                        )
+                        / (3 * panels)
+                    )
+                    for engine, option in contracts:
+                        self.assertAlmostEqual(
+                            engine.price(option, context), expected, delta=1e-10
+                        )
 
     def test_dense_scheduled_greeks_preserve_independent_stencils(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

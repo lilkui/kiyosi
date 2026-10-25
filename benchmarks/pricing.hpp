@@ -13,6 +13,7 @@ void register_analytics_cases();
 void register_quadrature_cases();
 void register_binomial_cases();
 void register_digital_cases();
+void register_barrier_cases();
 #if KIYOSI_HAS_QUANTLIB
 void register_quantlib_matrix();
 #endif
