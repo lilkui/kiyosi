@@ -35,7 +35,7 @@
 - Document the library-wide thread-safety default and type/operation overrides in public C++ headers: concurrent calls on distinct instances, shared instances and alongside mutation.
 - Release the GIL only when concurrent core execution satisfies that contract. While released, access no Python objects, invoke no Python callbacks and touch no GIL-protected state.
 
-## Pricing Performance
+## Performance
 
 Pricing accuracy comes first. Optimize valid-input hot paths using established invariants; preserve numerical stability, required validation, ownership/thread safety and error/state guarantees. Avoid redundant checks, speculative fallbacks and unnecessary defensive copies. Verify with pricing correctness tests and relevant benchmarks.
 
@@ -47,4 +47,4 @@ Pricing accuracy comes first. Optimize valid-input hot paths using established i
 
 ## Documentation
 
-- Documentation updated alongside code changes must directly describe the final, valid state. Do not document the change process, historical diffs, or descriptions of what was modified.
+- Documentation updated alongside code changes must directly reflect the final, valid state. Do not document the change process, historical diffs, or details regarding what was modified or left unchanged.
