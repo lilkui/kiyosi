@@ -17,7 +17,7 @@ try {
     if (!context) return 1;
     const auto range = make_range_accrual_option({1'000, 0.12, 95, 110, start, start + std::chrono::days{1}, {}});
     if (!range) return 1;
-    const auto range_value = MonteCarloRangeAccrualEngine{}.price(*range, *context);
+    const auto range_value = AnalyticRangeAccrualEngine{}.price(*range, *context);
     if (!range_value || *range_value <= 0 || *range_value > 1'000 * 0.12 / 365) return 1;
     const auto binomial = CoxRossRubinsteinVanillaEngine{}.price(*option, *context);
     const auto analytic = AnalyticVanillaEngine{}.price(*option, *context);

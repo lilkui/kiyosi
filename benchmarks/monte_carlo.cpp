@@ -102,6 +102,12 @@ void register_monte_carlo(const std::string& name, const auto& scenario, auto en
 void kiyosi::benchmark_support::register_analytics_cases()
 {
     using namespace kiyosi;
+    const Date range_start{std::chrono::year{2025} / 1 / 1};
+    const auto range = make_range_accrual_option({1'000, 0.12, 95, 110, range_start, range_start + std::chrono::days{30}, {}}).value();
+    const auto range_context = make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100, range_start, weekdays_calendar()).value();
+    const AnalyticRangeAccrualEngine range_engine;
+    register_price("range_accrual/analytic/price", range, range_engine, range_context)->UseRealTime();
+    register_calculation("range_accrual/analytic/greeks", [=] { return range_engine.price_with_greeks(range, range_context, {Greek::delta, Greek::gamma, Greek::rho}); }, "price")->UseRealTime();
     for (const bool together : {false, true})
         benchmark::RegisterBenchmark(together ? "analytics/kiyosi/fd/nonuniform/sample" : "analytics/kiyosi/fd/nonuniform/separate_samples", [together](benchmark::State& state) {
             detail::SpatialGrid grid{800.5, 1.0, 800};
@@ -392,24 +398,6 @@ void kiyosi::benchmark_support::register_analytics_cases()
 
 void kiyosi::benchmark_support::register_monte_carlo_cases()
 {
-    const Date range_start{std::chrono::year{2025} / 1 / 1};
-    const auto range = make_range_accrual_option({1'000, 0.12, 95, 110, range_start, range_start + std::chrono::days{30}, {}}).value();
-    const auto range_context = make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100, range_start, weekdays_calendar()).value();
-    for (const int threads : {1, 0, -1}) {
-#if !KIYOSI_HAS_CUDA
-        if (threads == -1) continue;
-#endif
-        const auto backend = threads == -1 ? MonteCarloBackend::cuda : MonteCarloBackend::cpu;
-        const auto engine = make_monte_carlo_range_accrual_engine({20'000, 42, backend, std::max(threads, 0)}).value();
-        const std::string mode = threads == -1 ? "cuda" : threads == 1 ? "serial"
-                                                                       : "automatic";
-        register_monte_carlo("range_accrual/" + mode + "/price", std::pair{range, range_context}, engine);
-        register_calculation(("range_accrual/" + mode + "/greeks").c_str(), [=] {
-            return engine.price_with_greeks(range, range_context, {Greek::delta, Greek::gamma, Greek::rho});
-        },
-                             "price")
-            ->UseRealTime();
-    }
     for (const bool reuse : {false, true})
         benchmark::RegisterBenchmark(reuse ? "american_lsm/scheduling/reused" : "american_lsm/scheduling/one_shot", [reuse](benchmark::State& state) {
             detail::MonteCarloBlocks blocks{4096, 4};

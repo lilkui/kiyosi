@@ -988,9 +988,8 @@ IV solver tolerances do not bound sampling or integration error.)doc")
         module, "MonteCarloAccumulatorEngine", &make_monte_carlo_accumulator_engine);
     bind_engine_price<MonteCarloAccumulatorEngine, Accumulator>(module, monte_carlo_accumulator);
 
-    auto monte_carlo_range = bind_trading_day_monte_carlo_engine<MonteCarloRangeAccrualEngine>(
-        module, "MonteCarloRangeAccrualEngine", &make_monte_carlo_range_accrual_engine);
-    bind_engine_price<MonteCarloRangeAccrualEngine, RangeAccrualOption>(module, monte_carlo_range);
+    auto analytic_range = bind_stateless_engine<AnalyticRangeAccrualEngine>(module, "AnalyticRangeAccrualEngine");
+    bind_engine_price<AnalyticRangeAccrualEngine, RangeAccrualOption>(module, analytic_range);
 
     auto quadrature_accumulator = bind_quadrature_engine<QuadratureAccumulatorEngine>(module, "QuadratureAccumulatorEngine", &make_quadrature_accumulator_engine);
     bind_engine_price<QuadratureAccumulatorEngine, Accumulator>(module, quadrature_accumulator);

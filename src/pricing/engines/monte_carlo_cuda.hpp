@@ -10,7 +10,6 @@
 #include "monte_carlo_digital.hpp"
 #include "monte_carlo_barrier.hpp"
 #include "monte_carlo_asian.hpp"
-#include "monte_carlo_range_accrual.hpp"
 
 namespace kiyosi::detail {
 
@@ -88,13 +87,6 @@ struct CudaAccumulatorRequest {
     bool antithetic{};
 };
 
-struct CudaRangeAccrualRequest {
-    int path_count{};
-    std::uint64_t seed{};
-    RangeAccrualMonteCarloParameters parameters{};
-    bool antithetic{};
-};
-
 struct CudaAutocallableRequest {
     int path_count{};
     std::uint64_t seed{};
@@ -146,8 +138,6 @@ private:
     CudaAmericanRequest request, CudaWorkspace* workspace = nullptr, bool cache_growth = false);
 [[nodiscard]] CudaPricingResult cuda_accumulator_price(
     CudaAccumulatorRequest request, std::span<const SimulationStep> steps, CudaWorkspace* workspace = nullptr);
-[[nodiscard]] CudaPricingResult cuda_range_accrual_price(
-    CudaRangeAccrualRequest request, std::span<const SimulationStep> steps, CudaWorkspace* workspace = nullptr);
 [[nodiscard]] CudaPricingResult cuda_autocallable_price(
     CudaAutocallableRequest request, std::span<const AutocallableStep> steps, CudaWorkspace* workspace = nullptr);
 [[nodiscard]] CudaPricingResult cuda_autocallable_coupon_prices(

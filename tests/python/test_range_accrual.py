@@ -1,6 +1,4 @@
 import math
-import os
-import statistics
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, time, timedelta
@@ -14,7 +12,7 @@ from kiyosi.market import (
     all_days_calendar,
     weekdays_calendar,
 )
-from kiyosi.pricing import MonteCarloRangeAccrualEngine
+from kiyosi.pricing import AnalyticRangeAccrualEngine, implied_volatility
 
 START = date(2025, 1, 1)
 
@@ -94,6 +92,27 @@ def reference(option, context):
 
 
 class RangeAccrualTests(unittest.TestCase):
+    def test_daily_coupon_matches_exact_marginal_sum(self):
+        option = contract(expiry_date=START + timedelta(days=365))
+        context = market()
+        self.assertAlmostEqual(
+            AnalyticRangeAccrualEngine().price(option, context),
+            reference(option, context),
+            delta=1e-10,
+        )
+        self.assertAlmostEqual(
+            implied_volatility(
+                AnalyticRangeAccrualEngine(),
+                option,
+                context,
+                reference(option, context),
+                lower_bound=0.1,
+                upper_bound=0.4,
+            ),
+            context.model_parameters.volatility,
+            delta=1e-8,
+        )
+
     def assert_category(self, category, call, *args, **kwargs):
         with self.assertRaises(kiyosi.KiyosiError) as raised:
             call(*args, **kwargs)
@@ -149,7 +168,7 @@ class RangeAccrualTests(unittest.TestCase):
 
     def test_closed_bounds_and_expiry_coupon(self):
         option = contract(expiry_date=START + timedelta(days=2), realized_hit_count=1)
-        engine = MonteCarloRangeAccrualEngine()
+        engine = AnalyticRangeAccrualEngine()
         for spot, hit in (
             (math.nextafter(95, 0), False),
             (95, True),
@@ -180,9 +199,7 @@ class RangeAccrualTests(unittest.TestCase):
                     self.assertIsNone(getattr(result, name))
 
     def test_history_midnight_intraday_and_pre_effective(self):
-        engine = MonteCarloRangeAccrualEngine(
-            path_count=8192, seed=12, sampling="sobol"
-        )
+        engine = AnalyticRangeAccrualEngine()
         for valuation, hits in (
             (instant(START) - timedelta(days=3), None),
             (instant(START), None),
@@ -197,7 +214,7 @@ class RangeAccrualTests(unittest.TestCase):
                 self.assertAlmostEqual(
                     engine.price(option, context),
                     reference(option, context),
-                    delta=0.012,
+                    delta=1e-10,
                 )
         for valuation, count in (
             (START, 1),
@@ -226,7 +243,7 @@ class RangeAccrualTests(unittest.TestCase):
     def test_weekend_calendar_full_term_and_zero_coupon(self):
         option = contract(effective_date=date(2025, 1, 3), expiry_date=date(2025, 1, 6))
         context = market(date(2025, 1, 3), calendar=weekdays_calendar())
-        engine = MonteCarloRangeAccrualEngine(path_count=1)
+        engine = AnalyticRangeAccrualEngine()
         self.assertAlmostEqual(
             engine.price(option, context), reference(option, context), delta=1e-12
         )
@@ -276,7 +293,7 @@ class RangeAccrualTests(unittest.TestCase):
 
     def test_coupon_is_weighted_over_full_contract_and_discounted_only_at_expiry(self):
         option = contract()
-        engine = MonteCarloRangeAccrualEngine(path_count=1, seed=42)
+        engine = AnalyticRangeAccrualEngine()
         context = market(rate=0.8, dividend=0.8, volatility=1e-9)
         self.assertAlmostEqual(
             engine.price(option, context),
@@ -311,37 +328,20 @@ class RangeAccrualTests(unittest.TestCase):
             times=[START + timedelta(days=7), option.expiry_date],
             factors=[0.998, 1.002],
         )
+        engine = AnalyticRangeAccrualEngine()
         for context in (
             market(),
             market(rate=-0.03),
             market(rate=rate, dividend=dividend),
         ):
-            prices = [
-                MonteCarloRangeAccrualEngine(path_count=8192, seed=seed).price(
-                    option, context
-                )
-                for seed in range(12)
-            ]
-            self.assertLess(
-                abs(statistics.mean(prices) - reference(option, context)),
-                6 * statistics.stdev(prices) / math.sqrt(len(prices)) + 1e-10,
+            self.assertAlmostEqual(
+                engine.price(option, context), reference(option, context), delta=1e-10
             )
-            for seed in (7, 23):
-                quasi = MonteCarloRangeAccrualEngine(
-                    path_count=16384, seed=seed, sampling="sobol", antithetic=True
-                )
-                self.assertAlmostEqual(
-                    quasi.price(option, context),
-                    reference(option, context),
-                    delta=0.006,
-                )
         lower_zero = contract(lower_bound=0)
         self.assertAlmostEqual(
-            MonteCarloRangeAccrualEngine(path_count=16384, sampling="sobol").price(
-                lower_zero, market()
-            ),
+            engine.price(lower_zero, market()),
             reference(lower_zero, market()),
-            delta=0.01,
+            delta=1e-10,
         )
 
     def test_extreme_coupon_tail_scaling_and_overflow(self):
@@ -361,86 +361,50 @@ class RangeAccrualTests(unittest.TestCase):
             - 0.04 / 365
             - 804.608442013753788
         )
-        for backend in (
-            ["cpu", "cuda"] if os.getenv("KIYOSI_TEST_CUDA") == "enabled" else ["cpu"]
-        ):
-            with self.subTest(backend=backend):
-                engine = MonteCarloRangeAccrualEngine(
-                    path_count=1, seed=42, backend=backend
-                )
-                self.assertAlmostEqual(
-                    engine.price(option, market()) / expected, 1, delta=2e-11
-                )
-                overflow = contract(notional=1e300, annual_coupon_rate=1e100)
-                self.assert_category(
-                    kiyosi.ErrorCategory.INVALID_RESULT,
-                    engine.price,
-                    overflow,
-                    market(),
-                )
+        engine = AnalyticRangeAccrualEngine()
+        self.assertAlmostEqual(
+            engine.price(option, market()) / expected, 1, delta=2e-11
+        )
+        overflow = contract(notional=1e300, annual_coupon_rate=1e100)
+        self.assert_category(
+            kiyosi.ErrorCategory.INVALID_RESULT, engine.price, overflow, market()
+        )
 
     def test_adjacent_price_bounds_at_tiny_volatility(self):
         below = math.nextafter(100.0, 0.0)
         above = math.nextafter(100.0, math.inf)
-        for backend in (
-            ["cpu", "cuda"] if os.getenv("KIYOSI_TEST_CUDA") == "enabled" else ["cpu"]
+        engine = AnalyticRangeAccrualEngine()
+        for lower, upper, volatility, expected, days in (
+            (100, above, 1e-16, 0.5, 1),
+            (below, 100, 1e-16, 0.5, 1),
+            (below, above, 1e-16, 1.0, 1),
+            (100, above, 1e-16, 0.5, 2),
+            (100, above, math.ulp(0.0), 0.5, 1),
+            (below, 100, math.ulp(0.0), 0.5, 1),
+            (below, above, math.ulp(0.0), 1.0, 1),
+            (below, 110, 1e-14, 0.6069959804126283, 1),
+            (90, above, 1e-14, 0.6069959804126285, 1),
         ):
-            engine = MonteCarloRangeAccrualEngine(
-                path_count=2, seed=42, backend=backend, antithetic=True
-            )
-            for lower, upper, volatility, expected, days in (
-                (100, above, 1e-16, 0.5, 1),
-                (below, 100, 1e-16, 0.5, 1),
-                (below, above, 1e-16, 1.0, 1),
-                (100, above, 1e-16, 0.5, 2),
-                (below, 110, 1e-14, 0.6069959804126283, 1),
-                (90, above, 1e-14, 0.6069959804126285, 1),
-            ):
-                with self.subTest(backend=backend, lower=lower, upper=upper, days=days):
-                    option = contract(
-                        notional=365 / days,
-                        annual_coupon_rate=1,
-                        lower_bound=lower,
-                        upper_bound=upper,
-                        expiry_date=START + timedelta(days=days),
-                    )
-                    context = market(rate=0, dividend=0, volatility=volatility)
-                    self.assertAlmostEqual(
-                        engine.price(option, context), expected, delta=2e-14
-                    )
-
-    def test_seeded_threads_concurrent_reads_and_common_greek_samples(self):
-        option, context = contract(), market()
-        for sampling in ("pseudo_random", "sobol"):
-            for antithetic in (False, True):
-                engine = MonteCarloRangeAccrualEngine(
-                    path_count=4096,
-                    seed=42,
-                    sampling=sampling,
-                    antithetic=antithetic,
-                    thread_count=1,
+            with self.subTest(lower=lower, upper=upper, days=days):
+                option = contract(
+                    notional=365 / days,
+                    annual_coupon_rate=1,
+                    lower_bound=lower,
+                    upper_bound=upper,
+                    expiry_date=START + timedelta(days=days),
                 )
-                expected = engine.price(option, context)
-                for threads in (0, 4):
-                    parallel = MonteCarloRangeAccrualEngine(
-                        path_count=4096,
-                        seed=42,
-                        sampling=sampling,
-                        antithetic=antithetic,
-                        thread_count=threads,
-                    )
-                    self.assertEqual(parallel.price(option, context), expected)
-                with ThreadPoolExecutor(2) as pool:
-                    self.assertEqual(
-                        list(
-                            pool.map(
-                                lambda _, engine=engine: engine.price(option, context),
-                                range(2),
-                            )
-                        ),
-                        [expected, expected],
-                    )
-        engine = MonteCarloRangeAccrualEngine(path_count=4096, seed=42)
+                context = market(rate=0, dividend=0, volatility=volatility)
+                self.assertAlmostEqual(
+                    engine.price(option, context), expected, delta=2e-14
+                )
+
+    def test_exact_prices_and_greeks_support_concurrent_reads(self):
+        option, context = contract(), market()
+        engine = AnalyticRangeAccrualEngine()
+        expected = reference(option, context)
+        with ThreadPoolExecutor(2) as pool:
+            for value in pool.map(lambda _: engine.price(option, context), range(4)):
+                self.assertAlmostEqual(value, expected, delta=1e-10)
         result = engine.price_with_greeks(
             option, context, ["delta", "gamma"], spot_shift=0.25
         )
@@ -453,64 +417,91 @@ class RangeAccrualTests(unittest.TestCase):
         )
 
     def test_smoothed_greeks_against_independent_reference(self):
-        option = contract(expiry_date=START + timedelta(days=1))
         valuation = START - timedelta(days=3)
-        context = market(valuation, spot=99)
-        engine = MonteCarloRangeAccrualEngine(path_count=1, seed=42)
-        result = engine.price_with_greeks(
-            option, context, all_greeks=True, spot_shift=0.1
+        curve = RateTermStructure(
+            reference_time=START - timedelta(days=5),
+            times=[START + timedelta(days=3), START + timedelta(days=8)],
+            factors=[1.001, 0.997],
         )
-
-        def price(spot=99, vol=0.2, rate=0.04, when=valuation):
-            return reference(option, market(when, spot=spot, rate=rate, volatility=vol))
-
         h, v, r = 0.1, 0.0001, 0.0001
-        price()
+        for days, rate, dividend in ((1, 0.04, 0.01), (8, curve, -0.01)):
+            option = contract(expiry_date=START + timedelta(days=days))
+            context = market(valuation, spot=99, rate=rate, dividend=dividend)
+            engine = AnalyticRangeAccrualEngine()
+            result = engine.price_with_greeks(
+                option, context, all_greeks=True, spot_shift=0.1
+            )
 
-        def delta(**args):
-            return (price(spot=99 + h, **args) - price(spot=99 - h, **args)) / (2 * h)
+            def price(
+                spot=99,
+                vol=0.2,
+                rate=0.0,
+                when=valuation,
+                context=context,
+                option=option,
+            ):
+                model = context.model_parameters.replace(
+                    risk_free_rate=context.model_parameters.risk_free_curve.shifted(
+                        rate
+                    ),
+                    volatility=vol,
+                )
+                return reference(
+                    option,
+                    PricingContext(
+                        model_parameters=model,
+                        spot_price=spot,
+                        valuation_time=when,
+                        calendar=context.calendar,
+                    ),
+                )
 
-        def gamma(**args):
-            return (
-                price(spot=99 + h, **args)
-                - 2 * price(**args)
-                + price(spot=99 - h, **args)
-            ) / h**2
+            def delta(**args):
+                return (price(spot=99 + h, **args) - price(spot=99 - h, **args)) / (
+                    2 * h
+                )
 
-        expected = {
-            "delta": delta(),
-            "gamma": gamma(),
-            "speed": (
-                price(spot=99 + 2 * h)
-                - 2 * price(spot=99 + h)
-                + 2 * price(spot=99 - h)
-                - price(spot=99 - 2 * h)
-            )
-            / (2 * h**3),
-            "vega": (price(vol=0.2 + v) - price(vol=0.2 - v)) / (200 * v),
-            "vanna": (delta(vol=0.2 + v) - delta(vol=0.2 - v)) / (200 * v),
-            "zomma": (gamma(vol=0.2 + v) - gamma(vol=0.2 - v)) / (200 * v),
-            "rho": (price(rate=0.04 + r) - price(rate=0.04 - r)) / (200 * r),
-            "theta": (
-                price(when=valuation + timedelta(days=1))
-                - price(when=valuation - timedelta(days=1))
-            )
-            / 2,
-            "charm": (
-                delta(when=valuation + timedelta(days=1))
-                - delta(when=valuation - timedelta(days=1))
-            )
-            / 2,
-            "color": (
-                gamma(when=valuation + timedelta(days=1))
-                - gamma(when=valuation - timedelta(days=1))
-            )
-            / 2,
-        }
-        for name, value in expected.items():
-            with self.subTest(greek=name):
-                self.assertIsNotNone(getattr(result, name))
-                self.assertAlmostEqual(getattr(result, name), value, delta=2e-8)
+            def gamma(**args):
+                return (
+                    price(spot=99 + h, **args)
+                    - 2 * price(**args)
+                    + price(spot=99 - h, **args)
+                ) / h**2
+
+            expected = {
+                "delta": delta(),
+                "gamma": gamma(),
+                "speed": (
+                    price(spot=99 + 2 * h)
+                    - 2 * price(spot=99 + h)
+                    + 2 * price(spot=99 - h)
+                    - price(spot=99 - 2 * h)
+                )
+                / (2 * h**3),
+                "vega": (price(vol=0.2 + v) - price(vol=0.2 - v)) / (200 * v),
+                "vanna": (delta(vol=0.2 + v) - delta(vol=0.2 - v)) / (200 * v),
+                "zomma": (gamma(vol=0.2 + v) - gamma(vol=0.2 - v)) / (200 * v),
+                "rho": (price(rate=r) - price(rate=-r)) / (200 * r),
+                "theta": (
+                    price(when=valuation + timedelta(days=1))
+                    - price(when=valuation - timedelta(days=1))
+                )
+                / 2,
+                "charm": (
+                    delta(when=valuation + timedelta(days=1))
+                    - delta(when=valuation - timedelta(days=1))
+                )
+                / 2,
+                "color": (
+                    gamma(when=valuation + timedelta(days=1))
+                    - gamma(when=valuation - timedelta(days=1))
+                )
+                / 2,
+            }
+            for name, value in expected.items():
+                with self.subTest(greek=name):
+                    self.assertIsNotNone(getattr(result, name))
+                    self.assertAlmostEqual(getattr(result, name), value, delta=2e-8)
 
     def test_curve_knot_uses_right_hand_time_greek_before_effective(self):
         valuation = START - timedelta(days=3)
@@ -522,7 +513,7 @@ class RangeAccrualTests(unittest.TestCase):
         )
         context = market(valuation, rate=rate)
         after = market(valuation + timedelta(days=1), rate=rate)
-        result = MonteCarloRangeAccrualEngine(path_count=1).price_with_greeks(
+        result = AnalyticRangeAccrualEngine().price_with_greeks(
             option, context, "theta"
         )
         self.assertAlmostEqual(
@@ -531,18 +522,16 @@ class RangeAccrualTests(unittest.TestCase):
             delta=1e-12,
         )
 
-    def test_active_sobol_dimension_and_current_spot_stencil(self):
-        engine = MonteCarloRangeAccrualEngine(path_count=1, sampling="sobol")
+    def test_long_contract_and_current_spot_stencil(self):
+        engine = AnalyticRangeAccrualEngine()
         option = contract(expiry_date=START + timedelta(days=21204))
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER, engine.price, option, market()
+        self.assertAlmostEqual(
+            engine.price(option, market()), reference(option, market()), delta=1e-8
         )
-        self.assertGreater(
-            engine.price(
-                option.replace(realized_hit_count=20000),
-                market(START + timedelta(days=20001)),
-            ),
-            0,
+        seasoned = option.replace(realized_hit_count=20000)
+        context = market(START + timedelta(days=20001))
+        self.assertAlmostEqual(
+            engine.price(seasoned, context), reference(seasoned, context), delta=1e-8
         )
         current = contract(realized_hit_count=0)
         for spot, available in ((95.005, False), (95.1, True)):
@@ -551,8 +540,8 @@ class RangeAccrualTests(unittest.TestCase):
             )
             self.assertEqual(result.delta is not None, available)
 
-    def test_event_availability_and_configuration_validation(self):
-        engine = MonteCarloRangeAccrualEngine(path_count=32)
+    def test_event_availability_and_shift_validation(self):
+        engine = AnalyticRangeAccrualEngine()
         option = contract(realized_hit_count=0)
         result = engine.price_with_greeks(
             option, market(START + timedelta(days=1), spot=95), all_greeks=True
@@ -585,75 +574,16 @@ class RangeAccrualTests(unittest.TestCase):
             "delta",
             volatility_shift=0,
         )
-        for values in (
-            {"path_count": 0},
-            {"path_count": 10_000_001},
-            {"path_count": 3, "sampling": "sobol"},
+        for field in (
+            "path_count",
+            "seed",
+            "backend",
+            "thread_count",
+            "sampling",
+            "antithetic",
         ):
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
-                MonteCarloRangeAccrualEngine,
-                **values,
-            )
-        self.assert_category(
-            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
-            MonteCarloRangeAccrualEngine,
-            path_count=4096,
-            sampling="sobol",
-            backend="cuda",
-        )
-        for values in (
-            {"path_count": True},
-            {"path_count": 3.5},
-            {"seed": True},
-            {"thread_count": 1.5},
-        ):
-            with self.assertRaises(TypeError):
-                MonteCarloRangeAccrualEngine(**values)
-
-    @unittest.skipUnless(
-        os.getenv("KIYOSI_TEST_CUDA") == "enabled", "CUDA runtime tests disabled"
-    )
-    def test_cuda_prices_curves_greeks_and_current_settlement(self):
-        option = contract()
-        rate = RateTermStructure(
-            reference_time=START,
-            times=[START + timedelta(days=5), option.expiry_date],
-            factors=[1.001, 0.997],
-        )
-        engine = MonteCarloRangeAccrualEngine(
-            path_count=131072, seed=42, backend="cuda", antithetic=True
-        )
-        for context in (market(), market(rate=rate)):
-            self.assertAlmostEqual(
-                engine.price(option, context), reference(option, context), delta=0.015
-            )
-        single = contract(expiry_date=START + timedelta(days=1))
-        context = market(START - timedelta(days=3), spot=99)
-        gpu = engine.price_with_greeks(single, context, all_greeks=True, spot_shift=0.1)
-        cpu = MonteCarloRangeAccrualEngine(path_count=1, seed=42).price_with_greeks(
-            single, context, all_greeks=True, spot_shift=0.1
-        )
-        for name in (
-            "price",
-            "delta",
-            "gamma",
-            "speed",
-            "theta",
-            "charm",
-            "color",
-            "vega",
-            "vanna",
-            "zomma",
-            "rho",
-        ):
-            self.assertAlmostEqual(getattr(gpu, name), getattr(cpu, name), delta=2e-8)
-        settled = contract(expiry_date=START + timedelta(days=2), realized_hit_count=1)
-        self.assertAlmostEqual(
-            engine.price(settled, market(settled.expiry_date)),
-            2 * 1000 * 0.12 / 365,
-            delta=1e-12,
-        )
+            with self.subTest(field=field), self.assertRaises(TypeError):
+                AnalyticRangeAccrualEngine(**{field: 1})
 
 
 if __name__ == "__main__":

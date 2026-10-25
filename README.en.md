@@ -22,7 +22,7 @@ The project is in Alpha. Breaking API changes are possible.
 | Geometric and arithmetic average-price Asian options | Geometric closed-form formulas, arithmetic approximations, and Monte Carlo |
 | Snowballs and phoenixes | Quadrature, finite differences, and Monte Carlo |
 | Accumulators | Quadrature, finite differences and Monte Carlo |
-| Range accruals | Monte Carlo |
+| Range accruals | Analytic marginal probabilities |
 
 The library also provides:
 
