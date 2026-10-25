@@ -64,7 +64,7 @@ Result<double> continuous_price(const BarrierOption& option, const PricingContex
     const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double sigma = parameters.volatility();
     const double width = sigma * std::sqrt(time);
-    const double drift = (parameters.risk_free_rate() - parameters.dividend_yield() - 0.5 * sigma * sigma) * time;
+    const double drift = ((*parameters.risk_free_rate()) - (*parameters.dividend_yield()) - 0.5 * sigma * sigma) * time;
     const double barrier = log_price_ratio(option.barrier_level(), context.spot_price());
     const double strike = log_price_ratio(option.strike(), context.spot_price());
     if (!(width > 0.0) || !std::isfinite(width) || !std::isfinite(drift))
@@ -80,7 +80,7 @@ Result<double> continuous_price(const BarrierOption& option, const PricingContex
     const bool knock_in = option.barrier_terms().is_knock_in();
     const bool up = option.barrier_terms().is_up();
     const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
-    const double log_discount = -parameters.risk_free_rate() * time;
+    const double log_discount = -(*parameters.risk_free_rate()) * time;
     const auto integrand = [&](double z) {
         const double terminal = drift + width * z;
         const bool live = up ? terminal < barrier : terminal > barrier;
@@ -113,7 +113,7 @@ Result<double> continuous_price(const BarrierOption& option, const PricingContex
     }
     if (!knock_in && option.rebate_timing() == RebateTiming::at_hit && option.rebate() != 0.0) {
         const auto rebate = barrier_hit_value(option.rebate(), std::abs(barrier), up, drift / time,
-                                              sigma, time, parameters.risk_free_rate());
+                                              sigma, time, (*parameters.risk_free_rate()));
         if (!rebate) return std::unexpected(rebate.error());
         result.add(*rebate);
     }
@@ -124,8 +124,8 @@ std::array<double, 2> vanilla_limit(const BarrierOption& option, double remainin
 {
     const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
     if ((sign > 0.0) != high) return {};
-    return {-sign * scaled_exponential(option.strike(), -context.model_parameters().risk_free_rate() * remaining),
-            sign * std::exp(-context.model_parameters().dividend_yield() * remaining)};
+    return {-sign * scaled_exponential(option.strike(), -(*context.model_parameters().risk_free_rate()) * remaining),
+            sign * std::exp(-(*context.model_parameters().dividend_yield()) * remaining)};
 }
 
 std::array<double, 2> event_limit(const BarrierOption& option, double remaining, const PricingContext& context, bool high)
@@ -134,7 +134,7 @@ std::array<double, 2> event_limit(const BarrierOption& option, double remaining,
     if (hit == option.barrier_terms().is_knock_in()) return vanilla_limit(option, remaining, context, high);
     const double discount = !option.barrier_terms().is_knock_in() && option.rebate_timing() == RebateTiming::at_hit
                                 ? 0.0
-                                : -context.model_parameters().risk_free_rate() * remaining;
+                                : -(*context.model_parameters().risk_free_rate()) * remaining;
     return {scaled_exponential(option.rebate(), discount), 0.0};
 }
 
@@ -169,7 +169,7 @@ Result<Layer> event_layer(const BarrierOption& option, const PricingContext& con
 {
     const double remaining = actual_365_fixed_year_fraction(date, option.expiry_date());
     const bool knock_in = option.barrier_terms().is_knock_in();
-    const double rate = context.model_parameters().risk_free_rate();
+    const double rate = (*context.model_parameters().risk_free_rate());
     const double rebate = scaled_exponential(option.rebate(),
                                              !knock_in && option.rebate_timing() == RebateTiming::at_hit ? 0.0 : -rate * remaining);
     Curve vanilla_curve;
@@ -215,7 +215,7 @@ Result<double> scheduled_price(const BarrierOption& option, const PricingContext
         if (start_of_day(date) > context.valuation_time()) dates.push_back(date);
     const auto& parameters = context.model_parameters();
     const double sigma = parameters.volatility();
-    const double drift_rate = parameters.risk_free_rate() - parameters.dividend_yield() - 0.5 * sigma * sigma;
+    const double drift_rate = (*parameters.risk_free_rate()) - (*parameters.dividend_yield()) - 0.5 * sigma * sigma;
     const double horizon = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double extent = settings.integration_standard_deviations * sigma * std::sqrt(horizon);
     const double barrier = log_price_ratio(option.barrier_level(), option.strike());
@@ -226,7 +226,7 @@ Result<double> scheduled_price(const BarrierOption& option, const PricingContext
         if (!(deviation > 0.0) || !std::isfinite(deviation) || !std::isfinite(drift))
             return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature transition is not representable"});
         return checked_price(terminal_layer(option).integrate(current, option.strike(), drift, deviation,
-                                                              -parameters.risk_free_rate() * horizon));
+                                                              -(*parameters.risk_free_rate()) * horizon));
     }
     const double lower = std::min({0.0, barrier, current}) + std::min(0.0, drift_rate * horizon) - extent;
     const double upper = std::max({0.0, barrier, current}) + std::max(0.0, drift_rate * horizon) + extent;
@@ -250,7 +250,7 @@ Result<double> scheduled_price(const BarrierOption& option, const PricingContext
                                        : actual_365_fixed_year_fraction(dates[event - 1], dates[event]);
         const double drift = drift_rate * time;
         const double deviation = sigma * std::sqrt(time);
-        const double discount = -parameters.risk_free_rate() * time;
+        const double discount = -(*parameters.risk_free_rate()) * time;
         if (!(deviation > 0.0) || !std::isfinite(deviation) || !std::isfinite(drift))
             return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature transition is not representable"});
         if (event == 0) {
@@ -294,6 +294,7 @@ Result<double> price_barrier(const BarrierOption& option, const PricingContext& 
 
 Result<double> QuadratureBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     std::optional<PreparedCurve> prepared;
     bool schedule_validated = false;
     return price_barrier(option, context, settings_, prepared, schedule_validated);
@@ -302,6 +303,7 @@ Result<double> QuadratureBarrierEngine::price(const BarrierOption& option, const
 Result<PricingResult> QuadratureBarrierEngine::price_with_greeks(
     const BarrierOption& option, const PricingContext& context, GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::evaluate_greeks(*this, option, context, greeks, settings,
                                    [&](const auto& engine) -> Result<PricingResult> {
                                        std::optional<PreparedCurve> prepared;

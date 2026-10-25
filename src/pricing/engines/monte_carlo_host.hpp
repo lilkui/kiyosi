@@ -241,7 +241,7 @@ Result<std::array<double, 3>> cpu_rate_prices(
     std::size_t step_count = 1;
     initial[0].payoff = base_price;
     for (std::size_t i = base_price ? 1 : 0; i < initial.size(); ++i) {
-        const double rate = context.model_parameters().risk_free_rate() + std::array{0.0, h, -h}[i];
+        const double rate = (*context.model_parameters().risk_free_rate()) + std::array{0.0, h, -h}[i];
         const auto shifted = shifted_context(context, context.spot_price(), context.model_parameters().volatility(), rate, context.valuation_time());
         if (!shifted) return std::unexpected(shifted.error());
         auto prepared = prepare(*shifted);
@@ -324,8 +324,8 @@ __forceinline
 
 inline Result<SimulationStep> simulation_step(const PricingContext& context, Timestamp previous, Date current)
 {
-    const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
+    const double rate = (*context.model_parameters().risk_free_rate());
+    const double dividend = (*context.model_parameters().dividend_yield());
     const double sigma = context.model_parameters().volatility();
     const double dt = actual_365_fixed_year_fraction(previous, current);
     const double exponent = -rate * actual_365_fixed_year_fraction(context.valuation_time(), current);

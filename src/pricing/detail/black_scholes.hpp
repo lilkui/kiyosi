@@ -7,6 +7,7 @@
 #include <kiyosi/instruments/vanilla.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/detail/pricing.hpp>
 
 #include "math.hpp"
 
@@ -78,8 +79,11 @@ inline Result<PricingResult> price_at_volatility(
         return make_pricing_result(value);
     }
 
-    const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
+    if (auto valid = validate_curve_horizon(context, start_of_day(option.expiry_date())); !valid)
+        return std::unexpected(valid.error());
+    const auto& parameters = context.model_parameters();
+    const double rate = parameters.has_flat_rates() ? (*parameters.risk_free_rate()) : -curve_log_factor(parameters.risk_free_curve(), context.valuation_time(), 0.0, year_fraction) / year_fraction;
+    const double dividend = parameters.has_flat_rates() ? (*parameters.dividend_yield()) : -curve_log_factor(parameters.dividend_curve(), context.valuation_time(), 0.0, year_fraction) / year_fraction;
     const double sqrt_time = std::sqrt(year_fraction);
     const double volatility_time = volatility * sqrt_time;
     if (!std::isfinite(volatility_time)) {
@@ -143,6 +147,8 @@ inline Result<PricingResult> price_at_volatility(
     if (requested_output.empty()) return make_pricing_result(value);
 
     const auto want = [&](Greek greek) { return requested_output.has(greek); };
+    const double instant_rate = curve_forward_rate(parameters.risk_free_curve(), context.valuation_time(), 0.0);
+    const double instant_dividend = curve_forward_rate(parameters.dividend_curve(), context.valuation_time(), 0.0);
     const auto discounted_probability = [&](double factor) {
         const double weighted_discount = factor * dividend_discount_factor;
         return sign * d1 < -10.0 || !std::isnormal(dividend_discount_factor) || !std::isfinite(weighted_discount)
@@ -170,17 +176,17 @@ inline Result<PricingResult> price_at_volatility(
                              : 0.0;
     std::optional<double> speed, theta, charm, color, vega, vanna, zomma;
     const double carry = want(Greek::theta)
-                             ? sign * dividend * asset_value - sign * rate * cash_value
+                             ? sign * instant_dividend * asset_value - sign * instant_rate * cash_value
                              : 0.0;
     if (regular) {
         if (want(Greek::speed)) speed = -weighted_density(log_gamma_weight - log_spot, 1.0 + d1 / volatility_time);
         if (want(Greek::theta)) theta = (-weighted_density(log_spot + log_discount + log_volatility - std::numbers::ln2 - log_root_time) + carry) / 365.0;
-        if (want(Greek::charm)) charm = (-weighted_density(log_discount, (rate - dividend) / volatility_time - 0.5 * d2 / year_fraction) +
-                                         sign * discounted_probability(dividend)) /
+        if (want(Greek::charm)) charm = (-weighted_density(log_discount, (instant_rate - instant_dividend) / volatility_time - 0.5 * d2 / year_fraction) +
+                                         sign * discounted_probability(instant_dividend)) /
                                         365.0;
         if (want(Greek::color)) color =
-                                    (weighted_density(log_gamma_weight, dividend) +
-                                     std::copysign(1.0, d1) * weighted_density(log_gamma_weight - log_volatility - log_root_time + std::log(std::abs(d1)), rate - dividend) +
+                                    (weighted_density(log_gamma_weight, instant_dividend) +
+                                     std::copysign(1.0, d1) * weighted_density(log_gamma_weight - log_volatility - log_root_time + std::log(std::abs(d1)), instant_rate - instant_dividend) +
                                      weighted_density(log_gamma_weight - std::numbers::ln2 - std::log(year_fraction), 1.0 - d1 * d2)) /
                                     365.0;
         if (want(Greek::vega)) vega = weighted_density(log_spot + log_discount + log_root_time - std::log(percentage_points_per_unit));
@@ -189,7 +195,7 @@ inline Result<PricingResult> price_at_volatility(
     } else {
         if (want(Greek::speed)) speed = 0.0;
         if (want(Greek::theta)) theta = carry / 365.0;
-        if (want(Greek::charm)) charm = sign * discounted_probability(dividend) / 365.0;
+        if (want(Greek::charm)) charm = sign * discounted_probability(instant_dividend) / 365.0;
         if (want(Greek::color)) color = 0.0;
         if (want(Greek::vega)) vega = 0.0;
         if (want(Greek::vanna)) vanna = 0.0;

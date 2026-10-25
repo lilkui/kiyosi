@@ -20,6 +20,18 @@ try {
     if (!binomial || !analytic || std::abs(*binomial - *analytic) > 0.02) return 1;
     const auto volatility = implied_volatility(AnalyticVanillaEngine{}, *option, *context, *analytic);
     if (!volatility || std::abs(*volatility - parameters->volatility()) > 1e-8) return 1;
+    const auto curve = make_rate_term_structure(start_of_day(start), {start_of_day(end)}, {std::exp(-0.04)});
+    if (!curve) return 1;
+    const auto curve_parameters = make_bsm_parameters(*curve, 0.01, 0.2);
+    if (!curve_parameters) return 1;
+    const auto curve_context = make_pricing_context(*curve_parameters, 100.0, start);
+    if (!curve_context) return 1;
+    const auto curve_price = AnalyticVanillaEngine{}.price(*option, *curve_context);
+    if (!curve_price || std::abs(*curve_price - *analytic) > 1e-10) return 1;
+    const auto touch = make_cash_one_touch_up(start, end, 120.0, 10.0);
+    if (!touch) return 1;
+    const auto touch_price = FiniteDifferenceBinaryBarrierEngine{}.price(*touch, *curve_context);
+    if (!touch_price || *touch_price <= 0.0 || *touch_price > 10.0) return 1;
     const auto accumulator = make_accumulator({100.0, 110.0, 1.0, 2.0, 3.0, start, end});
     if (!accumulator) return 1;
     const auto settled_context = make_pricing_context(*parameters, 110.0, end);

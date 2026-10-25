@@ -11,7 +11,10 @@ namespace kiyosi {
 class KIYOSI_EXPORT MonteCarloAsianEngine;
 [[nodiscard]] Result<MonteCarloAsianEngine> make_monte_carlo_asian_engine(MonteCarloSettings settings);
 
-/// Continuous arithmetic/geometric average-price valuation under constant-coefficient BSM.
+/// Continuous arithmetic/geometric average-price valuation under BSM with flat volatility.
+/// Arithmetic supports deterministic risk-free/dividend term structures on CPU and CUDA.
+/// Geometric requires scalar or explicitly flat rate curves before expiry;
+/// node-based curves return unsupported_operation even when their nodes appear flat.
 /// Arithmetic uses step_count equal trapezoid intervals over the remaining averaging window,
 /// with the first interval analytically conditioned out. A forward-start lead is separate.
 /// Geometric and single-fixing prices sample their exact lognormal distribution; steps are unused.

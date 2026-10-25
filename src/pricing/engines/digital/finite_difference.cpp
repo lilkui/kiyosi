@@ -36,8 +36,8 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     if (time == 0.0)
         return make_pricing_result(binary_payoff_value(option.option_type(), strike, payout, asset, spot));
 
-    const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
+    const double rate = (*context.model_parameters().risk_free_rate());
+    const double dividend = (*context.model_parameters().dividend_yield());
     const double volatility = context.model_parameters().volatility();
     const int asset_step_count = settings.asset_step_count;
     const auto space = make_spatial_grid(settings, default_finite_difference_upper_boundary(option, context), {spot, strike});
@@ -119,23 +119,27 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
 
 Result<double> FiniteDifferenceDigitalEngine::price(const CashOrNothingOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_value(price_digital_fd(option, context, settings_, GreeksRequest{}));
 }
 
 Result<double> FiniteDifferenceDigitalEngine::price(const AssetOrNothingOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_value(price_digital_fd(option, context, settings_, GreeksRequest{}));
 }
 
 Result<PricingResult> FiniteDifferenceDigitalEngine::price_with_greeks(const CashOrNothingOption& option, const PricingContext& context,
                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return price_digital_fd(option, shifted, engine.settings(), request, settings.spot_shift); });
 }
 
 Result<PricingResult> FiniteDifferenceDigitalEngine::price_with_greeks(const AssetOrNothingOption& option, const PricingContext& context,
                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return price_digital_fd(option, shifted, engine.settings(), request, settings.spot_shift); });
 }
 

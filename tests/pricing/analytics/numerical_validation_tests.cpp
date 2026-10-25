@@ -120,8 +120,8 @@ TEST_CASE("Monte Carlo batch orchestration preserves settled slots and failures"
     std::vector<double> prepared_rates;
     int simulated_paths = 0;
     const auto fixed = cpu_rate_prices<double, State>(context, {3, 42}, 0.25, 9.0, [&](const PricingContext& shifted) -> Result<std::pair<double, State>> {
-            prepared_rates.push_back(shifted.model_parameters().risk_free_rate());
-            return std::pair{0.0, State{shifted.spot_price(), shifted.model_parameters().risk_free_rate()}}; }, [&](const auto&, const auto&, auto&) -> Result<std::array<double, 3>> {
+            prepared_rates.push_back((*shifted.model_parameters().risk_free_rate()));
+            return std::pair{0.0, State{shifted.spot_price(), (*shifted.model_parameters().risk_free_rate())}}; }, [&](const auto&, const auto&, auto&) -> Result<std::array<double, 3>> {
             ++simulated_paths;
             return std::array{1.0, 2.0, 3.0}; });
     REQUIRE(fixed);
@@ -339,7 +339,7 @@ TEST_CASE("Numerical Greeks keep model and time spot stencils contiguous", "[mon
         Result<double> price(const EuropeanOption& option, const PricingContext& context) const
         {
             const auto& model = context.model_parameters();
-            models.emplace_back(model.volatility(), model.risk_free_rate(), context.valuation_time());
+            models.emplace_back(model.volatility(), (*model.risk_free_rate()), context.valuation_time());
             return make_monte_carlo_vanilla_engine({127, 2, 42}).value().price(option, context);
         }
     };

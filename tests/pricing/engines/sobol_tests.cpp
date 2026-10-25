@@ -207,7 +207,7 @@ TEST_CASE("Sobol implied volatility and coupon requests reuse their seeded estim
         CHECK(*recovered >= solve.lower_bound);
         CHECK(*recovered <= solve.upper_bound);
         const auto shifted = *make_pricing_context(
-            *make_bsm_parameters(context.model_parameters().risk_free_rate(), context.model_parameters().dividend_yield(), *recovered),
+            *make_bsm_parameters((*context.model_parameters().risk_free_rate()), (*context.model_parameters().dividend_yield()), *recovered),
             context.spot_price(), context.valuation_time(), context.calendar());
         CAPTURE(antithetic, *recovered, typeid(option).name());
         const auto repriced = engine.price(option, shifted);

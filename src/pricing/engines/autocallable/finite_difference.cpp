@@ -254,10 +254,9 @@ Result<std::array<PricingResult, count>> rollback_autocallables(
     const auto& space = *workspace.space;
     const auto& assets = workspace.assets;
     const auto& grid = workspace.grid;
-    const DiffusionParameters parameters{context.model_parameters().risk_free_rate(), context.model_parameters().dividend_yield(),
-                                         context.model_parameters().volatility(), scheme_theta(settings.scheme),
-                                         space.sinh_scale == 0.0 ? 0.0 : space.spacing, space.nodes.empty() ? nullptr : &space};
-    if (auto stable = check_explicit_stability(settings.scheme, grid, parameters, space.asset_step_count); !stable)
+    const auto parameters = diffusion_parameters(context, scheme_theta(settings.scheme),
+                                                 space.sinh_scale == 0.0 ? 0.0 : space.spacing, space.nodes.empty() ? nullptr : &space);
+    if (auto stable = check_curve_explicit_stability(settings.scheme, grid, parameters, space.asset_step_count, context); !stable)
         return std::unexpected(stable.error());
     for (auto& state : states)
         state.initialize();
@@ -269,8 +268,10 @@ Result<std::array<PricingResult, count>> rollback_autocallables(
         const auto substeps = damping.next(parameters.theta);
         auto step_parameters = parameters;
         step_parameters.theta = substeps.theta;
-        stepper.set_parameters(step_parameters);
         for (int substep = 0; substep < substeps.count; ++substep) {
+            const double dt = grid.time_steps[step] / substeps.count;
+            const double time = grid.times[step] + dt * (substeps.count - substep - 1);
+            stepper.set_parameters(diffusion_interval(step_parameters, context, time, time + dt));
             const auto advance = [&]<bool layered>() {
                 constexpr auto layers = count * (layered ? 2 : 1);
                 std::array<std::span<const double>, layers> old;
@@ -350,6 +351,8 @@ Result<PreparedAutocallable> prepare_autocallable(
         return PreparedAutocallable{program, initial, *value};
     }
 
+    if (const auto covered = validate_curve_horizon(context, start_of_day(note.expiry_date())); !covered)
+        return std::unexpected(covered.error());
     const Timestamp valuation = context.valuation_time();
 
     const bool monitors_daily = program.daily_knock_in;
@@ -383,10 +386,12 @@ Result<PreparedAutocallable> prepare_autocallable(
                 anchors.push_back(value);
             }
         }
-        grid = make_finite_difference_time_grid(valuation, note.expiry_date(), settings.time_step_count, std::move(anchors));
+        grid = curve_finite_difference_time_grid(context, note.expiry_date(), settings.time_step_count, std::move(anchors));
         double nearest = grid.times.back();
         if (!observation_events.empty()) nearest = std::min(nearest, observation_events.front().time);
         if (!trading_times.empty()) nearest = std::min(nearest, trading_times.front());
+        const auto knots = curve_times(context, start_of_day(note.expiry_date()));
+        if (!knots.empty()) nearest = std::min(nearest, knots.front());
         const int near_event_steps = daily_grid ? 64 : 128;
         // The global year step budget must still resolve an observation one hour from valuation.
         refine_initial_finite_difference_time_grid(grid, nearest, near_event_steps);

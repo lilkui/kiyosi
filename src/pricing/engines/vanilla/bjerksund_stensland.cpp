@@ -156,13 +156,14 @@ Result<double> bjerksund_call(double spot, double strike, double time, double ra
 
 Result<double> BjerksundStenslandVanillaEngine::price(const AmericanOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
     const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price();
     const double strike = option.strike();
-    const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
+    const double rate = (*context.model_parameters().risk_free_rate());
+    const double dividend = (*context.model_parameters().dividend_yield());
     const double volatility = context.model_parameters().volatility();
     const double transformed_rate = option.option_type() == OptionType::call ? rate : dividend;
     if (time > 0.0 && transformed_rate < 0.0)
@@ -187,6 +188,7 @@ Result<PricingResult> BjerksundStenslandVanillaEngine::price_with_greeks(
     const AmericanOption& option, const PricingContext& context,
     GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 

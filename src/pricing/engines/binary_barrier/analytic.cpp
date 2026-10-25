@@ -45,8 +45,8 @@ Result<double> vanilla_digital(const BinaryBarrierContractView& option, const Pr
 {
     if (!option.option_type)
         return checked_price(option.asset_settlement
-                                 ? scaled_exponential(context.spot_price(), -context.model_parameters().dividend_yield() * time)
-                                 : scaled_exponential(option.payout, -context.model_parameters().risk_free_rate() * time));
+                                 ? scaled_exponential(context.spot_price(), -(*context.model_parameters().dividend_yield()) * time)
+                                 : scaled_exponential(option.payout, -(*context.model_parameters().risk_free_rate()) * time));
     const auto& terms = *option.barrier_terms;
     const AnalyticDigitalEngine engine;
     const auto price = option.asset_settlement
@@ -97,7 +97,7 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
         return knock_in ? 0.0 : vanilla_digital(option, context, time);
     if (option.option_type && terminal_payoff_requires_barrier_touch(terms, *option.option_type, option.strike))
         return knock_in ? vanilla_digital(option, context, time) : Result<double>{0.0};
-    const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield();
+    const double rate = (*context.model_parameters().risk_free_rate()), dividend = (*context.model_parameters().dividend_yield());
     const double volatility = context.model_parameters().volatility(), volatility_time = volatility * std::sqrt(time);
     const auto shift_result = analytic_barrier_log_shift(terms, spot, volatility);
     if (!shift_result) return std::unexpected(shift_result.error());
@@ -177,6 +177,7 @@ Result<double> implied_volatility<AnalyticBinaryBarrierEngine, BinaryBarrierOpti
     const AnalyticBinaryBarrierEngine&, const BinaryBarrierOption& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return implied_volatility(BinaryBarrierPricer{}, option, context, observed_price, settings);
 }
 
@@ -185,29 +186,34 @@ Result<double> implied_volatility<AnalyticBinaryBarrierEngine, TouchOption>(
     const AnalyticBinaryBarrierEngine&, const TouchOption& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return implied_volatility(BinaryBarrierPricer{}, option, context, observed_price, settings);
 }
 
 Result<double> AnalyticBinaryBarrierEngine::price(
     const BinaryBarrierOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return BinaryBarrierPricer{}.price(option, context);
 }
 
 Result<double> AnalyticBinaryBarrierEngine::price(
     const TouchOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return BinaryBarrierPricer{}.price(option, context);
 }
 Result<PricingResult> AnalyticBinaryBarrierEngine::price_with_greeks(const BinaryBarrierOption& option, const PricingContext& context,
                                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_with_greeks(BinaryBarrierPricer{}, option, context, greeks, settings);
 }
 
 Result<PricingResult> AnalyticBinaryBarrierEngine::price_with_greeks(const TouchOption& option, const PricingContext& context,
                                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_with_greeks(BinaryBarrierPricer{}, option, context, greeks, settings);
 }
 

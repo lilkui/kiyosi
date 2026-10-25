@@ -74,45 +74,99 @@ UNSUPPORTED_OPERATION
 void bind_market(nb::module_& module)
 {
     const auto omitted = nb::module_::import_("builtins").attr("object")();
+    auto curve = nb::class_<RateTermStructure>(module, "RateTermStructure", R"doc(Immutable owning rate curve with Actual/365 Fixed time.
+
+Node factors are log-linearly interpolated from an implicit factor of one at
+reference_time. Nodes must increase strictly after the reference and factors
+must be finite and positive. Factors may exceed one. Extrapolation is rejected.
+Concurrent reads are safe; returned node lists and factors are owning copies.)doc");
+    curve.def(nb::new_([](PythonValuationTime reference_time, PythonTimeSequence times, PythonRealSequence factors) {
+                  std::vector<Timestamp> nodes;
+                  for (const nb::handle time : nb::borrow<nb::iterable>(times))
+                      nodes.push_back(valuation_time(time));
+                  return unwrap(make_rate_term_structure(valuation_time(reference_time), std::move(nodes), real_sequence(factors, "factors")));
+              }),
+              nb::kw_only(), "reference_time"_a, "times"_a, "factors"_a,
+              "Create a dated factor curve; dates mean midnight UTC and datetimes must be timezone-aware.");
+    curve.def_static("flat", [](PythonReal rate, PythonValuationTime reference_time) { return unwrap(make_flat_rate(real_number(rate, "rate"), reference_time.is_none() ? std::nullopt : std::optional{valuation_time(reference_time)})); }, "rate"_a, nb::kw_only(), "reference_time"_a = nb::none(), "Create a finite continuous flat rate, optionally restricted by a reference timestamp.");
+    curve.def_prop_ro("reference_time", [](const RateTermStructure& self) -> std::optional<PythonTimestampObject> {
+        if (const auto time = self.reference_time()) return python_timestamp(*time);
+        return std::nullopt;
+    });
+    curve.def_prop_ro("max_time", [](const RateTermStructure& self) -> std::optional<PythonTimestampObject> {
+        if (const auto time = self.max_time()) return python_timestamp(*time);
+        return std::nullopt;
+    });
+    curve.def_prop_ro("is_flat", &RateTermStructure::is_flat);
+    curve.def_prop_ro("nodes", [](const RateTermStructure& self) {
+        nb::typed<nb::list, PythonTimestampAnnotation> times;
+        for (const Timestamp time : self.nodes())
+            times.append(python_timestamp(time));
+        return times;
+    });
+    curve.def_prop_ro("factors", &RateTermStructure::factors);
+    curve.def("factor", [](const RateTermStructure& self, PythonValuationTime start, PythonValuationTime end) { return unwrap(self.factor(valuation_time(start), valuation_time(end))); }, "start"_a, "end"_a, "Return the interval factor; covered, ordered timestamps are required. Underflow returns zero.");
+    curve.def("log_factor", [](const RateTermStructure& self, PythonValuationTime start, PythonValuationTime end) { return unwrap(self.log_factor(valuation_time(start), valuation_time(end))); }, "start"_a, "end"_a, "Return the interval log factor without exponentiation.");
+    curve.def("forward_rate", [](const RateTermStructure& self, PythonValuationTime time) { return unwrap(self.forward_rate(valuation_time(time))); }, "time"_a, "Return the right-hand forward rate, or the left interval at the final node.");
+    curve.def("shifted", [](const RateTermStructure& self, PythonReal shift) { return unwrap(self.shifted(real_number(shift, "shift"))); }, "shift"_a, "Return an owning copy with a parallel continuously compounded rate shift.");
+    bind_value_equality(curve);
+    bind_repr(curve, "RateTermStructure", {"reference_time", "is_flat", "nodes", "factors"});
+
+    const auto rate_input = [](nb::handle value, std::string_view field) -> std::variant<double, RateTermStructure> {
+        if (nb::isinstance<RateTermStructure>(value)) return nb::cast<RateTermStructure>(value);
+        return real_number(value, field);
+    };
     auto parameters = nb::class_<BlackScholesMertonParameters>(
                           module, "BlackScholesMertonParameters", R"doc(Immutable validated Black-Scholes-Merton market parameters.)doc")
-                          .def(nb::new_([](PythonReal risk_free_rate, PythonReal dividend_yield,
-                                           PythonReal volatility) {
-                                   return unwrap(make_bsm_parameters(
-                                       real_number(risk_free_rate, "risk_free_rate"),
-                                       real_number(dividend_yield, "dividend_yield"),
-                                       real_number(volatility, "volatility")));
+                          .def(nb::new_([rate_input](PythonRate risk_free_rate, PythonRate dividend_yield,
+                                                     PythonReal volatility) {
+                                   const auto risk = rate_input(risk_free_rate, "risk_free_rate");
+                                   const auto dividend = rate_input(dividend_yield, "dividend_yield");
+                                   const auto sigma = real_number(volatility, "volatility");
+                                   return std::visit([sigma](const auto& risk_value, const auto& dividend_value) {
+                                       return unwrap(make_bsm_parameters(risk_value, dividend_value, sigma));
+                                   },
+                                                     risk, dividend);
                                }),
                                nb::kw_only(), "risk_free_rate"_a, "dividend_yield"_a, "volatility"_a,
                                R"doc(Create validated Black-Scholes-Merton parameters.
 
 Parameters
 ----------
-risk_free_rate : float
-    Continuously compounded annual risk-free rate.
-dividend_yield : float
-    Continuously compounded annual dividend yield.
+risk_free_rate : float or RateTermStructure
+    Continuous annual risk-free rate or owning discount-factor curve.
+dividend_yield : float or RateTermStructure
+    Continuous annual dividend yield or owning continuous-yield factor curve.
 volatility : float
     Positive annualized volatility.
 
 Raises
 ------
 TypeError
-    If a value is not a real number.
+    If a rate is neither a curve nor a real number, or volatility is not real.
 OverflowError
     If a value cannot be represented as a C++ ``double``.
 KiyosiError
     If a value is non-finite or volatility is not positive.)doc")
-                          .def_prop_ro("risk_free_rate", &BlackScholesMertonParameters::risk_free_rate,
-                                       "Continuously compounded annual risk-free rate.")
-                          .def_prop_ro("dividend_yield", &BlackScholesMertonParameters::dividend_yield,
-                                       "Continuously compounded annual dividend yield.")
-                          .def_prop_ro("volatility", &BlackScholesMertonParameters::volatility,
-                                       "Positive annualized volatility.");
-    parameters.def("replace", [omitted](const BlackScholesMertonParameters& self, PythonReal risk_free_rate, PythonReal dividend_yield, PythonReal volatility) {
+                          .def_prop_ro("risk_free_rate", [](const BlackScholesMertonParameters& self) -> PythonRateValue {
+                              if (const auto rate = self.risk_free_curve().flat_rate()) return nb::float_(*rate);
+                              return nb::cast(self.risk_free_curve(), nb::rv_policy::copy); }, "Flat annual risk-free rate or an owning node-based curve.")
+                          .def_prop_ro("dividend_yield", [](const BlackScholesMertonParameters& self) -> PythonRateValue {
+                              if (const auto rate = self.dividend_curve().flat_rate()) return nb::float_(*rate);
+                              return nb::cast(self.dividend_curve(), nb::rv_policy::copy); }, "Flat annual dividend yield or an owning node-based curve.")
+                          .def_prop_ro("risk_free_curve", &BlackScholesMertonParameters::risk_free_curve, nb::rv_policy::copy)
+                          .def_prop_ro("dividend_curve", &BlackScholesMertonParameters::dividend_curve, nb::rv_policy::copy)
+                          .def_prop_ro("volatility", &BlackScholesMertonParameters::volatility, "Positive annualized volatility.");
+    parameters.def("replace", [omitted](const BlackScholesMertonParameters& self, PythonRate risk_free_rate, PythonRate dividend_yield, PythonReal volatility) {
         BlackScholesMertonParameterChanges changes;
-        if (!risk_free_rate.is(omitted)) changes.risk_free_rate = real_number(risk_free_rate, "risk_free_rate");
-        if (!dividend_yield.is(omitted)) changes.dividend_yield = real_number(dividend_yield, "dividend_yield");
+        if (!risk_free_rate.is(omitted)) {
+            if (nb::isinstance<RateTermStructure>(risk_free_rate)) changes.risk_free_curve = nb::cast<RateTermStructure>(risk_free_rate);
+            else changes.risk_free_rate = real_number(risk_free_rate, "risk_free_rate");
+        }
+        if (!dividend_yield.is(omitted)) {
+            if (nb::isinstance<RateTermStructure>(dividend_yield)) changes.dividend_curve = nb::cast<RateTermStructure>(dividend_yield);
+            else changes.dividend_yield = real_number(dividend_yield, "dividend_yield");
+        }
         if (!volatility.is(omitted)) changes.volatility = real_number(volatility, "volatility");
         return unwrap(self.replace(changes)); }, nb::kw_only(), "risk_free_rate"_a.sig("...") = omitted, "dividend_yield"_a.sig("...") = omitted, "volatility"_a.sig("...") = omitted,
                    R"doc(Return a validated copy with the supplied fields replaced.

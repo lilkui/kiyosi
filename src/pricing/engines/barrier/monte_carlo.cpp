@@ -54,7 +54,7 @@ Result<PricingResult> price_barrier(const Option& option, const PricingContext& 
         if (!value) return std::unexpected(value.error());
         return make_pricing_result(*value);
     }
-    const double exponent = -model.risk_free_rate() * time;
+    const double exponent = -(*model.risk_free_rate()) * time;
     const double barrier = [&] {
         if constexpr (double_barrier) return option.lower_barrier();
         else return option.barrier_level();
@@ -136,8 +136,8 @@ Result<PricingResult> price_barrier(const Option& option, const PricingContext& 
             } else {
                 const auto& market = shifted.model_parameters();
                 return barrier_hit_value(option.rebate(), std::abs(log_price_ratio(option.barrier_level(), shifted.spot_price())),
-                                         terms.is_up(), market.risk_free_rate() - market.dividend_yield() - 0.5 * market.volatility() * market.volatility(),
-                                         market.volatility(), time, market.risk_free_rate());
+                                         terms.is_up(), (*market.risk_free_rate()) - (*market.dividend_yield()) - 0.5 * market.volatility() * market.volatility(),
+                                         market.volatility(), time, (*market.risk_free_rate()));
             }
         };
         const auto rebate = hit_value(context);
@@ -157,12 +157,14 @@ Result<PricingResult> price_barrier(const Option& option, const PricingContext& 
 
 Result<double> MonteCarloBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_value(price_barrier(option, context, settings_, {}, {}));
 }
 
 Result<PricingResult> MonteCarloBarrierEngine::price_with_greeks(const BarrierOption& option, const PricingContext& context,
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto& engine) {
         return price_barrier(option, context, engine.settings(), greeks, settings);
     });
@@ -170,12 +172,14 @@ Result<PricingResult> MonteCarloBarrierEngine::price_with_greeks(const BarrierOp
 
 Result<double> MonteCarloDoubleBarrierEngine::price(const DoubleBarrierOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_value(price_barrier(option, context, settings_, {}, {}));
 }
 
 Result<PricingResult> MonteCarloDoubleBarrierEngine::price_with_greeks(const DoubleBarrierOption& option, const PricingContext& context,
                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto& engine) {
         return price_barrier(option, context, engine.settings(), greeks, settings);
     });

@@ -54,9 +54,9 @@ Result<PricingResult> price_digital(const Option& option, const PricingContext& 
     const double root_time = std::sqrt(*time);
     const double width = sigma * root_time;
     const double forward = detail::log_price_ratio(spot, option.strike()) +
-                           (model.risk_free_rate() - model.dividend_yield()) * *time;
-    const double payoff_drift = asset ? (-model.dividend_yield() - 0.5 * sigma * sigma) * *time
-                                      : -model.risk_free_rate() * *time;
+                           ((*model.risk_free_rate()) - (*model.dividend_yield())) * *time;
+    const double payoff_drift = asset ? (-(*model.dividend_yield()) - 0.5 * sigma * sigma) * *time
+                                      : -(*model.risk_free_rate()) * *time;
     if (!std::isfinite(width) || !std::isfinite(forward) || !std::isfinite(payoff_drift))
         return std::unexpected(Error{ErrorCategory::invalid_result, "digital Monte Carlo parameters are non-finite"});
     const detail::DigitalMonteCarloParameters parameters{
@@ -91,17 +91,20 @@ Result<PricingResult> price_digital(const Option& option, const PricingContext& 
 
 Result<double> MonteCarloDigitalEngine::price(const CashOrNothingOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_value(price_digital(option, context, settings_, {}));
 }
 
 Result<double> MonteCarloDigitalEngine::price(const AssetOrNothingOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_value(price_digital(option, context, settings_, {}));
 }
 
 Result<PricingResult> MonteCarloDigitalEngine::price_with_greeks(
     const CashOrNothingOption& option, const PricingContext& context, GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto& engine) {
         return price_digital(option, context, engine.settings(), greeks);
     });
@@ -110,6 +113,7 @@ Result<PricingResult> MonteCarloDigitalEngine::price_with_greeks(
 Result<PricingResult> MonteCarloDigitalEngine::price_with_greeks(
     const AssetOrNothingOption& option, const PricingContext& context, GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto& engine) {
         return price_digital(option, context, engine.settings(), greeks);
     });

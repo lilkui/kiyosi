@@ -7,7 +7,8 @@
 
 namespace kiyosi {
 
-/// Closed-form continuous geometric average-price option under lognormal spot.
+/// Closed-form continuous geometric average-price option under lognormal spot,
+/// with deterministic risk-free/dividend term structures and flat volatility.
 class KIYOSI_EXPORT AnalyticGeometricAveragePriceEngine {
 public:
     /// Prices a geometric-average option. Once averaging has begun, its realized average must be positive.
@@ -21,6 +22,8 @@ public:
 };
 
 /// Turnbull-Wakeman moment-matched approximation for arithmetic averaging.
+/// Requires scalar or explicitly flat rate curves before expiry; node-based
+/// curves return unsupported_operation even when their nodes appear flat.
 class KIYOSI_EXPORT TurnbullWakemanArithmeticAveragePriceEngine {
 public:
     /// Prices an arithmetic-average option using moment matching. For a nonzero averaging window,

@@ -33,30 +33,37 @@ Result<PricingResult> price_finite_difference(
         return make_pricing_result(std::max(sign * (spot - strike), 0.0));
     }
 
-    const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
+    if (const auto covered = validate_curve_horizon(context, start_of_day(option.expiry_date())); !covered)
+        return std::unexpected(covered.error());
+    const auto& market = context.model_parameters();
+    const double rate = curve_forward_rate(market.risk_free_curve(), context.valuation_time(), 0.0);
+    const double dividend = curve_forward_rate(market.dividend_curve(), context.valuation_time(), 0.0);
     const double volatility = context.model_parameters().volatility();
     const int asset_step_count = settings.asset_step_count;
     const auto space = make_spatial_grid(settings, default_finite_difference_upper_boundary(option, context), {spot, strike}, american ? strike : 0.0);
     if (!space) return std::unexpected(space.error());
     const double upper = space->upper;
     const int time_step_count = settings.time_step_count;
-    const auto grid = make_finite_difference_time_grid(time, time_step_count);
+    const auto grid = curve_finite_difference_time_grid(context, option.expiry_date(), time_step_count);
     const double theta = scheme_theta(settings.scheme);
     const DiffusionParameters parameters{rate, dividend, volatility, theta, american ? space->spacing : 0.0};
-    if (auto stable = check_explicit_stability(settings.scheme, grid, parameters, asset_step_count); !stable) {
+    if (auto stable = check_curve_explicit_stability(settings.scheme, grid, parameters, asset_step_count, context); !stable) {
         return std::unexpected(stable.error());
     }
 
     auto boundary = [&](double tau) {
         const bool call = option.option_type() == OptionType::call;
+        const double log_rate_discount = curve_log_factor(market.risk_free_curve(), context.valuation_time(), time - tau, time);
+        const double log_dividend_discount = curve_log_factor(market.dividend_curve(), context.valuation_time(), time - tau, time);
+        const double effective_rate = tau == 0.0 ? rate : -log_rate_discount / tau;
+        const double effective_dividend = tau == 0.0 ? dividend : -log_dividend_discount / tau;
         // The asymptotic edge loses option time value for long or volatile maturities.
-        const auto probabilities = black_scholes_probabilities(sign, upper, strike, rate, dividend, volatility, tau);
-        const double continuation = black_scholes_values(sign, upper, strike, -dividend * tau,
-                                                         -rate * tau, probabilities)
+        const auto probabilities = black_scholes_probabilities(sign, upper, strike, effective_rate, effective_dividend, volatility, tau);
+        const double continuation = black_scholes_values(sign, upper, strike, log_dividend_discount,
+                                                         log_rate_discount, probabilities)
                                         .price;
         const double high = american ? std::max({sign * (upper - strike), 0.0, continuation}) : continuation;
-        const double discounted_strike = scaled_exponential(strike, -rate * tau);
+        const double discounted_strike = scaled_exponential(strike, log_rate_discount);
         const double low = call ? 0.0 : (american ? std::max(strike, discounted_strike) : discounted_strike);
         return Boundaries{low, high};
     };
@@ -67,7 +74,7 @@ Result<PricingResult> price_finite_difference(
     std::vector<double> old(space->size());
     for (std::size_t index = 0; index < old.size(); ++index)
         old[index] = intrinsic(space->asset_at(index));
-    const bool can_exercise = american && (option.option_type() != OptionType::call || dividend > 0.0 || rate < 0.0);
+    const bool can_exercise = american && (!market.risk_free_curve().is_flat() || !market.dividend_curve().is_flat() || option.option_type() != OptionType::call || dividend > 0.0 || rate < 0.0);
     const auto exercise = can_exercise ? old : std::vector<double>{};
 
     const auto marched = march_backward<true>(
@@ -77,7 +84,8 @@ Result<PricingResult> price_finite_difference(
             for (int index = 1; index < asset_step_count; ++index)
                 layer[static_cast<std::size_t>(index)] =
                     std::max(layer[static_cast<std::size_t>(index)], exercise[static_cast<std::size_t>(index)]);
-        });
+        },
+        nullptr, &context);
     if (!marched) return std::unexpected(marched.error());
 
     std::vector<double> curvature;

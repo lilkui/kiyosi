@@ -137,7 +137,7 @@ AbsorbingDistribution distribution(const DoubleBarrierOption& option, const Pric
     const double sigma = model.volatility();
     return {log_price_ratio(context.spot_price(), option.lower_barrier()),
             log_price_ratio(option.upper_barrier(), option.lower_barrier()), std::log(option.lower_barrier()), sigma,
-            model.risk_free_rate() - model.dividend_yield() - 0.5 * sigma * sigma, time};
+            (*model.risk_free_rate()) - (*model.dividend_yield()) - 0.5 * sigma * sigma, time};
 }
 
 template <typename Evaluate>
@@ -176,7 +176,7 @@ Result<double> price_double_barrier(const DoubleBarrierOption& option, const Pri
         return std::unexpected(Error{ErrorCategory::unsupported_operation, "analytical double-barrier pricing requires continuous monitoring"});
     const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const auto density = distribution(option, context, time);
-    const double discount = -context.model_parameters().risk_free_rate() * time;
+    const double discount = -(*context.model_parameters().risk_free_rate()) * time;
     const bool call = option.option_type() == OptionType::call;
     const double strike = log_price_ratio(option.strike(), option.lower_barrier());
     const double lower = call ? std::clamp(strike, 0.0, density.band) : 0.0;
@@ -213,7 +213,7 @@ Result<double> detail::double_barrier_hit_value(const DoubleBarrierOption& optio
 {
     const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const auto density = distribution(option, context, time);
-    const double rate = context.model_parameters().risk_free_rate();
+    const double rate = (*context.model_parameters().risk_free_rate());
     const auto exit = density.moment(0, 0.0, density.band, 0.0, true);
     if (!exit) return std::unexpected(exit.error());
     double value = scaled_exponential(*exit, -rate * time);
@@ -263,12 +263,14 @@ Result<double> detail::double_barrier_hit_value(const DoubleBarrierOption& optio
 
 Result<double> AnalyticDoubleBarrierEngine::price(const DoubleBarrierOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return price_double_barrier(option, context);
 }
 
 Result<PricingResult> AnalyticDoubleBarrierEngine::price_with_greeks(const DoubleBarrierOption& option, const PricingContext& context,
                                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 } // namespace kiyosi

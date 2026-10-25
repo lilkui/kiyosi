@@ -200,9 +200,9 @@ Result<std::array<double, count>> integrate_autocallables(
     const auto observations = notes.front()->observations_view();
     const double anchor = first.program.initial_spot > 0.0 ? first.program.initial_spot : observations.empty() ? 1.0
                                                                                                                : observations.front().knock_out_level;
-    const double rate = context.model_parameters().risk_free_rate();
+    const double rate = (*context.model_parameters().risk_free_rate());
     const double sigma = context.model_parameters().volatility();
-    const double drift_rate = rate - context.model_parameters().dividend_yield() - 0.5 * sigma * sigma;
+    const double drift_rate = rate - (*context.model_parameters().dividend_yield()) - 0.5 * sigma * sigma;
     std::vector<double> breaks;
     const auto add = [&](double level) { if (level > 0.0) breaks.push_back(log_price_ratio(level, anchor)); };
     if (first.program.has_knock_in) add(first.program.knock_in_level);
@@ -404,6 +404,7 @@ template KIYOSI_EXPORT Result<double> implied_coupon(
 template <AutocallableProduct Note>
 Result<double> QuadratureAutocallableEngine::price(const Note& note, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     std::optional<PreparedCurve> prepared;
     AutocallableContract<Note> contract{note, context.calendar()};
     return integrate_autocallable(note, context, settings_, prepared, contract);
@@ -413,6 +414,7 @@ template <AutocallableProduct Note>
 Result<PricingResult> QuadratureAutocallableEngine::price_with_greeks(const Note& note, const PricingContext& context,
                                                                       GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::evaluate_greeks(*this, note, context, greeks, settings,
                                    [&](const auto& engine) -> Result<PricingResult> {
                                        std::optional<PreparedCurve> prepared;

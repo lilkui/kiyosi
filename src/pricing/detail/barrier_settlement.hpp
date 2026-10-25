@@ -11,6 +11,14 @@
 
 namespace kiyosi::detail {
 
+inline Result<double> discounted_cash(double amount, const PricingContext& context, Date expiry)
+{
+    if (amount == 0.0) return 0.0;
+    const auto discount = context.model_parameters().risk_free_curve().log_factor(context.valuation_time(), start_of_day(expiry));
+    if (!discount) return std::unexpected(discount.error());
+    return checked_price(scaled_exponential(amount, *discount));
+}
+
 // A terminal in-the-money fixing necessarily touches this barrier when expiry is monitored.
 inline bool terminal_payoff_requires_barrier_touch(const BarrierTerms& terms, OptionType type, double strike)
 {
@@ -35,8 +43,7 @@ inline std::optional<Result<double>> resolved_barrier_price(
     if (state->touched != option.is_one_touch()) return 0.0;
     if (option.settlement_timing() == SettlementTiming::at_hit)
         return state->touched_before ? 0.0 : option.payout();
-    const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
-    return checked_price(scaled_exponential(option.payout(), -context.model_parameters().risk_free_rate() * time));
+    return discounted_cash(option.payout(), context, option.expiry_date());
 }
 
 template <typename Option>
@@ -46,13 +53,12 @@ inline std::optional<Result<double>> resolved_barrier_price(
     const auto& terms = option.barrier_terms();
     const auto state = barrier_monitoring_state(terms, context.valuation_time(), context.spot_price());
     if (!state) return std::unexpected(state.error());
-    const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     if (state->touched && !terms.is_knock_in())
-        return checked_price(option.rebate_timing() == RebateTiming::at_hit
-                                 ? (state->touched_before ? 0.0 : option.rebate())
-                                 : scaled_exponential(option.rebate(), -context.model_parameters().risk_free_rate() * time));
+        return option.rebate_timing() == RebateTiming::at_hit
+                   ? checked_price(state->touched_before ? 0.0 : option.rebate())
+                   : discounted_cash(option.rebate(), context, option.expiry_date());
     if (!state->touched && state->finished && terms.is_knock_in())
-        return checked_price(scaled_exponential(option.rebate(), -context.model_parameters().risk_free_rate() * time));
+        return discounted_cash(option.rebate(), context, option.expiry_date());
     const bool fixed_payoff = option.rebate() == 0.0 && terminal_payoff_requires_barrier_touch(terms, option.option_type(), option.strike());
     if (fixed_payoff && !terms.is_knock_in()) return 0.0;
     if (state->touched || state->finished || fixed_payoff) {

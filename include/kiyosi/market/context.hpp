@@ -70,6 +70,10 @@ private:
         return std::unexpected(Error{ErrorCategory::invalid_date,
                                      "valuation time must contain a valid calendar date"});
     }
+    if (auto valid = model_parameters.risk_free_curve().validate_time(valuation_time); !valid)
+        return std::unexpected(valid.error());
+    if (auto valid = model_parameters.dividend_curve().validate_time(valuation_time); !valid)
+        return std::unexpected(valid.error());
     return PricingContext{std::move(model_parameters), spot_price, valuation_time, std::move(calendar)};
 }
 

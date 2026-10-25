@@ -129,7 +129,8 @@ private:
 [[nodiscard]] CudaPricingResult cuda_european_price(CudaEuropeanRequest request, CudaWorkspace* workspace = nullptr);
 // Output slots are price, delta and gamma; unrequested Greek slots are zero.
 [[nodiscard]] CudaSpotPricingResult cuda_digital_prices(CudaDigitalRequest request, CudaWorkspace* workspace = nullptr);
-[[nodiscard]] CudaSpotPricingResult cuda_asian_prices(CudaAsianRequest request, CudaWorkspace* workspace = nullptr);
+[[nodiscard]] CudaSpotPricingResult cuda_asian_prices(CudaAsianRequest request, CudaWorkspace* workspace = nullptr,
+                                                      std::span<const double> interval_drifts = {});
 [[nodiscard]] CudaSpotPricingResult cuda_barrier_prices(CudaBarrierRequest request,
                                                         std::span<const BarrierMonteCarloStep> steps,
                                                         CudaWorkspace* workspace = nullptr);

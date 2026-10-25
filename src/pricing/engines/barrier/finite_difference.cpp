@@ -18,6 +18,15 @@
 namespace kiyosi {
 using namespace detail;
 namespace {
+template <typename Option>
+Date barrier_pricing_expiry(const Option& option)
+{
+    if constexpr (std::same_as<Option, DoubleTouchOption>)
+        if (option.settlement_timing() == SettlementTiming::at_hit && option.observation_mode() == ObservationMode::scheduled)
+            return option.observation_dates().back();
+    return option.expiry_date();
+}
+
 // Valuation time and observation dates have been validated by price.
 template <bool scheduled, typename Option>
 Result<PricingResult> barrier_fd(const Option& option, const PricingContext& context,
@@ -25,7 +34,7 @@ Result<PricingResult> barrier_fd(const Option& option, const PricingContext& con
 {
     constexpr bool cash_touch = std::same_as<Option, DoubleTouchOption>;
     constexpr bool double_barrier = cash_touch || std::same_as<Option, DoubleBarrierOption>;
-    const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
+    const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), barrier_pricing_expiry(option));
     const double spot = context.spot_price();
     const double payoff_level = [&] {
         if constexpr (cash_touch) return spot;
@@ -45,7 +54,16 @@ Result<PricingResult> barrier_fd(const Option& option, const PricingContext& con
         else return std::max((option.option_type() == OptionType::call ? asset - payoff_level : payoff_level - asset), 0.0);
     };
     if (time_to_expiry == 0.0) return make_pricing_result(knock_in ? rebate : payoff(spot));
-    const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield(), volatility = context.model_parameters().volatility();
+    const auto& market = context.model_parameters();
+    const double rate = curve_forward_rate(market.risk_free_curve(), context.valuation_time(), 0.0);
+    const double dividend = curve_forward_rate(market.dividend_curve(), context.valuation_time(), 0.0);
+    const double volatility = market.volatility();
+    const auto rate_discount = [&](double tau) {
+        return curve_log_factor(market.risk_free_curve(), context.valuation_time(), time_to_expiry - tau, time_to_expiry);
+    };
+    const auto dividend_discount = [&](double tau) {
+        return curve_log_factor(market.dividend_curve(), context.valuation_time(), time_to_expiry - tau, time_to_expiry);
+    };
     const auto levels = [&] {
         if constexpr (double_barrier) return std::array{option.lower_barrier(), option.upper_barrier()};
         else return std::array{option.barrier_level()};
@@ -85,11 +103,9 @@ Result<PricingResult> barrier_fd(const Option& option, const PricingContext& con
             observation_dates.push_back(value);
         }
     }
-    const auto grid = !scheduled
-                          ? make_finite_difference_time_grid(time_to_expiry, time_step_count)
-                          : make_finite_difference_time_grid(context.valuation_time(), option.expiry_date(), time_step_count, std::move(observation_dates));
+    const auto grid = curve_finite_difference_time_grid(context, barrier_pricing_expiry(option), time_step_count, std::move(observation_dates));
     const DiffusionParameters parameters{rate, dividend, volatility, theta, 0.0, space->nodes.empty() ? nullptr : &*space};
-    if (auto stable = check_explicit_stability(settings.scheme, grid, parameters, settings.asset_step_count);
+    if (auto stable = check_curve_explicit_stability(settings.scheme, grid, parameters, settings.asset_step_count, context);
         !stable)
         return std::unexpected(stable.error());
     const int asset_step_count = [&] {
@@ -105,7 +121,7 @@ Result<PricingResult> barrier_fd(const Option& option, const PricingContext& con
     const auto rebate_value = [&](double tau) {
         if (tau != cached_rebate_tau) {
             cached_rebate_tau = tau;
-            cached_rebate = rebate_timing == RebateTiming::at_hit ? rebate : scaled_exponential(rebate, -rate * tau);
+            cached_rebate = rebate_timing == RebateTiming::at_hit ? rebate : scaled_exponential(rebate, rate_discount(tau));
         }
         return cached_rebate;
     };
@@ -113,21 +129,23 @@ Result<PricingResult> barrier_fd(const Option& option, const PricingContext& con
     for (std::size_t index = 0; index < old.size(); ++index)
         old[index] = payoff(space->asset_at(index));
     const auto vanilla_boundary = [&](double tau) {
+        const double effective_rate = tau == 0.0 ? rate : -rate_discount(tau) / tau;
+        const double effective_dividend = tau == 0.0 ? dividend : -dividend_discount(tau) / tau;
         if constexpr (cash_touch) {
-            const double value = scaled_exponential(payoff(spot), -rate * tau);
+            const double value = scaled_exponential(payoff(spot), rate_discount(tau));
             return Boundaries{value, value};
         } else {
             const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
-            const auto probabilities = black_scholes_probabilities(sign, upper, payoff_level, rate, dividend, volatility, tau);
+            const auto probabilities = black_scholes_probabilities(sign, upper, payoff_level, effective_rate, effective_dividend, volatility, tau);
             const double lower_value = [&] {
                 if constexpr (double_barrier && !scheduled) {
-                    const auto lower_probabilities = black_scholes_probabilities(sign, levels[0], payoff_level, rate, dividend, volatility, tau);
-                    return black_scholes_values(sign, levels[0], payoff_level, -dividend * tau, -rate * tau, lower_probabilities).price;
-                } else return option.option_type() == OptionType::put ? scaled_exponential(payoff_level, -rate * tau) : 0.0;
+                    const auto lower_probabilities = black_scholes_probabilities(sign, levels[0], payoff_level, effective_rate, effective_dividend, volatility, tau);
+                    return black_scholes_values(sign, levels[0], payoff_level, dividend_discount(tau), rate_discount(tau), lower_probabilities).price;
+                } else return option.option_type() == OptionType::put ? scaled_exponential(payoff_level, rate_discount(tau)) : 0.0;
             }();
             return Boundaries{lower_value,
-                              black_scholes_values(sign, upper, payoff_level, -dividend * tau,
-                                                   -rate * tau, probabilities)
+                              black_scholes_values(sign, upper, payoff_level, dividend_discount(tau),
+                                                   rate_discount(tau), probabilities)
                                   .price};
         }
     };
@@ -135,7 +153,7 @@ Result<PricingResult> barrier_fd(const Option& option, const PricingContext& con
     if (knock_in) {
         // Keep the vanilla reference on its original schedule when barrier events restart damping.
         vanilla = old;
-        const auto marched = march_backward<true>(grid, parameters, vanilla, vanilla_boundary);
+        const auto marched = march_backward<true>(grid, parameters, vanilla, vanilla_boundary, [](std::vector<double>&, double, double) {}, nullptr, &context);
         if (!marched) return std::unexpected(marched.error());
     }
     const auto event_breaks = levels;
@@ -177,14 +195,14 @@ Result<PricingResult> barrier_fd(const Option& option, const PricingContext& con
         }
         if constexpr (!double_barrier) {
             if (!scheduled && upper_barrier)
-                return Boundaries{option.option_type() == OptionType::put ? scaled_exponential(payoff_level, -rate * tau) : 0.0, rebate_value(tau)};
+                return Boundaries{option.option_type() == OptionType::put ? scaled_exponential(payoff_level, rate_discount(tau)) : 0.0, rebate_value(tau)};
         }
         Boundaries edges = vanilla_boundary(tau);
         const auto observation = std::ranges::lower_bound(observation_times, time);
         if (!scheduled || observation != observation_times.end()) {
             // Scheduled edges settle at the next observation, not between observations.
             const double event_value = scheduled && rebate_timing == RebateTiming::at_hit
-                                           ? scaled_exponential(rebate, -rate * (*observation - time))
+                                           ? scaled_exponential(rebate, curve_log_factor(market.risk_free_curve(), context.valuation_time(), time, *observation))
                                            : rebate_value(tau);
             if (knocked(space->asset_at(0))) edges.lower = event_value;
             if (knocked(upper)) edges.upper = event_value;
@@ -208,6 +226,7 @@ Result<PricingResult> barrier_fd(const Option& option, const PricingContext& con
             const double offset = dt * (substeps.count - substep - 1);
             const double time = grid.times[step] + offset;
             const double tau = time_to_expiry - grid.times[step] - offset;
+            step_parameters = diffusion_interval(step_parameters, context, time, time + dt);
             const Boundaries edges = boundary(time, tau);
             const bool advanced = scheduled || double_barrier
                                       ? stepper.advance(old, next, dt, step_parameters, edges.lower, edges.upper)
@@ -224,7 +243,7 @@ Result<PricingResult> barrier_fd(const Option& option, const PricingContext& con
         }
     }
     if (knock_in) {
-        const double discounted_rebate = scaled_exponential(rebate, -rate * time_to_expiry);
+        const double discounted_rebate = scaled_exponential(rebate, rate_discount(time_to_expiry));
         for (std::size_t index = 0; index < old.size(); ++index)
             old[index] = std::max(vanilla[index] - old[index] + discounted_rebate, 0.0);
     }
@@ -250,6 +269,8 @@ Result<PricingResult> price_barrier(
         if (!*settled) return std::unexpected(settled->error());
         return make_pricing_result(**settled);
     }
+    if (const auto covered = validate_curve_horizon(context, start_of_day(barrier_pricing_expiry(option))); !covered)
+        return std::unexpected(covered.error());
     return option.observation_mode() == ObservationMode::scheduled
                ? barrier_fd<true>(option, context, settings, output, spot_shift)
                : barrier_fd<false>(option, context, settings, output, spot_shift);

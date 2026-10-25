@@ -61,8 +61,8 @@ Result<PricingResult> price_barrier(const BarrierOption& option, const PricingCo
     const double dt = time / steps;
     const double log_up = model.volatility() * std::sqrt(dt);
     const double up = std::exp(log_up), down = 1.0 / up;
-    const double discount = std::exp(-model.risk_free_rate() * dt);
-    const double probability = std::expm1((model.risk_free_rate() - model.dividend_yield()) * dt + log_up) / std::expm1(2.0 * log_up);
+    const double discount = std::exp(-(*model.risk_free_rate()) * dt);
+    const double probability = std::expm1(((*model.risk_free_rate()) - (*model.dividend_yield())) * dt + log_up) / std::expm1(2.0 * log_up);
     if (!std::isfinite(up) || !std::isfinite(down) || up == down || !std::isfinite(discount) ||
         !std::isfinite(probability) || probability < 0.0 || probability > 1.0)
         return std::unexpected(Error{ErrorCategory::invalid_result, "binomial parameters produced an unstable tree"});
@@ -76,7 +76,7 @@ Result<PricingResult> price_barrier(const BarrierOption& option, const PricingCo
         return terms.is_up() ? distance >= 0.0 : distance <= 0.0;
     };
     const auto rebate = [&](int level) {
-        return option.rebate_timing() == RebateTiming::at_hit ? option.rebate() : detail::scaled_exponential(option.rebate(), -model.risk_free_rate() * (steps - level) * dt);
+        return option.rebate_timing() == RebateTiming::at_hit ? option.rebate() : detail::scaled_exponential(option.rebate(), -(*model.risk_free_rate()) * (steps - level) * dt);
     };
     std::vector<double> values(static_cast<std::size_t>(steps) + 1);
     std::vector<double> vanilla(terms.is_knock_in() ? values.size() : 0);
@@ -123,12 +123,14 @@ Result<PricingResult> price_barrier(const BarrierOption& option, const PricingCo
 
 Result<double> CoxRossRubinsteinBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_value(price_barrier(option, context, settings_, {}));
 }
 
 Result<PricingResult> CoxRossRubinsteinBarrierEngine::price_with_greeks(const BarrierOption& option, const PricingContext& context,
                                                                         GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto&) {
         return price_barrier(option, context, settings_, detail::greeks_unavailable(option, context) ? GreeksRequest{} : greeks);
     });

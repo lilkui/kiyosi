@@ -23,12 +23,16 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
     if (t == 0.0)
         return make_pricing_result(binary_payoff_value(type, strike, payout, asset_settlement, spot));
     const double sigma = context.model_parameters().volatility();
+    if (auto covered = validate_curve_horizon(context, start_of_day(expiry_date)); !covered)
+        return std::unexpected(covered.error());
+    const double rate = context.model_parameters().has_flat_rates() ? (*context.model_parameters().risk_free_rate()) : -curve_log_factor(context.model_parameters().risk_free_curve(), context.valuation_time(), 0.0, t) / t;
+    const double dividend = context.model_parameters().has_flat_rates() ? (*context.model_parameters().dividend_yield()) : -curve_log_factor(context.model_parameters().dividend_curve(), context.valuation_time(), 0.0, t) / t;
     const double root_t = std::sqrt(t);
-    const double rate_df = std::exp(-context.model_parameters().risk_free_rate() * t);
-    const double div_df = std::exp(-context.model_parameters().dividend_yield() * t);
+    const double rate_df = std::exp(-rate * t);
+    const double div_df = std::exp(-dividend * t);
     const double volatility_time = sigma * root_t;
     const double forward = standardize_forward(log_price_ratio(spot, strike) +
-                                                   (context.model_parameters().risk_free_rate() - context.model_parameters().dividend_yield()) * t,
+                                                   (rate - dividend) * t,
                                                sigma, root_t);
     const double d1 = forward + 0.5 * volatility_time;
     const double d2 = forward - 0.5 * volatility_time;
@@ -37,7 +41,7 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
     const double scale = asset_settlement ? spot * div_df : payout * rate_df;
     const double value = sign * d < -10.0 || !std::isnormal(asset_settlement ? div_df : rate_df) || !std::isfinite(scale)
                              ? exponential_normal_cdf(std::log(asset_settlement ? spot : payout) -
-                                                          (asset_settlement ? context.model_parameters().dividend_yield() : context.model_parameters().risk_free_rate()) * t,
+                                                          (asset_settlement ? dividend : rate) * t,
                                                       sign * d)
                              : scale * nd;
     if (!std::isfinite(value))
@@ -53,7 +57,7 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
     std::optional<double> delta;
     std::optional<double> gamma;
     if (asset_settlement) {
-        const double log_discount = -context.model_parameters().dividend_yield() * t;
+        const double log_discount = -dividend * t;
         if (output.has(Greek::delta)) {
             const double discounted_probability = sign * d < -10.0 || !std::isnormal(div_df)
                                                       ? exponential_normal_cdf(log_discount, sign * d)
@@ -70,7 +74,7 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
             }
         }
     } else {
-        const double log_scale = std::log(payout) - context.model_parameters().risk_free_rate() * t;
+        const double log_scale = std::log(payout) - rate * t;
         if (output.has(Greek::delta)) delta = sign * weighted_density(log_scale - log_spot - log_volatility_time);
         if (output.has(Greek::gamma)) {
             if (forward == 0.0) {

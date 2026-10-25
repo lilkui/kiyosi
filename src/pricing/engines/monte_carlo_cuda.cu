@@ -434,14 +434,14 @@ __global__ void simulate_digital_paths(SpotRequests<CudaDigitalRequest> requests
     }
 }
 
-__global__ void simulate_asian_paths(SpotRequests<CudaAsianRequest> requests)
+__global__ void simulate_asian_paths(SpotRequests<CudaAsianRequest> requests, const double* interval_drifts)
 {
     const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
     const auto request = requests.values[0];
     if (path >= request.path_count) return;
     curandStatePhilox4_32_10_t generator;
     initialize_path_generator(request, path, generator);
-    const auto sample = request.parameters.sample([&] { return draw_path_normal(request, path, generator); }, request.delta, request.gamma);
+    const auto sample = request.parameters.sample([&] { return draw_path_normal(request, path, generator); }, request.delta, request.gamma, interval_drifts);
     for (int output = 0; output < requests.count; ++output) {
         const int measure = requests.values[output].measure;
         write_spot_payoff(requests, output, path, measure == 0 ? sample.price : measure == 1 ? sample.delta
@@ -769,7 +769,8 @@ CudaSpotPricingResult cuda_digital_prices(CudaDigitalRequest request, CudaWorksp
     return result;
 }
 
-CudaSpotPricingResult cuda_asian_prices(CudaAsianRequest request, CudaWorkspace* workspace)
+CudaSpotPricingResult cuda_asian_prices(CudaAsianRequest request, CudaWorkspace* workspace,
+                                        std::span<const double> interval_drifts)
 {
     std::array<CudaAsianRequest, 3> requests{request};
     std::size_t count = 1;
@@ -781,9 +782,9 @@ CudaSpotPricingResult cuda_asian_prices(CudaAsianRequest request, CudaWorkspace*
         requests[count] = request;
         requests[count++].measure = 2;
     }
-    auto result = spot_prices(std::span<const CudaAsianRequest>{requests}.first(count), std::span<const SimulationStep>{}, workspace,
-                              [](const auto& batch, const auto*, auto, int blocks, cudaStream_t stream) {
-                                  simulate_asian_paths<<<blocks, threads_per_block, 0, stream>>>(batch);
+    auto result = spot_prices(std::span<const CudaAsianRequest>{requests}.first(count), interval_drifts, workspace,
+                              [](const auto& batch, const auto* device_drifts, auto count, int blocks, cudaStream_t stream) {
+                                  simulate_asian_paths<<<blocks, threads_per_block, 0, stream>>>(batch, count == 0 ? nullptr : device_drifts);
                               });
     if (!request.delta && request.gamma) {
         result.payoff_means[2] = result.payoff_means[1];

@@ -115,8 +115,8 @@ Result<double> integrate_accumulator(const Accumulator& option, const PricingCon
     const auto dates = trading_dates(context.calendar(), context.valuation_time(), option.expiry_date());
     const double strike = option.strike();
     const double knock_out = log_price_ratio(option.knock_out_level(), strike);
-    const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
+    const double rate = (*context.model_parameters().risk_free_rate());
+    const double dividend = (*context.model_parameters().dividend_yield());
     const double sigma = context.model_parameters().volatility();
     const double drift_rate = rate - dividend - 0.5 * sigma * sigma;
     const double current = log_price_ratio(context.spot_price(), strike);
@@ -197,6 +197,7 @@ Result<double> integrate_accumulator(const Accumulator& option, const PricingCon
 
 Result<double> QuadratureAccumulatorEngine::price(const Accumulator& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     std::optional<PreparedCurve> prepared;
     return integrate_accumulator(option, context, settings_, prepared);
 }
@@ -204,6 +205,7 @@ Result<double> QuadratureAccumulatorEngine::price(const Accumulator& option, con
 Result<PricingResult> QuadratureAccumulatorEngine::price_with_greeks(
     const Accumulator& option, const PricingContext& context, GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::evaluate_greeks(*this, option, context, greeks, settings,
                                    [&](const auto& engine) -> Result<PricingResult> {
                                        std::optional<PreparedCurve> prepared;

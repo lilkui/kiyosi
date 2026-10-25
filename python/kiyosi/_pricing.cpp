@@ -923,6 +923,10 @@ package contract.)doc")
         module, "AnalyticBinaryBarrierEngine");
     bind_engine_price<AnalyticBinaryBarrierEngine, BinaryBarrierOption>(module, analytic_binary);
     bind_engine_price<AnalyticBinaryBarrierEngine, TouchOption>(module, analytic_binary);
+    auto finite_binary = bind_finite_difference_engine<FiniteDifferenceBinaryBarrierEngine>(
+        module, "FiniteDifferenceBinaryBarrierEngine", &make_finite_difference_binary_barrier_engine);
+    bind_engine_price<FiniteDifferenceBinaryBarrierEngine, BinaryBarrierOption>(module, finite_binary);
+    bind_engine_price<FiniteDifferenceBinaryBarrierEngine, TouchOption>(module, finite_binary);
 
     auto geometric = bind_stateless_engine<AnalyticGeometricAveragePriceEngine>(
         module, "AnalyticGeometricAveragePriceEngine");

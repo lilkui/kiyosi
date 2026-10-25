@@ -133,6 +133,7 @@ target_sources(kiyosi
         src/core/time.cpp
         src/pricing/detail/instrument_analytics.cpp
         src/market/calendars/sse.cpp
+        src/market/rate_term_structure.cpp
         src/pricing/engines/accumulator/finite_difference.cpp
         src/pricing/engines/accumulator/integral.cpp
         src/pricing/engines/accumulator/monte_carlo.cpp
@@ -145,6 +146,7 @@ target_sources(kiyosi
         src/pricing/engines/barrier/monte_carlo.cpp
         src/pricing/engines/barrier/finite_difference.cpp
         src/pricing/engines/binary_barrier/analytic.cpp
+        src/pricing/engines/binary_barrier/finite_difference.cpp
         src/pricing/engines/digital/binomial.cpp
         src/pricing/engines/digital/monte_carlo.cpp
         src/pricing/engines/digital/analytic.cpp
@@ -187,6 +189,7 @@ target_sources(kiyosi
             include/kiyosi/instruments/autocallable/presets.hpp
             include/kiyosi/instruments/autocallable/snowball.hpp
             include/kiyosi/market/bsm_parameters.hpp
+            include/kiyosi/market/rate_term_structure.hpp
             include/kiyosi/market/calendar.hpp
             include/kiyosi/market/context.hpp
             include/kiyosi/market/schedule.hpp
@@ -219,6 +222,7 @@ target_sources(kiyosi
             include/kiyosi/pricing/engines/barrier/double_analytic.hpp
             include/kiyosi/pricing/engines/barrier/double_monte_carlo.hpp
             include/kiyosi/pricing/engines/binary_barrier/analytic.hpp
+            include/kiyosi/pricing/engines/binary_barrier/finite_difference.hpp
             include/kiyosi/pricing/engines/binary_barrier/double_finite_difference.hpp
             include/kiyosi/pricing/detail/binomial.hpp
             include/kiyosi/pricing/engines/digital/binomial.hpp

@@ -29,9 +29,11 @@ inline Result<double> checked_price(double value)
 /// - vega, vanna, and zomma are price, delta, and gamma changes per one volatility percentage
 ///   point (an absolute volatility change of 0.01);
 /// - rho is the price change per one interest-rate percentage point (an absolute rate change of
-///   0.01);
+///   0.01), shifting the entire continuously compounded risk-free curve in parallel;
 /// - theta, charm, and color are price, delta, and gamma changes per calendar day as valuation
 ///   time moves forward.
+/// Curve references and nodes remain fixed during time rolls. At rate-curve knots,
+/// time Greeks use right-hand derivatives. Uncovered time stencils are unavailable.
 /// Unrequested, undefined, or unsupported Greeks are unavailable (`std::nullopt`), never zero sentinels.
 enum class Greek : std::uint8_t {
     delta, ///< First derivative with respect to spot.

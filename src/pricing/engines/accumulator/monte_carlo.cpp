@@ -84,8 +84,8 @@ Result<std::array<double, count + (rates ? 2 : 0)>> price_spot_bumps(
     std::array<PathState, outputs> initial{};
     for (std::size_t i = 0; i < outputs; ++i) {
         const double spot = context.spot_price() + (i < count ? offsets[i] * h : 0.0);
-        const double rate = context.model_parameters().risk_free_rate() + (i < count ? 0.0 : i == count ? rate_shift
-                                                                                                        : -rate_shift);
+        const double rate = (*context.model_parameters().risk_free_rate()) + (i < count ? 0.0 : i == count ? rate_shift
+                                                                                                           : -rate_shift);
         const auto shifted = shifted_context(context, spot, context.model_parameters().volatility(),
                                              rate, context.valuation_time());
         if (!shifted) return std::unexpected(shifted.error());
@@ -107,7 +107,7 @@ Result<std::array<double, count + (rates ? 2 : 0)>> price_spot_bumps(
             for (std::size_t i = 0; i < rate_steps.size(); ++i) {
                 if (initial[count + i].payoff) continue;
                 const auto shifted = shifted_context(context, context.spot_price(), context.model_parameters().volatility(),
-                                                     context.model_parameters().risk_free_rate() + (i == 0 ? rate_shift : -rate_shift), context.valuation_time());
+                                                     (*context.model_parameters().risk_free_rate()) + (i == 0 ? rate_shift : -rate_shift), context.valuation_time());
                 if (!shifted) return std::unexpected(shifted.error());
                 auto prepared = prepare_simulation(option, *shifted);
                 if (!prepared) return std::unexpected(prepared.error());
@@ -163,13 +163,13 @@ Result<std::array<double, 2 * count>> price_volatility_bumps(
     std::array<PathState, 2 * count> initial{};
     for (std::size_t market = 0; market < steps.size(); ++market) {
         const double volatility = context.model_parameters().volatility() + (market == 0 ? volatility_shift : -volatility_shift);
-        const auto shifted = shifted_context(context, context.spot_price(), volatility, context.model_parameters().risk_free_rate(), context.valuation_time());
+        const auto shifted = shifted_context(context, context.spot_price(), volatility, (*context.model_parameters().risk_free_rate()), context.valuation_time());
         if (!shifted) return std::unexpected(shifted.error());
         const auto valid = validate_pricing(option, *shifted);
         if (!valid) return std::unexpected(valid.error());
         for (std::size_t index = 0; index < count; ++index) {
             const double spot = context.spot_price() + SpotStencil<count>::offsets[index] * spot_shift;
-            const auto bumped = shifted_context(*shifted, spot, volatility, context.model_parameters().risk_free_rate(), context.valuation_time());
+            const auto bumped = shifted_context(*shifted, spot, volatility, (*context.model_parameters().risk_free_rate()), context.valuation_time());
             if (!bumped) return std::unexpected(bumped.error());
             const auto state = accumulator_initial_state(option, *bumped);
             if (state.settlement) {
@@ -229,6 +229,7 @@ Result<double> price_accumulator(
 
 Result<double> MonteCarloAccumulatorEngine::price(const Accumulator& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return price_accumulator(option, context, settings_);
 }
 
@@ -237,6 +238,7 @@ Result<double> implied_volatility<MonteCarloAccumulatorEngine, Accumulator>(
     const MonteCarloAccumulatorEngine& engine, const Accumulator& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     CudaWorkspace* workspace = nullptr;
 #if KIYOSI_HAS_CUDA
     CudaWorkspace storage;
@@ -251,6 +253,7 @@ Result<double> implied_volatility<MonteCarloAccumulatorEngine, Accumulator>(
 Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accumulator& option, const PricingContext& context,
                                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::evaluate_greeks(
         *this, option, context, greeks, settings,
         [&](const auto& seeded) -> Result<PricingResult> {

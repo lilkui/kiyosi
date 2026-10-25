@@ -20,14 +20,14 @@ TEST_CASE("Market replace preserves omitted fields and validates copies", "[mark
     REQUIRE(parameters);
     const auto changed = parameters->replace({.volatility = 0.25});
     REQUIRE(changed);
-    CHECK(changed->risk_free_rate() == 0.03);
-    CHECK(changed->dividend_yield() == 0.01);
+    CHECK((*changed->risk_free_rate()) == 0.03);
+    CHECK((*changed->dividend_yield()) == 0.01);
     CHECK(changed->volatility() == 0.25);
     CHECK(parameters->replace() == parameters);
     const auto zero_rates = changed->replace({.risk_free_rate = 0, .dividend_yield = 0});
     REQUIRE(zero_rates);
-    CHECK(zero_rates->risk_free_rate() == 0);
-    CHECK(zero_rates->dividend_yield() == 0);
+    CHECK((*zero_rates->risk_free_rate()) == 0);
+    CHECK((*zero_rates->dividend_yield()) == 0);
     CHECK(zero_rates->volatility() == 0.25);
 
     const auto time = kiyosi::start_of_day(day(2025, 1, 3)) + std::chrono::microseconds{45001123456};
@@ -65,8 +65,8 @@ TEST_CASE("Market replace preserves omitted fields and validates copies", "[mark
     const auto invalid_spot = context->replace({.spot_price = 0, .calendar = kiyosi::weekdays_calendar()});
     REQUIRE_FALSE(invalid_spot);
     CHECK(invalid_spot.error().category == kiyosi::ErrorCategory::invalid_spot_price);
-    CHECK(parameters->risk_free_rate() == 0.03);
-    CHECK(parameters->dividend_yield() == 0.01);
+    CHECK((*parameters->risk_free_rate()) == 0.03);
+    CHECK((*parameters->dividend_yield()) == 0.01);
     CHECK(parameters->volatility() == 0.2);
     CHECK(context->model_parameters() == *parameters);
     CHECK(context->spot_price() == 100);
@@ -78,8 +78,8 @@ TEST_CASE("BSM parameters and pricing contexts reject invalid market inputs")
 {
     auto valid = kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
     REQUIRE(valid.has_value());
-    REQUIRE(valid->risk_free_rate() == 0.05);
-    REQUIRE(valid->dividend_yield() == 0.02);
+    REQUIRE((*valid->risk_free_rate()) == 0.05);
+    REQUIRE((*valid->dividend_yield()) == 0.02);
     REQUIRE(valid->volatility() == 0.2);
 
     const auto invalid_rate = kiyosi::make_bsm_parameters(std::numeric_limits<double>::quiet_NaN(), 0.0, 0.2);

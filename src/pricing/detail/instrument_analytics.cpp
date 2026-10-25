@@ -39,8 +39,8 @@ bool volatility_affects_price(const Accumulator& option, const PricingContext& c
                                  accumulator_knocked_out(context.spot_price(), option.knock_out_level());
     // With zero rates and no new accrual, stopping an accumulated forward preserves its expectation.
     const bool exposed_quantity = option.accumulated_quantity() != 0.0 &&
-                                  (context.model_parameters().risk_free_rate() != 0.0 ||
-                                   context.model_parameters().dividend_yield() != 0.0);
+                                  (!context.model_parameters().has_flat_rates() || (*context.model_parameters().risk_free_rate()) != 0.0 ||
+                                   (*context.model_parameters().dividend_yield()) != 0.0);
     return !knocked_out_now && (accumulator_accrues(option) || exposed_quantity);
 }
 

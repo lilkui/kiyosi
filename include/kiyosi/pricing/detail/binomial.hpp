@@ -6,6 +6,7 @@
 
 #include <kiyosi/core/day_count.hpp>
 #include <kiyosi/market/context.hpp>
+#include <kiyosi/pricing/detail/pricing.hpp>
 #include <kiyosi/pricing/settings/binomial.hpp>
 #include <kiyosi/pricing/settings/implied.hpp>
 
@@ -23,11 +24,12 @@ template <typename Option>
 Result<ImpliedVolatilitySettings> prepare_binomial_implied_volatility(
     BinomialSettings tree, const Option& option, const PricingContext& context, ImpliedVolatilitySettings settings)
 {
+    if (auto flat = require_flat_rates(context); !flat) return std::unexpected(flat.error());
     const auto step = binomial_time_step(context, option.effective_date(), option.expiry_date(), tree);
     if (!step) return std::unexpected(step.error());
     if (*step > 0.0) {
         const auto& parameters = context.model_parameters();
-        const double drift = (parameters.risk_free_rate() - parameters.dividend_yield()) * *step;
+        const double drift = ((*parameters.risk_free_rate()) - (*parameters.dividend_yield())) * *step;
         // Round into the valid tree domain so the endpoint probability stays in [0, 1].
         const double minimum = std::nextafter(std::abs(drift) / std::sqrt(*step),
                                               std::numeric_limits<double>::infinity());

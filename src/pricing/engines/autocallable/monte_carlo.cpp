@@ -41,7 +41,7 @@ Result<SimulationInputs> prepare_simulation(
     const Note& note, const PricingContext& context, std::size_t next_observation, bool daily_knock_in,
     const Note* alternate = nullptr)
 {
-    const double rate = context.model_parameters().risk_free_rate();
+    const double rate = (*context.model_parameters().risk_free_rate());
     const Timestamp valuation = context.valuation_time();
     const auto dates = autocallable_event_dates(note, context, next_observation, daily_knock_in);
     std::vector<AutocallableStep> steps;
@@ -146,8 +146,8 @@ Result<std::array<double, count + (rates ? 2 : 0)>> price_spot_bumps(
     std::array<PathState, outputs> initial{};
     for (std::size_t i = 0; i < outputs; ++i) {
         const double spot = context.spot_price() + (i < count ? offsets[i] * h : 0.0);
-        const double rate = context.model_parameters().risk_free_rate() + (i < count ? 0.0 : i == count ? rate_shift
-                                                                                                        : -rate_shift);
+        const double rate = (*context.model_parameters().risk_free_rate()) + (i < count ? 0.0 : i == count ? rate_shift
+                                                                                                           : -rate_shift);
         const auto shifted = shifted_context(context, spot, context.model_parameters().volatility(),
                                              rate, context.valuation_time());
         if (!shifted) return std::unexpected(shifted.error());
@@ -171,7 +171,7 @@ Result<std::array<double, count + (rates ? 2 : 0)>> price_spot_bumps(
             for (std::size_t i = 0; i < rate_inputs.size(); ++i) {
                 if (initial[count + i].payoff) continue;
                 const auto shifted = shifted_context(context, context.spot_price(), context.model_parameters().volatility(),
-                                                     context.model_parameters().risk_free_rate() + (i == 0 ? rate_shift : -rate_shift), context.valuation_time());
+                                                     (*context.model_parameters().risk_free_rate()) + (i == 0 ? rate_shift : -rate_shift), context.valuation_time());
                 if (!shifted) return std::unexpected(shifted.error());
                 auto prepared = prepare_simulation(note, *shifted, base.next_observation,
                                                    program_knock_in_affects_payoff(program) && program.daily_knock_in && !base.path.knocked_in);
@@ -233,13 +233,13 @@ Result<std::array<double, 2 * count>> price_volatility_bumps(
     std::array<PathState, 2 * count> initial{};
     for (std::size_t market = 0; market < inputs.size(); ++market) {
         const double volatility = context.model_parameters().volatility() + (market == 0 ? volatility_shift : -volatility_shift);
-        const auto shifted = shifted_context(context, context.spot_price(), volatility, context.model_parameters().risk_free_rate(), context.valuation_time());
+        const auto shifted = shifted_context(context, context.spot_price(), volatility, (*context.model_parameters().risk_free_rate()), context.valuation_time());
         if (!shifted) return std::unexpected(shifted.error());
         const auto valid = contract.validate(*shifted);
         if (!valid) return std::unexpected(valid.error());
         for (std::size_t index = 0; index < count; ++index) {
             const double spot = context.spot_price() + SpotStencil<count>::offsets[index] * spot_shift;
-            const auto bumped = shifted_context(*shifted, spot, volatility, context.model_parameters().risk_free_rate(), context.valuation_time());
+            const auto bumped = shifted_context(*shifted, spot, volatility, (*context.model_parameters().risk_free_rate()), context.valuation_time());
             if (!bumped) return std::unexpected(bumped.error());
             const auto state = autocallable_initial_state(note, *bumped, program);
             const auto fixed = state.settlement ? state.settlement : autocallable_fixed_value(note, *bumped, program, state);
@@ -349,6 +349,7 @@ Result<ImpliedVolatilitySettings> detail::prepare_implied_volatility(
 template <AutocallableProduct Note>
 Result<double> MonteCarloAutocallableEngine::price(const Note& note, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     AutocallableMonteCarloRequest<Note> request{{note, context.calendar()}};
     return price_autocallable(context, settings_, request);
 }
@@ -421,6 +422,7 @@ template <AutocallableProduct Note>
 Result<PricingResult> MonteCarloAutocallableEngine::price_with_greeks(const Note& option, const PricingContext& context,
                                                                       GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::evaluate_greeks(
         *this, option, context, greeks, settings,
         [&](const auto& seeded) -> Result<PricingResult> {

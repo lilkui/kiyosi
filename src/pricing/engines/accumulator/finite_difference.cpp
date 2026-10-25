@@ -44,6 +44,8 @@ Result<PricingResult> price_accumulator(
     const auto initial = accumulator_initial_state(option, context);
     if (initial.settlement) return make_pricing_result(*initial.settlement);
 
+    if (const auto covered = validate_curve_horizon(context, start_of_day(option.expiry_date())); !covered)
+        return std::unexpected(covered.error());
     const double spot = context.spot_price();
 
     // Contract, calendar and settings are fixed for this request; spot and time may be bumped.
@@ -65,14 +67,12 @@ Result<PricingResult> price_accumulator(
         trading_times.reserve(future_trading_dates.size());
         for (const Date value : future_trading_dates)
             trading_times.push_back(actual_365_fixed_year_fraction(context.valuation_time(), value));
-        grid = make_finite_difference_time_grid(context.valuation_time(), option.expiry_date(), settings.time_step_count, future_trading_dates);
+        grid = curve_finite_difference_time_grid(context, option.expiry_date(), settings.time_step_count, future_trading_dates);
         workspace.valuation = context.valuation_time();
     }
 
-    const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
-    const double sigma = context.model_parameters().volatility();
-    if (auto stable = check_explicit_stability(settings.scheme, grid, sigma, rate, dividend, settings.asset_step_count);
+    const auto parameters = diffusion_parameters(context, scheme_theta(settings.scheme));
+    if (auto stable = check_curve_explicit_stability(settings.scheme, grid, parameters, settings.asset_step_count, context);
         !stable)
         return std::unexpected(stable.error());
 
@@ -103,7 +103,6 @@ Result<PricingResult> price_accumulator(
         intercept[index] = projected[1];
     }
 
-    const DiffusionParameters parameters{rate, dividend, sigma, scheme_theta(settings.scheme)};
     if (!workspace.stepper)
         workspace.stepper.emplace(size, space->upper, space->spacing, parameters);
     auto& stepper = *workspace.stepper;
@@ -112,9 +111,10 @@ Result<PricingResult> price_accumulator(
         const auto substeps = damping.next(parameters.theta);
         auto step_parameters = parameters;
         step_parameters.theta = substeps.theta;
-        stepper.set_parameters(step_parameters);
         const double dt = grid.time_steps[step] / substeps.count;
         for (int substep = 0; substep < substeps.count; ++substep) {
+            const double time = grid.times[step] + dt * (substeps.count - substep - 1);
+            stepper.set_parameters(diffusion_interval(step_parameters, context, time, time + dt));
             const bool advanced = has_future_purchases
                                       ? stepper.advance_pair(slope, next_slope, intercept, next_intercept, dt)
                                       : stepper.advance(slope, next_slope, dt);

@@ -468,8 +468,8 @@ double reference_accumulator_price(const kiyosi::Accumulator& option,
                                    kiyosi::TradingDayMonteCarloSettings settings)
 {
     const auto path_payoff = [&](kiyosi::detail::Pcg32& generator) {
-        const double rate = context.model_parameters().risk_free_rate();
-        const double dividend = context.model_parameters().dividend_yield();
+        const double rate = (*context.model_parameters().risk_free_rate());
+        const double dividend = (*context.model_parameters().dividend_yield());
         const double sigma = context.model_parameters().volatility();
         const auto valuation = context.valuation_time();
 

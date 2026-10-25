@@ -13,6 +13,8 @@ add_executable(kiyosi_tests
     instruments/autocallable/snowball_tests.cpp
     market/calendar_tests.cpp
     market/context_tests.cpp
+    market/rate_term_structure_tests.cpp
+    pricing/engines/rate_term_structure_fd_tests.cpp
     pricing/integration_tests.cpp
     pricing/analytics/api_contract_tests.cpp
     pricing/analytics/audit_tests.cpp

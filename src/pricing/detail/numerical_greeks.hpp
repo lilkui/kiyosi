@@ -86,7 +86,7 @@ NumericalStencils numerical_stencils(const Option& option, const PricingContext&
     const double volatility = context.model_parameters().volatility();
     const double h = symmetric_shift(spot, settings.spot_shift);
     const double v = symmetric_shift(volatility, settings.volatility_shift);
-    const double r = symmetric_shift(context.model_parameters().risk_free_rate(), settings.rate_shift);
+    const double r = symmetric_shift(rate_shift_origin(context.model_parameters()), settings.rate_shift);
     const bool spot_available = h > 0.0 && spot > h && !at_spot_discontinuity(option, context, h);
     const double two_h = 2.0 * h;
     return {h, v, r, at_spot_discontinuity(option, context), spot_available,
@@ -133,7 +133,7 @@ Result<NumericalSpotPrices> sample_spot_prices(
                 middle = *value;
             }
             const double volatility = context.model_parameters().volatility();
-            const double rate = context.model_parameters().risk_free_rate();
+            const double rate = rate_shift_origin(context.model_parameters());
             const auto up = shifted_value(price, context, context.spot_price() + h, volatility, rate, context.valuation_time());
             if (!up) return std::unexpected(up.error());
             const auto down = shifted_value(price, context, context.spot_price() - h, volatility, rate, context.valuation_time());
@@ -188,7 +188,7 @@ Result<PricingResult> complete_greeks(
 {
     const double spot = context.spot_price();
     const double volatility = context.model_parameters().volatility();
-    const double rate = context.model_parameters().risk_free_rate();
+    const double rate = rate_shift_origin(context.model_parameters());
     const Timestamp valuation_time = context.valuation_time();
     const Result<double> p0 = native.price();
     if (greeks_unavailable(option, context))
@@ -360,9 +360,18 @@ Result<PricingResult> complete_greeks(
             lower_bound = start_of_day(option.effective_date());
         if constexpr (requires { option.expiry_date(); })
             upper_bound = start_of_day(option.expiry_date());
-        // Bound whole days before conversion so even INT_MAX shifts fit in microseconds.
-        const auto requested_shift = std::chrono::duration_cast<Timestamp::duration>(
-            std::min(std::chrono::days{settings.time_shift_days}, std::chrono::floor<std::chrono::days>(upper_bound - lower_bound)));
+        for (const auto* curve : {&context.model_parameters().risk_free_curve(), &context.model_parameters().dividend_curve()}) {
+            if (const auto reference = curve->reference_time()) lower_bound = std::max(lower_bound, *reference);
+            if (const auto last = curve->max_time()) upper_bound = std::min(upper_bound, *last);
+            for (const Timestamp knot : curve->nodes()) {
+                if (knot <= valuation_time) lower_bound = std::max(lower_bound, knot);
+                else upper_bound = std::min(upper_bound, knot);
+            }
+        }
+        // Bound days before conversion, retaining subday intervals between curve knots.
+        const auto available_width = std::max(Timestamp::duration::zero(), upper_bound - lower_bound);
+        const auto requested_shift = std::min(available_width, std::chrono::duration_cast<Timestamp::duration>(
+                                                                   std::min(std::chrono::days{settings.time_shift_days}, std::max(std::chrono::days{1}, std::chrono::floor<std::chrono::days>(available_width)))));
         const auto available_before = valuation_time - lower_bound;
         const auto available_after = upper_bound - valuation_time;
         const auto shift = available_before > Timestamp::duration::zero() && available_after > Timestamp::duration::zero()
@@ -454,7 +463,7 @@ Result<PricingResult> evaluate_greeks(
     auto result = with_monte_carlo_seed<Engine, Option>(engine, [&](const Engine& seeded) {
         if constexpr (is_builtin_finite_difference_engine<Engine, Option>) {
             auto grid = seeded.settings();
-            if (!grid.asset_upper_boundary) {
+            if (!grid.asset_upper_boundary && validate_curve_horizon(context, start_of_day(option.expiry_date()))) {
                 // Spot bumps share one mesh; settlements may never construct a grid.
                 const double upper = default_finite_difference_upper_boundary(option, context);
                 if (std::isfinite(upper)) {

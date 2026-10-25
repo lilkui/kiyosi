@@ -467,7 +467,7 @@ TEST_CASE("Selected Greek completion uses only missing spot differences", "[pric
     for (const auto& call : calls) {
         CHECK(call.valuation_time() == context.valuation_time());
         CHECK(call.model_parameters().volatility() == 0.3);
-        CHECK(call.model_parameters().risk_free_rate() == 0.04);
+        CHECK((*call.model_parameters().risk_free_rate()) == 0.04);
     }
     CHECK(greek_value(*basic, Greek::delta) == Catch::Approx(200.0));
     CHECK(greek_value(*basic, Greek::gamma) == Catch::Approx(2.0).epsilon(0.0).margin(1e-5));

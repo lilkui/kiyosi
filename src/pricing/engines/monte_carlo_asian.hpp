@@ -94,7 +94,8 @@ struct AsianMonteCarloParameters {
     }
 
     KIYOSI_ASIAN_HOST_DEVICE AsianMonteCarloSample arithmetic_sample(
-        double lead_growth, double relative_sum, double log_sum, double vanishing_center, bool delta, bool gamma) const
+        double lead_growth, double relative_sum, double log_sum, double vanishing_center, bool delta, bool gamma,
+        bool varying_drift = false) const
     {
         const double half = 0.5 / step_count, rest = 1.0 - half;
         const double log_spot = std::log(spot), log_weight = std::log(weight);
@@ -125,7 +126,7 @@ struct AsianMonteCarloParameters {
         double center = width > 0.0 ? forward / width : forward == 0.0 ? vanishing_center
                                                                        : (forward / std::exp(log_width / 2.0)) / std::exp(log_width / 2.0);
         const double baseline = (1.0 - weight) * ((realized - strike) / spot) + weight * ((spot - strike) / spot);
-        if (width < DBL_MIN && drift == 0.0 && lead_drift == 0.0 && interval_forward == 0.0 && baseline == 0.0)
+        if (!varying_drift && width < DBL_MIN && drift == 0.0 && lead_drift == 0.0 && interval_forward == 0.0 && baseline == 0.0)
             center = vanishing_center;
         const double d1 = center + 0.5 * width, d2 = center - 0.5 * width;
         const double sign = call ? 1.0 : -1.0;
@@ -167,7 +168,8 @@ struct AsianMonteCarloParameters {
     }
 
     template <typename Draw>
-    KIYOSI_ASIAN_HOST_DEVICE AsianMonteCarloSample sample(Draw draw, bool delta, bool gamma) const
+    KIYOSI_ASIAN_HOST_DEVICE AsianMonteCarloSample sample(Draw draw, bool delta, bool gamma,
+                                                          const double* interval_drifts = nullptr) const
     {
         if (geometric) return geometric_sample(draw(), delta, gamma);
         const double lead_normal = lead ? draw() : 0.0;
@@ -176,7 +178,7 @@ struct AsianMonteCarloParameters {
         double normal_sum = 0.0, weighted_normals = 0.0;
         for (int step = 2; step <= step_count; ++step) {
             const double normal = draw();
-            growth += drift + width * normal;
+            growth += (interval_drifts ? interval_drifts[step - 2] : drift) + width * normal;
             const double fraction = (step == step_count ? 0.5 : 1.0) / step_count;
             if (width < DBL_MIN) {
                 // Factoring out the width retains subnormal-volatility ATM time value.
@@ -192,7 +194,7 @@ struct AsianMonteCarloParameters {
             }
         }
         const double vanishing_center = (weighted_normals + lead_width_ratio * lead_normal) / (1.0 - 0.5 / step_count);
-        return arithmetic_sample(lead_growth, relative_sum, log_sum, vanishing_center, delta, gamma);
+        return arithmetic_sample(lead_growth, relative_sum, log_sum, vanishing_center, delta, gamma, interval_drifts != nullptr);
     }
 };
 } // namespace kiyosi::detail

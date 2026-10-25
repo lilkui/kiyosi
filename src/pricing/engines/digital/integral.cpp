@@ -21,8 +21,8 @@ Result<double> price_digital_integral(OptionType type, double strike, double pay
     const double sign = type == OptionType::call ? 1.0 : -1.0;
     if (time == 0.0)
         return checked_price(binary_payoff_value(type, strike, payout, asset, spot));
-    const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
+    const double rate = (*context.model_parameters().risk_free_rate());
+    const double dividend = (*context.model_parameters().dividend_yield());
     const double volatility = context.model_parameters().volatility();
     const double root = std::sqrt(time);
     const double width = volatility * root;
@@ -40,22 +40,26 @@ Result<double> price_digital_integral(OptionType type, double strike, double pay
 
 Result<double> QuadratureDigitalEngine::price(const CashOrNothingOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return price_digital_integral(option.option_type(), option.strike(), option.payout(), false, option.effective_date(), option.expiry_date(), context);
 }
 Result<double> QuadratureDigitalEngine::price(const AssetOrNothingOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return price_digital_integral(option.option_type(), option.strike(), 1.0, true, option.effective_date(), option.expiry_date(), context);
 }
 
 Result<PricingResult> QuadratureDigitalEngine::price_with_greeks(const CashOrNothingOption& option, const PricingContext& context,
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 Result<PricingResult> QuadratureDigitalEngine::price_with_greeks(const AssetOrNothingOption& option, const PricingContext& context,
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 

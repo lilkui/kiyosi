@@ -51,8 +51,8 @@ Result<SimulationParameters> simulation_parameters(
     const double volatility = context.model_parameters().volatility();
     const double dt = time / static_cast<double>(settings.step_count - 1);
     const double sqrt_dt = std::sqrt(dt);
-    const double drift = (context.model_parameters().risk_free_rate() -
-                          context.model_parameters().dividend_yield() -
+    const double drift = ((*context.model_parameters().risk_free_rate()) -
+                          (*context.model_parameters().dividend_yield()) -
                           0.5 * volatility * volatility) *
                          dt;
     const double diffusion = volatility * sqrt_dt;
@@ -60,7 +60,7 @@ Result<SimulationParameters> simulation_parameters(
         !std::isfinite(diffusion))
         return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "Monte Carlo simulation parameters are non-finite"});
-    return SimulationParameters{context.spot_price(), context.model_parameters().risk_free_rate(),
+    return SimulationParameters{context.spot_price(), (*context.model_parameters().risk_free_rate()),
                                 drift, diffusion};
 }
 
@@ -268,7 +268,7 @@ public:
         for (std::size_t i = 0; i < count; ++i) {
             spots[i] = context.spot_price() + detail::SpotStencil<count>::offsets[i] * h;
             const auto shifted = detail::shifted_context(context, spots[i], context.model_parameters().volatility(),
-                                                         context.model_parameters().risk_free_rate(), context.valuation_time());
+                                                         (*context.model_parameters().risk_free_rate()), context.valuation_time());
             if (!shifted) return std::unexpected(shifted.error());
         }
         return prices(option, context, spots);
@@ -378,6 +378,7 @@ Result<double> implied_volatility<MonteCarloVanillaEngine, EuropeanOption>(
     const MonteCarloVanillaEngine& engine, const EuropeanOption& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     std::optional<EuropeanMonteCarloSamples> samples;
     return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
                                             [&](const auto& seeded, const auto& instrument, const auto& shifted) {
@@ -388,6 +389,7 @@ Result<double> implied_volatility<MonteCarloVanillaEngine, EuropeanOption>(
 
 Result<double> MonteCarloVanillaEngine::price(const EuropeanOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return price_european(option, context, settings_, [](auto parameters, auto simulation, const auto& observe) {
         return simulate_paths(parameters, simulation, observe);
     });
@@ -408,8 +410,8 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "American Monte Carlo requires at least three grid points"});
     if (terminal_only && option.option_type() == OptionType::call &&
-        context.model_parameters().dividend_yield() <= 0.0 &&
-        context.model_parameters().risk_free_rate() >= 0.0) {
+        (*context.model_parameters().dividend_yield()) <= 0.0 &&
+        (*context.model_parameters().risk_free_rate()) >= 0.0) {
         const auto european = *make_european_option(
             option.option_type(), option.strike(), option.effective_date(), option.expiry_date());
         const auto value = price_european(european, context, settings, [&](auto parameters, auto simulation, const auto& observe) { return simulate_paths(parameters, simulation, observe, samples); }, workspace);
@@ -418,7 +420,7 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
     }
     const auto parameters = simulation_parameters(context, *time, settings);
     if (!parameters) return std::unexpected(parameters.error());
-    const double discount = std::exp(-context.model_parameters().risk_free_rate() *
+    const double discount = std::exp(-(*context.model_parameters().risk_free_rate()) *
                                      *time / static_cast<double>(settings.step_count - 1));
     double mean = 0.0;
     if (settings.backend == MonteCarloBackend::cuda) {
@@ -567,6 +569,7 @@ Result<double> implied_volatility<MonteCarloVanillaEngine, AmericanOption>(
     const MonteCarloVanillaEngine& engine, const AmericanOption& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     std::optional<AmericanMonteCarloPricer> prices;
     return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
                                             [&](const auto& seeded, const auto& instrument, const auto& shifted) {
@@ -577,12 +580,14 @@ Result<double> implied_volatility<MonteCarloVanillaEngine, AmericanOption>(
 
 Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return price_american(option, context, settings_, true);
 }
 
 Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanOption& option, const PricingContext& context,
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
         const auto stencils = detail::numerical_stencils(option, context, settings);
         const bool cache_samples = greeks.has(Greek::theta) ||
@@ -632,6 +637,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanO
 Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanOption& option, const PricingContext& context,
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
         const auto stencils = detail::numerical_stencils(option, context, settings);
         const bool cache_growth = stencils.spot_available &&
@@ -645,10 +651,10 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
         const auto native = [&]() -> Result<PricingResult> {
         const auto value = prices.price(option, context);
         if (!value) return std::unexpected(value.error());
-        const double rate = context.model_parameters().risk_free_rate();
+        const double rate = (*context.model_parameters().risk_free_rate());
         const double shift = stencils.rate_shift;
         if (greeks.has(Greek::rho) && stencils.rate_available && !detail::greeks_unavailable(option, context) &&
-            option.option_type() == OptionType::call && context.model_parameters().dividend_yield() <= 0.0 &&
+            option.option_type() == OptionType::call && (*context.model_parameters().dividend_yield()) <= 0.0 &&
             rate - shift < 0.0 && rate + shift >= 0.0) {
             // Keep one estimator across the rate stencil when the terminal-only shortcut changes branch.
             const auto evaluate = [&](double shifted_rate) -> Result<double> {

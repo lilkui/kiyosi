@@ -8,23 +8,27 @@ using namespace detail;
 
 Result<double> CoxRossRubinsteinVanillaEngine::price(const EuropeanOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_value(price_binomial(option, context, settings_, GreeksRequest{}));
 }
 
 Result<double> CoxRossRubinsteinVanillaEngine::price(const AmericanOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_value(price_binomial(option, context, settings_, GreeksRequest{}));
 }
 
 Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_with_greeks(const EuropeanOption& option, const PricingContext& context,
                                                                         GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return price_binomial(option, shifted, engine.settings(), request); });
 }
 
 Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_with_greeks(const AmericanOption& option, const PricingContext& context,
                                                                         GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return price_binomial(option, shifted, engine.settings(), request); });
 }
 

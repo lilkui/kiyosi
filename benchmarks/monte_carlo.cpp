@@ -127,7 +127,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
         const auto calendar = make_custom_calendar(weekdays_calendar(), std::move(closed)).value();
         const auto market = make_pricing_context(base_context.model_parameters(), 100.0, base_context.valuation_time(), calendar).value();
         register_calculation(std::format("analytics/kiyosi/context/custom_calendar/{}/shift", count).c_str(), [market]() -> Result<double> {
-            auto shifted = detail::shifted_context(market, 101.0, market.model_parameters().volatility(), market.model_parameters().risk_free_rate(), market.valuation_time());
+            auto shifted = detail::shifted_context(market, 101.0, market.model_parameters().volatility(), (*market.model_parameters().risk_free_rate()), market.valuation_time());
             if (!shifted) return std::unexpected(shifted.error());
             benchmark::DoNotOptimize(*shifted);
             return shifted->spot_price(); }, "spot")->UseRealTime();

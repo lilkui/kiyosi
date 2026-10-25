@@ -138,7 +138,7 @@ template <typename Engine, typename Option, typename Price, typename Prepare = s
 
         const auto evaluate = [&](double volatility) -> Result<double> {
             auto shifted = detail::shifted_context(context, context.spot_price(), volatility,
-                                                   context.model_parameters().risk_free_rate(),
+                                                   rate_shift_origin(context.model_parameters()),
                                                    context.valuation_time());
             if (!shifted) return std::unexpected(shifted.error());
             auto priced = price(seeded, option, *shifted);

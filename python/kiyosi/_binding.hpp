@@ -5,6 +5,7 @@
 #include <nanobind/stl/optional.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
+#include <nanobind/stl/variant.h>
 #include <datetime.h>
 
 #include <array>
@@ -252,6 +253,9 @@ struct type_caster<Enum, enable_if_t<std::is_enum_v<Enum>>> {
 namespace kiyosi::python_binding {
 
 using PythonReal = nb::typed<nb::handle, double>;
+using PythonRate = nb::typed<nb::handle, std::variant<double, RateTermStructure>>;
+using PythonRateValue = nb::typed<nb::object, std::variant<double, RateTermStructure>>;
+using PythonTimeSequence = nb::typed<nb::handle, nb::typed<nb::iterable, PythonValuationTimeAnnotation>>;
 using PythonInteger = nb::typed<nb::handle, int>;
 using PythonDate = nb::typed<nb::handle, PythonDateAnnotation>;
 using PythonValuationTime = nb::typed<nb::handle, PythonValuationTimeAnnotation>;

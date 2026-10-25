@@ -101,8 +101,8 @@ Result<PricingResult> price_binomial(
             return make_pricing_result(std::max(sign * (spot - strike), 0.0));
     }
 
-    const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
+    const double rate = (*context.model_parameters().risk_free_rate());
+    const double dividend = (*context.model_parameters().dividend_yield());
     const double volatility = context.model_parameters().volatility();
     const double root_dt = std::sqrt(dt);
     const double log_up = volatility * root_dt;

@@ -16,6 +16,7 @@
 #include <kiyosi/core/version.hpp>
 
 #include <kiyosi/market/bsm_parameters.hpp>
+#include <kiyosi/market/rate_term_structure.hpp>
 #include <kiyosi/market/calendar.hpp>
 #include <kiyosi/market/calendars/sse.hpp>
 #include <kiyosi/market/context.hpp>
@@ -64,6 +65,7 @@
 #include <kiyosi/pricing/engines/barrier/finite_difference.hpp>
 #include <kiyosi/pricing/engines/barrier/double_finite_difference.hpp>
 #include <kiyosi/pricing/engines/binary_barrier/analytic.hpp>
+#include <kiyosi/pricing/engines/binary_barrier/finite_difference.hpp>
 #include <kiyosi/pricing/engines/binary_barrier/double_finite_difference.hpp>
 #include <kiyosi/pricing/engines/digital/analytic.hpp>
 #include <kiyosi/pricing/engines/digital/binomial.hpp>

@@ -6,6 +6,7 @@
 
 #include <kiyosi/core/day_count.hpp>
 #include <kiyosi/instruments/vanilla.hpp>
+#include <kiyosi/pricing/detail/pricing.hpp>
 
 namespace kiyosi::detail {
 
@@ -14,6 +15,7 @@ double highest_finite_difference_level(const Option& option)
 {
     double relevant = 0.0;
     if constexpr (requires { option.strike(); }) relevant = std::max(relevant, option.strike());
+    else if constexpr (requires { option.barrier_level(); }) relevant = std::max(relevant, option.barrier_level());
     if constexpr (requires { option.initial_spot(); option.upper_strike(); option.lower_strike(); })
         relevant = std::max({relevant, option.initial_spot(), option.upper_strike(), option.lower_strike()});
     if constexpr (requires { option.knock_out_level(); }) relevant = std::max(relevant, option.knock_out_level());
@@ -37,8 +39,20 @@ double volatility_adjusted_upper_boundary(double relevant, Date expiry, const Co
     const auto& parameters = context.model_parameters();
     const double time = actual_365_fixed_year_fraction(context.valuation_time(), expiry);
     const double sigma = parameters.volatility();
-    const double drift = parameters.risk_free_rate() - parameters.dividend_yield() - 0.5 * sigma * sigma;
-    const double width = 4.0 * sigma * std::sqrt(time) + std::abs(drift) * time;
+    if (parameters.has_flat_rates()) {
+        const double drift = *parameters.risk_free_curve().flat_rate() - *parameters.dividend_curve().flat_rate() - 0.5 * sigma * sigma;
+        const double width = 4.0 * sigma * std::sqrt(time) + std::abs(drift) * time;
+        return width <= std::log(4.0) ? 4.0 * relevant : std::exp(std::log(relevant) + width);
+    }
+    double maximum_drift = 0.0;
+    auto times = curve_times(context, start_of_day(expiry));
+    times.push_back(time);
+    for (const double end : times) {
+        const double drift = -curve_log_factor(parameters.risk_free_curve(), context.valuation_time(), 0.0, end) +
+                             curve_log_factor(parameters.dividend_curve(), context.valuation_time(), 0.0, end) - 0.5 * sigma * sigma * end;
+        maximum_drift = std::max(maximum_drift, std::abs(drift));
+    }
+    const double width = 4.0 * sigma * std::sqrt(time) + maximum_drift;
     return width <= std::log(4.0) ? 4.0 * relevant : std::exp(std::log(relevant) + width);
 }
 

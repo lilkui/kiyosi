@@ -29,8 +29,8 @@ Result<double> price_barrier(
     if (const auto settled = resolved_barrier_price(option, context)) return *settled;
     const double t = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price();
-    const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
+    const double rate = (*context.model_parameters().risk_free_rate());
+    const double dividend = (*context.model_parameters().dividend_yield());
     const double sigma = context.model_parameters().volatility();
     const auto& terms = option.barrier_terms();
     const bool upper = terms.is_up();
@@ -130,17 +130,20 @@ Result<double> implied_volatility<AnalyticBarrierEngine, BarrierOption>(
     const AnalyticBarrierEngine&, const BarrierOption& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return implied_volatility(BarrierPricer{}, option, context, observed_price, settings);
 }
 
 Result<double> AnalyticBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return BarrierPricer{}.price(option, context);
 }
 
 Result<PricingResult> AnalyticBarrierEngine::price_with_greeks(const BarrierOption& option, const PricingContext& context,
                                                                GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_with_greeks(BarrierPricer{}, option, context, greeks, settings);
 }
 

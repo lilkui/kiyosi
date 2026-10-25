@@ -39,13 +39,13 @@ struct TerminalReference {
     Result<double> price(const Accumulator& option, const PricingContext& context) const
     {
         const double time = *year_fraction(context.valuation_time(), start_of_day(option.expiry_date()));
-        const auto parameters = context.model_parameters();
+        const auto& parameters = context.model_parameters();
         const double deviation = parameters.volatility() * std::sqrt(time);
-        const double stock = context.spot_price() * std::exp(-parameters.dividend_yield() * time);
-        const double cash = option.strike() * std::exp(-parameters.risk_free_rate() * time);
+        const double stock = context.spot_price() * std::exp(-(*parameters.dividend_yield()) * time);
+        const double cash = option.strike() * std::exp(-(*parameters.risk_free_rate()) * time);
         const auto lower_payoff = [&](double level) {
             const double d2 = (std::log(context.spot_price() / level) +
-                               (parameters.risk_free_rate() - parameters.dividend_yield() -
+                               ((*parameters.risk_free_rate()) - (*parameters.dividend_yield()) -
                                 0.5 * parameters.volatility() * parameters.volatility()) *
                                    time) /
                               deviation;

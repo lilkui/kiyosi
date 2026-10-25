@@ -13,6 +13,7 @@ using namespace detail;
 
 Result<double> QuadratureVanillaEngine::price(const EuropeanOption& option, const PricingContext& context) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
     const double tau = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
@@ -22,8 +23,8 @@ Result<double> QuadratureVanillaEngine::price(const EuropeanOption& option, cons
     if (tau == 0.0)
         return checked_price(std::max(sign * (spot - strike), 0.0));
     const double sigma = context.model_parameters().volatility();
-    const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
+    const double rate = (*context.model_parameters().risk_free_rate());
+    const double dividend = (*context.model_parameters().dividend_yield());
     const double root = std::sqrt(tau);
     const double width = sigma * root;
     // Separate tail integrals lose time value when their difference is tiny.
@@ -46,6 +47,7 @@ Result<PricingResult> QuadratureVanillaEngine::price_with_greeks(
     const EuropeanOption& option, const PricingContext& context,
     GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    if (auto valid = detail::require_flat_rates(context); !valid) return std::unexpected(valid.error());
     return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 

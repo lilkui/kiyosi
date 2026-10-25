@@ -7,6 +7,7 @@
 
 #include "../../detail/black_scholes.hpp"
 #include "../../detail/math.hpp"
+#include "../../detail/rate_term_structure.hpp"
 
 namespace kiyosi {
 using namespace detail;
@@ -18,6 +19,27 @@ double payoff(OptionType type, double value, double strike)
 double exprel(double value)
 {
     return value == 0.0 ? 1.0 : std::expm1(value) / value;
+}
+double geometric_average_log_drift(const PricingContext& context, Timestamp expiry, double lead, double future, double period)
+{
+    const auto& model = context.model_parameters();
+    const double variance = model.volatility() * model.volatility();
+    if (model.risk_free_curve().is_flat() && model.dividend_curve().is_flat())
+        return (future / period) * ((*model.risk_free_rate()) - (*model.dividend_yield()) - 0.5 * variance) * (lead + future / 2.0);
+    const double maturity = lead + future;
+    auto times = curve_times(context, expiry);
+    times.insert(times.end(), {0.0, lead, maturity});
+    std::ranges::sort(times);
+    times.erase(std::ranges::unique(times).begin(), times.end());
+    double carry = 0.0;
+    for (std::size_t index = 1; index < times.size(); ++index) {
+        const double start = times[index - 1], end = times[index];
+        const double interval = -curve_log_factor(model.risk_free_curve(), context.valuation_time(), start, end) +
+                                curve_log_factor(model.dividend_curve(), context.valuation_time(), start, end);
+        const double midpoint = start + (end - start) / 2.0;
+        carry += interval * (maturity - std::max(lead, midpoint)) / period;
+    }
+    return carry - (future / period) * 0.5 * variance * (lead + future / 2.0);
 }
 double divided_exprel(double x, double y)
 {
@@ -82,14 +104,18 @@ Result<double> AnalyticGeometricAveragePriceEngine::price(
                                      "realized geometric average must match the elapsed averaging period"});
     if (tau == 0.0)
         return checked_price(payoff(option.option_type(), realized > 0.0 ? realized : spot, strike));
+    if (const auto coverage = validate_curve_horizon(context, expiry); !coverage)
+        return std::unexpected(coverage.error());
     const double sigma = context.model_parameters().volatility();
     if (option.averaging_start_date() == option.expiry_date()) {
         return detail::price_value(price_at_volatility(
             *make_european_option(option.option_type(), strike, option.effective_date(), option.expiry_date()),
             context, sigma, GreeksRequest{}));
     }
-    const double rate = context.model_parameters().risk_free_rate();
-    const double carry = rate - context.model_parameters().dividend_yield();
+    const double log_discount = curve_log_factor(context.model_parameters().risk_free_curve(), valuation, 0.0, tau);
+    const double rate = context.model_parameters().risk_free_curve().is_flat()
+                            ? (*context.model_parameters().risk_free_rate())
+                            : -log_discount / tau;
     const double period = actual_365_fixed_year_fraction(averaging_start, expiry);
     const double lead = valuation < averaging_start
                             ? actual_365_fixed_year_fraction(valuation, averaging_start) // NOLINT(readability-suspicious-call-argument): valuation precedes averaging.
@@ -99,7 +125,7 @@ Result<double> AnalyticGeometricAveragePriceEngine::price(
     // The future log-average has Brownian variance proportional to lead + future / 3.
     const double variance_time = lead + future / 3.0;
     const double variance = sigma * sigma * weight * weight * variance_time;
-    double log_forward_ratio = weight * (carry - 0.5 * sigma * sigma) * (lead + future / 2.0) + 0.5 * variance;
+    double log_forward_ratio = geometric_average_log_drift(context, expiry, lead, future, period) + 0.5 * variance;
     if (valuation > averaging_start)
         log_forward_ratio += (1.0 - weight) * log_price_ratio(realized, spot);
     const double deviation = sigma * weight * std::sqrt(variance_time);
@@ -116,7 +142,7 @@ Result<double> AnalyticGeometricAveragePriceEngine::price(
         const double log_moneyness = log_price_ratio(spot, strike);
         const double d1 = (log_moneyness + log_forward_ratio + 0.5 * variance) / deviation;
         const double d2 = d1 - deviation;
-        return black_scholes_values(sign, spot, strike, log_forward_ratio - rate * tau, -rate * tau,
+        return black_scholes_values(sign, spot, strike, log_forward_ratio + log_discount, log_discount,
                                     {d1, d2, normal_cdf(sign * d1), normal_cdf(sign * d2)})
             .price;
     }();
@@ -140,13 +166,17 @@ Result<double> TurnbullWakemanArithmeticAveragePriceEngine::price(
     const double spot = context.spot_price();
     const double strike = option.strike();
     const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
-    const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
-    const double carry = rate - dividend;
     const double sigma = context.model_parameters().volatility();
     if (tau == 0.0)
         return checked_price(payoff(option.option_type(), realized > 0.0 ? realized : spot,
                                     strike));
+    if (!context.model_parameters().risk_free_curve().is_flat() || !context.model_parameters().dividend_curve().is_flat())
+        return std::unexpected(Error{ErrorCategory::unsupported_operation, "Turnbull-Wakeman requires flat rates"});
+    if (const auto coverage = validate_curve_horizon(context, start_of_day(option.expiry_date())); !coverage)
+        return std::unexpected(coverage.error());
+    const double rate = (*context.model_parameters().risk_free_rate());
+    const double dividend = (*context.model_parameters().dividend_yield());
+    const double carry = rate - dividend;
     if (option.averaging_start_date() == option.expiry_date()) {
         return detail::price_value(price_at_volatility(
             *make_european_option(option.option_type(), strike, option.effective_date(), option.expiry_date()),

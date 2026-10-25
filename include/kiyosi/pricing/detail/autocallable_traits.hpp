@@ -138,9 +138,10 @@ std::optional<double> autocallable_fixed_value(const Note& note, const PricingCo
                 if (!knocked_in && note.maturity_coupon_rate() != 0.0) return std::nullopt;
         }
     }
-    const double rate = context.model_parameters().risk_free_rate();
     const double terminal_coupon = knocked_in ? program.knocked_in_terminal_coupon : program.intact_terminal_coupon;
-    const double terminal_discount = std::exp(-rate * actual_365_fixed_year_fraction(context.valuation_time(), note.expiry_date()));
+    const auto terminal_log_discount = context.model_parameters().risk_free_curve().log_factor(context.valuation_time(), start_of_day(note.expiry_date()));
+    if (!terminal_log_discount) return std::nullopt;
+    const double terminal_discount = std::exp(*terminal_log_discount);
     // Underflowed weights cannot establish equality between distinct cashflows.
     if (!std::isnormal(terminal_discount)) return std::nullopt;
     const double maturity_value = (program.principal_ratio + terminal_coupon) * terminal_discount;
@@ -149,7 +150,9 @@ std::optional<double> autocallable_fixed_value(const Note& note, const PricingCo
     const auto observations = note.observations_view();
     for (std::size_t i = observations.size(); i-- > initial.next_observation;) {
         const auto event = autocallable_event(note, i);
-        const double discount = std::exp(-rate * actual_365_fixed_year_fraction(context.valuation_time(), observations[i].date));
+        const auto log_discount = context.model_parameters().risk_free_curve().log_factor(context.valuation_time(), start_of_day(observations[i].date));
+        if (!log_discount) return std::nullopt;
+        const double discount = std::exp(*log_discount);
         if (!std::isnormal(discount)) return std::nullopt;
         // Phoenix pays the current coupon in either branch; knock-out loses only later coupons.
         const double knock_out_value = (program.principal_ratio + (program.carries_observation_coupon ? 0.0 : event.coupon)) * discount;

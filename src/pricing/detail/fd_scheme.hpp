@@ -6,11 +6,13 @@
 #include <concepts>
 #include <cstddef>
 #include <optional>
+#include <numeric>
 #include <ranges>
 #include <span>
 #include <vector>
 
 #include <kiyosi/core/error.hpp>
+#include <kiyosi/pricing/detail/pricing.hpp>
 
 #include "fd_grid.hpp"
 #include "fd_damping.hpp"
@@ -26,6 +28,39 @@ struct DiffusionParameters {
     const SpatialGrid* space = nullptr; // Optional nonuniform grid, owned by the request for the stepper lifetime.
     friend bool operator==(const DiffusionParameters&, const DiffusionParameters&) = default;
 };
+
+// Curves are validated through expiry before any unchecked interval lookup.
+inline DiffusionParameters diffusion_parameters(const PricingContext& context, double theta,
+                                                double sinh_spacing = 0.0, const SpatialGrid* space = nullptr)
+{
+    const auto& market = context.model_parameters();
+    return {curve_forward_rate(market.risk_free_curve(), context.valuation_time(), 0.0),
+            curve_forward_rate(market.dividend_curve(), context.valuation_time(), 0.0),
+            market.volatility(), theta, sinh_spacing, space};
+}
+
+inline DiffusionParameters diffusion_interval(DiffusionParameters parameters, const PricingContext& context,
+                                              double start, double end)
+{
+    const auto& market = context.model_parameters();
+    if (market.risk_free_curve().is_flat() && market.dividend_curve().is_flat()) return parameters;
+    // Knot-aligned intervals have constant forwards; a midpoint avoids endpoint-side ambiguity.
+    const double midpoint = std::midpoint(start, end);
+    parameters.rate = curve_forward_rate(market.risk_free_curve(), context.valuation_time(), midpoint);
+    parameters.dividend = curve_forward_rate(market.dividend_curve(), context.valuation_time(), midpoint);
+    return parameters;
+}
+
+inline FiniteDifferenceTimeGrid curve_finite_difference_time_grid(
+    const PricingContext& context, Date expiry, int steps, std::vector<Date> dates = {})
+{
+    auto events = curve_times(context, start_of_day(expiry));
+    if (events.empty()) return make_finite_difference_time_grid(context.valuation_time(), expiry, steps, std::move(dates));
+    for (const Date date : dates)
+        if (date > context.valuation_time())
+            events.push_back(actual_365_fixed_year_fraction(context.valuation_time(), date));
+    return make_finite_difference_time_grid(actual_365_fixed_year_fraction(context.valuation_time(), expiry), steps, std::move(events));
+}
 
 struct Boundaries {
     double lower;
@@ -80,6 +115,23 @@ inline std::array<double, 3> diffusion_coefficients(double node, const Diffusion
         maximum_decay = std::max(maximum_decay, -diffusion_coefficients(index, parameters)[1]);
     if (std::ranges::max(grid.time_steps) * maximum_decay > 1.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter, "explicit finite-difference grid is unstable"});
+    return {};
+}
+
+[[nodiscard]] inline Result<void> check_curve_explicit_stability(
+    FiniteDifferenceScheme scheme, const FiniteDifferenceTimeGrid& grid,
+    const DiffusionParameters& parameters, int asset_step_count, const PricingContext& context)
+{
+    if (scheme != FiniteDifferenceScheme::explicit_euler) return {};
+    const auto& market = context.model_parameters();
+    if (market.risk_free_curve().is_flat() && market.dividend_curve().is_flat())
+        return check_explicit_stability(scheme, grid, parameters, asset_step_count);
+    for (std::size_t index = 0; index < grid.time_steps.size(); ++index) {
+        const auto interval = diffusion_interval(parameters, context, grid.times[index], grid.times[index + 1]);
+        const FiniteDifferenceTimeGrid step{{grid.times[index], grid.times[index + 1]}, {grid.time_steps[index]}};
+        if (auto valid = check_explicit_stability(scheme, step, interval, asset_step_count); !valid)
+            return valid;
+    }
     return {};
 }
 
@@ -346,7 +398,7 @@ template <bool damp_start = false, typename BoundaryValues,
           typename Constraint = std::nullptr_t>
 [[nodiscard]] inline Result<void> march_backward(
     const FiniteDifferenceTimeGrid& grid, const DiffusionParameters& parameters, std::vector<double>& layer,
-    BoundaryValues boundaries, Event event = {}, Constraint constraint = {})
+    BoundaryValues boundaries, Event event = {}, Constraint constraint = {}, const PricingContext* context = nullptr)
 {
     const double maturity = grid.times.back();
     std::vector<double> next(layer.size());
@@ -361,6 +413,7 @@ template <bool damp_start = false, typename BoundaryValues,
             const double offset = dt * (substeps.count - substep - 1);
             const double time = grid.times[step] + offset;
             const double tau = maturity - grid.times[step] - offset;
+            if (context) step_parameters = diffusion_interval(step_parameters, *context, time, time + dt);
             const Boundaries edges = boundaries(tau);
             const bool advanced = [&] {
                 if constexpr (std::same_as<Constraint, std::nullptr_t>)
