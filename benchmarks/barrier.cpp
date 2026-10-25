@@ -10,8 +10,8 @@
 namespace kiyosi::benchmark_support {
 namespace {
 
-template <typename Engine>
-void add_barrier_case(const std::string& name, const BarrierOption& option,
+template <typename Engine, typename Option>
+void add_barrier_case(const std::string& name, const Option& option,
                       const PricingContext& context, const Engine& engine, double reference)
 {
     const auto add = [&](bool greeks) {
@@ -74,6 +74,23 @@ void register_barrier_cases()
         add_barrier_case(prefix + "mc/cuda", option, context,
                          *make_monte_carlo_barrier_engine({.path_count = 65'536, .seed = 42, .backend = MonteCarloBackend::cuda}), *reference);
 #endif
+    }
+    for (const bool narrow : {false, true}) {
+        for (const bool scheduled : {false, true}) {
+            const auto option = *make_double_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = expiry, .lower_barrier = narrow ? 95.0 : 80.0, .upper_barrier = narrow ? 105.0 : 120.0, .barrier_type = DoubleBarrierType::knock_out, .rebate = 2.0, .observation_mode = scheduled ? ObservationMode::scheduled : ObservationMode::continuous, .observation_dates = scheduled ? std::vector<Date>{start + std::chrono::days{90}, start + std::chrono::days{180}, expiry} : std::vector<Date>{}});
+            const auto reference = scheduled ? make_finite_difference_double_barrier_engine({2000, 2000})->price(option, context)
+                                             : AnalyticDoubleBarrierEngine{}.price(option, context);
+            if (!reference) continue;
+            const std::string prefix = std::string{"double_barrier/"} + (narrow ? "narrow/" : "ordinary/") + (scheduled ? "scheduled/" : "continuous/");
+            if (!scheduled) add_barrier_case(prefix + "analytic", option, context, AnalyticDoubleBarrierEngine{}, *reference);
+            for (const auto sampling : {MonteCarloSampling::pseudo_random, MonteCarloSampling::sobol})
+                add_barrier_case(prefix + "mc/cpu/" + (sampling == MonteCarloSampling::sobol ? "sobol" : "pseudo_random"), option, context,
+                                 *make_monte_carlo_double_barrier_engine({.path_count = 65'536, .seed = 42, .sampling = sampling}), *reference);
+#if KIYOSI_HAS_CUDA
+            add_barrier_case(prefix + "mc/cuda", option, context,
+                             *make_monte_carlo_double_barrier_engine({.path_count = 65'536, .seed = 42, .backend = MonteCarloBackend::cuda}), *reference);
+#endif
+        }
     }
 }
 

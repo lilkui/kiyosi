@@ -33,6 +33,7 @@ add_executable(kiyosi_tests
     pricing/engines/barrier/quadrature_tests.cpp
     pricing/engines/barrier/finite_difference_tests.cpp
     pricing/engines/barrier/double_tests.cpp
+    pricing/engines/barrier/double_numerical_tests.cpp
     pricing/engines/barrier/accuracy_tests.cpp
     pricing/engines/binary_barrier/analytic_tests.cpp
     pricing/engines/binary_barrier/double_touch_tests.cpp

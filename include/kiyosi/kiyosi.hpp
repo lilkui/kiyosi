@@ -55,6 +55,8 @@
 #include <kiyosi/pricing/engines/accumulator/monte_carlo.hpp>
 #include <kiyosi/pricing/engines/asian/analytic.hpp>
 #include <kiyosi/pricing/engines/barrier/analytic.hpp>
+#include <kiyosi/pricing/engines/barrier/double_analytic.hpp>
+#include <kiyosi/pricing/engines/barrier/double_monte_carlo.hpp>
 #include <kiyosi/pricing/engines/barrier/binomial.hpp>
 #include <kiyosi/pricing/engines/barrier/integral.hpp>
 #include <kiyosi/pricing/engines/barrier/monte_carlo.hpp>

@@ -1,12 +1,15 @@
 #include <kiyosi/pricing/engines/barrier/monte_carlo.hpp>
+#include <kiyosi/pricing/engines/barrier/double_monte_carlo.hpp>
 
 #include <array>
 #include <cmath>
 #include <vector>
 
 #include <kiyosi/pricing/engines/barrier/analytic.hpp>
+#include <kiyosi/pricing/engines/barrier/double_analytic.hpp>
 
 #include "../../detail/barrier_settlement.hpp"
+#include "../../detail/double_barrier.hpp"
 #include "../../detail/numerical_greeks.hpp"
 #include "../monte_carlo_barrier.hpp"
 #include "../monte_carlo_host.hpp"
@@ -24,9 +27,12 @@ GreeksRequest supported_greeks(GreeksRequest request)
     return GreeksRequest{std::span{values}.first(count)};
 }
 
-Result<PricingResult> price_barrier(const BarrierOption& option, const PricingContext& context,
+template <typename Option>
+Result<PricingResult> price_barrier(const Option& option, const PricingContext& context,
                                     MonteCarloSettings settings, GreeksRequest requested, NumericalShiftSettings shifts)
 {
+    constexpr bool double_barrier = std::same_as<Option, DoubleBarrierOption>;
+    using AnalyticEngine = std::conditional_t<double_barrier, AnalyticDoubleBarrierEngine, AnalyticBarrierEngine>;
     const auto life = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!life) return std::unexpected(life.error());
     const auto& terms = option.barrier_terms();
@@ -39,18 +45,26 @@ Result<PricingResult> price_barrier(const BarrierOption& option, const PricingCo
     if (const auto settled = resolved_barrier_price(option, context)) {
         if (!*settled) return std::unexpected(settled->error());
         if (greeks.empty()) return make_pricing_result(**settled);
-        return AnalyticBarrierEngine{}.price_with_greeks(option, context, greeks, shifts);
+        return AnalyticEngine{}.price_with_greeks(option, context, greeks, shifts);
     }
     const auto& model = context.model_parameters();
     const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     if (time == 0.0) {
-        const auto value = AnalyticBarrierEngine{}.price(option, context);
+        const auto value = AnalyticEngine{}.price(option, context);
         if (!value) return std::unexpected(value.error());
         return make_pricing_result(*value);
     }
     const double exponent = -model.risk_free_rate() * time;
+    const double barrier = [&] {
+        if constexpr (double_barrier) return option.lower_barrier();
+        else return option.barrier_level();
+    }();
+    const bool up = [&] {
+        if constexpr (double_barrier) return false;
+        else return terms.is_up();
+    }();
     const BarrierMonteCarloParameters parameters{
-        context.spot_price(), option.strike(), option.barrier_level(), std::log(context.spot_price()), std::abs(log_price_ratio(context.spot_price(), option.barrier_level())), option.rebate(), {std::exp(exponent), exponent}, option.option_type() == OptionType::call, terms.is_up(), terms.is_knock_in(), option.rebate_timing() == RebateTiming::at_hit, terms.is_continuous()};
+        context.spot_price(), option.strike(), barrier, std::log(context.spot_price()), std::abs(log_price_ratio(context.spot_price(), barrier)), option.rebate(), {std::exp(exponent), exponent}, option.option_type() == OptionType::call, up, terms.is_knock_in(), option.rebate_timing() == RebateTiming::at_hit, terms.is_continuous(), [&] { if constexpr (double_barrier) return option.upper_barrier(); else return 0.0; }(), [&] { if constexpr (double_barrier) return log_price_ratio(option.upper_barrier(), barrier); else return 0.0; }()};
     std::vector<BarrierMonteCarloStep> steps;
     Timestamp previous = context.valuation_time();
     const auto append = [&](Date date, bool observe) -> Result<void> {
@@ -117,10 +131,14 @@ Result<PricingResult> price_barrier(const BarrierOption& option, const PricingCo
     }
     if (parameters.continuous && !parameters.knock_in && parameters.at_hit && parameters.rebate != 0.0) {
         const auto hit_value = [&](const PricingContext& shifted) {
-            const auto& market = shifted.model_parameters();
-            return barrier_hit_value(option.rebate(), std::abs(log_price_ratio(option.barrier_level(), shifted.spot_price())),
-                                     terms.is_up(), market.risk_free_rate() - market.dividend_yield() - 0.5 * market.volatility() * market.volatility(),
-                                     market.volatility(), time, market.risk_free_rate());
+            if constexpr (double_barrier) {
+                return double_barrier_hit_value(option, shifted);
+            } else {
+                const auto& market = shifted.model_parameters();
+                return barrier_hit_value(option.rebate(), std::abs(log_price_ratio(option.barrier_level(), shifted.spot_price())),
+                                         terms.is_up(), market.risk_free_rate() - market.dividend_yield() - 0.5 * market.volatility() * market.volatility(),
+                                         market.volatility(), time, market.risk_free_rate());
+            }
         };
         const auto rebate = hit_value(context);
         if (!rebate) return std::unexpected(rebate.error());
@@ -144,6 +162,19 @@ Result<double> MonteCarloBarrierEngine::price(const BarrierOption& option, const
 
 Result<PricingResult> MonteCarloBarrierEngine::price_with_greeks(const BarrierOption& option, const PricingContext& context,
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto& engine) {
+        return price_barrier(option, context, engine.settings(), greeks, settings);
+    });
+}
+
+Result<double> MonteCarloDoubleBarrierEngine::price(const DoubleBarrierOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_barrier(option, context, settings_, {}, {}));
+}
+
+Result<PricingResult> MonteCarloDoubleBarrierEngine::price_with_greeks(const DoubleBarrierOption& option, const PricingContext& context,
+                                                                       GreeksRequest greeks, NumericalShiftSettings settings) const
 {
     return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto& engine) {
         return price_barrier(option, context, engine.settings(), greeks, settings);

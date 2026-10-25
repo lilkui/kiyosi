@@ -3,6 +3,7 @@
 #include <cfloat>
 #include <cmath>
 
+#include "../detail/double_barrier_kernel.hpp"
 #include "monte_carlo_simulation.hpp"
 
 #if defined(__CUDACC__)
@@ -38,9 +39,12 @@ struct BarrierMonteCarloParameters {
     bool knock_in{};
     bool at_hit{};
     bool continuous{};
+    double upper_barrier{};
+    double log_band{};
 
     KIYOSI_BARRIER_HOST_DEVICE bool breached(double asset) const
     {
+        if (upper_barrier != 0.0) return asset <= barrier || asset >= upper_barrier;
         return up ? asset >= barrier : asset <= barrier;
     }
 
@@ -59,7 +63,21 @@ struct BarrierMonteCarloParameters {
         double value = 0.0;
         double first = 0.0;
         double second = 0.0;
-        if (continuous) {
+        if (continuous && upper_barrier != 0.0) {
+            const auto survival = double_barrier_survival(initial_distance, log_asset - std::log(barrier),
+                                                          log_band, first_width, delta || gamma);
+            if (survival.value == HUGE_VAL) return {HUGE_VAL};
+            const double expiry_rebate = !knock_in && at_hit ? 0.0 : rebate;
+            const double log_survival = std::log(survival.value);
+            const double log_exit = std::log1p(-survival.value);
+            value = weighted(knock_in ? log_exit : log_survival, intrinsic) +
+                    weighted(knock_in ? log_survival : log_exit, expiry_rebate);
+            if (delta || gamma) {
+                const double orientation = knock_in ? -1.0 : 1.0;
+                first = terminal_discount.apply(orientation * (intrinsic - expiry_rebate), survival.first);
+                if (gamma) second = terminal_discount.apply(orientation * (intrinsic - expiry_rebate), survival.second);
+            }
+        } else if (continuous) {
             double log_survival = -HUGE_VAL;
             double exponent = 0.0;
             double slope = 0.0;

@@ -17,7 +17,8 @@ The project is in Alpha. Breaking API changes are possible.
 | Cash-or-nothing and asset-or-nothing digital options | Analytic formulas, quadrature, finite differences, CRR binomial trees, and Monte Carlo |
 | Single-barrier vanilla options | Analytic methods, finite differences, Monte Carlo, CRR binomial trees, and quadrature |
 | Binary barrier options and single-barrier touch options | Analytic methods |
-| Double-barrier options and cash double-touch options | Finite differences |
+| Double-barrier options | Continuous analytic valuation, finite differences, and Monte Carlo |
+| Cash double-touch options | Finite differences |
 | Geometric and arithmetic average-price Asian options | Geometric closed-form formulas and arithmetic approximations |
 | Snowballs, binary snowballs, ternary snowballs, and phoenixes | Quadrature, finite differences, and Monte Carlo |
 | Accumulators | Quadrature, finite differences and Monte Carlo |

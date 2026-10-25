@@ -222,7 +222,8 @@ template <typename Terms>
     return BarrierMonitoringState{
         *prior_touch,
         *prior_touch || (terms.is_monitored_at(valuation_time) && terms.is_breached_by(spot)),
-        !terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= valuation_time};
+        valuation_time == start_of_day(terms.expiry_date()) ||
+            (!terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= valuation_time)};
 }
 
 } // namespace detail

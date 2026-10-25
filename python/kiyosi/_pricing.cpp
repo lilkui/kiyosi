@@ -212,6 +212,15 @@ with future observations require a final observation at expiry; shorter monitori
 windows raise KiyosiError with category UNSUPPORTED_OPERATION. Spot must lie strictly
 on the unbreached side of the shifted barrier; otherwise the approximation raises
 the same error. Resolved settlements remain supported.)doc";
+    if constexpr (std::same_as<Engine, AnalyticDoubleBarrierEngine>)
+        description += R"doc(
+
+Continuous double-barrier monitoring uses an adaptively converged absorbing-density
+series with both rebate timings. Unresolved scheduled contracts raise KiyosiError
+with category UNSUPPORTED_OPERATION; resolved settlements remain supported.
+Numerical convergence or representability failures raise INVALID_RESULT. There is
+no fallback to another engine. Requested Greeks use numerical shifts and boundary
+guards. Allocation and internal failures propagate; there is no cancellation API.)doc";
     nb::class_<Engine> binding{module, name, description.c_str()};
     binding.def(nb::init<>(), R"doc(Create a stateless pricing engine.
 
@@ -838,6 +847,45 @@ package contract.)doc")
     bind_repr(mc_barrier, "MonteCarloBarrierEngine", {"path_count", "step_count", "seed", "backend", "thread_count", "sampling", "antithetic"});
     bind_engine_price<MonteCarloBarrierEngine, BarrierOption>(module, mc_barrier);
 
+    auto mc_double_barrier = nb::class_<MonteCarloDoubleBarrierEngine>(
+                                 module, "MonteCarloDoubleBarrierEngine",
+                                 "Double-barrier Monte Carlo pricing with native delta/gamma. Continuous monitoring uses exact terminal survival weights; scheduled monitoring uses actual observation dates. "
+                                 "Other Greeks are unavailable. Estimates have sampling error, especially when the first future observation is close. "
+                                 "CPU supports pseudorandom/Sobol; optional CUDA supports pseudorandom. All storage is request-local.")
+                                 .def(nb::new_([](PythonInteger path_count, PythonInteger step_count, PythonInteger seed,
+                                                  PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count,
+                                                  PythonChoice<MonteCarloSampling> sampling, bool antithetic) {
+                                          return unwrap(make_monte_carlo_double_barrier_engine(MonteCarloSettings{
+                                              integer(path_count, "path_count"), integer(step_count, "step_count"), optional_seed(seed),
+                                              backend, integer(thread_count, "thread_count"), sampling, antithetic}));
+                                      }),
+                                      nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
+                                      "step_count"_a = MonteCarloSettings{}.step_count, "seed"_a.none() = MonteCarloSettings{}.seed,
+                                      "backend"_a = MonteCarloSettings{}.backend, "thread_count"_a = MonteCarloSettings{}.thread_count,
+                                      "sampling"_a = MonteCarloSettings{}.sampling, "antithetic"_a.noconvert() = MonteCarloSettings{}.antithetic,
+                                      R"doc(Create a barrier engine using the core MonteCarloSettings defaults.
+
+path_count is the exact number of paths (1..10,000,000). step_count is validated
+(2..10,000) but unused. seed is a nonnegative integer or None for system entropy.
+backend is 'cpu' or 'cuda'; sampling is 'pseudo_random' or CPU-only 'sobol'.
+Sobol requires an explicit power-of-two path_count. thread_count is a per-call CPU
+cap (0 automatic, 1 serial); CUDA requires 0. antithetic pairs Z and -Z, leaving
+one path unpaired for odd counts. Seeded CPU results reproduce across thread counts
+in the same build; CPU and CUDA streams differ.
+Invalid representations raise TypeError/OverflowError. Core configuration failures
+raise KiyosiError (INVALID_PARAMETER or UNSUPPORTED_OPERATION for CUDA with Sobol).
+Backend availability is checked when pricing. Operational failures follow the
+package contract.)doc")
+                                 .def_prop_ro("path_count", [](const MonteCarloDoubleBarrierEngine& engine) { return engine.settings().path_count; })
+                                 .def_prop_ro("step_count", [](const MonteCarloDoubleBarrierEngine& engine) { return engine.settings().step_count; })
+                                 .def_prop_ro("seed", [](const MonteCarloDoubleBarrierEngine& engine) { return engine.settings().seed; })
+                                 .def_prop_ro("backend", [](const MonteCarloDoubleBarrierEngine& engine) { return engine.settings().backend; })
+                                 .def_prop_ro("thread_count", [](const MonteCarloDoubleBarrierEngine& engine) { return engine.settings().thread_count; })
+                                 .def_prop_ro("sampling", [](const MonteCarloDoubleBarrierEngine& engine) { return engine.settings().sampling; })
+                                 .def_prop_ro("antithetic", [](const MonteCarloDoubleBarrierEngine& engine) { return engine.settings().antithetic; });
+    bind_repr(mc_double_barrier, "MonteCarloDoubleBarrierEngine", {"path_count", "step_count", "seed", "backend", "thread_count", "sampling", "antithetic"});
+    bind_engine_price<MonteCarloDoubleBarrierEngine, DoubleBarrierOption>(module, mc_double_barrier);
+
     auto crr_barrier = nb::class_<CoxRossRubinsteinBarrierEngine>(
                            module, "CoxRossRubinsteinBarrierEngine",
                            "Single-barrier CRR pricing with node delta/gamma. Other Greeks are unavailable. Continuous monitoring is approximated at tree nodes; future scheduled dates must align exactly with tree steps, otherwise UNSUPPORTED_OPERATION is raised. "
@@ -861,6 +909,9 @@ package contract.)doc")
     auto finite_barrier = bind_finite_difference_engine<FiniteDifferenceBarrierEngine>(
         module, "FiniteDifferenceBarrierEngine", &make_finite_difference_barrier_engine);
     bind_engine_price<FiniteDifferenceBarrierEngine, BarrierOption>(module, finite_barrier);
+    auto analytic_double_barrier = bind_stateless_engine<AnalyticDoubleBarrierEngine>(
+        module, "AnalyticDoubleBarrierEngine");
+    bind_engine_price<AnalyticDoubleBarrierEngine, DoubleBarrierOption>(module, analytic_double_barrier);
     auto finite_double_barrier = bind_finite_difference_engine<FiniteDifferenceDoubleBarrierEngine>(
         module, "FiniteDifferenceDoubleBarrierEngine", &make_finite_difference_double_barrier_engine);
     bind_engine_price<FiniteDifferenceDoubleBarrierEngine, DoubleBarrierOption>(module, finite_double_barrier);
