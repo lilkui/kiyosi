@@ -90,7 +90,7 @@ Result<PricingResult> price_finite_difference(
 
     std::vector<double> curvature;
     const double value = std::max(space->interpolate(old, spot, curvature), american ? intrinsic(spot) : 0.0);
-    return finite_difference_result(value, spot, upper, requested_output, spot_shift, [&](double shifted_spot) { return checked_price(std::max(space->interpolate(old, shifted_spot, curvature), american ? intrinsic(shifted_spot) : 0.0)); }, [&](double shifted_spot) { return space->delta(old, shifted_spot); }, [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
+    return finite_difference_result(value, spot, upper, requested_output, spot_shift, [&](double shifted_spot) { return checked_price(std::max(space->interpolate(old, shifted_spot, curvature), american ? intrinsic(shifted_spot) : 0.0)); }, [&](double shifted_spot) { return space->delta(old, shifted_spot, curvature); }, [&](double shifted_spot) { return space->gamma(old, shifted_spot, curvature); });
 }
 } // namespace
 

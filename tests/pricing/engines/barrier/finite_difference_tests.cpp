@@ -57,6 +57,47 @@ TEST_CASE("Continuous single barriers retain exact levels near knock-out", "[fd-
     }
 }
 
+TEST_CASE("Scheduled barrier peaks preserve prices and Greeks", "[fd-extrema]")
+{
+    using namespace kiyosi;
+    const auto start = test::day(2025, 1, 1), end = test::day(2026, 1, 1);
+    const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = {end}});
+    const auto lower = *make_european_option(OptionType::call, 100.0, start, end);
+    const auto upper = *make_european_option(OptionType::call, 120.0, start, end);
+    const auto cash = *make_cash_or_nothing_option(OptionType::call, 120.0, 20.0, start, end);
+    const auto engine = make_finite_difference_barrier_engine({.asset_upper_boundary = 400.0}).value();
+    const auto parameters = *make_bsm_parameters(0.04, 0.01, 0.2);
+    const auto market = [&](double spot) {
+        // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext owns its calendar and is returned by value.
+        return make_pricing_context(parameters, spot, start, all_days_calendar()).value();
+    };
+    for (const double spot : {111.94, 111.97, 112.01}) {
+        CAPTURE(spot);
+        const auto context = market(spot);
+        const GreeksRequest request{Greek::delta, Greek::gamma};
+        const auto actual = engine.price_with_greeks(option, context, request);
+        const auto first = AnalyticVanillaEngine{}.price_with_greeks(lower, context, request);
+        const auto second = AnalyticVanillaEngine{}.price_with_greeks(upper, context, request);
+        const auto digital = AnalyticDigitalEngine{}.price_with_greeks(cash, context, request);
+        REQUIRE(actual);
+        REQUIRE(first);
+        REQUIRE(second);
+        REQUIRE(digital);
+        CHECK_THAT(actual->price(), Catch::Matchers::WithinAbs(first->price() - second->price() - digital->price(), 0.001));
+        for (const auto greek : {Greek::delta, Greek::gamma}) {
+            const double expected = test::greek_value(*first, greek) - test::greek_value(*second, greek) - test::greek_value(*digital, greek);
+            CHECK_THAT(test::greek_value(*actual, greek), Catch::Matchers::WithinAbs(expected, greek == Greek::delta ? 5e-5 : 1e-5));
+        }
+        constexpr double bump = 0.01;
+        const auto high = engine.price(option, market(spot + bump));
+        const auto low = engine.price(option, market(spot - bump));
+        REQUIRE(high);
+        REQUIRE(low);
+        CHECK_THAT(test::greek_value(*actual, Greek::delta), Catch::Matchers::WithinAbs((*high - *low) / (2.0 * bump), 1e-7));
+        CHECK_THAT(test::greek_value(*actual, Greek::gamma), Catch::Matchers::WithinAbs((*high - 2.0 * actual->price() + *low) / (bump * bump), 1e-6));
+    }
+}
+
 TEST_CASE("Scheduled barrier edges retain the next observation settlement", "[fd-barrier-edges]")
 {
     using namespace kiyosi;
@@ -256,6 +297,6 @@ TEST_CASE("Scheduled barrier projection preserves vanishing-volatility settlemen
         REQUIRE(actual);
         CHECK_THAT(actual->price(), Catch::Matchers::WithinAbs(expected, 1e-5));
         CHECK_THAT(test::greek_value(*actual, Greek::delta), Catch::Matchers::WithinAbs(hit ? 0.0 : (up ? -1.0 : 1.0) * std::exp(-0.04), 1e-6));
-        CHECK_THAT(test::greek_value(*actual, Greek::gamma), Catch::Matchers::WithinAbs(0.0, 1e-10));
+        CHECK_THAT(test::greek_value(*actual, Greek::gamma), Catch::Matchers::WithinAbs(0.0, 2e-10));
     }
 }

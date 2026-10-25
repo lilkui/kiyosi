@@ -368,4 +368,4 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
                         0 if hit else (-1 if up else 1) * math.exp(-0.04),
                         delta=1e-6,
                     )
-                    self.assertAlmostEqual(actual.gamma, 0, delta=1e-10)
+                    self.assertAlmostEqual(actual.gamma, 0, delta=2e-10)

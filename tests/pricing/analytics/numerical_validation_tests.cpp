@@ -250,7 +250,8 @@ TEST_CASE("Spot stencils preserve finite derivatives near price limits", "[price
         {
             const SpatialGrid grid{4.0, 1.0, 4};
             const std::array values{price_at(-2.0), price_at(-1.0), price_at(0.0), price_at(1.0), price_at(2.0)};
-            CHECK(grid.gamma(values, 2.0) == sign * 2.0 * unit);
+            // Zero endpoint curvature gives this natural spline a center curvature of 12/7.
+            CHECK(std::abs(grid.gamma(values, 2.0) / unit - sign * 12.0 / 7.0) < 1e-14);
         }
     }
 }

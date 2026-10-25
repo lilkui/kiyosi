@@ -232,82 +232,61 @@ struct SpatialGrid {
     /// Reuse curvature only for the same grid and unchanged values; start with an empty buffer.
     [[nodiscard]] double interpolate(std::span<const double> values, double spot, std::vector<double>& curvature) const
     {
-        if (!nodes.empty()) return sample(values, spot, curvature)[0];
-        const auto [index, weight] = locate(spot);
-        if (weight == 0.0) return values[index];
-        if (weight == 1.0) return values[index + 1];
-        // A C2 spline preserves curvature when numerical Greek bumps stay inside one cell.
-        if (curvature.empty()) {
-            curvature.resize(values.size());
-            std::vector<double> factors(values.size());
-            for (std::size_t node = 1; node + 1 < values.size(); ++node) {
-                const double diagonal = 4.0 - factors[node - 1];
-                factors[node] = 1.0 / diagonal;
-                curvature[node] = (6.0 * ((values[node + 1] - values[node]) -
-                                          (values[node] - values[node - 1])) -
-                                   curvature[node - 1]) /
-                                  diagonal;
-            }
-            for (std::size_t node = values.size() - 2; node > 0; --node)
-                curvature[node] -= factors[node] * curvature[node + 1];
+        if (nodes.empty()) {
+            const auto [index, weight] = locate(spot);
+            if (weight == 0.0) return values[index];
+            if (weight == 1.0) return values[index + 1];
         }
-        const double left = 1.0 - weight;
-        const double interpolated = std::lerp(values[index], values[index + 1], weight) +
-                                    ((left * left * left - left) * curvature[index] +
-                                     (weight * weight * weight - weight) * curvature[index + 1]) /
-                                        6.0;
-        // Bound spline overshoot near payoff kinks without losing smooth-region curvature.
-        return std::clamp(interpolated, std::min(values[index], values[index + 1]),
-                          std::max(values[index], values[index + 1]));
+        return sample(values, spot, curvature)[0];
     }
 
     [[nodiscard]] double delta(std::span<const double> values, double spot) const
     {
-        if (!nodes.empty()) {
-            std::vector<double> curvature;
-            return sample(values, spot, curvature)[1];
-        }
-        const double derivative = coordinate_delta(values, spot);
-        return sinh_scale == 0.0 ? derivative : derivative / std::hypot(sinh_scale, spot);
+        std::vector<double> curvature;
+        return sample(values, spot, curvature)[1];
     }
 
     [[nodiscard]] double gamma(std::span<const double> values, double spot) const
     {
-        if (!nodes.empty()) {
-            std::vector<double> curvature;
-            return sample(values, spot, curvature)[2];
-        }
-        const double curvature = blend(spot, [&](std::size_t index) {
-            // Divide separately so squared spacing cannot overflow or underflow.
-            return ((values[index + 1] - values[index]) - (values[index] - values[index - 1])) / spacing / spacing;
-        });
-        if (sinh_scale == 0.0) return curvature;
-        const double jacobian = std::hypot(sinh_scale, spot);
-        return (curvature - coordinate_delta(values, spot) * std::tanh(coordinate_of(spot))) / jacobian / jacobian;
+        std::vector<double> curvature;
+        return sample(values, spot, curvature)[2];
     }
 
     [[nodiscard]] double delta(std::span<const double> values, double spot, std::vector<double>& curvature) const
     {
-        return nodes.empty() ? delta(values, spot) : sample(values, spot, curvature)[1];
+        return sample(values, spot, curvature)[1];
     }
 
     [[nodiscard]] double gamma(std::span<const double> values, double spot, std::vector<double>& curvature) const
     {
-        return nodes.empty() ? gamma(values, spot) : sample(values, spot, curvature)[2];
+        return sample(values, spot, curvature)[2];
     }
 
-    /// Samples price, delta and gamma together on a nonuniform grid, reusing unchanged curvature.
+    /// Samples price and its spline derivatives in asset-price units, reusing unchanged curvature.
     [[nodiscard]] std::array<double, 3> sample(std::span<const double> values, double spot,
                                                std::vector<double>& curvature) const
     {
+        const auto width = [&](std::size_t index) {
+            return nodes.empty() ? 1.0 : (nodes[index + 1] - nodes[index]) / spacing;
+        };
+        const auto physical = [&](double price, double first, double second) {
+            const double derivative = first / spacing;
+            const double second_derivative = second / spacing / spacing;
+            if (nodes.empty() && sinh_scale != 0.0) {
+                const double jacobian = std::hypot(sinh_scale, spot);
+                return std::array{price, derivative / jacobian,
+                                  (second_derivative - derivative * std::tanh(coordinate_of(spot))) / jacobian / jacobian};
+            }
+            return std::array{price, derivative, second_derivative};
+        };
         if (curvature.empty()) {
             curvature.assign(values.size(), 0.0);
             std::vector<double> factors(values.size());
             for (std::size_t node = 1; node + 1 < values.size(); ++node) {
                 // Normalize coordinates before solving so small price units cannot overflow curvature.
-                const double left = (nodes[node] - nodes[node - 1]) / spacing;
-                const double right = (nodes[node + 1] - nodes[node]) / spacing;
-                const double total = (nodes[node + 1] - nodes[node - 1]) / spacing;
+                const double left = width(node - 1);
+                const double right = width(node);
+                const double total = nodes.empty() ? 2.0 : (nodes[node + 1] - nodes[node - 1]) / spacing;
                 const double a = left / total;
                 const double diagonal = 2.0 - a * factors[node - 1];
                 factors[node] = (right / total) / diagonal;
@@ -321,48 +300,44 @@ struct SpatialGrid {
                 curvature[node] -= factors[node] * curvature[node + 1];
         }
         const auto [index, weight] = locate(spot);
-        const double h = (nodes[index + 1] - nodes[index]) / spacing;
+        const double h = width(index);
         const double left = 1.0 - weight;
         const double correction = ((left * left * left - left) * curvature[index] +
                                    (weight * weight * weight - weight) * curvature[index + 1]) /
                                   6.0;
         const double linear = std::lerp(values[index], values[index + 1], weight);
+        const double interpolated = linear + (correction * h) * h;
         const double first_control = std::lerp(values[index], values[index + 1], 1.0 / 3.0) -
                                      ((2.0 * curvature[index] + curvature[index + 1]) * h) * h / 18.0;
         const double second_control = std::lerp(values[index], values[index + 1], 2.0 / 3.0) -
                                       ((curvature[index] + 2.0 * curvature[index + 1]) * h) * h / 18.0;
         const auto [control_lower, control_upper] = std::minmax(first_control, second_control);
         const auto [minimum, maximum] = std::minmax(values[index], values[index + 1]);
-        if (control_lower < minimum || control_upper > maximum) {
+        const bool overshoot = nodes.empty() ? interpolated < minimum || interpolated > maximum
+                                             : control_lower < minimum || control_upper > maximum;
+        if (overshoot) {
             const double slope = (values[index + 1] - values[index]) / h;
-            const double before = index > 0 ? (values[index] - values[index - 1]) / ((nodes[index] - nodes[index - 1]) / spacing) : slope;
-            const double after = index + 2 < nodes.size() ? (values[index + 2] - values[index + 1]) / ((nodes[index + 2] - nodes[index + 1]) / spacing) : slope;
+            const double before = index > 0 ? (values[index] - values[index - 1]) / width(index - 1) : slope;
+            const double after = index + 2 < values.size() ? (values[index + 2] - values[index + 1]) / width(index + 1) : slope;
             const double left_derivative = slope - h * (2.0 * curvature[index] + curvature[index + 1]) / 6.0;
             const double right_derivative = slope + h * (curvature[index] + 2.0 * curvature[index + 1]) / 6.0;
             // Preserve extrema only when spline derivatives agree with the surrounding convexity.
             const bool maximum_turn = before > 0.0 && after < 0.0 && curvature[index] <= 0.0 && curvature[index + 1] <= 0.0 && left_derivative <= before && right_derivative >= after;
             const bool minimum_turn = before < 0.0 && after > 0.0 && curvature[index] >= 0.0 && curvature[index + 1] >= 0.0 && left_derivative >= before && right_derivative <= after;
             if (!maximum_turn && !minimum_turn) {
+                if (nodes.empty()) return physical(std::clamp(interpolated, minimum, maximum), 0.0, 0.0);
                 const auto [global_minimum, global_maximum] = std::ranges::minmax(values);
                 if (control_lower < global_minimum || control_upper > global_maximum)
-                    return {linear, slope / spacing, 0.0};
+                    return physical(linear, slope, 0.0);
             }
         }
-        return {linear + (correction * h) * h,
-                ((values[index + 1] - values[index]) / h +
-                 h * ((1.0 - 3.0 * left * left) * curvature[index] + (3.0 * weight * weight - 1.0) * curvature[index + 1]) / 6.0) /
-                    spacing,
-                std::lerp(curvature[index], curvature[index + 1], weight) / spacing / spacing};
+        return physical(interpolated,
+                        (values[index + 1] - values[index]) / h +
+                            h * ((1.0 - 3.0 * left * left) * curvature[index] + (3.0 * weight * weight - 1.0) * curvature[index + 1]) / 6.0,
+                        std::lerp(curvature[index], curvature[index + 1], weight));
     }
 
 private:
-    [[nodiscard]] double coordinate_delta(std::span<const double> values, double spot) const
-    {
-        return blend(spot, [&](std::size_t index) {
-            return (values[index + 1] - values[index - 1]) / (2.0 * spacing);
-        });
-    }
-
     [[nodiscard]] std::pair<std::size_t, double> locate(double spot) const noexcept
     {
         if (!nodes.empty()) {
@@ -374,17 +349,6 @@ private:
         const double position = coordinate_of(spot) / spacing;
         const auto index = static_cast<int>(std::clamp(std::floor(position), 0.0, static_cast<double>(asset_step_count - 1)));
         return {static_cast<std::size_t>(index), position - static_cast<double>(index)};
-    }
-
-    // Central differences need an interior stencil, so the bracketing nodes are pulled inside the edges.
-    template <typename NodeValue>
-    [[nodiscard]] double blend(double spot, NodeValue value) const
-    {
-        const auto [index, weight] = locate(spot);
-        const auto interior = [&](std::size_t node) {
-            return std::clamp(node, std::size_t{1}, static_cast<std::size_t>(asset_step_count) - 1);
-        };
-        return std::lerp(value(interior(index)), value(interior(index + 1)), weight);
     }
 };
 

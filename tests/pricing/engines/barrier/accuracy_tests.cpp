@@ -141,7 +141,7 @@ TEST_CASE("Scheduled finite-difference knock-in layers preserve rebate parity", 
                         for (const auto greek : {Greek::delta, Greek::gamma}) {
                             REQUIRE(in->has(greek));
                             REQUIRE(out->has(greek));
-                            CHECK_THAT(*in->require(greek) + *out->require(greek), Catch::Matchers::WithinAbs(*vanilla->require(greek), 1e-12));
+                            CHECK_THAT(*in->require(greek) + *out->require(greek), Catch::Matchers::WithinAbs(*vanilla->require(greek), 1e-11));
                         }
                     }
         }

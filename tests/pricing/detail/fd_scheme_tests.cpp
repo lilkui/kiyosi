@@ -344,6 +344,38 @@ TEST_CASE("Nonuniform splines preserve smooth global extrema", "[autocallable-ac
     }
 }
 
+TEST_CASE("Uniform splines preserve smooth extrema and their price derivatives", "[fd-extrema]")
+{
+    const kiyosi::detail::SpatialGrid grid{6.0, 2.0, 3};
+    for (const double sign : {-1.0, 1.0}) {
+        const std::array values{-sign * 11.0 / 12.0, sign * 0.75, sign * 0.75, -sign * 11.0 / 12.0};
+        std::vector<double> curvature;
+        for (const double t : {0.1, 0.5, 0.9}) {
+            CAPTURE(sign, t);
+            const double spot = 2.0 * (1.0 + t);
+            const double expected = sign * (0.75 + t - t * t);
+            CHECK_THAT(grid.interpolate(values, spot, curvature), Catch::Matchers::WithinAbs(expected, 1e-14));
+            CHECK_THAT(grid.delta(values, spot, curvature), Catch::Matchers::WithinAbs(sign * (1.0 - 2.0 * t) / 2.0, 1e-14));
+            CHECK_THAT(grid.gamma(values, spot, curvature), Catch::Matchers::WithinAbs(-sign / 2.0, 1e-14));
+            CHECK(grid.interpolate(values, spot) == grid.interpolate(values, spot, curvature));
+            CHECK(grid.delta(values, spot) == grid.delta(values, spot, curvature));
+            CHECK(grid.gamma(values, spot) == grid.gamma(values, spot, curvature));
+        }
+    }
+}
+
+TEST_CASE("Uniform spline protection keeps flat payoff derivatives zero", "[fd-extrema]")
+{
+    const kiyosi::detail::SpatialGrid grid{4.0, 1.0, 4};
+    const std::array values{0.0, 1.0, 1.0, 1.0, 1.0};
+    std::vector<double> curvature;
+    for (const double spot : {1.25, 1.5, 1.75}) {
+        CHECK(grid.interpolate(values, spot, curvature) == 1.0);
+        CHECK(grid.delta(values, spot, curvature) == 0.0);
+        CHECK(grid.gamma(values, spot, curvature) == 0.0);
+    }
+}
+
 TEST_CASE("Nonuniform spline overshoot is bounded with consistent Greeks", "[autocallable-accuracy]")
 {
     const kiyosi::detail::SpatialGrid grid{4.0, 1.0, 3, 0.0, {0.0, 1.0, 2.0, 4.0}};

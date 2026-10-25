@@ -112,7 +112,7 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     };
     const auto value = price_at(spot);
     if (!value) return std::unexpected(value.error());
-    return finite_difference_result(*value, spot, space->upper, requested_output, spot_shift, price_at, [&](double shifted_spot) { return space->delta(old, shifted_spot); }, [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
+    return finite_difference_result(*value, spot, space->upper, requested_output, spot_shift, price_at, [&](double shifted_spot) { return space->delta(old, shifted_spot, curvature); }, [&](double shifted_spot) { return space->gamma(old, shifted_spot, curvature); });
 }
 
 } // namespace

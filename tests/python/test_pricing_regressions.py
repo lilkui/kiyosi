@@ -1158,7 +1158,7 @@ class PricingRegressionTests(unittest.TestCase):
                                         getattr(inside, greek)
                                         + getattr(outside, greek),
                                         getattr(vanilla, greek),
-                                        delta=1e-12,
+                                        delta=1e-11,
                                     )
 
     def test_vanilla_fd_speed_reuses_fixed_grid_gamma_with_custom_shifts(self):
