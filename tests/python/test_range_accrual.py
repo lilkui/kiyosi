@@ -361,7 +361,9 @@ class RangeAccrualTests(unittest.TestCase):
             - 0.04 / 365
             - 804.608442013753788
         )
-        for backend in ["cpu", "cuda"] if os.getenv("KIYOSI_TEST_CUDA") else ["cpu"]:
+        for backend in (
+            ["cpu", "cuda"] if os.getenv("KIYOSI_TEST_CUDA") == "enabled" else ["cpu"]
+        ):
             with self.subTest(backend=backend):
                 engine = MonteCarloRangeAccrualEngine(
                     path_count=1, seed=42, backend=backend
@@ -579,7 +581,9 @@ class RangeAccrualTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 MonteCarloRangeAccrualEngine(**values)
 
-    @unittest.skipUnless(os.getenv("KIYOSI_TEST_CUDA"), "CUDA runtime tests disabled")
+    @unittest.skipUnless(
+        os.getenv("KIYOSI_TEST_CUDA") == "enabled", "CUDA runtime tests disabled"
+    )
     def test_cuda_prices_curves_greeks_and_current_settlement(self):
         option = contract()
         rate = RateTermStructure(
