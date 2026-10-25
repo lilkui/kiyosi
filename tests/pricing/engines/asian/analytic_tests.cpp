@@ -91,7 +91,7 @@ TEST_CASE("Arithmetic Asians retain time value when squared volatility underflow
     const auto start = Date{std::chrono::year{2025} / 1 / 1};
     const auto end = Date{std::chrono::year{2026} / 1 / 1};
     for (const auto type : {OptionType::call, OptionType::put}) {
-        for (const auto [spot, sigma] : {std::pair{100.0, 1e-170}, {1e160, 1e-160}, {1e300, 1e-200}}) {
+        for (const auto& [spot, sigma] : {std::pair{100.0, 1e-170}, {1e160, 1e-160}, {1e300, 1e-200}}) {
             for (int window = 0; window < 3; ++window) {
                 CAPTURE(type, spot, sigma, window);
                 const auto valuation = window == 2 ? start + std::chrono::days{120} : start;

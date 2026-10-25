@@ -557,8 +557,8 @@ TEST_CASE("Explicit volatility spot batches preserve mixed Greeks without scalar
         CHECK(result->price() == 12500.0);
         CHECK_FALSE(result->has(Greek::delta));
         CHECK_FALSE(result->has(Greek::gamma));
-        for (const auto [greek, expected] : {std::pair{Greek::vega, 100.0},
-                                             std::pair{Greek::vanna, 2.0}, std::pair{Greek::zomma, 0.02}}) {
+        for (const auto& [greek, expected] : {std::pair{Greek::vega, 100.0},
+                                              std::pair{Greek::vanna, 2.0}, std::pair{Greek::zomma, 0.02}}) {
             if (request.has(greek)) CHECK(greek_value(*result, greek) == Catch::Approx(expected).epsilon(1e-12));
             else CHECK_FALSE(result->has(greek));
         }
@@ -1153,7 +1153,7 @@ TEST_CASE("Implied solvers control price and parameter tolerances separately", "
     const auto phoenix = *make_phoenix_option({.coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .effective_date = effective, .expiry_date = expiry, .observations = {{expiry, 120.0, 0.0, 90.0}}});
     std::vector<std::optional<unsigned>> calls;
     const SolverSeedRecordingEngine engine{{1, &calls}};
-    for (const auto [price_tolerance, parameter_tolerance] :
+    for (const auto& [price_tolerance, parameter_tolerance] :
          {std::pair{1e-12, 1e-12}, std::pair{0.15, 1e-12}, std::pair{1e-12, 1.0},
           std::pair{0.0, 1e-12}, std::pair{1e-12, 0.0}}) {
         const auto vol = kiyosi::implied_volatility(engine, option, market(), 0.37,
@@ -1777,8 +1777,8 @@ TEST_CASE("Determined cashflows bypass spatial grids and reject implied volatili
                 REQUIRE(actual);
                 CHECK(*actual == *expected);
             }
-            for (const auto implied : {implied_volatility(monte_carlo, option, context, *expected),
-                                       implied_volatility(finite_difference, option, context, *expected)}) {
+            for (const auto& implied : {implied_volatility(monte_carlo, option, context, *expected),
+                                        implied_volatility(finite_difference, option, context, *expected)}) {
                 REQUIRE_FALSE(implied);
                 CHECK(implied.error().category == ErrorCategory::unsupported_operation);
             }

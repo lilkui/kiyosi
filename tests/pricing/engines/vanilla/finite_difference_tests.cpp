@@ -233,7 +233,7 @@ TEST_CASE("American finite-difference calls retain early-exercise boundaries", "
     const auto american = *make_american_option(OptionType::call, 100.0, start, end);
     const auto european = *make_european_option(OptionType::call, 100.0, start, end);
     const auto engine = *make_finite_difference_vanilla_engine({400, 800});
-    for (const auto [rate, dividend] : {std::pair{0.0, 0.0}, {0.05, 0.0}, {0.05, -0.02}, {-0.05, 0.0}, {0.05, 0.08}})
+    for (const auto& [rate, dividend] : {std::pair{0.0, 0.0}, {0.05, 0.0}, {0.05, -0.02}, {-0.05, 0.0}, {0.05, 0.08}})
         for (const double spot : {100.0, 200.0}) {
             CAPTURE(rate, dividend, spot);
             const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, 0.2), spot, start);

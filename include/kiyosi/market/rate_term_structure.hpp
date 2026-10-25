@@ -69,12 +69,12 @@ struct RateTermStructureAccess {
         const RateTermStructure& curve, Timestamp valuation, Timestamp end);
     static double log_factor(const RateTermStructure& curve, Timestamp origin, double start, double end) noexcept
     {
-        if (curve.is_flat()) return -*curve.flat_rate_ * (end - start);
+        if (curve.flat_rate_) return -*curve.flat_rate_ * (end - start);
         return curve.log_factor_unchecked(origin, start, end);
     }
     static double forward_rate(const RateTermStructure& curve, Timestamp origin, double time) noexcept
     {
-        if (curve.is_flat()) return *curve.flat_rate_;
+        if (curve.flat_rate_) return *curve.flat_rate_;
         return curve.forward_rate_unchecked(origin, time);
     }
 };

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <functional>
 #include <optional>
@@ -70,6 +71,7 @@ public:
     void initialize()
     {
         auto& workspace = workspace_.get();
+        assert(workspace.space);
         const auto& space = *workspace.space;
         const auto size = space.size();
         auto& alive = workspace.alive;
@@ -101,6 +103,7 @@ public:
         const bool monitors_daily = program.daily_knock_in;
         const auto& trading_times = workspace_.get().trading_times;
         auto& workspace = workspace_.get();
+        assert(workspace.space);
         const auto& space = *workspace.space;
         const auto size = space.size();
         const auto& assets = workspace.assets;
@@ -158,6 +161,7 @@ public:
     Result<PricingResult> result(GreeksRequest output, double spot_shift) const
     {
         auto& workspace = workspace_.get();
+        assert(workspace.space);
         const auto& space = *workspace.space;
         auto& alive = workspace.alive;
         const auto& initial = initial_;
@@ -194,6 +198,7 @@ private:
     const std::vector<double>& breaks_at(const AutocallableEvent& event, bool daily, bool terminal)
     {
         const auto& program = program_;
+        assert(workspace_.get().space);
         const auto& space = *workspace_.get().space;
         const bool needs_knock_in_layer = layered();
         breaks_.clear();
@@ -251,6 +256,7 @@ Result<std::array<PricingResult, count>> rollback_autocallables(
     const FiniteDifferenceSettings& settings, GreeksRequest output, double spot_shift)
 {
     auto& workspace = states.front().workspace();
+    assert(workspace.space);
     const auto& space = *workspace.space;
     const auto& assets = workspace.assets;
     const auto& grid = workspace.grid;

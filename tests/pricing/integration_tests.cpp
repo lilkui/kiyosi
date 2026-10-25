@@ -75,7 +75,7 @@ TEST_CASE("Trading Monte Carlo rejects invalid simulation paths")
         {.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
     const auto note = *kiyosi::make_binary_snowball_option(
         {.maturity_coupon_rate = 0.2, .effective_date = start, .expiry_date = end, .observations = {{end, 120.0, 0.1}}});
-    for (const auto [rate, volatility] : {
+    for (const auto& [rate, volatility] : {
              std::pair{0.05, 1e308}, std::pair{0.05, 1000.0}, std::pair{1e308, 0.2}}) {
         const auto context = *kiyosi::make_pricing_context(
             *kiyosi::make_bsm_parameters(rate, 0.02, volatility), 100.0, start);

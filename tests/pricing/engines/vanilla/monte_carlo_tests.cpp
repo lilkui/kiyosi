@@ -428,7 +428,7 @@ TEST_CASE("CUDA host adapter preserves results and failure categories")
     using namespace kiyosi;
     using namespace kiyosi::detail;
     REQUIRE(cuda_mean({CudaPricingStatus::success, 42.0, nullptr}).value() == 42.0);
-    for (const auto [status, category] : {
+    for (const auto& [status, category] : {
              std::pair{CudaPricingStatus::unavailable, ErrorCategory::backend_unavailable},
              std::pair{CudaPricingStatus::failure, ErrorCategory::backend_failure},
              std::pair{CudaPricingStatus::invalid_result, ErrorCategory::invalid_result}}) {
@@ -977,7 +977,7 @@ TEST_CASE("American Monte Carlo shared samples preserve failures and concurrent 
     const auto option = *make_american_option(OptionType::put, 100.0, start, end);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.25, start);
     const auto engine = make_monte_carlo_vanilla_engine({127, 7, 42}).value();
-    for (const auto [volatility, rate_shift] : {std::pair{1000.0, 0.01}, std::pair{0.2, 1000.0}}) {
+    for (const auto& [volatility, rate_shift] : {std::pair{1000.0, 0.01}, std::pair{0.2, 1000.0}}) {
         const auto invalid = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, volatility), 100.25, start);
         const NumericalShiftSettings shifts{.rate_shift = rate_shift};
         const auto expected = detail::price_with_greeks(engine, option, invalid, request, shifts);

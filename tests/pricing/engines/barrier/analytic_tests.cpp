@@ -519,7 +519,7 @@ TEST_CASE("Zero barrier rebates ignore payment timing", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);
     const auto end = day(2026, 1, 1);
-    for (const auto [rate, dividend] : {std::pair{-0.02, 0.0}, std::pair{-0.01, -0.02}}) {
+    for (const auto& [rate, dividend] : {std::pair{-0.02, 0.0}, std::pair{-0.01, -0.02}}) {
         const auto context = *kiyosi::make_pricing_context(
             *kiyosi::make_bsm_parameters(rate, dividend, 0.2), 100.0, start);
         for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {

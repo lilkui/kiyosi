@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
@@ -199,7 +200,7 @@ TEST_CASE("Flat and shifted curves preserve their rate and coverage contracts", 
     CHECK_THAT(*bumped, Catch::Matchers::WithinRel(*original * std::exp(-0.01 * 185.0 / 365.0), 1e-13));
     const auto flat_shift = flat->shifted(0.01);
     REQUIRE(flat_shift);
-    CHECK_THAT(*flat_shift->flat_rate(), Catch::Matchers::WithinAbs(-0.02, 1e-15));
+    CHECK(flat_shift->flat_rate() == Catch::Approx(-0.02).margin(1e-15));
     const auto invalid_shift = curve.shifted(std::numeric_limits<double>::infinity());
     REQUIRE_FALSE(invalid_shift);
     CHECK(invalid_shift.error().category == ErrorCategory::invalid_parameter);

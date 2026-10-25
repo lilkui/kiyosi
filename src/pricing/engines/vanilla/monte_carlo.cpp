@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <random>
@@ -306,7 +307,10 @@ private:
         }
         const bool update = generate || drift_ != parameters->drift || diffusion_ != parameters->diffusion;
         std::optional<detail::SobolSequence> sobol;
-        if (simulation.sampling == MonteCarloSampling::sobol && generate) sobol.emplace(1, *simulation.seed);
+        if (simulation.sampling == MonteCarloSampling::sobol && generate) {
+            assert(simulation.seed);
+            sobol.emplace(1, *simulation.seed);
+        }
         const auto result = detail::monte_carlo_blocks(sample_count, simulation.thread_count,
                                                        [&](int block, int begin, int end) -> Result<void> {
                                                            const auto simulate = [&](auto& generator) -> Result<void> {
@@ -621,9 +625,9 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanO
                 const auto sample = [&]<std::size_t count>() -> Result<detail::NumericalSpotPrices> {
                     const auto values = samples.spot_prices<count>(option, shifted, h);
                     if (!values) return std::unexpected(values.error());
-                    const std::optional<double> middle = [&]() -> std::optional<double> {
+                    const auto middle = [&]() -> std::optional<double> {
                         if constexpr (count == 3) return (*values)[detail::SpotStencil<count>::center];
-                        else return std::nullopt;
+                        return std::nullopt;
                     }();
                     return detail::NumericalSpotPrices{middle, (*values)[detail::SpotStencil<count>::up], (*values)[detail::SpotStencil<count>::down]};
                 };

@@ -275,7 +275,7 @@ TEST_CASE("Asian MC conditional affine branches and monetary scaling retain vali
 TEST_CASE("Asian MC preserves scaled tiny-volatility prices and seasoned negative gamma", "[asian-mc]")
 {
     const auto engine = *make_monte_carlo_asian_engine({.path_count = 65'536, .step_count = 64, .seed = 42, .sampling = MonteCarloSampling::sobol, .antithetic = true});
-    for (const auto [spot, sigma] : {std::pair{100.0, 1e-170}, {1e160, 1e-160}, {1e300, 1e-200}, {1e300, std::numeric_limits<double>::denorm_min()}}) {
+    for (const auto& [spot, sigma] : {std::pair{100.0, 1e-170}, {1e160, 1e-160}, {1e300, 1e-200}, {1e300, std::numeric_limits<double>::denorm_min()}}) {
         const double expected = std::exp(std::log(spot) + std::log(sigma)) / std::sqrt(6.0 * std::numbers::pi);
         asian_options([&](const auto& option) {
             const auto price = engine.price(option, market(spot, sigma, start_of_day(start), 0.0, 0.0));

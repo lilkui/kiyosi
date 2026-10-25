@@ -32,7 +32,7 @@ TEST_CASE("Pricing and analytics benchmarks report warmup and measured failures"
 {
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, kiyosi::test::day(2025, 1, 1));
-    for (const auto [failure_call, analytics] : {std::pair{0, false}, {1, false}, {2, false}, {0, true}, {1, true}, {2, true}}) {
+    for (const auto& [failure_call, analytics] : {std::pair{0, false}, {1, false}, {2, false}, {0, true}, {1, true}, {2, true}}) {
         CAPTURE(failure_call, analytics);
         int calls = 0;
         benchmark::ClearRegisteredBenchmarks();

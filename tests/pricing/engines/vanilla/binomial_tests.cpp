@@ -122,7 +122,7 @@ TEST_CASE("American binomial calls preserve European values only without early e
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto american = *make_american_option(OptionType::call, 100.0, start, end);
     const auto european = *make_european_option(OptionType::call, 100.0, start, end);
-    for (const auto [rate, dividend] : {std::pair{0.0, 0.0}, {0.04, 0.0}, {0.04, -0.01}, {-0.04, 0.0}, {0.04, 0.08}})
+    for (const auto& [rate, dividend] : {std::pair{0.0, 0.0}, {0.04, 0.0}, {0.04, -0.01}, {-0.04, 0.0}, {0.04, 0.08}})
         for (const double spot : {100.0, 200.0})
             for (const int steps : {255, 256, 257, 511, 512, 1024}) {
                 CAPTURE(rate, dividend, spot, steps);

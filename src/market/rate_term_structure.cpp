@@ -138,7 +138,7 @@ Result<double> RateTermStructure::log_factor(Timestamp start, Timestamp end) con
     if (end < start)
         return std::unexpected(Error{ErrorCategory::invalid_time_range, "curve interval is reversed"});
     double value = 0.0;
-    if (is_flat()) {
+    if (flat_rate_) {
         value = -*flat_rate_ * detail::actual_365_fixed_year_fraction(start, end);
     } else {
         // Subtract timestamps before converting so distant references cannot erase nearby nodes.
@@ -170,7 +170,7 @@ Result<double> RateTermStructure::factor(Timestamp start, Timestamp end) const
 Result<double> RateTermStructure::forward_rate(Timestamp time) const
 {
     if (auto valid = validate_time(time); !valid) return std::unexpected(valid.error());
-    if (is_flat()) return *flat_rate_;
+    if (flat_rate_) return *flat_rate_;
     const auto found = std::ranges::upper_bound(data_->timestamps, time);
     const auto index = std::min(static_cast<std::size_t>(found - data_->timestamps.begin()), data_->timestamps.size() - 1);
     return data_->forwards[index] + spread_;
@@ -181,7 +181,7 @@ Result<RateTermStructure> RateTermStructure::shifted(double shift) const
     if (!std::isfinite(shift))
         return std::unexpected(Error{ErrorCategory::invalid_parameter, "curve shift must be finite"});
     auto copy = *this;
-    if (is_flat()) {
+    if (flat_rate_) {
         const double rate = *flat_rate_ + shift;
         if (!std::isfinite(rate))
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "shifted flat rate is not finite"});

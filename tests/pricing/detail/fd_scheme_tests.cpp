@@ -527,8 +527,8 @@ TEST_CASE("Finite-difference results select measures and preserve shifted failur
                 123.0, 100.0, 200.0, request, 1.0, price_at, delta_at, gamma_at);
             REQUIRE(result);
             CHECK(result->price() == 123.0);
-            for (const auto [greek, expected] : {std::pair{Greek::delta, 7.0}, std::pair{Greek::gamma, 300.0},
-                                                 std::pair{Greek::speed, 3.0}}) {
+            for (const auto& [greek, expected] : {std::pair{Greek::delta, 7.0}, std::pair{Greek::gamma, 300.0},
+                                                  std::pair{Greek::speed, 3.0}}) {
                 CHECK(result->has(greek) == request.has(greek));
                 if (request.has(greek)) CHECK(result->require(greek) == Result<double>{expected});
             }

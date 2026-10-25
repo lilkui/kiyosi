@@ -39,8 +39,10 @@ double volatility_adjusted_upper_boundary(double relevant, Date expiry, const Co
     const auto& parameters = context.model_parameters();
     const double time = actual_365_fixed_year_fraction(context.valuation_time(), expiry);
     const double sigma = parameters.volatility();
-    if (parameters.has_flat_rates()) {
-        const double drift = *parameters.risk_free_curve().flat_rate() - *parameters.dividend_curve().flat_rate() - 0.5 * sigma * sigma;
+    const auto rate = parameters.risk_free_curve().flat_rate();
+    const auto dividend = parameters.dividend_curve().flat_rate();
+    if (rate && dividend) {
+        const double drift = *rate - *dividend - 0.5 * sigma * sigma;
         const double width = 4.0 * sigma * std::sqrt(time) + std::abs(drift) * time;
         return width <= std::log(4.0) ? 4.0 * relevant : std::exp(std::log(relevant) + width);
     }

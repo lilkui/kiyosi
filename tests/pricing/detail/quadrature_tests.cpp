@@ -74,7 +74,7 @@ TEST_CASE("Quadrature terminal integration preserves asset-only and empty pieces
     const double drift = 0.01;
     const double boundary = 0.1;
     const double asset_probability = 0.5 * std::erfc(-(boundary - drift - deviation * deviation) / (deviation * std::numbers::sqrt2));
-    for (const auto [discount, asset] : {std::pair{-0.03, 2.0}, {-800.0, 1e300}, {710.0, 1e-300}}) {
+    for (const auto& [discount, asset] : {std::pair{-0.03, 2.0}, {-800.0, 1e300}, {710.0, 1e-300}}) {
         CAPTURE(discount, asset);
         const double actual = integrate_terminal({{-infinity, boundary, 0.0, asset}, {boundary, infinity, 0.0, 0.0}}, 0.0, 100.0, drift, deviation, discount);
         const double expected = std::exp(std::log(asset) + std::log(100.0) + drift + 0.5 * deviation * deviation + discount + std::log(asset_probability));
@@ -320,7 +320,7 @@ TEST_CASE("Quadrature off-grid spot windows exactly preserve full-grid integrati
     const auto weights = std::span{dense}.subspan(first, last - first);
     const std::array tails{kiyosi::detail::log_normal_cdf((nodes.front() - mean) / deviation),
                            kiyosi::detail::log_normal_cdf((mean - nodes.back()) / deviation)};
-    for (const auto [scale, discount] : {std::pair{1.0, 0.0}, {1e300, -740.0}, {1e-300, 710.0}}) {
+    for (const auto& [scale, discount] : {std::pair{1.0, 0.0}, {1e300, -740.0}, {1e-300, 710.0}}) {
         Curve curve{std::vector<Polynomial>(nodes.size() - 1), -scale, scale};
         for (std::size_t cell = 0; cell < curve.cells.size(); ++cell)
             curve.cells[cell] = {scale * (1.0 + static_cast<double>(cell) / static_cast<double>(curve.cells.size())), -0.1 * scale, 0.01 * scale, -0.001 * scale};
