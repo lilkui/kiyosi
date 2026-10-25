@@ -78,6 +78,49 @@ TEST_CASE("CUDA antithetic products use exact counts and opposite increments", "
     });
 }
 
+TEST_CASE("CUDA digital terminal payoffs and likelihood scores use exact antithetic counts", "[cuda][digital-numerical]")
+{
+    using namespace kiyosi::detail;
+    const auto first = cuda_european_price({1, 42, 100.0, 0.0, 0.01, 0.2, 1, false});
+    const auto two = cuda_european_price({2, 42, 100.0, 0.0, 0.01, 0.2, 1, false});
+    REQUIRE(first.status == CudaPricingStatus::success);
+    REQUIRE(two.status == CudaPricingStatus::success);
+    const std::array normals{(std::log(first.payoff_mean / 100.0) - 0.01) / 0.2,
+                             (std::log((2.0 * two.payoff_mean - first.payoff_mean) / 100.0) - 0.01) / 0.2};
+    for (const bool asset : {false, true})
+        for (const bool call : {false, true})
+            for (int paths = 1; paths <= 4; ++paths) {
+                CAPTURE(asset, call, paths);
+                const DigitalMonteCarloParameters parameters{
+                    0.05, 0.2, asset ? 100.0 : 10.0, std::log(asset ? 100.0 : 10.0),
+                    asset ? -0.04 : -0.05, std::log(100.0), std::log(0.2), asset, call};
+                const CudaDigitalRequest request{paths, 42, parameters, true, true, true};
+                const auto actual = cuda_digital_prices(request);
+                REQUIRE(actual.result.status == CudaPricingStatus::success);
+                std::array<double, 3> expected{};
+                const int count = (paths + 1) / 2;
+                for (int path = 0; path < count; ++path)
+                    for (int side = 0; side < (path < paths / 2 ? 2 : 1); ++side) {
+                        const double z = side == 0 ? normals[path] : -normals[path];
+                        const double terminal = 100.0 * std::exp(0.01 + 0.2 * z);
+                        const bool pays = call ? terminal > 100.0 : terminal < 100.0;
+                        const double y = pays ? (asset ? terminal : 10.0) * std::exp(-0.05) : 0.0;
+                        expected[0] += y / paths;
+                        expected[1] += y * z / 20.0 / paths;
+                        expected[2] += y * (z * z - 1.0 - 0.2 * z) / 400.0 / paths;
+                    }
+                for (std::size_t measure = 0; measure < expected.size(); ++measure)
+                    CHECK(actual.payoff_means[measure] == Catch::Approx(expected[measure]).margin(1e-11));
+                CudaWorkspace workspace;
+                const auto reused = cuda_digital_prices(request, &workspace);
+                REQUIRE(reused.result.status == CudaPricingStatus::success);
+                CHECK(reused.payoff_means == actual.payoff_means);
+                const auto repeated = cuda_digital_prices(request, &workspace);
+                REQUIRE(repeated.result.status == CudaPricingStatus::success);
+                CHECK(repeated.payoff_means == actual.payoff_means);
+            }
+}
+
 TEST_CASE("CUDA pricing completes independently of unrelated streams", "[cuda][monte-carlo-performance]")
 {
     using namespace kiyosi::detail;

@@ -35,6 +35,8 @@ TEST_CASE("Digital and binary barrier terminal payoffs share strict strike bound
                 check(engine, cash, exercised ? 7.0 : 0.0);
                 check(engine, asset, exercised ? spot : 0.0);
             };
+            check_digital(MonteCarloDigitalEngine{});
+            check_digital(CoxRossRubinsteinDigitalEngine{});
             check_digital(AnalyticDigitalEngine{});
             check_digital(QuadratureDigitalEngine{});
             check_digital(FiniteDifferenceDigitalEngine{});

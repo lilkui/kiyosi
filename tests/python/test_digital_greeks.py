@@ -53,6 +53,8 @@ class DigitalGreekTests(unittest.TestCase):
                 exercised = spot > 100 if direction == "call" else spot < 100
 
                 for engine in (
+                    pricing.MonteCarloDigitalEngine(),
+                    pricing.CoxRossRubinsteinDigitalEngine(),
                     pricing.AnalyticDigitalEngine(),
                     pricing.QuadratureDigitalEngine(),
                     pricing.FiniteDifferenceDigitalEngine(),

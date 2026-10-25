@@ -19,6 +19,7 @@ class BinaryBarrierOption;
 class TouchOption;
 class DoubleTouchOption;
 class CoxRossRubinsteinVanillaEngine;
+class CoxRossRubinsteinDigitalEngine;
 class MonteCarloAutocallableEngine;
 
 namespace detail {
@@ -27,6 +28,9 @@ namespace detail {
 template <typename Option>
 Result<ImpliedVolatilitySettings> prepare_implied_volatility(
     const CoxRossRubinsteinVanillaEngine&, const Option&, const PricingContext&, ImpliedVolatilitySettings);
+template <typename Option>
+Result<ImpliedVolatilitySettings> prepare_implied_volatility(
+    const CoxRossRubinsteinDigitalEngine&, const Option&, const PricingContext&, ImpliedVolatilitySettings);
 template <AutocallableProduct Note>
 [[nodiscard]] KIYOSI_EXPORT Result<ImpliedVolatilitySettings> prepare_implied_volatility(
     const MonteCarloAutocallableEngine&, const Note&, const PricingContext&, ImpliedVolatilitySettings);

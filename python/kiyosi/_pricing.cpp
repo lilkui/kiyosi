@@ -156,7 +156,9 @@ is deferred until the synchronous core computation returns.)doc");
 
 Pass one lowercase Greek name or an iterable of them, or set ``all_greeks=True`` to
 request all ten. These forms are mutually exclusive. Native values are reused;
-missing feasible measures use numerical price differences. Unrequested or
+engines supporting numerical completion fill missing feasible measures using numerical
+price differences. Digital Monte Carlo and CRR engines support only delta and gamma;
+shift settings are validated but unused by those engines. Unrequested, unsupported or
 undefined measures are None, never zero sentinels. At expiry or a monitored
 barrier hit-state boundary, only price is available. Feasible bumped valuation
 failures fail the entire operation.
@@ -727,6 +729,60 @@ Settings are validated at construction.)doc")
               {"path_count", "step_count", "seed", "backend", "thread_count", "sampling", "antithetic"});
     bind_engine_price<MonteCarloVanillaEngine, EuropeanOption>(module, monte_carlo_vanilla);
     bind_engine_price<MonteCarloVanillaEngine, AmericanOption>(module, monte_carlo_vanilla);
+
+    auto crr_digital = nb::class_<CoxRossRubinsteinDigitalEngine>(
+                           module, "CoxRossRubinsteinDigitalEngine",
+                           "European cash/asset digital CRR pricing with node delta/gamma. Other Greeks are unavailable. "
+                           "Price convergence can oscillate with strike alignment; gamma requires at least two steps.")
+                           .def(nb::new_([](PythonInteger step_count) {
+                                    return unwrap(make_cox_ross_rubinstein_digital_engine({integer(step_count, "step_count")}));
+                                }),
+                                "step_count"_a = BinomialSettings{}.step_count,
+                                "Create an engine with 1..1,000,000 steps. Invalid representations raise TypeError/OverflowError; invalid counts raise KiyosiError.")
+                           .def_prop_ro("step_count", [](const CoxRossRubinsteinDigitalEngine& engine) { return engine.settings().step_count; });
+    bind_repr(crr_digital, "CoxRossRubinsteinDigitalEngine", {"step_count"});
+    bind_engine_price<CoxRossRubinsteinDigitalEngine, CashOrNothingOption>(module, crr_digital);
+    bind_engine_price<CoxRossRubinsteinDigitalEngine, AssetOrNothingOption>(module, crr_digital);
+
+    auto mc_digital = nb::class_<MonteCarloDigitalEngine>(
+                          module, "MonteCarloDigitalEngine",
+                          "Direct exact-terminal European cash/asset digital Monte Carlo pricing with likelihood-ratio delta/gamma. "
+                          "Other Greeks are unavailable. Estimates have sampling error, especially near expiry. "
+                          "CPU supports pseudorandom/Sobol; optional CUDA supports pseudorandom. All storage is request-local.")
+                          .def(nb::new_([](PythonInteger path_count, PythonInteger step_count, PythonInteger seed,
+                                           PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count,
+                                           PythonChoice<MonteCarloSampling> sampling, bool antithetic) {
+                                   return unwrap(make_monte_carlo_digital_engine(MonteCarloSettings{
+                                       integer(path_count, "path_count"), integer(step_count, "step_count"), optional_seed(seed),
+                                       backend, integer(thread_count, "thread_count"), sampling, antithetic}));
+                               }),
+                               nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
+                               "step_count"_a = MonteCarloSettings{}.step_count, "seed"_a.none() = MonteCarloSettings{}.seed,
+                               "backend"_a = MonteCarloSettings{}.backend, "thread_count"_a = MonteCarloSettings{}.thread_count,
+                               "sampling"_a = MonteCarloSettings{}.sampling, "antithetic"_a.noconvert() = MonteCarloSettings{}.antithetic,
+                               R"doc(Create a digital engine using the core MonteCarloSettings defaults.
+
+path_count is the exact number of paths (1..10,000,000). step_count is validated
+(2..10,000) but unused. seed is a nonnegative integer or None for system entropy.
+backend is 'cpu' or 'cuda'; sampling is 'pseudo_random' or CPU-only 'sobol'.
+Sobol requires an explicit power-of-two path_count. thread_count is a per-call CPU
+cap (0 automatic, 1 serial); CUDA requires 0. antithetic pairs Z and -Z, leaving
+one path unpaired for odd counts. Seeded CPU results reproduce across thread counts
+in the same build; CPU and CUDA streams differ.
+Invalid representations raise TypeError/OverflowError. Core configuration failures
+raise KiyosiError (INVALID_PARAMETER or UNSUPPORTED_OPERATION for CUDA with Sobol).
+Backend availability is checked when pricing. Operational failures follow the
+package contract.)doc")
+                          .def_prop_ro("path_count", [](const MonteCarloDigitalEngine& engine) { return engine.settings().path_count; })
+                          .def_prop_ro("step_count", [](const MonteCarloDigitalEngine& engine) { return engine.settings().step_count; })
+                          .def_prop_ro("seed", [](const MonteCarloDigitalEngine& engine) { return engine.settings().seed; })
+                          .def_prop_ro("backend", [](const MonteCarloDigitalEngine& engine) { return engine.settings().backend; })
+                          .def_prop_ro("thread_count", [](const MonteCarloDigitalEngine& engine) { return engine.settings().thread_count; })
+                          .def_prop_ro("sampling", [](const MonteCarloDigitalEngine& engine) { return engine.settings().sampling; })
+                          .def_prop_ro("antithetic", [](const MonteCarloDigitalEngine& engine) { return engine.settings().antithetic; });
+    bind_repr(mc_digital, "MonteCarloDigitalEngine", {"path_count", "step_count", "seed", "backend", "thread_count", "sampling", "antithetic"});
+    bind_engine_price<MonteCarloDigitalEngine, CashOrNothingOption>(module, mc_digital);
+    bind_engine_price<MonteCarloDigitalEngine, AssetOrNothingOption>(module, mc_digital);
 
     auto analytic_digital = bind_stateless_engine<AnalyticDigitalEngine>(
         module, "AnalyticDigitalEngine");

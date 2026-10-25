@@ -14,7 +14,7 @@ The project is in Alpha. Breaking API changes are possible.
 | Product | Pricing methods |
 | --- | --- |
 | European and American vanilla options | Closed-form formulas, American approximations, binomial trees, quadrature, finite differences, and Monte Carlo, depending on exercise style |
-| Cash-or-nothing and asset-or-nothing digital options | Analytic formulas, quadrature, and finite differences |
+| Cash-or-nothing and asset-or-nothing digital options | Analytic formulas, quadrature, finite differences, CRR binomial trees, and Monte Carlo |
 | Single-barrier vanilla options | Analytic methods and finite differences |
 | Binary barrier options and single-barrier touch options | Analytic methods |
 | Double-barrier options and cash double-touch options | Finite differences |

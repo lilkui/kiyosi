@@ -149,8 +149,8 @@ Result<PricingResult> complete_monte_carlo_greeks(
     return complete_greeks(scalar, option, context, greeks, settings, *native, nullptr, sample);
 }
 
-template <std::size_t count, typename PathPayoffs>
-Result<std::array<double, count>> cpu_path_means(const TradingDayMonteCarloSettings& settings, PathPayoffs path_payoffs,
+template <std::size_t count, typename PathPayoffs, typename Settings = TradingDayMonteCarloSettings>
+Result<std::array<double, count>> cpu_path_means(const Settings& settings, PathPayoffs path_payoffs,
                                                  std::size_t step_count = 1)
 {
     const auto valid = validate_monte_carlo_dimension(settings.sampling, step_count);

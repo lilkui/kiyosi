@@ -1,5 +1,6 @@
 add_executable(kiyosi_benchmarks
     binomial.cpp
+    digital.cpp
     monte_carlo.cpp
     pricing_matrix.cpp
     quadrature.cpp

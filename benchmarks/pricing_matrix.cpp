@@ -178,6 +178,7 @@ int main(int argc, char** argv)
         if (benchmark::ReportUnrecognizedArguments(argc, argv)) return 1;
         register_matrix();
         kiyosi::benchmark_support::register_binomial_cases();
+        kiyosi::benchmark_support::register_digital_cases();
         kiyosi::benchmark_support::register_quadrature_cases();
         kiyosi::benchmark_support::register_monte_carlo_cases();
         kiyosi::benchmark_support::register_analytics_cases();

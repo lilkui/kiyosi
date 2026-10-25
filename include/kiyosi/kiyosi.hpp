@@ -60,6 +60,8 @@
 #include <kiyosi/pricing/engines/binary_barrier/analytic.hpp>
 #include <kiyosi/pricing/engines/binary_barrier/double_finite_difference.hpp>
 #include <kiyosi/pricing/engines/digital/analytic.hpp>
+#include <kiyosi/pricing/engines/digital/binomial.hpp>
+#include <kiyosi/pricing/engines/digital/monte_carlo.hpp>
 #include <kiyosi/pricing/engines/digital/finite_difference.hpp>
 #include <kiyosi/pricing/engines/digital/integral.hpp>
 #include <kiyosi/pricing/engines/autocallable/finite_difference.hpp>

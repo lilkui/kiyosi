@@ -32,8 +32,8 @@ enum class MonteCarloSampling : unsigned char {
 /// apply per call, not process-wide. Fixed seeds reproduce results across thread counts within
 /// a library version, build and standard-library implementation; CUDA is a separate backend.
 /// Allocation and internal runtime exceptions propagate; no cancellation interface is provided.
-/// Vanilla simulation settings, validated when creating an engine; an absent seed
-/// draws from the system entropy source. Vanilla engines accept 1..10,000,000 paths and
+/// Vanilla and digital simulation settings, validated when creating an engine; an absent seed
+/// draws from the system entropy source. These engines accept 1..10,000,000 paths and
 /// 2..10,000 steps; American pricing before expiry requires at least 3 steps.
 /// European pricing samples the exact terminal distribution without intermediate steps.
 /// Sobol uses chronological inverse-normal increments and one seeded

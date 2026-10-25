@@ -419,6 +419,21 @@ __device__ void write_spot_payoff(const SpotRequests<Request>& requests, int bum
     requests.payoffs[bump][path] = isfinite(value) ? value : 0.0;
 }
 
+__global__ void simulate_digital_paths(SpotRequests<CudaDigitalRequest> requests)
+{
+    const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    const auto request = requests.values[0];
+    if (path >= request.path_count) return;
+    curandStatePhilox4_32_10_t generator;
+    initialize_path_generator(request, path, generator);
+    const auto sample = request.parameters.sample(draw_path_normal(request, path, generator), request.delta, request.gamma);
+    for (int output = 0; output < requests.count; ++output) {
+        const int measure = requests.values[output].measure;
+        write_spot_payoff(requests, output, path, measure == 0 ? sample.price : measure == 1 ? sample.delta
+                                                                                             : sample.gamma);
+    }
+}
+
 template <bool single>
 __global__ void simulate_accumulator_spot_paths(
     SpotRequests<CudaAccumulatorRequest> requests, const SimulationStep* steps, std::size_t step_count)
@@ -677,6 +692,29 @@ CudaSpotPricingResult cuda_autocallable_spot_prices(
     return spot_prices(requests, steps, workspace, [](const auto& batch, auto* device_steps, auto step_count, int blocks, cudaStream_t stream) {
         simulate_autocallable_spot_paths<<<blocks, threads_per_block, 0, stream>>>(batch, device_steps, step_count);
     });
+}
+
+CudaSpotPricingResult cuda_digital_prices(CudaDigitalRequest request, CudaWorkspace* workspace)
+{
+    std::array<CudaDigitalRequest, 3> requests{request};
+    std::size_t count = 1;
+    if (request.delta) {
+        requests[count] = request;
+        requests[count++].measure = 1;
+    }
+    if (request.gamma) {
+        requests[count] = request;
+        requests[count++].measure = 2;
+    }
+    auto result = spot_prices(std::span<const CudaDigitalRequest>{requests}.first(count), std::span<const SimulationStep>{}, workspace,
+                              [](const auto& batch, const auto*, auto, int blocks, cudaStream_t stream) {
+                                  simulate_digital_paths<<<blocks, threads_per_block, 0, stream>>>(batch);
+                              });
+    if (!request.delta && request.gamma) {
+        result.payoff_means[2] = result.payoff_means[1];
+        result.payoff_means[1] = 0.0;
+    }
+    return result;
 }
 
 CudaPricingResult cuda_european_price(CudaEuropeanRequest request, CudaWorkspace* workspace)
