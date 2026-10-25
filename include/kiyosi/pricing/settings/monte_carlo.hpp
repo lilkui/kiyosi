@@ -39,7 +39,7 @@ enum class MonteCarloSampling : unsigned char {
 /// Sobol uses chronological inverse-normal increments and one seeded
 /// scramble per call. It preserves the same concurrency contract; it does not report a
 /// standard error or confidence interval. Selecting Sobol requires an explicit power-of-two
-/// path count because the pseudorandom defaults are unchanged. CPU and CUDA streams differ.
+/// path count; the default path counts are not powers of two. CPU and CUDA streams differ.
 struct MonteCarloSettings {
     int path_count = 100'000;                                        ///< Exact number of simulated paths; 1..10,000,000.
     int step_count = 50;                                             ///< American grid points; 2..10,000 (American: >= 3); validated but unused for European pricing.
@@ -100,7 +100,7 @@ inline Result<void> validate_monte_carlo_dimension(MonteCarloSampling sampling, 
     return {};
 }
 
-/// Validates path count, uniform step count when present, backend, and thread count in that order.
+/// Validates path count, uniform step count when present, backend, thread count, and sampling in that order.
 template <typename Settings>
     requires(std::same_as<Settings, MonteCarloSettings> ||
              std::same_as<Settings, TradingDayMonteCarloSettings>)

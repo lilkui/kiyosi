@@ -36,6 +36,7 @@ namespace detail {
 
 /// Two fixed positive ordered boundaries sharing one monitoring schedule and history.
 /// A touch is inclusive at either boundary. History is strictly before valuation.
+/// Schedule references borrow this object until destruction, moving from, or assignment.
 /// Concurrent reads on shared or distinct instances are safe without concurrent assignment.
 class DoubleBarrierTerms {
 public:
@@ -69,7 +70,7 @@ private:
 /// European call or put activated/terminated by the first touch of either boundary.
 /// Knock-out rebates share one amount and pay at hit or expiry. A never-activated
 /// knock-in rebate pays at expiry. Past at-hit payments have no remaining value.
-/// Values own their schedules; references into them last until assignment/destruction.
+/// Values own their schedules; borrowed references last until destruction, moving from, or assignment.
 /// Concurrent reads and replace calls on shared/distinct instances are safe without
 /// concurrent assignment. Copy assignment preserves the original on allocation failure.
 class DoubleBarrierOption {

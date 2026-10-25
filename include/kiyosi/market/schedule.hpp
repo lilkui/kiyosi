@@ -70,6 +70,8 @@ template <std::ranges::random_access_range Dates>
 }
 
 /// Immutable, strictly ordered collection of contract observation dates.
+/// References and iterators borrow this schedule's storage until destruction, moving from,
+/// or assignment. Concurrent reads are safe without concurrent movement or assignment.
 class ObservationSchedule {
 public:
     /// Returns the underlying ordered dates.

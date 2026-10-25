@@ -61,8 +61,7 @@ def forecast(year):
         Solar.fromYmd(year, 4, 4).getLunar().getJieQiTable()["清明"].toYmd()
     )
 
-    # ponytail: this predicts the usual contiguous breaks, not future ad-hoc
-    # State Council shifts; replace each year with the SSE announcement when published.
+    # shortcut: forecasts omit ad-hoc closures; regenerate as XSHG records more years.
     closed = dates(spring - dt.timedelta(days=1), 8)
     closed.update(dates(dt.date(year, 10, 1), 7))
     if dt.date(year, 10, 1) <= mid_autumn <= dt.date(year, 10, 7):

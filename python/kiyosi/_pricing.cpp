@@ -342,8 +342,8 @@ thread_count : int, optional
 sampling : {'pseudo_random', 'sobol'}, optional
     Sampling method. Sobol uses one seed-reproducible LMS-scrambled and digitally
     shifted point per base path, with chronological normal increments and up to 21,201
-    dimensions. Set a power-of-two path_count explicitly; the default path count
-    remains unchanged. Sobol supports only the CPU backend.
+    dimensions. Set a power-of-two path_count explicitly; the core default is not
+    a power of two. Sobol supports only the CPU backend.
 
 antithetic : bool, optional
     Pair normal increments Z and -Z; defaults to False. path_count is the exact
@@ -696,7 +696,7 @@ sampling : {'pseudo_random', 'sobol'}, optional
     Sampling method. Sobol uses one seed-reproducible LMS-scrambled and digitally
     shifted point per base path, with chronological normal
     increments and up to 21,201 dimensions. Set a power-of-two path_count
-    explicitly; the default path count remains unchanged. Sobol supports only CPU.
+    explicitly; the core default is not a power of two. Sobol supports only CPU.
 
 antithetic : bool, optional
     Pair normal increments Z and -Z; defaults to False. path_count is the exact

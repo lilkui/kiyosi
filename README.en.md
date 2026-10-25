@@ -15,7 +15,9 @@ The project is in Alpha. Breaking API changes are possible.
 | --- | --- |
 | European and American vanilla options | Closed-form formulas, American approximations, binomial trees, quadrature, finite differences, and Monte Carlo, depending on exercise style |
 | Cash-or-nothing and asset-or-nothing digital options | Analytic formulas, quadrature, and finite differences |
-| Barrier, binary barrier, and touch options | Analytic methods; ordinary barrier options also support finite differences |
+| Single-barrier vanilla options | Analytic methods and finite differences |
+| Binary barrier options and single-barrier touch options | Analytic methods |
+| Double-barrier options and cash double-touch options | Finite differences |
 | Geometric and arithmetic average-price Asian options | Geometric closed-form formulas and arithmetic approximations |
 | Snowballs, binary snowballs, ternary snowballs, and phoenixes | Quadrature, finite differences, and Monte Carlo |
 | Accumulators | Quadrature, finite differences and Monte Carlo |

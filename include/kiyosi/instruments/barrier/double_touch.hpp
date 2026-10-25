@@ -15,7 +15,7 @@ namespace detail {
 /// Fixed cash paid if either inclusive boundary is touched (one-touch), or neither
 /// is touched (no-touch). Both boundaries share monitoring and strictly prior history.
 /// At-hit history marked touched means already paid; no-touch settles only at expiry.
-/// Values own schedules; borrowed references last until assignment/destruction.
+/// Values own schedules; borrowed references last until destruction, moving from, or assignment.
 /// Reads and replace calls on shared/distinct instances are safe concurrently without
 /// assignment. Failed construction/replace preserves inputs; copy assignment preserves
 /// the target on allocation failure. Allocation failures propagate as std::bad_alloc.

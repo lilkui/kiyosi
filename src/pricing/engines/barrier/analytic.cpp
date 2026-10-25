@@ -24,7 +24,7 @@ Result<double> price_barrier(
                                                          option.expiry_date(), context.calendar());
         if (!schedule_valid) return std::unexpected(schedule_valid.error());
         schedule_validated = true;
-        // ponytail: scheduled dates use a BGK barrier shift; exact discrete monitoring needs a separate engine.
+        // shortcut: scheduled dates use a BGK barrier shift; use finite differences for exact monitoring dates.
     }
     if (const auto settled = resolved_barrier_price(option, context)) return *settled;
     const double t = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());

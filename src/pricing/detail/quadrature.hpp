@@ -210,7 +210,7 @@ public:
         }
     }
 
-    // Reuses the output allocation; keeps the original divided-difference arithmetic and order.
+    // Reuses the output allocation for cubic coefficients built from Newton divided differences.
     void interpolate(std::span<const double> values, double low, double high, Curve& curve) const
     {
         curve.low = low;

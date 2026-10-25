@@ -395,7 +395,7 @@ TEST_CASE("Trading-day implied volatility preserves scalar trials and isolated w
                     const auto quote = engine.price(option, context);
                     REQUIRE(quote);
                     const auto compare = [&](double price, ImpliedVolatilitySettings settings) {
-                        // The original scalar path creates fresh pricing storage for each trial.
+                        // The scalar reference creates fresh pricing storage for each trial.
                         const auto expected = detail::solve_implied_volatility(engine, option, context, price, settings,
                                                                                [](const auto& scalar, const auto& instrument, const auto& shifted) {
                                                                                    return detail::numerical_value(scalar, instrument, shifted);

@@ -5,6 +5,10 @@
 /// const operations on the same object are safe. An object must remain alive and must not be
 /// moved from, assigned to, or otherwise mutated during concurrent access. Concurrent access
 /// involving mutation requires external synchronization.
+///
+/// Unless documented otherwise, returned references, spans and iterators borrow storage from
+/// their source object. Keep that object alive; moving from or assigning it invalidates borrows.
+/// Borrowed storage is read-only and follows the same synchronization requirements as its owner.
 
 #include <kiyosi/core/day_count.hpp>
 #include <kiyosi/core/error.hpp>

@@ -1,5 +1,5 @@
 // Joe-Kuo new-joe-kuo-6.21201, search criterion 6.
-// Copyright (c) 2008 Frances Y. Kuo and Stephen Joe; BSD license in LICENSE.txt.
+// Copyright (c) 2008 Frances Y. Kuo and Stephen Joe; BSD license in THIRD_PARTY_NOTICES.txt.
 // https://web.maths.unsw.edu.au/~fkuo/sobol/
 // Records contain degree, polynomial coefficients, then initial direction integers.
 // clang-format off
@@ -21203,4 +21203,4 @@
 18, 131008, 1, 3, 5, 5, 23, 13, 41, 67, 127, 649, 1351, 3597, 7077, 4989, 14649, 17401, 70883, 239841,
 18, 131020, 1, 1, 5, 1, 19, 1, 83, 3, 425, 873, 1943, 3935, 4257, 14587, 11829, 55217, 21963, 39683,
 18, 131059, 1, 1, 7, 11, 15, 7, 37, 239, 337, 245, 1557, 3681, 7357, 9639, 27367, 26869, 114603, 86317,
-// clang-format on
+    // clang-format on
