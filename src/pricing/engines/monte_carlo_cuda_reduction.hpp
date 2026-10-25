@@ -11,7 +11,7 @@ inline constexpr int monte_carlo_reduction_threads = 256;
 template <typename Input, typename Output>
 __global__ void reduce_payoffs(const Input* values, int count, Output* output)
 {
-    __shared__ MonteCarloMean means[monte_carlo_reduction_threads]; // NOLINT(modernize-avoid-c-arrays): CUDA shared memory needs device-accessible array storage.
+    __shared__ MonteCarloMean means[monte_carlo_reduction_threads]; // NOLINT(modernize-avoid-c-arrays,bugprone-dynamic-static-initializers): uninitialized CUDA block-shared storage, not a C++ static initializer.
     const int thread = static_cast<int>(threadIdx.x);
     MonteCarloMean mean{};
     for (int index = static_cast<int>(blockIdx.x * blockDim.x) + thread;

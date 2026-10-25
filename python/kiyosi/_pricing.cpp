@@ -931,6 +931,52 @@ package contract.)doc")
         module, "TurnbullWakemanArithmeticAveragePriceEngine");
     bind_engine_price<TurnbullWakemanArithmeticAveragePriceEngine, ArithmeticAveragePriceOption>(module, arithmetic);
 
+    auto mc_asian = nb::class_<MonteCarloAsianEngine>(
+                        module, "MonteCarloAsianEngine",
+                        "Continuous arithmetic/geometric average-price Monte Carlo with requested delta/gamma. "
+                        "Arithmetic uses trapezoidal integration and first-interval conditioning; geometric samples "
+                        "the exact average distribution. Other Greeks and expiry Greeks are unavailable. "
+                        "Estimates have sampling error and arithmetic grid bias; gamma may be noisy near expiry. "
+                        "Realized history stays fixed under spot differentiation; seasoned geometric gamma may be negative.")
+                        .def(nb::new_([](PythonInteger path_count, PythonInteger step_count, PythonInteger seed,
+                                         PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count,
+                                         PythonChoice<MonteCarloSampling> sampling, bool antithetic) {
+                                 return unwrap(make_monte_carlo_asian_engine(MonteCarloSettings{
+                                     integer(path_count, "path_count"), integer(step_count, "step_count"), optional_seed(seed),
+                                     backend, integer(thread_count, "thread_count"), sampling, antithetic}));
+                             }),
+                             nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
+                             "step_count"_a = MonteCarloSettings{}.step_count, "seed"_a.none() = MonteCarloSettings{}.seed,
+                             "backend"_a = MonteCarloSettings{}.backend, "thread_count"_a = MonteCarloSettings{}.thread_count,
+                             "sampling"_a = MonteCarloSettings{}.sampling, "antithetic"_a.noconvert() = MonteCarloSettings{}.antithetic,
+                             R"doc(Create an Asian engine using the core MonteCarloSettings defaults.
+
+path_count is the exact number of paths (1..10,000,000). step_count (2..10,000)
+counts equal intervals over the remaining arithmetic averaging window; any lead
+to averaging start is separate. Geometric and single-fixing pricing validate but
+do not use step_count. Arithmetic conditions out one interval, so sampling uses
+step_count - 1 normals, plus one for a forward-start lead. Geometric uses one.
+seed is a nonnegative integer or None. CPU supports pseudo_random and sobol;
+Sobol requires a power-of-two path_count. Optional CUDA supports pseudo_random.
+thread_count caps CPU concurrency per call (0 automatic, 1 serial); CUDA requires 0.
+antithetic pairs opposite normals with one unpaired path for odd counts.
+Seeded CPU results reproduce across thread counts in the same build; CUDA streams differ.
+Invalid representations raise TypeError/OverflowError; domain failures raise
+KiyosiError. Backend availability is checked at pricing. Allocation and internal
+failures follow the package contract; there is no cancellation interface.
+Numerical-shift arguments are validated but these estimators do not use spot bumps.
+IV solver tolerances do not bound sampling or integration error.)doc")
+                        .def_prop_ro("path_count", [](const MonteCarloAsianEngine& engine) { return engine.settings().path_count; })
+                        .def_prop_ro("step_count", [](const MonteCarloAsianEngine& engine) { return engine.settings().step_count; })
+                        .def_prop_ro("seed", [](const MonteCarloAsianEngine& engine) { return engine.settings().seed; })
+                        .def_prop_ro("backend", [](const MonteCarloAsianEngine& engine) { return engine.settings().backend; })
+                        .def_prop_ro("thread_count", [](const MonteCarloAsianEngine& engine) { return engine.settings().thread_count; })
+                        .def_prop_ro("sampling", [](const MonteCarloAsianEngine& engine) { return engine.settings().sampling; })
+                        .def_prop_ro("antithetic", [](const MonteCarloAsianEngine& engine) { return engine.settings().antithetic; });
+    bind_repr(mc_asian, "MonteCarloAsianEngine", {"path_count", "step_count", "seed", "backend", "thread_count", "sampling", "antithetic"});
+    bind_engine_price<MonteCarloAsianEngine, GeometricAveragePriceOption>(module, mc_asian);
+    bind_engine_price<MonteCarloAsianEngine, ArithmeticAveragePriceOption>(module, mc_asian);
+
     auto finite_accumulator = bind_finite_difference_engine<FiniteDifferenceAccumulatorEngine>(
         module, "FiniteDifferenceAccumulatorEngine", &make_finite_difference_accumulator_engine);
     bind_engine_price<FiniteDifferenceAccumulatorEngine, Accumulator>(module, finite_accumulator);

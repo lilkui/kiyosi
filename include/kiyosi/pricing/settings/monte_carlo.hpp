@@ -32,19 +32,22 @@ enum class MonteCarloSampling : unsigned char {
 /// apply per call, not process-wide. Fixed seeds reproduce results across thread counts within
 /// a library version, build and standard-library implementation; CUDA is a separate backend.
 /// Allocation and internal runtime exceptions propagate; no cancellation interface is provided.
-/// Vanilla, digital, single-barrier and double-barrier settings, validated when creating an engine; an absent seed
+/// Vanilla, Asian, digital, single-barrier and double-barrier settings, validated when creating an engine; an absent seed
 /// draws from the system entropy source. These engines accept 1..10,000,000 paths and
 /// 2..10,000 steps; American pricing before expiry requires at least 3 steps.
 /// European pricing samples the exact terminal distribution without intermediate steps.
 /// Single and double barriers use conditional survival for continuous monitoring, or the original
 /// scheduled observation dates and expiry; step_count is validated but unused for barriers.
+/// Arithmetic Asians use step_count trapezoid intervals over the remaining averaging window,
+/// conditioning out the first interval; a forward-start lead is separate. Geometric Asians
+/// and single fixings sample their exact distribution and do not use step_count.
 /// Sobol uses chronological inverse-normal increments and one seeded
 /// scramble per call. It preserves the same concurrency contract; it does not report a
 /// standard error or confidence interval. Selecting Sobol requires an explicit power-of-two
 /// path count; the default path counts are not powers of two. CPU and CUDA streams differ.
 struct MonteCarloSettings {
     int path_count = 100'000;                                        ///< Exact number of simulated paths; 1..10,000,000.
-    int step_count = 50;                                             ///< American grid points; 2..10,000 (American: >= 3); validated but unused for European and barrier pricing.
+    int step_count = 50;                                             ///< American grid points or arithmetic Asian intervals; 2..10,000 (American: >= 3); unused for exact-distribution/barrier pricing.
     std::optional<std::uint64_t> seed{};                             ///< Deterministic seed, or system entropy when absent.
     MonteCarloBackend backend = MonteCarloBackend::cpu;              ///< Execution backend.
     int thread_count = 0;                                            ///< CPU concurrency cap: 0 automatic, 1 serial; CUDA requires 0.

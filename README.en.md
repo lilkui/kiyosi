@@ -19,8 +19,8 @@ The project is in Alpha. Breaking API changes are possible.
 | Binary barrier options and single-barrier touch options | Analytic methods |
 | Double-barrier options | Continuous analytic valuation, finite differences, and Monte Carlo |
 | Cash double-touch options | Finite differences |
-| Geometric and arithmetic average-price Asian options | Geometric closed-form formulas and arithmetic approximations |
-| Snowballs, binary snowballs, ternary snowballs, and phoenixes | Quadrature, finite differences, and Monte Carlo |
+| Geometric and arithmetic average-price Asian options | Geometric closed-form formulas, arithmetic approximations, and Monte Carlo |
+| Snowballs and phoenixes | Quadrature, finite differences, and Monte Carlo |
 | Accumulators | Quadrature, finite differences and Monte Carlo |
 
 The library also provides Greeks, numerical sensitivities, implied volatility and coupon solvers, trading calendars, and observation schedules. Monte Carlo engines support CPU execution and an optional CUDA backend.

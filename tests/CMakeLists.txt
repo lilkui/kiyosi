@@ -27,6 +27,7 @@ add_executable(kiyosi_tests
     pricing/engines/accumulator/cashflow_tests.cpp
     pricing/engines/accumulator/quadrature_tests.cpp
     pricing/engines/asian/analytic_tests.cpp
+    pricing/engines/asian/monte_carlo_tests.cpp
     pricing/engines/barrier/analytic_tests.cpp
     pricing/engines/barrier/binomial_tests.cpp
     pricing/engines/barrier/monte_carlo_tests.cpp

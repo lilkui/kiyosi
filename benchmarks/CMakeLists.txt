@@ -1,4 +1,5 @@
 add_executable(kiyosi_benchmarks
+    asian.cpp
     binomial.cpp
     barrier.cpp
     digital.cpp
