@@ -44,3 +44,7 @@ Pricing accuracy comes first. Optimize valid-input hot paths using established i
 - Types: `PascalCase`.
 - Namespaces, functions, variables, constants and enum values: `snake_case`; private non-static data members: `snake_case_`.
 - Macros: `KIYOSI_UPPER_SNAKE_CASE`.
+
+## Documentation
+
+- Documentation updated alongside code changes must directly describe the final, valid state. Do not document the change process, historical diffs, or descriptions of what was modified.
