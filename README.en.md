@@ -13,17 +13,22 @@ The project is in Alpha. Breaking API changes are possible.
 
 | Product | Pricing methods |
 | --- | --- |
-| European and American vanilla options | Closed-form formulas, American approximations, binomial trees, quadrature, finite differences, and Monte Carlo, depending on exercise style |
+| European and American vanilla options | Closed-form formulas, American approximations, binomial trees, quadrature, finite differences, and Monte Carlo |
 | Cash-or-nothing and asset-or-nothing digital options | Analytic formulas, quadrature, finite differences, CRR binomial trees, and Monte Carlo |
 | Single-barrier vanilla options | Analytic methods, finite differences, Monte Carlo, CRR binomial trees, and quadrature |
-| Binary barrier options and single-barrier touch options | Analytic methods |
+| Binary barrier options and single-barrier touch/no-touch options | Analytic methods and finite differences |
 | Double-barrier options | Continuous analytic valuation, finite differences, and Monte Carlo |
-| Cash double-touch options | Finite differences |
+| Cash double one-touch and double no-touch options | Finite differences |
 | Geometric and arithmetic average-price Asian options | Geometric closed-form formulas, arithmetic approximations, and Monte Carlo |
 | Snowballs and phoenixes | Quadrature, finite differences, and Monte Carlo |
 | Accumulators | Quadrature, finite differences and Monte Carlo |
+| Range accruals | Monte Carlo |
 
-The library also provides Greeks, numerical sensitivities, implied volatility and coupon solvers, trading calendars, and observation schedules. Monte Carlo engines support CPU execution and an optional CUDA backend.
+The library also provides:
+
+- Greeks, numerical sensitivities, and implied volatility and coupon solvers.
+- Risk-free rate and dividend yield term structures, trading calendars, and observation schedules.
+- Parallel CPU execution and an optional CUDA backend for Monte Carlo, with pseudorandom sampling, Sobol quasi-Monte Carlo sampling, and antithetic variates.
 
 ## Install the Python package
 
