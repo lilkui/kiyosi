@@ -14,6 +14,7 @@ class KIYOSI_EXPORT FiniteDifferenceBarrierEngine;
 [[nodiscard]] Result<FiniteDifferenceBarrierEngine> make_finite_difference_barrier_engine(FiniteDifferenceSettings settings);
 
 /// Uniform-grid finite-difference engine for barrier options.
+/// Continuous barriers are exact endpoints of the live asset-price domain.
 /// Crank-Nicolson uses two implicit Euler half-steps per interval for up to two
 /// initial intervals. Scheduled observations locally average the barrier event and
 /// restart this damping for the barrier layer; the knock-in vanilla reference keeps

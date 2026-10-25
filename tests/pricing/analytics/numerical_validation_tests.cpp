@@ -1152,8 +1152,9 @@ TEST_CASE("Explicit finite-difference engines honor signed stability grids")
         CHECK_FALSE(kiyosi::make_finite_difference_digital_engine(unstable).value().price(digital, market).has_value());
         const auto barrier_stable = kiyosi::make_finite_difference_barrier_engine(stable).value().price(barrier, market);
         CHECK(barrier_stable.has_value());
-        const auto barrier_boundary = kiyosi::make_finite_difference_barrier_engine(boundary).value().price(barrier, market);
+        const auto barrier_boundary = kiyosi::make_finite_difference_barrier_engine({4, 3, kiyosi::FiniteDifferenceScheme::explicit_euler}).value().price(barrier, market);
         CHECK(barrier_boundary.has_value());
+        CHECK_FALSE(kiyosi::make_finite_difference_barrier_engine(boundary).value().price(barrier, market).has_value());
         CHECK_FALSE(kiyosi::make_finite_difference_barrier_engine(unstable).value().price(barrier, market).has_value());
     }
 }

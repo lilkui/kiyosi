@@ -13,6 +13,40 @@ from kiyosi.market import (
 
 
 class BarrierFiniteDifferenceRegressionTests(unittest.TestCase):
+    def test_continuous_single_barriers_retain_exact_levels_near_knock_out(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0, volatility=0.2
+        )
+        for barrier, knock_in, rebate, distance in product(
+            (120, 120.13, 80, 79.87), (False, True), (0, 2), (0.01, 1e-6, 0)
+        ):
+            with self.subTest(
+                barrier=barrier, knock_in=knock_in, rebate=rebate, distance=distance
+            ):
+                up = barrier > 100
+                direction = "up" if up else "down"
+                activation = "in" if knock_in else "out"
+                option = BarrierOption(
+                    option_type="call" if up else "put",
+                    strike=100,
+                    effective_date=start,
+                    expiry_date=end,
+                    barrier_level=barrier,
+                    barrier_type=f"{direction}_and_{activation}",
+                    rebate=rebate,
+                )
+                context = PricingContext(
+                    model_parameters=parameters,
+                    spot_price=barrier + (-distance if up else distance),
+                    valuation_time=start,
+                )
+                expected = pricing.AnalyticBarrierEngine().price(option, context)
+                actual = pricing.FiniteDifferenceBarrierEngine().price(option, context)
+                self.assertAlmostEqual(
+                    actual, expected, delta=1e-9 + 0.005 * abs(expected)
+                )
+
     def test_scheduled_edges_retain_next_observation_settlement(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         valuation = datetime(2025, 1, 1, 12, tzinfo=UTC)

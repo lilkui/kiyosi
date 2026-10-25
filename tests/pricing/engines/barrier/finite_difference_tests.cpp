@@ -14,15 +14,47 @@
 #include "pricing/detail/math.hpp"
 #include "support/common.hpp"
 
-TEST_CASE("Continuous up-and-out trimming retains explicit stability validation", "[fd-barrier-trim]")
+TEST_CASE("Continuous up-and-out grids retain explicit stability validation", "[fd-barrier-stability]")
 {
     using namespace kiyosi;
     const auto start = test::day(2025, 1, 1), end = test::day(2026, 1, 1);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.1), 100.0, start);
     const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out});
-    const auto result = make_finite_difference_barrier_engine({200, 50, FiniteDifferenceScheme::explicit_euler}).value().price(option, context);
+    const auto stable = make_finite_difference_barrier_engine({200, 50, FiniteDifferenceScheme::explicit_euler}).value().price(option, context);
+    REQUIRE(stable);
+    const auto result = make_finite_difference_barrier_engine({200, 1, FiniteDifferenceScheme::explicit_euler}).value().price(option, context);
     REQUIRE_FALSE(result);
     CHECK(result.error().category == ErrorCategory::invalid_parameter);
+}
+
+TEST_CASE("Continuous single barriers retain exact levels near knock-out", "[fd-barrier-boundary]")
+{
+    using namespace kiyosi;
+    const auto start = test::day(2025, 1, 1), end = test::day(2026, 1, 1);
+    const auto parameters = *make_bsm_parameters(0.04, 0.0, 0.2);
+    for (const double barrier : {120.0, 120.13, 80.0, 79.87}) {
+        const bool up = barrier > 100.0;
+        for (const bool knock_in : {false, true})
+            for (const double rebate : {0.0, 2.0}) {
+                const auto option = *make_barrier_option({.option_type = up ? OptionType::call : OptionType::put,
+                                                          .strike = 100.0,
+                                                          .effective_date = start,
+                                                          .expiry_date = end,
+                                                          .barrier_level = barrier,
+                                                          .barrier_type = up ? (knock_in ? BarrierType::up_and_in : BarrierType::up_and_out)
+                                                                             : (knock_in ? BarrierType::down_and_in : BarrierType::down_and_out),
+                                                          .rebate = rebate});
+                for (const double distance : {0.01, 1e-6, 0.0}) {
+                    CAPTURE(barrier, knock_in, rebate, distance);
+                    const auto context = *make_pricing_context(parameters, barrier + (up ? -distance : distance), start);
+                    const auto expected = AnalyticBarrierEngine{}.price(option, context);
+                    const auto actual = FiniteDifferenceBarrierEngine{}.price(option, context);
+                    REQUIRE(expected);
+                    REQUIRE(actual);
+                    CHECK_THAT(*actual, Catch::Matchers::WithinAbs(*expected, 1e-9 + 0.005 * std::abs(*expected)));
+                }
+            }
+    }
 }
 
 TEST_CASE("Scheduled barrier edges retain the next observation settlement", "[fd-barrier-edges]")

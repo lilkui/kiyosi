@@ -304,9 +304,10 @@ struct SpatialGrid {
             curvature.assign(values.size(), 0.0);
             std::vector<double> factors(values.size());
             for (std::size_t node = 1; node + 1 < values.size(); ++node) {
-                const double left = nodes[node] - nodes[node - 1];
-                const double right = nodes[node + 1] - nodes[node];
-                const double total = nodes[node + 1] - nodes[node - 1];
+                // Normalize coordinates before solving so small price units cannot overflow curvature.
+                const double left = (nodes[node] - nodes[node - 1]) / spacing;
+                const double right = (nodes[node + 1] - nodes[node]) / spacing;
+                const double total = (nodes[node + 1] - nodes[node - 1]) / spacing;
                 const double a = left / total;
                 const double diagonal = 2.0 - a * factors[node - 1];
                 factors[node] = (right / total) / diagonal;
@@ -320,7 +321,7 @@ struct SpatialGrid {
                 curvature[node] -= factors[node] * curvature[node + 1];
         }
         const auto [index, weight] = locate(spot);
-        const double h = nodes[index + 1] - nodes[index];
+        const double h = (nodes[index + 1] - nodes[index]) / spacing;
         const double left = 1.0 - weight;
         const double correction = ((left * left * left - left) * curvature[index] +
                                    (weight * weight * weight - weight) * curvature[index + 1]) /
@@ -334,8 +335,8 @@ struct SpatialGrid {
         const auto [minimum, maximum] = std::minmax(values[index], values[index + 1]);
         if (control_lower < minimum || control_upper > maximum) {
             const double slope = (values[index + 1] - values[index]) / h;
-            const double before = index > 0 ? (values[index] - values[index - 1]) / (nodes[index] - nodes[index - 1]) : slope;
-            const double after = index + 2 < nodes.size() ? (values[index + 2] - values[index + 1]) / (nodes[index + 2] - nodes[index + 1]) : slope;
+            const double before = index > 0 ? (values[index] - values[index - 1]) / ((nodes[index] - nodes[index - 1]) / spacing) : slope;
+            const double after = index + 2 < nodes.size() ? (values[index + 2] - values[index + 1]) / ((nodes[index + 2] - nodes[index + 1]) / spacing) : slope;
             const double left_derivative = slope - h * (2.0 * curvature[index] + curvature[index + 1]) / 6.0;
             const double right_derivative = slope + h * (curvature[index] + 2.0 * curvature[index + 1]) / 6.0;
             // Preserve extrema only when spline derivatives agree with the surrounding convexity.
@@ -344,13 +345,14 @@ struct SpatialGrid {
             if (!maximum_turn && !minimum_turn) {
                 const auto [global_minimum, global_maximum] = std::ranges::minmax(values);
                 if (control_lower < global_minimum || control_upper > global_maximum)
-                    return {linear, slope, 0.0};
+                    return {linear, slope / spacing, 0.0};
             }
         }
         return {linear + (correction * h) * h,
-                (values[index + 1] - values[index]) / h +
-                    h * ((1.0 - 3.0 * left * left) * curvature[index] + (3.0 * weight * weight - 1.0) * curvature[index + 1]) / 6.0,
-                std::lerp(curvature[index], curvature[index + 1], weight)};
+                ((values[index + 1] - values[index]) / h +
+                 h * ((1.0 - 3.0 * left * left) * curvature[index] + (3.0 * weight * weight - 1.0) * curvature[index + 1]) / 6.0) /
+                    spacing,
+                std::lerp(curvature[index], curvature[index + 1], weight) / spacing / spacing};
     }
 
 private:
