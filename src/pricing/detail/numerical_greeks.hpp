@@ -356,7 +356,8 @@ Result<PricingResult> complete_greeks(
         auto lower_bound = start_of_day(Date{std::chrono::year::min() / std::chrono::January / 1});
         auto upper_bound = start_of_day(Date{std::chrono::year::max() / std::chrono::December / 31}) +
                            std::chrono::days{1} - std::chrono::microseconds{1};
-        if constexpr (requires { option.effective_date(); })
+        // Range accrual also supports valuation before its effective date.
+        if constexpr (requires { option.effective_date(); } && !std::same_as<Option, RangeAccrualOption>)
             lower_bound = start_of_day(option.effective_date());
         if constexpr (requires { option.expiry_date(); })
             upper_bound = start_of_day(option.expiry_date());

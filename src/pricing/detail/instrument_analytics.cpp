@@ -4,6 +4,7 @@
 #include <chrono>
 #include <kiyosi/instruments/accumulator.hpp>
 #include <kiyosi/instruments/asian.hpp>
+#include <kiyosi/instruments/range_accrual.hpp>
 #include <kiyosi/instruments/barrier/binary.hpp>
 #include <kiyosi/instruments/barrier/option.hpp>
 #include <kiyosi/pricing/detail/accumulator_program.hpp>
@@ -11,6 +12,34 @@
 #include "barrier_settlement.hpp"
 
 namespace kiyosi::detail {
+
+bool at_spot_discontinuity(const RangeAccrualOption& option, const PricingContext& context, double radius)
+{
+    const auto time = context.valuation_time();
+    if (option.annual_coupon_rate() == 0.0 || time <= start_of_day(option.effective_date()) ||
+        time > start_of_day(option.expiry_date()) || time != start_of_day(context.valuation_date()) ||
+        !context.calendar().is_trading_day(context.valuation_date())) return false;
+    const double spot = context.spot_price();
+    const auto crosses = [&](double level) { return spot - radius <= level && level <= spot + radius; };
+    return crosses(option.lower_bound()) || crosses(option.upper_bound());
+}
+
+Result<bool> time_stencil_available(const RangeAccrualOption& option, const PricingContext& context,
+                                    Timestamp before, Timestamp after)
+{
+    const auto first = std::max(date_of(before), option.effective_date() + std::chrono::days{1});
+    const auto last = std::min(date_of(after), option.expiry_date());
+    for (Date date = first; date <= last; date += std::chrono::days{1}) {
+        const auto event = start_of_day(date);
+        if (before <= event && event <= after && context.calendar().is_trading_day(date)) return false;
+    }
+    return true;
+}
+
+bool volatility_affects_price(const RangeAccrualOption& option, const PricingContext& context)
+{
+    return option.annual_coupon_rate() != 0.0 && context.valuation_time() < start_of_day(option.expiry_date());
+}
 
 bool at_spot_discontinuity(const Accumulator& option, const PricingContext& context, double radius)
 {

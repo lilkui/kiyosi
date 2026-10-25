@@ -2,6 +2,7 @@
 #include <kiyosi/core/time.hpp>
 #include <kiyosi/core/version.hpp>
 #include <kiyosi/instruments/accumulator.hpp>
+#include <kiyosi/instruments/range_accrual.hpp>
 #include <kiyosi/instruments/asian.hpp>
 #include <kiyosi/instruments/barrier/binary.hpp>
 #include <kiyosi/instruments/barrier/option.hpp>
@@ -16,6 +17,7 @@
 #include <kiyosi/pricing/engines/accumulator/finite_difference.hpp>
 #include <kiyosi/pricing/engines/accumulator/integral.hpp>
 #include <kiyosi/pricing/engines/accumulator/monte_carlo.hpp>
+#include <kiyosi/pricing/engines/range_accrual/monte_carlo.hpp>
 #include <kiyosi/pricing/engines/asian/analytic.hpp>
 #include <kiyosi/pricing/engines/barrier/analytic.hpp>
 #include <kiyosi/pricing/engines/barrier/finite_difference.hpp>
@@ -189,6 +191,8 @@ static_assert(CanPrice<kiyosi::AnalyticBarrierEngine, kiyosi::BarrierOption>);
 static_assert(!CanPrice<kiyosi::AnalyticBarrierEngine, kiyosi::EuropeanOption>);
 
 static_assert(CanPrice<kiyosi::MonteCarloVanillaEngine, kiyosi::EuropeanOption>);
+static_assert(CanPrice<kiyosi::MonteCarloRangeAccrualEngine, kiyosi::RangeAccrualOption>);
+static_assert(!CanPrice<kiyosi::MonteCarloRangeAccrualEngine, kiyosi::EuropeanOption>);
 static_assert(CanPrice<kiyosi::MonteCarloVanillaEngine, kiyosi::AmericanOption>);
 
 static_assert(!CanPriceWithSettings<kiyosi::FiniteDifferenceVanillaEngine,

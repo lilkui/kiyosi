@@ -55,12 +55,14 @@ struct MonteCarloSettings {
     bool antithetic = false;                                         ///< Pair Z and -Z increments; path_count remains exact, with one unpaired path if odd. Sobol uses ceil(path_count/2) points when enabled.
 };
 
-/// Accumulator and autocallable products step the trading calendar directly, so no step
+/// Accumulator, autocallable and range accrual products step the trading calendar directly, so no step
 /// count is needed; settings are validated when creating an engine. These engines accept
 /// 1..10,000,000 paths.
 /// Pseudorandom CPU paths use separate PCG32 streams; Sobol uses globally indexed points,
 /// so early knock-out cannot shift later paths' draws. Sobol permits at most 21,201 increments;
 /// a longer active simulation grid returns invalid_parameter when pricing, before sampling.
+/// Range accrual conditions each next observation on the preceding price, so the final
+/// increment is integrated out and its Sobol dimension is future observation count minus one.
 /// Seeded prices are reproducible within a library version, standard-library implementation and backend.
 struct TradingDayMonteCarloSettings {
     int path_count = 20'000;                                         ///< Exact number of simulated paths; 1..10,000,000.

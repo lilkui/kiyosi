@@ -13,6 +13,7 @@ namespace kiyosi {
 
 class PricingContext;
 class Accumulator;
+class RangeAccrualOption;
 class BarrierOption;
 class DoubleBarrierOption;
 class BinaryBarrierOption;
@@ -50,6 +51,10 @@ concept BarrierProduct = std::same_as<Option, BarrierOption> || std::same_as<Opt
 [[nodiscard]] KIYOSI_EXPORT bool at_spot_discontinuity(const Accumulator&, const PricingContext&, double radius = 0.0);
 [[nodiscard]] KIYOSI_EXPORT Result<bool> time_stencil_available(const Accumulator&, const PricingContext&, Timestamp, Timestamp);
 [[nodiscard]] KIYOSI_EXPORT bool volatility_affects_price(const Accumulator&, const PricingContext&);
+
+[[nodiscard]] KIYOSI_EXPORT bool at_spot_discontinuity(const RangeAccrualOption&, const PricingContext&, double radius = 0.0);
+[[nodiscard]] KIYOSI_EXPORT Result<bool> time_stencil_available(const RangeAccrualOption&, const PricingContext&, Timestamp, Timestamp);
+[[nodiscard]] KIYOSI_EXPORT bool volatility_affects_price(const RangeAccrualOption&, const PricingContext&);
 
 template <AveragingConvention Averaging>
 [[nodiscard]] KIYOSI_EXPORT Result<bool> time_stencil_available(const AveragePriceOption<Averaging>&, const PricingContext&, Timestamp, Timestamp);

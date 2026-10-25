@@ -650,6 +650,42 @@ rejections. Concurrent calls and reads are safe.)doc");
     bind_repr(accumulator, "Accumulator",
               {"strike", "knock_out_level", "daily_quantity", "acceleration_factor", "accumulated_quantity", "effective_date", "expiry_date"});
 
+    auto range_accrual = nb::class_<RangeAccrualOption>(module, "RangeAccrualOption", "Immutable, equally weighted range accrual coupon.")
+                             .def(nb::new_([](PythonReal notional, PythonReal coupon, PythonReal lower, PythonReal upper,
+                                              PythonDate effective, PythonDate expiry, PythonInteger hits) {
+                                      const auto history = hits.is_none() ? std::optional<int>{} : std::optional{integer(hits, "realized_hit_count")};
+                                      return unwrap(make_range_accrual_option({real_number(notional, "notional"), real_number(coupon, "annual_coupon_rate"),
+                                                                               real_number(lower, "lower_bound"), real_number(upper, "upper_bound"),
+                                                                               calendar_date(effective, "effective_date"), calendar_date(expiry, "expiry_date"), history}));
+                                  }),
+                                  nb::kw_only(), "notional"_a, "annual_coupon_rate"_a, "lower_bound"_a, "upper_bound"_a,
+                                  "effective_date"_a, "expiry_date"_a, "realized_hit_count"_a.none() = RangeAccrualTerms{}.realized_hit_count,
+                                  R"doc(Create a validated range accrual coupon, paying N*c*T*K/M at expiry.
+
+N is positive notional, c is a non-negative annual coupon rate, and T is the
+full-contract Actual/365 Fixed year fraction. M is the number of calendar trading
+dates in (effective_date, expiry_date]; K counts closed-interval hits, including
+history. No principal is repaid. Dates mean 00:00 UTC; expiry must be a trading day.
+
+realized_hit_count is an integer counting hits strictly before valuation. It is
+required once past observations exist, including today's observation for intraday
+valuation. Exactly at an observation, current spot determines that observation.
+Calendar and history consistency are checked by the C++ core during pricing.
+Pre-effective valuation is supported; valuation after expiry midnight is rejected.
+
+TypeError/OverflowError report invalid representations. KiyosiError reports core
+validation errors. Owning values support concurrent reads without mutation.)doc")
+                             .def_prop_ro("notional", &RangeAccrualOption::notional)
+                             .def_prop_ro("annual_coupon_rate", &RangeAccrualOption::annual_coupon_rate)
+                             .def_prop_ro("lower_bound", &RangeAccrualOption::lower_bound)
+                             .def_prop_ro("upper_bound", &RangeAccrualOption::upper_bound)
+                             .def_prop_ro("effective_date", [](const RangeAccrualOption& value) { return python_date(value.effective_date()); })
+                             .def_prop_ro("expiry_date", [](const RangeAccrualOption& value) { return python_date(value.expiry_date()); })
+                             .def_prop_ro("realized_hit_count", &RangeAccrualOption::realized_hit_count)
+                             .def("replace", [](const RangeAccrualOption& self, PythonInteger hits) { return unwrap(self.replace(hits.is_none() ? std::optional<int>{} : std::optional{integer(hits, "realized_hit_count")})); }, nb::kw_only(), "realized_hit_count"_a.none(), "Return a validated owning copy with replaced history; None clears history. The original is unchanged on success or failure.");
+    bind_value_equality(range_accrual);
+    bind_repr(range_accrual, "RangeAccrualOption", {"notional", "annual_coupon_rate", "lower_bound", "upper_bound", "effective_date", "expiry_date", "realized_hit_count"});
+
     bind_autocallable_instruments(module);
 }
 

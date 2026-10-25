@@ -24,6 +24,7 @@ from ._native import (
     OptionType,
     PayoffType,
     PhoenixOption,
+    RangeAccrualOption,
     RebateTiming,
     SettlementTiming,
     SnowballOption,

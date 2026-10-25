@@ -486,6 +486,31 @@ __global__ void simulate_barrier_paths(SpotRequests<CudaBarrierRequest> requests
     }
 }
 
+__global__ void simulate_range_accrual_paths(
+    SpotRequests<CudaRangeAccrualRequest> requests, const SimulationStep* steps, std::size_t step_count)
+{
+    const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    const auto request = requests.values[0];
+    if (path >= request.path_count) return;
+    curandStatePhilox4_32_10_t generator;
+    initialize_path_generator(request, path, generator);
+    double log_spot = request.parameters.log_spot;
+    double payoff = request.parameters.payment.apply(request.parameters.initial_hits);
+    for (std::size_t index = 0; index < step_count; ++index) {
+        const auto step = steps[index];
+        payoff += range_accrual_value(log_spot, step, request.parameters);
+        if (index + 1 != step_count) {
+            log_spot += step.drift + step.diffusion * draw_path_normal(request, path, generator);
+            if (!isfinite(log_spot)) {
+                atomicExch(requests.invalid, 1);
+                requests.payoffs[0][path] = 0.0;
+                return;
+            }
+        }
+    }
+    write_spot_payoff(requests, 0, path, payoff);
+}
+
 template <bool single>
 __global__ void simulate_accumulator_spot_paths(
     SpotRequests<CudaAccumulatorRequest> requests, const SimulationStep* steps, std::size_t step_count)
@@ -726,6 +751,16 @@ CudaSpotPricingResult spot_prices(std::span<const Request> requests, std::span<c
     return prices;
 }
 } // namespace
+
+CudaPricingResult cuda_range_accrual_price(
+    CudaRangeAccrualRequest request, std::span<const SimulationStep> steps, CudaWorkspace* workspace)
+{
+    return spot_prices(std::span<const CudaRangeAccrualRequest>{&request, 1}, steps, workspace,
+                       [](const auto& batch, auto* device_steps, auto step_count, int blocks, cudaStream_t stream) {
+                           simulate_range_accrual_paths<<<blocks, threads_per_block, 0, stream>>>(batch, device_steps, step_count);
+                       })
+        .result;
+}
 
 CudaSpotPricingResult cuda_accumulator_spot_prices(
     std::span<const CudaAccumulatorRequest> requests, std::span<const SimulationStep> steps, CudaWorkspace* workspace)

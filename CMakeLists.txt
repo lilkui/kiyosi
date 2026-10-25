@@ -137,6 +137,7 @@ target_sources(kiyosi
         src/pricing/engines/accumulator/finite_difference.cpp
         src/pricing/engines/accumulator/integral.cpp
         src/pricing/engines/accumulator/monte_carlo.cpp
+        src/pricing/engines/range_accrual/monte_carlo.cpp
         src/pricing/engines/asian/analytic.cpp
         src/pricing/engines/asian/monte_carlo.cpp
         src/pricing/engines/barrier/analytic.cpp
@@ -171,6 +172,7 @@ target_sources(kiyosi
             include/kiyosi/core/error.hpp
             include/kiyosi/core/time.hpp
             include/kiyosi/instruments/accumulator.hpp
+            include/kiyosi/instruments/range_accrual.hpp
             include/kiyosi/instruments/asian.hpp
             include/kiyosi/instruments/digital.hpp
             include/kiyosi/instruments/exercise.hpp
@@ -211,6 +213,7 @@ target_sources(kiyosi
             include/kiyosi/pricing/engines/accumulator/finite_difference.hpp
             include/kiyosi/pricing/engines/accumulator/integral.hpp
             include/kiyosi/pricing/engines/accumulator/monte_carlo.hpp
+            include/kiyosi/pricing/engines/range_accrual/monte_carlo.hpp
             include/kiyosi/pricing/engines/asian/analytic.hpp
             include/kiyosi/pricing/engines/asian/monte_carlo.hpp
             include/kiyosi/pricing/engines/barrier/analytic.hpp

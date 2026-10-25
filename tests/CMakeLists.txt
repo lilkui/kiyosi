@@ -26,6 +26,7 @@ add_executable(kiyosi_tests
     pricing/detail/binomial_tests.cpp
     pricing/detail/fd_event_tests.cpp
     pricing/engines/accumulator/engine_tests.cpp
+    pricing/engines/range_accrual/monte_carlo_tests.cpp
     pricing/engines/accumulator/cashflow_tests.cpp
     pricing/engines/accumulator/quadrature_tests.cpp
     pricing/engines/asian/analytic_tests.cpp

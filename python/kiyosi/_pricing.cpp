@@ -322,7 +322,7 @@ nb::class_<Engine> bind_trading_day_monte_carlo_engine(nb::module_& module, cons
 
 Configuration is validated at construction. Contract, market, and backend availability
 are checked when pricing.
-Accumulator and autocallable engines accept 1..10,000,000 paths.
+Accumulator, autocallable and range accrual engines accept 1..10,000,000 paths.
 Sobol sampling requires a power-of-two path count and the CPU backend.)doc"};
     binding
         .def(nb::new_([factory](PythonInteger path_count, PythonInteger seed, PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count, PythonChoice<MonteCarloSampling> sampling, bool antithetic) {
@@ -987,6 +987,10 @@ IV solver tolerances do not bound sampling or integration error.)doc")
     auto monte_carlo_accumulator = bind_trading_day_monte_carlo_engine<MonteCarloAccumulatorEngine>(
         module, "MonteCarloAccumulatorEngine", &make_monte_carlo_accumulator_engine);
     bind_engine_price<MonteCarloAccumulatorEngine, Accumulator>(module, monte_carlo_accumulator);
+
+    auto monte_carlo_range = bind_trading_day_monte_carlo_engine<MonteCarloRangeAccrualEngine>(
+        module, "MonteCarloRangeAccrualEngine", &make_monte_carlo_range_accrual_engine);
+    bind_engine_price<MonteCarloRangeAccrualEngine, RangeAccrualOption>(module, monte_carlo_range);
 
     auto quadrature_accumulator = bind_quadrature_engine<QuadratureAccumulatorEngine>(module, "QuadratureAccumulatorEngine", &make_quadrature_accumulator_engine);
     bind_engine_price<QuadratureAccumulatorEngine, Accumulator>(module, quadrature_accumulator);
