@@ -250,6 +250,28 @@ TEST_CASE("Range accrual combines tiny probabilities and large coupons without l
     CHECK(overflow.error().category == ErrorCategory::invalid_result);
 }
 
+TEST_CASE("Range accrual retains adjacent price bounds at tiny volatility", "[range-accrual]")
+{
+    const double below = std::nextafter(100.0, 0.0);
+    const double above = std::nextafter(100.0, std::numeric_limits<double>::infinity());
+    struct Scenario {
+        double lower, upper, volatility, probability;
+        int days;
+    };
+    for (const auto scenario : std::array{
+             Scenario{100, above, 1e-16, 0.5, 1}, Scenario{below, 100, 1e-16, 0.5, 1},
+             Scenario{below, above, 1e-16, 1.0, 1}, Scenario{100, above, 1e-16, 0.5, 2},
+             Scenario{below, 110, 1e-14, 0.6069959804126283, 1}, Scenario{90, above, 1e-14, 0.6069959804126285, 1}}) {
+        CAPTURE(scenario.lower, scenario.upper, scenario.volatility, scenario.days);
+        const auto option = *make_range_accrual_option({365.0 / scenario.days, 1, scenario.lower, scenario.upper, start, start + std::chrono::days{scenario.days}, {}});
+        const auto context = *make_pricing_context(*make_bsm_parameters(0, 0, scenario.volatility), 100, start, all_days_calendar());
+        const auto engine = *make_monte_carlo_range_accrual_engine({2, 42, MonteCarloBackend::cpu, 1, MonteCarloSampling::pseudo_random, true});
+        const auto price = engine.price(option, context);
+        REQUIRE(price);
+        CHECK(*price == Catch::Approx(scenario.probability).margin(2e-14));
+    }
+}
+
 TEST_CASE("Range accrual preserves exact path count including odd antithetic pairs", "[range-accrual]")
 {
     const auto option = *make_range_accrual_option(terms(start + std::chrono::days{2}));

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "../../detail/calendar_dates.hpp"
+#include "../../detail/math.hpp"
 #include "../../detail/numerical_greeks.hpp"
 #include "../monte_carlo_host.hpp"
 #include "../monte_carlo_range_accrual.hpp"
@@ -41,8 +42,9 @@ Result<double> MonteCarloRangeAccrualEngine::price(const RangeAccrualOption& opt
         log_scale += curve_log_factor(context.model_parameters().risk_free_curve(), valuation, 0.0,
                                       actual_365_fixed_year_fraction(valuation, option.expiry_date()));
     }
+    // Anchor log prices at the initial spot so adjacent bounds remain distinct.
     const RangeAccrualMonteCarloParameters parameters{
-        std::log(context.spot_price()), option.lower_bound() == 0.0 ? -std::numeric_limits<double>::infinity() : std::log(option.lower_bound()), std::log(option.upper_bound()), hits, {std::exp(log_scale), log_scale}};
+        0.0, option.lower_bound() == 0.0 ? -std::numeric_limits<double>::infinity() : log_price_ratio(option.lower_bound(), context.spot_price()), log_price_ratio(option.upper_bound(), context.spot_price()), hits, {std::exp(log_scale), log_scale}};
     if (future == dates.end()) return checked_price(parameters.payment.apply(hits));
 
     std::vector<SimulationStep> steps;

@@ -379,6 +379,36 @@ class RangeAccrualTests(unittest.TestCase):
                     market(),
                 )
 
+    def test_adjacent_price_bounds_at_tiny_volatility(self):
+        below = math.nextafter(100.0, 0.0)
+        above = math.nextafter(100.0, math.inf)
+        for backend in (
+            ["cpu", "cuda"] if os.getenv("KIYOSI_TEST_CUDA") == "enabled" else ["cpu"]
+        ):
+            engine = MonteCarloRangeAccrualEngine(
+                path_count=2, seed=42, backend=backend, antithetic=True
+            )
+            for lower, upper, volatility, expected, days in (
+                (100, above, 1e-16, 0.5, 1),
+                (below, 100, 1e-16, 0.5, 1),
+                (below, above, 1e-16, 1.0, 1),
+                (100, above, 1e-16, 0.5, 2),
+                (below, 110, 1e-14, 0.6069959804126283, 1),
+                (90, above, 1e-14, 0.6069959804126285, 1),
+            ):
+                with self.subTest(backend=backend, lower=lower, upper=upper, days=days):
+                    option = contract(
+                        notional=365 / days,
+                        annual_coupon_rate=1,
+                        lower_bound=lower,
+                        upper_bound=upper,
+                        expiry_date=START + timedelta(days=days),
+                    )
+                    context = market(rate=0, dividend=0, volatility=volatility)
+                    self.assertAlmostEqual(
+                        engine.price(option, context), expected, delta=2e-14
+                    )
+
     def test_seeded_threads_concurrent_reads_and_common_greek_samples(self):
         option, context = contract(), market()
         for sampling in ("pseudo_random", "sobol"):
