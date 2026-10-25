@@ -226,7 +226,8 @@ class DoubleBarrierTests(unittest.TestCase):
             contract(barrier_type="up_and_out")
         with self.assertRaises(TypeError):
             contract(
-                observation_mode="scheduled", observation_dates=[datetime(2025, 7, 1)]
+                observation_mode="scheduled",
+                observation_dates=[datetime(2025, 7, 1)],  # noqa: DTZ001 - reject naive datetimes
             )
 
     def test_core_rejections_preserve_stable_categories(self):

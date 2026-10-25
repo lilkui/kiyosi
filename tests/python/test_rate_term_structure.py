@@ -265,7 +265,7 @@ class RateTermStructureTests(unittest.TestCase):
                 RateTermStructure(
                     reference_time=REFERENCE, times=[MIDDLE], factors=[factor]
                 )
-        for time in (True, "2025-01-01", datetime(2025, 1, 1)):
+        for time in (True, "2025-01-01", datetime(2025, 1, 1)):  # noqa: DTZ001 - reject naive timestamps
             with self.subTest(time=time), self.assertRaises(TypeError):
                 RateTermStructure(reference_time=time, times=[MIDDLE], factors=[0.95])
         with self.assertRaises(TypeError):

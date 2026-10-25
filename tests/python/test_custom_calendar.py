@@ -109,7 +109,7 @@ class CustomCalendarTests(unittest.TestCase):
 
     def test_representation_errors(self):
         for field in ("closed_dates", "open_dates"):
-            for value in (None, 1, [datetime(2026, 10, 1)], ["2026-10-01"], [True]):
+            for value in (None, 1, [datetime(2026, 10, 1)], ["2026-10-01"], [True]):  # noqa: DTZ001 - reject naive datetimes
                 with (
                     self.subTest(field=field, value=value),
                     self.assertRaises(TypeError),
