@@ -104,8 +104,9 @@ Result<void> simulate_paths(
                                                                           if (reuse) return std::array{samples->growth[growth_index], samples->growth[growth_index + (antithetic ? 1 : 0)]};
                                                                           const double normal_draw = reuse_normals ? samples->normal_draws[index] : detail::draw_monte_carlo_normal(generator, normal);
                                                                           if (samples && samples->cache_normals && !reuse_normals) samples->normal_draws[index] = normal_draw;
-                                                                          const double positive = std::exp(parameters.drift + parameters.diffusion * normal_draw);
-                                                                          const std::array factors{positive, paired ? std::exp(parameters.drift - parameters.diffusion * normal_draw) : positive};
+                                                                          // Explicit fusion keeps streamed, cached and batched growth identical.
+                                                                          const double positive = std::exp(std::fma(parameters.diffusion, normal_draw, parameters.drift));
+                                                                          const std::array factors{positive, paired ? std::exp(std::fma(-parameters.diffusion, normal_draw, parameters.drift)) : positive};
                                                                           if (samples && samples->cache_growth) {
                                                                               samples->growth[growth_index] = factors[0];
                                                                               if (antithetic) samples->growth[growth_index + 1] = factors[1];
@@ -320,8 +321,8 @@ private:
                                                                    const auto index = static_cast<std::size_t>(path);
                                                                    const double draw = generate ? detail::draw_monte_carlo_normal(generator, normal) : normal_draws_[index];
                                                                    if (generate && cache_samples_) normal_draws_[index] = draw;
-                                                                   const auto growth = update ? std::array{std::exp(parameters->drift + parameters->diffusion * draw),
-                                                                                                           paired ? std::exp(parameters->drift - parameters->diffusion * draw) : 1.0}
+                                                                   const auto growth = update ? std::array{std::exp(std::fma(parameters->diffusion, draw, parameters->drift)),
+                                                                                                           paired ? std::exp(std::fma(-parameters->diffusion, draw, parameters->drift)) : 1.0}
                                                                                               : growth_[index];
                                                                    if (update && cache_samples_) growth_[index] = growth;
                                                                    for (std::size_t i = 0; i < count; ++i) {

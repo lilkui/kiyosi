@@ -157,7 +157,8 @@ Result<PricingResult> price_accumulator(
                space->interpolate(intercept, shifted_spot, intercept_curvature);
     };
     const double value = price_at(spot);
-    return finite_difference_result(value, spot, space->upper, output, spot_shift, [&](double shifted_spot) { return checked_price(price_at(shifted_spot)); }, [&](double shifted_spot) { return space->delta(slope, shifted_spot, slope_curvature) * initial.quantity + space->delta(intercept, shifted_spot, intercept_curvature); }, [&](double shifted_spot) { return space->gamma(slope, shifted_spot, slope_curvature) * initial.quantity + space->gamma(intercept, shifted_spot, intercept_curvature); });
+    // Keep gamma rounding identical when composed into the speed stencil.
+    return finite_difference_result(value, spot, space->upper, output, spot_shift, [&](double shifted_spot) { return checked_price(price_at(shifted_spot)); }, [&](double shifted_spot) { return space->delta(slope, shifted_spot, slope_curvature) * initial.quantity + space->delta(intercept, shifted_spot, intercept_curvature); }, [&](double shifted_spot) { return std::fma(space->gamma(slope, shifted_spot, slope_curvature), initial.quantity, space->gamma(intercept, shifted_spot, intercept_curvature)); });
 }
 } // namespace
 
