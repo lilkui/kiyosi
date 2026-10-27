@@ -96,9 +96,9 @@ pub(crate) fn complete_greeks(
     let r = symmetric_shift(rate, settings.rate_shift);
     let spot_ok = h > 0.0 && spot > h;
     let two_h = 2.0 * h;
-    let speed_ok = spot_ok
-        && (native_spot_greeks
-            || (two_h.is_finite() && spot > two_h && symmetric_shift(spot, two_h) == two_h));
+    let scalar_speed_ok =
+        two_h.is_finite() && spot > two_h && symmetric_shift(spot, two_h) == two_h;
+    let speed_ok = spot_ok && (native_spot_greeks || scalar_speed_ok);
     let want = |g| request.has(g) && !available.has(g);
     let shifted = |spot, volatility, rate_shift, valuation_time| -> Result<PricingContext> {
         let parameters = model.replace(BlackScholesMertonParameterChanges {
@@ -192,13 +192,17 @@ pub(crate) fn complete_greeks(
             };
             let speed =
                 if let (Some(high), Some(low)) = (high.get(Greek::Gamma), low.get(Greek::Gamma)) {
-                    (high - low) / h / 2.0
-                } else {
+                    Some((high - low) / h / 2.0)
+                } else if scalar_speed_ok {
                     let up2 = price(spot + two_h, vol, 0.0, time)?;
                     let down2 = price(spot - two_h, vol, 0.0, time)?;
-                    ((up2 - up) - (up - down) + (down - down2)) / h / h / two_h
+                    Some(((up2 - up) - (up - down) + (down - down2)) / h / h / two_h)
+                } else {
+                    None
                 };
-            result.set(request, Greek::Speed, speed)?;
+            if let Some(speed) = speed {
+                result.set(request, Greek::Speed, speed)?;
+            }
         }
     }
     if v > 0.0

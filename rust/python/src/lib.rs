@@ -3,6 +3,7 @@
 use kiyosi_core as core;
 mod american;
 mod analytics;
+mod binomial;
 mod digital;
 use pyo3::exceptions::{PyException, PyIndexError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -740,6 +741,8 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<digital::CashOrNothingOption>()?;
     module.add_class::<digital::AssetOrNothingOption>()?;
     module.add_class::<digital::AnalyticDigitalEngine>()?;
+    module.add_class::<binomial::CoxRossRubinsteinVanillaEngine>()?;
+    module.add_class::<binomial::CoxRossRubinsteinDigitalEngine>()?;
     module.add_class::<BlackScholesMertonParameters>()?;
     module.add_class::<RateTermStructure>()?;
     module.add_class::<TradingCalendar>()?;

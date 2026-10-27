@@ -1,4 +1,4 @@
-//! Calendars, schedules, European vanilla/digital BSM pricing and American approximation,
+//! Calendars, schedules, vanilla/digital BSM and CRR pricing and American approximation,
 //! independent of Python.
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared
@@ -33,6 +33,7 @@
 
 mod american;
 mod analytics;
+mod binomial;
 mod calendar;
 mod digital;
 mod error;
@@ -47,6 +48,9 @@ mod time;
 
 pub use american::BjerksundStenslandVanillaEngine;
 pub use analytics::{Greek, GreeksRequest, NumericalShiftSettings, PricingEngine, PricingResult};
+pub use binomial::{
+    BinomialSettings, CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,
+};
 pub use calendar::{BusinessDayConvention, TradingCalendar};
 pub use digital::AnalyticDigitalEngine;
 pub use error::{Error, ErrorCategory, Result};

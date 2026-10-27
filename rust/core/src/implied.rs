@@ -29,11 +29,13 @@ impl Default for ImpliedVolatilitySettings {
 /// Pricing errors propagate; non-finite scalar prices/residuals use SolverNonFinite.
 /// Digital prices need not be monotone in volatility; the supplied bracket may select
 /// one of several roots or fail to bracket a quote attainable elsewhere.
+/// CRR engines intersect the supplied bracket with the tree's admissible volatility range.
 ///
 /// # Errors
 /// Returns [`ErrorCategory::InvalidParameter`] for invalid settings or non-finite quotes,
 /// [`ErrorCategory::UnsupportedOperation`] at expiry, [`ErrorCategory::UnbracketedVolatility`]
-/// for same-sign endpoint residuals, [`ErrorCategory::SolverNonConvergence`] on exhaustion,
+/// for same-sign endpoint residuals or a bracket outside the tree domain,
+/// [`ErrorCategory::SolverNonConvergence`] on exhaustion,
 /// or [`ErrorCategory::SolverNonFinite`] for non-finite evaluations. Engine errors propagate.
 ///
 /// # Examples
@@ -76,6 +78,7 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
             "implied-volatility settings or price are invalid",
         ));
     }
+    let s = engine.prepare_implied_volatility(option, context, s)?;
     let evaluate = |volatility| -> Result<f64> {
         let model = context
             .model_parameters()

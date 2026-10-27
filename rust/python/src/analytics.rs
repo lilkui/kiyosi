@@ -175,6 +175,41 @@ pub(crate) fn implied_volatility(
         max_iterations: integer_setting(settings, "max_iterations", d.max_iterations)?,
     };
     let context = context.0.clone();
+    if let Ok(engine) = engine.extract::<PyRef<'_, binomial::CoxRossRubinsteinVanillaEngine>>() {
+        let engine = engine.0;
+        let option = instrument.extract::<binomial::VanillaInstrument<'_>>()?;
+        return match option {
+            binomial::VanillaInstrument::European(option) => {
+                let option = option.0.clone();
+                domain(
+                    py,
+                    py.detach(|| {
+                        core::implied_volatility(&engine, &option, &context, observed, controls)
+                    }),
+                )
+            }
+            binomial::VanillaInstrument::American(option) => {
+                let option = option.0.clone();
+                domain(
+                    py,
+                    py.detach(|| {
+                        core::implied_volatility(&engine, &option, &context, observed, controls)
+                    }),
+                )
+            }
+        };
+    }
+    if let Ok(engine) = engine.extract::<PyRef<'_, binomial::CoxRossRubinsteinDigitalEngine>>() {
+        let engine = engine.0;
+        let option = instrument
+            .extract::<digital::DigitalInstrument<'_>>()?
+            .contract()
+            .clone();
+        return domain(
+            py,
+            py.detach(|| core::implied_volatility(&engine, &option, &context, observed, controls)),
+        );
+    }
     if engine.is_instance_of::<digital::AnalyticDigitalEngine>() {
         let instrument = instrument.extract::<digital::DigitalInstrument<'_>>()?;
         let option = instrument.contract().clone();

@@ -266,4 +266,13 @@ impl PricingEngine for AnalyticVanillaEngine {
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         AnalyticVanillaEngine::price(self, option, context)
     }
+    fn price_with_greeks(
+        &self,
+        option: &EuropeanOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        Self::price_with_greeks(self, option, context, request, settings)
+    }
 }

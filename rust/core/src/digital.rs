@@ -174,4 +174,13 @@ impl PricingEngine<DigitalOption> for AnalyticDigitalEngine {
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         AnalyticDigitalEngine::price(self, option, context)
     }
+    fn price_with_greeks(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        Self::price_with_greeks(self, option, context, request, settings)
+    }
 }

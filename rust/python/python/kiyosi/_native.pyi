@@ -303,6 +303,48 @@ class AnalyticDigitalEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
+class CoxRossRubinsteinVanillaEngine:
+    def __init__(self, *, step_count: int = ...) -> None: ...
+    @property
+    def step_count(self) -> int: ...
+    def price(
+        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: EuropeanOption | AmericanOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
+class CoxRossRubinsteinDigitalEngine:
+    def __init__(self, *, step_count: int = ...) -> None: ...
+    @property
+    def step_count(self) -> int: ...
+    def price(
+        self,
+        instrument: CashOrNothingOption | AssetOrNothingOption,
+        context: PricingContext,
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: CashOrNothingOption | AssetOrNothingOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
 Greek: TypeAlias = Literal[
     "delta",
     "gamma",
@@ -357,7 +399,7 @@ def implied_volatility(
 ) -> float: ...
 @overload
 def implied_volatility(
-    engine: AnalyticDigitalEngine,
+    engine: AnalyticDigitalEngine | CoxRossRubinsteinDigitalEngine,
     instrument: CashOrNothingOption | AssetOrNothingOption,
     context: PricingContext,
     observed_price: float,
@@ -372,6 +414,19 @@ def implied_volatility(
 def implied_volatility(
     engine: BjerksundStenslandVanillaEngine,
     instrument: AmericanOption,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...
+@overload
+def implied_volatility(
+    engine: CoxRossRubinsteinVanillaEngine,
+    instrument: EuropeanOption | AmericanOption,
     context: PricingContext,
     observed_price: float,
     *,

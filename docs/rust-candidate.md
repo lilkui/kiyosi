@@ -1,6 +1,6 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–06 provide an isolated candidate for European vanilla/digital and American approximation prices and analytics with
+Tickets 01–07 provide an isolated candidate for European vanilla/digital, American approximation and CRR prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, trading
 calendars and observation schedules. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
@@ -241,6 +241,69 @@ Digital contract replacement is a candidate interface; the legacy digital API
 provides construction only. Python properties are read-only and equality compares
 contract values. Vanilla/digital engine mismatches use Rust type checking or
 Python's native argument-conversion errors.
+
+## Vanilla and digital CRR pricing
+
+`CoxRossRubinsteinVanillaEngine` supports `EuropeanOption` and `AmericanOption`;
+`CoxRossRubinsteinDigitalEngine` supports European cash-or-nothing and
+asset-or-nothing contracts. Rust constructs engines with
+`::new(BinomialSettings { step_count: 1024 })?` or `::default()`; Python uses
+`CoxRossRubinsteinVanillaEngine(step_count=1024)`. The core defines the default
+of **256** steps. Counts outside **1–1,000,000** return `InvalidParameter` at
+construction. Settings are immutable and owned; Rust `settings()` returns a
+copy and Python exposes read-only `step_count`. Python accepts integral inputs
+through the existing integer protocol, rejecting booleans, floats and `None`
+with `TypeError`, and values outside signed 32-bit range with `OverflowError`.
+Candidate constructor settings are keyword-only.
+
+Both engines require explicitly flat rates, including dated flat curves.
+Node curves return `UnsupportedOperation` before life or Greek request validation,
+including at expiry. Valuation must lie within inclusive contract life.
+Before expiry the risk-neutral probability must be finite and in `[0, 1]`;
+collapsed up/down factors, overflowing or underflowed asset trees and non-finite
+values return `InvalidResult`. Negative rates, dividends and carry are allowed
+when the tree remains admissible. CRR uses the existing recombining tree,
+American early exercise and direct European binomial expectation for larger
+grids; no smoothing or alternative tree is selected. Digital terminal nodes
+settle strictly in the money, including zero payout at the central strike node.
+
+Both engines return requested node delta and gamma. Digital gamma is absent
+below two steps, and all other digital Greeks remain absent. Digital shifts are
+validated but unused. Vanilla completes missing requested Greeks with the shared
+numerical analysis, including one-step gamma. Speed and mixed derivatives use
+native node delta/gamma where available. Immediate American exercise returns
+payoff delta and zero gamma. All expiry Greeks are absent. Finite differences
+can cross the tree's admissible domain; feasible bumped failures propagate and
+leave inputs unchanged. `PricingEngine<I>::price_with_greeks` provides the same
+engine-specific analysis through the generic Rust boundary; scalar-only custom
+engines default to shared finite differences.
+
+Implied volatility intersects the supplied bracket with
+`volatility > abs((r - q) * dt) / sqrt(dt)`, rounding the boundary upward by one
+representable value. An empty intersection returns `UnbracketedVolatility`.
+The remaining solver validation, tolerances, expiry behavior, digital multiple-root
+limitations and failure-state guarantees are shared with analytic pricing.
+The original context's volatility does not need to be tree-admissible for solving.
+
+```python
+from kiyosi.pricing import (
+    CoxRossRubinsteinVanillaEngine, CoxRossRubinsteinDigitalEngine, implied_volatility,
+)
+
+tree = CoxRossRubinsteinVanillaEngine(step_count=1024)
+result = tree.price_with_greeks(option, context, ["delta", "vega"])
+sigma = implied_volatility(tree, option, context, result.price)
+digital_tree = CoxRossRubinsteinDigitalEngine()
+digital_result = digital_tree.price_with_greeks(cash, context, all_greeks=True)
+assert digital_result.delta is not None
+assert digital_result.vega is None
+```
+
+CRR calls are synchronous. Python price and Greek calls retain the GIL; solves
+release it around owned Rust inputs. Distinct and shared instances support the
+library-wide concurrency contract. Large American trees use quadratic rollback;
+European grids use direct expectations when their discounted terminal bound is
+finite. No performance gate is added.
 
 ## American contracts and approximation pricing
 
@@ -629,6 +692,7 @@ Install the unchanged root `.[test]` into `.venv/legacy` separately, then run:
 .venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_analytics.py'
 .venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_digital.py'
 .venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_american.py'
+.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_binomial.py'
 .venv/legacy/bin/python -m unittest discover -s tests/python -p 'test_*.py'
 ```
 
@@ -637,6 +701,14 @@ contracts, adds independent live QuantLib curve pricing and parity, and checks
 coverage timing, representation errors, ownership and concurrent pricing. The
 Rust public API tests cover equivalent market scenarios. Other product/engine
 cases remain in the legacy suite.
+
+The shared CRR suite checks explicit rollback across small and large grids,
+odd/even and off-strike convergence, negative carry, immediate exercise,
+strict digital boundaries, deterministic endpoint probabilities, tail weights,
+configuration and representation errors, volatility bracket intersection and
+concurrent pricing. It reuses the existing European and American CRR QuantLib
+profiles and their error budgets; near-expiry European scenarios excluded from
+the numerical profile retain price and node-Greek checks only.
 
 The shared analytics suite checks all 20 European scenarios against live QuantLib
 Greeks and scalar price differences at two spot bump sizes, using existing error

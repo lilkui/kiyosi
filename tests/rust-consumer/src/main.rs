@@ -1,10 +1,10 @@
 use kiyosi_core::{
     AmericanOption, AmericanOptionChanges, AnalyticDigitalEngine, AnalyticVanillaEngine,
-    BjerksundStenslandVanillaEngine, BlackScholesMertonParameterChanges,
-    BlackScholesMertonParameters, Date, DigitalOption, EuropeanOption, Greek, GreeksRequest,
-    ImpliedVolatilitySettings, NumericalShiftSettings, ObservationSchedule, OptionType,
-    PricingContext, PricingContextChanges, RateTermStructure, Result, TradingCalendar,
-    implied_volatility, numerical_greeks,
+    BinomialSettings, BjerksundStenslandVanillaEngine, BlackScholesMertonParameterChanges,
+    BlackScholesMertonParameters, CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,
+    Date, DigitalOption, EuropeanOption, Greek, GreeksRequest, ImpliedVolatilitySettings,
+    NumericalShiftSettings, ObservationSchedule, OptionType, PricingContext, PricingContextChanges,
+    RateTermStructure, Result, TradingCalendar, implied_volatility, numerical_greeks,
 };
 
 fn main() -> Result<()> {
@@ -126,5 +126,27 @@ fn main() -> Result<()> {
         schedule.dates(),
         &[Date::new(2025, 1, 6)?, Date::new(2025, 1, 7)?]
     );
+    let tree = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1024 })?;
+    let result = tree.price_with_greeks(
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Delta, Greek::Vega]),
+        Default::default(),
+    )?;
+    assert!((result.price() - price).abs() < 0.003);
+    assert!(
+        (implied_volatility(&tree, &option, &context, result.price(), Default::default())? - 0.2)
+            .abs()
+            < 1e-7
+    );
+    let digital_tree = CoxRossRubinsteinDigitalEngine::default();
+    let digital_result = digital_tree.price_with_greeks(
+        &digital,
+        &context,
+        GreeksRequest::all(),
+        Default::default(),
+    )?;
+    assert!(digital_result.has(Greek::Delta));
+    assert!(!digital_result.has(Greek::Vega));
     Ok(())
 }

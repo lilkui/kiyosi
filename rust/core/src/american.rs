@@ -407,4 +407,13 @@ impl PricingEngine<AmericanOption> for BjerksundStenslandVanillaEngine {
     fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
         Self::price(self, option, context)
     }
+    fn price_with_greeks(
+        &self,
+        option: &AmericanOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        Self::price_with_greeks(self, option, context, request, settings)
+    }
 }

@@ -166,4 +166,36 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// or numerical failures. Recoverable operational errors retain the implementation's
     /// contract. See [`crate::AnalyticDigitalEngine::price`] for an example.
     fn price(&self, option: &I, context: &PricingContext) -> Result<f64>;
+
+    /// Returns requested sensitivities, using scalar differences unless overridden.
+    /// See [`crate::CoxRossRubinsteinVanillaEngine::price_with_greeks`] for an example.
+    ///
+    /// # Errors
+    /// Reuses [`crate::numerical_greeks`] validation and propagates pricing errors.
+    fn price_with_greeks(
+        &self,
+        option: &I,
+        context: &PricingContext,
+        request: GreeksRequest,
+        settings: NumericalShiftSettings,
+    ) -> Result<PricingResult>
+    where
+        I: crate::OptionContract,
+    {
+        crate::numerical_greeks(self, option, context, request, settings)
+    }
+
+    /// Restricts a validated solver bracket to the engine's supported domain.
+    /// The default retains the caller's settings. See [`crate::implied_volatility`].
+    ///
+    /// # Errors
+    /// Engine implementations may reject unsupported contracts, horizons or brackets.
+    fn prepare_implied_volatility(
+        &self,
+        _option: &I,
+        _context: &PricingContext,
+        settings: crate::ImpliedVolatilitySettings,
+    ) -> Result<crate::ImpliedVolatilitySettings> {
+        Ok(settings)
+    }
 }
