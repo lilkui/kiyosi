@@ -3,48 +3,37 @@
 ## Workflow
 
 - Before domain exploration, read the [domain guide](docs/agents/domain.md).
+- For architecture or migration changes, read the relevant [ADRs](docs/adr/).
 - Before issue/PR operations, read [issue tracker](docs/agents/issue-tracker.md); for triage, also read [triage labels](docs/agents/triage-labels.md).
-- On Windows, activate the Visual Studio Developer environment before invoking the C++ toolchain or CMake.
-- Format all modified C++ files with clang-format and Python files with Ruff; resolve all lint findings from clang-tidy for those C++ files and Ruff for those Python files.
+- Format and lint modified Rust with rustfmt/Clippy and Python with Ruff; use repository-selected rules.
+- Run affected core and Python tests, plus documentation and packaging checks when affected. Use repository configuration, [CI](.github/workflows/ci.yml) and the [Python test guide](tests/README.md) for check commands.
 - Use Conventional Commits.
-- Alpha: no backward-compatibility commitments; refactor for clarity.
+- Alpha: no backward-compatibility commitments.
+- Update API and usage docs to match current behavior; keep historical context in ADRs, migration guides or release notes.
 
 ## Core and API
 
-- The C++ core alone defines domain semantics: the model, rules, state transitions, invariants, defaults, enums and validation. Route every language's domain operations through it.
-- Provide idiomatic C++ and Python APIs; interfaces and coverage may differ. Shared operations on equivalent domain inputs, state and configuration must yield consistent results, defaults, domain boundary behavior, validation timing, error categories and failure-state guarantees. Test shared scenarios in both languages.
-- The core must configure, build, test, install and run without Python or binding frameworks; public core headers must have neither dependency.
+- Keep domain semantics and validation in the Rust core; bindings adapt language representations and calling conventions.
+- Provide idiomatic Rust and Python APIs; interfaces and coverage may differ. Equivalent operations must agree on results within numerical acceptance criteria, defaults, valid inputs, domain boundaries, validation timing, error categories and failure-state guarantees. Test shared scenarios in both languages.
+- Keep core dependencies and public APIs independent of Python and binding frameworks; the core must build, test, document and package with Cargo alone.
+- Define domain defaults once in Rust and derive Python defaults from them.
+- Prefer Python `snake_case` choice strings mapped to core enums.
 
 ## Validation and Errors
 
-- Validate language protocols and representations before or during conversion. Reject unsafe or unintended lossy conversions, including implicit bool-to-number coercion, fractional-to-integer narrowing and values outside the target representation's range.
-- Run core domain validation before committing state that requires validity; boundary checks cannot replace it. Necessary domain pre-checks must reuse core validation, preserving acceptance, error categories and failure-state guarantees.
-- Use language-native conversion/signature errors for representation, protocol and signature violations; structured core errors with stable categories for domain rejections. Callers must not parse messages.
-- Instrument/engine combinations excluded by API types or signatures may fail at C++ compilation or Python conversion/signature checks; representable but unsupported combinations require core domain errors.
-- Preserve language-native semantics for resource exhaustion and internal failures; document operational failure and cancellation mappings.
+- Validate protocols and representations at language boundaries using native conversion/signature errors. Reject unsafe or unintended lossy conversions, including implicit bool-to-number coercion, fractional-to-integer narrowing and out-of-range conversions.
+- Run core domain validation before committing state that requires validity. Reuse it for binding pre-checks, preserving acceptance, validation timing, error categories and failure-state guarantees.
+- Return domain rejections through `Result` with stable, structured categories mapped to Python exceptions; callers must not parse messages and domain rejections must not panic. Representable but unsupported instrument/engine combinations require domain errors.
+- Preserve native semantics for recoverable operational failures and cancellation; document binding mappings separately from panics and process termination.
 
-## Bindings and Ownership
+## Ownership and Concurrency
 
-- Bindings adapt language-specific types, protocols, errors, ownership, lifetimes, concurrency and calling conventions; contracts, conveniences and representation mappings must preserve core semantics.
-- Prefer Python `snake_case` choice strings over enums; map them to core choices.
-- Derive Python keyword defaults from core values, e.g. `"asset_step_count"_a = FiniteDifferenceSettings{}.asset_step_count`; keep one definition per domain default, testable in C++.
-- Return owning values by default. Borrow only core storage guaranteed valid at stable addresses throughout the documented view lifetime; tie views to owners, prefer read-only access, and document mutation, invalidation and concurrency.
+- Return owned values across Python boundaries and for newly computed results by default; Rust accessors may borrow. Tie borrowed views to owners, keep referenced storage valid and at stable addresses for the view lifetime, and document mutation and invalidation.
+- Express thread-safety through `Send`, `Sync`, borrowing and synchronization. Document a library-wide concurrency contract and type/operation exceptions in rustdoc, covering distinct instances, shared instances and concurrent mutation.
+- Document and uphold safety invariants for `unsafe` code, including manual `Send`/`Sync` implementations.
+- Release the GIL only for core work that meets the concurrency contract and accesses no Python objects, invokes no Python callbacks and touches no GIL-protected state.
 
-## Concurrency
+## Numerical Correctness and Performance
 
-- Document the library-wide thread-safety default and type/operation overrides in public C++ headers: concurrent calls on distinct instances, shared instances and alongside mutation.
-- Release the GIL only when concurrent core execution satisfies that contract. While released, access no Python objects, invoke no Python callbacks and touch no GIL-protected state.
-
-## Performance
-
-Pricing accuracy comes first. Optimize valid-input hot paths using established invariants; preserve numerical stability, required validation, ownership/thread safety and error/state guarantees. Avoid redundant checks, speculative fallbacks and unnecessary defensive copies. Verify with pricing correctness tests and relevant benchmarks.
-
-## C++ Naming
-
-- Types: `PascalCase`.
-- Namespaces, functions, variables, constants and enum values: `snake_case`; private non-static data members: `snake_case_`.
-- Macros: `KIYOSI_UPPER_SNAKE_CASE`.
-
-## Documentation
-
-- Documentation updated alongside code changes must directly reflect the final, valid state. Do not document the change process, historical diffs, or details regarding what was modified or left unchanged.
+- Validate numerical results with appropriate tolerances and statistical criteria. Use existing tests, independent QuantLib comparisons and convergence checks as applicable; allow floating-point rounding and random-sequence variation within those criteria.
+- Optimize measured hot paths while preserving pricing accuracy, numerical stability, validation and safety contracts. Verify performance changes with correctness tests and relevant benchmarks.
