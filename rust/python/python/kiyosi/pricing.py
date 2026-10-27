@@ -1,4 +1,4 @@
-"""Synchronous analytic, American approximation, CRR, quadrature and FD pricing."""
+"""Synchronous analytic, American approximation, CRR, quadrature, FD and MC pricing."""
 
 from ._native import (
     AnalyticDigitalEngine,
@@ -9,6 +9,8 @@ from ._native import (
     FiniteDifferenceDigitalEngine,
     FiniteDifferenceScheme,
     FiniteDifferenceVanillaEngine,
+    MonteCarloEstimate,
+    MonteCarloVanillaEngine,
     PricingResult,
     QuadratureDigitalEngine,
     QuadratureVanillaEngine,
@@ -24,6 +26,8 @@ __all__ = [
     "FiniteDifferenceDigitalEngine",
     "FiniteDifferenceScheme",
     "FiniteDifferenceVanillaEngine",
+    "MonteCarloEstimate",
+    "MonteCarloVanillaEngine",
     "PricingResult",
     "QuadratureDigitalEngine",
     "QuadratureVanillaEngine",

@@ -159,6 +159,27 @@ impl NumericalShiftSettings {
 /// The instrument parameter selects supported combinations; it defaults to
 /// [`EuropeanOption`]. See [`crate::AnalyticDigitalEngine::price`] for digital usage.
 pub trait PricingEngine<I = EuropeanOption> {
+    /// Checks engine applicability before numerical request or solver validation.
+    /// The default accepts the context. See
+    /// [`crate::MonteCarloVanillaEngine::price_with_greeks`] for flat-rate restrictions.
+    ///
+    /// # Errors
+    /// Returns engine-specific errors for unsupported market representations.
+    fn validate_applicability(&self, _context: &PricingContext) -> Result<()> {
+        Ok(())
+    }
+
+    /// Prepares request-local state for numerical Greeks and implied volatility.
+    /// Returns `None` when this engine already evaluates one consistent price
+    /// function, as deterministic engines do by default. A returned engine must
+    /// itself return `None` here. See [`crate::MonteCarloVanillaEngine::price_with_greeks`].
+    ///
+    /// # Errors
+    /// Propagates operational failures while creating request-local state.
+    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<I> + Send + Sync + '_>>> {
+        Ok(None)
+    }
+
     /// Prices a supported contract without changing the inputs.
     ///
     /// # Errors

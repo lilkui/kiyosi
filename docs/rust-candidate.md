@@ -1,6 +1,6 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–09 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature and finite-difference prices and analytics with
+Tickets 01–10 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and European CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, trading
 calendars and observation schedules. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
@@ -702,12 +702,15 @@ Categories implemented here are `INVALID_STRIKE` (2), `INVALID_VOLATILITY` (3),
 `INVALID_DATE` (7), `INVALID_TIME_RANGE` (8), `INVALID_RESULT` (9),
 `INVALID_SCHEDULE` (10), `INVALID_CALENDAR` (11), `INVALID_PARAMETER` (12),
 `UNBRACKETED_VOLATILITY` (13), `SOLVER_NON_CONVERGENCE` (14),
-`SOLVER_NON_FINITE` (15), and `UNSUPPORTED_OPERATION` (19).
+`SOLVER_NON_FINITE` (15), `BACKEND_FAILURE` (18, reported operational failures), and `UNSUPPORTED_OPERATION` (19).
 Malformed curves and non-finite flat rates or
 shifts use `INVALID_PARAMETER`; scalar model rate validation retains its
 field-specific categories.
 These identifiers and numbers match the legacy categories. Messages are diagnostic
 text and must not be parsed. Resource failures and panics are not domain rejections.
+Monte Carlo resource failures retain a native I/O error in Rust and map to Python
+`OSError` (or its native subclass), with the OS error code when available; they
+do not map to `KiyosiError`.
 
 The crate-level rustdoc states the default concurrency contract: all current
 values are `Send + Sync`, distinct and shared instances permit concurrent reads
@@ -790,6 +793,108 @@ The candidate FD tests migrate applicable Rannacher, mixed-Greek, scaled-discoun
 interpolation, large-grid and configuration regressions. They use the existing
 independent QuantLib European, refined American and digital reference profiles,
 plus grid-refinement checks through public APIs. Legacy suites remain separate.
+
+## European CPU Monte Carlo
+
+`MonteCarloVanillaEngine` prices `EuropeanOption` with flat BSM rates using the
+exact terminal lognormal distribution. It validates `step_count` without using
+intermediate time steps. Node curves return `UnsupportedOperation` before life
+and Greek-request validation, including at expiry; explicitly flat curve objects
+remain supported. Contract life is inclusive; expiry returns intrinsic value.
+The same applicability check precedes solver quote/settings validation and the
+public Rust numerical-Greek helper through `PricingEngine::validate_applicability`.
+
+Rust `MonteCarloSettings` owns the defaults: 100,000 paths, 50 steps, no seed,
+and automatic concurrency (`thread_count = 0`). Paths accept 1 through 10,000,000,
+steps 2 through 10,000, and thread counts any nonnegative `i32`. Construction
+validates these settings before committing an engine. Python derives the same
+defaults and exposes immutable settings. Counts require integral representations,
+excluding bool; fractions and floating-point counts are rejected with `TypeError`.
+Out-of-range integer conversions raise `OverflowError`. Seeds are `None` or an
+unsigned 64-bit integer, including zero and `2**64 - 1`.
+
+```rust
+use kiyosi_core::{MonteCarloSettings, MonteCarloVanillaEngine, Greek, GreeksRequest,
+    ImpliedVolatilitySettings, implied_volatility};
+fn example(option: &kiyosi_core::EuropeanOption, context: &kiyosi_core::PricingContext) -> kiyosi_core::Result<()> {
+let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
+    seed: Some(42), thread_count: 4, ..Default::default()
+})?;
+let estimate = engine.price_with_statistics(option, context)?;
+let delta = engine.price_with_greeks(option, context,
+    GreeksRequest::new([Greek::Delta]), Default::default())?;
+let sigma = implied_volatility(&engine, option, context, estimate.price(),
+    ImpliedVolatilitySettings { lower_bound: 0.1, upper_bound: 0.4, ..Default::default() })?;
+let _ = (delta, sigma);
+Ok(())
+}
+```
+
+With the European `option` and `context` from the Python example above:
+
+```python
+from kiyosi.pricing import MonteCarloVanillaEngine, implied_volatility
+
+engine = MonteCarloVanillaEngine(seed=42, thread_count=4)
+estimate = engine.price_with_statistics(option, context)
+print(estimate.price, estimate.standard_error, estimate.confidence_interval)
+analysis = engine.price_with_greeks(option, context, ["delta", "vega"])
+sigma = implied_volatility(engine, option, context, estimate.price,
+                           lower_bound=0.1, upper_bound=0.4)
+```
+
+`price` returns the scalar mean. `price_with_statistics` returns an owned
+`MonteCarloEstimate`: the same price, optional `standard_error` in price units,
+and an optional `(lower, upper)` `confidence_interval`. The standard error is
+the square root of unbiased sample variance divided by the exact path count.
+The two-sided asymptotic 95% normal interval uses 1.959963984540054 standard errors
+without clipping to payoff bounds. One path before expiry cannot estimate
+uncertainty and returns `None`; a known expiry payoff has zero error and a
+degenerate interval, even with one configured path. Small samples, rare payoffs
+and heavy tails can make the interval unreliable. These statistics describe
+price uncertainty, not uncertainty in Greeks or solved volatility.
+
+Moment accumulation is scaled to avoid overflowing sums or squared payoffs.
+Discounting follows accumulation and combines logarithmic scales when the
+discount alone underflows or overflows. Unstable simulation parameters,
+nonpositive or non-finite terminal prices, non-finite requested results, and
+non-finite confidence endpoints return `InvalidResult`. A failed request leaves
+the engine, contract and context unchanged.
+
+Greeks use the existing scalar finite-difference stencils, units, defaults and
+availability rules. Every bump replays the same draws. An analysis or implied
+volatility solve chooses one request-local seed when none is configured, without
+changing the original engine. The public Rust `numerical_greeks` and
+`implied_volatility` functions use `PricingEngine::prepare_request` for the same
+behavior. No samples persist after a call. Sparse sampled volatility curves
+need not be monotone or bracket a quote; use a suitable local bracket. Solvers
+retain existing validation, expiry identifiability and failure categories.
+
+Threads apply per call: 0 uses available CPU parallelism, 1 computes serially,
+and positive values cap workers. Workers are also bounded by available CPUs and
+the number of sample blocks. Each fixed 256-path block owns a PCG32 stream and
+Box–Muller normal draws; block order and reduction order are independent of
+worker count. Within the same version and build, fixed seeds reproduce prices,
+statistics, Greeks and solves across thread counts. Random streams and last-bit
+results may differ across versions, builds, platforms and the legacy engine.
+No process-wide thread settings or shared mutable engine state are changed.
+
+All Python price, statistics, Greek and solve calls release the GIL around core
+work, capturing owned Rust inputs and accessing no Python objects or callbacks
+while detached. Shared and distinct engines support concurrent calls. Calls
+join their workers and finish synchronously; there is no cancellation API or
+signal polling. Python handles signals, including main-thread `KeyboardInterrupt`,
+after core work returns. Recoverable entropy and thread-creation failures retain
+`std::io::Error` details via `Error::operational_error()` and `Error::source()`;
+Python maps them to `OSError`. Worker panics retain Rust unwinding and PyO3's
+`PanicException` behavior. Allocation exhaustion follows Rust's allocator
+(normally process abort), rather than producing a domain rejection.
+
+The MC tests reuse the existing QuantLib numerical profile and its original
+wrapper matrix and budgets, plus independent scalar stencils, statistical
+coverage, numerical scaling, block boundaries, shared-instance calls and GIL
+release checks. They do not compare thread speed. American MC, digital MC,
+Sobol and antithetic sampling belong to later slices.
 
 ## Checks
 

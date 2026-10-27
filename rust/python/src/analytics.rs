@@ -175,6 +175,14 @@ pub(crate) fn implied_volatility(
         max_iterations: integer_setting(settings, "max_iterations", d.max_iterations)?,
     };
     let context = context.0.clone();
+    if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloVanillaEngine>>() {
+        let engine = engine.0;
+        let option = instrument.extract::<PyRef<'_, EuropeanOption>>()?.0.clone();
+        return domain(
+            py,
+            py.detach(|| core::implied_volatility(&engine, &option, &context, observed, controls)),
+        );
+    }
     if let Ok(engine) =
         engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceVanillaEngine>>()
     {

@@ -55,6 +55,12 @@ pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     request: GreeksRequest,
     settings: NumericalShiftSettings,
 ) -> Result<PricingResult> {
+    engine.validate_applicability(context)?;
+    request.validate()?;
+    settings.validate()?;
+    if let Some(prepared) = engine.prepare_request()? {
+        return numerical_greeks(prepared.as_ref(), option, context, request, settings);
+    }
     complete_greeks(option, context, request, settings, false, |context, _| {
         PricingResult::new(engine.price(option, context)?)
     })

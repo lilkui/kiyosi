@@ -6,6 +6,7 @@ mod analytics;
 mod binomial;
 mod digital;
 mod finite_difference;
+mod monte_carlo;
 mod quadrature;
 use pyo3::exceptions::{PyException, PyIndexError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -15,6 +16,12 @@ pyo3::create_exception!(_native, KiyosiError, PyException);
 
 fn domain<T>(py: Python<'_>, result: core::Result<T>) -> PyResult<T> {
     result.map_err(|error| {
+        if let Some(native) = error.operational_error() {
+            return match native.raw_os_error() {
+                Some(code) => std::io::Error::from_raw_os_error(code).into(),
+                None => std::io::Error::new(native.kind(), native.to_string()).into(),
+            };
+        }
         let exception = KiyosiError::new_err(error.message);
         let category = py
             .import("kiyosi._native")
@@ -47,12 +54,17 @@ fn direction(value: &Bound<'_, PyAny>) -> PyResult<core::OptionType> {
 }
 
 fn integer(value: &Bound<'_, PyAny>) -> PyResult<i32> {
+    check_integer(value)?;
+    value.extract()
+}
+
+fn check_integer(value: &Bound<'_, PyAny>) -> PyResult<()> {
     if value.is_instance_of::<PyBool>()
         || !value.is_instance(&value.py().import("numbers")?.getattr("Integral")?)?
     {
         return Err(PyTypeError::new_err("expected an integer, excluding bool"));
     }
-    value.extract()
+    Ok(())
 }
 
 fn dates(value: &Bound<'_, PyAny>) -> PyResult<Vec<core::Date>> {
@@ -747,6 +759,8 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<binomial::CoxRossRubinsteinDigitalEngine>()?;
     module.add_class::<quadrature::QuadratureVanillaEngine>()?;
     module.add_class::<quadrature::QuadratureDigitalEngine>()?;
+    module.add_class::<monte_carlo::MonteCarloVanillaEngine>()?;
+    module.add_class::<monte_carlo::MonteCarloEstimate>()?;
     module.add_class::<finite_difference::FiniteDifferenceVanillaEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceDigitalEngine>()?;
     module.add(

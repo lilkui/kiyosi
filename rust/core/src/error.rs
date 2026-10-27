@@ -1,6 +1,6 @@
 use std::fmt;
 
-/// Stable machine-readable domain rejection categories.
+/// Identifies stable domain rejection and reported operational failure categories.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u8)]
 pub enum ErrorCategory {
@@ -18,12 +18,14 @@ pub enum ErrorCategory {
     UnbracketedVolatility = 13,
     SolverNonConvergence = 14,
     SolverNonFinite = 15,
+    /// Identifies an operational failure; inspect [`Error::operational_error`].
+    BackendFailure = 18,
     UnsupportedOperation = 19,
 }
 
 impl ErrorCategory {
     /// Categories implemented by this migration slice.
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 16] = [
         Self::InvalidStrike,
         Self::InvalidVolatility,
         Self::InvalidRiskFreeRate,
@@ -38,6 +40,7 @@ impl ErrorCategory {
         Self::UnbracketedVolatility,
         Self::SolverNonConvergence,
         Self::SolverNonFinite,
+        Self::BackendFailure,
         Self::UnsupportedOperation,
     ];
 
@@ -58,33 +61,79 @@ impl ErrorCategory {
             Self::UnbracketedVolatility => "UNBRACKETED_VOLATILITY",
             Self::SolverNonConvergence => "SOLVER_NON_CONVERGENCE",
             Self::SolverNonFinite => "SOLVER_NON_FINITE",
+            Self::BackendFailure => "BACKEND_FAILURE",
             Self::UnsupportedOperation => "UNSUPPORTED_OPERATION",
         }
     }
 }
 
-/// A domain rejection. Diagnostics are for humans; inspect `category` in code.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// Describes a domain rejection or a recoverable operational failure.
+/// Diagnostics are for humans; inspect `category` and [`Self::operational_error`] in code.
+#[derive(Clone, Debug)]
 pub struct Error {
     pub category: ErrorCategory,
     pub message: &'static str,
+    operational: Option<std::sync::Arc<std::io::Error>>,
 }
 
 impl Error {
     pub(crate) const fn new(category: ErrorCategory, message: &'static str) -> Self {
-        Self { category, message }
+        Self {
+            category,
+            message,
+            operational: None,
+        }
+    }
+
+    pub(crate) fn operational(error: std::io::Error) -> Self {
+        Self {
+            category: ErrorCategory::BackendFailure,
+            message: "Monte Carlo resource failure",
+            operational: Some(std::sync::Arc::new(error)),
+        }
+    }
+
+    /// Returns the native entropy-source or thread-creation error, if present.
+    /// Operational failures are separate from domain rejections; their kind and
+    /// OS code remain available. See [`crate::MonteCarloVanillaEngine::price`].
+    pub fn operational_error(&self) -> Option<&std::io::Error> {
+        self.operational.as_deref()
     }
 }
+
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        self.category == other.category
+            && self.message == other.message
+            && self
+                .operational_error()
+                .map(|e| (e.kind(), e.raw_os_error(), e.to_string()))
+                == other
+                    .operational_error()
+                    .map(|e| (e.kind(), e.raw_os_error(), e.to_string()))
+    }
+}
+impl Eq for Error {}
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.message)
+        match self.operational_error() {
+            Some(error) => error.fmt(f),
+            None => f.write_str(self.message),
+        }
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.operational_error().map(|error| error as _)
+    }
+}
 
-/// Domain result; not a guarantee against allocator failure or internal panics.
+/// Returns a value, domain rejection or reported operational failure.
+/// Native I/O details remain available through [`Error::operational_error`].
+/// See [`crate::MonteCarloVanillaEngine::price`] for an example.
+/// This type does not guarantee recovery from allocator failure or internal panics.
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) fn finite(value: f64, category: ErrorCategory, positive: bool) -> Result<()> {

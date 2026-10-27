@@ -10,3 +10,4 @@ repository.workspace = true
 [dependencies]
 chrono.workspace = true
 libm = "0.2"
+getrandom = { version = "0.3", features = ["std"] }

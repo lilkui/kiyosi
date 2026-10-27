@@ -20,6 +20,7 @@ class ErrorCategory(IntEnum):
     UNBRACKETED_VOLATILITY = 13
     SOLVER_NON_CONVERGENCE = 14
     SOLVER_NON_FINITE = 15
+    BACKEND_FAILURE = 18
     UNSUPPORTED_OPERATION = 19
 
 class KiyosiError(Exception):
@@ -433,6 +434,49 @@ class QuadratureVanillaEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
+class MonteCarloVanillaEngine:
+    def __init__(
+        self,
+        *,
+        path_count: int = ...,
+        step_count: int = ...,
+        seed: int | None = None,
+        thread_count: int = ...,
+    ) -> None: ...
+    @property
+    def path_count(self) -> int: ...
+    @property
+    def step_count(self) -> int: ...
+    @property
+    def seed(self) -> int | None: ...
+    @property
+    def thread_count(self) -> int: ...
+    def price(self, instrument: EuropeanOption, context: PricingContext) -> float: ...
+    def price_with_statistics(
+        self, instrument: EuropeanOption, context: PricingContext
+    ) -> MonteCarloEstimate: ...
+    def price_with_greeks(
+        self,
+        instrument: EuropeanOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
+class MonteCarloEstimate:
+    def __new__(cls, _token: Never, /) -> Self: ...
+    @property
+    def price(self) -> float: ...
+    @property
+    def standard_error(self) -> float | None: ...
+    @property
+    def confidence_interval(self) -> tuple[float, float] | None: ...
+
 class QuadratureDigitalEngine:
     def __init__(self) -> None: ...
     def price(
@@ -494,7 +538,7 @@ class PricingResult:
 
 @overload
 def implied_volatility(
-    engine: AnalyticVanillaEngine | QuadratureVanillaEngine,
+    engine: AnalyticVanillaEngine | QuadratureVanillaEngine | MonteCarloVanillaEngine,
     instrument: EuropeanOption,
     context: PricingContext,
     observed_price: float,

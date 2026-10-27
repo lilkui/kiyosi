@@ -61,6 +61,7 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     observed_price: f64,
     settings: ImpliedVolatilitySettings,
 ) -> Result<f64> {
+    engine.validate_applicability(context)?;
     let s = settings;
     if !observed_price.is_finite()
         || !s.lower_bound.is_finite()
@@ -77,6 +78,9 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
             ErrorCategory::InvalidParameter,
             "implied-volatility settings or price are invalid",
         ));
+    }
+    if let Some(prepared) = engine.prepare_request()? {
+        return implied_volatility(prepared.as_ref(), option, context, observed_price, settings);
     }
     let s = engine.prepare_implied_volatility(option, context, s)?;
     let evaluate = |volatility| -> Result<f64> {

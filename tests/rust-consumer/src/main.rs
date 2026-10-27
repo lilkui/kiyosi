@@ -4,9 +4,10 @@ use kiyosi_core::{
     BlackScholesMertonParameters, CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,
     Date, DigitalOption, EuropeanOption, FiniteDifferenceDigitalEngine, FiniteDifferenceScheme,
     FiniteDifferenceSettings, FiniteDifferenceVanillaEngine, Greek, GreeksRequest,
-    ImpliedVolatilitySettings, NumericalShiftSettings, ObservationSchedule, OptionType,
-    PricingContext, PricingContextChanges, QuadratureDigitalEngine, QuadratureVanillaEngine,
-    RateTermStructure, Result, TradingCalendar, implied_volatility, numerical_greeks,
+    ImpliedVolatilitySettings, MonteCarloSettings, MonteCarloVanillaEngine, NumericalShiftSettings,
+    ObservationSchedule, OptionType, PricingContext, PricingContextChanges,
+    QuadratureDigitalEngine, QuadratureVanillaEngine, RateTermStructure, Result, TradingCalendar,
+    implied_volatility, numerical_greeks,
 };
 
 fn main() -> Result<()> {
@@ -17,6 +18,28 @@ fn main() -> Result<()> {
     let context = PricingContext::new(model, 100.0, start.into())?;
     let price = AnalyticVanillaEngine.price(&option, &context)?;
     assert!((price - 9.227005508154036).abs() < 1e-12);
+    let mc = MonteCarloVanillaEngine::new(MonteCarloSettings {
+        seed: Some(42),
+        thread_count: 2,
+        ..Default::default()
+    })?;
+    let estimate = mc.price_with_statistics(&option, &context)?;
+    assert!((estimate.price() - price).abs() < 6.0 * estimate.standard_error().unwrap_or(0.0));
+    assert!(
+        (implied_volatility(
+            &mc,
+            &option,
+            &context,
+            estimate.price(),
+            ImpliedVolatilitySettings {
+                lower_bound: 0.1,
+                upper_bound: 0.4,
+                ..Default::default()
+            }
+        )? - 0.2)
+            .abs()
+            < 1e-8
+    );
     let greeks = AnalyticVanillaEngine.price_with_greeks(
         &option,
         &context,

@@ -1,4 +1,4 @@
-//! Calendars, schedules, vanilla/digital BSM, CRR, quadrature and finite-difference pricing and American approximation,
+//! Calendars, schedules, vanilla/digital BSM, CRR, quadrature, finite-difference and European Monte Carlo pricing and American approximation,
 //! independent of Python.
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared
@@ -11,6 +11,8 @@
 //! Calls are synchronous, with no cancellation or signal polling. Domain
 //! rejections use [`Result`], never panics. Allocation exhaustion follows Rust's
 //! allocator behavior (normally process abort); internal panics are not domain errors.
+//! Monte Carlo entropy-source and thread-creation failures retain native I/O
+//! details through [`Error::operational_error`] and the standard error source.
 //!
 //! ```
 //! use kiyosi_core::{AnalyticVanillaEngine, BlackScholesMertonParameters, Date,
@@ -41,6 +43,7 @@ mod finite_difference;
 mod implied;
 mod instruments;
 mod market;
+mod monte_carlo;
 mod numerical;
 mod pricing;
 mod quadrature;
@@ -69,6 +72,7 @@ pub use market::{
     BlackScholesMertonParameterChanges, BlackScholesMertonParameters, PricingContext,
     PricingContextChanges, Rate,
 };
+pub use monte_carlo::{MonteCarloEstimate, MonteCarloSettings, MonteCarloVanillaEngine};
 pub use numerical::numerical_greeks;
 pub use pricing::AnalyticVanillaEngine;
 pub use quadrature::{QuadratureDigitalEngine, QuadratureVanillaEngine};
