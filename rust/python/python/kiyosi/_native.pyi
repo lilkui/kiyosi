@@ -345,6 +345,42 @@ class CoxRossRubinsteinDigitalEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
+class QuadratureVanillaEngine:
+    def __init__(self) -> None: ...
+    def price(self, instrument: EuropeanOption, context: PricingContext) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: EuropeanOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
+class QuadratureDigitalEngine:
+    def __init__(self) -> None: ...
+    def price(
+        self,
+        instrument: CashOrNothingOption | AssetOrNothingOption,
+        context: PricingContext,
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: CashOrNothingOption | AssetOrNothingOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
 Greek: TypeAlias = Literal[
     "delta",
     "gamma",
@@ -386,7 +422,7 @@ class PricingResult:
 
 @overload
 def implied_volatility(
-    engine: AnalyticVanillaEngine,
+    engine: AnalyticVanillaEngine | QuadratureVanillaEngine,
     instrument: EuropeanOption,
     context: PricingContext,
     observed_price: float,
@@ -399,7 +435,9 @@ def implied_volatility(
 ) -> float: ...
 @overload
 def implied_volatility(
-    engine: AnalyticDigitalEngine | CoxRossRubinsteinDigitalEngine,
+    engine: AnalyticDigitalEngine
+    | CoxRossRubinsteinDigitalEngine
+    | QuadratureDigitalEngine,
     instrument: CashOrNothingOption | AssetOrNothingOption,
     context: PricingContext,
     observed_price: float,

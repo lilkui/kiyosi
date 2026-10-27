@@ -1,6 +1,6 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–07 provide an isolated candidate for European vanilla/digital, American approximation and CRR prices and analytics with
+Tickets 01–08 provide an isolated candidate for European vanilla/digital, American approximation, CRR and quadrature prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, trading
 calendars and observation schedules. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
@@ -241,6 +241,68 @@ Digital contract replacement is a candidate interface; the legacy digital API
 provides construction only. Python properties are read-only and equality compares
 contract values. Vanilla/digital engine mismatches use Rust type checking or
 Python's native argument-conversion errors.
+
+## Vanilla and digital quadrature pricing
+
+`QuadratureVanillaEngine` supports `EuropeanOption` and `QuadratureDigitalEngine`
+supports European cash-or-nothing and asset-or-nothing contracts. Both are
+stateless: Rust uses unit values and Python uses no-argument constructors.
+They retain the existing Simpson integration with **2,048 panels**, compensated
+summation, a tail endpoint density of `exp(-72)` relative to the starting density,
+and log scaling to preserve representable prices when probabilities or discount
+factors underflow. Completing the square keeps high-variance asset tails in the
+integration domain. Vanilla retains the existing small-width analytic
+stabilization for `volatility * sqrt(time) < 1e-5` with finite log discounts to
+avoid cancellation of time value. Infinite log discounts retain the quadrature
+limits. No other engine fallback is selected.
+
+These terminal engines expose no integration settings. The legacy
+`QuadratureSettings` spatial grid and extent configure path-dependent engines,
+which are outside this ticket. No such controls are added to terminal engines.
+
+Both require explicitly flat rates, including dated flat curves. Node curves
+return `UnsupportedOperation` before life or Greek-request validation, even at
+expiry. Valuation must lie within inclusive contract life; expiry returns vanilla
+intrinsic value or digital payout strictly in the money (zero at equality).
+Non-finite widths, indeterminate thresholds and non-finite prices return
+`InvalidResult`. Negative rates and dividends and infinite standardized-forward
+limits are accepted when the resulting price is finite.
+
+All ten requested Greeks use shared scalar finite differences with the core
+`NumericalShiftSettings` defaults; no native Greeks are substituted. At expiry
+all Greeks are absent. Empty requests and invalid shifts return `InvalidParameter`
+after flat-rate applicability; infeasible or collapsed stencils leave measures
+absent, and feasible bumped failures propagate without changing inputs. Sensitivity
+accuracy depends on bump size and distance to expiry. The existing QuantLib
+profiles validate smooth Greeks and one-day digital prices; the latter exclude
+default-bump numerical Greeks. Public API tests also check spot-bump convergence.
+
+`implied_volatility` uses the shared solver and the caller's bracket unchanged,
+including its validation order, expiry rejection and failure-state guarantees.
+Digital prices may have multiple roots or same-sign endpoints for an attainable
+quote; supply a bracket around the desired root. Python uses the same strict
+numeric and integer protocols, exception mapping and owning results as the other
+engines. Price, Greek and solve calls release the GIL around owned Rust inputs;
+shared and distinct engines support concurrent pricing. Signal handling resumes
+when control returns to Python.
+
+```python
+from kiyosi.pricing import (
+    QuadratureVanillaEngine, QuadratureDigitalEngine, implied_volatility,
+)
+
+engine = QuadratureDigitalEngine()
+result = engine.price_with_greeks(cash, context, ["delta", "vega"])
+assert abs(result.price - 4.945810910532236) < 1e-9
+sigma = implied_volatility(engine, cash, context, result.price,
+                           lower_bound=0.1, upper_bound=0.22)
+assert abs(sigma - 0.2) < 1e-7
+assert abs(QuadratureVanillaEngine().price(option, context) - 9.227005508154036) < 1e-9
+```
+
+The Rust equivalents are `QuadratureVanillaEngine.price(&option, &context)` and
+`QuadratureDigitalEngine.price(&digital, &context)`. Both implement
+`PricingEngine<I>` for shared numerical analysis and solving.
 
 ## Vanilla and digital CRR pricing
 

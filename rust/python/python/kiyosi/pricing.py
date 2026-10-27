@@ -1,4 +1,4 @@
-"""Synchronous analytic, American approximation and CRR pricing."""
+"""Synchronous analytic, American approximation, CRR and quadrature pricing."""
 
 from ._native import (
     AnalyticDigitalEngine,
@@ -7,6 +7,8 @@ from ._native import (
     CoxRossRubinsteinDigitalEngine,
     CoxRossRubinsteinVanillaEngine,
     PricingResult,
+    QuadratureDigitalEngine,
+    QuadratureVanillaEngine,
     implied_volatility,
 )
 
@@ -17,5 +19,7 @@ __all__ = [
     "CoxRossRubinsteinDigitalEngine",
     "CoxRossRubinsteinVanillaEngine",
     "PricingResult",
+    "QuadratureDigitalEngine",
+    "QuadratureVanillaEngine",
     "implied_volatility",
 ]

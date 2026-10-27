@@ -1,4 +1,4 @@
-//! Calendars, schedules, vanilla/digital BSM and CRR pricing and American approximation,
+//! Calendars, schedules, vanilla/digital BSM, CRR and quadrature pricing and American approximation,
 //! independent of Python.
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared
@@ -42,6 +42,7 @@ mod instruments;
 mod market;
 mod numerical;
 mod pricing;
+mod quadrature;
 mod schedule;
 mod term_structure;
 mod time;
@@ -65,6 +66,7 @@ pub use market::{
 };
 pub use numerical::numerical_greeks;
 pub use pricing::AnalyticVanillaEngine;
+pub use quadrature::{QuadratureDigitalEngine, QuadratureVanillaEngine};
 pub use schedule::ObservationSchedule;
 pub use term_structure::RateTermStructure;
 pub use time::{Date, Timestamp};

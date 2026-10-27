@@ -4,7 +4,8 @@ use kiyosi_core::{
     BlackScholesMertonParameters, CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,
     Date, DigitalOption, EuropeanOption, Greek, GreeksRequest, ImpliedVolatilitySettings,
     NumericalShiftSettings, ObservationSchedule, OptionType, PricingContext, PricingContextChanges,
-    RateTermStructure, Result, TradingCalendar, implied_volatility, numerical_greeks,
+    QuadratureDigitalEngine, QuadratureVanillaEngine, RateTermStructure, Result, TradingCalendar,
+    implied_volatility, numerical_greeks,
 };
 
 fn main() -> Result<()> {
@@ -148,5 +149,30 @@ fn main() -> Result<()> {
     )?;
     assert!(digital_result.has(Greek::Delta));
     assert!(!digital_result.has(Greek::Vega));
+    let integral = QuadratureVanillaEngine.price_with_greeks(
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Delta]),
+        Default::default(),
+    )?;
+    assert!((integral.price() - price).abs() < 1e-9);
+    assert!(integral.require(Greek::Delta)? > 0.0);
+    assert!(
+        (QuadratureDigitalEngine.price(&digital, &context)?
+            - AnalyticDigitalEngine.price(&digital, &context)?)
+        .abs()
+            < 1e-9
+    );
+    assert!(
+        (implied_volatility(
+            &QuadratureVanillaEngine,
+            &option,
+            &context,
+            integral.price(),
+            Default::default()
+        )? - 0.2)
+            .abs()
+            < 1e-7
+    );
     Ok(())
 }
