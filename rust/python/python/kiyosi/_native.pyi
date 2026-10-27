@@ -43,6 +43,32 @@ class EuropeanOption:
     @property
     def expiry_date(self) -> date: ...
 
+class AmericanOption:
+    def __init__(
+        self,
+        *,
+        option_type: Literal["call", "put"],
+        strike: float,
+        effective_date: date,
+        expiry_date: date,
+    ) -> None: ...
+    def replace(
+        self,
+        *,
+        option_type: Literal["call", "put"] = ...,
+        strike: float = ...,
+        effective_date: date = ...,
+        expiry_date: date = ...,
+    ) -> AmericanOption: ...
+    @property
+    def option_type(self) -> Literal["call", "put"]: ...
+    @property
+    def strike(self) -> float: ...
+    @property
+    def effective_date(self) -> date: ...
+    @property
+    def expiry_date(self) -> date: ...
+
 class CashOrNothingOption:
     def __init__(
         self,
@@ -241,6 +267,22 @@ class AnalyticVanillaEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
+class BjerksundStenslandVanillaEngine:
+    def __init__(self) -> None: ...
+    def price(self, instrument: AmericanOption, context: PricingContext) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: AmericanOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
 class AnalyticDigitalEngine:
     def __init__(self) -> None: ...
     def price(
@@ -317,6 +359,19 @@ def implied_volatility(
 def implied_volatility(
     engine: AnalyticDigitalEngine,
     instrument: CashOrNothingOption | AssetOrNothingOption,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...
+@overload
+def implied_volatility(
+    engine: BjerksundStenslandVanillaEngine,
+    instrument: AmericanOption,
     context: PricingContext,
     observed_price: float,
     *,

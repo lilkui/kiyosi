@@ -1,6 +1,7 @@
 //! Python representation adapters; all domain validation lives in kiyosi-core.
 
 use kiyosi_core as core;
+mod american;
 mod analytics;
 mod digital;
 use pyo3::exceptions::{PyException, PyIndexError, PyTypeError, PyValueError};
@@ -734,6 +735,8 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
             .get_item(pyo3::types::PyTuple::new(py, names)?)?,
     )?;
     module.add_class::<EuropeanOption>()?;
+    module.add_class::<american::AmericanOption>()?;
+    module.add_class::<american::BjerksundStenslandVanillaEngine>()?;
     module.add_class::<digital::CashOrNothingOption>()?;
     module.add_class::<digital::AssetOrNothingOption>()?;
     module.add_class::<digital::AnalyticDigitalEngine>()?;

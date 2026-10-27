@@ -1,4 +1,4 @@
-//! Calendars, observation schedules and European vanilla and digital BSM pricing,
+//! Calendars, schedules, European vanilla/digital BSM pricing and American approximation,
 //! independent of Python.
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared
@@ -6,7 +6,7 @@
 //! Mutation requires exclusive Rust access; Python exposes immutable values.
 //! Custom calendar predicates must also uphold [`TradingCalendar`]'s determinism
 //! contract; panics in user predicates retain native Rust behavior.
-//! User-supplied [`EuropeanPricingEngine`] implementations retain their own
+//! User-supplied [`PricingEngine`] implementations retain their own
 //! thread-safety and operational-failure contracts.
 //! Calls are synchronous, with no cancellation or signal polling. Domain
 //! rejections use [`Result`], never panics. Allocation exhaustion follows Rust's
@@ -31,6 +31,7 @@
 //! # Ok(()) }
 //! ```
 
+mod american;
 mod analytics;
 mod calendar;
 mod digital;
@@ -44,15 +45,15 @@ mod schedule;
 mod term_structure;
 mod time;
 
-pub use analytics::{
-    EuropeanPricingEngine, Greek, GreeksRequest, NumericalShiftSettings, PricingResult,
-};
+pub use american::BjerksundStenslandVanillaEngine;
+pub use analytics::{Greek, GreeksRequest, NumericalShiftSettings, PricingEngine, PricingResult};
 pub use calendar::{BusinessDayConvention, TradingCalendar};
 pub use digital::AnalyticDigitalEngine;
 pub use error::{Error, ErrorCategory, Result};
 pub use implied::{ImpliedVolatilitySettings, implied_volatility};
 pub use instruments::{
-    DigitalOption, DigitalOptionChanges, EuropeanContract, EuropeanOption, OptionType,
+    AmericanOption, AmericanOptionChanges, DigitalOption, DigitalOptionChanges, EuropeanOption,
+    OptionContract, OptionType,
 };
 pub use market::{
     BlackScholesMertonParameterChanges, BlackScholesMertonParameters, PricingContext,

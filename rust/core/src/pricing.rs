@@ -1,8 +1,8 @@
 use std::f64::consts::{FRAC_1_SQRT_2, PI};
 
 use crate::{
-    Error, ErrorCategory, EuropeanOption, EuropeanPricingEngine, Greek, GreeksRequest,
-    NumericalShiftSettings, OptionType, PricingContext, PricingResult, Result,
+    Error, ErrorCategory, EuropeanOption, Greek, GreeksRequest, NumericalShiftSettings, OptionType,
+    PricingContext, PricingEngine, PricingResult, Result,
 };
 
 /// Stateless synchronous European BSM analytic pricing.
@@ -13,7 +13,7 @@ fn normal_cdf(value: f64) -> f64 {
     0.5 * libm::erfc(-value * FRAC_1_SQRT_2)
 }
 
-fn log_normal_cdf(value: f64) -> f64 {
+pub(crate) fn log_normal_cdf(value: f64) -> f64 {
     if value >= -10.0 {
         return normal_cdf(value).ln();
     }
@@ -262,7 +262,7 @@ impl AnalyticVanillaEngine {
     }
 }
 
-impl EuropeanPricingEngine for AnalyticVanillaEngine {
+impl PricingEngine for AnalyticVanillaEngine {
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         AnalyticVanillaEngine::price(self, option, context)
     }

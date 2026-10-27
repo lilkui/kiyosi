@@ -1,8 +1,9 @@
-"""Synchronous analytic pricing."""
+"""Synchronous analytic and American approximation pricing."""
 
 from ._native import (
     AnalyticDigitalEngine,
     AnalyticVanillaEngine,
+    BjerksundStenslandVanillaEngine,
     PricingResult,
     implied_volatility,
 )
@@ -10,6 +11,7 @@ from ._native import (
 __all__ = [
     "AnalyticDigitalEngine",
     "AnalyticVanillaEngine",
+    "BjerksundStenslandVanillaEngine",
     "PricingResult",
     "implied_volatility",
 ]

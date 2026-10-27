@@ -1,6 +1,6 @@
-# Rust European pricing and analytics candidate
+# Rust pricing and analytics candidate
 
-Tickets 01–05 provide an isolated candidate for European vanilla and digital prices and analytics with
+Tickets 01–06 provide an isolated candidate for European vanilla/digital and American approximation prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, trading
 calendars and observation schedules. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
@@ -73,7 +73,7 @@ non-finite derivatives fail the operation; unrequested derivatives cannot spoil
 an otherwise finite result. Tail density weights are applied in log space.
 
 The core exposes `numerical_greeks` for scalar implementations of
-`EuropeanPricingEngine`. Absolute bump defaults are spot 0.01, volatility
+`PricingEngine`. Absolute bump defaults are spot 0.01, volatility
 0.0001, rate 0.0001 and time one calendar day. All must be positive (and numeric
 bumps finite), even when the analytic engine does not use them. Numerical
 stencils use representable symmetric spacing; collapsed, asymmetric or
@@ -165,8 +165,8 @@ errors fail the operation. Finite-difference accuracy depends on the bump and
 distance to expiry; the one-day QuantLib scenarios validate price and native
 delta/gamma under the existing acceptance criteria.
 
-`EuropeanContract` exposes inclusive life dates without changing payoff semantics.
-`EuropeanPricingEngine<I>` selects supported instrument types, defaulting to
+`OptionContract` exposes inclusive life dates without changing payoff semantics.
+`PricingEngine<I>` selects supported instrument types, defaulting to
 `EuropeanOption`; the shared `numerical_greeks` and `implied_volatility` also
 accept digital contracts. Digital prices can be non-monotone in volatility.
 The solver retains the caller's bracket, may select one of several roots, and
@@ -241,6 +241,105 @@ Digital contract replacement is a candidate interface; the legacy digital API
 provides construction only. Python properties are read-only and equality compares
 contract values. Vanilla/digital engine mismatches use Rust type checking or
 Python's native argument-conversion errors.
+
+## American contracts and approximation pricing
+
+`AmericanOption::new(direction, strike, start, end)` owns vanilla terms with
+exercise permitted at any time from the effective date through expiry at midnight
+UTC, inclusive. Positive finite strike and ordered dates use the same core
+validation as European vanilla terms. Equal dates are valid. Rust
+`AmericanOption::replace(AmericanOptionChanges)` and Python `.replace(**fields)`
+return validated owning copies, preserving omitted fields and the original on
+success or failure. Python replacement is a candidate interface; the legacy
+American API provides construction only. Python properties are read-only.
+
+`BjerksundStenslandVanillaEngine` ports the existing **2002** approximation,
+including its bivariate quadrature, put-call symmetry, normalized powers and
+small-volatility guards. Prices are bounded below by intrinsic and European
+continuation values. Calls with nonpositive dividend yield (and symmetric puts
+with nonpositive interest rate) take the existing European limit, subject to the
+transformed-rate restriction below. No alternative American algorithm is selected.
+
+The engine accepts scalar rates and explicitly flat curves, including dated flat
+curves covering valuation. Node curves return `UnsupportedOperation`, even if
+their nodes describe a constant rate, and even at expiry. This check precedes
+contract-life validation and Greek request/shift validation. Before expiry, a
+negative transformed interest rate (call: risk-free rate; put: dividend yield)
+returns `UnsupportedOperation`. Exercise boundaries at or below strike also
+return `UnsupportedOperation`, including the existing rejection when transformed
+carry times maturity plus twice volatility times square-root maturity is
+nonpositive. Unstable variance/exponents and non-finite results return
+`InvalidResult`. At expiry, flat-rate contracts return intrinsic value even with
+negative rates; all Greeks are absent and implied volatility is unidentifiable.
+
+All ten supported Greeks use the shared scalar finite differences and Rust bump
+defaults. There are no analytic American Greeks. Infeasible stencils leave a
+measure absent; a feasible bumped price that crosses the approximation's
+applicability boundary fails the whole operation. For example, rho at zero call
+interest rate can fail because its negative-rate bump is unsupported. Inputs
+remain unchanged. Prices and Greek calls retain the GIL; volatility solves release
+it using owned Rust inputs and the library-wide concurrency contract.
+
+The shared Rust boundaries are now `OptionContract` and `PricingEngine<I>`
+(formerly `EuropeanContract` and `EuropeanPricingEngine<I>`). The instrument type
+selects supported combinations; the default remains `EuropeanOption`. Numerical
+analysis and volatility solving reuse the same implementations for American,
+European and digital contracts. Rust signatures and Python argument conversion
+reject engine/contract mismatches. The solver retains its supplied bracket:
+unsupported low-volatility endpoints propagate errors, even when the target
+volatility would be supported. Supply an appropriate bracket in that case.
+
+```rust
+use kiyosi_core::{AmericanOption, AmericanOptionChanges, BjerksundStenslandVanillaEngine,
+    BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest,
+    ImpliedVolatilitySettings, implied_volatility};
+fn main() -> kiyosi_core::Result<()> {
+    let start = Date::new(2025, 1, 1)?;
+    let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.03, 0.2)?, 100.0, start.into())?;
+    let engine = BjerksundStenslandVanillaEngine;
+    let result = engine.price_with_greeks(&option, &context,
+        GreeksRequest::new([Greek::Delta]), Default::default())?;
+    assert!((result.price() - 6.932464292493037).abs() < 1e-11);
+    let sigma = implied_volatility(&engine, &option, &context, result.price(),
+        ImpliedVolatilitySettings { lower_bound: 0.1, upper_bound: 0.4, ..Default::default() })?;
+    assert!((sigma - 0.2).abs() < 1e-6);
+    assert_eq!(option.replace(AmericanOptionChanges {
+        strike: Some(105.0), ..Default::default()
+    })?.strike(), 105.0);
+    Ok(())
+}
+```
+
+```python
+from datetime import date
+from kiyosi.instruments import AmericanOption
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import BjerksundStenslandVanillaEngine, implied_volatility
+
+option = AmericanOption(option_type="put", strike=100,
+                        effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1))
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.05, dividend_yield=0.03, volatility=0.2),
+    spot_price=100, valuation_time=date(2025, 1, 1))
+engine = BjerksundStenslandVanillaEngine()
+result = engine.price_with_greeks(option, context, ["delta", "vega"])
+assert abs(result.price - 6.932464292493037) < 1e-11
+assert abs(implied_volatility(engine, option, context, result.price,
+                             lower_bound=0.1, upper_bound=0.4) - 0.2) < 1e-6
+assert option.replace(strike=105).strike == 105
+assert option.strike == 100
+```
+
+Existing approximation regressions retain absolute `1e-11` price tolerance.
+Independent checks reuse every scenario and the Bjerksund–Stensland profile in
+`tests/python/quantlib_reference/american.json`. QuantLib finite-difference grids
+refine from 800 through 1600 to 3200, with independent refinement and bump-stability
+checks before comparison. Approximation price tolerance is **0.15**; numerical
+Greek budgets come from that profile plus measured reference uncertainty.
+These tolerances measure an approximation against a refined American reference,
+not exact equality to an American solution. No performance gate is added.
 
 ## Term structures and replacement
 
@@ -529,6 +628,7 @@ Install the unchanged root `.[test]` into `.venv/legacy` separately, then run:
 .venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_calendars.py'
 .venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_analytics.py'
 .venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_digital.py'
+.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_american.py'
 .venv/legacy/bin/python -m unittest discover -s tests/python -p 'test_*.py'
 ```
 

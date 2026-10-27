@@ -1,6 +1,6 @@
 use crate::{
-    BlackScholesMertonParameterChanges, Error, ErrorCategory, EuropeanContract,
-    EuropeanPricingEngine, PricingContext, PricingContextChanges, Result,
+    BlackScholesMertonParameterChanges, Error, ErrorCategory, OptionContract, PricingContext,
+    PricingContextChanges, PricingEngine, Result,
 };
 
 /// Positive volatility bracket and convergence controls. Either tolerance stops iteration.
@@ -52,7 +52,7 @@ impl Default for ImpliedVolatilitySettings {
 /// assert!((sigma - 0.2).abs() < 1e-7);
 /// # Ok(()) }
 /// ```
-pub fn implied_volatility<I: EuropeanContract, E: EuropeanPricingEngine<I> + ?Sized>(
+pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     engine: &E,
     option: &I,
     context: &PricingContext,

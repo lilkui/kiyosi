@@ -53,17 +53,17 @@ impl EuropeanOption {
     }
 }
 
-/// Exposes the inclusive life of a European contract for numerical analysis and solving.
+/// Exposes inclusive contract life for numerical analysis and solving.
 /// Implementations retain their own payoff; engines select supported contract types.
 /// See [`DigitalOption::cash_or_nothing`] for an example contract.
-pub trait EuropeanContract {
+pub trait OptionContract {
     /// Returns the inclusive first date. See [`DigitalOption::effective_date`].
     fn effective_date(&self) -> Date;
     /// Returns expiry at midnight UTC. See [`DigitalOption::expiry_date`].
     fn expiry_date(&self) -> Date;
 }
 
-impl EuropeanContract for EuropeanOption {
+impl OptionContract for EuropeanOption {
     fn effective_date(&self) -> Date {
         self.effective_date()
     }
@@ -223,7 +223,111 @@ impl DigitalOption {
     }
 }
 
-impl EuropeanContract for DigitalOption {
+impl OptionContract for DigitalOption {
+    fn effective_date(&self) -> Date {
+        self.effective_date()
+    }
+    fn expiry_date(&self) -> Date {
+        self.expiry_date()
+    }
+}
+
+/// Owns vanilla terms exercisable at any time during the inclusive contract life.
+/// Expiry occurs at midnight UTC. See [`Self::new`] for an example.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AmericanOption {
+    terms: EuropeanOption,
+}
+
+/// Selects American contract replacements; absent fields retain their values.
+/// See [`AmericanOption::replace`] for an example.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AmericanOptionChanges {
+    /// Replaces the call-or-put direction.
+    pub option_type: Option<OptionType>,
+    /// Replaces the positive strike.
+    pub strike: Option<f64>,
+    /// Replaces the inclusive first exercise date.
+    pub effective_date: Option<Date>,
+    /// Replaces the inclusive last exercise date, at midnight UTC.
+    pub expiry_date: Option<Date>,
+}
+
+impl AmericanOption {
+    /// Creates an American vanilla contract with ordered, inclusive exercise dates.
+    ///
+    /// # Errors
+    /// Returns [`ErrorCategory::InvalidStrike`] for nonpositive or non-finite strike,
+    /// then [`ErrorCategory::InvalidTimeRange`] for reversed dates.
+    ///
+    /// # Examples
+    /// ```
+    /// use kiyosi_core::{AmericanOption, Date, OptionType};
+    /// # fn main() -> kiyosi_core::Result<()> {
+    /// let option = AmericanOption::new(OptionType::Put, 100.0,
+    ///     Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?)?;
+    /// assert_eq!(option.option_type(), OptionType::Put);
+    /// assert_eq!(option.strike(), 100.0);
+    /// assert_eq!(option.effective_date(), Date::new(2025, 1, 1)?);
+    /// assert_eq!(option.expiry_date(), Date::new(2026, 1, 1)?);
+    /// # Ok(()) }
+    /// ```
+    pub fn new(
+        option_type: OptionType,
+        strike: f64,
+        effective_date: Date,
+        expiry_date: Date,
+    ) -> Result<Self> {
+        Ok(Self {
+            terms: EuropeanOption::new(option_type, strike, effective_date, expiry_date)?,
+        })
+    }
+
+    /// Returns a validated owning replacement, leaving the original unchanged.
+    ///
+    /// # Errors
+    /// Reuses [`Self::new`] validation. Failure leaves the original unchanged.
+    ///
+    /// # Examples
+    /// ```
+    /// use kiyosi_core::{AmericanOption, AmericanOptionChanges, Date, OptionType};
+    /// # fn main() -> kiyosi_core::Result<()> {
+    /// let original = AmericanOption::new(OptionType::Put, 100.0,
+    ///     Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?)?;
+    /// let updated = original.replace(AmericanOptionChanges {
+    ///     strike: Some(105.0), ..Default::default()
+    /// })?;
+    /// assert_eq!(updated.strike(), 105.0);
+    /// assert_eq!(original.strike(), 100.0);
+    /// # Ok(()) }
+    /// ```
+    pub fn replace(&self, changes: AmericanOptionChanges) -> Result<Self> {
+        Self::new(
+            changes.option_type.unwrap_or(self.option_type()),
+            changes.strike.unwrap_or(self.strike()),
+            changes.effective_date.unwrap_or(self.effective_date()),
+            changes.expiry_date.unwrap_or(self.expiry_date()),
+        )
+    }
+    /// Returns the direction. See [`Self::new`] for an example.
+    pub fn option_type(&self) -> OptionType {
+        self.terms.option_type()
+    }
+    /// Returns the strike. See [`Self::new`] for an example.
+    pub fn strike(&self) -> f64 {
+        self.terms.strike()
+    }
+    /// Returns the first exercise date. See [`Self::new`] for an example.
+    pub fn effective_date(&self) -> Date {
+        self.terms.effective_date()
+    }
+    /// Returns the last exercise date. See [`Self::new`] for an example.
+    pub fn expiry_date(&self) -> Date {
+        self.terms.expiry_date()
+    }
+}
+
+impl OptionContract for AmericanOption {
     fn effective_date(&self) -> Date {
         self.effective_date()
     }

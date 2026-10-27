@@ -2,8 +2,8 @@ use std::f64::consts::PI;
 
 use crate::pricing::{black_scholes_arguments, weighted_cdf};
 use crate::{
-    DigitalOption, Error, ErrorCategory, EuropeanPricingEngine, Greek, GreeksRequest,
-    NumericalShiftSettings, OptionType, PricingContext, PricingResult, Result,
+    DigitalOption, Error, ErrorCategory, Greek, GreeksRequest, NumericalShiftSettings, OptionType,
+    PricingContext, PricingEngine, PricingResult, Result,
 };
 
 /// Prices European cash-or-nothing and asset-or-nothing contracts under BSM.
@@ -170,7 +170,7 @@ impl AnalyticDigitalEngine {
     }
 }
 
-impl EuropeanPricingEngine<DigitalOption> for AnalyticDigitalEngine {
+impl PricingEngine<DigitalOption> for AnalyticDigitalEngine {
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         AnalyticDigitalEngine::price(self, option, context)
     }

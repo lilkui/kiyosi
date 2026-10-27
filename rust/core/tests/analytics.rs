@@ -328,7 +328,7 @@ fn solver_categories_bounds_and_failure_state_are_stable() {
 #[test]
 fn non_finite_solver_values_and_pricing_errors_remain_distinct() {
     struct NonFinite;
-    impl EuropeanPricingEngine for NonFinite {
+    impl PricingEngine for NonFinite {
         fn price(&self, _: &EuropeanOption, _: &PricingContext) -> Result<f64> {
             Ok(f64::INFINITY)
         }
@@ -435,7 +435,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
     .unwrap();
     assert!(huge_time.require(Greek::Theta).unwrap().is_finite());
     struct RejectBump;
-    impl EuropeanPricingEngine for RejectBump {
+    impl PricingEngine for RejectBump {
         fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
             if context.spot_price() > 100.0 {
                 // A domain failure from a valid bumped context must propagate.

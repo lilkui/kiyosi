@@ -1,7 +1,7 @@
 use crate::{
-    BlackScholesMertonParameterChanges, Error, ErrorCategory, EuropeanContract,
-    EuropeanPricingEngine, Greek, GreeksRequest, NumericalShiftSettings, PricingContext,
-    PricingContextChanges, PricingResult, Result,
+    BlackScholesMertonParameterChanges, Error, ErrorCategory, Greek, GreeksRequest,
+    NumericalShiftSettings, OptionContract, PricingContext, PricingContextChanges, PricingEngine,
+    PricingResult, Result,
 };
 
 fn symmetric_shift(value: f64, requested: f64) -> f64 {
@@ -20,13 +20,13 @@ fn symmetric_shift(value: f64, requested: f64) -> f64 {
     }
 }
 
-/// Numerical price sensitivities reusable by scalar European engines. Uses rounded
+/// Computes numerical price sensitivities for scalar engines. Uses rounded
 /// symmetric absolute bumps; collapsed/asymmetric or nonpositive stencils are unavailable.
 /// Time rolls stay within contract life, curve coverage and neighboring knots, with
 /// right-hand differences at knots. Feasible bumped pricing errors fail the request.
 /// Vega/vanna/zomma/rho are per percentage point, time Greeks per calendar day.
-/// Both [`crate::EuropeanOption`] and [`crate::DigitalOption`] expose their inclusive
-/// life through [`EuropeanContract`]; engine/instrument support remains type checked.
+/// [`crate::EuropeanOption`], [`crate::DigitalOption`] and [`crate::AmericanOption`] expose their inclusive
+/// life through [`OptionContract`]; engine/instrument support remains type checked.
 ///
 /// # Errors
 /// Returns [`ErrorCategory::InvalidParameter`] for empty requests or invalid bumps,
@@ -48,7 +48,7 @@ fn symmetric_shift(value: f64, requested: f64) -> f64 {
 /// assert!(result.require(Greek::Delta)? > 0.0);
 /// # Ok(()) }
 /// ```
-pub fn numerical_greeks<I: EuropeanContract, E: EuropeanPricingEngine<I> + ?Sized>(
+pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     engine: &E,
     option: &I,
     context: &PricingContext,
@@ -61,7 +61,7 @@ pub fn numerical_greeks<I: EuropeanContract, E: EuropeanPricingEngine<I> + ?Size
 }
 
 pub(crate) fn complete_greeks(
-    option: &impl EuropeanContract,
+    option: &impl OptionContract,
     context: &PricingContext,
     request: GreeksRequest,
     settings: NumericalShiftSettings,

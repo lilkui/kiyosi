@@ -154,11 +154,11 @@ impl NumericalShiftSettings {
     }
 }
 
-/// Scalar European pricing boundary reused by numerical analysis and solvers.
+/// Provides scalar pricing for numerical analysis and solvers, independent of exercise style.
 /// Implementations must return domain failures through Result, without mutating inputs.
 /// The instrument parameter selects supported combinations; it defaults to
 /// [`EuropeanOption`]. See [`crate::AnalyticDigitalEngine::price`] for digital usage.
-pub trait EuropeanPricingEngine<I = EuropeanOption> {
+pub trait PricingEngine<I = EuropeanOption> {
     /// Prices a supported contract without changing the inputs.
     ///
     /// # Errors

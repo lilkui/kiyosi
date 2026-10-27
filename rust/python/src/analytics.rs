@@ -191,6 +191,24 @@ pub(crate) fn implied_volatility(
             }),
         );
     }
+    if engine.is_instance_of::<american::BjerksundStenslandVanillaEngine>() {
+        let option = instrument
+            .extract::<PyRef<'_, american::AmericanOption>>()?
+            .0
+            .clone();
+        return domain(
+            py,
+            py.detach(|| {
+                core::implied_volatility(
+                    &core::BjerksundStenslandVanillaEngine,
+                    &option,
+                    &context,
+                    observed,
+                    controls,
+                )
+            }),
+        );
+    }
     engine.extract::<PyRef<'_, AnalyticVanillaEngine>>()?;
     let option = instrument.extract::<PyRef<'_, EuropeanOption>>()?.0.clone();
     domain(

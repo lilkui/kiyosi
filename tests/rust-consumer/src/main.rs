@@ -1,5 +1,6 @@
 use kiyosi_core::{
-    AnalyticDigitalEngine, AnalyticVanillaEngine, BlackScholesMertonParameterChanges,
+    AmericanOption, AmericanOptionChanges, AnalyticDigitalEngine, AnalyticVanillaEngine,
+    BjerksundStenslandVanillaEngine, BlackScholesMertonParameterChanges,
     BlackScholesMertonParameters, Date, DigitalOption, EuropeanOption, Greek, GreeksRequest,
     ImpliedVolatilitySettings, NumericalShiftSettings, ObservationSchedule, OptionType,
     PricingContext, PricingContextChanges, RateTermStructure, Result, TradingCalendar,
@@ -64,6 +65,36 @@ fn main() -> Result<()> {
         )? - 0.2)
             .abs()
             < 1e-7
+    );
+    let american = AmericanOption::new(OptionType::Call, 100.0, start, end)?;
+    let american_engine = BjerksundStenslandVanillaEngine;
+    let american_result = american_engine.price_with_greeks(
+        &american,
+        &context,
+        GreeksRequest::new([Greek::Delta]),
+        Default::default(),
+    )?;
+    assert!(american_result.price() >= price);
+    assert!(american_result.require(Greek::Delta)? > 0.0);
+    assert!(
+        (implied_volatility(
+            &american_engine,
+            &american,
+            &context,
+            american_result.price(),
+            Default::default()
+        )? - 0.2)
+            .abs()
+            < 1e-6
+    );
+    assert_eq!(
+        american
+            .replace(AmericanOptionChanges {
+                strike: Some(105.0),
+                ..Default::default()
+            })?
+            .strike(),
+        105.0
     );
     let curve = RateTermStructure::new(start.into(), vec![end.into()], vec![(-0.05_f64).exp()])?;
     let curved = BlackScholesMertonParameters::new(curve, 0.02, 0.2)?;
