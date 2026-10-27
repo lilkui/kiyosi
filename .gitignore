@@ -81,4 +81,5 @@ Testing/
 
 # Python
 .venv/
+target/
 __pycache__/

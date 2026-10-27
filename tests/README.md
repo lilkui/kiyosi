@@ -1,5 +1,8 @@
 # Tests
 
+The isolated Rust candidate has separate [build and public API checks](../docs/rust-candidate.md#checks).
+Run its tests in its own environment; the suite below targets the existing delivery.
+
 Install the Python test extra from the repository root, then run the default suite:
 
 ```sh

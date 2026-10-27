@@ -9,6 +9,8 @@ kiyosi 是一个面向 Python 用户的金融衍生品定价库，支持 Black�
 
 项目目前处于 Alpha 阶段，API 可能发生不兼容变更。
 
+Rust 重写正在分阶段进行。[欧式解析定价候选版](docs/rust-candidate.md)提供独立 Rust 核心与隔离安装的同名 Python 包；下文仍描述现有交付。
+
 ## 支持的产品与功能
 
 | 产品 | 定价方法 |

@@ -9,6 +9,10 @@ kiyosi is a derivatives pricing library for Python users, supporting vanilla and
 
 The project is in Alpha. Breaking API changes are possible.
 
+The staged Rust rewrite now has a [European analytic candidate](docs/rust-candidate.md)
+with an independent Rust core and an isolated Python installation. The sections
+below describe the existing delivery.
+
 ## Products and features
 
 | Product | Pricing methods |
