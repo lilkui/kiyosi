@@ -29,7 +29,7 @@ fn valuation_uses_microseconds_and_expiry_is_midnight() {
     assert_eq!(at.date(), start);
     assert_eq!(at.micros_since_midnight(), 43_750_123_456);
     let context = PricingContext::new(model.clone(), 110.0, at).unwrap();
-    assert_eq!(context.calendar(), TradingCalendar::default());
+    assert_eq!(context.calendar(), &TradingCalendar::default());
     assert_eq!(context.calendar().trading_days_per_year(), 252);
     let earlier = PricingContext::new(model.clone(), 110.0, start.into()).unwrap();
     assert!(

@@ -1,7 +1,7 @@
 //! Python representation adapters; all domain validation lives in kiyosi-core.
 
 use kiyosi_core as core;
-use pyo3::exceptions::{PyException, PyTypeError, PyValueError};
+use pyo3::exceptions::{PyException, PyIndexError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDate, PyDateAccess, PyDateTime, PyDict, PyTimeAccess};
 
@@ -30,6 +30,19 @@ fn real(value: &Bound<'_, PyAny>) -> PyResult<f64> {
         ));
     }
     value.extract()
+}
+
+fn integer(value: &Bound<'_, PyAny>) -> PyResult<i32> {
+    if value.is_instance_of::<PyBool>()
+        || !value.is_instance(&value.py().import("numbers")?.getattr("Integral")?)?
+    {
+        return Err(PyTypeError::new_err("expected an integer, excluding bool"));
+    }
+    value.extract()
+}
+
+fn dates(value: &Bound<'_, PyAny>) -> PyResult<Vec<core::Date>> {
+    value.try_iter()?.map(|item| date(&item?)).collect()
 }
 
 fn date(value: &Bound<'_, PyAny>) -> PyResult<core::Date> {
@@ -353,18 +366,210 @@ struct TradingCalendar(core::TradingCalendar);
 #[pymethods]
 impl TradingCalendar {
     #[getter]
-    fn trading_days_per_year(&self) -> u32 {
+    fn trading_days_per_year(&self) -> i32 {
         self.0.trading_days_per_year()
     }
 
-    fn __repr__(&self) -> &'static str {
-        "weekdays_calendar()"
+    fn __repr__(&self) -> String {
+        format!(
+            "TradingCalendar(trading_days_per_year={})",
+            self.0.trading_days_per_year()
+        )
+    }
+
+    fn is_trading_day(&self, value: &Bound<'_, PyAny>) -> PyResult<bool> {
+        Ok(self.0.is_trading_day(date(value)?))
+    }
+
+    fn adjust<'py>(
+        &self,
+        py: Python<'py>,
+        nominal: &Bound<'_, PyAny>,
+        convention: &Bound<'_, PyAny>,
+    ) -> PyResult<Bound<'py, PyDate>> {
+        let nominal = date(nominal)?;
+        let convention = match convention.extract::<&str>()? {
+            "following" => core::BusinessDayConvention::Following,
+            "preceding" => core::BusinessDayConvention::Preceding,
+            _ => {
+                return Err(PyValueError::new_err(
+                    "convention must be following or preceding",
+                ));
+            }
+        };
+        python_date(py, domain(py, self.0.adjust(nominal, convention))?)
+    }
+
+    fn trading_days_between(
+        &self,
+        py: Python<'_>,
+        start: &Bound<'_, PyAny>,
+        end: &Bound<'_, PyAny>,
+    ) -> PyResult<i32> {
+        domain(py, self.0.trading_days_between(date(start)?, date(end)?))
+    }
+
+    fn trading_year_fraction(
+        &self,
+        py: Python<'_>,
+        start: &Bound<'_, PyAny>,
+        end: &Bound<'_, PyAny>,
+    ) -> PyResult<f64> {
+        domain(py, self.0.trading_year_fraction(date(start)?, date(end)?))
     }
 }
 
 #[pyfunction]
 fn weekdays_calendar() -> TradingCalendar {
     TradingCalendar::default()
+}
+
+#[pyfunction]
+fn all_days_calendar() -> TradingCalendar {
+    TradingCalendar(core::TradingCalendar::all_days())
+}
+
+#[pyfunction]
+fn sse_calendar() -> TradingCalendar {
+    TradingCalendar(core::TradingCalendar::sse())
+}
+
+#[pyfunction]
+#[pyo3(signature = (*, base, **overrides))]
+fn custom_calendar(
+    py: Python<'_>,
+    base: &TradingCalendar,
+    overrides: Option<&Bound<'_, PyDict>>,
+) -> PyResult<TradingCalendar> {
+    check_changes(
+        overrides,
+        &["closed_dates", "open_dates", "trading_days_per_year"],
+    )?;
+    let mut closed = Vec::new();
+    let mut open = Vec::new();
+    let mut basis = None;
+    if let Some(overrides) = overrides {
+        closed = overrides
+            .get_item("closed_dates")?
+            .as_ref()
+            .map(dates)
+            .transpose()?
+            .unwrap_or_default();
+        open = overrides
+            .get_item("open_dates")?
+            .as_ref()
+            .map(dates)
+            .transpose()?
+            .unwrap_or_default();
+        basis = overrides
+            .get_item("trading_days_per_year")?
+            .filter(|value| !value.is_none())
+            .as_ref()
+            .map(integer)
+            .transpose()?;
+    }
+    Ok(TradingCalendar(domain(
+        py,
+        core::TradingCalendar::custom(base.0.clone(), closed, open, basis),
+    )?))
+}
+
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(Clone, PartialEq)]
+struct ObservationSchedule(core::ObservationSchedule);
+
+#[pymethods]
+impl ObservationSchedule {
+    #[getter]
+    fn dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
+        self.0
+            .dates()
+            .iter()
+            .map(|&date| python_date(py, date))
+            .collect()
+    }
+    fn __len__(&self) -> usize {
+        self.0.len()
+    }
+    fn __getitem__<'py>(&self, py: Python<'py>, index: isize) -> PyResult<Bound<'py, PyDate>> {
+        let index = if index < 0 {
+            index + self.0.len() as isize
+        } else {
+            index
+        };
+        let date = self
+            .0
+            .dates()
+            .get(index as usize)
+            .ok_or_else(|| PyIndexError::new_err("schedule index out of range"))?;
+        python_date(py, *date)
+    }
+    fn __iter__(slf: PyRef<'_, Self>) -> ScheduleIterator {
+        ScheduleIterator {
+            owner: slf.into(),
+            index: 0,
+        }
+    }
+}
+
+#[pyclass]
+struct ScheduleIterator {
+    owner: Py<ObservationSchedule>,
+    index: usize,
+}
+
+#[pymethods]
+impl ScheduleIterator {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+    fn __next__<'py>(&mut self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyDate>>> {
+        let date = self.owner.borrow(py).0.dates().get(self.index).copied();
+        if date.is_some() {
+            self.index += 1;
+        }
+        date.map(|date| python_date(py, date)).transpose()
+    }
+}
+
+#[pyfunction]
+#[pyo3(signature = (*, start, end, interval_days, calendar=TradingCalendar::default()))]
+fn fixed_interval_schedule(
+    py: Python<'_>,
+    start: &Bound<'_, PyAny>,
+    end: &Bound<'_, PyAny>,
+    interval_days: &Bound<'_, PyAny>,
+    calendar: TradingCalendar,
+) -> PyResult<ObservationSchedule> {
+    Ok(ObservationSchedule(domain(
+        py,
+        core::ObservationSchedule::fixed_interval(
+            date(start)?,
+            date(end)?,
+            i64::from(integer(interval_days)?),
+            &calendar.0,
+        ),
+    )?))
+}
+
+#[pyfunction]
+#[pyo3(signature = (*, start, end, first_observation_month, calendar=TradingCalendar::default()))]
+fn monthly_schedule(
+    py: Python<'_>,
+    start: &Bound<'_, PyAny>,
+    end: &Bound<'_, PyAny>,
+    first_observation_month: &Bound<'_, PyAny>,
+    calendar: TradingCalendar,
+) -> PyResult<ObservationSchedule> {
+    Ok(ObservationSchedule(domain(
+        py,
+        core::ObservationSchedule::monthly(
+            date(start)?,
+            date(end)?,
+            integer(first_observation_month)?,
+            &calendar.0,
+        ),
+    )?))
 }
 
 #[pyclass(frozen, eq, module = "kiyosi._native")]
@@ -449,7 +654,7 @@ impl PricingContext {
     }
     #[getter]
     fn calendar(&self) -> TradingCalendar {
-        TradingCalendar(self.0.calendar())
+        TradingCalendar(self.0.calendar().clone())
     }
 }
 
@@ -497,8 +702,14 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<BlackScholesMertonParameters>()?;
     module.add_class::<RateTermStructure>()?;
     module.add_class::<TradingCalendar>()?;
+    module.add_class::<ObservationSchedule>()?;
     module.add_class::<PricingContext>()?;
     module.add_class::<AnalyticVanillaEngine>()?;
     module.add_function(wrap_pyfunction!(weekdays_calendar, module)?)?;
+    module.add_function(wrap_pyfunction!(all_days_calendar, module)?)?;
+    module.add_function(wrap_pyfunction!(sse_calendar, module)?)?;
+    module.add_function(wrap_pyfunction!(custom_calendar, module)?)?;
+    module.add_function(wrap_pyfunction!(fixed_interval_schedule, module)?)?;
+    module.add_function(wrap_pyfunction!(monthly_schedule, module)?)?;
     Ok(())
 }

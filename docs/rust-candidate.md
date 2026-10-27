@@ -1,7 +1,8 @@
-# Rust market and European analytic candidate
+# Rust calendars, market and European analytic candidate
 
-Tickets 01–02 provide an isolated candidate for European call/put prices with
-flat BSM rates or configured risk-free and dividend term structures. The root
+Tickets 01–03 provide an isolated candidate for European call/put prices with
+flat BSM rates or configured risk-free and dividend term structures, trading
+calendars and observation schedules. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -45,9 +46,8 @@ Strike, spot, and volatility must be finite and strictly positive; both rates
 must be finite and may be negative. Constructors validate before returning a
 value. Accessors borrow or copy from owned data. `PricingContext::new` uses
 `TradingCalendar::default()` (weekdays, annualization 252); the Python default is
-derived from the same core value. This slice exposes only that calendar identity
-and annualization property. Calendar operations, other calendars, Greeks, implied
-volatility, and other instruments/engines arrive in later tickets.
+derived from the same core value. Greeks, implied volatility, and other
+instruments/engines arrive in later tickets.
 The engine accepts only `EuropeanOption`: unsupported instrument types are
 excluded by Rust's signature and Python's native argument conversion.
 
@@ -117,6 +117,89 @@ expiry in both curves, including dated flats. Unresolvable knots after conversio
 to floating-point pricing time return `InvalidResult`; timestamp queries still
 preserve microsecond intervals by subtracting timestamps before conversion.
 The analytic engine consumes both integrated curve rates over valuation to expiry.
+
+## Calendars and schedules
+
+`TradingCalendar::all_days()`, `::weekdays()` (also `::default()`) and `::sse()`
+use annualization bases 365, 252 and 243 respectively. `is_trading_day` queries
+a validated `Date`. `trading_days_between` counts the half-open interval
+`[start, end)`; `trading_year_fraction` divides that count by the calendar's basis.
+Equal endpoints return zero; reversed intervals return `InvalidTimeRange`.
+`adjust(date, BusinessDayConvention::Following / Preceding)` includes the nominal
+date and returns `InvalidDate` if no trading date exists before the supported
+date boundary. Contracts themselves never adjust dates implicitly.
+
+`TradingCalendar::custom(base, closed, open, basis)` owns its base and date vectors,
+sorts and deduplicates overrides, and rejects overlapping open/closed dates with
+`InvalidCalendar`. Weekend opening overrides are allowed. `None` inherits the
+base's annualization basis; overrides never recalculate it. Nonpositive bases
+are rejected at construction. Clones retain owning lifetimes and immutable data.
+`TradingCalendar::new(predicate, basis)` retains Rust-only custom predicates:
+closures must be `Send + Sync + 'static`, deterministic throughout each operation,
+and independent of query order or count. User predicate panics remain native
+panics. Built-ins compare by kind; predicate calendars compare by shared predicate
+identity. `PricingContext::calendar()` now borrows; clone it to retain an owning value.
+
+`ObservationSchedule::fixed_interval(start, end, interval_days, &calendar)`
+generates `start + n * interval_days` for positive `n`.
+`::monthly(start, end, first_observation_month, &calendar)` generates monthly
+candidates from the positive first-month offset, anchoring to the start day and
+clamping to each target month's last day. Both exclude start, include end as an
+upper bound, use following adjustment, merge duplicate adjusted dates, and stop
+before crossing end. End need not appear; empty schedules are valid. Reversed
+life is checked before nonpositive intervals/offsets (`InvalidSchedule`).
+`::new(dates, start, end, &calendar)` first validates life, then strict ordering
+and inclusive bounds (`InvalidSchedule`), then trading-day status (`InvalidDate`).
+`dates()` borrows the schedule's immutable storage for its lifetime; newly built
+schedules own their data. Rust fixed intervals accept `i64` calendar days;
+monthly offsets and annualization bases use `i32`.
+
+```rust
+use kiyosi_core::{Date, ObservationSchedule, TradingCalendar};
+fn main() -> kiyosi_core::Result<()> {
+    let calendar = TradingCalendar::default();
+    let schedule = ObservationSchedule::fixed_interval(
+        Date::new(2025, 1, 3)?, Date::new(2025, 1, 7)?, 1, &calendar,
+    )?;
+    assert_eq!(schedule.dates(), &[Date::new(2025, 1, 6)?, Date::new(2025, 1, 7)?]);
+    Ok(())
+}
+```
+
+Python exports the same calendar factories as `all_days_calendar()`,
+`weekdays_calendar()`, `sse_calendar()` and keyword-only `custom_calendar(base=...,
+closed_dates=(), open_dates=(), trading_days_per_year=None)`. Overrides accept
+date iterables and are copied; `None` is valid only for the optional basis.
+No Python predicate callbacks are exposed. Adjustment choices are the strings
+`"following"` and `"preceding"`. Dates exclude datetimes, using the same stored
+component conversion as contract dates. Basis, interval and month arguments accept
+`numbers.Integral` with the integer index protocol, excluding bool, floats and strings, with native
+`OverflowError` outside the signed 32-bit range. Representation errors occur
+before core domain validation. Result conversion beyond Python's year 1–9999
+range preserves Python's native date error.
+
+```python
+from datetime import date
+from kiyosi.market import custom_calendar, fixed_interval_schedule, weekdays_calendar
+
+calendar = custom_calendar(
+    base=weekdays_calendar(), open_dates=[date(2026, 10, 10)],
+)
+schedule = fixed_interval_schedule(
+    start=date(2026, 10, 9), end=date(2026, 10, 11), interval_days=1,
+    calendar=calendar,
+)
+assert schedule.dates == [date(2026, 10, 10)]
+assert calendar.trading_days_per_year == 252
+```
+
+`monthly_schedule` takes named `start`, `end`, `first_observation_month`, and an
+optional calendar. Both Python builders default to Rust's default calendar.
+Schedules expose read-only owning `.dates` copies, `len`, integer/negative
+indexing, equality and independent lazy iterators retaining the schedule owner.
+Invalid indices raise `IndexError`. Python has no direct schedule constructor.
+See [SSE calendar maintenance](sse-calendar.md) for forecast limitations,
+upstream sources, generator commands and licensing.
 
 ## Python candidate installation and usage
 
@@ -201,7 +284,8 @@ exceptions before core domain validation. All properties remain read-only.
 
 Categories implemented here are `INVALID_STRIKE` (2), `INVALID_VOLATILITY` (3),
 `INVALID_RISK_FREE_RATE` (4), `INVALID_DIVIDEND_YIELD` (5), `INVALID_SPOT_PRICE` (6),
-`INVALID_DATE` (7), `INVALID_TIME_RANGE` (8), `INVALID_RESULT` (9), `INVALID_PARAMETER` (12),
+`INVALID_DATE` (7), `INVALID_TIME_RANGE` (8), `INVALID_RESULT` (9),
+`INVALID_SCHEDULE` (10), `INVALID_CALENDAR` (11), `INVALID_PARAMETER` (12),
 and `UNSUPPORTED_OPERATION` (19). Malformed curves and non-finite flat rates or
 shifts use `INVALID_PARAMETER`; scalar model rate validation retains its
 field-specific categories.
@@ -247,6 +331,7 @@ Install the unchanged root `.[test]` into `.venv/legacy` separately, then run:
 ```sh
 .venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_european.py'
 .venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_market.py'
+.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_calendars.py'
 .venv/legacy/bin/python -m unittest discover -s tests/python -p 'test_*.py'
 ```
 
@@ -255,6 +340,14 @@ contracts, adds independent live QuantLib curve pricing and parity, and checks
 coverage timing, representation errors, ownership and concurrent pricing. The
 Rust public API tests cover equivalent market scenarios. Later-ticket Greeks and
 other product/engine cases remain in the legacy suite.
+
+The shared calendar suite reuses existing custom-calendar contracts and checks
+counting, adjustment, schedule endpoints, month clamping, large offsets,
+conversion errors, ownership, iteration and concurrent reads. It checks every
+date in the SSE data range against the generated Rust table in both isolated
+implementations. Generator tests cover the upstream forecast boundary and Rust
+rendering. Calendar data and its attribution ship in the standalone Cargo crate
+and candidate Python artifacts; Python is needed only to regenerate the data.
 
 The shared European suite covers the same domain and representation cases in
 both processes. It reuses all 20 existing European scenarios and the independent

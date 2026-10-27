@@ -1,18 +1,7 @@
-use crate::{Date, Error, ErrorCategory, RateTermStructure, Result, Timestamp, error::finite};
-
-/// Calendar identity used by the candidate context. Scheduling arrives in a later slice.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum TradingCalendar {
-    #[default]
-    Weekdays,
-}
-
-impl TradingCalendar {
-    /// Existing weekdays-calendar annualization default.
-    pub const fn trading_days_per_year(self) -> u32 {
-        252
-    }
-}
+use crate::{
+    Date, Error, ErrorCategory, RateTermStructure, Result, Timestamp, TradingCalendar,
+    error::finite,
+};
 
 /// A continuously compounded flat rate or an owning term structure.
 /// Scalar inputs receive the model field's error category on validation.
@@ -183,7 +172,7 @@ impl PricingContext {
                 .unwrap_or_else(|| self.model_parameters.clone()),
             changes.spot_price.unwrap_or(self.spot_price),
             changes.valuation_time.unwrap_or(self.valuation_time),
-            changes.calendar.unwrap_or(self.calendar),
+            changes.calendar.unwrap_or_else(|| self.calendar.clone()),
         )
     }
 
@@ -199,7 +188,7 @@ impl PricingContext {
     pub fn valuation_date(&self) -> Date {
         self.valuation_time.date()
     }
-    pub fn calendar(&self) -> TradingCalendar {
-        self.calendar
+    pub fn calendar(&self) -> &TradingCalendar {
+        &self.calendar
     }
 }

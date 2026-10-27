@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "kiyosi"
-description = "Rust candidate: European analytic derivatives pricing"
+description = "Rust candidate: European analytic pricing, market curves, calendars and schedules"
 dynamic = ["version"]
 requires-python = ">=3.11"
 license = "MIT"

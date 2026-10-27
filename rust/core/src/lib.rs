@@ -1,8 +1,11 @@
-//! European Black–Scholes–Merton pricing, independent of Python.
+//! Calendars, observation schedules and European Black–Scholes–Merton pricing,
+//! independent of Python.
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared
 //! instances support concurrent reads and pricing without synchronization.
 //! Mutation requires exclusive Rust access; Python exposes immutable values.
+//! Custom calendar predicates must also uphold [`TradingCalendar`]'s determinism
+//! contract; panics in user predicates retain native Rust behavior.
 //! Calls are synchronous, with no cancellation or signal polling. Domain
 //! rejections use [`Result`], never panics. Allocation exhaustion follows Rust's
 //! allocator behavior (normally process abort); internal panics are not domain errors.
@@ -20,20 +23,24 @@
 //! # Ok(()) }
 //! ```
 
+mod calendar;
 mod error;
 mod instruments;
 mod market;
 mod pricing;
+mod schedule;
 mod term_structure;
 mod time;
 
+pub use calendar::{BusinessDayConvention, TradingCalendar};
 pub use error::{Error, ErrorCategory, Result};
 pub use instruments::{EuropeanOption, OptionType};
 pub use market::{
     BlackScholesMertonParameterChanges, BlackScholesMertonParameters, PricingContext,
-    PricingContextChanges, Rate, TradingCalendar,
+    PricingContextChanges, Rate,
 };
 pub use pricing::AnalyticVanillaEngine;
+pub use schedule::ObservationSchedule;
 pub use term_structure::RateTermStructure;
 pub use time::{Date, Timestamp};
 

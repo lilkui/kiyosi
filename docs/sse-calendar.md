@@ -11,4 +11,8 @@ uv run --no-project --with lunar-python==1.4.8 python tools/generate_sse_calenda
 uv run --no-project --with lunar-python==1.4.8 python tools/generate_sse_calendar.py --check
 ```
 
-生成结果是静态 C++ 数据表，C++ 核心无需 Python 或日历包。对于 1991—2099 年以外的日期，日历将周一至周五视为交易日。
+生成结果是 [`rust/core/src/sse_holidays.rs`](../rust/core/src/sse_holidays.rs) 中按日期排序的静态 Rust 整数数组，由核心通过 `include!` 编译；运行、构建、测试和打包核心均无需 Python 或日历包。`--write` 更新该文件，`--check` 将完整生成结果与已提交文件比较。迁移期间保留旧 C++ 数据表作为对照，生成工具不再修改旧表。
+
+Rust `TradingCalendar::sse()` 和候选 Python `sse_calendar()` 消费同一份数据，年化基数为 243。对于 1991—2099 年以外的日期，日历将周一至周五视为交易日。候选公共 API 测试逐日核对该范围内的日历查询与生成数据，并在独立旧版环境中运行相同检查。
+
+历史数据取自 Apache-2.0 许可的 `exchange_calendars`；提取工作日休市日期并追加预测是本项目的修改。来源、归属与完整许可随 [Rust 核心](../rust/core/THIRD_PARTY_NOTICES.txt) 和 [Python 包](../rust/python/THIRD_PARTY_NOTICES.txt) 分发。预测工具依赖 `lunar-python==1.4.8`（MIT），仅用于维护，不是核心或 Python 包的运行依赖。候选安装与用法见 [Rust candidate](rust-candidate.md#calendars-and-schedules)。

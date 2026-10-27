@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from datetime import date, datetime
 from enum import IntEnum
 from typing import Literal, Never, Self
@@ -14,6 +14,8 @@ class ErrorCategory(IntEnum):
     INVALID_DATE = 7
     INVALID_TIME_RANGE = 8
     INVALID_RESULT = 9
+    INVALID_SCHEDULE = 10
+    INVALID_CALENDAR = 11
     INVALID_PARAMETER = 12
     UNSUPPORTED_OPERATION = 19
 
@@ -95,8 +97,46 @@ class TradingCalendar:
     def __new__(cls, _token: Never, /) -> Self: ...
     @property
     def trading_days_per_year(self) -> int: ...
+    def is_trading_day(self, value: date) -> bool: ...
+    def adjust(
+        self, nominal: date, convention: Literal["following", "preceding"]
+    ) -> date: ...
+    def trading_days_between(self, start: date, end: date) -> int: ...
+    def trading_year_fraction(self, start: date, end: date) -> float: ...
 
 def weekdays_calendar() -> TradingCalendar: ...
+def all_days_calendar() -> TradingCalendar: ...
+def sse_calendar() -> TradingCalendar: ...
+def custom_calendar(
+    *,
+    base: TradingCalendar,
+    closed_dates: Iterable[date] = (),
+    open_dates: Iterable[date] = (),
+    trading_days_per_year: int | None = None,
+) -> TradingCalendar: ...
+
+class ObservationSchedule:
+    def __new__(cls, _token: Never, /) -> Self: ...
+    @property
+    def dates(self) -> list[date]: ...
+    def __len__(self) -> int: ...
+    def __getitem__(self, index: int) -> date: ...
+    def __iter__(self) -> Iterator[date]: ...
+
+def fixed_interval_schedule(
+    *,
+    start: date,
+    end: date,
+    interval_days: int,
+    calendar: TradingCalendar = ...,
+) -> ObservationSchedule: ...
+def monthly_schedule(
+    *,
+    start: date,
+    end: date,
+    first_observation_month: int,
+    calendar: TradingCalendar = ...,
+) -> ObservationSchedule: ...
 
 class PricingContext:
     def __init__(

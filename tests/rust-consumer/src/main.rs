@@ -1,6 +1,7 @@
 use kiyosi_core::{
     AnalyticVanillaEngine, BlackScholesMertonParameterChanges, BlackScholesMertonParameters, Date,
-    EuropeanOption, OptionType, PricingContext, PricingContextChanges, RateTermStructure, Result,
+    EuropeanOption, ObservationSchedule, OptionType, PricingContext, PricingContextChanges,
+    RateTermStructure, Result, TradingCalendar,
 };
 
 fn main() -> Result<()> {
@@ -28,5 +29,18 @@ fn main() -> Result<()> {
             .is_err()
     );
     assert_eq!(curved.model_parameters().volatility(), 0.2);
+    let calendar = TradingCalendar::sse();
+    assert!(!calendar.is_trading_day(Date::new(2026, 2, 23)?));
+    assert_eq!(calendar.trading_days_per_year(), 243);
+    let schedule = ObservationSchedule::fixed_interval(
+        Date::new(2025, 1, 3)?,
+        Date::new(2025, 1, 7)?,
+        1,
+        &TradingCalendar::default(),
+    )?;
+    assert_eq!(
+        schedule.dates(),
+        &[Date::new(2025, 1, 6)?, Date::new(2025, 1, 7)?]
+    );
     Ok(())
 }

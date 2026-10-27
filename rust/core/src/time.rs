@@ -1,4 +1,4 @@
-use chrono::{Datelike, NaiveDate};
+use chrono::{Datelike, Days, NaiveDate};
 
 use crate::{Error, ErrorCategory, Result};
 
@@ -30,6 +30,29 @@ impl Date {
     }
     pub fn day(self) -> u32 {
         self.0.day()
+    }
+
+    pub(crate) fn is_weekday(self) -> bool {
+        self.0.weekday().number_from_monday() <= 5
+    }
+
+    pub(crate) fn days_until(self, end: Self) -> i64 {
+        (end.0 - self.0).num_days()
+    }
+
+    pub(crate) fn add_days(self, days: i64) -> Result<Self> {
+        let shifted = if days >= 0 {
+            self.0.checked_add_days(Days::new(days as u64))
+        } else {
+            self.0.checked_sub_days(Days::new(days.unsigned_abs()))
+        };
+        match shifted {
+            Some(date) => Self::new(date.year(), date.month(), date.day()),
+            None => Err(Error::new(
+                ErrorCategory::InvalidDate,
+                "date arithmetic exceeds supported range",
+            )),
+        }
     }
 
     /// Midnight UTC-like timestamp at the start of this date.
