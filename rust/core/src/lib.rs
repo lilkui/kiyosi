@@ -1,4 +1,4 @@
-//! Calendars, schedules, vanilla/digital BSM, CRR and quadrature pricing and American approximation,
+//! Calendars, schedules, vanilla/digital BSM, CRR, quadrature and finite-difference pricing and American approximation,
 //! independent of Python.
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared
@@ -37,6 +37,7 @@ mod binomial;
 mod calendar;
 mod digital;
 mod error;
+mod finite_difference;
 mod implied;
 mod instruments;
 mod market;
@@ -55,6 +56,10 @@ pub use binomial::{
 pub use calendar::{BusinessDayConvention, TradingCalendar};
 pub use digital::AnalyticDigitalEngine;
 pub use error::{Error, ErrorCategory, Result};
+pub use finite_difference::{
+    FiniteDifferenceDigitalEngine, FiniteDifferenceScheme, FiniteDifferenceSettings,
+    FiniteDifferenceVanillaEngine,
+};
 pub use implied::{ImpliedVolatilitySettings, implied_volatility};
 pub use instruments::{
     AmericanOption, AmericanOptionChanges, DigitalOption, DigitalOptionChanges, EuropeanOption,

@@ -5,6 +5,7 @@ mod american;
 mod analytics;
 mod binomial;
 mod digital;
+mod finite_difference;
 mod quadrature;
 use pyo3::exceptions::{PyException, PyIndexError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -746,6 +747,16 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<binomial::CoxRossRubinsteinDigitalEngine>()?;
     module.add_class::<quadrature::QuadratureVanillaEngine>()?;
     module.add_class::<quadrature::QuadratureDigitalEngine>()?;
+    module.add_class::<finite_difference::FiniteDifferenceVanillaEngine>()?;
+    module.add_class::<finite_difference::FiniteDifferenceDigitalEngine>()?;
+    module.add(
+        "FiniteDifferenceScheme",
+        py.import("typing")?.getattr("Literal")?.get_item((
+            "explicit_euler",
+            "implicit_euler",
+            "crank_nicolson",
+        ))?,
+    )?;
     module.add_class::<BlackScholesMertonParameters>()?;
     module.add_class::<RateTermStructure>()?;
     module.add_class::<TradingCalendar>()?;

@@ -4,7 +4,7 @@ use crate::{
     PricingResult, Result,
 };
 
-fn symmetric_shift(value: f64, requested: f64) -> f64 {
+pub(crate) fn symmetric_shift(value: f64, requested: f64) -> f64 {
     let high = value + requested;
     let shift = high - value;
     let low = value - shift;

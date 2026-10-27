@@ -1,6 +1,6 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–08 provide an isolated candidate for European vanilla/digital, American approximation, CRR and quadrature prices and analytics with
+Tickets 01–09 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature and finite-difference prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, trading
 calendars and observation schedules. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
@@ -718,6 +718,78 @@ no Python callbacks or Python state. User-supplied Rust engines must uphold
 their own concurrency contract. Calls are synchronous; there is no cancellation API or core signal
 polling. Python signal handling (including `KeyboardInterrupt` on the main thread)
 waits until control returns to Python and is not mapped to `KiyosiError`.
+
+## Vanilla and digital finite differences
+
+`FiniteDifferenceVanillaEngine` supports European and American vanilla contracts,
+including node curves. `FiniteDifferenceDigitalEngine` supports European cash and
+asset digitals with explicitly flat rates; node curves return `UnsupportedOperation`
+before life and Greek-request validation, even at expiry.
+
+Both engines own `FiniteDifferenceSettings`. Rust defaults are 800 asset steps,
+200 time steps, `FiniteDifferenceScheme::CrankNicolson` and no explicit upper
+boundary. Python derives these defaults from Rust and exposes read-only settings
+as `asset_step_count`, `time_step_count`, `scheme` and `asset_upper_boundary`.
+`FiniteDifferenceScheme` in `kiyosi.pricing` is the Literal alias for
+`"explicit_euler"`, `"implicit_euler"` and `"crank_nicolson"`.
+
+Construction validates at least three asset steps, at least one time step and a
+finite positive explicit boundary. Counts use signed 32-bit integers without an
+additional cap; construction allocates no grid. Python uses the existing strict
+integer and real protocols, rejecting booleans, fractional counts and out-of-range
+integers before core validation. Unknown schemes raise `ValueError`; malformed
+representations and unknown keywords raise native `TypeError`.
+
+Pricing validates inclusive contract life, then curve coverage and grid feasibility.
+At expiry it returns intrinsic value or the digital's strict-in-the-money payoff,
+without constructing a grid; all Greeks are absent. The upper domain must exceed
+spot and strike, and spacing must remain representable. Grid failures and unstable
+explicit steps return `InvalidParameter`; non-finite systems and digital payoff-bound
+violations return `InvalidResult`. Inputs and stored settings remain unchanged.
+
+The existing theta schemes, Thomas solve, one-sided drift stabilization, spline
+interpolation and two initial Rannacher intervals are retained. Crank-Nicolson's
+first two intervals each use two implicit half-steps, with boundaries and American
+exercise updated after each half-step. European and digital grids are uniform in
+spot with automatic upper boundary `4 * max(spot, strike)`. American automatic
+domains expand with volatility, maturity and maximum accumulated drift, using
+`asinh(spot / strike)` coordinates to retain resolution. Vanilla time grids include
+risk-free and dividend knots. American rollback projects onto intrinsic value;
+its zero-spot put boundary retains the best future exercise value across rate knots.
+High boundaries retain analytic continuation value. Digital terminal cells average
+the discontinuous payoff; prices respect discounted payoff bounds, allowing the
+known scalar carry truncation before clamping. Explicit boundaries still require
+domain convergence checks.
+
+`price_with_greeks` returns spline delta/gamma and speed from gamma differences on
+the same mesh. Numerical completion reuses native spot Greeks for mixed measures;
+every bumped evaluation shares the central upper boundary. It validates all shifts,
+preserves selective requests, leaves infeasible stencils absent and propagates
+feasible bumped failures. Other sensitivities use the existing units and defaults.
+`numerical_greeks` and `implied_volatility` also accept both engines. Solves retain
+the caller's bracket: explicit grids may reject endpoint volatility as unstable;
+digital quotes can have multiple roots. No bracket search or algorithm switch occurs.
+
+```python
+from kiyosi.pricing import FiniteDifferenceVanillaEngine, implied_volatility
+
+engine = FiniteDifferenceVanillaEngine(asset_step_count=800, time_step_count=400)
+result = engine.price_with_greeks(option, context, ["delta", "gamma", "vega"])
+sigma = implied_volatility(engine, option, context, result.price,
+                           lower_bound=0.1, upper_bound=0.3)
+assert abs(sigma - context.model_parameters.volatility) < 1e-7
+```
+
+Rust usage mirrors `CoxRossRubinsteinVanillaEngine` with
+`FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings { ..Default::default() })`.
+Both Python engines release the GIL for scalar pricing, analysis and solves using
+owned Rust inputs. Shared and distinct engines support concurrent calls; there is
+no core cancellation polling, so Python signals are handled after a call returns.
+
+The candidate FD tests migrate applicable Rannacher, mixed-Greek, scaled-discount,
+interpolation, large-grid and configuration regressions. They use the existing
+independent QuantLib European, refined American and digital reference profiles,
+plus grid-refinement checks through public APIs. Legacy suites remain separate.
 
 ## Checks
 

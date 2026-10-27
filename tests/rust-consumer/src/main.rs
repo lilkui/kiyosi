@@ -2,10 +2,11 @@ use kiyosi_core::{
     AmericanOption, AmericanOptionChanges, AnalyticDigitalEngine, AnalyticVanillaEngine,
     BinomialSettings, BjerksundStenslandVanillaEngine, BlackScholesMertonParameterChanges,
     BlackScholesMertonParameters, CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,
-    Date, DigitalOption, EuropeanOption, Greek, GreeksRequest, ImpliedVolatilitySettings,
-    NumericalShiftSettings, ObservationSchedule, OptionType, PricingContext, PricingContextChanges,
-    QuadratureDigitalEngine, QuadratureVanillaEngine, RateTermStructure, Result, TradingCalendar,
-    implied_volatility, numerical_greeks,
+    Date, DigitalOption, EuropeanOption, FiniteDifferenceDigitalEngine, FiniteDifferenceScheme,
+    FiniteDifferenceSettings, FiniteDifferenceVanillaEngine, Greek, GreeksRequest,
+    ImpliedVolatilitySettings, NumericalShiftSettings, ObservationSchedule, OptionType,
+    PricingContext, PricingContextChanges, QuadratureDigitalEngine, QuadratureVanillaEngine,
+    RateTermStructure, Result, TradingCalendar, implied_volatility, numerical_greeks,
 };
 
 fn main() -> Result<()> {
@@ -174,5 +175,29 @@ fn main() -> Result<()> {
             .abs()
             < 1e-7
     );
+    let fd = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        scheme: FiniteDifferenceScheme::CrankNicolson,
+        ..Default::default()
+    })?;
+    let result =
+        fd.price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())?;
+    assert!((result.price() - price).abs() < 0.002);
+    assert!(result.require(Greek::Delta)? > 0.0);
+    assert!((fd.price(&american, &context)? - price).abs() < 0.004);
+    let digital_fd = FiniteDifferenceDigitalEngine::default();
+    assert!(
+        (digital_fd.price(&digital, &context)?
+            - AnalyticDigitalEngine.price(&digital, &context)?)
+        .abs()
+            < 0.001
+    );
+    let scalar = numerical_greeks(
+        &fd,
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Vega]),
+        Default::default(),
+    )?;
+    assert!((scalar.require(Greek::Vega)? - result.require(Greek::Vega)?).abs() < 1e-9);
     Ok(())
 }

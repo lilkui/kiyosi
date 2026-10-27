@@ -34,6 +34,7 @@ class PackageTests(unittest.TestCase):
                     "OptionType",
                     "BusinessDayConvention",
                     "Greek",
+                    "FiniteDifferenceScheme",
                 ):
                     self.assertIn(name, declarations)
                     self.assertIs(getattr(module, name), getattr(_native, name))

@@ -1,4 +1,4 @@
-"""Synchronous analytic, American approximation, CRR and quadrature pricing."""
+"""Synchronous analytic, American approximation, CRR, quadrature and FD pricing."""
 
 from ._native import (
     AnalyticDigitalEngine,
@@ -6,6 +6,9 @@ from ._native import (
     BjerksundStenslandVanillaEngine,
     CoxRossRubinsteinDigitalEngine,
     CoxRossRubinsteinVanillaEngine,
+    FiniteDifferenceDigitalEngine,
+    FiniteDifferenceScheme,
+    FiniteDifferenceVanillaEngine,
     PricingResult,
     QuadratureDigitalEngine,
     QuadratureVanillaEngine,
@@ -18,6 +21,9 @@ __all__ = [
     "BjerksundStenslandVanillaEngine",
     "CoxRossRubinsteinDigitalEngine",
     "CoxRossRubinsteinVanillaEngine",
+    "FiniteDifferenceDigitalEngine",
+    "FiniteDifferenceScheme",
+    "FiniteDifferenceVanillaEngine",
     "PricingResult",
     "QuadratureDigitalEngine",
     "QuadratureVanillaEngine",

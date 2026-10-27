@@ -345,6 +345,78 @@ class CoxRossRubinsteinDigitalEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
+FiniteDifferenceScheme: TypeAlias = Literal[
+    "explicit_euler", "implicit_euler", "crank_nicolson"
+]
+
+class FiniteDifferenceVanillaEngine:
+    def __init__(
+        self,
+        *,
+        asset_step_count: int = ...,
+        time_step_count: int = ...,
+        scheme: FiniteDifferenceScheme = ...,
+        asset_upper_boundary: float | None = None,
+    ) -> None: ...
+    @property
+    def asset_step_count(self) -> int: ...
+    @property
+    def time_step_count(self) -> int: ...
+    @property
+    def scheme(self) -> FiniteDifferenceScheme: ...
+    @property
+    def asset_upper_boundary(self) -> float | None: ...
+    def price(
+        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: EuropeanOption | AmericanOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
+class FiniteDifferenceDigitalEngine:
+    def __init__(
+        self,
+        *,
+        asset_step_count: int = ...,
+        time_step_count: int = ...,
+        scheme: FiniteDifferenceScheme = ...,
+        asset_upper_boundary: float | None = None,
+    ) -> None: ...
+    @property
+    def asset_step_count(self) -> int: ...
+    @property
+    def time_step_count(self) -> int: ...
+    @property
+    def scheme(self) -> FiniteDifferenceScheme: ...
+    @property
+    def asset_upper_boundary(self) -> float | None: ...
+    def price(
+        self,
+        instrument: CashOrNothingOption | AssetOrNothingOption,
+        context: PricingContext,
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: CashOrNothingOption | AssetOrNothingOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
 class QuadratureVanillaEngine:
     def __init__(self) -> None: ...
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float: ...
@@ -437,7 +509,8 @@ def implied_volatility(
 def implied_volatility(
     engine: AnalyticDigitalEngine
     | CoxRossRubinsteinDigitalEngine
-    | QuadratureDigitalEngine,
+    | QuadratureDigitalEngine
+    | FiniteDifferenceDigitalEngine,
     instrument: CashOrNothingOption | AssetOrNothingOption,
     context: PricingContext,
     observed_price: float,
@@ -463,7 +536,7 @@ def implied_volatility(
 ) -> float: ...
 @overload
 def implied_volatility(
-    engine: CoxRossRubinsteinVanillaEngine,
+    engine: CoxRossRubinsteinVanillaEngine | FiniteDifferenceVanillaEngine,
     instrument: EuropeanOption | AmericanOption,
     context: PricingContext,
     observed_price: float,
