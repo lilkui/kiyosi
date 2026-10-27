@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from datetime import date, datetime
 from enum import IntEnum
 from typing import Literal, Never, Self
@@ -13,6 +14,8 @@ class ErrorCategory(IntEnum):
     INVALID_DATE = 7
     INVALID_TIME_RANGE = 8
     INVALID_RESULT = 9
+    INVALID_PARAMETER = 12
+    UNSUPPORTED_OPERATION = 19
 
 class KiyosiError(Exception):
     category: ErrorCategory
@@ -35,14 +38,56 @@ class EuropeanOption:
     @property
     def expiry_date(self) -> date: ...
 
+class RateTermStructure:
+    def __init__(
+        self,
+        *,
+        reference_time: date | datetime,
+        times: Iterable[date | datetime],
+        factors: Iterable[float],
+    ) -> None: ...
+    @staticmethod
+    def flat(
+        rate: float, *, reference_time: date | datetime | None = None
+    ) -> RateTermStructure: ...
+    @property
+    def is_flat(self) -> bool: ...
+    @property
+    def reference_time(self) -> datetime | None: ...
+    @property
+    def max_time(self) -> datetime | None: ...
+    @property
+    def nodes(self) -> list[datetime]: ...
+    @property
+    def factors(self) -> list[float]: ...
+    def factor(self, start: date | datetime, end: date | datetime) -> float: ...
+    def log_factor(self, start: date | datetime, end: date | datetime) -> float: ...
+    def forward_rate(self, time: date | datetime) -> float: ...
+    def shifted(self, shift: float) -> RateTermStructure: ...
+
 class BlackScholesMertonParameters:
     def __init__(
-        self, *, risk_free_rate: float, dividend_yield: float, volatility: float
+        self,
+        *,
+        risk_free_rate: float | RateTermStructure,
+        dividend_yield: float | RateTermStructure,
+        volatility: float,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        risk_free_rate: float | RateTermStructure = ...,
+        dividend_yield: float | RateTermStructure = ...,
+        volatility: float = ...,
+    ) -> BlackScholesMertonParameters: ...
     @property
-    def risk_free_rate(self) -> float: ...
+    def risk_free_rate(self) -> float | RateTermStructure: ...
     @property
-    def dividend_yield(self) -> float: ...
+    def dividend_yield(self) -> float | RateTermStructure: ...
+    @property
+    def risk_free_curve(self) -> RateTermStructure: ...
+    @property
+    def dividend_curve(self) -> RateTermStructure: ...
     @property
     def volatility(self) -> float: ...
 
@@ -62,6 +107,14 @@ class PricingContext:
         valuation_time: date | datetime,
         calendar: TradingCalendar = ...,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        model_parameters: BlackScholesMertonParameters = ...,
+        spot_price: float = ...,
+        valuation_time: date | datetime = ...,
+        calendar: TradingCalendar = ...,
+    ) -> PricingContext: ...
     @property
     def model_parameters(self) -> BlackScholesMertonParameters: ...
     @property

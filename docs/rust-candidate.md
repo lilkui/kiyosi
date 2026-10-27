@@ -1,9 +1,10 @@
-# Rust European analytic candidate
+# Rust market and European analytic candidate
 
-Ticket 01 adds an isolated candidate for European call/put prices with flat BSM
-parameters. The root `pyproject.toml`, CMake delivery, and legacy Python package
-remain usable. The candidate also installs as `kiyosi`: use separate virtual
-environments or processes. There is no runtime implementation selector.
+Tickets 01–02 provide an isolated candidate for European call/put prices with
+flat BSM rates or configured risk-free and dividend term structures. The root
+`pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
+candidate also installs as `kiyosi`: use separate virtual environments or
+processes. There is no runtime implementation selector.
 
 The workspace version in `Cargo.toml` supplies both crates and Python's
 `__version__` and wheel metadata. It currently matches the legacy version.
@@ -16,8 +17,10 @@ Requires Rust 1.85 or newer. A downstream crate depends on
 `kiyosi-core = { path = "/path/to/kiyosi/rust/core" }`.
 
 ```rust
-use kiyosi_core::{AnalyticVanillaEngine, BlackScholesMertonParameters, Date,
-                  EuropeanOption, OptionType, PricingContext};
+use kiyosi_core::{
+    AnalyticVanillaEngine, BlackScholesMertonParameters, Date, EuropeanOption, OptionType,
+    PricingContext,
+};
 
 fn main() -> kiyosi_core::Result<()> {
     let start = Date::new(2025, 1, 1)?;
@@ -43,10 +46,77 @@ must be finite and may be negative. Constructors validate before returning a
 value. Accessors borrow or copy from owned data. `PricingContext::new` uses
 `TradingCalendar::default()` (weekdays, annualization 252); the Python default is
 derived from the same core value. This slice exposes only that calendar identity
-and annualization property. Calendar operations, other calendars, term structures,
-Greeks, implied volatility, and other instruments/engines arrive in later tickets.
+and annualization property. Calendar operations, other calendars, Greeks, implied
+volatility, and other instruments/engines arrive in later tickets.
 The engine accepts only `EuropeanOption`: unsupported instrument types are
 excluded by Rust's signature and Python's native argument conversion.
+
+## Term structures and replacement
+
+`RateTermStructure::flat(rate, reference)` creates a finite continuous annual
+rate. `None` covers the full supported timestamp range; `Some(reference)` sets an
+inclusive lower bound with no upper bound. `RateTermStructure::new(reference,
+nodes, factors)` requires equally sized, nonempty arrays, strictly increasing
+nodes after the reference, and positive finite factors. An implicit factor of one
+at the reference anchors log-linear interpolation. Factors may increase when
+rates are negative. Node curves have inclusive coverage from reference through
+last node and never extrapolate.
+
+`factor(start, end)` and `log_factor(start, end)` require ordered, covered
+intervals. Equal endpoints return one and zero. Underflow of a factor to zero is
+allowed; non-finite query results return `InvalidResult`. `forward_rate(time)`
+uses the right-hand interval at knots and the left-hand interval at the last node.
+`shifted(shift)` adds a finite parallel continuous-rate spread and returns an owning
+curve with the same coverage. `nodes()` borrows stable storage for the curve's
+lifetime; `factors()` returns an owned vector including shifts. As in the legacy
+API, shifted factors can underflow or overflow even when forward rates remain
+finite; interval queries still validate their numerical results.
+
+Both model rate arguments accept `f64` or `RateTermStructure` independently.
+`risk_free_curve()` and `dividend_curve()` borrow the configured curves.
+The Rust scalar accessors `risk_free_rate()` and `dividend_yield()` now return
+`Result<f64>`: a node curve returns `UnsupportedOperation`, even when its nodes
+describe a constant rate. Python keeps its existing scalar-or-curve properties;
+explicit flat curves return a scalar from these properties and an owning curve
+from the `*_curve` properties.
+
+```rust
+use kiyosi_core::{
+    BlackScholesMertonParameterChanges, BlackScholesMertonParameters, Date, PricingContext,
+    PricingContextChanges, RateTermStructure,
+};
+fn main() -> kiyosi_core::Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = Date::new(2026, 1, 1)?.start_of_day();
+    let curve = RateTermStructure::new(start, vec![end], vec![(-0.05_f64).exp()])?;
+    let model = BlackScholesMertonParameters::new(curve, 0.02, 0.2)?;
+    let bumped = model.replace(BlackScholesMertonParameterChanges {
+        risk_free_rate: Some(model.risk_free_curve().shifted(0.01)?.into()),
+        ..Default::default()
+    })?;
+    let context = PricingContext::new(model, 100.0, start)?;
+    let updated = context.replace(PricingContextChanges {
+        model_parameters: Some(bumped),
+        spot_price: Some(105.0),
+        ..Default::default()
+    })?;
+    assert_eq!(context.spot_price(), 100.0);
+    assert_eq!(updated.spot_price(), 105.0);
+    Ok(())
+}
+```
+
+`Rate::Flat` and `Rate::Curve` support mixed rate replacements; `From<f64>` and
+`From<RateTermStructure>` let callers use `.into()`. Absent change fields retain
+their values. Model replacement reuses constructor validation; context replacement
+reuses context validation, including spot and valuation coverage in both curves.
+All replacements return new owned values, and failures leave originals intact.
+A model need not have overlapping curve coverage; context creation requires a
+covered valuation. Pricing separately validates contract life and coverage through
+expiry in both curves, including dated flats. Unresolvable knots after conversion
+to floating-point pricing time return `InvalidResult`; timestamp queries still
+preserve microsecond intervals by subtracting timestamps before conversion.
+The analytic engine consumes both integrated curve rates over valuation to expiry.
 
 ## Python candidate installation and usage
 
@@ -95,6 +165,31 @@ All exposed properties are read-only; returned model parameters, calendar and
 date/time values are owned and remain valid after their source is released.
 The installed package includes `py.typed` and native API stubs.
 
+Python exposes the same curve operations and supports date/datetime iterables for
+nodes and `numbers.Real` iterables for factors. Iterables are consumed and copied;
+returned node/factor lists and curves own their data. Dates mean midnight UTC;
+datetime normalization uses the same strict rules as valuation time. For example:
+
+```python
+from datetime import date
+from kiyosi.market import RateTermStructure
+
+curve = RateTermStructure(
+    reference_time=date(2025, 1, 1),
+    times=[date(2025, 6, 30), date(2026, 1, 1)],
+    factors=[0.99, 0.95],
+)
+curved_model = model.replace(risk_free_rate=curve)
+curved_context = context.replace(model_parameters=curved_model, spot_price=105)
+assert context.spot_price == 100
+price = AnalyticVanillaEngine().price(option, curved_context)
+```
+
+Python `.replace()` methods accept only named fields from their constructors.
+Omitted fields retain their values; explicit `None` is rejected. Numeric booleans,
+strings, overflow and invalid datetime representations use native conversion
+exceptions before core domain validation. All properties remain read-only.
+
 ## Errors and concurrency
 
 | Failure | Rust | Python |
@@ -106,7 +201,10 @@ The installed package includes `py.typed` and native API stubs.
 
 Categories implemented here are `INVALID_STRIKE` (2), `INVALID_VOLATILITY` (3),
 `INVALID_RISK_FREE_RATE` (4), `INVALID_DIVIDEND_YIELD` (5), `INVALID_SPOT_PRICE` (6),
-`INVALID_DATE` (7), `INVALID_TIME_RANGE` (8), and `INVALID_RESULT` (9).
+`INVALID_DATE` (7), `INVALID_TIME_RANGE` (8), `INVALID_RESULT` (9), `INVALID_PARAMETER` (12),
+and `UNSUPPORTED_OPERATION` (19). Malformed curves and non-finite flat rates or
+shifts use `INVALID_PARAMETER`; scalar model rate validation retains its
+field-specific categories.
 These identifiers and numbers match the legacy categories. Messages are diagnostic
 text and must not be parsed. Resource failures and panics are not domain rejections.
 
@@ -147,9 +245,16 @@ has its own workspace and uses only the public crate API.
 Install the unchanged root `.[test]` into `.venv/legacy` separately, then run:
 
 ```sh
-.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p test_european.py
+.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_european.py'
+.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_market.py'
 .venv/legacy/bin/python -m unittest discover -s tests/python -p 'test_*.py'
 ```
+
+The shared market suite migrates the applicable legacy curve and replacement
+contracts, adds independent live QuantLib curve pricing and parity, and checks
+coverage timing, representation errors, ownership and concurrent pricing. The
+Rust public API tests cover equivalent market scenarios. Later-ticket Greeks and
+other product/engine cases remain in the legacy suite.
 
 The shared European suite covers the same domain and representation cases in
 both processes. It reuses all 20 existing European scenarios and the independent
@@ -162,4 +267,4 @@ missing reference dependencies fail discovery.
 
 Windows and all CPython versions require separate build/test runs; a local Linux
 run does not establish that delivery matrix. No release or package publication
-is part of ticket 01.
+is part of these tickets.

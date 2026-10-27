@@ -12,11 +12,13 @@ pub enum ErrorCategory {
     InvalidDate = 7,
     InvalidTimeRange = 8,
     InvalidResult = 9,
+    InvalidParameter = 12,
+    UnsupportedOperation = 19,
 }
 
 impl ErrorCategory {
     /// Categories implemented by this migration slice.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 10] = [
         Self::InvalidStrike,
         Self::InvalidVolatility,
         Self::InvalidRiskFreeRate,
@@ -25,6 +27,8 @@ impl ErrorCategory {
         Self::InvalidDate,
         Self::InvalidTimeRange,
         Self::InvalidResult,
+        Self::InvalidParameter,
+        Self::UnsupportedOperation,
     ];
 
     /// Stable category identifier.
@@ -38,6 +42,8 @@ impl ErrorCategory {
             Self::InvalidDate => "INVALID_DATE",
             Self::InvalidTimeRange => "INVALID_TIME_RANGE",
             Self::InvalidResult => "INVALID_RESULT",
+            Self::InvalidParameter => "INVALID_PARAMETER",
+            Self::UnsupportedOperation => "UNSUPPORTED_OPERATION",
         }
     }
 }

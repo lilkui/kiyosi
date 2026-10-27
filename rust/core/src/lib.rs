@@ -24,12 +24,17 @@ mod error;
 mod instruments;
 mod market;
 mod pricing;
+mod term_structure;
 mod time;
 
 pub use error::{Error, ErrorCategory, Result};
 pub use instruments::{EuropeanOption, OptionType};
-pub use market::{BlackScholesMertonParameters, PricingContext, TradingCalendar};
+pub use market::{
+    BlackScholesMertonParameterChanges, BlackScholesMertonParameters, PricingContext,
+    PricingContextChanges, Rate, TradingCalendar,
+};
 pub use pricing::AnalyticVanillaEngine;
+pub use term_structure::RateTermStructure;
 pub use time::{Date, Timestamp};
 
 /// Package version, shared by the candidate Python extension.

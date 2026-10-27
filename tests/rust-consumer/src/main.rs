@@ -1,6 +1,6 @@
 use kiyosi_core::{
-    AnalyticVanillaEngine, BlackScholesMertonParameters, Date, EuropeanOption, OptionType,
-    PricingContext, Result,
+    AnalyticVanillaEngine, BlackScholesMertonParameterChanges, BlackScholesMertonParameters, Date,
+    EuropeanOption, OptionType, PricingContext, PricingContextChanges, RateTermStructure, Result,
 };
 
 fn main() -> Result<()> {
@@ -11,5 +11,22 @@ fn main() -> Result<()> {
     let context = PricingContext::new(model, 100.0, start.into())?;
     let price = AnalyticVanillaEngine.price(&option, &context)?;
     assert!((price - 9.227005508154036).abs() < 1e-12);
+    let curve = RateTermStructure::new(start.into(), vec![end.into()], vec![(-0.05_f64).exp()])?;
+    let curved = BlackScholesMertonParameters::new(curve, 0.02, 0.2)?;
+    let curved = context.replace(PricingContextChanges {
+        model_parameters: Some(curved),
+        ..Default::default()
+    })?;
+    assert!((AnalyticVanillaEngine.price(&option, &curved)? - price).abs() < 1e-12);
+    assert!(
+        curved
+            .model_parameters()
+            .replace(BlackScholesMertonParameterChanges {
+                volatility: Some(0.0),
+                ..Default::default()
+            })
+            .is_err()
+    );
+    assert_eq!(curved.model_parameters().volatility(), 0.2);
     Ok(())
 }

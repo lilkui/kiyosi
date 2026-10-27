@@ -47,6 +47,11 @@ impl AnalyticVanillaEngine {
                 "valuation must be within the contract life",
             ));
         }
+        let model = context.model_parameters();
+        model
+            .risk_free_curve()
+            .validate_horizon(valuation, expiry)?;
+        model.dividend_curve().validate_horizon(valuation, expiry)?;
         let spot = context.spot_price();
         let strike = option.strike();
         let sign = match option.option_type() {
@@ -57,7 +62,8 @@ impl AnalyticVanillaEngine {
         if time == 0.0 {
             return Ok((sign * (spot - strike)).max(0.0));
         }
-        let model = context.model_parameters();
+        let risk_log = model.risk_free_curve().log_factor(valuation, expiry)?;
+        let dividend_log = model.dividend_curve().log_factor(valuation, expiry)?;
         let volatility = model.volatility();
         let root_time = time.sqrt();
         let width = volatility * root_time;
@@ -73,7 +79,7 @@ impl AnalyticVanillaEngine {
         } else {
             spot.ln() - strike.ln()
         };
-        let forward = log_moneyness + (model.risk_free_rate() - model.dividend_yield()) * time;
+        let forward = log_moneyness + (dividend_log - risk_log);
         let standardized = if width == 0.0 {
             (forward / volatility) / root_time
         } else {
@@ -81,8 +87,8 @@ impl AnalyticVanillaEngine {
         };
         let d1 = standardized + 0.5 * width;
         let d2 = standardized - 0.5 * width;
-        let asset = weighted_cdf(spot, -model.dividend_yield() * time, sign * d1);
-        let cash = weighted_cdf(strike, -model.risk_free_rate() * time, sign * d2);
+        let asset = weighted_cdf(spot, dividend_log, sign * d1);
+        let cash = weighted_cdf(strike, risk_log, sign * d2);
         let mut value = sign * (asset - cash);
         let standardized = d1 - 0.5 * width;
         if width < 1e-5 && standardized.is_finite() && sign * standardized <= -10.0 {
@@ -97,7 +103,7 @@ impl AnalyticVanillaEngine {
                 sum += term;
                 correction -= f64::from(2 * order + 3) * term;
             }
-            value = (spot.ln() - model.dividend_yield() * time - 0.5 * standardized * width
+            value = (spot.ln() + dividend_log - 0.5 * standardized * width
                 + volatility.ln()
                 + root_time.ln()
                 - 0.5 * distance * distance
@@ -107,12 +113,11 @@ impl AnalyticVanillaEngine {
             .exp();
         } else if width < 1e-5 && standardized.abs() < 10.0 {
             let squared = standardized * standardized;
-            let time_value =
-                (spot.ln() - model.dividend_yield() * time + volatility.ln() + root_time.ln()
-                    - 0.5 * squared
-                    - 0.5 * (2.0 * PI).ln())
-                .exp()
-                    * (1.0 + (squared - 1.0) * width * width / 24.0);
+            let time_value = (spot.ln() + dividend_log + volatility.ln() + root_time.ln()
+                - 0.5 * squared
+                - 0.5 * (2.0 * PI).ln())
+            .exp()
+                * (1.0 + (squared - 1.0) * width * width / 24.0);
             value = sign * cash * (standardized * width).exp_m1() + time_value;
         }
         if !value.is_finite() {
