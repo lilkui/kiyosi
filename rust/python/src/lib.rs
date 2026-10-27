@@ -1,6 +1,7 @@
 //! Python representation adapters; all domain validation lives in kiyosi-core.
 
 use kiyosi_core as core;
+mod analytics;
 use pyo3::exceptions::{PyException, PyIndexError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDate, PyDateAccess, PyDateTime, PyDict, PyTimeAccess};
@@ -668,6 +669,28 @@ impl AnalyticVanillaEngine {
         Self
     }
 
+    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    fn price_with_greeks(
+        &self,
+        py: Python<'_>,
+        instrument: &EuropeanOption,
+        context: &PricingContext,
+        greeks: Option<&Bound<'_, PyAny>>,
+        settings: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<analytics::PricingResult> {
+        let request = analytics::request(greeks, settings)?;
+        let shifts = analytics::shifts(settings)?;
+        Ok(analytics::PricingResult(domain(
+            py,
+            core::AnalyticVanillaEngine.price_with_greeks(
+                &instrument.0,
+                &context.0,
+                request,
+                shifts,
+            ),
+        )?))
+    }
+
     fn price(
         &self,
         py: Python<'_>,
@@ -698,6 +721,13 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
             .call(("ErrorCategory", categories), Some(&kwargs))?,
     )?;
     module.add("KiyosiError", py.get_type::<KiyosiError>())?;
+    let names = core::Greek::ALL.map(|g| g.name());
+    module.add(
+        "Greek",
+        py.import("typing")?
+            .getattr("Literal")?
+            .get_item(pyo3::types::PyTuple::new(py, names)?)?,
+    )?;
     module.add_class::<EuropeanOption>()?;
     module.add_class::<BlackScholesMertonParameters>()?;
     module.add_class::<RateTermStructure>()?;
@@ -705,6 +735,8 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<ObservationSchedule>()?;
     module.add_class::<PricingContext>()?;
     module.add_class::<AnalyticVanillaEngine>()?;
+    module.add_class::<analytics::PricingResult>()?;
+    module.add_function(wrap_pyfunction!(analytics::implied_volatility, module)?)?;
     module.add_function(wrap_pyfunction!(weekdays_calendar, module)?)?;
     module.add_function(wrap_pyfunction!(all_days_calendar, module)?)?;
     module.add_function(wrap_pyfunction!(sse_calendar, module)?)?;

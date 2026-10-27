@@ -98,6 +98,26 @@ impl Timestamp {
     pub(crate) fn years_until(self, end: Self) -> f64 {
         (end.0 - self.0) as f64 / (365.0 * MICROS_PER_DAY as f64)
     }
+
+    pub(crate) fn micros_until(self, end: Self) -> i64 {
+        end.0 - self.0
+    }
+
+    pub(crate) fn add_micros(self, micros: i64) -> Result<Self> {
+        let value = self
+            .0
+            .checked_add(micros)
+            .ok_or(Error::new(ErrorCategory::InvalidDate, "timestamp overflow"))?;
+        let first = Date::new(-32767, 1, 1)?.start_of_day().0;
+        let last = Date::new(32767, 12, 31)?.start_of_day().0 + MICROS_PER_DAY - 1;
+        if value < first || value > last {
+            return Err(Error::new(
+                ErrorCategory::InvalidDate,
+                "timestamp outside supported range",
+            ));
+        }
+        Ok(Self(value))
+    }
 }
 
 impl From<Date> for Timestamp {

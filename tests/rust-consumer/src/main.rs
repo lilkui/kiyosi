@@ -1,7 +1,8 @@
 use kiyosi_core::{
     AnalyticVanillaEngine, BlackScholesMertonParameterChanges, BlackScholesMertonParameters, Date,
-    EuropeanOption, ObservationSchedule, OptionType, PricingContext, PricingContextChanges,
-    RateTermStructure, Result, TradingCalendar,
+    EuropeanOption, Greek, GreeksRequest, ImpliedVolatilitySettings, NumericalShiftSettings,
+    ObservationSchedule, OptionType, PricingContext, PricingContextChanges, RateTermStructure,
+    Result, TradingCalendar, implied_volatility, numerical_greeks,
 };
 
 fn main() -> Result<()> {
@@ -12,6 +13,33 @@ fn main() -> Result<()> {
     let context = PricingContext::new(model, 100.0, start.into())?;
     let price = AnalyticVanillaEngine.price(&option, &context)?;
     assert!((price - 9.227005508154036).abs() < 1e-12);
+    let greeks = AnalyticVanillaEngine.price_with_greeks(
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Delta, Greek::Vega]),
+        NumericalShiftSettings::default(),
+    )?;
+    assert!((greeks.require(Greek::Delta)? - 0.586851146134764).abs() < 1e-12);
+    assert!(!greeks.has(Greek::Gamma));
+    assert!(
+        (implied_volatility(
+            &AnalyticVanillaEngine,
+            &option,
+            &context,
+            price,
+            ImpliedVolatilitySettings::default()
+        )? - 0.2)
+            .abs()
+            < 1e-8
+    );
+    let numeric = numerical_greeks(
+        &AnalyticVanillaEngine,
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Vega]),
+        NumericalShiftSettings::default(),
+    )?;
+    assert!((numeric.require(Greek::Vega)? - greeks.require(Greek::Vega)?).abs() < 1e-7);
     let curve = RateTermStructure::new(start.into(), vec![end.into()], vec![(-0.05_f64).exp()])?;
     let curved = BlackScholesMertonParameters::new(curve, 0.02, 0.2)?;
     let curved = context.replace(PricingContextChanges {

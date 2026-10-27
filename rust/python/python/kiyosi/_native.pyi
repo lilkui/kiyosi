@@ -1,7 +1,7 @@
 from collections.abc import Iterable, Iterator
 from datetime import date, datetime
 from enum import IntEnum
-from typing import Literal, Never, Self
+from typing import Literal, Never, Self, TypeAlias
 
 __version__: str
 
@@ -17,6 +17,9 @@ class ErrorCategory(IntEnum):
     INVALID_SCHEDULE = 10
     INVALID_CALENDAR = 11
     INVALID_PARAMETER = 12
+    UNBRACKETED_VOLATILITY = 13
+    SOLVER_NON_CONVERGENCE = 14
+    SOLVER_NON_FINITE = 15
     UNSUPPORTED_OPERATION = 19
 
 class KiyosiError(Exception):
@@ -169,3 +172,67 @@ class PricingContext:
 class AnalyticVanillaEngine:
     def __init__(self) -> None: ...
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: EuropeanOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
+Greek: TypeAlias = Literal[
+    "delta",
+    "gamma",
+    "speed",
+    "theta",
+    "charm",
+    "color",
+    "vega",
+    "vanna",
+    "zomma",
+    "rho",
+]
+
+class PricingResult:
+    def __new__(cls, _token: Never, /) -> Self: ...
+    @property
+    def price(self) -> float: ...
+    @property
+    def delta(self) -> float | None: ...
+    @property
+    def gamma(self) -> float | None: ...
+    @property
+    def speed(self) -> float | None: ...
+    @property
+    def theta(self) -> float | None: ...
+    @property
+    def charm(self) -> float | None: ...
+    @property
+    def color(self) -> float | None: ...
+    @property
+    def vega(self) -> float | None: ...
+    @property
+    def vanna(self) -> float | None: ...
+    @property
+    def zomma(self) -> float | None: ...
+    @property
+    def rho(self) -> float | None: ...
+    def require(self, measure: Greek) -> float: ...
+
+def implied_volatility(
+    engine: AnalyticVanillaEngine,
+    instrument: EuropeanOption,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...

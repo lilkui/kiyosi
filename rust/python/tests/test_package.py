@@ -29,7 +29,12 @@ class PackageTests(unittest.TestCase):
         for module in (kiyosi, instruments, market, pricing):
             for name in module.__all__:
                 self.assertTrue(hasattr(module, name), name)
-                if name not in ("__version__", "OptionType", "BusinessDayConvention"):
+                if name not in (
+                    "__version__",
+                    "OptionType",
+                    "BusinessDayConvention",
+                    "Greek",
+                ):
                     self.assertIn(name, declarations)
                     self.assertIs(getattr(module, name), getattr(_native, name))
         for name, node in declarations.items():

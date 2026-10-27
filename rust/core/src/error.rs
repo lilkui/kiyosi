@@ -15,12 +15,15 @@ pub enum ErrorCategory {
     InvalidSchedule = 10,
     InvalidCalendar = 11,
     InvalidParameter = 12,
+    UnbracketedVolatility = 13,
+    SolverNonConvergence = 14,
+    SolverNonFinite = 15,
     UnsupportedOperation = 19,
 }
 
 impl ErrorCategory {
     /// Categories implemented by this migration slice.
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 15] = [
         Self::InvalidStrike,
         Self::InvalidVolatility,
         Self::InvalidRiskFreeRate,
@@ -32,6 +35,9 @@ impl ErrorCategory {
         Self::InvalidSchedule,
         Self::InvalidCalendar,
         Self::InvalidParameter,
+        Self::UnbracketedVolatility,
+        Self::SolverNonConvergence,
+        Self::SolverNonFinite,
         Self::UnsupportedOperation,
     ];
 
@@ -49,6 +55,9 @@ impl ErrorCategory {
             Self::InvalidSchedule => "INVALID_SCHEDULE",
             Self::InvalidCalendar => "INVALID_CALENDAR",
             Self::InvalidParameter => "INVALID_PARAMETER",
+            Self::UnbracketedVolatility => "UNBRACKETED_VOLATILITY",
+            Self::SolverNonConvergence => "SOLVER_NON_CONVERGENCE",
+            Self::SolverNonFinite => "SOLVER_NON_FINITE",
             Self::UnsupportedOperation => "UNSUPPORTED_OPERATION",
         }
     }

@@ -1,6 +1,6 @@
-# Rust calendars, market and European analytic candidate
+# Rust European pricing and analytics candidate
 
-Tickets 01–03 provide an isolated candidate for European call/put prices with
+Tickets 01–04 provide an isolated candidate for European call/put prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, trading
 calendars and observation schedules. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
@@ -46,10 +46,97 @@ Strike, spot, and volatility must be finite and strictly positive; both rates
 must be finite and may be negative. Constructors validate before returning a
 value. Accessors borrow or copy from owned data. `PricingContext::new` uses
 `TradingCalendar::default()` (weekdays, annualization 252); the Python default is
-derived from the same core value. Greeks, implied volatility, and other
-instruments/engines arrive in later tickets.
+derived from the same core value. Other instruments and engines arrive in later tickets.
 The engine accepts only `EuropeanOption`: unsupported instrument types are
 excluded by Rust's signature and Python's native argument conversion.
+
+## Greeks and implied volatility
+
+Rust `AnalyticVanillaEngine::price_with_greeks` accepts a `GreeksRequest` and
+`NumericalShiftSettings`. `GreeksRequest::new([Greek::Delta, Greek::Vega])`
+selects measures, ignoring duplicates; `GreeksRequest::all()` selects all ten.
+Empty requests return `InvalidParameter` before pricing. Every `PricingResult`
+owns a finite price and optional finite Greeks. `get` returns `Option<f64>`,
+`has` reports availability, and `require` returns `InvalidResult` for unavailable
+measures. `values()` borrows immutable storage for the result's lifetime.
+Unrequested or undefined measures are absent, including every Greek at expiry.
+A zero derivative is an available value.
+
+The analytic engine computes all ten Greeks directly. Delta, gamma and speed
+are first, second and third spot derivatives. Vega, vanna and zomma are changes
+in price, delta and gamma per volatility percentage point (0.01); rho is price
+change per interest-rate percentage point, shifting the full risk-free curve in
+parallel. Theta, charm and color are changes in price, delta and gamma per
+calendar day of forward valuation time. Curve references and nodes stay fixed;
+time derivatives use right-hand instantaneous rates at knots. Requested
+non-finite derivatives fail the operation; unrequested derivatives cannot spoil
+an otherwise finite result. Tail density weights are applied in log space.
+
+The core exposes `numerical_greeks` for scalar implementations of
+`EuropeanPricingEngine`. Absolute bump defaults are spot 0.01, volatility
+0.0001, rate 0.0001 and time one calendar day. All must be positive (and numeric
+bumps finite), even when the analytic engine does not use them. Numerical
+stencils use representable symmetric spacing; collapsed, asymmetric or
+nonpositive stencils leave affected measures absent. Time stencils stay within
+contract life, curve coverage and neighboring knots, using one-sided differences
+at boundaries. Feasible bumped pricing failures fail the whole operation.
+Finite bumps introduce truncation and rounding error; compare step sizes,
+especially near expiry. Python exposes the same shift validation contract;
+the analytic engine always returns analytic derivatives.
+
+```rust
+use kiyosi_core::{AnalyticVanillaEngine, BlackScholesMertonParameters, Date,
+    EuropeanOption, OptionType, PricingContext, Greek, GreeksRequest,
+    NumericalShiftSettings, ImpliedVolatilitySettings, implied_volatility};
+fn main() -> kiyosi_core::Result<()> {
+    let start = Date::new(2025, 1, 1)?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
+    let result = AnalyticVanillaEngine.price_with_greeks(&option, &context,
+        GreeksRequest::new([Greek::Delta, Greek::Vega]), NumericalShiftSettings::default())?;
+    assert!(result.require(Greek::Delta)? > 0.0);
+    let sigma = implied_volatility(&AnalyticVanillaEngine, &option, &context,
+        result.price(), ImpliedVolatilitySettings::default())?;
+    assert!((sigma - 0.2).abs() < 1e-8);
+    Ok(())
+}
+```
+
+`implied_volatility` reuses the scalar engine boundary and safeguarded Brent
+interpolation with bisection fallback. Defaults are bounds `[0.0001, 4.0]`,
+absolute price tolerance `1e-8`, absolute volatility-interval tolerance `1e-8`
+and 100 iterations, excluding endpoint evaluations. Either tolerance can stop
+iteration. Bounds must be finite, positive and ordered, tolerances finite and
+positive, and the iteration limit positive. Observed prices must be finite;
+finite unattainable quotes, including negative prices, return
+`UnbracketedVolatility`. Settings and quote validation precede endpoint pricing;
+pricing validates the contract and curve horizon before expiry returns
+`UnsupportedOperation` because volatility is unidentifiable. Endpoint matches
+return their bounds. An exhausted solve returns `SolverNonConvergence`;
+non-finite scalar prices or residuals return `SolverNonFinite`. Engine domain
+failures propagate, including `InvalidResult` from analytic pricing. Analysis
+and solving preserve the original market and engine on success and failure.
+
+Python exports the `Greek` Literal choice alias and owning `PricingResult` at
+package level. Results have read-only Greek properties and `require(name)`.
+Request one lowercase name, an iterable of names, or `all_greeks=True`,
+exclusively. Missing requests, wrong protocols and conflicting forms raise
+native `TypeError`; unknown names raise `ValueError`; empty iterables reach core
+validation. Numeric controls use the strict real-number protocol below.
+`time_shift_days` and `max_iterations` use the integer index protocol, excluding
+booleans and floats, with native `OverflowError` outside signed 32-bit range.
+Representation errors precede domain validation. Defaults come from Rust.
+
+```python
+from kiyosi.pricing import AnalyticVanillaEngine, implied_volatility
+
+engine = AnalyticVanillaEngine()
+result = engine.price_with_greeks(option, context, ["delta", "vega"])
+assert result.gamma is None
+sigma = implied_volatility(engine, option, context, result.price)
+assert abs(sigma - context.model_parameters.volatility) < 1e-8
+```
 
 ## Term structures and replacement
 
@@ -286,7 +373,9 @@ Categories implemented here are `INVALID_STRIKE` (2), `INVALID_VOLATILITY` (3),
 `INVALID_RISK_FREE_RATE` (4), `INVALID_DIVIDEND_YIELD` (5), `INVALID_SPOT_PRICE` (6),
 `INVALID_DATE` (7), `INVALID_TIME_RANGE` (8), `INVALID_RESULT` (9),
 `INVALID_SCHEDULE` (10), `INVALID_CALENDAR` (11), `INVALID_PARAMETER` (12),
-and `UNSUPPORTED_OPERATION` (19). Malformed curves and non-finite flat rates or
+`UNBRACKETED_VOLATILITY` (13), `SOLVER_NON_CONVERGENCE` (14),
+`SOLVER_NON_FINITE` (15), and `UNSUPPORTED_OPERATION` (19).
+Malformed curves and non-finite flat rates or
 shifts use `INVALID_PARAMETER`; scalar model rate validation retains its
 field-specific categories.
 These identifiers and numbers match the legacy categories. Messages are diagnostic
@@ -295,8 +384,10 @@ text and must not be parsed. Resource failures and panics are not domain rejecti
 The crate-level rustdoc states the default concurrency contract: all current
 values are `Send + Sync`, distinct and shared instances permit concurrent reads
 and pricing, and Rust mutation requires exclusive access. Python wrappers are
-immutable. The short scalar analytic formula retains the GIL, as in the legacy
-binding. Calls are synchronous; there is no cancellation API or core signal
+immutable. Short analytic prices and Greek formulas retain the GIL, as in the
+legacy binding. Solves release it around core work with owned Rust inputs and
+no Python callbacks or Python state. User-supplied Rust engines must uphold
+their own concurrency contract. Calls are synchronous; there is no cancellation API or core signal
 polling. Python signal handling (including `KeyboardInterrupt` on the main thread)
 waits until control returns to Python and is not mapped to `KiyosiError`.
 
@@ -332,14 +423,24 @@ Install the unchanged root `.[test]` into `.venv/legacy` separately, then run:
 .venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_european.py'
 .venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_market.py'
 .venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_calendars.py'
+.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_analytics.py'
 .venv/legacy/bin/python -m unittest discover -s tests/python -p 'test_*.py'
 ```
 
 The shared market suite migrates the applicable legacy curve and replacement
 contracts, adds independent live QuantLib curve pricing and parity, and checks
 coverage timing, representation errors, ownership and concurrent pricing. The
-Rust public API tests cover equivalent market scenarios. Later-ticket Greeks and
-other product/engine cases remain in the legacy suite.
+Rust public API tests cover equivalent market scenarios. Other product/engine
+cases remain in the legacy suite.
+
+The shared analytics suite checks all 20 European scenarios against live QuantLib
+Greeks and scalar price differences at two spot bump sizes, using existing error
+budgets and independently checked oracle uncertainty. It covers volatility
+recovery, mixed requests, availability, validation order, strict representations,
+expiry, curve knots, ownership and concurrent solves. Rust public API tests cover
+equivalent scenarios plus reusable numerical analysis, collapsed and infeasible
+stencils, feasible bump failures, non-finite solver evaluations and
+high-precision extreme-scale derivative regressions.
 
 The shared calendar suite reuses existing custom-calendar contracts and checks
 counting, adjustment, schedule endpoints, month clamping, large offsets,
