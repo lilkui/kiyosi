@@ -149,8 +149,8 @@ impl PricingResult {
 #[pyo3(signature = (engine, instrument, context, observed_price, **settings))]
 pub(crate) fn implied_volatility(
     py: Python<'_>,
-    engine: &AnalyticVanillaEngine,
-    instrument: &EuropeanOption,
+    engine: &Bound<'_, PyAny>,
+    instrument: &Bound<'_, PyAny>,
     context: &PricingContext,
     observed_price: &Bound<'_, PyAny>,
     settings: Option<&Bound<'_, PyDict>>,
@@ -174,9 +174,25 @@ pub(crate) fn implied_volatility(
         parameter_tolerance: real_setting(settings, "parameter_tolerance", d.parameter_tolerance)?,
         max_iterations: integer_setting(settings, "max_iterations", d.max_iterations)?,
     };
-    let _ = engine;
-    let option = instrument.0.clone();
     let context = context.0.clone();
+    if engine.is_instance_of::<digital::AnalyticDigitalEngine>() {
+        let instrument = instrument.extract::<digital::DigitalInstrument<'_>>()?;
+        let option = instrument.contract().clone();
+        return domain(
+            py,
+            py.detach(|| {
+                core::implied_volatility(
+                    &core::AnalyticDigitalEngine,
+                    &option,
+                    &context,
+                    observed,
+                    controls,
+                )
+            }),
+        );
+    }
+    engine.extract::<PyRef<'_, AnalyticVanillaEngine>>()?;
+    let option = instrument.extract::<PyRef<'_, EuropeanOption>>()?.0.clone();
     domain(
         py,
         py.detach(|| {

@@ -1,4 +1,4 @@
-//! Calendars, observation schedules and European Black–Scholes–Merton pricing,
+//! Calendars, observation schedules and European vanilla and digital BSM pricing,
 //! independent of Python.
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared
@@ -33,6 +33,7 @@
 
 mod analytics;
 mod calendar;
+mod digital;
 mod error;
 mod implied;
 mod instruments;
@@ -47,9 +48,12 @@ pub use analytics::{
     EuropeanPricingEngine, Greek, GreeksRequest, NumericalShiftSettings, PricingResult,
 };
 pub use calendar::{BusinessDayConvention, TradingCalendar};
+pub use digital::AnalyticDigitalEngine;
 pub use error::{Error, ErrorCategory, Result};
 pub use implied::{ImpliedVolatilitySettings, implied_volatility};
-pub use instruments::{EuropeanOption, OptionType};
+pub use instruments::{
+    DigitalOption, DigitalOptionChanges, EuropeanContract, EuropeanOption, OptionType,
+};
 pub use market::{
     BlackScholesMertonParameterChanges, BlackScholesMertonParameters, PricingContext,
     PricingContextChanges, Rate,

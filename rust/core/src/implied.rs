@@ -1,5 +1,5 @@
 use crate::{
-    BlackScholesMertonParameterChanges, Error, ErrorCategory, EuropeanOption,
+    BlackScholesMertonParameterChanges, Error, ErrorCategory, EuropeanContract,
     EuropeanPricingEngine, PricingContext, PricingContextChanges, Result,
 };
 
@@ -27,9 +27,34 @@ impl Default for ImpliedVolatilitySettings {
 /// Safeguarded Brent solve, retaining the caller's bracket. Endpoint pricing validates
 /// the contract before expiry identifiability checks. Inputs remain unchanged on failure.
 /// Pricing errors propagate; non-finite scalar prices/residuals use SolverNonFinite.
-pub fn implied_volatility<E: EuropeanPricingEngine + ?Sized>(
+/// Digital prices need not be monotone in volatility; the supplied bracket may select
+/// one of several roots or fail to bracket a quote attainable elsewhere.
+///
+/// # Errors
+/// Returns [`ErrorCategory::InvalidParameter`] for invalid settings or non-finite quotes,
+/// [`ErrorCategory::UnsupportedOperation`] at expiry, [`ErrorCategory::UnbracketedVolatility`]
+/// for same-sign endpoint residuals, [`ErrorCategory::SolverNonConvergence`] on exhaustion,
+/// or [`ErrorCategory::SolverNonFinite`] for non-finite evaluations. Engine errors propagate.
+///
+/// # Examples
+/// ```
+/// use kiyosi_core::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
+///     DigitalOption, OptionType, PricingContext, ImpliedVolatilitySettings, implied_volatility};
+/// # fn main() -> kiyosi_core::Result<()> {
+/// let start = Date::new(2025, 1, 1)?;
+/// let option = DigitalOption::asset_or_nothing(OptionType::Call, 100.0,
+///     start, Date::new(2026, 1, 1)?)?;
+/// let context = PricingContext::new(
+///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
+/// let quote = AnalyticDigitalEngine.price(&option, &context)?;
+/// let sigma = implied_volatility(&AnalyticDigitalEngine, &option, &context, quote,
+///     ImpliedVolatilitySettings { lower_bound: 0.1, upper_bound: 0.22, ..Default::default() })?;
+/// assert!((sigma - 0.2).abs() < 1e-7);
+/// # Ok(()) }
+/// ```
+pub fn implied_volatility<I: EuropeanContract, E: EuropeanPricingEngine<I> + ?Sized>(
     engine: &E,
-    option: &EuropeanOption,
+    option: &I,
     context: &PricingContext,
     observed_price: f64,
     settings: ImpliedVolatilitySettings,

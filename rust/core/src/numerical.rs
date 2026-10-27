@@ -1,5 +1,5 @@
 use crate::{
-    BlackScholesMertonParameterChanges, Error, ErrorCategory, EuropeanOption,
+    BlackScholesMertonParameterChanges, Error, ErrorCategory, EuropeanContract,
     EuropeanPricingEngine, Greek, GreeksRequest, NumericalShiftSettings, PricingContext,
     PricingContextChanges, PricingResult, Result,
 };
@@ -25,17 +25,53 @@ fn symmetric_shift(value: f64, requested: f64) -> f64 {
 /// Time rolls stay within contract life, curve coverage and neighboring knots, with
 /// right-hand differences at knots. Feasible bumped pricing errors fail the request.
 /// Vega/vanna/zomma/rho are per percentage point, time Greeks per calendar day.
-pub fn numerical_greeks<E: EuropeanPricingEngine + ?Sized>(
+/// Both [`crate::EuropeanOption`] and [`crate::DigitalOption`] expose their inclusive
+/// life through [`EuropeanContract`]; engine/instrument support remains type checked.
+///
+/// # Errors
+/// Returns [`ErrorCategory::InvalidParameter`] for empty requests or invalid bumps,
+/// [`ErrorCategory::InvalidResult`] for non-finite prices or derivatives, and
+/// propagates engine and bumped-context errors. Inputs remain unchanged.
+///
+/// # Examples
+/// ```
+/// use kiyosi_core::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
+///     DigitalOption, OptionType, PricingContext, Greek, GreeksRequest, numerical_greeks};
+/// # fn main() -> kiyosi_core::Result<()> {
+/// let start = Date::new(2025, 1, 1)?;
+/// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
+///     start, Date::new(2026, 1, 1)?)?;
+/// let context = PricingContext::new(
+///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
+/// let result = numerical_greeks(&AnalyticDigitalEngine, &option, &context,
+///     GreeksRequest::new([Greek::Delta]), Default::default())?;
+/// assert!(result.require(Greek::Delta)? > 0.0);
+/// # Ok(()) }
+/// ```
+pub fn numerical_greeks<I: EuropeanContract, E: EuropeanPricingEngine<I> + ?Sized>(
     engine: &E,
-    option: &EuropeanOption,
+    option: &I,
     context: &PricingContext,
     request: GreeksRequest,
     settings: NumericalShiftSettings,
 ) -> Result<PricingResult> {
+    complete_greeks(option, context, request, settings, false, |context, _| {
+        PricingResult::new(engine.price(option, context)?)
+    })
+}
+
+pub(crate) fn complete_greeks(
+    option: &impl EuropeanContract,
+    context: &PricingContext,
+    request: GreeksRequest,
+    settings: NumericalShiftSettings,
+    native_spot_greeks: bool,
+    native: impl Fn(&PricingContext, GreeksRequest) -> Result<PricingResult>,
+) -> Result<PricingResult> {
     request.validate()?;
     settings.validate()?;
     let checked = |context: &PricingContext| -> Result<f64> {
-        let value = engine.price(option, context)?;
+        let value = native(context, GreeksRequest::default())?.price();
         if !value.is_finite() {
             return Err(Error::new(
                 ErrorCategory::InvalidResult,
@@ -44,8 +80,9 @@ pub fn numerical_greeks<E: EuropeanPricingEngine + ?Sized>(
         }
         Ok(value)
     };
-    let p0 = checked(context)?;
-    let mut result = PricingResult::new(p0)?;
+    let mut result = native(context, request)?;
+    let p0 = result.price();
+    let available = GreeksRequest::new(Greek::ALL.into_iter().filter(|&g| result.has(g)));
     let time = context.valuation_time();
     if time == option.expiry_date().start_of_day() {
         return Ok(result);
@@ -59,9 +96,10 @@ pub fn numerical_greeks<E: EuropeanPricingEngine + ?Sized>(
     let r = symmetric_shift(rate, settings.rate_shift);
     let spot_ok = h > 0.0 && spot > h;
     let two_h = 2.0 * h;
-    let speed_ok =
-        spot_ok && two_h.is_finite() && spot > two_h && symmetric_shift(spot, two_h) == two_h;
-    let want = |g| request.has(g);
+    let speed_ok = spot_ok
+        && (native_spot_greeks
+            || (two_h.is_finite() && spot > two_h && symmetric_shift(spot, two_h) == two_h));
+    let want = |g| request.has(g) && !available.has(g);
     let shifted = |spot, volatility, rate_shift, valuation_time| -> Result<PricingContext> {
         let parameters = model.replace(BlackScholesMertonParameterChanges {
             volatility: Some(volatility),
@@ -93,20 +131,74 @@ pub fn numerical_greeks<E: EuropeanPricingEngine + ?Sized>(
             ((up - center) - (center - down)) / h / h,
         )
     };
+    let paired_derivatives = |first_vol,
+                              first_time,
+                              last_vol,
+                              last_time,
+                              delta: bool,
+                              gamma: bool|
+     -> Result<((f64, f64), (f64, f64))> {
+        if !native_spot_greeks {
+            return Ok((
+                derivatives(spot_samples(first_vol, first_time, gamma)?),
+                derivatives(spot_samples(last_vol, last_time, gamma)?),
+            ));
+        }
+        let measures = GreeksRequest::new(
+            [Greek::Delta, Greek::Gamma]
+                .into_iter()
+                .filter(|g| if *g == Greek::Delta { delta } else { gamma }),
+        );
+        let first = native(&shifted(spot, first_vol, 0.0, first_time)?, measures)?;
+        let last = native(&shifted(spot, last_vol, 0.0, last_time)?, measures)?;
+        let native_delta = first.get(Greek::Delta).zip(last.get(Greek::Delta));
+        let native_gamma = first.get(Greek::Gamma).zip(last.get(Greek::Gamma));
+        let missing_delta = delta && native_delta.is_none();
+        let missing_gamma = gamma && native_gamma.is_none();
+        // Both legs must use scalar stencils when either lacks the native derivative.
+        let (first, last) = if missing_delta || missing_gamma {
+            (
+                derivatives(spot_samples(first_vol, first_time, missing_gamma)?),
+                derivatives(spot_samples(last_vol, last_time, missing_gamma)?),
+            )
+        } else {
+            ((0.0, 0.0), (0.0, 0.0))
+        };
+        let deltas = native_delta.unwrap_or((first.0, last.0));
+        let gammas = native_gamma.unwrap_or((first.1, last.1));
+        Ok(((deltas.0, gammas.0), (deltas.1, gammas.1)))
+    };
     if spot_ok && (want(Greek::Delta) || want(Greek::Gamma) || (want(Greek::Speed) && speed_ok)) {
         let up = price(spot + h, vol, 0.0, time)?;
         let down = price(spot - h, vol, 0.0, time)?;
         let (delta, gamma) = derivatives((up, p0, down));
-        result.set(request, Greek::Delta, delta)?;
-        result.set(request, Greek::Gamma, gamma)?;
+        if want(Greek::Delta) {
+            result.set(request, Greek::Delta, delta)?;
+        }
+        if want(Greek::Gamma) {
+            result.set(request, Greek::Gamma, gamma)?;
+        }
         if want(Greek::Speed) && speed_ok {
-            let up2 = price(spot + two_h, vol, 0.0, time)?;
-            let down2 = price(spot - two_h, vol, 0.0, time)?;
-            result.set(
-                request,
-                Greek::Speed,
-                ((up2 - up) - (up - down) + (down - down2)) / h / h / two_h,
-            )?;
+            let gamma_request = GreeksRequest::new([Greek::Gamma]);
+            let high = if native_spot_greeks {
+                native(&shifted(spot + h, vol, 0.0, time)?, gamma_request)?
+            } else {
+                PricingResult::new(up)?
+            };
+            let low = if native_spot_greeks {
+                native(&shifted(spot - h, vol, 0.0, time)?, gamma_request)?
+            } else {
+                PricingResult::new(down)?
+            };
+            let speed =
+                if let (Some(high), Some(low)) = (high.get(Greek::Gamma), low.get(Greek::Gamma)) {
+                    (high - low) / h / 2.0
+                } else {
+                    let up2 = price(spot + two_h, vol, 0.0, time)?;
+                    let down2 = price(spot - two_h, vol, 0.0, time)?;
+                    ((up2 - up) - (up - down) + (down - down2)) / h / h / two_h
+                };
+            result.set(request, Greek::Speed, speed)?;
         }
     }
     if v > 0.0
@@ -120,8 +212,14 @@ pub fn numerical_greeks<E: EuropeanPricingEngine + ?Sized>(
             result.set(request, Greek::Vega, (up - down) / (200.0 * v))?;
         }
         if spot_ok && (want(Greek::Vanna) || want(Greek::Zomma)) {
-            let high = derivatives(spot_samples(vol + v, time, want(Greek::Zomma))?);
-            let low = derivatives(spot_samples(vol - v, time, want(Greek::Zomma))?);
+            let (high, low) = paired_derivatives(
+                vol + v,
+                time,
+                vol - v,
+                time,
+                want(Greek::Vanna),
+                want(Greek::Zomma),
+            )?;
             result.set(request, Greek::Vanna, (high.0 - low.0) / (200.0 * v))?;
             result.set(request, Greek::Zomma, (high.1 - low.1) / (200.0 * v))?;
         }
@@ -171,8 +269,14 @@ pub fn numerical_greeks<E: EuropeanPricingEngine + ?Sized>(
                 )?;
             }
             if spot_ok && (want(Greek::Charm) || want(Greek::Color)) {
-                let first = derivatives(spot_samples(vol, before, want(Greek::Color))?);
-                let last = derivatives(spot_samples(vol, after, want(Greek::Color))?);
+                let (first, last) = paired_derivatives(
+                    vol,
+                    before,
+                    vol,
+                    after,
+                    want(Greek::Charm),
+                    want(Greek::Color),
+                )?;
                 result.set(request, Greek::Charm, (last.0 - first.0) / days)?;
                 result.set(request, Greek::Color, (last.1 - first.1) / days)?;
             }

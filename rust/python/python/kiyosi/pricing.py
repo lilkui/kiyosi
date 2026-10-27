@@ -1,5 +1,15 @@
 """Synchronous analytic pricing."""
 
-from ._native import AnalyticVanillaEngine, PricingResult, implied_volatility
+from ._native import (
+    AnalyticDigitalEngine,
+    AnalyticVanillaEngine,
+    PricingResult,
+    implied_volatility,
+)
 
-__all__ = ["AnalyticVanillaEngine", "PricingResult", "implied_volatility"]
+__all__ = [
+    "AnalyticDigitalEngine",
+    "AnalyticVanillaEngine",
+    "PricingResult",
+    "implied_volatility",
+]

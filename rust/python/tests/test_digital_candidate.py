@@ -1,0 +1,59 @@
+"""Candidate digital owning replacements (the legacy API has no contract replacement)."""
+
+import unittest
+from datetime import date
+
+from kiyosi import ErrorCategory, KiyosiError
+from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption
+
+
+class DigitalReplacementTests(unittest.TestCase):
+    def test_replacements_validate_and_preserve_originals(self):
+        terms = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_date": date(2025, 1, 1),
+            "expiry_date": date(2026, 1, 1),
+        }
+        for cls in (CashOrNothingOption, AssetOrNothingOption):
+            extra = {"payout": 10} if cls is CashOrNothingOption else {}
+            original = cls(**terms, **extra)
+            self.assertEqual(original.replace(), original)
+            replaced = original.replace(
+                option_type="put", strike=105, expiry_date=date(2027, 1, 1)
+            )
+            self.assertEqual(replaced.option_type, "put")
+            self.assertEqual(replaced.strike, 105)
+            self.assertEqual(replaced.expiry_date, date(2027, 1, 1))
+            for field, category in (
+                ("strike", ErrorCategory.INVALID_STRIKE),
+                ("expiry_date", ErrorCategory.INVALID_TIME_RANGE),
+            ):
+                with self.assertRaises(KiyosiError) as error:
+                    original.replace(
+                        **{field: 0 if field == "strike" else date(2024, 1, 1)}
+                    )
+                self.assertEqual(error.exception.category, category)
+            for fields in (
+                {"strike": True},
+                {"strike": None},
+                {"option_type": 1},
+                {"expiry_date": None},
+                {"unknown": 1},
+            ):
+                with self.assertRaises(TypeError):
+                    original.replace(**fields)
+            self.assertEqual(original, cls(**terms, **extra))
+            if extra:
+                self.assertEqual(original.replace(payout=7).payout, 7)
+                with self.assertRaises(KiyosiError) as error:
+                    original.replace(payout=0)
+                self.assertEqual(
+                    error.exception.category, ErrorCategory.INVALID_PARAMETER
+                )
+                self.assertEqual(original.payout, 10)
+            else:
+                with self.assertRaises(TypeError):
+                    original.replace(payout=7)
+            del original
+            self.assertEqual(replaced.strike, 105)

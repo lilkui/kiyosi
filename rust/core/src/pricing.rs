@@ -28,7 +28,7 @@ fn log_normal_cdf(value: f64) -> f64 {
     -0.5 * value * value - (-value).ln() + (sum / (2.0 * PI).sqrt()).ln()
 }
 
-fn weighted_cdf(amount: f64, exponent: f64, argument: f64) -> f64 {
+pub(crate) fn weighted_cdf(amount: f64, exponent: f64, argument: f64) -> f64 {
     let discount = exponent.exp();
     let discounted = amount * discount;
     if argument < -10.0 || !discount.is_normal() || !discounted.is_finite() {
@@ -38,7 +38,7 @@ fn weighted_cdf(amount: f64, exponent: f64, argument: f64) -> f64 {
     }
 }
 
-fn black_scholes_arguments(
+pub(crate) fn black_scholes_arguments(
     spot: f64,
     strike: f64,
     log_carry: f64,

@@ -1,7 +1,7 @@
 from collections.abc import Iterable, Iterator
 from datetime import date, datetime
 from enum import IntEnum
-from typing import Literal, Never, Self, TypeAlias
+from typing import Literal, Never, Self, TypeAlias, overload
 
 __version__: str
 
@@ -34,6 +34,62 @@ class EuropeanOption:
         effective_date: date,
         expiry_date: date,
     ) -> None: ...
+    @property
+    def option_type(self) -> Literal["call", "put"]: ...
+    @property
+    def strike(self) -> float: ...
+    @property
+    def effective_date(self) -> date: ...
+    @property
+    def expiry_date(self) -> date: ...
+
+class CashOrNothingOption:
+    def __init__(
+        self,
+        *,
+        option_type: Literal["call", "put"],
+        strike: float,
+        payout: float,
+        effective_date: date,
+        expiry_date: date,
+    ) -> None: ...
+    def replace(
+        self,
+        *,
+        option_type: Literal["call", "put"] = ...,
+        strike: float = ...,
+        payout: float = ...,
+        effective_date: date = ...,
+        expiry_date: date = ...,
+    ) -> CashOrNothingOption: ...
+    @property
+    def option_type(self) -> Literal["call", "put"]: ...
+    @property
+    def strike(self) -> float: ...
+    @property
+    def payout(self) -> float: ...
+    @property
+    def effective_date(self) -> date: ...
+    @property
+    def expiry_date(self) -> date: ...
+
+class AssetOrNothingOption:
+    def __init__(
+        self,
+        *,
+        option_type: Literal["call", "put"],
+        strike: float,
+        effective_date: date,
+        expiry_date: date,
+    ) -> None: ...
+    def replace(
+        self,
+        *,
+        option_type: Literal["call", "put"] = ...,
+        strike: float = ...,
+        effective_date: date = ...,
+        expiry_date: date = ...,
+    ) -> AssetOrNothingOption: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
     @property
@@ -185,6 +241,26 @@ class AnalyticVanillaEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
+class AnalyticDigitalEngine:
+    def __init__(self) -> None: ...
+    def price(
+        self,
+        instrument: CashOrNothingOption | AssetOrNothingOption,
+        context: PricingContext,
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: CashOrNothingOption | AssetOrNothingOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
 Greek: TypeAlias = Literal[
     "delta",
     "gamma",
@@ -224,9 +300,23 @@ class PricingResult:
     def rho(self) -> float | None: ...
     def require(self, measure: Greek) -> float: ...
 
+@overload
 def implied_volatility(
     engine: AnalyticVanillaEngine,
     instrument: EuropeanOption,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...
+@overload
+def implied_volatility(
+    engine: AnalyticDigitalEngine,
+    instrument: CashOrNothingOption | AssetOrNothingOption,
     context: PricingContext,
     observed_price: float,
     *,

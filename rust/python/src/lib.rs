@@ -2,6 +2,7 @@
 
 use kiyosi_core as core;
 mod analytics;
+mod digital;
 use pyo3::exceptions::{PyException, PyIndexError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDate, PyDateAccess, PyDateTime, PyDict, PyTimeAccess};
@@ -31,6 +32,14 @@ fn real(value: &Bound<'_, PyAny>) -> PyResult<f64> {
         ));
     }
     value.extract()
+}
+
+fn direction(value: &Bound<'_, PyAny>) -> PyResult<core::OptionType> {
+    match value.extract::<&str>()? {
+        "call" => Ok(core::OptionType::Call),
+        "put" => Ok(core::OptionType::Put),
+        _ => Err(PyValueError::new_err("option_type must be call or put")),
+    }
 }
 
 fn integer(value: &Bound<'_, PyAny>) -> PyResult<i32> {
@@ -132,11 +141,7 @@ impl EuropeanOption {
         effective_date: &Bound<'_, PyAny>,
         expiry_date: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        let direction = match option_type.extract::<&str>()? {
-            "call" => core::OptionType::Call,
-            "put" => core::OptionType::Put,
-            _ => return Err(PyValueError::new_err("option_type must be call or put")),
-        };
+        let direction = direction(option_type)?;
         Ok(Self(domain(
             py,
             core::EuropeanOption::new(
@@ -729,6 +734,9 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
             .get_item(pyo3::types::PyTuple::new(py, names)?)?,
     )?;
     module.add_class::<EuropeanOption>()?;
+    module.add_class::<digital::CashOrNothingOption>()?;
+    module.add_class::<digital::AssetOrNothingOption>()?;
+    module.add_class::<digital::AnalyticDigitalEngine>()?;
     module.add_class::<BlackScholesMertonParameters>()?;
     module.add_class::<RateTermStructure>()?;
     module.add_class::<TradingCalendar>()?;

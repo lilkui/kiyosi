@@ -1,6 +1,6 @@
 # Rust European pricing and analytics candidate
 
-Tickets 01–04 provide an isolated candidate for European call/put prices and analytics with
+Tickets 01–05 provide an isolated candidate for European vanilla and digital prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, trading
 calendars and observation schedules. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
@@ -46,8 +46,8 @@ Strike, spot, and volatility must be finite and strictly positive; both rates
 must be finite and may be negative. Constructors validate before returning a
 value. Accessors borrow or copy from owned data. `PricingContext::new` uses
 `TradingCalendar::default()` (weekdays, annualization 252); the Python default is
-derived from the same core value. Other instruments and engines arrive in later tickets.
-The engine accepts only `EuropeanOption`: unsupported instrument types are
+derived from the same core value. Other exotic instruments and engines arrive in later tickets.
+The vanilla engine accepts only `EuropeanOption`: unsupported instrument types are
 excluded by Rust's signature and Python's native argument conversion.
 
 ## Greeks and implied volatility
@@ -82,7 +82,7 @@ contract life, curve coverage and neighboring knots, using one-sided differences
 at boundaries. Feasible bumped pricing failures fail the whole operation.
 Finite bumps introduce truncation and rounding error; compare step sizes,
 especially near expiry. Python exposes the same shift validation contract;
-the analytic engine always returns analytic derivatives.
+the vanilla analytic engine always returns analytic derivatives.
 
 ```rust
 use kiyosi_core::{AnalyticVanillaEngine, BlackScholesMertonParameters, Date,
@@ -137,6 +137,110 @@ assert result.gamma is None
 sigma = implied_volatility(engine, option, context, result.price)
 assert abs(sigma - context.model_parameters.volatility) < 1e-8
 ```
+
+## Digital contracts and analytic pricing
+
+Rust `DigitalOption::cash_or_nothing(direction, strike, payout, start, end)` and
+`DigitalOption::asset_or_nothing(direction, strike, start, end)` own validated
+European contracts. Cash payout is required, finite and strictly positive; invalid
+payout returns `InvalidParameter` before strike and date validation. Strike and
+life dates follow the vanilla contract rules. `payout()` returns `Some(amount)`
+for cash and `None` for asset settlement. Both settle only **strictly** in the
+money: a call needs spot greater than strike, a put needs spot less than strike,
+and equality at expiry pays zero. Expiry is midnight UTC; all Greeks are absent
+at expiry, while implied volatility returns `UnsupportedOperation`.
+
+`AnalyticDigitalEngine` accepts only `DigitalOption`. It computes price, delta
+and gamma analytically, applying discounts, settlement amounts and normal-tail
+weights in log space when necessary. Non-finite prices or requested derivatives
+return `InvalidResult`; unrequested derivatives cannot spoil finite results.
+Other requested Greeks use the shared finite-difference completion and the same
+Rust `NumericalShiftSettings` defaults as vanilla numerical analysis. Speed
+differences native gamma; vanna/zomma and charm/color use native delta/gamma when
+both stencil legs provide the measure. If either lacks it, both legs use scalar
+differences, including time bumps that reach expiry. A speed stencil needs only positive symmetric ±h spots when native
+gamma is available. Pure scalar `numerical_greeks` still requires ±2h for speed.
+Collapsed or infeasible stencils leave affected measures absent. Bumped pricing
+errors fail the operation. Finite-difference accuracy depends on the bump and
+distance to expiry; the one-day QuantLib scenarios validate price and native
+delta/gamma under the existing acceptance criteria.
+
+`EuropeanContract` exposes inclusive life dates without changing payoff semantics.
+`EuropeanPricingEngine<I>` selects supported instrument types, defaulting to
+`EuropeanOption`; the shared `numerical_greeks` and `implied_volatility` also
+accept digital contracts. Digital prices can be non-monotone in volatility.
+The solver retains the caller's bracket, may select one of several roots, and
+returns `UnbracketedVolatility` when the endpoint residuals have the same sign,
+even if the quote is attainable elsewhere. No root search or new algorithm is added.
+
+```rust
+use kiyosi_core::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
+    DigitalOption, DigitalOptionChanges, OptionType, PricingContext,
+    Greek, GreeksRequest, ImpliedVolatilitySettings, implied_volatility};
+
+fn main() -> kiyosi_core::Result<()> {
+    let start = Date::new(2025, 1, 1)?;
+    let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
+        start, Date::new(2026, 1, 1)?)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
+    let result = AnalyticDigitalEngine.price_with_greeks(&option, &context,
+        GreeksRequest::new([Greek::Delta, Greek::Vega]), Default::default())?;
+    assert!((result.price() - 4.945810910532236).abs() < 1e-12);
+    let sigma = implied_volatility(&AnalyticDigitalEngine, &option, &context,
+        result.price(), ImpliedVolatilitySettings {
+            lower_bound: 0.1, upper_bound: 0.22, ..Default::default()
+        })?;
+    assert!((sigma - 0.2).abs() < 1e-7);
+    let updated = option.replace(DigitalOptionChanges {
+        payout: Some(7.0), ..Default::default()
+    })?;
+    assert_eq!(updated.payout(), Some(7.0));
+    assert_eq!(option.payout(), Some(10.0));
+    Ok(())
+}
+```
+
+Python exports `CashOrNothingOption` and `AssetOrNothingOption` from
+`kiyosi.instruments`, and `AnalyticDigitalEngine` from `kiyosi.pricing`.
+Constructors retain the existing keyword-only arguments; cash also requires
+`payout`. Numeric and date representations use the strict protocols described
+below. Analytic price and Greek calls retain the GIL; implied-volatility solves
+release it using owned Rust inputs.
+
+```python
+from datetime import date
+from kiyosi.instruments import CashOrNothingOption, AssetOrNothingOption
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import AnalyticDigitalEngine, implied_volatility
+
+terms = dict(option_type="call", strike=100,
+             effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1))
+cash = CashOrNothingOption(**terms, payout=10)
+asset = AssetOrNothingOption(**terms)
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2),
+    spot_price=100, valuation_time=date(2025, 1, 1))
+engine = AnalyticDigitalEngine()
+result = engine.price_with_greeks(cash, context, ["delta", "vega"])
+assert abs(result.price - 4.945810910532236) < 1e-12
+assert abs(engine.price(asset, context) - 58.6851146134764) < 1e-12
+sigma = implied_volatility(engine, cash, context, result.price,
+                           lower_bound=0.1, upper_bound=0.22)
+assert abs(sigma - 0.2) < 1e-7
+assert cash.replace(payout=7).payout == 7
+assert cash.payout == 10
+```
+
+Rust `DigitalOption::replace(DigitalOptionChanges)` and Python `.replace(**fields)`
+return owning validated contracts; failure leaves originals intact. Omitted fields
+retain their values. Settlement kind cannot change. Rust rejects a cash payout
+replacement on asset settlement with `UnsupportedOperation`; Python's asset
+contract has no payout parameter and rejects it with native `TypeError`.
+Digital contract replacement is a candidate interface; the legacy digital API
+provides construction only. Python properties are read-only and equality compares
+contract values. Vanilla/digital engine mismatches use Rust type checking or
+Python's native argument-conversion errors.
 
 ## Term structures and replacement
 
@@ -424,6 +528,7 @@ Install the unchanged root `.[test]` into `.venv/legacy` separately, then run:
 .venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_market.py'
 .venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_calendars.py'
 .venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_analytics.py'
+.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_digital.py'
 .venv/legacy/bin/python -m unittest discover -s tests/python -p 'test_*.py'
 ```
 
@@ -441,6 +546,16 @@ expiry, curve knots, ownership and concurrent solves. Rust public API tests cove
 equivalent scenarios plus reusable numerical analysis, collapsed and infeasible
 stencils, feasible bump failures, non-finite solver evaluations and
 high-precision extreme-scale derivative regressions.
+
+The shared digital suite covers all 40 existing digital QuantLib scenarios with
+the existing native and numerical error budgets, and scalar-price differences at
+two spot bumps away from expiry. It migrates strict terminal strike boundaries,
+valuation timing, construction, request/shift validation, solver errors, curve
+coverage and knots, concurrent reads, large-scale speed, tiny-volatility gamma,
+normal-tail delta and discount/settlement overflow and underflow regressions.
+Rust public API tests exercise equivalent contracts and reusable scalar numerical
+analysis. Candidate-only digital tests verify owning replacement and failure state;
+the legacy implementation has no digital contract replacement method.
 
 The shared calendar suite reuses existing custom-calendar contracts and checks
 counting, adjustment, schedule endpoints, month clamping, large offsets,

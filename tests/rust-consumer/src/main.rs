@@ -1,8 +1,9 @@
 use kiyosi_core::{
-    AnalyticVanillaEngine, BlackScholesMertonParameterChanges, BlackScholesMertonParameters, Date,
-    EuropeanOption, Greek, GreeksRequest, ImpliedVolatilitySettings, NumericalShiftSettings,
-    ObservationSchedule, OptionType, PricingContext, PricingContextChanges, RateTermStructure,
-    Result, TradingCalendar, implied_volatility, numerical_greeks,
+    AnalyticDigitalEngine, AnalyticVanillaEngine, BlackScholesMertonParameterChanges,
+    BlackScholesMertonParameters, Date, DigitalOption, EuropeanOption, Greek, GreeksRequest,
+    ImpliedVolatilitySettings, NumericalShiftSettings, ObservationSchedule, OptionType,
+    PricingContext, PricingContextChanges, RateTermStructure, Result, TradingCalendar,
+    implied_volatility, numerical_greeks,
 };
 
 fn main() -> Result<()> {
@@ -40,6 +41,30 @@ fn main() -> Result<()> {
         NumericalShiftSettings::default(),
     )?;
     assert!((numeric.require(Greek::Vega)? - greeks.require(Greek::Vega)?).abs() < 1e-7);
+    let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?;
+    let digital_result = AnalyticDigitalEngine.price_with_greeks(
+        &digital,
+        &context,
+        GreeksRequest::new([Greek::Delta]),
+        Default::default(),
+    )?;
+    assert!((digital_result.price() - 4.945810910532236).abs() < 1e-12);
+    assert!(digital_result.require(Greek::Delta)? > 0.0);
+    assert!(
+        (implied_volatility(
+            &AnalyticDigitalEngine,
+            &digital,
+            &context,
+            digital_result.price(),
+            ImpliedVolatilitySettings {
+                lower_bound: 0.1,
+                upper_bound: 0.22,
+                ..Default::default()
+            }
+        )? - 0.2)
+            .abs()
+            < 1e-7
+    );
     let curve = RateTermStructure::new(start.into(), vec![end.into()], vec![(-0.05_f64).exp()])?;
     let curved = BlackScholesMertonParameters::new(curve, 0.02, 0.2)?;
     let curved = context.replace(PricingContextChanges {

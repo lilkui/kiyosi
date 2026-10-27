@@ -156,6 +156,14 @@ impl NumericalShiftSettings {
 
 /// Scalar European pricing boundary reused by numerical analysis and solvers.
 /// Implementations must return domain failures through Result, without mutating inputs.
-pub trait EuropeanPricingEngine {
-    fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64>;
+/// The instrument parameter selects supported combinations; it defaults to
+/// [`EuropeanOption`]. See [`crate::AnalyticDigitalEngine::price`] for digital usage.
+pub trait EuropeanPricingEngine<I = EuropeanOption> {
+    /// Prices a supported contract without changing the inputs.
+    ///
+    /// # Errors
+    /// Returns the engine's structured domain errors for invalid valuation horizons
+    /// or numerical failures. Recoverable operational errors retain the implementation's
+    /// contract. See [`crate::AnalyticDigitalEngine::price`] for an example.
+    fn price(&self, option: &I, context: &PricingContext) -> Result<f64>;
 }
