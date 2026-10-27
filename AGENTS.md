@@ -6,7 +6,7 @@
 - For architecture or migration changes, read the relevant [ADRs](docs/adr/).
 - Before issue/PR operations, read [issue tracker](docs/agents/issue-tracker.md); for triage, also read [triage labels](docs/agents/triage-labels.md).
 - Format and lint modified Rust with rustfmt/Clippy and Python with Ruff; use repository-selected rules.
-- Run affected core and Python tests, plus documentation and packaging checks when affected. Use repository configuration, [CI](.github/workflows/ci.yml) and the [Python test guide](tests/README.md) for check commands.
+- Run affected core and Python tests, plus documentation and packaging checks when affected. Use repository configuration and the [Python test guide](tests/README.md) for check commands.
 - Use Conventional Commits.
 - Alpha: no backward-compatibility commitments.
 - Update API and usage docs to match current behavior; keep historical context in ADRs, migration guides or release notes.
