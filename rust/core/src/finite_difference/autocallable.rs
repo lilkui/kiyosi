@@ -30,7 +30,8 @@ impl FiniteDifferenceAutocallableEngine {
     }
 
     /// Computes spline spot Greeks and completes other sensitivities with core bump defaults.
-    /// Fixes the central upper domain for bumps. Expiry Greeks and event-crossing stencils
+    /// Native delta/gamma do not require feasible spot bumps; speed requires a symmetric
+    /// in-domain stencil. Fixes the central upper domain for bumps. Expiry Greeks and event-crossing stencils
     /// are absent; vega and rho remain available at current thresholds.
     ///
     /// # Errors
@@ -112,16 +113,16 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
 
 fn highest<T: AutocallableTerms>(note: &AutocallableNote<T>) -> f64 {
     let t = note.view();
-    note.observations()
-        .iter()
-        .flat_map(|r| [r.knock_out_level, r.coupon_barrier_level])
-        .chain([
-            t.initial_spot,
-            t.knock_in_level,
-            t.upper_strike,
-            t.lower_strike,
-        ])
-        .fold(0.0, f64::max)
+    let mut level = t.initial_spot;
+    if t.has_knock_in {
+        level = level.max(t.knock_in_level);
+    }
+    if t.fixed_knocked_in_coupon.is_none() {
+        level = level.max(t.upper_strike).max(t.lower_strike);
+    }
+    note.observations().iter().fold(level, |level, r| {
+        level.max(r.knock_out_level).max(r.coupon_barrier_level)
+    })
 }
 fn default_upper<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
@@ -293,14 +294,13 @@ fn native<T: AutocallableTerms>(
     validate(note, context)?;
     let state = initial(note, context);
     let h = crate::numerical::symmetric_shift(context.spot_price(), shifts.spot_shift);
-    let spot_greeks =
-        h > 0.0 && context.spot_price() > h && !note.at_spot_discontinuity(context, h);
+    let spot_greeks = !note.at_spot_discontinuity(context, h);
     if let Some(value) = state.settlement {
         return PricingResult::new(value);
     }
     if let Some(value) = fixed_value(note, context, state.knocked_in) {
         let mut result = PricingResult::new(value + state.coupon)?;
-        for greek in [Greek::Delta, Greek::Gamma, Greek::Speed] {
+        for greek in [Greek::Delta, Greek::Gamma] {
             if spot_greeks && request.has(greek) {
                 result.set(request, greek, 0.0)?;
             }
@@ -399,7 +399,14 @@ fn native<T: AutocallableTerms>(
         concentrate(&mut space, levels, scale)?;
     }
     let theta = settings.scheme.theta();
-    grid.validate_barrier_stability(&space, sigma, theta, false, &risk, &dividend)?;
+    grid.validate_barrier_stability(
+        &space,
+        sigma,
+        theta,
+        space.scale == 0.0 && space.nodes.is_empty(),
+        &risk,
+        &dividend,
+    )?;
     let size = space.count + 1;
     let mut alive = vec![0.0; size];
     let mut knocked = vec![0.0; size];

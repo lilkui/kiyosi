@@ -2511,8 +2511,9 @@ categories and failure-state guarantees apply; originals remain unchanged.
 
 All ten Greeks are available when their stencils are feasible. Delta/gamma use the
 solved layer's cubic spline and speed differences spline gamma; other measures use
-the shared numerical completion and core bump defaults. Bumped pricing fixes the
-central upper domain. Expiry Greeks and stencils crossing active spot/time events
+the shared numerical completion and core bump defaults. Native delta/gamma do not
+require feasible scalar spot bumps; speed does. Bumped pricing fixes the central
+upper domain. Expiry Greeks and stencils crossing active spot/time events
 are absent; vega and rho remain available at current thresholds. Feasible bumped
 failures fail the request.
 

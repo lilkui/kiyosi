@@ -395,3 +395,108 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
         ErrorCategory::UnsupportedOperation
     );
 }
+
+#[test]
+fn binary_domains_use_actual_levels_in_small_price_units() {
+    let start = date(1, 1);
+    let end = Date::new(2026, 1, 1).unwrap();
+    let mut reference: Option<f64> = None;
+    for level in [100.0, 1e-6, 1e-9] {
+        let note = BinarySnowballOption::new(BinarySnowballTerms::new(
+            0.0,
+            start,
+            end,
+            autocallable_observations(&[end], &[level], Some(&[0.1]), None).unwrap(),
+        ))
+        .unwrap();
+        let ctx = market(level, start);
+        let price = FiniteDifferenceAutocallableEngine::default()
+            .price(&note, &ctx)
+            .unwrap();
+        let expected = QuadratureAutocallableEngine::default()
+            .price(&note, &ctx)
+            .unwrap();
+        assert!(
+            (price - expected).abs() < 1e-5,
+            "level={level}: {price} != {expected}"
+        );
+        if let Some(value) = reference {
+            assert!((price - value).abs() < 1e-10);
+        }
+        reference = Some(price);
+        let engine = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
+            time_step_count: 2000,
+            asset_upper_boundary: Some(4.0 * level),
+            ..Default::default()
+        })
+        .unwrap();
+        assert!((engine.price(&note, &ctx).unwrap() - expected).abs() < 1e-5);
+    }
+}
+
+#[test]
+fn native_spot_greeks_do_not_require_a_feasible_scalar_bump() {
+    let start = date(1, 1);
+    let end = Date::new(2026, 1, 1).unwrap();
+    let ctx = market(100.0, start);
+    let engine = FiniteDifferenceAutocallableEngine::default();
+    for coupon in [0.0, 0.1] {
+        let note = BinarySnowballOption::new(BinarySnowballTerms::new(
+            0.0,
+            start,
+            end,
+            autocallable_observations(&[end], &[100.0], Some(&[coupon]), None).unwrap(),
+        ))
+        .unwrap();
+        let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Speed]);
+        let reference = engine
+            .price_with_greeks(&note, &ctx, request, Default::default())
+            .unwrap();
+        for shift in [200.0, 1e-300] {
+            let actual = engine
+                .price_with_greeks(
+                    &note,
+                    &ctx,
+                    request,
+                    NumericalShiftSettings {
+                        spot_shift: shift,
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+            assert_eq!(actual.get(Greek::Delta), reference.get(Greek::Delta));
+            assert_eq!(actual.get(Greek::Gamma), reference.get(Greek::Gamma));
+            assert!(!actual.has(Greek::Speed));
+        }
+    }
+}
+
+#[test]
+fn explicit_uniform_grid_retains_the_legacy_top_node_stability_bound() {
+    let start = date(1, 1);
+    let end = Date::new(2026, 1, 1).unwrap();
+    let note = BinarySnowballOption::new(BinarySnowballTerms::new(
+        0.0,
+        start,
+        end,
+        autocallable_observations(&[date(2, 3), end], &[100.0; 2], Some(&[0.1; 2]), None).unwrap(),
+    ))
+    .unwrap();
+    let ctx = PricingContext::new(
+        BlackScholesMertonParameters::new(0.04, 0.01, 0.3).unwrap(),
+        100.0,
+        start.into(),
+    )
+    .unwrap();
+    let engine = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 11,
+        time_step_count: 10,
+        scheme: FiniteDifferenceScheme::ExplicitEuler,
+        asset_upper_boundary: Some(400.0),
+    })
+    .unwrap();
+    assert_eq!(
+        engine.price(&note, &ctx).unwrap_err().category,
+        ErrorCategory::InvalidParameter
+    );
+}

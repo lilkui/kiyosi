@@ -65,6 +65,66 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         with self.assertRaises(OverflowError):
             implied_coupon(engine, note, market(), 1, max_iterations=2**40)
 
+    def test_binary_domain_and_price_preserve_small_price_units(self):
+        from kiyosi.pricing import QuadratureAutocallableEngine
+
+        end = date(2026, 1, 1)
+        for level in (100, 1e-6, 1e-9):
+            note = BinarySnowballOption(
+                maturity_coupon_rate=0,
+                effective_date=START,
+                expiry_date=end,
+                observations=autocallable_observations(
+                    [end], [level], knock_out_coupon_rates=[0.1]
+                ),
+            )
+            context = market(level, START, volatility=0.2)
+            expected = QuadratureAutocallableEngine().price(note, context)
+            for engine in (FD(), FD(asset_upper_boundary=4 * level)):
+                with self.subTest(level=level):
+                    self.assertAlmostEqual(
+                        engine.price(note, context), expected, delta=1e-5
+                    )
+
+    def test_native_spot_greeks_survive_infeasible_scalar_bumps(self):
+        for coupon in (0, 0.1):
+            note = BinarySnowballOption(
+                maturity_coupon_rate=0,
+                effective_date=START,
+                expiry_date=END,
+                observations=autocallable_observations(
+                    [END], [100], knock_out_coupon_rates=[coupon]
+                ),
+            )
+            engine, context = FD(), market()
+            reference = engine.price_with_greeks(note, context, ["delta", "gamma"])
+            for shift in (200, 1e-300):
+                result = engine.price_with_greeks(
+                    note, context, ["delta", "gamma", "speed"], spot_shift=shift
+                )
+                self.assertEqual(
+                    (result.delta, result.gamma), (reference.delta, reference.gamma)
+                )
+                self.assertIsNone(result.speed)
+
+    def test_explicit_uniform_stability_uses_the_legacy_top_node_bound(self):
+        end = date(2026, 1, 1)
+        note = BinarySnowballOption(
+            maturity_coupon_rate=0,
+            effective_date=START,
+            expiry_date=end,
+            observations=autocallable_observations(
+                [date(2025, 2, 3), end], [100, 100], knock_out_coupon_rates=[0.1, 0.1]
+            ),
+        )
+        engine = FD(
+            asset_step_count=11,
+            time_step_count=10,
+            scheme="explicit_euler",
+            asset_upper_boundary=400,
+        )
+        self.category(E.INVALID_PARAMETER, lambda: engine.price(note, market()))
+
     def test_event_greeks_node_curves_and_failed_replacement(self):
         engine = FD()
         note = phoenix()
@@ -93,11 +153,12 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         short = RateTermStructure(
             reference_time=START, times=[date(2025, 2, 3)], factors=[0.99]
         )
+        original_price = engine.price(note, context)
         invalid = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=short)
         )
         self.category(E.INVALID_TIME_RANGE, lambda: engine.price(note, invalid))
-        self.assertEqual(engine.price(note, context), engine.price(note, curved))
+        self.assertEqual(engine.price(note, context), original_price)
 
     def test_fixed_prices_and_unidentifiable_parameters_validate_first(self):
         note = BinarySnowballOption(
