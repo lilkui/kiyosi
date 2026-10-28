@@ -1,7 +1,12 @@
+mod presets;
+pub use presets::{SnowballPreset, SnowballPresetTerms};
+
 use crate::error::finite;
 use crate::{
     Date, Error, ErrorCategory, OptionContract, PricingContext, Result, Timestamp, TradingCalendar,
 };
+
+const DEFAULT_PRINCIPAL_RATIO: f64 = 1.0;
 
 /// Selects strict downside monitoring; see [`SnowballTerms::new`] for construction.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -149,7 +154,7 @@ impl SnowballTerms {
             lower_strike,
             knock_in_observation_mode: KnockInObservationMode::default(),
             barrier_state: None,
-            principal_ratio: 1.0,
+            principal_ratio: DEFAULT_PRINCIPAL_RATIO,
             effective_date,
             expiry_date,
             observations,
@@ -208,7 +213,7 @@ impl PhoenixTerms {
             lower_strike,
             knock_in_observation_mode: KnockInObservationMode::default(),
             barrier_state: None,
-            principal_ratio: 1.0,
+            principal_ratio: DEFAULT_PRINCIPAL_RATIO,
             effective_date,
             expiry_date,
             observations,
@@ -220,6 +225,99 @@ impl PhoenixTerms {
 /// Pays principal plus accrued annual coupon on knock-out, otherwise principal
 /// plus maturity coupon if intact, or a capped downside loss after knock-in.
 pub type SnowballOption = AutocallableNote<SnowballTerms>;
+
+/// Supplies binary snowball terms; see [`Self::new`] and [`BinarySnowballOption::new`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct BinarySnowballTerms {
+    /// Sets the finite annual coupon paid at maturity if no knock-out occurs.
+    pub maturity_coupon_rate: f64,
+    /// Records prior events; knock-in is rejected because this product has no knock-in barrier.
+    pub barrier_state: Option<AutocallableBarrierState>,
+    /// Sets the nonnegative normalized principal, independently of coupons.
+    pub principal_ratio: f64,
+    /// Sets the inclusive first date.
+    pub effective_date: Date,
+    /// Sets the inclusive final date, which must be a trading day when pricing.
+    pub expiry_date: Date,
+    /// Supplies nonempty, strictly ordered observations within the note life.
+    pub observations: Vec<AutocallableObservation>,
+}
+impl BinarySnowballTerms {
+    /// Creates input terms with unknown history and unit principal.
+    /// Validation occurs in [`BinarySnowballOption::new`]; see its example.
+    pub fn new(
+        maturity_coupon_rate: f64,
+        effective_date: Date,
+        expiry_date: Date,
+        observations: Vec<AutocallableObservation>,
+    ) -> Self {
+        Self {
+            maturity_coupon_rate,
+            barrier_state: None,
+            principal_ratio: DEFAULT_PRINCIPAL_RATIO,
+            effective_date,
+            expiry_date,
+            observations,
+        }
+    }
+}
+
+/// Owns a binary snowball with no knock-in monitoring or downside participation.
+/// Pays principal plus the accrued observation coupon on knock-out, otherwise
+/// principal plus the accrued maturity coupon. See [`Self::new`] for construction.
+pub type BinarySnowballOption = AutocallableNote<BinarySnowballTerms>;
+
+/// Supplies ternary snowball terms; see [`Self::new`] and [`TernarySnowballOption::new`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct TernarySnowballTerms {
+    /// Sets the finite annual coupon paid at maturity if no knock-out occurs.
+    pub maturity_coupon_rate: f64,
+    /// Sets the finite annual coupon after knock-in, at most the maturity coupon.
+    pub minimum_coupon_rate: f64,
+    /// Sets the positive strict downside threshold.
+    pub knock_in_level: f64,
+    /// Selects knock-in monitoring; defaults to every trading day.
+    pub knock_in_observation_mode: KnockInObservationMode,
+    /// Records prior events; `None` means unknown history.
+    pub barrier_state: Option<AutocallableBarrierState>,
+    /// Sets the nonnegative normalized principal, independently of coupons.
+    pub principal_ratio: f64,
+    /// Sets the inclusive first date.
+    pub effective_date: Date,
+    /// Sets the inclusive final date, which must be a trading day when pricing.
+    pub expiry_date: Date,
+    /// Supplies nonempty, strictly ordered observations within the note life.
+    pub observations: Vec<AutocallableObservation>,
+}
+impl TernarySnowballTerms {
+    /// Creates input terms with daily monitoring, unknown history and unit principal.
+    /// Validation occurs in [`TernarySnowballOption::new`]; see its example.
+    pub fn new(
+        maturity_coupon_rate: f64,
+        minimum_coupon_rate: f64,
+        knock_in_level: f64,
+        effective_date: Date,
+        expiry_date: Date,
+        observations: Vec<AutocallableObservation>,
+    ) -> Self {
+        Self {
+            maturity_coupon_rate,
+            minimum_coupon_rate,
+            knock_in_level,
+            knock_in_observation_mode: KnockInObservationMode::default(),
+            barrier_state: None,
+            principal_ratio: DEFAULT_PRINCIPAL_RATIO,
+            effective_date,
+            expiry_date,
+            observations,
+        }
+    }
+}
+
+/// Owns a ternary snowball with fixed intact and knocked-in maturity coupons.
+/// Pays principal plus the accrued observation coupon on knock-out, otherwise
+/// principal plus the accrued maturity or minimum coupon according to knock-in. See [`Self::new`] for construction.
+pub type TernarySnowballOption = AutocallableNote<TernarySnowballTerms>;
 
 /// Owns validated Phoenix terms; see [`Self::new`].
 /// Pays a signed annual coupon times each observation period's Actual/365 Fixed
@@ -236,6 +334,8 @@ pub type PhoenixOption = AutocallableNote<PhoenixTerms>;
 pub trait AutocallableTerms: sealed::Terms + Clone + PartialEq + Send + Sync + 'static {}
 impl AutocallableTerms for SnowballTerms {}
 impl AutocallableTerms for PhoenixTerms {}
+impl AutocallableTerms for BinarySnowballTerms {}
+impl AutocallableTerms for TernarySnowballTerms {}
 
 mod sealed {
     use super::*;
@@ -257,6 +357,8 @@ mod sealed {
         pub maturity_coupon_rate: f64,
         pub coupon_rate: f64,
         pub phoenix: bool,
+        pub has_knock_in: bool,
+        pub fixed_knocked_in_coupon: Option<f64>,
     }
 }
 macro_rules! terms_view {
@@ -280,6 +382,8 @@ macro_rules! terms_view {
                     maturity_coupon_rate: $maturity(self),
                     coupon_rate: $coupon(self),
                     phoenix: $phoenix,
+                    has_knock_in: true,
+                    fixed_knocked_in_coupon: None,
                 }
             }
         }
@@ -297,6 +401,56 @@ terms_view!(
     |t: &PhoenixTerms| t.coupon_rate,
     true
 );
+
+impl sealed::Terms for BinarySnowballTerms {
+    fn set_history(&mut self, state: Option<AutocallableBarrierState>) {
+        self.barrier_state = state;
+    }
+    fn view(&self) -> sealed::View<'_> {
+        sealed::View {
+            initial_spot: self.observations.first().map_or(1.0, |r| r.knock_out_level),
+            knock_in_level: 1.0,
+            upper_strike: 1.0,
+            lower_strike: 1.0,
+            knock_in_observation_mode: KnockInObservationMode::AtExpiry,
+            barrier_state: self.barrier_state,
+            principal_ratio: self.principal_ratio,
+            effective_date: self.effective_date,
+            expiry_date: self.expiry_date,
+            observations: &self.observations,
+            maturity_coupon_rate: self.maturity_coupon_rate,
+            coupon_rate: 0.0,
+            phoenix: false,
+            has_knock_in: false,
+            fixed_knocked_in_coupon: Some(self.maturity_coupon_rate),
+        }
+    }
+}
+
+impl sealed::Terms for TernarySnowballTerms {
+    fn set_history(&mut self, state: Option<AutocallableBarrierState>) {
+        self.barrier_state = state;
+    }
+    fn view(&self) -> sealed::View<'_> {
+        sealed::View {
+            initial_spot: self.knock_in_level,
+            knock_in_level: self.knock_in_level,
+            upper_strike: self.knock_in_level,
+            lower_strike: self.knock_in_level,
+            knock_in_observation_mode: self.knock_in_observation_mode,
+            barrier_state: self.barrier_state,
+            principal_ratio: self.principal_ratio,
+            effective_date: self.effective_date,
+            expiry_date: self.expiry_date,
+            observations: &self.observations,
+            maturity_coupon_rate: self.maturity_coupon_rate,
+            coupon_rate: 0.0,
+            phoenix: false,
+            has_knock_in: true,
+            fixed_knocked_in_coupon: Some(self.minimum_coupon_rate),
+        }
+    }
+}
 
 /// Owns validated terms and immutable observations for a supported autocallable.
 /// Accessors borrow stable storage for this owner's lifetime. Shared reads and
@@ -325,6 +479,13 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// let known = note.replace(Some(AutocallableBarrierState::None))?;
     /// assert_eq!(known.observations(), note.observations());
     /// assert_eq!(note.barrier_state(), None);
+    /// let records = autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?;
+    /// let binary = BinarySnowballOption::new(BinarySnowballTerms::new(
+    ///     0.06, start, end, records.clone()))?;
+    /// let ternary = TernarySnowballOption::new(TernarySnowballTerms::new(
+    ///     0.06, 0.02, 80.0, start, end, records))?;
+    /// assert_eq!(binary.terms().principal_ratio, 1.0);
+    /// assert_eq!(ternary.terms().minimum_coupon_rate, 0.02);
     /// # Ok(()) }
     /// ```
     pub fn new(terms: T) -> Result<Self> {
@@ -388,6 +549,9 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         t.coupon_rate * previous.start_of_day().years_until(record.date.into())
     }
     pub(crate) fn knock_in_affects_payoff(&self) -> bool {
+        if let Some(coupon) = self.view().fixed_knocked_in_coupon {
+            return self.view().has_knock_in && coupon != self.view().maturity_coupon_rate;
+        }
         self.view().lower_strike != self.view().upper_strike
             || self.view().maturity_coupon_rate != 0.0
     }
@@ -434,15 +598,19 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     }
     pub(crate) fn terminal(&self, spot: f64, knocked_in: bool) -> f64 {
         let t = self.view();
-        if knocked_in {
+        if knocked_in && t.fixed_knocked_in_coupon.is_none() {
             t.principal_ratio
                 + (spot.clamp(t.lower_strike, t.upper_strike) - t.upper_strike) / t.initial_spot
         } else {
             t.principal_ratio
-                + t.maturity_coupon_rate
-                    * t.effective_date
-                        .start_of_day()
-                        .years_until(t.expiry_date.into())
+                + if knocked_in {
+                    t.fixed_knocked_in_coupon.unwrap_or(t.maturity_coupon_rate)
+                } else {
+                    t.maturity_coupon_rate
+                } * t
+                    .effective_date
+                    .start_of_day()
+                    .years_until(t.expiry_date.into())
         }
     }
     pub(crate) fn knock_out_payment(&self, record: &AutocallableObservation) -> f64 {
@@ -542,17 +710,18 @@ impl sealed::View<'_> {
     fn validate(&self) -> Result<()> {
         let terms = self;
         let invalid = ErrorCategory::InvalidParameter;
-        for value in [terms.initial_spot, terms.upper_strike] {
-            finite(value, invalid, true)?;
-        }
-        for value in [terms.principal_ratio, terms.lower_strike] {
-            finite(value, invalid, false)?;
-            if value < 0.0 {
-                return Err(Error::new(invalid, "negative autocallable term"));
+        if terms.fixed_knocked_in_coupon.is_none() {
+            for value in [terms.initial_spot, terms.upper_strike] {
+                finite(value, invalid, true)?;
+            }
+            finite(terms.lower_strike, invalid, false)?;
+            if terms.lower_strike < 0.0 || terms.lower_strike > terms.upper_strike {
+                return Err(Error::new(invalid, "invalid lower strike"));
             }
         }
-        if terms.lower_strike > terms.upper_strike {
-            return Err(Error::new(invalid, "lower strike exceeds upper strike"));
+        finite(terms.principal_ratio, invalid, false)?;
+        if terms.principal_ratio < 0.0 {
+            return Err(Error::new(invalid, "negative autocallable principal"));
         }
         if terms.expiry_date < terms.effective_date {
             return Err(Error::new(
@@ -580,7 +749,22 @@ impl sealed::View<'_> {
         for r in terms.observations {
             finite(r.knock_out_level, invalid, true)?;
         }
+        if !terms.has_knock_in && terms.barrier_state == Some(AutocallableBarrierState::KnockedIn) {
+            return Err(Error::new(
+                invalid,
+                "knock-in state requires a knock-in barrier",
+            ));
+        }
         finite(terms.knock_in_level, invalid, true)?;
+        if let Some(coupon) = terms.fixed_knocked_in_coupon {
+            finite(coupon, invalid, false)?;
+            if coupon > terms.maturity_coupon_rate {
+                return Err(Error::new(
+                    invalid,
+                    "minimum coupon exceeds maturity coupon",
+                ));
+            }
+        }
         if terms.phoenix {
             finite(terms.coupon_rate, invalid, false)?;
             for r in terms.observations {

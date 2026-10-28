@@ -69,8 +69,9 @@ pub use asian::{
 };
 pub use autocallable::{
     AutocallableBarrierState, AutocallableNote, AutocallableObservation, AutocallableTerms,
-    KnockInObservationMode, PhoenixOption, PhoenixTerms, SnowballOption, SnowballTerms,
-    autocallable_observations,
+    BinarySnowballOption, BinarySnowballTerms, KnockInObservationMode, PhoenixOption, PhoenixTerms,
+    SnowballOption, SnowballPreset, SnowballPresetTerms, SnowballTerms, TernarySnowballOption,
+    TernarySnowballTerms, autocallable_observations,
 };
 pub use barrier::{
     AnalyticBarrierEngine, BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType,

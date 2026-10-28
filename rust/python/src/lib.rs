@@ -762,8 +762,24 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<asian::TurnbullWakemanArithmeticAveragePriceEngine>()?;
     binary_barrier::register(module)?;
     double_touch::register(module)?;
+    module.add_function(wrap_pyfunction!(autocallable::standard_snowball, module)?)?;
+    module.add_function(wrap_pyfunction!(autocallable::european_snowball, module)?)?;
+    module.add_function(wrap_pyfunction!(autocallable::step_down_snowball, module)?)?;
+    module.add_function(wrap_pyfunction!(autocallable::both_down_snowball, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        autocallable::dual_coupon_snowball,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(autocallable::parachute_snowball, module)?)?;
+    module.add_function(wrap_pyfunction!(autocallable::otm_snowball, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        autocallable::loss_capped_snowball,
+        module
+    )?)?;
     module.add_class::<autocallable::AutocallableObservation>()?;
     module.add_class::<autocallable::SnowballOption>()?;
+    module.add_class::<autocallable::BinarySnowballOption>()?;
+    module.add_class::<autocallable::TernarySnowballOption>()?;
     module.add_class::<autocallable::PhoenixOption>()?;
     module.add_class::<autocallable::QuadratureAutocallableEngine>()?;
     module.add_function(wrap_pyfunction!(

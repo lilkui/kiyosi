@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–29 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier CPU Monte Carlo prices and analytics with
+Tickets 01–30 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and basic snowball/Phoenix quadrature. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and snowball variants/presets and Phoenix quadrature. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -2176,7 +2176,7 @@ price is zero. Current events occur at midnight; an intraday spot is not a fixin
 `QuadratureAutocallableEngine::new(QuadratureSettings)` retains the existing
 cubic Gaussian integration algorithm, terminal affine-payoff integration and
 separate intact/knocked-in layers on daily event dates. Defaults are 512 asset
-steps and eight standard deviations. It accepts basic snowballs and Phoenix notes.
+steps and eight standard deviations. It accepts basic, binary and ternary snowballs and Phoenix notes.
 Request-local continuation reuse supports scalar numerical Greeks; no mutable cache is shared between requests. Check spatial and integration-domain
 convergence independently. Validation checks flat-rate applicability first
 (`UnsupportedOperation` for node curves), then inclusive contract life,
@@ -2233,8 +2233,8 @@ calendar precedence, fixed cashflows, dense deterministic ladders, near-expiry
 transitions, all ten sensitivities, grid/domain and bump convergence, solver
 failures and concurrent reads. A separately refined conditional-payoff integral
 checks two-event knock-in/knock-out ordering under a custom trading calendar.
-Binary/ternary variants, named presets and implied coupon solving are covered by
-subsequent tickets.
+Binary/ternary variants and named presets are described below. Implied coupon
+solving is covered by a subsequent ticket.
 
 ## Phoenix quadrature
 
@@ -2307,6 +2307,112 @@ on return to Python. Tests migrate the independent QuantLib terminal portfolios,
 conditional two-event payoff integral, signed coupon timing, unconditional tails,
 daily/grid/domain and bump convergence, scalar sensitivities, solver failures,
 history and calendar precedence, and strict Python representations.
+
+## Snowball variants and named presets
+
+`BinarySnowballOption::new(BinarySnowballTerms)` and
+`TernarySnowballOption::new(TernarySnowballTerms)` use the same core observation,
+validation, ownership, quadrature, Greeks and implied-volatility contracts as the
+basic snowball. Python exports both classes from `kiyosi.instruments`.
+
+Binary terms require a finite signed `maturity_coupon_rate`, life dates and
+observations; there is no reference spot, strike or knock-in configuration.
+A knock-out pays principal plus that observation's coupon times elapsed
+Actual/365 Fixed years. Otherwise maturity pays principal plus the maturity
+coupon times the full contract term. History is required only after a knock-out
+observation, so a binary note can be valued after inception without history
+before its first observation. A `knocked_in` history is rejected at construction
+or replacement with `InvalidParameter`; failed replacement preserves the note.
+
+Ternary terms add `minimum_coupon_rate`, positive `knock_in_level` and
+`knock_in_observation_mode`. Knock-in is strict; knock-out remains inclusive and
+has priority. If not knocked out, expiry pays principal plus either the maturity
+coupon (intact) or minimum coupon (knocked in), times the full contract term.
+There is no spot-dependent downside loss. Both coupons may be negative but must
+be finite, and the minimum must not exceed the maturity coupon; violations use
+`InvalidParameter`. Daily and expiry-only monitoring, recovered prior knock-ins,
+calendar checks and history timing match basic snowballs. Equal coupons remove
+economic knock-in sensitivity while retaining history validation.
+
+Rust term constructors default to unknown history and unit principal, and
+ternary terms default to daily monitoring. Python derives history and principal
+defaults from Rust and requires an explicit monitoring choice for ternary notes.
+All observation accessors return owned Python lists. Prices, all ten numerical
+Greeks and implied volatility release the GIL and allow concurrent reads of
+shared or distinct instances. Fixed cashflows retain `UnsupportedOperation` for
+unidentifiable implied volatility. Native representation errors and stable core
+error categories follow the basic snowball contract.
+
+```python
+from datetime import date
+from kiyosi.instruments import (
+    BinarySnowballOption, TernarySnowballOption, autocallable_observations,
+    both_down_snowball,
+)
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import QuadratureAutocallableEngine
+
+start, end = date(2025, 1, 1), date(2025, 4, 1)
+observations = autocallable_observations([end], [110], knock_out_coupon_rates=[0.08])
+binary = BinarySnowballOption(maturity_coupon_rate=0.06,
+    effective_date=start, expiry_date=end, observations=observations)
+ternary = TernarySnowballOption(maturity_coupon_rate=0.06, minimum_coupon_rate=0.02,
+    knock_in_level=80, knock_in_observation_mode="at_expiry",
+    effective_date=start, expiry_date=end, observations=observations)
+preset = both_down_snowball(initial_coupon_rate=0.08, coupon_rate_decrement=0.01,
+    initial_spot=100, knock_in_level=80, initial_knock_out_level=110,
+    knock_out_level_decrement=2, observation_dates=[date(2025, 2, 3), end],
+    effective_date=start, expiry_date=end)
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3),
+    spot_price=100, valuation_time=start)
+engine = QuadratureAutocallableEngine()
+for note in (binary, ternary, preset):
+    result = engine.price_with_greeks(note, context, ["delta", "vega"])
+    assert result.delta is not None
+```
+
+Presets expand only in the Rust core, returning ordinary `SnowballOption` values
+through the authoritative constructor. Rust uses
+`SnowballPresetTerms::new(coupon_rate, initial_spot, knock_in_level,
+knock_out_level, effective_date, expiry_date, observation_dates).expand(preset)`.
+Common terms allow history and principal configuration before expansion; defaults
+come from `SnowballTerms`. `coupon_rate` supplies the initial coupon for a
+both-down ladder and the knock-out coupon for a dual-coupon note.
+
+| Rust `SnowballPreset` | Python constructor | Expansion |
+| --- | --- | --- |
+| `Standard` | `standard_snowball` | Constant coupon and knock-out level; daily knock-in |
+| `European` | `european_snowball` | Constant coupon and level; knock-in only at expiry |
+| `StepDown { knock_out_level_decrement }` | `step_down_snowball` | Level at index `i` is initial level minus `i * decrement` |
+| `BothDown { coupon_rate_decrement, knock_out_level_decrement }` | `both_down_snowball` | Both ladders decrease from initial values; maturity uses final coupon |
+| `DualCoupon { maturity_coupon_rate }` | `dual_coupon_snowball` | Constant knock-out coupon and a separate maturity coupon |
+| `Parachute { final_knock_out_level }` | `parachute_snowball` | Replaces only the last knock-out level |
+| `Otm { upper_strike }` | `otm_snowball` | Replaces the upper terminal strike |
+| `LossCapped { lower_strike }` | `loss_capped_snowball` | Replaces the lower terminal strike |
+
+Python constructors are keyword-only and accept the existing market names:
+`coupon_rate` and `knock_out_level`, except step-down uses
+`initial_knock_out_level`, both-down uses `initial_coupon_rate` and
+`initial_knock_out_level`, and dual-coupon uses `knock_out_coupon_rate`.
+Each also takes its variant-specific fields shown above, `initial_spot`,
+`knock_in_level`, `observation_dates`, life dates, optional `barrier_state` and
+`principal_ratio`. Every preset starts with upper strike equal to initial spot,
+lower strike zero and daily knock-in unless its convention overrides them.
+Decrements use absolute price or decimal-rate units, starting at index zero;
+negative decrements and signed coupons are accepted if all expanded terms pass
+core validation. Empty, unordered or out-of-life dates are rejected by the same
+constructor as explicit terms. Presets retain ordinary history replacement and
+all pricing/analysis operations, with no extra engine or pricing fallback.
+
+Public Rust and isolated Python tests compare every preset with explicit terms
+and prices, and exercise binary/ternary terminal regions, signed coupons,
+principal, all ten Greeks, volatility recovery, history and failure states,
+calendar validation, strict representations and concurrent reads. Numerical
+checks reuse the existing independent QuantLib terminal portfolios, signed
+cash-digital and one-second regressions, and spatial/domain convergence for
+multi-event binary and both ternary monitoring modes. Legacy implementations
+remain available for migration comparison.
 
 ## Checks
 

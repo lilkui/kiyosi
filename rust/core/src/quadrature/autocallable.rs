@@ -11,7 +11,7 @@ use crate::{
     Result, Timestamp,
 };
 
-/// Prices basic snowballs and Phoenix notes by cubic Gaussian integration between exact event dates.
+/// Prices snowball variants and Phoenix notes by cubic Gaussian integration between exact event dates.
 /// Retains separate intact and knocked-in continuation layers for daily monitoring.
 /// Owns immutable settings; shared and distinct instances support concurrent pricing.
 /// See [`Self::new`] for an example.
@@ -177,7 +177,9 @@ fn initial<T: AutocallableTerms>(note: &AutocallableNote<T>, context: &PricingCo
                 coupon
                     + note.terminal(
                         context.spot_price(),
-                        knocked_in || context.spot_price() < note.view().knock_in_level,
+                        knocked_in
+                            || note.view().has_knock_in
+                                && context.spot_price() < note.view().knock_in_level,
                     ),
             )
         } else {
@@ -219,7 +221,11 @@ fn fixed_value<T: AutocallableTerms>(
     knocked_in: bool,
 ) -> Option<f64> {
     let t = note.view();
-    if t.lower_strike != t.upper_strike || !knocked_in && t.maturity_coupon_rate != 0.0 {
+    if t.fixed_knocked_in_coupon.is_some() {
+        if !knocked_in && note.knock_in_affects_payoff() {
+            return None;
+        }
+    } else if t.lower_strike != t.upper_strike || !knocked_in && t.maturity_coupon_rate != 0.0 {
         return None;
     }
     let rate = context.model_parameters().risk_free_rate().ok()?;
@@ -345,13 +351,19 @@ fn terminal<T: AutocallableTerms>(
             if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level, t.initial_spot))
             {
                 cash = note.knock_out_payment(r);
-            } else if knocked_in || point < log_ratio(t.knock_in_level, t.initial_spot) {
-                cash = t.principal_ratio - t.upper_strike / t.initial_spot;
-                if t.lower_strike > 0.0 && point < log_ratio(t.lower_strike, t.initial_spot) {
+            } else if knocked_in
+                || t.has_knock_in && point < log_ratio(t.knock_in_level, t.initial_spot)
+            {
+                if t.fixed_knocked_in_coupon.is_some() {
+                    cash = note.terminal(t.initial_spot, true);
+                } else if t.lower_strike > 0.0 && point < log_ratio(t.lower_strike, t.initial_spot)
+                {
+                    cash = t.principal_ratio - t.upper_strike / t.initial_spot;
                     cash += t.lower_strike / t.initial_spot;
                 } else if point > log_ratio(t.upper_strike, t.initial_spot) {
                     cash = t.principal_ratio;
                 } else {
+                    cash = t.principal_ratio - t.upper_strike / t.initial_spot;
                     asset = 1.0 / t.initial_spot;
                 }
             } else {
@@ -469,11 +481,14 @@ fn price<T: AutocallableTerms>(
         return checked(state.coupon + curve.evaluate(context.spot_price())?);
     }
     let anchor = note.view().initial_spot;
-    let mut breaks = vec![
-        log_ratio(note.view().knock_in_level, anchor),
-        log_ratio(note.view().upper_strike, anchor),
-    ];
-    if note.view().lower_strike > 0.0 {
+    let mut breaks = Vec::new();
+    if note.view().has_knock_in {
+        breaks.push(log_ratio(note.view().knock_in_level, anchor));
+    }
+    if note.view().fixed_knocked_in_coupon.is_none() {
+        breaks.push(log_ratio(note.view().upper_strike, anchor));
+    }
+    if note.view().fixed_knocked_in_coupon.is_none() && note.view().lower_strike > 0.0 {
         breaks.push(log_ratio(note.view().lower_strike, anchor));
     }
     for r in note

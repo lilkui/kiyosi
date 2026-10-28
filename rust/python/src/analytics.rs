@@ -562,6 +562,24 @@ pub(crate) fn implied_volatility(
                 }),
             );
         }
+        if let Ok(note) = instrument.extract::<PyRef<'_, autocallable::BinarySnowballOption>>() {
+            let option = note.0.clone();
+            return domain(
+                py,
+                py.detach(|| {
+                    core::implied_volatility(&engine, &option, &context, observed, controls)
+                }),
+            );
+        }
+        if let Ok(note) = instrument.extract::<PyRef<'_, autocallable::TernarySnowballOption>>() {
+            let option = note.0.clone();
+            return domain(
+                py,
+                py.detach(|| {
+                    core::implied_volatility(&engine, &option, &context, observed, controls)
+                }),
+            );
+        }
         let option = instrument
             .extract::<PyRef<'_, autocallable::SnowballOption>>()?
             .0

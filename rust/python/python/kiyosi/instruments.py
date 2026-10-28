@@ -1,4 +1,4 @@
-"""Validated vanilla, digital, barrier, touch, Asian, range-accrual and snowball and Phoenix contracts."""
+"""Validated derivative contracts, snowball presets and observation adapters."""
 
 from typing import Literal
 
@@ -9,6 +9,7 @@ from ._native import (
     AutocallableObservation,
     BarrierOption,
     BinaryBarrierOption,
+    BinarySnowballOption,
     CashOrNothingOption,
     DoubleBarrierOption,
     DoubleTouchOption,
@@ -17,6 +18,7 @@ from ._native import (
     PhoenixOption,
     RangeAccrualOption,
     SnowballOption,
+    TernarySnowballOption,
     TouchOption,
     asset_binary_barrier_option,
     asset_no_touch_down,
@@ -24,6 +26,7 @@ from ._native import (
     asset_one_touch_down,
     asset_one_touch_up,
     autocallable_observations,
+    both_down_snowball,
     cash_binary_barrier_option,
     cash_double_no_touch,
     cash_double_touch,
@@ -31,6 +34,13 @@ from ._native import (
     cash_no_touch_up,
     cash_one_touch_down,
     cash_one_touch_up,
+    dual_coupon_snowball,
+    european_snowball,
+    loss_capped_snowball,
+    otm_snowball,
+    parachute_snowball,
+    standard_snowball,
+    step_down_snowball,
 )
 
 OptionType = Literal["call", "put"]
@@ -42,6 +52,7 @@ __all__ = [
     "AutocallableObservation",
     "BarrierOption",
     "BinaryBarrierOption",
+    "BinarySnowballOption",
     "CashOrNothingOption",
     "DoubleBarrierOption",
     "DoubleTouchOption",
@@ -51,6 +62,7 @@ __all__ = [
     "PhoenixOption",
     "RangeAccrualOption",
     "SnowballOption",
+    "TernarySnowballOption",
     "TouchOption",
     "asset_binary_barrier_option",
     "asset_no_touch_down",
@@ -58,6 +70,7 @@ __all__ = [
     "asset_one_touch_down",
     "asset_one_touch_up",
     "autocallable_observations",
+    "both_down_snowball",
     "cash_binary_barrier_option",
     "cash_double_no_touch",
     "cash_double_touch",
@@ -65,4 +78,11 @@ __all__ = [
     "cash_no_touch_up",
     "cash_one_touch_down",
     "cash_one_touch_up",
+    "dual_coupon_snowball",
+    "european_snowball",
+    "loss_capped_snowball",
+    "otm_snowball",
+    "parachute_snowball",
+    "standard_snowball",
+    "step_down_snowball",
 ]
