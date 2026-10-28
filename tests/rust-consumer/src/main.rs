@@ -210,6 +210,36 @@ fn main() -> Result<()> {
             .abs()
             < 1e-7
     );
+    let barrier_mc = kiyosi_core::MonteCarloBarrierEngine::new(MonteCarloSettings {
+        path_count: 32768,
+        seed: Some(42),
+        sampling: MonteCarloSampling::Sobol,
+        ..Default::default()
+    })?;
+    let mc_result = barrier_mc.price_with_greeks(
+        &barrier,
+        &context,
+        GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+        Default::default(),
+    )?;
+    assert!((mc_result.price() - barrier_result.price()).abs() < 0.12);
+    assert!(mc_result.has(Greek::Delta));
+    assert!(!mc_result.has(Greek::Vega));
+    assert!(
+        (implied_volatility(
+            &barrier_mc,
+            &barrier,
+            &context,
+            mc_result.price(),
+            ImpliedVolatilitySettings {
+                lower_bound: 0.15,
+                upper_bound: 0.25,
+                ..Default::default()
+            }
+        )? - 0.2)
+            .abs()
+            < 1e-5
+    );
     let barrier_tree = kiyosi_core::CoxRossRubinsteinBarrierEngine::default();
     let tree_result = barrier_tree.price_with_greeks(
         &barrier,

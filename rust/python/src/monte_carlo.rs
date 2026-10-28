@@ -279,3 +279,40 @@ sampling_settings!(
         Ok(analytics::PricingResult(result))
     }
 );
+
+#[pyclass(frozen, module = "kiyosi._native")]
+pub(crate) struct MonteCarloBarrierEngine(pub(crate) core::MonteCarloBarrierEngine);
+
+sampling_settings!(
+    MonteCarloBarrierEngine,
+    fn price(
+        &self,
+        py: Python<'_>,
+        instrument: &barrier::BarrierOption,
+        context: &PricingContext,
+    ) -> PyResult<f64> {
+        let engine = self.0;
+        let option = instrument.0.clone();
+        let context = context.0.clone();
+        domain(py, py.detach(|| engine.price(&option, &context)))
+    },
+    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    fn price_with_greeks(
+        &self,
+        py: Python<'_>,
+        instrument: &barrier::BarrierOption,
+        context: &PricingContext,
+        greeks: Option<&Bound<'_, PyAny>>,
+        settings: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<analytics::PricingResult> {
+        let request = analytics::request(greeks, settings)?;
+        let shifts = analytics::shifts(settings)?;
+        let engine = self.0;
+        let option = instrument.0.clone();
+        let context = context.0.clone();
+        Ok(analytics::PricingResult(domain(
+            py,
+            py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+        )?))
+    }
+);

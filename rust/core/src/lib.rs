@@ -100,8 +100,8 @@ pub use market::{
     PricingContextChanges, Rate,
 };
 pub use monte_carlo::{
-    MonteCarloDigitalEngine, MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings,
-    MonteCarloVanillaEngine,
+    MonteCarloBarrierEngine, MonteCarloDigitalEngine, MonteCarloEstimate, MonteCarloSampling,
+    MonteCarloSettings, MonteCarloVanillaEngine,
 };
 pub use numerical::numerical_greeks;
 pub use pricing::AnalyticVanillaEngine;

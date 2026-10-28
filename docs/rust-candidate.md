@@ -1454,6 +1454,79 @@ Public API tests cover live QuantLib continuous prices/Greeks, independent digit
 and bivariate-normal scheduled payoffs, short maturity, near-barrier values,
 spatial/extent convergence, event history, validation, solving and concurrency.
 
+## Single-barrier CPU Monte Carlo
+
+`MonteCarloBarrierEngine` prices `BarrierOption` with flat risk-free and dividend
+rates. It uses the shared Rust `MonteCarloSettings` and Python keyword settings:
+100,000 paths, 50 steps, no seed, automatic workers, pseudorandom sampling and no
+antithetic pairing. Steps are validated but unused. Continuous monitoring samples
+one terminal normal and weights payoffs by conditional Brownian-bridge survival.
+Scheduled monitoring samples each original future fixing and, when monitoring ends
+early, one unobserved expiry leg. It never adds monitoring dates or moves fixings.
+
+Pseudorandom and scrambled Sobol sampling support plain and antithetic paths,
+including exact odd pseudorandom counts. Sobol requires power-of-two paths and at
+most 21,201 dimensions; dimensions equal the number of simulation legs, independent
+of `step_count`. Pairing uses `ceil(path_count / 2)` points. Even paths that knock
+out early retain their full normal vector, preserving the remaining streams and
+thread-count-independent seeded results. The existing barrier support matrix has
+no `price_with_statistics` method; no new standard-error or confidence-interval
+claim is introduced. Existing vanilla uncertainty rules remain unchanged.
+
+Life, calendar and strictly prior touch-history validation reuse the barrier core.
+Current inclusive hits, known history, completed monitoring and expiry resolve
+before simulation. Resolved vanilla payoffs use analytic pricing. Prior at-hit
+rebates are already paid. Scheduled rebates discount to the actual hit fixing or
+expiry as contracted. Continuous at-hit rebates use the existing analytic hit
+value, including its negative-rate integration fallback. Non-finite paths,
+requested Greek samples or results return `InvalidResult`; failed calls preserve
+inputs and settings. Node curves return `UnsupportedOperation` before request,
+life or solver validation.
+
+`price_with_greeks` returns requested likelihood-ratio delta/gamma from the price's
+normal draws, with analytic survival derivatives for continuous monitoring. Other
+Greeks remain absent. All Greeks are absent at expiry or when the configured spot
+stencil crosses a current monitored barrier without a prior touch. Shifts are
+validated and also control numerical derivatives of the continuous at-hit rebate.
+The Rust `numerical_greeks` helper offers separate scalar sensitivities and pins
+one request-local seed. Likelihood estimates can be noisy near expiry.
+
+`implied_volatility` pins one seed for the whole solve, even for unseeded engines,
+and rejects volatility-independent remaining payments with `UnsupportedOperation`.
+Barrier prices may be nonmonotone in volatility and discrete sampled prices may
+jump; provide a bracket isolating the intended root. Solver tolerances apply to
+the sampled curve. Engines and returned results own their data, permit concurrent
+calls on shared or distinct instances, and change no global thread settings.
+Python releases the GIL around owned core work and reuses strict numeric/index
+conversions and native representation errors. Operational errors and worker panics
+follow the existing CPU Monte Carlo mapping described above.
+
+```python
+from datetime import date
+from kiyosi.instruments import BarrierOption
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import MonteCarloBarrierEngine, implied_volatility
+
+start = date(2025, 1, 1)
+option = BarrierOption(option_type="call", strike=100, effective_date=start,
+    expiry_date=date(2026, 1, 1), barrier_level=80, barrier_type="down_and_out")
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2),
+    spot_price=100, valuation_time=start)
+engine = MonteCarloBarrierEngine(path_count=32768, seed=42, sampling="sobol",
+                                 antithetic=True, thread_count=4)
+result = engine.price_with_greeks(option, context, ["delta", "gamma"])
+sigma = implied_volatility(engine, option, context, result.price,
+                           lower_bound=0.15, upper_bound=0.25)
+assert abs(sigma - 0.2) < 1e-5
+```
+
+See `MonteCarloBarrierEngine::price_with_greeks` for a Rust example. Candidate
+acceptance tests retain continuous analytic and scheduled quadrature comparisons,
+rebates, early monitoring, odd counts, shared-sample Greeks, solver behavior,
+thread reproducibility, event boundaries and failure categories. The legacy
+implementation remains available for migration comparison.
+
 ## Single-barrier finite differences
 
 Rust `FiniteDifferenceBarrierEngine` and Python

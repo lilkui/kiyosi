@@ -8,9 +8,11 @@ use crate::{
 const BLOCK_SIZE: usize = 256;
 
 mod american;
+mod barrier;
 mod digital;
 mod sobol;
 
+pub use barrier::MonteCarloBarrierEngine;
 pub use digital::MonteCarloDigitalEngine;
 
 /// Selects terminal sampling independently of antithetic pairing.
@@ -24,14 +26,14 @@ pub enum MonteCarloSampling {
     Sobol,
 }
 
-/// Configures terminal, Asian integration or American exercise-grid CPU sampling.
+/// Configures terminal, Asian, barrier or American exercise-grid CPU sampling.
 /// See [`MonteCarloVanillaEngine::new`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MonteCarloSettings {
     /// Sets the exact path count, from 1 through 10,000,000; defaults to 100,000.
     pub path_count: i32,
     /// Sets 2..=10,000 grid points (default 50); American pricing before expiry needs 3.
-    /// Asian arithmetic integration uses this many intervals; exact distributions ignore it.
+    /// Asian arithmetic integration uses this many intervals; exact distributions and barriers ignore it.
     pub step_count: i32,
     /// Selects a reproducible stream, or system entropy when absent (the default).
     pub seed: Option<u64>,

@@ -10,7 +10,7 @@ kiyosi is a derivatives pricing library for Python users, supporting vanilla and
 The project is in Alpha. Breaking API changes are possible.
 
 The staged Rust rewrite now has a [candidate](docs/rust-candidate.md) for European
-analytic pricing, American approximation pricing, vanilla/digital CRR, quadrature and finite-difference pricing, single-barrier CRR, quadrature and finite differences, binary-barrier and single-touch finite differences, double-barrier and cash double-touch/no-touch finite differences, Greeks and implied volatility,
+analytic pricing, American approximation pricing, vanilla/digital CRR, quadrature and finite-difference pricing, single-barrier CRR, quadrature, finite differences and CPU Monte Carlo, binary-barrier and single-touch finite differences, double-barrier and cash double-touch/no-touch finite differences, Greeks and implied volatility,
 single/double/binary-barrier and touch analytics with event history, term structures, trading calendars and observation schedules,
 with an independent Rust core and an isolated Python installation. The sections
 below describe the existing delivery.
