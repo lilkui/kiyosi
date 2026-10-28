@@ -62,6 +62,13 @@ pub trait OptionContract {
     /// Returns expiry at midnight UTC. See [`DigitalOption::expiry_date`].
     fn expiry_date(&self) -> Date;
 
+    /// Reports whether a spot interval crosses a current payoff discontinuity.
+    /// Defaults to `false`. Barrier contracts suppress undefined sensitivities at
+    /// a current touch and stencils reaching it; see [`crate::AnalyticBarrierEngine::price_with_greeks`].
+    fn at_spot_discontinuity(&self, _context: &crate::PricingContext, _radius: f64) -> bool {
+        false
+    }
+
     /// Reports whether a time stencil preserves the supplied history regime.
     /// Defaults to `true`; Asian contracts prevent crossing their averaging start.
     /// See [`crate::AnalyticGeometricAveragePriceEngine::price_with_greeks`].

@@ -11,7 +11,7 @@ The project is in Alpha. Breaking API changes are possible.
 
 The staged Rust rewrite now has a [candidate](docs/rust-candidate.md) for European
 analytic pricing, American approximation pricing, vanilla/digital CRR, quadrature and finite-difference pricing, Greeks and implied volatility,
-term structures, trading calendars and observation schedules,
+single-barrier analytics and event history, term structures, trading calendars and observation schedules,
 with an independent Rust core and an isolated Python installation. The sections
 below describe the existing delivery.
 

@@ -6,6 +6,7 @@ from typing import Literal, Never, Self, TypeAlias, overload
 __version__: str
 
 class ErrorCategory(IntEnum):
+    INVALID_OPTION = 1
     INVALID_STRIKE = 2
     INVALID_VOLATILITY = 3
     INVALID_RISK_FREE_RATE = 4
@@ -644,6 +645,19 @@ class PricingResult:
 
 @overload
 def implied_volatility(
+    engine: AnalyticBarrierEngine,
+    instrument: BarrierOption,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...
+@overload
+def implied_volatility(
     engine: AnalyticGeometricAveragePriceEngine | MonteCarloAsianEngine,
     instrument: GeometricAveragePriceOption,
     context: PricingContext,
@@ -801,6 +815,70 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
     def price_with_greeks(
         self,
         instrument: ArithmeticAveragePriceOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
+class BarrierOption:
+    def __init__(
+        self,
+        *,
+        option_type: Literal["call", "put"],
+        strike: float,
+        effective_date: date,
+        expiry_date: date,
+        barrier_level: float,
+        barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
+        rebate: float = ...,
+        rebate_timing: Literal["at_hit", "at_expiry"] = ...,
+        observation_mode: Literal["continuous", "scheduled"] = ...,
+        observation_dates: Iterable[date] = ...,
+        touch_state: Literal["untouched", "touched"] | None = None,
+    ) -> None: ...
+    def replace(
+        self, *, touch_state: Literal["untouched", "touched"] | None = ...
+    ) -> Self: ...
+    @property
+    def option_type(self) -> Literal["call", "put"]: ...
+    @property
+    def strike(self) -> float: ...
+    @property
+    def effective_date(self) -> date: ...
+    @property
+    def expiry_date(self) -> date: ...
+    @property
+    def barrier_level(self) -> float: ...
+    @property
+    def barrier_type(
+        self,
+    ) -> Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"]: ...
+    @property
+    def rebate(self) -> float: ...
+    @property
+    def rebate_timing(self) -> Literal["at_hit", "at_expiry"]: ...
+    @property
+    def observation_mode(self) -> Literal["continuous", "scheduled"]: ...
+    @property
+    def observation_dates(self) -> list[date]: ...
+    @property
+    def observation_schedule(self) -> ObservationSchedule: ...
+    @property
+    def mean_observation_year_fraction(self) -> float: ...
+    @property
+    def touch_state(self) -> Literal["untouched", "touched"] | None: ...
+
+class AnalyticBarrierEngine:
+    def __init__(self) -> None: ...
+    def price(self, instrument: BarrierOption, context: PricingContext) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: BarrierOption,
         context: PricingContext,
         greeks: Greek | Iterable[Greek] | None = None,
         *,

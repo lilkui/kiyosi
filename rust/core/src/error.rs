@@ -4,6 +4,7 @@ use std::fmt;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u8)]
 pub enum ErrorCategory {
+    InvalidOption = 1,
     InvalidStrike = 2,
     InvalidVolatility = 3,
     InvalidRiskFreeRate = 4,
@@ -25,7 +26,8 @@ pub enum ErrorCategory {
 
 impl ErrorCategory {
     /// Categories implemented by this migration slice.
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 17] = [
+        Self::InvalidOption,
         Self::InvalidStrike,
         Self::InvalidVolatility,
         Self::InvalidRiskFreeRate,
@@ -47,6 +49,7 @@ impl ErrorCategory {
     /// Stable category identifier.
     pub const fn name(self) -> &'static str {
         match self {
+            Self::InvalidOption => "INVALID_OPTION",
             Self::InvalidStrike => "INVALID_STRIKE",
             Self::InvalidVolatility => "INVALID_VOLATILITY",
             Self::InvalidRiskFreeRate => "INVALID_RISK_FREE_RATE",

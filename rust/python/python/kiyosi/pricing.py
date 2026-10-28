@@ -1,6 +1,7 @@
 """Synchronous analytic, Asian/American approximation, CRR, quadrature, FD and MC pricing."""
 
 from ._native import (
+    AnalyticBarrierEngine,
     AnalyticDigitalEngine,
     AnalyticGeometricAveragePriceEngine,
     AnalyticVanillaEngine,
@@ -23,6 +24,7 @@ from ._native import (
 )
 
 __all__ = [
+    "AnalyticBarrierEngine",
     "AnalyticDigitalEngine",
     "AnalyticGeometricAveragePriceEngine",
     "AnalyticVanillaEngine",

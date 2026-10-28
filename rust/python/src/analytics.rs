@@ -380,6 +380,24 @@ pub(crate) fn implied_volatility(
             py.detach(|| core::implied_volatility(&engine, &option, &context, observed, controls)),
         );
     }
+    if engine.is_instance_of::<barrier::AnalyticBarrierEngine>() {
+        let option = instrument
+            .extract::<PyRef<'_, barrier::BarrierOption>>()?
+            .0
+            .clone();
+        return domain(
+            py,
+            py.detach(|| {
+                core::implied_volatility(
+                    &core::AnalyticBarrierEngine,
+                    &option,
+                    &context,
+                    observed,
+                    controls,
+                )
+            }),
+        );
+    }
     if engine.is_instance_of::<digital::AnalyticDigitalEngine>() {
         let instrument = instrument.extract::<digital::DigitalInstrument<'_>>()?;
         let option = instrument.contract().clone();

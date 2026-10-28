@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–15 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
+Tickets 01–16 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars and observation schedules. The root
+calendars, observation schedules and single-barrier analytic pricing with event history. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -1224,6 +1224,95 @@ published arithmetic convergence cases, independent raw-path statistical
 comparisons, native sensitivities, history boundaries, tiny-volatility and
 monetary scaling, curves, threading, strict representations and solver failures.
 The legacy implementation remains available; no timing threshold is added.
+
+## Single-barrier analytics and history
+
+Rust constructs `BarrierOption::new(BarrierOptionTerms::new(direction, strike,
+start, end, barrier_level, barrier_type))?`. Modify the public input terms before
+construction to configure a rebate, monitoring or history. `BarrierType` provides
+`UpAndIn`, `UpAndOut`, `DownAndIn` and `DownAndOut`; equality touches. Core defaults
+are zero rebate, `RebateTiming::AtExpiry`, `ObservationMode::Continuous`, an empty
+schedule and unknown history (`None`). Knock-ins reject `AtHit`, even for zero
+rebates, with `InvalidOption` (stable code 1). Levels must be finite and positive;
+rebates finite and nonnegative. Construction validates barrier level, life,
+schedule structure, then strike and rebate. Scheduled dates must be nonempty,
+strictly increasing and within inclusive life; continuous monitoring rejects dates.
+Trading-day compatibility is checked against the pricing context's calendar.
+
+`BarrierTouchState::{Untouched,Touched}` describes observations **strictly before**
+valuation; it does not include a fixing at valuation. Unknown history is accepted
+only until monitoring has previously occurred. Later missing history returns
+`InvalidParameter`; a claimed prior touch before the first observation returns
+`InvalidOption`. Continuous monitoring begins at the effective date's midnight.
+Scheduled observations occur only at midnight UTC; they do not recur later that
+day. `replace(Some(state))?` returns an owning copy; `replace(None)?` restores
+unknown history. Rust validates construction again and defers time consistency to
+pricing. Python `.replace(touch_state=...)` accepts `"untouched"`, `"touched"` or
+`None`; omitted history retains its value. Invalid replacements preserve originals.
+Rust schedule accessors borrow owner storage; Python returns owned schedules/lists.
+
+`AnalyticBarrierEngine` requires explicitly flat risk-free and dividend curves,
+including for resolved or expired contracts. Node curves return
+`UnsupportedOperation` before other pricing/analysis validation. Pricing then
+validates inclusive valuation life, scheduled trading dates and prior history.
+It resolves the current observation before future pricing: touched knock-ins
+become vanilla; touched knock-outs pay their rebate at expiry, or pay at hit only
+if the hit occurs now. Prior at-hit rebates are already paid and have value zero.
+After the final scheduled fixing, an untouched knock-out becomes vanilla and an
+untouched knock-in receives its expiry rebate. Expiry settles intrinsic value or
+rebate with the same event order. Zero-rebate terminal payoffs that necessarily
+require a touch resolve to vanilla (knock-in) or zero (knock-out).
+
+Live continuous prices retain the Reiner–Rubinstein branches, logarithmic tail
+scaling and negative-rate first-hit integration. Live scheduled prices retain the
+BGK approximation, shifting the barrier by
+`exp(±0.5825971579390107 * volatility * sqrt(mean_spacing_years))`.
+Mean spacing is effective date to final fixing divided by observation count in
+Actual/365 Fixed years. Unresolved schedules must end at expiry, and spot must
+lie strictly on the unbreached side of the shifted barrier; otherwise the engine
+returns `UnsupportedOperation`. Resolved contracts settle before those restrictions.
+There is no engine fallback. Non-finite prices return `InvalidResult`.
+
+All ten Greeks use the shared scalar numerical differences and core bump defaults.
+All are absent at expiry or a current barrier equality without a prior touch.
+Spot stencils reaching a current barrier omit affected spot/mixed Greeks; time
+stencils crossing scheduled fixings or invalid history regimes omit time Greeks.
+Other feasible pricing failures propagate. Scheduled calendar validation is cached
+only within each analysis or solve request. Requests share no mutable engine state.
+`implied_volatility` retains the supplied bracket and shared solver validation;
+barrier prices can be non-monotone, so choose a bracket around the desired root.
+Fixed remaining cashflows and excluded zero payoffs return `UnsupportedOperation`
+because volatility is unidentifiable. Inputs remain unchanged on every outcome.
+
+Python exports `BarrierOption` from `kiyosi.instruments` and
+`AnalyticBarrierEngine` from `kiyosi.pricing`. Choices use snake_case strings.
+Constructors, Greek controls and solver controls retain strict representation
+validation: booleans are rejected as numbers, and integer controls reject floats
+and out-of-range values. Domain errors map to `KiyosiError.category`; wrong
+protocols and unknown choices keep native exceptions. Price, analysis and solve
+calls release the GIL around owned core inputs. Shared and distinct engines allow
+concurrent pricing; signals resume when Python regains control.
+
+```python
+from datetime import date
+from kiyosi.instruments import BarrierOption
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import AnalyticBarrierEngine, implied_volatility
+
+option = BarrierOption(option_type="call", strike=100,
+    effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
+    barrier_level=80, barrier_type="down_and_out", touch_state="untouched")
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2),
+    spot_price=100, valuation_time=date(2025, 1, 1))
+engine = AnalyticBarrierEngine()
+result = engine.price_with_greeks(option, context, ["delta", "vega"])
+sigma = implied_volatility(engine, option, context, result.price,
+                           lower_bound=0.15, upper_bound=0.25)
+assert abs(sigma - 0.2) < 1e-7
+assert option.replace(touch_state="touched").touch_state == "touched"
+assert option.touch_state == "untouched"
+```
 
 ## Checks
 

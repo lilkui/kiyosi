@@ -90,7 +90,7 @@ pub(crate) fn complete_greeks(
     let p0 = result.price();
     let available = GreeksRequest::new(Greek::ALL.into_iter().filter(|&g| result.has(g)));
     let time = context.valuation_time();
-    if time == option.expiry_date().start_of_day() {
+    if time == option.expiry_date().start_of_day() || option.at_spot_discontinuity(context, 0.0) {
         return Ok(result);
     }
     let model = context.model_parameters();
@@ -100,10 +100,12 @@ pub(crate) fn complete_greeks(
     let h = symmetric_shift(spot, settings.spot_shift);
     let v = symmetric_shift(vol, settings.volatility_shift);
     let r = symmetric_shift(rate, settings.rate_shift);
-    let spot_ok = h > 0.0 && spot > h;
+    let spot_ok = h > 0.0 && spot > h && !option.at_spot_discontinuity(context, h);
     let two_h = 2.0 * h;
-    let scalar_speed_ok =
-        two_h.is_finite() && spot > two_h && symmetric_shift(spot, two_h) == two_h;
+    let scalar_speed_ok = two_h.is_finite()
+        && spot > two_h
+        && symmetric_shift(spot, two_h) == two_h
+        && !option.at_spot_discontinuity(context, two_h);
     let speed_ok = spot_ok && (native_spot_greeks || scalar_speed_ok);
     let want = |g| request.has(g) && !available.has(g);
     let shifted = |spot, volatility, rate_shift, valuation_time| -> Result<PricingContext> {

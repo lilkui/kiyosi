@@ -13,9 +13,37 @@ use kiyosi_core::{
 fn main() -> Result<()> {
     let start = Date::new(2025, 1, 1)?;
     let end = Date::new(2026, 1, 1)?;
+    let barrier = kiyosi_core::BarrierOption::new(kiyosi_core::BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        80.0,
+        kiyosi_core::BarrierType::DownAndOut,
+    ))?
+    .replace(Some(kiyosi_core::BarrierTouchState::Untouched))?;
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
     let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
     let context = PricingContext::new(model, 100.0, start.into())?;
+    let barrier_result = kiyosi_core::AnalyticBarrierEngine.price_with_greeks(
+        &barrier,
+        &context,
+        GreeksRequest::all(),
+        NumericalShiftSettings::default(),
+    )?;
+    assert!(barrier_result.require(Greek::Delta)? > 0.0);
+    let barrier_sigma = implied_volatility(
+        &kiyosi_core::AnalyticBarrierEngine,
+        &barrier,
+        &context,
+        barrier_result.price(),
+        ImpliedVolatilitySettings {
+            lower_bound: 0.15,
+            upper_bound: 0.25,
+            ..Default::default()
+        },
+    )?;
+    assert!((barrier_sigma - 0.2).abs() < 1e-7);
     let geometric = kiyosi_core::GeometricAveragePriceOption::new(
         OptionType::Call,
         100.0,

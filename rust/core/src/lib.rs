@@ -1,5 +1,6 @@
 //! Calendars, schedules, vanilla/digital BSM, geometric/arithmetic Asian analytics,
-//! CRR, quadrature, finite-difference and CPU Monte Carlo pricing and American approximation,
+//! Single-barrier analytics, CRR, quadrature, finite-difference and CPU Monte Carlo pricing
+//! and American approximation,
 //! independent of Python.
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared
@@ -37,6 +38,7 @@
 mod american;
 mod analytics;
 mod asian;
+mod barrier;
 mod binomial;
 mod calendar;
 mod digital;
@@ -59,6 +61,10 @@ pub use asian::{
     AnalyticGeometricAveragePriceEngine, ArithmeticAveragePriceOption, DEFAULT_REALIZED_AVERAGE,
     GeometricAveragePriceOption, MonteCarloAsianEngine,
     TurnbullWakemanArithmeticAveragePriceEngine,
+};
+pub use barrier::{
+    AnalyticBarrierEngine, BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType,
+    ObservationMode, RebateTiming,
 };
 pub use binomial::{
     BinomialSettings, CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,
