@@ -148,3 +148,16 @@ fd_engine!(
         py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
     }
 );
+
+fd_engine!(
+    FiniteDifferenceBarrierEngine,
+    PyRef<'_, barrier::BarrierOption>,
+    |py, option, engine, context, request, shifts| {
+        let option = option.0.clone();
+        py.detach(|| engine.price(&option, &context))
+    },
+    {
+        let option = option.0.clone();
+        py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+    }
+);

@@ -120,6 +120,30 @@ fn main() -> Result<()> {
             .abs()
             < 1e-7
     );
+    let barrier_fd = kiyosi_core::FiniteDifferenceBarrierEngine::default();
+    let fd_result = barrier_fd.price_with_greeks(
+        &barrier,
+        &context,
+        GreeksRequest::new([Greek::Delta, Greek::Vanna]),
+        Default::default(),
+    )?;
+    assert!((fd_result.price() - barrier_result.price()).abs() < 0.003);
+    assert!(fd_result.has(Greek::Vanna));
+    assert!(
+        (implied_volatility(
+            &barrier_fd,
+            &barrier,
+            &context,
+            fd_result.price(),
+            ImpliedVolatilitySettings {
+                lower_bound: 0.15,
+                upper_bound: 0.25,
+                ..Default::default()
+            }
+        )? - 0.2)
+            .abs()
+            < 1e-7
+    );
     let barrier_tree = kiyosi_core::CoxRossRubinsteinBarrierEngine::default();
     let tree_result = barrier_tree.price_with_greeks(
         &barrier,

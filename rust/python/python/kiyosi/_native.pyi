@@ -394,6 +394,37 @@ FiniteDifferenceScheme: TypeAlias = Literal[
     "explicit_euler", "implicit_euler", "crank_nicolson"
 ]
 
+class FiniteDifferenceBarrierEngine:
+    def __init__(
+        self,
+        *,
+        asset_step_count: int = ...,
+        time_step_count: int = ...,
+        scheme: FiniteDifferenceScheme = ...,
+        asset_upper_boundary: float | None = None,
+    ) -> None: ...
+    @property
+    def asset_step_count(self) -> int: ...
+    @property
+    def time_step_count(self) -> int: ...
+    @property
+    def scheme(self) -> FiniteDifferenceScheme: ...
+    @property
+    def asset_upper_boundary(self) -> float | None: ...
+    def price(self, instrument: BarrierOption, context: PricingContext) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: BarrierOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
 class FiniteDifferenceVanillaEngine:
     def __init__(
         self,
@@ -703,7 +734,8 @@ def implied_volatility(
 def implied_volatility(
     engine: AnalyticBarrierEngine
     | CoxRossRubinsteinBarrierEngine
-    | QuadratureBarrierEngine,
+    | QuadratureBarrierEngine
+    | FiniteDifferenceBarrierEngine,
     instrument: BarrierOption,
     context: PricingContext,
     observed_price: float,

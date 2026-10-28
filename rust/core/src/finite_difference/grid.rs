@@ -5,6 +5,7 @@ pub(super) struct SpatialGrid {
     pub spacing: f64,
     pub count: usize,
     scale: f64,
+    lower: f64,
 }
 
 impl SpatialGrid {
@@ -19,6 +20,7 @@ impl SpatialGrid {
             spacing: 0.0,
             count: settings.asset_step_count as usize,
             scale,
+            lower: 0.0,
         };
         grid.spacing = grid.coordinate(upper) / grid.count as f64;
         if !upper.is_finite() || upper <= level || !grid.spacing.is_finite() || grid.spacing <= 0.0
@@ -30,9 +32,34 @@ impl SpatialGrid {
         Ok(grid)
     }
 
+    pub fn barrier_domain(&mut self, lower: f64, upper: f64) -> Result<()> {
+        self.count = (((upper - lower) / self.spacing).ceil() as usize).clamp(3, self.count);
+        self.lower = lower;
+        self.upper = upper;
+        self.spacing = (upper - lower) / self.count as f64;
+        let mut previous = lower;
+        for index in 1..=self.count {
+            let asset = self.asset(index);
+            if !asset.is_finite() || asset <= previous {
+                return Err(invalid_grid(
+                    "barrier grid nodes are not representably distinct",
+                ));
+            }
+            previous = asset;
+        }
+        Ok(())
+    }
+
+    pub fn linear(&self, values: &[f64], asset: f64) -> f64 {
+        let position = self.coordinate(asset) / self.spacing;
+        let index = (position.floor() as usize).min(self.count - 1);
+        let weight = position - index as f64;
+        (1.0 - weight) * values[index] + weight * values[index + 1]
+    }
+
     fn coordinate(&self, asset: f64) -> f64 {
         if self.scale == 0.0 {
-            return asset;
+            return asset - self.lower;
         }
         let ratio = asset / self.scale;
         if ratio.is_finite() {
@@ -48,7 +75,7 @@ impl SpatialGrid {
         }
         let x = self.spacing * index as f64;
         if self.scale == 0.0 {
-            x
+            self.lower + x
         } else if x > 700.0 {
             (self.scale.ln() + x - std::f64::consts::LN_2).exp()
         } else {
@@ -57,7 +84,7 @@ impl SpatialGrid {
     }
 
     pub fn coefficients(&self, index: usize, rate: f64, dividend: f64, sigma: f64) -> [f64; 3] {
-        let node = index as f64;
+        let node = index as f64 + self.lower / self.spacing;
         let (drift, scaled_sigma) = if self.scale == 0.0 {
             ((rate - dividend) * node, sigma * node)
         } else {
@@ -222,12 +249,23 @@ pub(super) struct TimeGrid {
 
 impl TimeGrid {
     pub fn new(time: f64, steps: i32, risk: &Curve, dividend: &Curve) -> Self {
+        Self::with_events(time, steps, risk, dividend, &[])
+    }
+
+    pub fn with_events(
+        time: f64,
+        steps: i32,
+        risk: &Curve,
+        dividend: &Curve,
+        observations: &[f64],
+    ) -> Self {
         let mut events: Vec<_> = risk
             .segments
             .iter()
             .chain(&dividend.segments)
             .map(|&(end, _)| end)
             .collect();
+        events.extend_from_slice(observations);
         events.push(0.0);
         events.sort_by(f64::total_cmp);
         events.dedup();

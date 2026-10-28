@@ -23,6 +23,7 @@ from kiyosi.market import RateTermStructure
 from kiyosi.pricing import (
     AnalyticDigitalEngine,
     AnalyticVanillaEngine,
+    FiniteDifferenceBarrierEngine,
     FiniteDifferenceDigitalEngine,
     FiniteDifferenceScheme,
     FiniteDifferenceVanillaEngine,
@@ -31,7 +32,11 @@ from kiyosi.pricing import (
 from test_binomial import DIGITAL, END, GREEKS, START, VANILLA, contract, market
 
 KINDS = (*VANILLA, *DIGITAL)
-FACTORIES = (FiniteDifferenceVanillaEngine, FiniteDifferenceDigitalEngine)
+FACTORIES = (
+    FiniteDifferenceVanillaEngine,
+    FiniteDifferenceDigitalEngine,
+    FiniteDifferenceBarrierEngine,
+)
 SCHEMES = ("explicit_euler", "implicit_euler", "crank_nicolson")
 
 

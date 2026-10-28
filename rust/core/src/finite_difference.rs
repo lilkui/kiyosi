@@ -5,6 +5,7 @@ use crate::{
     pricing::{black_scholes_arguments, weighted_cdf},
 };
 
+mod barrier;
 mod grid;
 mod step;
 use grid::{Curve, SpatialGrid, TimeGrid};
@@ -41,12 +42,13 @@ impl FiniteDifferenceScheme {
 pub struct FiniteDifferenceSettings {
     /// Sets at least three spatial steps; defaults to 800.
     pub asset_step_count: i32,
-    /// Sets at least one time step; defaults to 200. Vanilla adds curve knots.
+    /// Sets at least one time step; defaults to 200. Curve knots and barrier observations are added.
     pub time_step_count: i32,
     /// Selects time marching; defaults to damped Crank-Nicolson.
     pub scheme: FiniteDifferenceScheme,
     /// Sets a finite positive upper spot boundary, or uses the contract's automatic domain.
-    /// Pricing requires the boundary to exceed spot and strike. Explicit domains need convergence checks.
+    /// Pricing requires the boundary to exceed spot, strike and any barrier level.
+    /// Explicit domains need convergence checks.
     pub asset_upper_boundary: Option<f64>,
 }
 
@@ -441,7 +443,7 @@ macro_rules! engine_settings {
     ($engine:ident, $description:literal) => {
         #[doc = $description]
         /// Owns immutable settings; distinct and shared instances support concurrent pricing.
-        /// See [`FiniteDifferenceVanillaEngine::price_with_greeks`] for usage.
+        /// See [`Self::price_with_greeks`] for usage.
         #[derive(Clone, Copy, Debug, Default, PartialEq)]
         pub struct $engine {
             settings: FiniteDifferenceSettings,
@@ -453,6 +455,7 @@ macro_rules! engine_settings {
             /// Returns [`ErrorCategory::InvalidParameter`] for fewer than three asset steps,
             /// nonpositive time steps or a nonpositive/non-finite explicit upper boundary.
             /// Validation precedes storing settings; no grid is allocated here.
+            /// See [`Self::price_with_greeks`] for engine-specific usage.
             ///
             /// # Examples
             /// ```
@@ -483,6 +486,11 @@ engine_settings!(
 engine_settings!(
     FiniteDifferenceDigitalEngine,
     "Prices European cash-or-nothing and asset-or-nothing contracts with flat-rate finite differences."
+);
+
+engine_settings!(
+    FiniteDifferenceBarrierEngine,
+    "Prices single-barrier contracts with exact continuous edges and scheduled event projection."
 );
 
 impl FiniteDifferenceVanillaEngine {

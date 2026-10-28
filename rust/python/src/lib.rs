@@ -786,6 +786,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     module.add_class::<finite_difference::FiniteDifferenceVanillaEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceDigitalEngine>()?;
+    module.add_class::<finite_difference::FiniteDifferenceBarrierEngine>()?;
     module.add(
         "FiniteDifferenceScheme",
         py.import("typing")?.getattr("Literal")?.get_item((

@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–20 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
+Tickets 01–21 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR and quadrature. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -1453,6 +1453,85 @@ and calls `price`, `price_with_greeks`, `numerical_greeks` or `implied_volatilit
 Public API tests cover live QuantLib continuous prices/Greeks, independent digital
 and bivariate-normal scheduled payoffs, short maturity, near-barrier values,
 spatial/extent convergence, event history, validation, solving and concurrency.
+
+## Single-barrier finite differences
+
+Rust `FiniteDifferenceBarrierEngine` and Python
+`kiyosi.pricing.FiniteDifferenceBarrierEngine` price `BarrierOption` with continuous
+or scheduled monitoring, all four barrier types, expiry rebates and knock-out
+at-hit rebates. Both flat and node rate/dividend curves are supported. The engine
+uses the shared `FiniteDifferenceSettings`: 800 asset steps, 200 time steps,
+Crank-Nicolson and an automatic upper boundary. The automatic boundary is
+`max(4 * max(spot, strike), barrier + max(spot, strike))`; an explicit boundary
+must exceed spot, strike and barrier before a time grid is allocated.
+
+Continuous barriers form exact edges of the live domain; their level is never
+rounded to a node. Scheduled dates and curve knots are inserted unchanged into
+the time grid. Current observations resolve against actual spot before projection;
+only strictly future dates become grid events. At each scheduled fixing the
+barrier cell projects the discontinuity using piecewise two-point Gaussian
+integration, preserving smooth continuation elsewhere. Crank-Nicolson replaces
+the first two rollback intervals with implicit half-steps and restarts that damping
+after each fixing, without introducing additional observations. Knock-ins use a
+separately marched vanilla reference plus discounted rebate parity. Scheduled
+outer boundaries discount at-hit rebates to the next original observation.
+
+Life, calendar, strictly prior history, completed monitoring, expiry settlement
+and already-paid at-hit rebates follow the single-barrier contract above.
+Resolved cashflows or vanilla claims precede grid validation. Settings validate
+at construction; clipped or degenerate domains and unstable explicit grids return
+`InvalidParameter`, numerical failures return `InvalidResult`, and life/curve
+coverage failures return `InvalidTimeRange`. Failed pricing or analysis preserves
+inputs and immutable settings.
+
+Requested delta/gamma use the shared spot spline; speed differences spline gamma
+on the same grid using `spot_shift`. Other Greeks, including vanna/zomma and
+charm/color, use shared numerical completion and all four Rust shift settings.
+Analysis fixes the central spatial domain. Collapsed bumps omit dependent
+numerical Greeks while spline delta/gamma remain available. Stencils crossing
+barriers or observation/history regimes omit affected measures; all Greeks are
+absent at expiry or a current barrier equality without a prior touch. Feasible
+bump failures propagate. The shared implied-volatility solver keeps the supplied
+bracket; fixed cashflows return `UnsupportedOperation`. Barrier prices can be
+non-monotone in volatility, so callers must bracket the intended root.
+
+Python settings use strict real/integer protocols, rejecting booleans, fractional
+integer controls and integer overflow with native conversion exceptions. Defaults
+come from Rust, results own their data, and pricing, Greeks and solving release
+the GIL around owned core inputs. Shared and distinct engines support concurrent
+pricing and solving; signal handling resumes when control returns to Python.
+
+```python
+from datetime import date
+from kiyosi.instruments import BarrierOption
+from kiyosi.market import BlackScholesMertonParameters, PricingContext, all_days_calendar
+from kiyosi.pricing import FiniteDifferenceBarrierEngine, implied_volatility
+
+start, end = date(2025, 1, 1), date(2026, 1, 1)
+option = BarrierOption(option_type="call", strike=100,
+    effective_date=start, expiry_date=end, barrier_level=80,
+    barrier_type="down_and_out", observation_mode="scheduled",
+    observation_dates=[date(2025, 4, 2), date(2025, 10, 1)],
+    touch_state="untouched")
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2),
+    spot_price=100, valuation_time=start, calendar=all_days_calendar())
+engine = FiniteDifferenceBarrierEngine(asset_upper_boundary=400)
+result = engine.price_with_greeks(option, context, ["delta", "gamma", "vanna"])
+assert result.delta is not None and result.vanna is not None
+assert result.price == engine.price(option, context)
+sigma = implied_volatility(engine, option, context, result.price,
+                           lower_bound=0.15, upper_bound=0.25)
+assert abs(sigma - 0.2) < 1e-7
+```
+
+Public Rust/Python tests cover settlement and failure contracts, exact continuous
+edges, event projection across grid placements, Rannacher restarts, interpolation
+near extrema, large rebates, vanishing volatility, node-curve discounts, mixed
+sensitivities and volatility recovery. Independent live QuantLib comparisons,
+analytic binary decompositions and two-observation conditional integrals check
+accuracy; spatial and temporal refinements check convergence. Legacy delivery
+remains available, with no new dependency or performance gate.
 
 ## Binary-barrier and single-touch analytics
 
