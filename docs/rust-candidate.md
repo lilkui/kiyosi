@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–18 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
+Tickets 01–19 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -1313,6 +1313,67 @@ assert abs(sigma - 0.2) < 1e-7
 assert option.replace(touch_state="touched").touch_state == "touched"
 assert option.touch_state == "untouched"
 ```
+
+## Single-barrier CRR
+
+Rust `CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: 1024 })?`
+and Python `kiyosi.pricing.CoxRossRubinsteinBarrierEngine(step_count=1024)` price
+`BarrierOption` using the existing CRR rollback. `Default::default()` and Python's
+no-argument constructor derive **256** steps from Rust; valid counts are
+1 through 1,000,000. Invalid counts return `InvalidParameter` at construction.
+Python uses the same strict integer protocol as the other CRR engines, exposes
+read-only `step_count`, and rejects booleans, floats and out-of-range integers.
+
+All four barrier types, calls and puts, continuous and scheduled monitoring, zero
+or nonnegative rebates, and applicable at-hit/at-expiry payment timings follow
+the shared barrier terms above. Explicitly flat risk-free and dividend curves
+are required before other domain validation, including settlement and expiry.
+Pricing then validates inclusive life, calendar and strictly prior history.
+Resolved cashflows and vanilla payoffs settle before tree/grid validation;
+resolved vanilla uses analytic pricing and delta/gamma. At-hit rebates already
+paid remain zero. The final fixing can precede expiry, and fixings occur only
+at their original midnight, including a fixing exactly at valuation.
+
+Continuous monitoring checks every tree level and converges toward the analytic
+continuous limit; finite-step prices can oscillate as the barrier crosses nodes.
+Each unresolved future scheduled fixing must coincide **exactly** with a step,
+using microsecond integer arithmetic relative to valuation. Off-grid dates return
+`UnsupportedOperation`; the engine never moves dates or adjusts the step count.
+Inclusive node hits preserve barrier equality. Unstable risk-neutral probabilities,
+non-normal terminal asset nodes and non-finite prices return `InvalidResult`.
+
+`price_with_greeks` returns only requested node delta/gamma. One-step gamma and
+all expiry Greeks are absent. Current barrier equality also suppresses Greeks
+without a prior touch. Other measures remain absent even when requested. Numerical shift controls are validated but unused.
+Rust callers can explicitly use `numerical_greeks` for scalar sensitivities with
+the shared stencils; feasible bumped pricing failures propagate, including a
+schedule becoming off-grid after a time bump. `implied_volatility` intersects the
+supplied bracket with the existing admissible CRR volatility range and rejects
+volatility-independent payoffs. Barrier prices can be non-monotone or discontinuous
+in volatility; a solve may return a different root or stop by interval tolerance.
+Reprice its result when choosing brackets near tree barrier transitions.
+
+```python
+from kiyosi.pricing import CoxRossRubinsteinBarrierEngine, implied_volatility
+
+# Reuses the down-and-out option and context from the preceding example.
+engine = CoxRossRubinsteinBarrierEngine(step_count=1024)
+result = engine.price_with_greeks(option, context, ["delta", "gamma"])
+assert result.delta is not None and result.gamma is not None
+assert result.vega is None
+sigma = implied_volatility(engine, option, context, result.price,
+                           lower_bound=0.15, upper_bound=0.25)
+assert abs(engine.price(option, context.replace(model_parameters=
+    context.model_parameters.replace(volatility=sigma))) - result.price) < 2e-7
+```
+
+Python price, analysis and solve calls release the GIL around owned Rust inputs.
+Shared and distinct instances support concurrent pricing and leave inputs unchanged
+on success or failure. Signals resume when Python regains control. Public tests
+migrate the relevant legacy event and numerical regressions, compare small trees
+with independent exhaustive path enumeration, check continuous-grid refinement,
+and compare price/delta/gamma with live QuantLib 1.43. Legacy implementations stay
+available; no performance threshold or report is added.
 
 ## Binary-barrier and single-touch analytics
 

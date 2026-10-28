@@ -762,6 +762,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<double_barrier::AnalyticDoubleBarrierEngine>()?;
     module.add_class::<barrier::BarrierOption>()?;
     module.add_class::<barrier::AnalyticBarrierEngine>()?;
+    module.add_class::<barrier::CoxRossRubinsteinBarrierEngine>()?;
     module.add_class::<EuropeanOption>()?;
     module.add_class::<american::AmericanOption>()?;
     module.add_class::<american::BjerksundStenslandVanillaEngine>()?;

@@ -1,3 +1,6 @@
+mod barrier;
+pub use barrier::CoxRossRubinsteinBarrierEngine;
+
 use crate::{
     AmericanOption, DigitalOption, Error, ErrorCategory, EuropeanOption, Greek, GreeksRequest,
     ImpliedVolatilitySettings, NumericalShiftSettings, OptionContract, OptionType, PricingContext,
@@ -287,20 +290,7 @@ fn native(
             exercise(spot)
         });
     }
-    let width = context.model_parameters().volatility() * dt.sqrt();
-    let up = width.exp();
-    let down = 1.0 / up;
-    let discount = (-rate * dt).exp();
-    let p = ((rate - dividend) * dt + width).exp_m1() / (2.0 * width).exp_m1();
-    if !up.is_finite()
-        || !down.is_finite()
-        || up == down
-        || !discount.is_finite()
-        || !p.is_finite()
-        || !(0.0..=1.0).contains(&p)
-    {
-        return Err(unstable());
-    }
+    let (width, up, down, discount, p) = parameters(context, dt)?;
     let steps = settings.step_count as usize;
     let up_squared = up * up;
     let mut node_spot = spot * down.powi(settings.step_count);
@@ -608,4 +598,23 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
     ) -> Result<ImpliedVolatilitySettings> {
         prepare_implied(option, context, self.settings, settings)
     }
+}
+
+fn parameters(context: &PricingContext, dt: f64) -> Result<(f64, f64, f64, f64, f64)> {
+    let (rate, dividend) = flat_rates(context)?;
+    let width = context.model_parameters().volatility() * dt.sqrt();
+    let up = width.exp();
+    let down = 1.0 / up;
+    let discount = (-rate * dt).exp();
+    let p = ((rate - dividend) * dt + width).exp_m1() / (2.0 * width).exp_m1();
+    if !up.is_finite()
+        || !down.is_finite()
+        || up == down
+        || !discount.is_finite()
+        || !p.is_finite()
+        || !(0.0..=1.0).contains(&p)
+    {
+        return Err(unstable());
+    }
+    Ok((width, up, down, discount, p))
 }

@@ -222,3 +222,67 @@ impl AnalyticBarrierEngine {
         )?))
     }
 }
+
+#[pyclass(frozen, module = "kiyosi._native")]
+pub(crate) struct CoxRossRubinsteinBarrierEngine(pub(crate) core::CoxRossRubinsteinBarrierEngine);
+
+#[pymethods]
+impl CoxRossRubinsteinBarrierEngine {
+    #[new]
+    #[pyo3(signature = (**fields))]
+    fn new(py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
+        check_changes(fields, &["step_count"])?;
+        let mut settings = core::BinomialSettings::default();
+        if let Some(value) = fields
+            .map(|f| f.get_item("step_count"))
+            .transpose()?
+            .flatten()
+        {
+            settings.step_count = integer(&value)?;
+        }
+        Ok(Self(domain(
+            py,
+            core::CoxRossRubinsteinBarrierEngine::new(settings),
+        )?))
+    }
+    #[getter]
+    fn step_count(&self) -> i32 {
+        self.0.settings().step_count
+    }
+    fn __repr__(&self) -> String {
+        format!(
+            "CoxRossRubinsteinBarrierEngine(step_count={})",
+            self.step_count()
+        )
+    }
+    fn price(
+        &self,
+        py: Python<'_>,
+        instrument: &BarrierOption,
+        context: &PricingContext,
+    ) -> PyResult<f64> {
+        let engine = self.0;
+        let option = instrument.0.clone();
+        let context = context.0.clone();
+        domain(py, py.detach(|| engine.price(&option, &context)))
+    }
+    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    fn price_with_greeks(
+        &self,
+        py: Python<'_>,
+        instrument: &BarrierOption,
+        context: &PricingContext,
+        greeks: Option<&Bound<'_, PyAny>>,
+        settings: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<analytics::PricingResult> {
+        let request = analytics::request(greeks, settings)?;
+        let shifts = analytics::shifts(settings)?;
+        let engine = self.0;
+        let option = instrument.0.clone();
+        let context = context.0.clone();
+        Ok(analytics::PricingResult(domain(
+            py,
+            py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+        )?))
+    }
+}

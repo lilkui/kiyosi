@@ -91,6 +91,28 @@ fn main() -> Result<()> {
         },
     )?;
     assert!((barrier_sigma - 0.2).abs() < 1e-7);
+    let barrier_tree = kiyosi_core::CoxRossRubinsteinBarrierEngine::default();
+    let tree_result = barrier_tree.price_with_greeks(
+        &barrier,
+        &context,
+        GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+        NumericalShiftSettings::default(),
+    )?;
+    assert!(tree_result.require(Greek::Delta)? > 0.0);
+    assert!(tree_result.require(Greek::Gamma)? > 0.0);
+    assert!(!tree_result.has(Greek::Vega));
+    let sigma = implied_volatility(
+        &barrier_tree,
+        &barrier,
+        &context,
+        tree_result.price(),
+        ImpliedVolatilitySettings {
+            lower_bound: 0.15,
+            upper_bound: 0.25,
+            ..Default::default()
+        },
+    )?;
+    assert!((sigma - 0.2).abs() < 1e-6);
     let geometric = kiyosi_core::GeometricAveragePriceOption::new(
         OptionType::Call,
         100.0,

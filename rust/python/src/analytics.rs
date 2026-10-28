@@ -432,6 +432,17 @@ pub(crate) fn implied_volatility(
             }),
         );
     }
+    if let Ok(engine) = engine.extract::<PyRef<'_, barrier::CoxRossRubinsteinBarrierEngine>>() {
+        let engine = engine.0;
+        let option = instrument
+            .extract::<PyRef<'_, barrier::BarrierOption>>()?
+            .0
+            .clone();
+        return domain(
+            py,
+            py.detach(|| core::implied_volatility(&engine, &option, &context, observed, controls)),
+        );
+    }
     if engine.is_instance_of::<barrier::AnalyticBarrierEngine>() {
         let option = instrument
             .extract::<PyRef<'_, barrier::BarrierOption>>()?

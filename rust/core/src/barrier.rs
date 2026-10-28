@@ -427,27 +427,8 @@ fn price(
 ) -> Result<f64> {
     context.model_parameters().risk_free_rate()?;
     context.model_parameters().dividend_yield()?;
-    let time = context.valuation_time();
-    if time < option.effective_date().start_of_day() || time > option.expiry_date().start_of_day() {
-        return Err(Error::new(
-            ErrorCategory::InvalidTimeRange,
-            "valuation outside contract life",
-        ));
-    }
-    let validate = || {
-        if option
-            .observation_dates()
-            .iter()
-            .any(|&d| !context.calendar().is_trading_day(d))
-        {
-            Err(Error::new(
-                ErrorCategory::InvalidDate,
-                "observation is not a trading day",
-            ))
-        } else {
-            Ok(())
-        }
-    };
+    validate_life(option, context)?;
+    let validate = || validate_schedule(option, context);
     let cached = schedule.get_or_init(|| ScheduleValidation {
         schedule: option.schedule.clone(),
         calendar: context.calendar().clone(),
@@ -458,6 +439,42 @@ fn price(
     } else {
         validate()?;
     }
+    match resolved_price(option, context)? {
+        Some(value) => Ok(value),
+        None => analytic_price(option, context),
+    }
+}
+
+pub(crate) fn validate_life(option: &BarrierOption, context: &PricingContext) -> Result<()> {
+    let time = context.valuation_time();
+    if time < option.effective_date().start_of_day() || time > option.expiry_date().start_of_day() {
+        return Err(Error::new(
+            ErrorCategory::InvalidTimeRange,
+            "valuation outside contract life",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_schedule(option: &BarrierOption, context: &PricingContext) -> Result<()> {
+    if option
+        .observation_dates()
+        .iter()
+        .any(|&d| !context.calendar().is_trading_day(d))
+    {
+        return Err(Error::new(
+            ErrorCategory::InvalidDate,
+            "observation is not a trading day",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn resolved_price(
+    option: &BarrierOption,
+    context: &PricingContext,
+) -> Result<Option<f64>> {
+    let time = context.valuation_time();
     let (prior, touched, finished) = option.state(context)?;
     let knock_in = option.barrier_type().is_knock_in();
     let cash = || {
@@ -474,22 +491,24 @@ fn price(
     };
     if touched && !knock_in {
         return if option.rebate_timing() == RebateTiming::AtHit {
-            Ok(if prior { 0.0 } else { option.rebate() })
+            Ok(Some(if prior { 0.0 } else { option.rebate() }))
         } else {
-            cash()
+            cash().map(Some)
         };
     }
     if !touched && finished && knock_in {
-        return cash();
+        return cash().map(Some);
     }
     let fixed = option.rebate() == 0.0 && option.payoff_requires_touch();
     if fixed && !knock_in {
-        return Ok(0.0);
+        return Ok(Some(0.0));
     }
     if touched || finished || fixed {
-        return AnalyticVanillaEngine.price(&option.vanilla, context);
+        return AnalyticVanillaEngine
+            .price(&option.vanilla, context)
+            .map(Some);
     }
-    analytic_price(option, context)
+    Ok(None)
 }
 impl PricingEngine<BarrierOption> for AnalyticBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
@@ -526,7 +545,7 @@ impl PricingEngine<BarrierOption> for BarrierPricer {
         volatility_affects_price(option, context)
     }
 }
-fn volatility_affects_price(option: &BarrierOption, context: &PricingContext) -> bool {
+pub(crate) fn volatility_affects_price(option: &BarrierOption, context: &PricingContext) -> bool {
     let Ok((_, touched, finished)) = option.state(context) else {
         return false;
     };

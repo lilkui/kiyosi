@@ -73,7 +73,8 @@ pub use binary_barrier::{
     TouchOption, TouchOptionTerms,
 };
 pub use binomial::{
-    BinomialSettings, CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,
+    BinomialSettings, CoxRossRubinsteinBarrierEngine, CoxRossRubinsteinDigitalEngine,
+    CoxRossRubinsteinVanillaEngine,
 };
 pub use calendar::{BusinessDayConvention, TradingCalendar};
 pub use digital::AnalyticDigitalEngine;
