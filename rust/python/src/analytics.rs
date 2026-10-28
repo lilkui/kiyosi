@@ -181,6 +181,24 @@ pub(crate) fn implied_volatility(
         max_iterations: integer_setting(settings, "max_iterations", d.max_iterations)?,
     };
     let context = context.0.clone();
+    if engine.is_instance_of::<range_accrual::AnalyticRangeAccrualEngine>() {
+        let option = instrument
+            .extract::<PyRef<'_, range_accrual::RangeAccrualOption>>()?
+            .0
+            .clone();
+        return domain(
+            py,
+            py.detach(|| {
+                core::implied_volatility(
+                    &core::AnalyticRangeAccrualEngine,
+                    &option,
+                    &context,
+                    observed,
+                    controls,
+                )
+            }),
+        );
+    }
     if engine.is_instance_of::<asian::TurnbullWakemanArithmeticAveragePriceEngine>() {
         let option = instrument
             .extract::<PyRef<'_, asian::ArithmeticAveragePriceOption>>()?

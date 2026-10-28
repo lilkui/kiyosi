@@ -53,7 +53,7 @@ impl EuropeanOption {
     }
 }
 
-/// Exposes inclusive contract life for numerical analysis and solving.
+/// Exposes contract dates and permitted valuation bounds for numerical analysis and solving.
 /// Implementations retain their own payoff; engines select supported contract types.
 /// See [`DigitalOption::cash_or_nothing`] for an example contract.
 pub trait OptionContract {
@@ -61,6 +61,19 @@ pub trait OptionContract {
     fn effective_date(&self) -> Date;
     /// Returns expiry at midnight UTC. See [`DigitalOption::expiry_date`].
     fn expiry_date(&self) -> Date;
+
+    /// Returns the earliest valuation date, or `None` when pre-effective valuation is valid.
+    /// Defaults to the effective date; see [`crate::AnalyticRangeAccrualEngine::price`].
+    fn valuation_start(&self) -> Option<Date> {
+        Some(self.effective_date())
+    }
+
+    /// Reports whether every Greek is undefined at the current spot discontinuity.
+    /// Defaults to [`Self::at_spot_discontinuity`] with zero radius. Range coupons retain
+    /// vega and rho; see [`crate::AnalyticRangeAccrualEngine::price_with_greeks`].
+    fn all_greeks_unavailable(&self, context: &crate::PricingContext) -> bool {
+        self.at_spot_discontinuity(context, 0.0)
+    }
 
     /// Reports whether a spot interval crosses a current payoff discontinuity.
     /// Defaults to `false`. Barrier contracts suppress undefined sensitivities at
@@ -72,7 +85,12 @@ pub trait OptionContract {
     /// Reports whether a time stencil preserves the supplied history regime.
     /// Defaults to `true`; Asian contracts prevent crossing their averaging start.
     /// See [`crate::AnalyticGeometricAveragePriceEngine::price_with_greeks`].
-    fn time_stencil_available(&self, _before: crate::Timestamp, _after: crate::Timestamp) -> bool {
+    fn time_stencil_available(
+        &self,
+        _context: &crate::PricingContext,
+        _before: crate::Timestamp,
+        _after: crate::Timestamp,
+    ) -> bool {
         true
     }
 }

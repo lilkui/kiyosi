@@ -194,7 +194,12 @@ macro_rules! average_option {
             fn expiry_date(&self) -> Date {
                 self.expiry_date()
             }
-            fn time_stencil_available(&self, before: Timestamp, after: Timestamp) -> bool {
+            fn time_stencil_available(
+                &self,
+                _context: &PricingContext,
+                before: Timestamp,
+                after: Timestamp,
+            ) -> bool {
                 let start = self.averaging_start_date().start_of_day();
                 if self.realized_average() == 0.0 {
                     after <= start

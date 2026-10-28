@@ -267,8 +267,13 @@ impl OptionContract for DoubleBarrierOption {
                 && context.spot_price() - radius <= self.upper
                 && self.upper <= context.spot_price() + radius
     }
-    fn time_stencil_available(&self, before: Timestamp, after: Timestamp) -> bool {
-        self.lower.time_stencil_available(before, after)
+    fn time_stencil_available(
+        &self,
+        context: &PricingContext,
+        before: Timestamp,
+        after: Timestamp,
+    ) -> bool {
+        self.lower.time_stencil_available(context, before, after)
     }
 }
 

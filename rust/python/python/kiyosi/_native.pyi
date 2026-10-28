@@ -900,6 +900,19 @@ class PricingResult:
 
 @overload
 def implied_volatility(
+    engine: AnalyticRangeAccrualEngine,
+    instrument: RangeAccrualOption,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...
+@overload
+def implied_volatility(
     engine: AnalyticDoubleBarrierEngine
     | FiniteDifferenceDoubleBarrierEngine
     | MonteCarloDoubleBarrierEngine,
@@ -1237,6 +1250,52 @@ class DoubleBarrierOption:
     def observation_schedule(self) -> ObservationSchedule: ...
     @property
     def touch_state(self) -> Literal["untouched", "touched"] | None: ...
+
+class RangeAccrualOption:
+    def __init__(
+        self,
+        *,
+        notional: float,
+        annual_coupon_rate: float,
+        lower_bound: float,
+        upper_bound: float,
+        effective_date: date,
+        expiry_date: date,
+        realized_hit_count: int | None = ...,
+    ) -> None: ...
+    def replace(self, *, realized_hit_count: int | None = ...) -> Self: ...
+    @property
+    def notional(self) -> float: ...
+    @property
+    def annual_coupon_rate(self) -> float: ...
+    @property
+    def lower_bound(self) -> float: ...
+    @property
+    def upper_bound(self) -> float: ...
+    @property
+    def effective_date(self) -> date: ...
+    @property
+    def expiry_date(self) -> date: ...
+    @property
+    def realized_hit_count(self) -> int | None: ...
+
+class AnalyticRangeAccrualEngine:
+    def __init__(self) -> None: ...
+    def price(
+        self, instrument: RangeAccrualOption, context: PricingContext
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: RangeAccrualOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
 
 class AnalyticDoubleBarrierEngine:
     def __init__(self) -> None: ...

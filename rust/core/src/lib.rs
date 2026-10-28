@@ -1,5 +1,5 @@
 //! Calendars, schedules, vanilla/digital BSM, geometric/arithmetic Asian analytics,
-//! single/double/binary-barrier and touch analytics, CRR, quadrature, finite-difference and CPU Monte Carlo pricing
+//! single/double/binary-barrier, touch and range-accrual analytics, CRR, quadrature, finite-difference and CPU Monte Carlo pricing
 //! and American approximation,
 //! independent of Python.
 //!
@@ -54,6 +54,7 @@ mod monte_carlo;
 mod numerical;
 mod pricing;
 mod quadrature;
+mod range_accrual;
 mod schedule;
 mod term_structure;
 mod time;
@@ -108,6 +109,7 @@ pub use pricing::AnalyticVanillaEngine;
 pub use quadrature::{
     QuadratureBarrierEngine, QuadratureDigitalEngine, QuadratureSettings, QuadratureVanillaEngine,
 };
+pub use range_accrual::{AnalyticRangeAccrualEngine, RangeAccrualOption, RangeAccrualTerms};
 pub use schedule::ObservationSchedule;
 pub use term_structure::RateTermStructure;
 pub use time::{Date, Timestamp};

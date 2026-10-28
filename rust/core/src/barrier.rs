@@ -352,7 +352,12 @@ impl OptionContract for BarrierOption {
             && context.spot_price() - radius <= self.barrier_level()
             && self.barrier_level() <= context.spot_price() + radius
     }
-    fn time_stencil_available(&self, before: Timestamp, after: Timestamp) -> bool {
+    fn time_stencil_available(
+        &self,
+        _context: &PricingContext,
+        before: Timestamp,
+        after: Timestamp,
+    ) -> bool {
         self.prior(before).is_ok()
             && self.prior(after).is_ok()
             && (self.continuous()

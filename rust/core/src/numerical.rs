@@ -22,7 +22,7 @@ pub(crate) fn symmetric_shift(value: f64, requested: f64) -> f64 {
 
 /// Computes numerical price sensitivities for scalar engines. Uses rounded
 /// symmetric absolute bumps; collapsed/asymmetric or nonpositive stencils are unavailable.
-/// Time rolls stay within contract life, curve coverage and neighboring knots, with
+/// Time rolls stay within permitted valuation dates, curve coverage and neighboring knots, with
 /// right-hand differences at knots. Feasible bumped pricing errors fail the request.
 /// Vega/vanna/zomma/rho are per percentage point, time Greeks per calendar day.
 /// [`crate::EuropeanOption`], [`crate::DigitalOption`] and [`crate::AmericanOption`] expose their inclusive
@@ -90,7 +90,7 @@ pub(crate) fn complete_greeks(
     let p0 = result.price();
     let available = GreeksRequest::new(Greek::ALL.into_iter().filter(|&g| result.has(g)));
     let time = context.valuation_time();
-    if time == option.expiry_date().start_of_day() || option.at_spot_discontinuity(context, 0.0) {
+    if time == option.expiry_date().start_of_day() || option.all_greeks_unavailable(context) {
         return Ok(result);
     }
     let model = context.model_parameters();
@@ -244,7 +244,10 @@ pub(crate) fn complete_greeks(
         )?;
     }
     if want(Greek::Theta) || want(Greek::Charm) || want(Greek::Color) {
-        let mut lower = option.effective_date().start_of_day();
+        let mut lower = option
+            .valuation_start()
+            .unwrap_or(crate::Date::new(-32767, 1, 1)?)
+            .start_of_day();
         let mut upper = option.expiry_date().start_of_day();
         for curve in [model.risk_free_curve(), model.dividend_curve()] {
             if let Some(reference) = curve.reference_time() {
@@ -271,7 +274,7 @@ pub(crate) fn complete_greeks(
         }
         let before = time.add_micros(-shift.min(before_width))?;
         let after = time.add_micros(shift.min(after_width))?;
-        if before != after && option.time_stencil_available(before, after) {
+        if before != after && option.time_stencil_available(context, before, after) {
             let days = before.micros_until(after) as f64 / 86_400_000_000.0;
             if want(Greek::Theta) {
                 result.set(

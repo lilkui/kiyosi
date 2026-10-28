@@ -1,10 +1,10 @@
 #[derive(Default)]
-pub(super) struct Sum {
+pub(crate) struct Sum {
     value: f64,
     correction: f64,
 }
 impl Sum {
-    pub(super) fn add(&mut self, term: f64) {
+    pub(crate) fn add(&mut self, term: f64) {
         let next = self.value + term;
         self.correction += if self.value.abs() >= term.abs() {
             (self.value - next) + term
@@ -13,7 +13,7 @@ impl Sum {
         };
         self.value = next;
     }
-    pub(super) fn total(&self) -> f64 {
+    pub(crate) fn total(&self) -> f64 {
         self.value + self.correction
     }
 }
@@ -27,7 +27,7 @@ pub(super) fn scaled(amount: f64, exponent: f64) -> f64 {
     amount.signum() * scaled_cash(amount.abs(), exponent)
 }
 
-fn log_interval_mass(lower: f64, upper: f64) -> f64 {
+pub(crate) fn log_interval_mass(lower: f64, upper: f64) -> f64 {
     if lower >= upper {
         return -INF;
     }

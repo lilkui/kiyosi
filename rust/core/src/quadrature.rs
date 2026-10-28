@@ -1,5 +1,5 @@
 mod barrier;
-mod gaussian;
+pub(crate) mod gaussian;
 pub use barrier::{QuadratureBarrierEngine, QuadratureSettings};
 
 use std::f64::consts::PI;

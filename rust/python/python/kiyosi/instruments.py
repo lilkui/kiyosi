@@ -1,4 +1,4 @@
-"""Validated vanilla, digital, barrier, touch and continuous-average Asian contracts."""
+"""Validated vanilla, digital, barrier, touch, Asian and range-accrual contracts."""
 
 from typing import Literal
 
@@ -13,6 +13,7 @@ from ._native import (
     DoubleTouchOption,
     EuropeanOption,
     GeometricAveragePriceOption,
+    RangeAccrualOption,
     TouchOption,
     asset_binary_barrier_option,
     asset_no_touch_down,
@@ -42,6 +43,7 @@ __all__ = [
     "EuropeanOption",
     "GeometricAveragePriceOption",
     "OptionType",
+    "RangeAccrualOption",
     "TouchOption",
     "asset_binary_barrier_option",
     "asset_no_touch_down",

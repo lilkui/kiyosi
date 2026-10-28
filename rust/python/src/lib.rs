@@ -13,6 +13,7 @@ mod double_touch;
 mod finite_difference;
 mod monte_carlo;
 mod quadrature;
+mod range_accrual;
 use pyo3::exceptions::{PyException, PyIndexError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDate, PyDateAccess, PyDateTime, PyDict, PyTimeAccess};
@@ -760,6 +761,8 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<asian::TurnbullWakemanArithmeticAveragePriceEngine>()?;
     binary_barrier::register(module)?;
     double_touch::register(module)?;
+    module.add_class::<range_accrual::RangeAccrualOption>()?;
+    module.add_class::<range_accrual::AnalyticRangeAccrualEngine>()?;
     module.add_class::<double_barrier::DoubleBarrierOption>()?;
     module.add_class::<double_barrier::AnalyticDoubleBarrierEngine>()?;
     module.add_class::<barrier::BarrierOption>()?;

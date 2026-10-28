@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–26 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier CPU Monte Carlo prices and analytics with
+Tickets 01–27 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, and cash double-touch/no-touch finite differences. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, and analytic range-accrual coupons. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -2050,6 +2050,91 @@ budgets, series-switch cases, converged exit-series and fixing-date integrals,
 finite-difference comparisons, history/event boundaries, fixed-cashflow inversion
 rejections, odd path parity, thread reproducibility and strict Python conversions.
 The legacy implementation remains available for migration comparison.
+
+## Range-accrual coupons
+
+Rust `RangeAccrualOption::new(RangeAccrualTerms)` owns a single-asset coupon.
+`RangeAccrualTerms::new(notional, annual_coupon_rate, lower_bound, upper_bound,
+effective_date, expiry_date)` defaults `realized_hit_count` to `None` (unknown).
+Notional must be finite and positive, coupon rate finite and nonnegative, and
+bounds finite with `0 <= lower_bound < upper_bound`. Negative hit counts return
+`InvalidParameter`. Amounts, bounds and negative history are checked before
+dates; expiry must be strictly after effective date (`InvalidTimeRange`).
+Rust `.replace(Option<i32>)` and Python `.replace(realized_hit_count=...)` return
+validated owning copies; `None` restores unknown history. Python omission retains
+the count. Originals remain unchanged on success and failure.
+
+`AnalyticRangeAccrualEngine` observes every context trading date in
+`(effective_date, expiry_date]`, at midnight UTC, with **inclusive** spot bounds.
+History counts hits strictly before valuation; an observation exactly at valuation
+uses current spot. Prior observations require explicit history, and hits cannot
+exceed the number of prior observations (`InvalidParameter`). Pre-effective
+valuation is valid. Valuation after expiry returns `InvalidTimeRange` before
+non-trading expiry returns `InvalidDate`, followed by history validation.
+
+The sole payment is `notional * annual_coupon_rate * T * hits / M` at expiry,
+where `T` is the full contract's ACT/365 Fixed year fraction and `M` counts all
+contract trading observations. Calendar annualization bases do not change `T`.
+There is no principal repayment or early termination. Pricing sums exact BSM
+marginal range probabilities with deterministic risk-free and dividend curves,
+then discounts the entire coupon to valuation from expiry. Log scaling and
+compensated summation retain extreme but representable values; non-finite
+transitions or prices return `InvalidResult`. Both curves must cover valuation
+through expiry when future observations remain (`InvalidTimeRange`); curve knots
+must remain distinguishable in valuation-relative pricing time (`InvalidResult`). At expiry
+no curve coverage is needed. Zero coupons validate calendar and history first,
+then return zero without curve coverage.
+
+All ten Greeks use the existing numerical shifts and scalar prices. Every Greek
+is absent at expiry. Spot stencils touching either current bound suppress spot
+derivatives and mixed spot Greeks; vega and rho remain available. Time stencils
+touching any trading observation suppress theta, charm and color, including
+intraday stencils that would change the history regime. Stencils before effective
+date and between weekend observations remain valid, subject to curve coverage
+and knots. Empty requests and invalid shifts fail before pricing; infeasible
+stencils leave measures absent, and feasible bumped failures propagate.
+
+`implied_volatility` retains the shared bracket, validation order and failure
+categories. Zero coupons and expiry return `UnsupportedOperation` after pricing
+validation. Range coupons can be non-monotone in volatility: callers must supply
+a bracket around the desired root. No root scan is added.
+
+Python exports `RangeAccrualOption` from `kiyosi.instruments` and
+`AnalyticRangeAccrualEngine` from `kiyosi.pricing`. Amounts use the shared strict
+real-number protocol; hit counts use the shared integer protocol (excluding
+booleans and floats, with `OverflowError` outside signed 32-bit range). Date
+fields require `datetime.date`, excluding `datetime`. Representation/signature
+errors remain native Python exceptions and precede domain validation. Properties
+are read-only; prices and results are owned. Price, Greek and solve calls release
+the GIL around owned Rust inputs and support shared and distinct concurrent
+instances. Calls are synchronous without cancellation polling; Python signal
+handling resumes when the call returns.
+
+```python
+from datetime import date
+from kiyosi.instruments import RangeAccrualOption
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import AnalyticRangeAccrualEngine, implied_volatility
+
+option = RangeAccrualOption(notional=1000, annual_coupon_rate=0.12,
+    lower_bound=95, upper_bound=110, effective_date=date(2025, 1, 1),
+    expiry_date=date(2026, 1, 1))
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2),
+    spot_price=100, valuation_time=date(2025, 1, 1))
+engine = AnalyticRangeAccrualEngine()
+result = engine.price_with_greeks(option, context, ["delta", "vega"])
+sigma = implied_volatility(engine, option, context, result.price,
+    lower_bound=0.1, upper_bound=0.4)
+assert abs(sigma - 0.2) < 1e-8
+assert option.replace(realized_hit_count=3).realized_hit_count == 3
+assert option.realized_hit_count is None
+```
+
+Public Rust/Python tests migrate the existing history, terminal-payoff, curve,
+long-contract, tiny-volatility, extreme-tail and numerical-Greek regressions,
+using independent marginal/payoff references. The legacy implementation remains
+available for migration comparison.
 
 ## Checks
 

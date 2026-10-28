@@ -203,7 +203,13 @@ impl OptionContract for DoubleTouchOption {
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         self.monitoring.at_spot_discontinuity(context, radius)
     }
-    fn time_stencil_available(&self, before: Timestamp, after: Timestamp) -> bool {
-        self.monitoring.time_stencil_available(before, after)
+    fn time_stencil_available(
+        &self,
+        context: &PricingContext,
+        before: Timestamp,
+        after: Timestamp,
+    ) -> bool {
+        self.monitoring
+            .time_stencil_available(context, before, after)
     }
 }
