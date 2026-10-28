@@ -1,4 +1,5 @@
 use super::*;
+use crate::vanilla::AnalyticVanillaEngine;
 
 pub(crate) fn greek(value: &Bound<'_, PyAny>) -> PyResult<core::Greek> {
     let name = value.extract::<&str>()?;

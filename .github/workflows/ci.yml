@@ -53,9 +53,9 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v7
-      - run: uv run --no-project --with ruff -- ruff check rust/python tools/generate_sse_calendar.py
-      - run: uv run --no-project --with ruff -- ruff format --check rust/python tools/generate_sse_calendar.py
-      - run: uv run --no-project --with ty -- ty check rust/python/python
+      - run: uv run --no-project --with ruff -- ruff check python tests/python tools/generate_sse_calendar.py
+      - run: uv run --no-project --with ruff -- ruff format --check python tests/python tools/generate_sse_calendar.py
+      - run: uv run --no-project --with ty -- ty check python
 
   distributions:
     strategy:

@@ -1,5 +1,6 @@
 use super::barrier::{history, mode, timing};
 use super::*;
+use crate::schedule::ObservationSchedule;
 
 fn kind(value: &Bound<'_, PyAny>) -> PyResult<core::DoubleBarrierType> {
     match value.extract::<&str>()? {

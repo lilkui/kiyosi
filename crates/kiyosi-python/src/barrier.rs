@@ -1,4 +1,5 @@
 use super::*;
+use crate::schedule::ObservationSchedule;
 
 pub(super) fn kind(value: &Bound<'_, PyAny>) -> PyResult<core::BarrierType> {
     match value.extract::<&str>()? {

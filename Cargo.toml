@@ -1,6 +1,6 @@
 [workspace]
-members = ["rust/core", "rust/python"]
-default-members = ["rust/core"]
+members = ["crates/kiyosi-core", "crates/kiyosi-python"]
+default-members = ["crates/kiyosi-core"]
 resolver = "3"
 
 [workspace.package]

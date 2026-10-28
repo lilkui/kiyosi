@@ -7,4 +7,4 @@ publish = false
 [workspace]
 
 [dependencies]
-kiyosi-core = { path = "../../rust/core" }
+kiyosi-core = { path = "../../crates/kiyosi-core" }

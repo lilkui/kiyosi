@@ -10,8 +10,8 @@ kiyosi is a derivatives pricing library for Python users, supporting vanilla and
 The project is in Alpha. Breaking API changes are possible.
 
 The default build and Python package use the Rust CPU core. See the
-[API and contracts](docs/rust-candidate.md), [acceptance record](docs/rust-acceptance.md),
-and [test guide](tests/README.md). Delivery is CPU only, with no public C++ or C ABI.
+[repository layout and responsibilities](docs/architecture.md) and
+[test guide](tests/README.md). Delivery is CPU only, with no public C++ or C ABI.
 
 ## Products and features
 
@@ -47,7 +47,7 @@ Ordinary CPython 3.11–3.15 wheels target Linux x86-64 and Windows AMD64.
 Prebuilt wheels require no Rust toolchain. Source builds use maturin and Rust;
 Windows also needs the Visual Studio C++ linker tools.
 
-For the standalone Rust core, add `kiyosi-core = { path = "rust/core" }` to a
+For the standalone Rust core, add `kiyosi-core = { path = "crates/kiyosi-core" }` to a
 consumer's Cargo dependencies, adjusting the path to your checkout. Core build,
 test, documentation and packaging need only Cargo; the workspace defaults to it.
 

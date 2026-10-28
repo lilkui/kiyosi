@@ -1,4 +1,5 @@
 use super::*;
+use crate::schedule::ObservationSchedule;
 
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]

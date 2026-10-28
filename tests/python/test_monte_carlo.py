@@ -814,7 +814,7 @@ class SamplingTests(unittest.TestCase):
 
     def test_sobol_migrated_greek_accuracy_and_multiseed_rmse(self):
         # Preserve precision/statistics checks from the mixed timing tool, without speed gates.
-        root = Path(__file__).resolve().parents[3]
+        root = Path(__file__).resolve().parents[2]
         spec = importlib.util.spec_from_file_location(
             "sobol_benchmark", root / "benchmarks/sobol.py"
         )

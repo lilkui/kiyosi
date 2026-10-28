@@ -8,13 +8,13 @@ From the repository root:
 ```sh
 cargo test --release --locked
 python -m pip install '.[test]'
-python -m unittest discover -s rust/python/tests -p 'test_*.py'
+python -m unittest discover -s tests/python -p 'test_*.py'
 ```
 
 `cargo test` uses only the core. The Python suite exercises the installed Rust
 extension, including the generator tests. Independent references and shared
-fixtures live alongside the suite in `rust/python/tests/quantlib_reference` and
-`rust/python/tests/support`.
+fixtures live alongside the suite in `tests/python/quantlib_reference` and
+`tests/python/support`.
 
 In an extracted Python sdist, use `cargo test -p kiyosi-core --release --locked`:
 maturin removes workspace `default-members` when preparing that archive. Selecting
@@ -25,7 +25,7 @@ rather than skipping price validation. QuantLib is unnecessary for runtime use,
 or for building, testing, documenting and packaging the standalone Rust core.
 
 Independent price/Greek, scalar-bump and implied-volatility references and explicit
-scenarios live in `rust/python/tests/quantlib_reference`. Structured references use
+scenarios live in `tests/python/quantlib_reference`. Structured references use
 basic-payoff portfolios. American references refine 800, 1600 and 3200 point
 grids and check bump stability. Arithmetic Asian comparisons validate the same
 Levy approximation, not the exact arithmetic-average value. Numerical acceptance
@@ -50,5 +50,5 @@ using `uv build --wheel path/to/kiyosi-VERSION.tar.gz`, install it in a fresh
 environment with the test extra, and run the Python suite above. CI repeats this
 for Linux x86-64 and Windows AMD64 with ordinary CPython 3.11–3.15 wheels.
 
-See the [API check commands](../docs/rust-candidate.md#checks) and the
-[post-removal acceptance record](../docs/rust-cleanup.md).
+For the layout, dependency boundaries and quality checks, see the
+[architecture guide](../docs/architecture.md).

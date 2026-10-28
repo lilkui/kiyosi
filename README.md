@@ -9,7 +9,7 @@ kiyosi 是一个面向 Python 用户的金融衍生品定价库，支持 Black�
 
 项目目前处于 Alpha 阶段，API 可能发生不兼容变更。
 
-默认构建与 Python 包统一使用 Rust CPU 核心。详见 [API 与行为契约](docs/rust-candidate.md)、[验收记录](docs/rust-acceptance.md)及[测试指南](tests/README.md)。仅交付 CPU 后端，不提供 C++ 或 C ABI。
+默认构建与 Python 包统一使用 Rust CPU 核心。详见[目录结构与职责](docs/architecture.md)及[测试指南](tests/README.md)。仅交付 CPU 后端，不提供 C++ 或 C ABI。
 
 ## 支持的产品与功能
 
@@ -43,7 +43,7 @@ python -m pip install kiyosi
 
 普通 CPython 3.11–3.15 wheel 覆盖 Linux x86-64 和 Windows AMD64。安装预编译 wheel 无需 Rust 工具链；从源码构建使用 maturin 和 Rust，Windows 还需要 Visual Studio C++ 链接工具。
 
-Rust 消费方可在 Cargo 依赖中加入 `kiyosi-core = { path = "rust/core" }`，并按实际仓库位置调整路径。核心的构建、测试、文档与打包只需要 Cargo，workspace 默认仅构建核心。
+Rust 消费方可在 Cargo 依赖中加入 `kiyosi-core = { path = "crates/kiyosi-core" }`，并按实际仓库位置调整路径。核心的构建、测试、文档与打包只需要 Cargo，workspace 默认仅构建核心。
 
 ## Python 快速上手
 

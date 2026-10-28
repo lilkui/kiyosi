@@ -1,4 +1,4 @@
-"""Candidate-only installed artifact, exports, and typing checks."""
+"""Installed artifact, exports, and typing checks."""
 
 import ast
 import importlib.metadata
@@ -12,7 +12,7 @@ from kiyosi import _native, instruments, market, pricing
 
 class PackageTests(unittest.TestCase):
     def test_installed_version_and_typed_exports(self):
-        workspace = Path(__file__).resolve().parents[3]
+        workspace = Path(__file__).resolve().parents[2]
         version = tomllib.loads((workspace / "Cargo.toml").read_text())["workspace"][
             "package"
         ]["version"]
