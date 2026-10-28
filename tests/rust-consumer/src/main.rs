@@ -73,6 +73,44 @@ fn main() -> Result<()> {
             .touch_state(),
         Some(kiyosi_core::BarrierTouchState::Untouched)
     );
+    let mut double_touch_terms = kiyosi_core::DoubleTouchOptionTerms::new(
+        start,
+        end,
+        80.0,
+        120.0,
+        kiyosi_core::DoubleBarrierType::KnockIn,
+    );
+    double_touch_terms.touch_state = Some(kiyosi_core::BarrierTouchState::Untouched);
+    let double_touch = kiyosi_core::DoubleTouchOption::cash(double_touch_terms, 1.0)?;
+    let touch_context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.03, 0.01, 0.2)?,
+        100.0,
+        start.into(),
+    )?;
+    let touch_fd = kiyosi_core::FiniteDifferenceDoubleTouchEngine::default();
+    let touch_result = touch_fd.price_with_greeks(
+        &double_touch,
+        &touch_context,
+        GreeksRequest::new([Greek::Delta, Greek::Vega]),
+        Default::default(),
+    )?;
+    assert!((touch_result.price() - 0.6031839700294364).abs() < 1e-5);
+    assert!(touch_result.has(Greek::Delta) && touch_result.has(Greek::Vega));
+    assert!(
+        (implied_volatility(
+            &touch_fd,
+            &double_touch,
+            &touch_context,
+            touch_result.price(),
+            ImpliedVolatilitySettings {
+                lower_bound: 0.15,
+                upper_bound: 0.25,
+                ..Default::default()
+            }
+        )? - 0.2)
+            .abs()
+            < 1e-6
+    );
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
     let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
     let context = PricingContext::new(model, 100.0, start.into())?;

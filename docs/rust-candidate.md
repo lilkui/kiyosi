@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–23 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
+Tickets 01–24 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, and double-barrier finite differences. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, and cash double-touch/no-touch finite differences. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -1827,6 +1827,87 @@ assert abs(sigma - 0.2) < 1e-7
 ```
 
 See `FiniteDifferenceDoubleBarrierEngine::price_with_greeks` for the Rust example.
+
+## Cash double-touch finite differences
+
+Rust `DoubleTouchOption::cash(DoubleTouchOptionTerms::new(start, end, lower,
+upper, kind), payout)` owns a cash double one-touch (`DoubleBarrierType::KnockIn`)
+or double no-touch (`KnockOut`) contract. Both inclusive boundaries share one
+observation schedule and strictly prior touch history. Payout must be finite and
+positive, with finite `0 < lower < upper`. Construction validates payout, then
+settlement compatibility, then boundaries, life and schedule. No-touch pays only
+at expiry; at-hit no-touch returns `InvalidOption`. Defaults come from the core
+single-touch terms: expiry payment, continuous monitoring, empty dates and unknown
+history. `replace(history)` returns a validated owner without changing the original.
+Schedule accessors borrow immutable storage for the owner's lifetime.
+
+`FiniteDifferenceDoubleTouchEngine` supports cash contracts with continuous or
+scheduled monitoring and flat or node risk-free/dividend curves. It reuses the
+binary-barrier FD solver, double-barrier state validation and the shared
+`FiniteDifferenceSettings`: 800 asset steps, 1600 time steps, Crank–Nicolson,
+automatic upper boundary. Continuous barriers are exact grid edges, using all
+asset steps between them. Scheduled observations project both boundary events
+simultaneously on the full grid; rates, curve knots, event times, damping and
+explicit stability checks follow the existing FD engines. An explicit spatial
+upper bound must exceed spot and both barriers for unresolved monitoring.
+
+A current monitored equality touches before grid construction. Unknown history
+is distinct from untouched and is rejected when prior observations require it;
+a claimed prior touch without any prior observation returns `InvalidOption`.
+Current at-hit touches pay the payout immediately; prior at-hit touches are
+already paid and have zero remaining value. Expiry-paid touch cash and no-touch
+cash after successful monitoring use exact risk-free discounts. Resolved states
+precede grid validation. At-hit scheduled pricing requires both curves only
+through the last fixing; expiry payment requires coverage through expiry.
+Life, calendar and history validation retain the existing categories and timing.
+
+The engine provides price, spline delta/gamma, fixed-grid speed, other requested
+Greeks through shared numerical completion, and shared implied volatility.
+The central spatial domain stays fixed for bumps. All Greeks are absent at expiry
+or current boundary equality without a prior touch; stencils crossing either
+boundary or an observation omit affected measures. Invalid requests/shifts fail
+before pricing. Implied volatility preserves the caller's bracket and rejects
+volatility-independent remaining payments with `UnsupportedOperation`.
+Inputs and settings remain unchanged on success and failure.
+
+Python exports `DoubleTouchOption`, `cash_double_touch` and `cash_double_no_touch`
+from `kiyosi.instruments`, and `FiniteDifferenceDoubleTouchEngine` from
+`kiyosi.pricing`. Factories use keyword-only terms; no-touch rejects the
+inapplicable settlement keyword with native `TypeError`. Numeric/date protocols,
+choice strings, native representation errors and domain exception categories
+follow the existing touch API. Results and returned schedules own their data.
+Price, Greek and solve calls release the GIL around owned core inputs; shared
+and distinct instances support concurrent calls under the crate contract.
+
+```python
+from datetime import date
+from kiyosi.instruments import cash_double_touch, cash_double_no_touch
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import FiniteDifferenceDoubleTouchEngine, implied_volatility
+
+start = date(2025, 1, 1)
+terms = dict(effective_date=start, expiry_date=date(2026, 1, 1),
+             lower_barrier=80, upper_barrier=120, payout=1,
+             touch_state="untouched")
+touch = cash_double_touch(**terms)
+no_touch = cash_double_no_touch(**terms)
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.03, dividend_yield=0.01, volatility=0.2),
+    spot_price=100, valuation_time=start)
+engine = FiniteDifferenceDoubleTouchEngine()
+result = engine.price_with_greeks(touch, context, ["delta", "vega"])
+assert abs(result.price - 0.6031839700294364) < 1e-5
+assert abs(result.price + engine.price(no_touch, context) - 0.9704455335485082) < 1e-8
+sigma = implied_volatility(engine, touch, context, result.price,
+                           lower_bound=0.15, upper_bound=0.25)
+assert abs(sigma - 0.2) < 1e-6
+```
+
+See `DoubleTouchOption::cash` and
+`FiniteDifferenceDoubleTouchEngine::price_with_greeks` for Rust examples.
+Public acceptance tests retain the independent absorbing Brownian series,
+conditional lognormal integrals, cash payment parity, near-boundary Greek and
+grid convergence, history/settlement cases and concurrent-call checks.
 
 ## Checks
 

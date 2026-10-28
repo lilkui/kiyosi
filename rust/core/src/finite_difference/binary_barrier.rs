@@ -2,7 +2,8 @@ use super::*;
 use crate::barrier::{checked, validate_life, validate_schedule};
 use crate::binary_barrier::Contract;
 use crate::{
-    AnalyticDigitalEngine, BinaryBarrierOption, ObservationMode, SettlementTiming, TouchOption,
+    AnalyticDigitalEngine, BinaryBarrierOption, DoubleTouchOption, ObservationMode,
+    SettlementTiming, TouchOption,
 };
 
 impl FiniteDifferenceBinaryBarrierEngine {
@@ -63,8 +64,8 @@ impl FiniteDifferenceBinaryBarrierEngine {
 }
 
 macro_rules! binary_pricing {
-    ($option:ty) => {
-        impl PricingEngine<$option> for FiniteDifferenceBinaryBarrierEngine {
+    ($engine:ty, $option:ty) => {
+        impl PricingEngine<$option> for $engine {
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
                 Ok(native(
                     option.contract(),
@@ -108,12 +109,70 @@ macro_rules! binary_pricing {
         }
     };
 }
-binary_pricing!(BinaryBarrierOption);
-binary_pricing!(TouchOption);
+binary_pricing!(FiniteDifferenceBinaryBarrierEngine, BinaryBarrierOption);
+binary_pricing!(FiniteDifferenceBinaryBarrierEngine, TouchOption);
+binary_pricing!(FiniteDifferenceDoubleTouchEngine, DoubleTouchOption);
+
+impl FiniteDifferenceDoubleTouchEngine {
+    /// Prices cash double-touch contracts using both inclusive boundaries and shared history.
+    /// Fits continuous boundaries exactly and projects scheduled events simultaneously.
+    /// Prior at-hit payments have zero remaining value; resolved cash uses exact discounts.
+    /// See [`DoubleTouchOption::cash`] for construction and pricing.
+    ///
+    /// # Errors
+    /// Reuses [`FiniteDifferenceBinaryBarrierEngine::price`] categories and validation order.
+    /// Upper domain bounds must exceed spot and both barriers for unresolved monitoring.
+    /// Inputs and immutable settings remain unchanged on every outcome.
+    pub fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
+        <Self as PricingEngine<DoubleTouchOption>>::price(self, option, context)
+    }
+
+    /// Returns spline spot Greeks and completes other sensitivities on the central domain.
+    /// Stencils crossing either boundary or an observation omit affected measures.
+    /// All Greeks are absent at expiry or current boundary equality without a prior touch.
+    ///
+    /// # Errors
+    /// Validates requests and shifts before pricing, then propagates [`Self::price`] and
+    /// [`crate::numerical_greeks`] errors. Inputs remain unchanged.
+    ///
+    /// # Examples
+    /// ```
+    /// use kiyosi_core::*;
+    /// # fn main() -> Result<()> {
+    /// let start = Date::new(2025, 1, 1)?;
+    /// let mut terms = DoubleTouchOptionTerms::new(start, Date::new(2026, 1, 1)?,
+    ///     80.0, 120.0, DoubleBarrierType::KnockOut);
+    /// terms.touch_state = Some(BarrierTouchState::Untouched);
+    /// let option = DoubleTouchOption::cash(terms, 1.0)?;
+    /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.03, 0.01, 0.2)?,
+    ///     100.0, start.into())?;
+    /// let result = FiniteDifferenceDoubleTouchEngine::default().price_with_greeks(
+    ///     &option, &context, GreeksRequest::new([Greek::Delta]), Default::default())?;
+    /// assert!((result.price() - 0.36726156351907174).abs() < 0.00001);
+    /// assert!(result.has(Greek::Delta));
+    /// # Ok(()) }
+    /// ```
+    pub fn price_with_greeks(
+        &self,
+        option: &DoubleTouchOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        <Self as PricingEngine<DoubleTouchOption>>::price_with_greeks(
+            self, option, context, request, shifts,
+        )
+    }
+}
 
 fn default_upper(contract: &Contract<'_>, context: &PricingContext) -> f64 {
     let relevant = context.spot_price().max(contract.monitoring.strike());
-    (4.0 * relevant).max(contract.monitoring.barrier_level() + relevant)
+    (4.0 * relevant).max(
+        contract
+            .double
+            .map_or(contract.monitoring.barrier_level(), |d| d.upper_barrier())
+            + relevant,
+    )
 }
 
 fn native(
@@ -126,7 +185,8 @@ fn native(
     let option = contract.monitoring;
     validate_life(option, context)?;
     validate_schedule(option, context)?;
-    let (prior, touched, finished) = option.state(context)?;
+    let (prior, touched, finished) = contract.state(context)?;
+    let upper_barrier = contract.double.map(|d| d.upper_barrier());
     let knock_in = option.barrier_type().is_knock_in();
     let at_hit = contract.timing == SettlementTiming::AtHit;
     let spot = context.spot_price();
@@ -199,13 +259,14 @@ fn native(
         settings,
         upper,
         0.0,
-        spot.max(option.strike()).max(option.barrier_level()),
+        spot.max(option.strike())
+            .max(upper_barrier.unwrap_or(option.barrier_level())),
     )?;
     let up = option.barrier_type().is_up();
     if !scheduled {
         space.uniform_domain(
             if up { 0.0 } else { option.barrier_level() },
-            if up { option.barrier_level() } else { upper },
+            upper_barrier.unwrap_or(if up { option.barrier_level() } else { upper }),
         )?;
     }
     let observations: Vec<_> = option
@@ -225,11 +286,12 @@ fn native(
     let theta = settings.scheme.theta();
     grid.validate_barrier_stability(&space, sigma, theta, scheduled, &risk, &dividend)?;
     let knocked = |asset| {
-        if up {
-            asset >= option.barrier_level()
-        } else {
-            asset <= option.barrier_level()
-        }
+        upper_barrier.is_some_and(|upper| asset >= upper)
+            || if up {
+                asset >= option.barrier_level()
+            } else {
+                asset <= option.barrier_level()
+            }
     };
     let discount = |current, end| {
         if contract.payout.is_some() {
@@ -290,7 +352,10 @@ fn native(
             terminal(asset)
         }
     };
-    let breaks = [option.strike(), option.barrier_level()];
+    let levels: Vec<_> = std::iter::once(option.barrier_level())
+        .chain(upper_barrier)
+        .collect();
+    let breaks: Vec<_> = levels.iter().copied().chain([option.strike()]).collect();
     let edges = |current, events: bool| {
         let value = |asset| {
             if !events {
@@ -308,21 +373,42 @@ fn native(
         [value(space.asset(0)), value(space.upper)]
     };
     let observe = |values: &mut [f64], current| {
-        let cut = ((option.barrier_level() / space.spacing).round() as usize).min(space.count);
-        let correction = super::barrier::project(&space, &breaks, cut, |asset| {
-            if knocked(asset) {
-                hit(asset, current, current) - space.linear(values, asset)
-            } else {
-                0.0
-            }
-        });
-        let projected = values[cut] + correction;
+        let projected: Vec<_> = levels
+            .iter()
+            .map(|level| {
+                let cut = ((level / space.spacing).round() as usize).min(space.count);
+                // Project both boundaries from the same continuation, including shared cells.
+                let value = super::barrier::project(&space, &breaks, cut, |asset| {
+                    if upper_barrier.is_some() {
+                        if knocked(asset) {
+                            hit(asset, current, current)
+                        } else {
+                            space.linear(values, asset)
+                        }
+                    } else if knocked(asset) {
+                        hit(asset, current, current) - space.linear(values, asset)
+                    } else {
+                        0.0
+                    }
+                });
+                (
+                    cut,
+                    if upper_barrier.is_some() {
+                        value
+                    } else {
+                        values[cut] + value
+                    },
+                )
+            })
+            .collect();
         for (i, value) in values.iter_mut().enumerate() {
             if knocked(space.asset(i)) {
                 *value = hit(space.asset(i), current, current);
             }
         }
-        values[cut] = projected;
+        for (cut, value) in projected {
+            values[cut] = value;
+        }
     };
     let march = |events: bool| -> Result<Vec<f64>> {
         let mut values: Vec<_> = (0..=space.count)
@@ -377,7 +463,10 @@ fn native(
     let sample = space.sample(&values, &curvature, spot);
     let mut result = PricingResult::new(checked(sample[0])?)?;
     let h = crate::numerical::symmetric_shift(spot, shifts.spot_shift);
-    if !option.at_spot_discontinuity(context, h) {
+    if !contract.double.map_or_else(
+        || option.at_spot_discontinuity(context, h),
+        |double| double.at_spot_discontinuity(context, h),
+    ) {
         result.set(request, Greek::Delta, sample[1])?;
         result.set(request, Greek::Gamma, sample[2])?;
         if request.has(Greek::Speed)

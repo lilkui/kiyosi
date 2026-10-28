@@ -234,7 +234,7 @@ impl DoubleBarrierOption {
             self.expiry_date(),
         )
     }
-    fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
+    pub(crate) fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
         let (prior, touched, finished) = self.lower.state(context)?;
         Ok((
             prior,

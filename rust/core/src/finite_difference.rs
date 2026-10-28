@@ -504,6 +504,11 @@ engine_settings!(
     "Prices binary barriers and single touch/no-touch contracts with finite differences."
 );
 
+engine_settings!(
+    FiniteDifferenceDoubleTouchEngine,
+    "Prices cash double-touch and double-no-touch contracts with finite differences."
+);
+
 impl FiniteDifferenceVanillaEngine {
     /// Prices a supported vanilla contract, returning intrinsic value at expiry.
     /// Accepts flat or node curves. American automatic domains expand with volatility

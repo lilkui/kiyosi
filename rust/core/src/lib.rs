@@ -44,6 +44,7 @@ mod binomial;
 mod calendar;
 mod digital;
 mod double_barrier;
+mod double_touch;
 mod error;
 mod finite_difference;
 mod implied;
@@ -81,11 +82,13 @@ pub use digital::AnalyticDigitalEngine;
 pub use double_barrier::{
     AnalyticDoubleBarrierEngine, DoubleBarrierOption, DoubleBarrierOptionTerms, DoubleBarrierType,
 };
+pub use double_touch::{DoubleTouchOption, DoubleTouchOptionTerms};
 pub use error::{Error, ErrorCategory, Result};
 pub use finite_difference::{
     FiniteDifferenceBarrierEngine, FiniteDifferenceBinaryBarrierEngine,
-    FiniteDifferenceDigitalEngine, FiniteDifferenceDoubleBarrierEngine, FiniteDifferenceScheme,
-    FiniteDifferenceSettings, FiniteDifferenceVanillaEngine,
+    FiniteDifferenceDigitalEngine, FiniteDifferenceDoubleBarrierEngine,
+    FiniteDifferenceDoubleTouchEngine, FiniteDifferenceScheme, FiniteDifferenceSettings,
+    FiniteDifferenceVanillaEngine,
 };
 pub use implied::{ImpliedVolatilitySettings, implied_volatility};
 pub use instruments::{

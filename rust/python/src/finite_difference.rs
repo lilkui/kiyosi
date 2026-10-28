@@ -203,3 +203,16 @@ fd_engine!(
         py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
     }
 );
+
+fd_engine!(
+    FiniteDifferenceDoubleTouchEngine,
+    PyRef<'_, double_touch::DoubleTouchOption>,
+    |py, option, engine, context, request, shifts| {
+        let option = option.0.clone();
+        py.detach(|| engine.price(&option, &context))
+    },
+    {
+        let option = option.0.clone();
+        py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+    }
+);

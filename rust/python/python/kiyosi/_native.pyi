@@ -458,6 +458,39 @@ class FiniteDifferenceDoubleBarrierEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
+class FiniteDifferenceDoubleTouchEngine:
+    def __init__(
+        self,
+        *,
+        asset_step_count: int = ...,
+        time_step_count: int = ...,
+        scheme: FiniteDifferenceScheme = ...,
+        asset_upper_boundary: float | None = None,
+    ) -> None: ...
+    @property
+    def asset_step_count(self) -> int: ...
+    @property
+    def time_step_count(self) -> int: ...
+    @property
+    def scheme(self) -> FiniteDifferenceScheme: ...
+    @property
+    def asset_upper_boundary(self) -> float | None: ...
+    def price(
+        self, instrument: DoubleTouchOption, context: PricingContext
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: DoubleTouchOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
 class FiniteDifferenceBinaryBarrierEngine:
     def __init__(
         self,
@@ -787,6 +820,19 @@ class PricingResult:
 def implied_volatility(
     engine: AnalyticDoubleBarrierEngine | FiniteDifferenceDoubleBarrierEngine,
     instrument: DoubleBarrierOption,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...
+@overload
+def implied_volatility(
+    engine: FiniteDifferenceDoubleTouchEngine,
+    instrument: DoubleTouchOption,
     context: PricingContext,
     observed_price: float,
     *,
@@ -1316,3 +1362,54 @@ class AnalyticBinaryBarrierEngine:
         rate_shift: float = ...,
         time_shift_days: int = ...,
     ) -> PricingResult: ...
+
+class DoubleTouchOption:
+    def replace(
+        self, *, touch_state: Literal["untouched", "touched"] | None = ...
+    ) -> Self: ...
+    @property
+    def effective_date(self) -> date: ...
+    @property
+    def expiry_date(self) -> date: ...
+    @property
+    def lower_barrier(self) -> float: ...
+    @property
+    def upper_barrier(self) -> float: ...
+    @property
+    def payout(self) -> float: ...
+    @property
+    def is_one_touch(self) -> bool: ...
+    @property
+    def settlement_timing(self) -> Literal["at_hit", "at_expiry"]: ...
+    @property
+    def observation_mode(self) -> Literal["continuous", "scheduled"]: ...
+    @property
+    def observation_dates(self) -> list[date]: ...
+    @property
+    def observation_schedule(self) -> ObservationSchedule: ...
+    @property
+    def touch_state(self) -> Literal["untouched", "touched"] | None: ...
+
+def cash_double_touch(
+    *,
+    effective_date: date,
+    expiry_date: date,
+    lower_barrier: float,
+    upper_barrier: float,
+    payout: float,
+    settlement_timing: Literal["at_hit", "at_expiry"] = ...,
+    observation_mode: Literal["continuous", "scheduled"] = ...,
+    observation_dates: Iterable[date] = ...,
+    touch_state: Literal["untouched", "touched"] | None = None,
+) -> DoubleTouchOption: ...
+def cash_double_no_touch(
+    *,
+    effective_date: date,
+    expiry_date: date,
+    lower_barrier: float,
+    upper_barrier: float,
+    payout: float,
+    observation_mode: Literal["continuous", "scheduled"] = ...,
+    observation_dates: Iterable[date] = ...,
+    touch_state: Literal["untouched", "touched"] | None = None,
+) -> DoubleTouchOption: ...

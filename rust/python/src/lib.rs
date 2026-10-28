@@ -9,6 +9,7 @@ mod binary_barrier;
 mod binomial;
 mod digital;
 mod double_barrier;
+mod double_touch;
 mod finite_difference;
 mod monte_carlo;
 mod quadrature;
@@ -758,6 +759,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<asian::AnalyticGeometricAveragePriceEngine>()?;
     module.add_class::<asian::TurnbullWakemanArithmeticAveragePriceEngine>()?;
     binary_barrier::register(module)?;
+    double_touch::register(module)?;
     module.add_class::<double_barrier::DoubleBarrierOption>()?;
     module.add_class::<double_barrier::AnalyticDoubleBarrierEngine>()?;
     module.add_class::<barrier::BarrierOption>()?;
@@ -788,6 +790,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<finite_difference::FiniteDifferenceDigitalEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceBarrierEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceDoubleBarrierEngine>()?;
+    module.add_class::<finite_difference::FiniteDifferenceDoubleTouchEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceBinaryBarrierEngine>()?;
     module.add(
         "FiniteDifferenceScheme",

@@ -449,11 +449,20 @@ impl AnalyticBinaryBarrierEngine {
 
 pub(crate) struct Contract<'a> {
     pub(crate) monitoring: &'a BarrierOption,
+    pub(crate) double: Option<&'a crate::DoubleBarrierOption>,
     pub(crate) digital: Option<&'a DigitalOption>,
     pub(crate) payout: Option<f64>,
     pub(crate) timing: SettlementTiming,
 }
 impl Contract<'_> {
+    pub(crate) fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
+        if let Some(double) = self.double {
+            double.state(context)
+        } else {
+            self.monitoring.state(context)
+        }
+    }
+
     fn vanilla(&self, context: &PricingContext, time: f64) -> Result<f64> {
         if let Some(digital) = self.digital {
             AnalyticDigitalEngine.price(digital, context)
@@ -470,7 +479,7 @@ impl Contract<'_> {
         }
     }
     pub(crate) fn volatility_affects_price(&self, context: &PricingContext) -> bool {
-        let Ok((_, touched, finished)) = self.monitoring.state(context) else {
+        let Ok((_, touched, finished)) = self.state(context) else {
             return false;
         };
         let knock_in = self.monitoring.barrier_type().is_knock_in();
@@ -644,6 +653,7 @@ impl BinaryBarrierOption {
     pub(crate) fn contract(&self) -> Contract<'_> {
         Contract {
             monitoring: &self.monitoring,
+            double: None,
             digital: Some(&self.digital),
             payout: self.payout(),
             timing: SettlementTiming::AtExpiry,
@@ -654,6 +664,7 @@ impl TouchOption {
     pub(crate) fn contract(&self) -> Contract<'_> {
         Contract {
             monitoring: &self.monitoring,
+            double: None,
             digital: None,
             payout: self.payout,
             timing: self.settlement_timing,
