@@ -4,10 +4,10 @@ use kiyosi_core::{
     BlackScholesMertonParameters, CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,
     Date, DigitalOption, EuropeanOption, FiniteDifferenceDigitalEngine, FiniteDifferenceScheme,
     FiniteDifferenceSettings, FiniteDifferenceVanillaEngine, Greek, GreeksRequest,
-    ImpliedVolatilitySettings, MonteCarloSampling, MonteCarloSettings, MonteCarloVanillaEngine,
-    NumericalShiftSettings, ObservationSchedule, OptionType, PricingContext, PricingContextChanges,
-    QuadratureDigitalEngine, QuadratureVanillaEngine, RateTermStructure, Result, TradingCalendar,
-    implied_volatility, numerical_greeks,
+    ImpliedVolatilitySettings, MonteCarloDigitalEngine, MonteCarloSampling, MonteCarloSettings,
+    MonteCarloVanillaEngine, NumericalShiftSettings, ObservationSchedule, OptionType,
+    PricingContext, PricingContextChanges, QuadratureDigitalEngine, QuadratureVanillaEngine,
+    RateTermStructure, Result, TradingCalendar, implied_volatility, numerical_greeks,
 };
 
 fn main() -> Result<()> {
@@ -194,6 +194,33 @@ fn main() -> Result<()> {
         (implied_volatility(&tree, &option, &context, result.price(), Default::default())? - 0.2)
             .abs()
             < 1e-7
+    );
+    let digital_mc = MonteCarloDigitalEngine::new(sobol.settings())?;
+    let digital_analysis = digital_mc.price_with_greeks(
+        &digital,
+        &context,
+        GreeksRequest::all(),
+        Default::default(),
+    )?;
+    assert!(
+        (digital_analysis.price() - AnalyticDigitalEngine.price(&digital, &context)?).abs() < 0.01
+    );
+    assert!(digital_analysis.has(Greek::Delta) && digital_analysis.has(Greek::Gamma));
+    assert!(!digital_analysis.has(Greek::Vega));
+    assert!(
+        (implied_volatility(
+            &digital_mc,
+            &digital,
+            &context,
+            digital_analysis.price(),
+            ImpliedVolatilitySettings {
+                lower_bound: 0.1,
+                upper_bound: 0.22,
+                ..Default::default()
+            }
+        )? - 0.2)
+            .abs()
+            < 0.001
     );
     let digital_tree = CoxRossRubinsteinDigitalEngine::default();
     let digital_result = digital_tree.price_with_greeks(

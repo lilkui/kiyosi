@@ -1,4 +1,4 @@
-//! Calendars, schedules, vanilla/digital BSM, CRR, quadrature, finite-difference and vanilla Monte Carlo pricing and American approximation,
+//! Calendars, schedules, vanilla/digital BSM, CRR, quadrature, finite-difference and CPU Monte Carlo pricing and American approximation,
 //! independent of Python.
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared
@@ -73,7 +73,8 @@ pub use market::{
     PricingContextChanges, Rate,
 };
 pub use monte_carlo::{
-    MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings, MonteCarloVanillaEngine,
+    MonteCarloDigitalEngine, MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings,
+    MonteCarloVanillaEngine,
 };
 pub use numerical::numerical_greeks;
 pub use pricing::AnalyticVanillaEngine;

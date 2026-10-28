@@ -760,6 +760,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<quadrature::QuadratureVanillaEngine>()?;
     module.add_class::<quadrature::QuadratureDigitalEngine>()?;
     module.add_class::<monte_carlo::MonteCarloVanillaEngine>()?;
+    module.add_class::<monte_carlo::MonteCarloDigitalEngine>()?;
     module.add_class::<monte_carlo::MonteCarloEstimate>()?;
     module.add(
         "MonteCarloSampling",

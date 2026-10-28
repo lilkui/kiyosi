@@ -1,6 +1,6 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–12 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla CPU Monte Carlo prices and analytics with
+Tickets 01–13 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, trading
 calendars and observation schedules. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
@@ -939,7 +939,7 @@ coverage, numerical scaling, block boundaries, shared-instance calls and GIL
 release checks. Sampling cases retain legacy Sobol price/Greek precision budgets,
 exact odd-path and single-point regressions, cross-thread analytics and solves,
 and the mixed timing tool's bias/RMSE checks without timing pass conditions.
-They do not compare thread speed. Digital MC belongs to a later slice.
+They do not compare thread speed.
 
 ## American CPU Monte Carlo
 
@@ -1018,6 +1018,64 @@ with unchanged price and Greek budgets and independent grid/bump stability
 checks. Public Rust and Python tests also cover immediate exercise, sparse and
 rank-deficient fits, currency scaling, odd paths, all sampling combinations,
 thread invariance, shared samples, solver recovery and input failures.
+
+## Digital CPU Monte Carlo
+
+`MonteCarloDigitalEngine` accepts cash-or-nothing and asset-or-nothing European
+contracts, using the same Rust `MonteCarloSettings` and Python keyword settings
+as the vanilla engine. All four pseudorandom/Sobol and plain/antithetic combinations
+are supported, including exact odd pseudorandom path counts and thread caps.
+It samples the exact terminal distribution in one dimension; `step_count` is
+validated but unused. Defaults, seed and thread reproducibility, strict Python
+conversions, ownership, GIL release and operational failure rules match vanilla MC.
+
+Exercise is tested in standardized lognormal coordinates, preserving strict
+in-the-money settlement when tiny volatility makes a terminal spot round to the
+strike. At expiry, spot strictly above/below strike pays cash or spot for calls/puts;
+exact equality pays zero. Expiry Greeks are absent and volatility is unidentifiable.
+Node curves return `UnsupportedOperation` before life, request or solver validation.
+
+`price_with_greeks` returns requested likelihood-ratio **delta and gamma** from
+the same normal draws as price. Other Greeks remain absent. All numerical shifts
+are validated but unused by this method. The Rust `numerical_greeks` helper and
+Python scalar-price difference tools can compute separate finite-bump sensitivities;
+these can be noisy or zero for discontinuous sampled cash payoffs. The helper
+pins a request-local seed so bumps replay draws, without mutating the engine.
+Digital MC retains its existing support matrix: no `price_with_statistics` method
+or implied independent-sample uncertainty guarantee is added.
+
+Discounted payoffs and likelihood weights use logarithmic scaling when required;
+scaled moment accumulation avoids overflowing sums and squares. Non-finite paying
+samples or requested Greek samples return `InvalidResult`, even if their average
+might be representable. Unrequested overflowing Greeks do not spoil a finite price.
+This preserves the terminal estimator's failure semantics.
+
+`implied_volatility` reuses one seed throughout each solve, including unseeded
+engines. Sampled digital prices can have plateaus, jumps or multiple volatility
+roots. Supply a local bracket; solver tolerances describe the sampled residual
+or volatility interval, not accuracy against the true model volatility.
+
+```python
+from kiyosi.instruments import CashOrNothingOption
+from kiyosi.pricing import MonteCarloDigitalEngine, implied_volatility
+
+cash = CashOrNothingOption(option_type="call", strike=100, payout=10,
+                           effective_date=option.effective_date,
+                           expiry_date=option.expiry_date)
+engine = MonteCarloDigitalEngine(path_count=65536, sampling="sobol",
+                                antithetic=True, seed=42, thread_count=4)
+result = engine.price_with_greeks(cash, context, ["delta", "gamma"])
+sigma = implied_volatility(engine, cash, context, result.price,
+                           lower_bound=0.1, upper_bound=0.22)
+```
+
+The Rust equivalent uses `DigitalOption`, `MonteCarloDigitalEngine::new` and
+`MonteCarloSettings`; the public methods accept borrowed contracts and contexts
+and return owned results. The candidate tests migrate the existing digital CPU
+price/likelihood error budgets, negative-carry, tiny-volatility, odd-path,
+thread-independence and failure regressions. They also compare all 40 existing
+live QuantLib digital scenarios and check multi-seed price RMSE against the
+independent cash-payoff variance. Legacy implementations remain available.
 
 ## Checks
 

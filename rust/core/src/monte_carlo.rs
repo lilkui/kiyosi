@@ -8,7 +8,10 @@ use crate::{
 const BLOCK_SIZE: usize = 256;
 
 mod american;
+mod digital;
 mod sobol;
+
+pub use digital::MonteCarloDigitalEngine;
 
 /// Selects terminal sampling independently of antithetic pairing.
 /// See [`MonteCarloVanillaEngine::new`] for a Sobol example.
@@ -28,7 +31,7 @@ pub struct MonteCarloSettings {
     /// Sets the exact path count, from 1 through 10,000,000; defaults to 100,000.
     pub path_count: i32,
     /// Sets 2..=10,000 grid points (default 50); American pricing before expiry needs 3.
-    /// European terminal sampling does not use the grid.
+    /// European vanilla and digital terminal sampling do not use the grid.
     pub step_count: i32,
     /// Selects a reproducible stream, or system entropy when absent (the default).
     pub seed: Option<u64>,
@@ -320,72 +323,15 @@ impl MonteCarloVanillaEngine {
         if !drift.is_finite() || !diffusion.is_finite() {
             return Err(unstable());
         }
-        let seed = match self.settings.seed {
-            Some(seed) => seed,
-            None => random_seed()?,
-        };
-        let paths = self.settings.path_count as usize;
-        let samples = if self.settings.antithetic {
-            paths.div_ceil(2)
-        } else {
-            paths
-        };
-        let sobol = if self.settings.sampling == MonteCarloSampling::Sobol {
-            Some(sobol::SobolSequence::new(1, seed)?)
-        } else {
-            None
-        };
-        let mut partials =
-            vec![Ok((Moments::default(), Moments::default())); samples.div_ceil(BLOCK_SIZE)];
-        let simulate = |block: usize| -> Result<(Moments, Moments)> {
-            let mut generator = Pcg32::new(seed, block as u64);
-            let mut cursor = sobol
-                .as_ref()
-                .map(|sequence| sequence.cursor(block * BLOCK_SIZE));
-            let mut moments = Moments::default();
-            let mut pairs = Moments::default();
-            let mut spare = None;
-            let payoff = |normal| -> Result<f64> {
-                let terminal = context.spot_price() * diffusion.mul_add(normal, drift).exp();
-                if !terminal.is_finite() || terminal <= 0.0 {
-                    return Err(unstable());
-                }
-                Ok((sign * (terminal - option.strike())).max(0.0))
-            };
-            for path in block * BLOCK_SIZE..((block + 1) * BLOCK_SIZE).min(samples) {
-                let normal = if let Some(cursor) = &mut cursor {
-                    let value = cursor.normal();
-                    cursor.next_path();
-                    value
-                } else {
-                    match spare.take() {
-                        Some(value) => value,
-                        None => {
-                            let radius = (-2.0 * generator.uniform().ln()).sqrt();
-                            let (sin, cos) = (TAU * generator.uniform()).sin_cos();
-                            spare = Some(radius * sin);
-                            radius * cos
-                        }
-                    }
-                };
-                let positive = payoff(normal)?;
-                moments.add(positive);
-                if self.settings.antithetic && path < paths / 2 {
-                    let negative = payoff(-normal)?;
-                    moments.add(negative);
-                    pairs.add(positive.midpoint(negative));
-                }
+        let (total, pairs) = terminal_samples(self.settings, |normal| {
+            let terminal = context.spot_price() * diffusion.mul_add(normal, drift).exp();
+            if !terminal.is_finite() || terminal <= 0.0 {
+                return Err(unstable());
             }
-            Ok((moments, pairs))
-        };
-        run_blocks(&mut partials, self.settings.thread_count, simulate)?;
-        let mut total = Moments::default();
-        let mut pairs = Moments::default();
-        for partial in partials {
-            let (payoffs, pair_means) = partial?;
-            total.merge(payoffs);
-            pairs.merge(pair_means);
-        }
+            Ok([(sign * (terminal - option.strike())).max(0.0)])
+        })?;
+        let [total] = total;
+        let [pairs] = pairs;
         Ok((total, pairs, -rate * time))
     }
 }
@@ -420,6 +366,78 @@ impl PricingEngine for MonteCarloVanillaEngine {
     ) -> Result<PricingResult> {
         crate::numerical_greeks(self, option, context, request, settings)
     }
+}
+
+fn terminal_samples<const N: usize>(
+    settings: MonteCarloSettings,
+    payoff: impl Fn(f64) -> Result<[f64; N]> + Sync,
+) -> Result<([Moments; N], [Moments; N])> {
+    let seed = match settings.seed {
+        Some(seed) => seed,
+        None => random_seed()?,
+    };
+    let paths = settings.path_count as usize;
+    let samples = if settings.antithetic {
+        paths.div_ceil(2)
+    } else {
+        paths
+    };
+    let sobol = if settings.sampling == MonteCarloSampling::Sobol {
+        Some(sobol::SobolSequence::new(1, seed)?)
+    } else {
+        None
+    };
+    let empty = [Moments::default(); N];
+    let mut partials = vec![Ok((empty, empty)); samples.div_ceil(BLOCK_SIZE)];
+    let simulate = |block: usize| -> Result<([Moments; N], [Moments; N])> {
+        let mut generator = Pcg32::new(seed, block as u64);
+        let mut cursor = sobol
+            .as_ref()
+            .map(|sequence| sequence.cursor(block * BLOCK_SIZE));
+        let mut moments = empty;
+        let mut pairs = empty;
+        let mut spare = None;
+        for path in block * BLOCK_SIZE..((block + 1) * BLOCK_SIZE).min(samples) {
+            let normal = if let Some(cursor) = &mut cursor {
+                let value = cursor.normal();
+                cursor.next_path();
+                value
+            } else {
+                match spare.take() {
+                    Some(value) => value,
+                    None => {
+                        let radius = (-2.0 * generator.uniform().ln()).sqrt();
+                        let (sin, cos) = (TAU * generator.uniform()).sin_cos();
+                        spare = Some(radius * sin);
+                        radius * cos
+                    }
+                }
+            };
+            let positive = payoff(normal)?;
+            for i in 0..N {
+                moments[i].add(positive[i]);
+            }
+            if settings.antithetic && path < paths / 2 {
+                let negative = payoff(-normal)?;
+                for i in 0..N {
+                    moments[i].add(negative[i]);
+                    pairs[i].add(positive[i].midpoint(negative[i]));
+                }
+            }
+        }
+        Ok((moments, pairs))
+    };
+    run_blocks(&mut partials, settings.thread_count, simulate)?;
+    let mut total = empty;
+    let mut pairs = empty;
+    for partial in partials {
+        let (payoffs, pair_means) = partial?;
+        for i in 0..N {
+            total[i].merge(payoffs[i]);
+            pairs[i].merge(pair_means[i]);
+        }
+    }
+    Ok((total, pairs))
 }
 
 fn run_blocks<T: Send>(
@@ -479,7 +497,9 @@ fn scaled_value(scale: f64, weight: f64, log_discount: f64) -> Result<f64> {
     } else if discount.is_normal() && value.is_normal() {
         value * discount
     } else {
-        (scale.ln() + weight.ln() + log_discount).exp()
+        (scale.ln() + weight.abs().ln() + log_discount)
+            .exp()
+            .copysign(weight)
     };
     if !result.is_finite() {
         return Err(unstable());
@@ -504,11 +524,11 @@ struct Moments {
 impl Moments {
     fn add(&mut self, value: f64) {
         // Normalize before accumulating so finite prices survive overflowing sums and squares.
-        if value > self.scale {
-            let ratio = self.scale / value;
+        if value.abs() > self.scale {
+            let ratio = self.scale / value.abs();
             self.mean *= ratio;
             self.m2 *= ratio * ratio;
-            self.scale = value;
+            self.scale = value.abs();
         }
         self.count += 1;
         let value = if self.scale == 0.0 {
