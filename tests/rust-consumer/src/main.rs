@@ -91,6 +91,35 @@ fn main() -> Result<()> {
         },
     )?;
     assert!((barrier_sigma - 0.2).abs() < 1e-7);
+    let barrier_quadrature =
+        kiyosi_core::QuadratureBarrierEngine::new(kiyosi_core::QuadratureSettings {
+            asset_step_count: 1024,
+            integration_standard_deviations: 10.0,
+        })?;
+    assert_eq!(barrier_quadrature.settings().asset_step_count, 1024);
+    let result = barrier_quadrature.price_with_greeks(
+        &barrier,
+        &context,
+        GreeksRequest::new([Greek::Delta, Greek::Vega]),
+        Default::default(),
+    )?;
+    assert!((result.price() - barrier_result.price()).abs() < 3e-8);
+    assert!(result.require(Greek::Delta)? > 0.0);
+    assert!(
+        (implied_volatility(
+            &barrier_quadrature,
+            &barrier,
+            &context,
+            result.price(),
+            ImpliedVolatilitySettings {
+                lower_bound: 0.15,
+                upper_bound: 0.25,
+                ..Default::default()
+            }
+        )? - 0.2)
+            .abs()
+            < 1e-7
+    );
     let barrier_tree = kiyosi_core::CoxRossRubinsteinBarrierEngine::default();
     let tree_result = barrier_tree.price_with_greeks(
         &barrier,

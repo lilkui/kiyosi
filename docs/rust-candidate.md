@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–19 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
+Tickets 01–20 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR and quadrature. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -258,7 +258,7 @@ limits. No other engine fallback is selected.
 
 These terminal engines expose no integration settings. The legacy
 `QuadratureSettings` spatial grid and extent configure path-dependent engines,
-which are outside this ticket. No such controls are added to terminal engines.
+including single-barrier quadrature described below. No such controls are added to terminal engines.
 
 Both require explicitly flat rates, including dated flat curves. Node curves
 return `UnsupportedOperation` before life or Greek-request validation, even at
@@ -1374,6 +1374,85 @@ migrate the relevant legacy event and numerical regressions, compare small trees
 with independent exhaustive path enumeration, check continuous-grid refinement,
 and compare price/delta/gamma with live QuantLib 1.43. Legacy implementations stay
 available; no performance threshold or report is added.
+
+## Single-barrier quadrature
+
+Rust `QuadratureBarrierEngine` and Python `kiyosi.pricing.QuadratureBarrierEngine`
+price the same `BarrierOption` contracts with explicitly flat rates, including dated
+flat curves. All four barrier types, calls/puts, continuous and scheduled monitoring,
+and supported rebates reuse the single-barrier history and settlement rules above.
+Scheduled observations retain their original midnight UTC timestamps and may end
+before expiry; there is no grid-alignment restriction or BGK approximation.
+
+Rust `QuadratureSettings::default()` and Python's keyword-only constructor use
+`asset_step_count=512` and `integration_standard_deviations=8.0`. The budget must
+be at least four and the extent finite and positive (`InvalidParameter`). Python
+accepts `numbers.Integral` with the integer-index protocol for the budget, excluding booleans/floats
+and raising native `OverflowError` outside signed 32-bit range. The extent uses
+the strict real-number protocol. Properties are read-only; Rust `settings()`
+returns an owned copy. These settings do not configure terminal vanilla/digital engines.
+
+Continuous monitoring retains Simpson integration split at strike and barrier,
+rounding an odd panel budget up to even, Brownian-bridge survival, and the shared
+first-hit rebate integral. Scheduled monitoring retains cubic interpolation of
+continuation values and conditional Gaussian cell moments, exact affine terminal
+pieces and tail limits, compensated sums and log scaling. Contractual breaks are
+inserted into the log-asset grid. Expiry-only monitoring uses exact digital moments,
+independent of grid settings. Check spatial resolution and integration extent
+separately; small budgets or narrow extents can give inaccurate finite results.
+No new integration algorithm or performance requirement is introduced.
+
+Flat-rate applicability precedes life, calendar and history validation. Node curves
+return `UnsupportedOperation`, including at expiry and for resolved payments.
+Scheduled trading-day validation precedes settlement. Missing strictly prior
+history returns `InvalidParameter`; impossible prior touches return `InvalidOption`.
+Current observations include barrier equality. Prior at-hit rebates are already
+paid; current at-hit rebates pay immediately, while expiry rebates are discounted
+to expiry. Activated or monitoring-completed vanilla payoffs use analytic pricing.
+Unrepresentable grids, transitions, continuation values or prices return `InvalidResult`.
+Inputs and engine settings remain unchanged on success and failure.
+
+All ten requested Greeks use shared scalar finite differences and Rust bump defaults;
+Rust also supports `numerical_greeks`. At expiry, or current barrier equality without
+a prior touch, all Greeks are absent. Stencils crossing observations or barriers
+leave affected measures absent; feasible bumped errors propagate. An analysis request
+reuses its prepared scheduled continuation curve across spot bumps, with no cache
+shared between requests. Accuracy depends on resolution and bump size, especially
+for higher derivatives and near events. Empty requests or invalid shifts return
+`InvalidParameter` after flat-rate applicability.
+
+The shared implied-volatility solver preserves its caller-supplied bracket and
+validation order. Volatility-independent cashflows return `UnsupportedOperation`;
+barrier prices need not be monotone in volatility. Python price, Greek and solve
+calls release the GIL around owned Rust inputs. Shared and distinct instances
+support concurrent requests; signal handling resumes on return to Python.
+
+```python
+from datetime import date
+from kiyosi.instruments import BarrierOption
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import QuadratureBarrierEngine, implied_volatility
+
+option = BarrierOption(option_type="call", strike=100,
+    effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
+    barrier_level=80, barrier_type="down_and_out")
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2),
+    spot_price=100, valuation_time=date(2025, 1, 1))
+engine = QuadratureBarrierEngine(asset_step_count=1024,
+                                integration_standard_deviations=10)
+result = engine.price_with_greeks(option, context, ["delta", "gamma", "vega", "rho"])
+assert result.delta > 0
+sigma = implied_volatility(engine, option, context, result.price,
+                           lower_bound=0.15, upper_bound=0.25)
+assert abs(sigma - 0.2) < 1e-7
+```
+
+Rust constructs `QuadratureBarrierEngine::new(QuadratureSettings { ..Default::default() })?`
+and calls `price`, `price_with_greeks`, `numerical_greeks` or `implied_volatility`.
+Public API tests cover live QuantLib continuous prices/Greeks, independent digital
+and bivariate-normal scheduled payoffs, short maturity, near-barrier values,
+spatial/extent convergence, event history, validation, solving and concurrency.
 
 ## Binary-barrier and single-touch analytics
 

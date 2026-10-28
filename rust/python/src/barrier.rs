@@ -286,3 +286,82 @@ impl CoxRossRubinsteinBarrierEngine {
         )?))
     }
 }
+
+#[pyclass(frozen, module = "kiyosi._native")]
+pub(crate) struct QuadratureBarrierEngine(pub(crate) core::QuadratureBarrierEngine);
+
+#[pymethods]
+impl QuadratureBarrierEngine {
+    #[new]
+    #[pyo3(signature = (**fields))]
+    fn new(py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
+        check_changes(
+            fields,
+            &["asset_step_count", "integration_standard_deviations"],
+        )?;
+        let mut settings = core::QuadratureSettings::default();
+        if let Some(value) = fields
+            .map(|f| f.get_item("asset_step_count"))
+            .transpose()?
+            .flatten()
+        {
+            settings.asset_step_count = integer(&value)?;
+        }
+        if let Some(value) = fields
+            .map(|f| f.get_item("integration_standard_deviations"))
+            .transpose()?
+            .flatten()
+        {
+            settings.integration_standard_deviations = real(&value)?;
+        }
+        Ok(Self(domain(
+            py,
+            core::QuadratureBarrierEngine::new(settings),
+        )?))
+    }
+    #[getter]
+    fn asset_step_count(&self) -> i32 {
+        self.0.settings().asset_step_count
+    }
+    #[getter]
+    fn integration_standard_deviations(&self) -> f64 {
+        self.0.settings().integration_standard_deviations
+    }
+    fn __repr__(&self) -> String {
+        format!(
+            "QuadratureBarrierEngine(asset_step_count={}, integration_standard_deviations={})",
+            self.asset_step_count(),
+            self.integration_standard_deviations()
+        )
+    }
+    fn price(
+        &self,
+        py: Python<'_>,
+        instrument: &BarrierOption,
+        context: &PricingContext,
+    ) -> PyResult<f64> {
+        let engine = self.0;
+        let option = instrument.0.clone();
+        let context = context.0.clone();
+        domain(py, py.detach(|| engine.price(&option, &context)))
+    }
+    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    fn price_with_greeks(
+        &self,
+        py: Python<'_>,
+        instrument: &BarrierOption,
+        context: &PricingContext,
+        greeks: Option<&Bound<'_, PyAny>>,
+        settings: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<analytics::PricingResult> {
+        let request = analytics::request(greeks, settings)?;
+        let shifts = analytics::shifts(settings)?;
+        let engine = self.0;
+        let option = instrument.0.clone();
+        let context = context.0.clone();
+        Ok(analytics::PricingResult(domain(
+            py,
+            py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+        )?))
+    }
+}

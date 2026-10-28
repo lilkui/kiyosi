@@ -101,7 +101,9 @@ pub use monte_carlo::{
 };
 pub use numerical::numerical_greeks;
 pub use pricing::AnalyticVanillaEngine;
-pub use quadrature::{QuadratureDigitalEngine, QuadratureVanillaEngine};
+pub use quadrature::{
+    QuadratureBarrierEngine, QuadratureDigitalEngine, QuadratureSettings, QuadratureVanillaEngine,
+};
 pub use schedule::ObservationSchedule;
 pub use term_structure::RateTermStructure;
 pub use time::{Date, Timestamp};

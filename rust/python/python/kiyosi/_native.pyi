@@ -323,6 +323,31 @@ class CoxRossRubinsteinBarrierEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
+class QuadratureBarrierEngine:
+    def __init__(
+        self,
+        *,
+        asset_step_count: int = ...,
+        integration_standard_deviations: float = ...,
+    ) -> None: ...
+    @property
+    def asset_step_count(self) -> int: ...
+    @property
+    def integration_standard_deviations(self) -> float: ...
+    def price(self, instrument: BarrierOption, context: PricingContext) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: BarrierOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
 class CoxRossRubinsteinVanillaEngine:
     def __init__(self, *, step_count: int = ...) -> None: ...
     @property
@@ -676,7 +701,9 @@ def implied_volatility(
 ) -> float: ...
 @overload
 def implied_volatility(
-    engine: AnalyticBarrierEngine | CoxRossRubinsteinBarrierEngine,
+    engine: AnalyticBarrierEngine
+    | CoxRossRubinsteinBarrierEngine
+    | QuadratureBarrierEngine,
     instrument: BarrierOption,
     context: PricingContext,
     observed_price: float,

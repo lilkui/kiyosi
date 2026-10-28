@@ -1,3 +1,7 @@
+mod barrier;
+mod gaussian;
+pub use barrier::{QuadratureBarrierEngine, QuadratureSettings};
+
 use std::f64::consts::PI;
 
 use crate::pricing::{black_scholes_arguments, weighted_cdf};
