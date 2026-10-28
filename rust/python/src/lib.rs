@@ -3,6 +3,7 @@
 use kiyosi_core as core;
 mod american;
 mod analytics;
+mod asian;
 mod binomial;
 mod digital;
 mod finite_difference;
@@ -749,6 +750,10 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
             .getattr("Literal")?
             .get_item(pyo3::types::PyTuple::new(py, names)?)?,
     )?;
+    module.add_class::<asian::GeometricAveragePriceOption>()?;
+    module.add_class::<asian::ArithmeticAveragePriceOption>()?;
+    module.add_class::<asian::AnalyticGeometricAveragePriceEngine>()?;
+    module.add_class::<asian::TurnbullWakemanArithmeticAveragePriceEngine>()?;
     module.add_class::<EuropeanOption>()?;
     module.add_class::<american::AmericanOption>()?;
     module.add_class::<american::BjerksundStenslandVanillaEngine>()?;

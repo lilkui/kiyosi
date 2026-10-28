@@ -61,6 +61,13 @@ pub trait OptionContract {
     fn effective_date(&self) -> Date;
     /// Returns expiry at midnight UTC. See [`DigitalOption::expiry_date`].
     fn expiry_date(&self) -> Date;
+
+    /// Reports whether a time stencil preserves the supplied history regime.
+    /// Defaults to `true`; Asian contracts prevent crossing their averaging start.
+    /// See [`crate::AnalyticGeometricAveragePriceEngine::price_with_greeks`].
+    fn time_stencil_available(&self, _before: crate::Timestamp, _after: crate::Timestamp) -> bool {
+        true
+    }
 }
 
 impl OptionContract for EuropeanOption {

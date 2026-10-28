@@ -208,57 +208,15 @@ impl AnalyticVanillaEngine {
         }
         let risk_log = model.risk_free_curve().log_factor(valuation, expiry)?;
         let dividend_log = model.dividend_curve().log_factor(valuation, expiry)?;
-        let volatility = model.volatility();
-        let root_time = time.sqrt();
-        let width = volatility * root_time;
-        if !width.is_finite() {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "unstable volatility limit",
-            ));
-        }
-        let (d1, d2) =
-            black_scholes_arguments(spot, strike, dividend_log - risk_log, volatility, root_time);
-        let asset = weighted_cdf(spot, dividend_log, sign * d1);
-        let cash = weighted_cdf(strike, risk_log, sign * d2);
-        let mut value = sign * (asset - cash);
-        let standardized = d1 - 0.5 * width;
-        if width < 1e-5 && standardized.is_finite() && sign * standardized <= -10.0 {
-            // Expand both tail legs together to avoid cancellation at tiny positive volatility.
-            let distance = standardized.abs();
-            let inverse_square = (1.0 / distance) / distance;
-            let mut term = 1.0;
-            let mut sum = 1.0;
-            let mut correction = -3.0;
-            for order in 1..=20 {
-                term *= -f64::from(2 * order + 1) * inverse_square;
-                sum += term;
-                correction -= f64::from(2 * order + 3) * term;
-            }
-            value = (spot.ln() + dividend_log - 0.5 * standardized * width
-                + volatility.ln()
-                + root_time.ln()
-                - 0.5 * distance * distance
-                - 0.5 * (2.0 * PI).ln()
-                - 2.0 * distance.ln()
-                + (sum + width * width * correction / 24.0).ln())
-            .exp();
-        } else if width < 1e-5 && standardized.abs() < 10.0 {
-            let squared = standardized * standardized;
-            let time_value = (spot.ln() + dividend_log + volatility.ln() + root_time.ln()
-                - 0.5 * squared
-                - 0.5 * (2.0 * PI).ln())
-            .exp()
-                * (1.0 + (squared - 1.0) * width * width / 24.0);
-            value = sign * cash * (standardized * width).exp_m1() + time_value;
-        }
-        if !value.is_finite() {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "analytic pricing produced a non-finite result",
-            ));
-        }
-        Ok(value)
+        lognormal_price(
+            spot,
+            strike,
+            dividend_log - risk_log,
+            (dividend_log, risk_log),
+            model.volatility(),
+            time.sqrt(),
+            sign,
+        )
     }
 }
 
@@ -275,4 +233,64 @@ impl PricingEngine for AnalyticVanillaEngine {
     ) -> Result<PricingResult> {
         Self::price_with_greeks(self, option, context, request, settings)
     }
+}
+
+pub(crate) fn lognormal_price(
+    spot: f64,
+    strike: f64,
+    log_forward: f64,
+    log_discounts: (f64, f64),
+    volatility: f64,
+    root_time: f64,
+    sign: f64,
+) -> Result<f64> {
+    let (asset_log, risk_log) = log_discounts;
+    let width = volatility * root_time;
+    if !width.is_finite() {
+        return Err(Error::new(
+            ErrorCategory::InvalidResult,
+            "unstable volatility limit",
+        ));
+    }
+    let (d1, d2) = black_scholes_arguments(spot, strike, log_forward, volatility, root_time);
+    let asset = weighted_cdf(spot, asset_log, sign * d1);
+    let cash = weighted_cdf(strike, risk_log, sign * d2);
+    let mut value = sign * (asset - cash);
+    let standardized = d1 - 0.5 * width;
+    if width < 1e-5 && standardized.is_finite() && sign * standardized <= -10.0 {
+        // Expand both tail legs together to avoid cancellation at tiny positive volatility.
+        let distance = standardized.abs();
+        let inverse_square = (1.0 / distance) / distance;
+        let mut term = 1.0;
+        let mut sum = 1.0;
+        let mut correction = -3.0;
+        for order in 1..=20 {
+            term *= -f64::from(2 * order + 1) * inverse_square;
+            sum += term;
+            correction -= f64::from(2 * order + 3) * term;
+        }
+        value = (spot.ln() + (asset_log) - 0.5 * standardized * width
+            + volatility.ln()
+            + root_time.ln()
+            - 0.5 * distance * distance
+            - 0.5 * (2.0 * PI).ln()
+            - 2.0 * distance.ln()
+            + (sum + width * width * correction / 24.0).ln())
+        .exp();
+    } else if width < 1e-5 && standardized.abs() < 10.0 {
+        let squared = standardized * standardized;
+        let time_value = (spot.ln() + (asset_log) + volatility.ln() + root_time.ln()
+            - 0.5 * squared
+            - 0.5 * (2.0 * PI).ln())
+        .exp()
+            * (1.0 + (squared - 1.0) * width * width / 24.0);
+        value = sign * cash * (standardized * width).exp_m1() + time_value;
+    }
+    if !value.is_finite() {
+        return Err(Error::new(
+            ErrorCategory::InvalidResult,
+            "analytic pricing produced a non-finite result",
+        ));
+    }
+    Ok(value)
 }

@@ -603,6 +603,32 @@ class PricingResult:
 
 @overload
 def implied_volatility(
+    engine: AnalyticGeometricAveragePriceEngine,
+    instrument: GeometricAveragePriceOption,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...
+@overload
+def implied_volatility(
+    engine: TurnbullWakemanArithmeticAveragePriceEngine,
+    instrument: ArithmeticAveragePriceOption,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...
+@overload
+def implied_volatility(
     engine: AnalyticVanillaEngine | QuadratureVanillaEngine | MonteCarloVanillaEngine,
     instrument: EuropeanOption,
     context: PricingContext,
@@ -657,3 +683,89 @@ def implied_volatility(
     parameter_tolerance: float = ...,
     max_iterations: int = ...,
 ) -> float: ...
+
+class GeometricAveragePriceOption:
+    def __init__(
+        self,
+        *,
+        option_type: Literal["call", "put"],
+        strike: float,
+        effective_date: date,
+        averaging_start_date: date,
+        expiry_date: date,
+        realized_average: float = ...,
+    ) -> None: ...
+    def replace(self, *, realized_average: float = ...) -> Self: ...
+    @property
+    def option_type(self) -> Literal["call", "put"]: ...
+    @property
+    def strike(self) -> float: ...
+    @property
+    def effective_date(self) -> date: ...
+    @property
+    def averaging_start_date(self) -> date: ...
+    @property
+    def expiry_date(self) -> date: ...
+    @property
+    def realized_average(self) -> float: ...
+
+class AnalyticGeometricAveragePriceEngine:
+    def __init__(self) -> None: ...
+    def price(
+        self, instrument: GeometricAveragePriceOption, context: PricingContext
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: GeometricAveragePriceOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
+class ArithmeticAveragePriceOption:
+    def __init__(
+        self,
+        *,
+        option_type: Literal["call", "put"],
+        strike: float,
+        effective_date: date,
+        averaging_start_date: date,
+        expiry_date: date,
+        realized_average: float = ...,
+    ) -> None: ...
+    def replace(self, *, realized_average: float = ...) -> Self: ...
+    @property
+    def option_type(self) -> Literal["call", "put"]: ...
+    @property
+    def strike(self) -> float: ...
+    @property
+    def effective_date(self) -> date: ...
+    @property
+    def averaging_start_date(self) -> date: ...
+    @property
+    def expiry_date(self) -> date: ...
+    @property
+    def realized_average(self) -> float: ...
+
+class TurnbullWakemanArithmeticAveragePriceEngine:
+    def __init__(self) -> None: ...
+    def price(
+        self, instrument: ArithmeticAveragePriceOption, context: PricingContext
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: ArithmeticAveragePriceOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...

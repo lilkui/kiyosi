@@ -269,7 +269,7 @@ pub(crate) fn complete_greeks(
         }
         let before = time.add_micros(-shift.min(before_width))?;
         let after = time.add_micros(shift.min(after_width))?;
-        if before != after {
+        if before != after && option.time_stencil_available(before, after) {
             let days = before.micros_until(after) as f64 / 86_400_000_000.0;
             if want(Greek::Theta) {
                 result.set(

@@ -1,4 +1,5 @@
-//! Calendars, schedules, vanilla/digital BSM, CRR, quadrature, finite-difference and CPU Monte Carlo pricing and American approximation,
+//! Calendars, schedules, vanilla/digital BSM, geometric/arithmetic Asian analytics,
+//! CRR, quadrature, finite-difference and CPU Monte Carlo pricing and American approximation,
 //! independent of Python.
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared
@@ -35,6 +36,7 @@
 
 mod american;
 mod analytics;
+mod asian;
 mod binomial;
 mod calendar;
 mod digital;
@@ -53,6 +55,10 @@ mod time;
 
 pub use american::BjerksundStenslandVanillaEngine;
 pub use analytics::{Greek, GreeksRequest, NumericalShiftSettings, PricingEngine, PricingResult};
+pub use asian::{
+    AnalyticGeometricAveragePriceEngine, ArithmeticAveragePriceOption, DEFAULT_REALIZED_AVERAGE,
+    GeometricAveragePriceOption, TurnbullWakemanArithmeticAveragePriceEngine,
+};
 pub use binomial::{
     BinomialSettings, CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,
 };

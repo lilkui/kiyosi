@@ -206,6 +206,14 @@ pub trait PricingEngine<I = EuropeanOption> {
         crate::numerical_greeks(self, option, context, request, settings)
     }
 
+    /// Reports whether volatility affects a validated contract's remaining payoff.
+    /// Defaults to `true`. The solver checks this after endpoint pricing so that
+    /// life, history and applicability errors take precedence. See
+    /// [`crate::TurnbullWakemanArithmeticAveragePriceEngine::price`].
+    fn volatility_affects_price(&self, _option: &I, _context: &PricingContext) -> bool {
+        true
+    }
+
     /// Restricts a validated solver bracket to the engine's supported domain.
     /// The default retains the caller's settings. See [`crate::implied_volatility`].
     ///

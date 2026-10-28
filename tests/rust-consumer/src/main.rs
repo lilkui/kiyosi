@@ -16,6 +16,50 @@ fn main() -> Result<()> {
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
     let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
     let context = PricingContext::new(model, 100.0, start.into())?;
+    let geometric = kiyosi_core::GeometricAveragePriceOption::new(
+        OptionType::Call,
+        100.0,
+        start,
+        start,
+        end,
+        kiyosi_core::DEFAULT_REALIZED_AVERAGE,
+    )?;
+    let arithmetic = kiyosi_core::ArithmeticAveragePriceOption::new(
+        OptionType::Call,
+        100.0,
+        start,
+        start,
+        end,
+        kiyosi_core::DEFAULT_REALIZED_AVERAGE,
+    )?;
+    let geometric_engine = kiyosi_core::AnalyticGeometricAveragePriceEngine;
+    let arithmetic_engine = kiyosi_core::TurnbullWakemanArithmeticAveragePriceEngine;
+    let geometric_price = geometric_engine.price(&geometric, &context)?;
+    let arithmetic_price = arithmetic_engine.price(&arithmetic, &context)?;
+    assert!(arithmetic_price > geometric_price);
+    assert!(
+        geometric_engine
+            .price_with_greeks(
+                &geometric,
+                &context,
+                GreeksRequest::new([Greek::Delta]),
+                Default::default()
+            )?
+            .require(Greek::Delta)?
+            > 0.0
+    );
+    assert!(
+        (implied_volatility(
+            &arithmetic_engine,
+            &arithmetic,
+            &context,
+            arithmetic_price,
+            Default::default()
+        )? - 0.2)
+            .abs()
+            < 1e-7
+    );
+    assert_eq!(geometric.replace(110.0)?.realized_average(), 110.0);
     let price = AnalyticVanillaEngine.price(&option, &context)?;
     assert!((price - 9.227005508154036).abs() < 1e-12);
     let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;

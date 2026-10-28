@@ -33,7 +33,7 @@ impl Default for ImpliedVolatilitySettings {
 ///
 /// # Errors
 /// Returns [`ErrorCategory::InvalidParameter`] for invalid settings or non-finite quotes,
-/// [`ErrorCategory::UnsupportedOperation`] at expiry, [`ErrorCategory::UnbracketedVolatility`]
+/// [`ErrorCategory::UnsupportedOperation`] for volatility-independent payoffs, [`ErrorCategory::UnbracketedVolatility`]
 /// for same-sign endpoint residuals or a bracket outside the tree domain,
 /// [`ErrorCategory::SolverNonConvergence`] on exhaustion,
 /// or [`ErrorCategory::SolverNonFinite`] for non-finite evaluations. Engine errors propagate.
@@ -105,10 +105,12 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     };
     let (mut a, mut b) = (s.lower_bound, s.upper_bound);
     let (mut fa, mut fb) = (evaluate(a)?, evaluate(b)?);
-    if context.valuation_time() == option.expiry_date().start_of_day() {
+    if context.valuation_time() == option.expiry_date().start_of_day()
+        || !engine.volatility_affects_price(option, context)
+    {
         return Err(Error::new(
             ErrorCategory::UnsupportedOperation,
-            "volatility does not affect expiry payoff",
+            "volatility does not affect the remaining payoff",
         ));
     }
     if fa.abs() <= s.price_tolerance {

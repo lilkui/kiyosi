@@ -1,7 +1,7 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–13 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital CPU Monte Carlo prices and analytics with
-flat BSM rates or configured risk-free and dividend term structures, trading
+Tickets 01–14 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital CPU Monte Carlo prices and analytics with
+flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
 calendars and observation schedules. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
@@ -1076,6 +1076,88 @@ price/likelihood error budgets, negative-carry, tiny-volatility, odd-path,
 thread-independence and failure regressions. They also compare all 40 existing
 live QuantLib digital scenarios and check multi-seed price RMSE against the
 independent cash-payoff variance. Legacy implementations remain available.
+
+## Continuous-average Asian analytic pricing
+
+Ticket 14 adds owning `GeometricAveragePriceOption` and
+`ArithmeticAveragePriceOption` contracts, `AnalyticGeometricAveragePriceEngine`
+and `TurnbullWakemanArithmeticAveragePriceEngine`. Rust constructors take
+`(option_type, strike, effective_date, averaging_start_date, expiry_date,
+realized_average)`. Use the core `DEFAULT_REALIZED_AVERAGE` (zero) for a new
+averaging period; Python derives its omitted default from that constant.
+
+Constructors check positive finite strike, finite nonnegative realized average,
+ordered life dates, then `effective_date <= averaging_start_date <= expiry_date`,
+returning `InvalidStrike`, `InvalidParameter`, `InvalidTimeRange` or
+`InvalidSchedule`, in that order. Both contracts' `replace(realized_average)`
+(Rust) and `.replace(realized_average=...)` (Python) replace history only and
+return validated owning copies. Python `.replace()` preserves the old history.
+Failure leaves the original unchanged. Properties are read-only and copies own
+their data. Numeric and date arguments use the strict boundary protocols above.
+
+Pricing validates inclusive life first, then requires zero history at or before
+the averaging start and positive history strictly afterward. Missing or premature
+history returns `InvalidParameter`. History stays fixed during sensitivities;
+no observation is inferred from the current spot. At expiry, nonzero averaging
+windows settle their realized average. A zero-length window fixes once at expiry,
+requires zero prior history, and uses vanilla pricing before expiry and terminal
+spot at expiry. Forward-starting continuous averaging retains the lead-time
+Brownian variance.
+
+Geometric pricing integrates weighted carry across deterministic curve knots.
+Arithmetic pricing retains the existing moment-matched approximation and its
+stable divided moments, small-variance and scaled-tail treatment. It is compared
+to QuantLib's **same Levy approximation**, not an exact arithmetic-average value.
+Before expiry it requires explicitly flat curves, even for a single fixing;
+node curves return `UnsupportedOperation` after life/history validation. Expiry
+settlement precedes curve applicability and coverage checks. Before expiry both
+engines validate curve coverage; non-finite numerical results use `InvalidResult`.
+
+Both engines expose all ten Greeks through shared scalar finite differences,
+using the Rust `NumericalShiftSettings` defaults. Empty requests and invalid
+shifts fail before pricing. Collapsed or infeasible stencils leave measures absent;
+feasible bumped pricing errors propagate. Theta, charm and color are absent if
+the full time stencil crosses the averaging-start history boundary. All Greeks
+are absent at expiry. `numerical_greeks` supports both Rust contract types.
+The shared implied-volatility solver validates its controls and prices bracket
+endpoints before rejecting unidentifiable payoffs with `UnsupportedOperation`:
+expiry and arithmetic contracts whose accrued average makes adjusted strike
+nonpositive. It does not price at the context's original volatility.
+
+```python
+from datetime import date
+from kiyosi.instruments import ArithmeticAveragePriceOption, GeometricAveragePriceOption
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import (
+    AnalyticGeometricAveragePriceEngine,
+    TurnbullWakemanArithmeticAveragePriceEngine,
+    implied_volatility,
+)
+
+start, end = date(2025, 1, 1), date(2026, 1, 1)
+terms = dict(option_type="call", strike=100, effective_date=start,
+             averaging_start_date=start, expiry_date=end)
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2),
+    spot_price=100, valuation_time=start)
+geometric = GeometricAveragePriceOption(**terms)
+assert abs(AnalyticGeometricAveragePriceEngine().price(geometric, context)
+           - 5.035867546515384) < 1e-12
+arithmetic = ArithmeticAveragePriceOption(**terms)
+engine = TurnbullWakemanArithmeticAveragePriceEngine()
+result = engine.price_with_greeks(arithmetic, context, ["delta", "vega"])
+assert abs(result.price - 5.246501860362777) < 1e-12
+assert abs(implied_volatility(engine, arithmetic, context, result.price) - 0.2) < 1e-7
+seasoned = arithmetic.replace(realized_average=105)
+assert arithmetic.realized_average == 0
+```
+
+Python prices, Greek requests and solves release the GIL around owned Rust inputs,
+with no Python state or callbacks accessed. Distinct and shared instances support
+concurrent reads and pricing; signals resume on return to Python. Rust follows
+the crate-wide `Send + Sync` contract. Public suites retain the applicable legacy
+regressions and all 24 live QuantLib geometric/Levy scenarios with existing
+accuracy and oracle uncertainty budgets. Asian Monte Carlo remains a later slice.
 
 ## Checks
 

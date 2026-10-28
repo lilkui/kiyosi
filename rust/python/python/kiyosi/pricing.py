@@ -1,7 +1,8 @@
-"""Synchronous analytic, American approximation, CRR, quadrature, FD and MC pricing."""
+"""Synchronous analytic, Asian/American approximation, CRR, quadrature, FD and MC pricing."""
 
 from ._native import (
     AnalyticDigitalEngine,
+    AnalyticGeometricAveragePriceEngine,
     AnalyticVanillaEngine,
     BjerksundStenslandVanillaEngine,
     CoxRossRubinsteinDigitalEngine,
@@ -16,11 +17,13 @@ from ._native import (
     PricingResult,
     QuadratureDigitalEngine,
     QuadratureVanillaEngine,
+    TurnbullWakemanArithmeticAveragePriceEngine,
     implied_volatility,
 )
 
 __all__ = [
     "AnalyticDigitalEngine",
+    "AnalyticGeometricAveragePriceEngine",
     "AnalyticVanillaEngine",
     "BjerksundStenslandVanillaEngine",
     "CoxRossRubinsteinDigitalEngine",
@@ -35,5 +38,6 @@ __all__ = [
     "PricingResult",
     "QuadratureDigitalEngine",
     "QuadratureVanillaEngine",
+    "TurnbullWakemanArithmeticAveragePriceEngine",
     "implied_volatility",
 ]

@@ -181,6 +181,42 @@ pub(crate) fn implied_volatility(
         max_iterations: integer_setting(settings, "max_iterations", d.max_iterations)?,
     };
     let context = context.0.clone();
+    if engine.is_instance_of::<asian::TurnbullWakemanArithmeticAveragePriceEngine>() {
+        let option = instrument
+            .extract::<PyRef<'_, asian::ArithmeticAveragePriceOption>>()?
+            .0
+            .clone();
+        return domain(
+            py,
+            py.detach(|| {
+                core::implied_volatility(
+                    &core::TurnbullWakemanArithmeticAveragePriceEngine,
+                    &option,
+                    &context,
+                    observed,
+                    controls,
+                )
+            }),
+        );
+    }
+    if engine.is_instance_of::<asian::AnalyticGeometricAveragePriceEngine>() {
+        let option = instrument
+            .extract::<PyRef<'_, asian::GeometricAveragePriceOption>>()?
+            .0
+            .clone();
+        return domain(
+            py,
+            py.detach(|| {
+                core::implied_volatility(
+                    &core::AnalyticGeometricAveragePriceEngine,
+                    &option,
+                    &context,
+                    observed,
+                    controls,
+                )
+            }),
+        );
+    }
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloDigitalEngine>>() {
         let engine = engine.0;
         let option = instrument
