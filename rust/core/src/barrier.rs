@@ -284,7 +284,7 @@ impl BarrierOption {
     fn continuous(&self) -> bool {
         self.observation_mode() == ObservationMode::Continuous
     }
-    fn monitored(&self, time: Timestamp) -> bool {
+    pub(crate) fn monitored(&self, time: Timestamp) -> bool {
         time >= self.effective_date().start_of_day()
             && time <= self.expiry_date().start_of_day()
             && (self.continuous()

@@ -645,6 +645,19 @@ class PricingResult:
 
 @overload
 def implied_volatility(
+    engine: AnalyticDoubleBarrierEngine,
+    instrument: DoubleBarrierOption,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...
+@overload
+def implied_volatility(
     engine: AnalyticBarrierEngine,
     instrument: BarrierOption,
     context: PricingContext,
@@ -892,6 +905,73 @@ class AnalyticBarrierEngine:
     def price_with_greeks(
         self,
         instrument: BarrierOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
+class DoubleBarrierOption:
+    def __init__(
+        self,
+        *,
+        option_type: Literal["call", "put"],
+        strike: float,
+        effective_date: date,
+        expiry_date: date,
+        lower_barrier: float,
+        upper_barrier: float,
+        barrier_type: Literal["knock_in", "knock_out"],
+        rebate: float = ...,
+        rebate_timing: Literal["at_hit", "at_expiry"] = ...,
+        observation_mode: Literal["continuous", "scheduled"] = ...,
+        observation_dates: Iterable[date] = ...,
+        touch_state: Literal["untouched", "touched"] | None = None,
+    ) -> None: ...
+    def replace(
+        self, *, touch_state: Literal["untouched", "touched"] | None = ...
+    ) -> Self: ...
+    @property
+    def option_type(self) -> Literal["call", "put"]: ...
+    @property
+    def strike(self) -> float: ...
+    @property
+    def effective_date(self) -> date: ...
+    @property
+    def expiry_date(self) -> date: ...
+    @property
+    def lower_barrier(self) -> float: ...
+    @property
+    def upper_barrier(self) -> float: ...
+    @property
+    def barrier_type(
+        self,
+    ) -> Literal["knock_in", "knock_out"]: ...
+    @property
+    def rebate(self) -> float: ...
+    @property
+    def rebate_timing(self) -> Literal["at_hit", "at_expiry"]: ...
+    @property
+    def observation_mode(self) -> Literal["continuous", "scheduled"]: ...
+    @property
+    def observation_dates(self) -> list[date]: ...
+    @property
+    def observation_schedule(self) -> ObservationSchedule: ...
+    @property
+    def touch_state(self) -> Literal["untouched", "touched"] | None: ...
+
+class AnalyticDoubleBarrierEngine:
+    def __init__(self) -> None: ...
+    def price(
+        self, instrument: DoubleBarrierOption, context: PricingContext
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: DoubleBarrierOption,
         context: PricingContext,
         greeks: Greek | Iterable[Greek] | None = None,
         *,

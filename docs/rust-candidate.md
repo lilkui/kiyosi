@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–17 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
+Tickets 01–18 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/binary-barrier and touch analytic pricing with event history. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -1409,6 +1409,77 @@ scheduled monitoring, variance-underflow and extreme-scale regressions. All 268
 existing independent QuantLib binary/touch scenarios retain their price, Greek
 and reference-uncertainty budgets. The legacy implementation remains available;
 no performance threshold is added.
+
+## Double-barrier analytic pricing
+
+Rust `DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(direction, strike,
+start, end, lower, upper, barrier_type))?` constructs a European vanilla payoff
+activated or terminated by the first inclusive touch of either fixed boundary.
+`DoubleBarrierType::{KnockIn, KnockOut}` selects activation behavior. Finite
+`0 < lower < upper` is required (`InvalidParameter`), including when the payoff
+is already determined. Both boundaries share one schedule and strictly prior
+`BarrierTouchState`. Rebate, timing, monitoring and history defaults come from
+Rust's single-barrier terms: zero, expiry, continuous, empty dates and unknown.
+Validation order, schedule/calendar rules, history replacement, ownership and
+concurrency follow the single-barrier contract above. At-hit knock-in rebates
+remain invalid even for zero amounts (`InvalidOption`).
+
+`AnalyticDoubleBarrierEngine` requires explicitly flat risk-free and dividend
+curves before validating life, scheduled trading dates and prior history. It
+resolves current touches, past touches, finished monitoring, expiry and excluded
+zero-rebate terminal payoffs before rejecting unresolved scheduled monitoring
+with `UnsupportedOperation`. There is no discrete approximation or engine fallback.
+A touched knock-in becomes vanilla; a touched knock-out pays at expiry or at
+hit, with prior at-hit payments already paid. An untouched knock-in after the
+last fixing receives its expiry rebate; an untouched knock-out becomes vanilla.
+
+Continuous pricing retains the existing absorbing-density image/spectral series
+switch at `volatility * sqrt(time) / log(upper/lower) = 0.5`, compensated summation
+and logarithmic Gaussian tails. Knock-ins use vanilla-minus-knock-out parity.
+Expiry rebates use surviving or exiting probability; at-hit rebates integrate
+discounted first-exit probability, including negative rates and narrow boundary
+layers. Unrepresentable calculations or failure to converge return `InvalidResult`.
+
+All ten requested Greeks use shared scalar numerical differences and Rust bump
+defaults. At expiry or a current boundary equality without a prior touch, all
+Greeks are absent. Stencils reaching either boundary omit affected spot/mixed
+Greeks; time stencils preserve the monitoring/history regime. Pricing failures
+on feasible bumps propagate. `implied_volatility` retains the supplied bracket;
+prices can be non-monotone, so bracket the desired root. Fixed cashflows and
+excluded zero payoffs return `UnsupportedOperation`. Pricing, analysis and
+solving preserve inputs on success and failure.
+
+Python exports `DoubleBarrierOption` from `kiyosi.instruments` and
+`AnalyticDoubleBarrierEngine` from `kiyosi.pricing`, with typed signatures.
+`barrier_type` accepts `"knock_in"` or `"knock_out"`; all other choices and strict
+representation protocols match the single-barrier API. Booleans are rejected as
+numbers; integer controls reject floats and overflow. Domain errors use
+`KiyosiError.category`, while representation failures retain native exceptions.
+Schedule accessors return owned copies. Price, Greeks and solve calls release
+the GIL around owned Rust inputs.
+
+```python
+from datetime import date
+from kiyosi.instruments import DoubleBarrierOption
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import AnalyticDoubleBarrierEngine, implied_volatility
+
+option = DoubleBarrierOption(option_type="call", strike=100,
+    effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
+    lower_barrier=80, upper_barrier=120, barrier_type="knock_out")
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2),
+    spot_price=100, valuation_time=date(2025, 1, 1))
+engine = AnalyticDoubleBarrierEngine()
+result = engine.price_with_greeks(option, context, ["delta", "gamma"])
+assert abs(result.price - 1.0838814592583166) < 1e-9
+sigma = implied_volatility(engine, option, context, result.price,
+                           lower_bound=0.15, upper_bound=0.25)
+assert abs(sigma - 0.2) < 1e-7
+known = option.replace(touch_state="untouched")
+assert option.touch_state is None
+assert known.upper_barrier == option.upper_barrier
+```
 
 ## Checks
 

@@ -22,6 +22,33 @@ fn main() -> Result<()> {
         kiyosi_core::BarrierType::DownAndOut,
     ))?
     .replace(Some(kiyosi_core::BarrierTouchState::Untouched))?;
+    let double =
+        kiyosi_core::DoubleBarrierOption::new(kiyosi_core::DoubleBarrierOptionTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            80.0,
+            120.0,
+            kiyosi_core::DoubleBarrierType::KnockOut,
+        ))?;
+    let double_context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
+        100.0,
+        start.into(),
+    )?;
+    assert!(
+        (kiyosi_core::AnalyticDoubleBarrierEngine.price(&double, &double_context)?
+            - 1.0838814592583166)
+            .abs()
+            < 1e-9
+    );
+    assert_eq!(
+        double
+            .replace(Some(kiyosi_core::BarrierTouchState::Untouched))?
+            .touch_state(),
+        Some(kiyosi_core::BarrierTouchState::Untouched)
+    );
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
     let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
     let context = PricingContext::new(model, 100.0, start.into())?;

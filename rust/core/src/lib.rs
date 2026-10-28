@@ -1,5 +1,5 @@
 //! Calendars, schedules, vanilla/digital BSM, geometric/arithmetic Asian analytics,
-//! single/binary-barrier and touch analytics, CRR, quadrature, finite-difference and CPU Monte Carlo pricing
+//! single/double/binary-barrier and touch analytics, CRR, quadrature, finite-difference and CPU Monte Carlo pricing
 //! and American approximation,
 //! independent of Python.
 //!
@@ -43,6 +43,7 @@ mod binary_barrier;
 mod binomial;
 mod calendar;
 mod digital;
+mod double_barrier;
 mod error;
 mod finite_difference;
 mod implied;
@@ -76,6 +77,9 @@ pub use binomial::{
 };
 pub use calendar::{BusinessDayConvention, TradingCalendar};
 pub use digital::AnalyticDigitalEngine;
+pub use double_barrier::{
+    AnalyticDoubleBarrierEngine, DoubleBarrierOption, DoubleBarrierOptionTerms, DoubleBarrierType,
+};
 pub use error::{Error, ErrorCategory, Result};
 pub use finite_difference::{
     FiniteDifferenceDigitalEngine, FiniteDifferenceScheme, FiniteDifferenceSettings,

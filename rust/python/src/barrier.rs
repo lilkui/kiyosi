@@ -16,7 +16,7 @@ pub(super) fn mode(value: &Bound<'_, PyAny>) -> PyResult<core::ObservationMode> 
         _ => Err(PyValueError::new_err("unknown observation_mode")),
     }
 }
-fn timing(value: &Bound<'_, PyAny>) -> PyResult<core::RebateTiming> {
+pub(super) fn timing(value: &Bound<'_, PyAny>) -> PyResult<core::RebateTiming> {
     match value.extract::<&str>()? {
         "at_hit" => Ok(core::RebateTiming::AtHit),
         "at_expiry" => Ok(core::RebateTiming::AtExpiry),
