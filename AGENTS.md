@@ -5,7 +5,7 @@ Kiyosi is in alpha; there are no backward-compatibility commitments.
 ## Before starting
 
 - Before domain exploration, read the [domain guide](docs/agents/domain.md).
-- Before architecture or migration changes, read the relevant [ADRs](docs/adr/).
+- Before architecture changes, read the relevant [ADRs](docs/adr/).
 - Before issue or PR operations, read the [issue tracker guide](docs/agents/issue-tracker.md); for triage, also read the [triage labels](docs/agents/triage-labels.md).
 - Before writing or editing Rust doc comments, read [RFC 1574](https://raw.githubusercontent.com/rust-lang/rfcs/refs/heads/main/text/1574-more-api-documentation-conventions.md) and the [Rust API Guidelines documentation chapter](https://rust-lang.github.io/api-guidelines/documentation.html). Follow every applicable rule and verify compliance before completing the change.
 
@@ -41,5 +41,5 @@ Kiyosi is in alpha; there are no backward-compatibility commitments.
 
 - Format and lint modified Rust with rustfmt and Clippy, and Python with Ruff, using repository-selected rules.
 - Run affected Rust core and Rust-backed Python binding tests, plus documentation and packaging checks when affected. Find commands in repository configuration and the [Python test guide](tests/README.md).
-- Update API and usage docs to reflect current behavior. Keep historical context in ADRs, migration guides or release notes.
+- Update API and usage docs to reflect current behavior.
 - Use Conventional Commits.
