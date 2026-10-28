@@ -761,6 +761,12 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<quadrature::QuadratureDigitalEngine>()?;
     module.add_class::<monte_carlo::MonteCarloVanillaEngine>()?;
     module.add_class::<monte_carlo::MonteCarloEstimate>()?;
+    module.add(
+        "MonteCarloSampling",
+        py.import("typing")?
+            .getattr("Literal")?
+            .get_item(("pseudo_random", "sobol"))?,
+    )?;
     module.add_class::<finite_difference::FiniteDifferenceVanillaEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceDigitalEngine>()?;
     module.add(

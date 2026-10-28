@@ -4,8 +4,8 @@ use kiyosi_core::{
     BlackScholesMertonParameters, CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,
     Date, DigitalOption, EuropeanOption, FiniteDifferenceDigitalEngine, FiniteDifferenceScheme,
     FiniteDifferenceSettings, FiniteDifferenceVanillaEngine, Greek, GreeksRequest,
-    ImpliedVolatilitySettings, MonteCarloSettings, MonteCarloVanillaEngine, NumericalShiftSettings,
-    ObservationSchedule, OptionType, PricingContext, PricingContextChanges,
+    ImpliedVolatilitySettings, MonteCarloSampling, MonteCarloSettings, MonteCarloVanillaEngine,
+    NumericalShiftSettings, ObservationSchedule, OptionType, PricingContext, PricingContextChanges,
     QuadratureDigitalEngine, QuadratureVanillaEngine, RateTermStructure, Result, TradingCalendar,
     implied_volatility, numerical_greeks,
 };
@@ -25,6 +25,17 @@ fn main() -> Result<()> {
     })?;
     let estimate = mc.price_with_statistics(&option, &context)?;
     assert!((estimate.price() - price).abs() < 6.0 * estimate.standard_error().unwrap_or(0.0));
+    let sobol = MonteCarloVanillaEngine::new(MonteCarloSettings {
+        path_count: 65_536,
+        sampling: MonteCarloSampling::Sobol,
+        antithetic: true,
+        ..mc.settings()
+    })?;
+    let sobol_estimate = sobol.price_with_statistics(&option, &context)?;
+    assert!((sobol_estimate.price() - price).abs() < 0.002);
+    assert!(
+        sobol_estimate.standard_error().is_none() && sobol_estimate.confidence_interval().is_none()
+    );
     assert!(
         (implied_volatility(
             &mc,

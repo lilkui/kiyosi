@@ -434,6 +434,8 @@ class QuadratureVanillaEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
+MonteCarloSampling: TypeAlias = Literal["pseudo_random", "sobol"]
+
 class MonteCarloVanillaEngine:
     def __init__(
         self,
@@ -442,6 +444,8 @@ class MonteCarloVanillaEngine:
         step_count: int = ...,
         seed: int | None = None,
         thread_count: int = ...,
+        sampling: MonteCarloSampling = ...,
+        antithetic: bool = ...,
     ) -> None: ...
     @property
     def path_count(self) -> int: ...
@@ -451,6 +455,10 @@ class MonteCarloVanillaEngine:
     def seed(self) -> int | None: ...
     @property
     def thread_count(self) -> int: ...
+    @property
+    def sampling(self) -> MonteCarloSampling: ...
+    @property
+    def antithetic(self) -> bool: ...
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float: ...
     def price_with_statistics(
         self, instrument: EuropeanOption, context: PricingContext

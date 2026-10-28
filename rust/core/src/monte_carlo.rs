@@ -7,6 +7,19 @@ use crate::{
 
 const BLOCK_SIZE: usize = 256;
 
+mod sobol;
+
+/// Selects terminal sampling independently of antithetic pairing.
+/// See [`MonteCarloVanillaEngine::new`] for a Sobol example.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MonteCarloSampling {
+    /// Uses pseudorandom PCG32 streams (the default).
+    #[default]
+    PseudoRandom,
+    /// Uses seeded LMS-scrambled Sobol points with a digital shift.
+    Sobol,
+}
+
 /// Configures exact terminal-distribution CPU sampling.
 /// See [`MonteCarloVanillaEngine::new`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -19,6 +32,10 @@ pub struct MonteCarloSettings {
     pub seed: Option<u64>,
     /// Caps CPU workers per call: 0 automatic (default), 1 serial, or a positive cap.
     pub thread_count: i32,
+    /// Selects pseudorandom (default) or Sobol sampling; Sobol requires power-of-two paths.
+    pub sampling: MonteCarloSampling,
+    /// Pairs Z and -Z (default `false`), keeping exact paths and one unpaired path if odd.
+    pub antithetic: bool,
 }
 
 impl Default for MonteCarloSettings {
@@ -28,12 +45,15 @@ impl Default for MonteCarloSettings {
             step_count: 50,
             seed: None,
             thread_count: 0,
+            sampling: MonteCarloSampling::PseudoRandom,
+            antithetic: false,
         }
     }
 }
 
-/// Prices European vanilla contracts with flat-rate pseudorandom CPU sampling.
+/// Prices European vanilla contracts with flat-rate CPU sampling.
 /// Samples the exact terminal distribution without intermediate stepping.
+/// Sobol uses one dimension and `ceil(path_count / 2)` points with antithetic pairing.
 /// Fixed seeds reproduce results across thread counts within the same build.
 /// Shared and distinct instances permit concurrent calls without mutation;
 /// every call owns its workers and buffers and changes no global thread settings.
@@ -44,9 +64,12 @@ pub struct MonteCarloVanillaEngine {
 }
 
 /// Owns a Monte Carlo price and its optional sampling uncertainty.
-/// Uses unbiased sample variance and a two-sided asymptotic 95% normal interval;
+/// Uses unbiased sample variance and a two-sided asymptotic 95% normal interval
+/// for pseudorandom draws, or independent pair means with even antithetic counts;
 /// sparse samples and heavy tails can make the interval unreliable.
-/// One path before expiry leaves uncertainty absent; known expiry payoffs have zero uncertainty.
+/// Sobol always leaves uncertainty absent. Before expiry, fewer than two independent
+/// observations or odd antithetic counts also leave uncertainty absent.
+/// Known pseudorandom expiry payoffs have zero uncertainty.
 /// See [`MonteCarloVanillaEngine::price_with_statistics`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MonteCarloEstimate {
@@ -71,11 +94,11 @@ impl MonteCarloEstimate {
 }
 
 impl MonteCarloVanillaEngine {
-    /// Creates an engine after validating paths, steps and threads, in that order.
+    /// Creates an engine after validating paths, steps, threads and sampling, in that order.
     ///
     /// # Errors
     /// Returns [`ErrorCategory::InvalidParameter`] for paths outside 1..=10,000,000,
-    /// steps outside 2..=10,000, or a negative thread cap.
+    /// steps outside 2..=10,000, a negative thread cap, or a non-power-of-two Sobol count.
     ///
     /// # Examples
     /// ```
@@ -85,6 +108,11 @@ impl MonteCarloVanillaEngine {
     ///     seed: Some(42), thread_count: 4, ..Default::default()
     /// })?;
     /// assert_eq!(engine.settings().path_count, 100_000);
+    /// let sobol = MonteCarloVanillaEngine::new(MonteCarloSettings {
+    ///     path_count: 32768, sampling: kiyosi_core::MonteCarloSampling::Sobol,
+    ///     antithetic: true, seed: Some(42), ..Default::default()
+    /// })?;
+    /// assert!(sobol.settings().antithetic);
     /// # Ok(()) }
     /// ```
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {
@@ -95,6 +123,14 @@ impl MonteCarloVanillaEngine {
             return Err(Error::new(
                 ErrorCategory::InvalidParameter,
                 "invalid Monte Carlo settings",
+            ));
+        }
+        if settings.sampling == MonteCarloSampling::Sobol
+            && !(settings.path_count as u32).is_power_of_two()
+        {
+            return Err(Error::new(
+                ErrorCategory::InvalidParameter,
+                "Sobol path count must be a power of two",
             ));
         }
         Ok(Self { settings })
@@ -161,12 +197,14 @@ impl MonteCarloVanillaEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-        let (sample, log_discount) = self.sample(option, context)?;
+        let (sample, _, log_discount) = self.sample(option, context)?;
         scaled_value(sample.scale, sample.mean, log_discount)
     }
 
     /// Returns the price, standard error and asymptotic 95% confidence interval.
     /// Uses the same samples and reduction order as [`Self::price`].
+    /// Leaves uncertainty absent for Sobol and insufficient independent samples;
+    /// see [`MonteCarloEstimate`] for antithetic and expiry rules.
     ///
     /// # Errors
     /// Propagates [`Self::price`] errors and returns [`ErrorCategory::InvalidResult`]
@@ -190,15 +228,27 @@ impl MonteCarloVanillaEngine {
         option: &EuropeanOption,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        let (sample, log_discount) = self.sample(option, context)?;
+        let (sample, pairs, log_discount) = self.sample(option, context)?;
         let price = scaled_value(sample.scale, sample.mean, log_discount)?;
         let at_expiry = context.valuation_time() == option.expiry_date().start_of_day();
-        let standard_error = if at_expiry {
+        let uncertainty = if self.settings.antithetic {
+            pairs
+        } else {
+            sample
+        };
+        let standard_error = if self.settings.sampling == MonteCarloSampling::Sobol {
+            None
+        } else if at_expiry {
             Some(0.0)
-        } else if sample.count > 1 {
+        } else if uncertainty.count > 1
+            && (!self.settings.antithetic || self.settings.path_count % 2 == 0)
+        {
             Some(scaled_value(
-                sample.scale,
-                (sample.m2.max(0.0) / (sample.count - 1) as f64 / sample.count as f64).sqrt(),
+                uncertainty.scale,
+                (uncertainty.m2.max(0.0)
+                    / (uncertainty.count - 1) as f64
+                    / uncertainty.count as f64)
+                    .sqrt(),
                 log_discount,
             )?)
         } else {
@@ -221,7 +271,11 @@ impl MonteCarloVanillaEngine {
         })
     }
 
-    fn sample(&self, option: &EuropeanOption, context: &PricingContext) -> Result<(Moments, f64)> {
+    fn sample(
+        &self,
+        option: &EuropeanOption,
+        context: &PricingContext,
+    ) -> Result<(Moments, Moments, f64)> {
         let model = context.model_parameters();
         let rate = model.risk_free_rate()?;
         let dividend = model.dividend_yield()?;
@@ -242,7 +296,7 @@ impl MonteCarloVanillaEngine {
         if time == 0.0 {
             let mut sample = Moments::default();
             sample.add((sign * (context.spot_price() - option.strike())).max(0.0));
-            return Ok((sample, 0.0));
+            return Ok((sample, Moments::default(), 0.0));
         }
         let sigma = model.volatility();
         let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
@@ -255,7 +309,18 @@ impl MonteCarloVanillaEngine {
             None => random_seed()?,
         };
         let paths = self.settings.path_count as usize;
-        let mut partials = vec![Ok(Moments::default()); paths.div_ceil(BLOCK_SIZE)];
+        let samples = if self.settings.antithetic {
+            paths.div_ceil(2)
+        } else {
+            paths
+        };
+        let sobol = if self.settings.sampling == MonteCarloSampling::Sobol {
+            Some(sobol::SobolSequence::new(1, seed)?)
+        } else {
+            None
+        };
+        let mut partials =
+            vec![Ok((Moments::default(), Moments::default())); samples.div_ceil(BLOCK_SIZE)];
         let available = thread::available_parallelism().map_or(1, |count| count.get());
         let workers = if self.settings.thread_count == 0 {
             available
@@ -263,28 +328,46 @@ impl MonteCarloVanillaEngine {
             (self.settings.thread_count as usize).min(available)
         }
         .min(partials.len());
-        let simulate = |block: usize| -> Result<Moments> {
+        let simulate = |block: usize| -> Result<(Moments, Moments)> {
             let mut generator = Pcg32::new(seed, block as u64);
+            let mut cursor = sobol
+                .as_ref()
+                .map(|sequence| sequence.cursor(block * BLOCK_SIZE));
             let mut moments = Moments::default();
+            let mut pairs = Moments::default();
             let mut spare = None;
-            for _ in block * BLOCK_SIZE..((block + 1) * BLOCK_SIZE).min(paths) {
-                let normal = match spare.take() {
-                    Some(value) => value,
-                    None => {
-                        let radius = (-2.0 * generator.uniform().ln()).sqrt();
-                        let (sin, cos) = (TAU * generator.uniform()).sin_cos();
-                        spare = Some(radius * sin);
-                        radius * cos
-                    }
-                };
+            let payoff = |normal| -> Result<f64> {
                 let terminal = context.spot_price() * diffusion.mul_add(normal, drift).exp();
                 if !terminal.is_finite() || terminal <= 0.0 {
                     return Err(unstable());
                 }
-                let payoff = (sign * (terminal - option.strike())).max(0.0);
-                moments.add(payoff);
+                Ok((sign * (terminal - option.strike())).max(0.0))
+            };
+            for path in block * BLOCK_SIZE..((block + 1) * BLOCK_SIZE).min(samples) {
+                let normal = if let Some(cursor) = &mut cursor {
+                    let value = cursor.normal();
+                    cursor.next_path();
+                    value
+                } else {
+                    match spare.take() {
+                        Some(value) => value,
+                        None => {
+                            let radius = (-2.0 * generator.uniform().ln()).sqrt();
+                            let (sin, cos) = (TAU * generator.uniform()).sin_cos();
+                            spare = Some(radius * sin);
+                            radius * cos
+                        }
+                    }
+                };
+                let positive = payoff(normal)?;
+                moments.add(positive);
+                if self.settings.antithetic && path < paths / 2 {
+                    let negative = payoff(-normal)?;
+                    moments.add(negative);
+                    pairs.add(positive.midpoint(negative));
+                }
             }
-            Ok(moments)
+            Ok((moments, pairs))
         };
         if workers == 1 {
             for (block, partial) in partials.iter_mut().enumerate() {
@@ -315,10 +398,13 @@ impl MonteCarloVanillaEngine {
             })?;
         }
         let mut total = Moments::default();
+        let mut pairs = Moments::default();
         for partial in partials {
-            total.merge(partial?);
+            let (payoffs, pair_means) = partial?;
+            total.merge(payoffs);
+            pairs.merge(pair_means);
         }
-        Ok((total, -rate * time))
+        Ok((total, pairs, -rate * time))
     }
 }
 

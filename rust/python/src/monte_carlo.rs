@@ -10,7 +10,14 @@ impl MonteCarloVanillaEngine {
     fn new(py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
         check_changes(
             fields,
-            &["path_count", "step_count", "seed", "thread_count"],
+            &[
+                "path_count",
+                "step_count",
+                "seed",
+                "thread_count",
+                "sampling",
+                "antithetic",
+            ],
         )?;
         let mut settings = core::MonteCarloSettings::default();
         if let Some(fields) = fields {
@@ -26,6 +33,16 @@ impl MonteCarloVanillaEngine {
             if let Some(value) = fields.get_item("seed")?.filter(|value| !value.is_none()) {
                 check_integer(&value)?;
                 settings.seed = Some(value.extract::<u64>()?);
+            }
+            if let Some(value) = fields.get_item("sampling")? {
+                settings.sampling = match value.extract::<&str>()? {
+                    "pseudo_random" => core::MonteCarloSampling::PseudoRandom,
+                    "sobol" => core::MonteCarloSampling::Sobol,
+                    _ => return Err(PyValueError::new_err("unknown Monte Carlo sampling")),
+                };
+            }
+            if let Some(value) = fields.get_item("antithetic")? {
+                settings.antithetic = value.cast::<PyBool>()?.extract()?;
             }
         }
         Ok(Self(domain(
@@ -49,6 +66,17 @@ impl MonteCarloVanillaEngine {
     #[getter]
     fn thread_count(&self) -> i32 {
         self.0.settings().thread_count
+    }
+    #[getter]
+    fn sampling(&self) -> &'static str {
+        match self.0.settings().sampling {
+            core::MonteCarloSampling::PseudoRandom => "pseudo_random",
+            core::MonteCarloSampling::Sobol => "sobol",
+        }
+    }
+    #[getter]
+    fn antithetic(&self) -> bool {
+        self.0.settings().antithetic
     }
 
     fn price(

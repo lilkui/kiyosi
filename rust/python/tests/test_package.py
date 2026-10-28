@@ -35,6 +35,7 @@ class PackageTests(unittest.TestCase):
                     "BusinessDayConvention",
                     "Greek",
                     "FiniteDifferenceScheme",
+                    "MonteCarloSampling",
                 ):
                     self.assertIn(name, declarations)
                     self.assertIs(getattr(module, name), getattr(_native, name))

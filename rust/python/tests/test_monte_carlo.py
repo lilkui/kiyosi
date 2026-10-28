@@ -109,11 +109,7 @@ class MonteCarloTests(unittest.TestCase):
                     ),
                     (paths, steps, 2**64 - 1, 2**31 - 1),
                 )
-        for kwargs in (
-            {"backend": "cuda"},
-            {"sampling": "sobol"},
-            {"antithetic": True},
-        ):
+        for kwargs in ({"backend": "cuda"},):
             with self.assertRaises(TypeError):
                 MonteCarloVanillaEngine(**kwargs)
         with self.assertRaises(TypeError):
@@ -444,30 +440,38 @@ class MonteCarloTests(unittest.TestCase):
                     )
 
     def test_statistical_coverage_and_inverse_square_root_error(self):
-        option, context = contract(), market()
-        covered, standardized = 0, []
-        for seed in range(32):
-            engine = MonteCarloVanillaEngine(path_count=8192, seed=seed, thread_count=1)
-            estimate = engine.price_with_statistics(option, context)
+        for antithetic in (False, True):
+            observations, deviation = (
+                (4096, 7.286842354) if antithetic else (8192, 13.831466750894657)
+            )
+            option, context = contract(), market()
+            covered, standardized = 0, []
+            for seed in range(32):
+                engine = MonteCarloVanillaEngine(
+                    path_count=8192, seed=seed, thread_count=1, antithetic=antithetic
+                )
+                estimate = engine.price_with_statistics(option, context)
+                self.assertAlmostEqual(
+                    estimate.standard_error * math.sqrt(observations),
+                    deviation,
+                    delta=1.5,
+                )
+                lower, upper = estimate.confidence_interval
+                covered += lower <= 9.227005508154036 <= upper
+                standardized.append(
+                    (estimate.price - 9.227005508154036) / estimate.standard_error
+                )
+            self.assertGreaterEqual(covered, 26)
+            self.assertLess(abs(sum(standardized) / len(standardized)), 0.5)
+            small = MonteCarloVanillaEngine(
+                path_count=8192, seed=42, antithetic=antithetic
+            ).price_with_statistics(option, context)
+            large = MonteCarloVanillaEngine(
+                path_count=32768, seed=42, antithetic=antithetic
+            ).price_with_statistics(option, context)
             self.assertAlmostEqual(
-                estimate.standard_error * math.sqrt(8192), 13.831466750894657, delta=1.5
+                small.standard_error / large.standard_error, 2, delta=0.15
             )
-            lower, upper = estimate.confidence_interval
-            covered += lower <= 9.227005508154036 <= upper
-            standardized.append(
-                (estimate.price - 9.227005508154036) / estimate.standard_error
-            )
-        self.assertGreaterEqual(covered, 26)
-        self.assertLess(abs(sum(standardized) / len(standardized)), 0.5)
-        small = MonteCarloVanillaEngine(path_count=8192, seed=42).price_with_statistics(
-            option, context
-        )
-        large = MonteCarloVanillaEngine(
-            path_count=32768, seed=42
-        ).price_with_statistics(option, context)
-        self.assertAlmostEqual(
-            small.standard_error / large.standard_error, 2, delta=0.15
-        )
 
     def test_concurrent_shared_and_distinct_engines(self):
         option, context = contract("put"), market()
@@ -530,3 +534,402 @@ class MonteCarloTests(unittest.TestCase):
                 sys.setswitchinterval(previous)
                 start.set()
                 worker.join()
+
+
+class SamplingTests(unittest.TestCase):
+    def test_sampling_choices_and_exact_representations(self):
+        from typing import get_args
+
+        from kiyosi.pricing import MonteCarloSampling
+
+        self.assertEqual(get_args(MonteCarloSampling), ("pseudo_random", "sobol"))
+        default = MonteCarloVanillaEngine()
+        self.assertEqual(default.sampling, "pseudo_random")
+        self.assertIs(default.antithetic, False)
+        for antithetic in (False, True):
+            engine = MonteCarloVanillaEngine(
+                path_count=1024, sampling="sobol", antithetic=antithetic
+            )
+            self.assertEqual(engine.sampling, "sobol")
+            self.assertIs(engine.antithetic, antithetic)
+            for field in ("sampling", "antithetic"):
+                with self.assertRaises(AttributeError):
+                    setattr(engine, field, getattr(engine, field))
+        for value in (True, 1, 1.0, b"sobol", None, []):
+            with self.subTest(value=value), self.assertRaises(TypeError):
+                MonteCarloVanillaEngine(path_count=1024, sampling=value)
+        for value in ("Sobol", "", "pseudo-random"):
+            with self.assertRaises(ValueError):
+                MonteCarloVanillaEngine(path_count=1024, sampling=value)
+        for value in (0, 1, 1.0, "true", None, [], object()):
+            with self.subTest(value=value), self.assertRaises(TypeError):
+                MonteCarloVanillaEngine(antithetic=value)
+        # Representation conversion precedes core validation.
+        with self.assertRaises(TypeError):
+            MonteCarloVanillaEngine(path_count=0, antithetic=1)
+
+    def test_sobol_path_boundaries_and_single_point_pair(self):
+        for antithetic in (False, True):
+            for paths in (1, 2, 1024, 8_388_608):
+                self.assertEqual(
+                    MonteCarloVanillaEngine(
+                        path_count=paths, sampling="sobol", antithetic=antithetic
+                    ).path_count,
+                    paths,
+                )
+            for paths in (0, 3, 100_000, 8_388_609, 16_777_216):
+                with self.subTest(paths=paths), self.assertRaises(KiyosiError) as error:
+                    MonteCarloVanillaEngine(
+                        path_count=paths, sampling="sobol", antithetic=antithetic
+                    )
+                self.assertEqual(
+                    error.exception.category, ErrorCategory.INVALID_PARAMETER
+                )
+            for paths in (1, 2):
+                engine = MonteCarloVanillaEngine(
+                    path_count=paths,
+                    seed=42,
+                    sampling="sobol",
+                    antithetic=antithetic,
+                )
+                # Independent SciPy ndtri reference from the legacy scenario.
+                first = -0.10364940758940244
+                positive = 100 * math.exp(0.01 + 0.2 * first) - 90
+                negative = 100 * math.exp(0.01 - 0.2 * first) - 90
+                expected = math.exp(-0.05) * (
+                    (positive + negative) / 2 if antithetic and paths == 2 else positive
+                )
+                if antithetic or paths == 1:
+                    self.assertAlmostEqual(
+                        engine.price(contract(strike=90), market()),
+                        expected,
+                        delta=1e-11,
+                    )
+
+    def test_exact_antithetic_counts_and_pair_uncertainty(self):
+        option, context = contract(strike=1e-100), market()
+
+        def engine(paths, antithetic):
+            return MonteCarloVanillaEngine(
+                path_count=paths, seed=42, antithetic=antithetic, thread_count=1
+            )
+
+        self.assertEqual(
+            engine(1, True).price(option, context),
+            engine(1, False).price(option, context),
+        )
+        for samples in (1, 2, 3, 128, 129, 256, 257, 513):
+            positive = samples * engine(samples, False).price(option, context) - (
+                0
+                if samples == 1
+                else (samples - 1) * engine(samples - 1, False).price(option, context)
+            )
+            opposite = 10_000 * math.exp(-0.08) / positive
+            paired = engine(2 * samples, True).price_with_statistics(option, context)
+            odd = engine(2 * samples - 1, True).price_with_statistics(option, context)
+            self.assertAlmostEqual(
+                2 * samples * paired.price - (2 * samples - 1) * odd.price,
+                opposite,
+                delta=1e-7,
+            )
+            self.assertIsNone(odd.standard_error)
+            self.assertIsNone(odd.confidence_interval)
+            self.assertEqual(paired.standard_error is not None, samples > 1)
+        first = engine(2, True).price(option, context)
+        two = engine(4, True).price_with_statistics(option, context)
+        self.assertAlmostEqual(two.standard_error, abs(first - two.price), delta=1e-12)
+
+    def test_all_sampling_combinations_replay_analytics_and_preserve_failure_state(
+        self,
+    ):
+        root = Path(__file__).resolve().parents[3] / "tests/python"
+        sys.path.insert(0, str(root))
+        differences = importlib.import_module("price_differences").price_differences
+        option, context = contract(), market()
+        shifts = {"spot_shift": 1, "volatility_shift": 0.01, "rate_shift": 0.001}
+        for sampling in ("pseudo_random", "sobol"):
+            for antithetic in (False, True):
+                with self.subTest(sampling=sampling, antithetic=antithetic):
+                    settings = {
+                        "path_count": 1024,
+                        "seed": 42,
+                        "sampling": sampling,
+                        "antithetic": antithetic,
+                    }
+                    engine = MonteCarloVanillaEngine(**settings, thread_count=1)
+                    reference = differences(engine, option, context, **shifts)
+                    expected = engine.price_with_greeks(
+                        option, context, all_greeks=True, **shifts
+                    )
+                    self.assertEqual(expected.price, reference.price)
+                    for name in GREEKS:
+                        self.assertAlmostEqual(
+                            getattr(expected, name),
+                            getattr(reference, name),
+                            delta=1e-9,
+                        )
+                    sigma = implied_volatility(
+                        engine,
+                        option,
+                        context,
+                        expected.price,
+                        lower_bound=0.1,
+                        upper_bound=0.4,
+                    )
+                    self.assertAlmostEqual(sigma, 0.2, delta=1e-8)
+                    for threads in (0, 2, 4):
+                        other = MonteCarloVanillaEngine(
+                            **settings, thread_count=threads
+                        )
+                        actual = other.price_with_greeks(
+                            option, context, all_greeks=True, **shifts
+                        )
+                        self.assertEqual(actual.price, expected.price)
+                        self.assertEqual(
+                            tuple(getattr(actual, name) for name in GREEKS),
+                            tuple(getattr(expected, name) for name in GREEKS),
+                        )
+                        self.assertEqual(
+                            implied_volatility(
+                                other,
+                                option,
+                                context,
+                                expected.price,
+                                lower_bound=0.1,
+                                upper_bound=0.4,
+                            ),
+                            sigma,
+                        )
+                    with self.assertRaises(KiyosiError) as error:
+                        engine.price_with_greeks(
+                            option, context, "rho", rate_shift=1000
+                        )
+                    self.assertEqual(
+                        error.exception.category, ErrorCategory.INVALID_RESULT
+                    )
+                    self.assertEqual(engine.price(option, context), expected.price)
+                    for steps in (2, 10_000):
+                        self.assertEqual(
+                            MonteCarloVanillaEngine(**settings, step_count=steps).price(
+                                option, context
+                            ),
+                            expected.price,
+                        )
+                    for seed in (0, 2**64 - 1, 2**32 + 42):
+                        self.assertNotEqual(
+                            MonteCarloVanillaEngine(
+                                **(settings | {"seed": seed})
+                            ).price(option, context),
+                            expected.price,
+                        )
+                    unseeded = MonteCarloVanillaEngine(**(settings | {"seed": None}))
+                    analysis = unseeded.price_with_greeks(
+                        contract(strike=1e-100), context, ["delta", "gamma"]
+                    )
+                    self.assertAlmostEqual(
+                        analysis.delta, analysis.price / 100, delta=1e-9
+                    )
+                    self.assertAlmostEqual(analysis.gamma, 0, delta=1e-7)
+                    sigma = implied_volatility(
+                        unseeded,
+                        option,
+                        context,
+                        9.227005508154036,
+                        lower_bound=0.1,
+                        upper_bound=0.4,
+                    )
+                    self.assertTrue(0.1 < sigma < 0.4)
+                    self.assertIsNone(unseeded.seed)
+                    with ThreadPoolExecutor(max_workers=3) as pool:
+                        self.assertEqual(
+                            list(
+                                pool.map(
+                                    lambda _, engine=engine: engine.price(
+                                        option, context
+                                    ),
+                                    range(6),
+                                )
+                            ),
+                            [expected.price] * 6,
+                        )
+
+    def test_sampling_statistics_at_expiry_and_block_boundaries(self):
+        for sampling in ("pseudo_random", "sobol"):
+            for antithetic in (False, True):
+                for paths in (1, 2, 256, 512, 1024):
+                    for seed in (0, 42, 2**64 - 1):
+                        engine = MonteCarloVanillaEngine(
+                            path_count=paths,
+                            seed=seed,
+                            sampling=sampling,
+                            antithetic=antithetic,
+                            thread_count=1,
+                        )
+                        for direction in ("call", "put"):
+                            option = contract(direction)
+                            expected = engine.price_with_statistics(option, market())
+                            self.assertEqual(
+                                engine.price(option, market()), expected.price
+                            )
+                            if sampling == "sobol":
+                                self.assertIsNone(expected.standard_error)
+                                self.assertIsNone(expected.confidence_interval)
+                            for threads in (0, 2, 4, 2**31 - 1):
+                                actual = MonteCarloVanillaEngine(
+                                    path_count=paths,
+                                    seed=seed,
+                                    sampling=sampling,
+                                    antithetic=antithetic,
+                                    thread_count=threads,
+                                ).price_with_statistics(option, market())
+                                self.assertEqual(
+                                    (
+                                        actual.price,
+                                        actual.standard_error,
+                                        actual.confidence_interval,
+                                    ),
+                                    (
+                                        expected.price,
+                                        expected.standard_error,
+                                        expected.confidence_interval,
+                                    ),
+                                )
+                engine = MonteCarloVanillaEngine(
+                    path_count=1024, seed=42, sampling=sampling, antithetic=antithetic
+                )
+                option, expiry = contract(strike=90), market(valuation=END)
+                known = engine.price_with_statistics(option, expiry)
+                self.assertEqual(known.price, 10)
+                self.assertEqual(
+                    known.standard_error, None if sampling == "sobol" else 0
+                )
+                self.assertEqual(
+                    known.confidence_interval, None if sampling == "sobol" else (10, 10)
+                )
+                analysis = engine.price_with_greeks(option, expiry, all_greeks=True)
+                self.assertTrue(all(getattr(analysis, name) is None for name in GREEKS))
+                with self.assertRaises(KiyosiError) as error:
+                    implied_volatility(engine, option, expiry, 10)
+                self.assertEqual(
+                    error.exception.category, ErrorCategory.UNSUPPORTED_OPERATION
+                )
+
+    def test_sobol_migrated_greek_accuracy_and_multiseed_rmse(self):
+        # Preserve precision/statistics checks from the mixed timing tool, without speed gates.
+        root = Path(__file__).resolve().parents[3]
+        spec = importlib.util.spec_from_file_location(
+            "sobol_benchmark", root / "benchmarks/sobol.py"
+        )
+        benchmark = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(benchmark)
+        self.assertEqual(benchmark.summarize([9, 11], 10, [0])["rmse"], 1)
+        asymmetric = benchmark.summarize([12, 16], 10, [0])
+        self.assertEqual(asymmetric["rmse"], math.sqrt(20))
+        self.assertEqual(asymmetric["bias"], 4)
+        tolerances = {
+            "delta": 2e-4,
+            "gamma": 1e-5,
+            "speed": 5e-6,
+            "vega": 5e-5,
+            "vanna": 1e-5,
+            "zomma": 5e-6,
+            "rho": 2e-5,
+            "theta": 2e-5,
+            "charm": 5e-7,
+            "color": 2e-7,
+        }
+        for antithetic in (False, True):
+            for direction in ("call", "put"):
+                option, context = contract(direction), market()
+                reference = AnalyticVanillaEngine().price_with_greeks(
+                    option, context, all_greeks=True
+                )
+                engine = MonteCarloVanillaEngine(
+                    path_count=65_536, seed=42, sampling="sobol", antithetic=antithetic
+                )
+                actual = engine.price_with_greeks(
+                    option,
+                    context,
+                    all_greeks=True,
+                    spot_shift=1,
+                    volatility_shift=0.001,
+                    rate_shift=0.001,
+                )
+                self.assertAlmostEqual(actual.price, reference.price, delta=0.002)
+                for name, tolerance in tolerances.items():
+                    self.assertAlmostEqual(
+                        getattr(actual, name),
+                        getattr(reference, name),
+                        delta=tolerance,
+                        msg=f"{direction} {antithetic} {name}",
+                    )
+            for sampling in ("pseudo_random", "sobol"):
+                prices = [
+                    MonteCarloVanillaEngine(
+                        path_count=131_072,
+                        seed=seed,
+                        sampling=sampling,
+                        antithetic=antithetic,
+                        thread_count=1,
+                    ).price(contract(), market())
+                    for seed in benchmark.SEEDS
+                ]
+                stats = benchmark.summarize(prices, 9.227005508154036, [0])
+                self.assertLessEqual(stats["rmse"], 0.05)
+                self.assertLessEqual(abs(stats["bias"]), 0.05)
+
+    def test_companion_failure_and_domain_validation_preserve_sampling_state(self):
+        from kiyosi.market import BlackScholesMertonParameters
+
+        for sampling in ("pseudo_random", "sobol"):
+            for antithetic in (False, True):
+                engine = MonteCarloVanillaEngine(
+                    path_count=1024, seed=42, sampling=sampling, antithetic=antithetic
+                )
+                option, context = contract(), market()
+                baseline = engine.price(option, context)
+                for valuation in (START - timedelta(days=1), END + timedelta(days=1)):
+                    with self.assertRaises(KiyosiError) as error:
+                        engine.price(option, market(valuation=valuation))
+                    self.assertEqual(
+                        error.exception.category, ErrorCategory.INVALID_TIME_RANGE
+                    )
+                curve = RateTermStructure(
+                    reference_time=START, times=[END], factors=[0.95]
+                )
+                node = context.replace(
+                    model_parameters=context.model_parameters.replace(
+                        risk_free_rate=curve
+                    ),
+                    valuation_time=END,
+                )
+                with self.assertRaises(KiyosiError) as error:
+                    engine.price_with_greeks(option, node, [])
+                self.assertEqual(
+                    error.exception.category, ErrorCategory.UNSUPPORTED_OPERATION
+                )
+                with self.assertRaises(KiyosiError) as error:
+                    engine.price_with_greeks(option, context, [])
+                self.assertEqual(
+                    error.exception.category, ErrorCategory.INVALID_PARAMETER
+                )
+                self.assertEqual(engine.price(option, context), baseline)
+        # First Sobol path is finite; its opposite overflows, so the paired call fails.
+        context = market().replace(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.5, dividend_yield=0, volatility=1
+            ),
+            spot_price=1.7e308,
+        )
+        one = MonteCarloVanillaEngine(
+            path_count=1, seed=42, sampling="sobol", antithetic=True
+        )
+        self.assertTrue(math.isfinite(one.price(contract(), context)))
+        paired = MonteCarloVanillaEngine(
+            path_count=2, seed=42, sampling="sobol", antithetic=True
+        )
+        baseline = paired.price(contract(), market())
+        with self.assertRaises(KiyosiError) as error:
+            paired.price(contract(), context)
+        self.assertEqual(error.exception.category, ErrorCategory.INVALID_RESULT)
+        self.assertEqual(paired.price(contract(), market()), baseline)

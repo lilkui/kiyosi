@@ -72,7 +72,9 @@ pub use market::{
     BlackScholesMertonParameterChanges, BlackScholesMertonParameters, PricingContext,
     PricingContextChanges, Rate,
 };
-pub use monte_carlo::{MonteCarloEstimate, MonteCarloSettings, MonteCarloVanillaEngine};
+pub use monte_carlo::{
+    MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings, MonteCarloVanillaEngine,
+};
 pub use numerical::numerical_greeks;
 pub use pricing::AnalyticVanillaEngine;
 pub use quadrature::{QuadratureDigitalEngine, QuadratureVanillaEngine};

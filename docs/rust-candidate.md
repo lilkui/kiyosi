@@ -1,6 +1,6 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–10 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and European CPU Monte Carlo prices and analytics with
+Tickets 01–11 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and European CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, trading
 calendars and observation schedules. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
@@ -805,13 +805,49 @@ The same applicability check precedes solver quote/settings validation and the
 public Rust numerical-Greek helper through `PricingEngine::validate_applicability`.
 
 Rust `MonteCarloSettings` owns the defaults: 100,000 paths, 50 steps, no seed,
-and automatic concurrency (`thread_count = 0`). Paths accept 1 through 10,000,000,
+automatic concurrency (`thread_count = 0`), `sampling = PseudoRandom` and
+`antithetic = false`. Paths accept 1 through 10,000,000,
 steps 2 through 10,000, and thread counts any nonnegative `i32`. Construction
 validates these settings before committing an engine. Python derives the same
 defaults and exposes immutable settings. Counts require integral representations,
 excluding bool; fractions and floating-point counts are rejected with `TypeError`.
 Out-of-range integer conversions raise `OverflowError`. Seeds are `None` or an
 unsigned 64-bit integer, including zero and `2**64 - 1`.
+
+Rust `MonteCarloSampling::{PseudoRandom, Sobol}` maps to Python's
+`MonteCarloSampling` Literal choices `"pseudo_random"` and `"sobol"`.
+Wrong Python protocols raise `TypeError`, unknown strings raise `ValueError`,
+and `antithetic` accepts only actual booleans. Representation checks precede
+core domain validation.
+
+Sobol requires an explicit power-of-two path count (including 1); choosing it
+with the default 100,000 paths returns `InvalidParameter` at construction.
+Each call uses one seeded 52-bit lower-triangular matrix scramble and digital
+shift, with globally indexed Gray-code points and midpoint inverse-normal
+conversion. European terminal pricing uses exactly one dimension regardless of
+`step_count`. The port retains the Joe–Kuo 21,201-dimension direction table and
+its BSD license, plus the Cephes/SciPy inverse-normal notices, in standalone
+Cargo and Python source distributions; binary distributions carry the notices.
+
+Antithetic sampling pairs each normal draw with its negative. `path_count`
+always counts actual payoff paths: pseudorandom sampling accepts odd counts,
+leaving the final base draw unpaired. With antithetic enabled, Sobol uses
+`ceil(path_count / 2)` points, still requires power-of-two total paths, and
+accepts a single unpaired path when `path_count = 1`.
+
+```python
+from kiyosi.pricing import MonteCarloVanillaEngine
+
+sobol = MonteCarloVanillaEngine(
+    path_count=65536, sampling="sobol", antithetic=True, seed=42)
+estimate = sobol.price_with_statistics(option, context)
+assert estimate.standard_error is None
+assert estimate.confidence_interval is None
+```
+
+The Rust equivalent uses `MonteCarloSettings { path_count: 65536,
+sampling: MonteCarloSampling::Sobol, antithetic: true, seed: Some(42),
+..Default::default() }` with `MonteCarloVanillaEngine::new`.
 
 ```rust
 use kiyosi_core::{MonteCarloSettings, MonteCarloVanillaEngine, Greek, GreeksRequest,
@@ -846,10 +882,16 @@ sigma = implied_volatility(engine, option, context, estimate.price,
 `price` returns the scalar mean. `price_with_statistics` returns an owned
 `MonteCarloEstimate`: the same price, optional `standard_error` in price units,
 and an optional `(lower, upper)` `confidence_interval`. The standard error is
-the square root of unbiased sample variance divided by the exact path count.
+the square root of unbiased sample variance divided by the exact path count
+for plain pseudorandom draws. Even pseudorandom antithetic counts instead use
+the unbiased variance of independent pair means divided by the number of pairs;
+at least two pairs are needed. Odd antithetic counts before expiry leave
+uncertainty absent. Sobol always returns `None` for both uncertainty fields,
+including at expiry; one randomized net does not supply an independent-sample
+error estimate.
 The two-sided asymptotic 95% normal interval uses 1.959963984540054 standard errors
 without clipping to payoff bounds. One path before expiry cannot estimate
-uncertainty and returns `None`; a known expiry payoff has zero error and a
+uncertainty and returns `None`; a known pseudorandom expiry payoff has zero error and a
 degenerate interval, even with one configured path. Small samples, rare payoffs
 and heavy tails can make the interval unreliable. These statistics describe
 price uncertainty, not uncertainty in Greeks or solved volatility.
@@ -872,8 +914,9 @@ retain existing validation, expiry identifiability and failure categories.
 
 Threads apply per call: 0 uses available CPU parallelism, 1 computes serially,
 and positive values cap workers. Workers are also bounded by available CPUs and
-the number of sample blocks. Each fixed 256-path block owns a PCG32 stream and
-Box–Muller normal draws; block order and reduction order are independent of
+the number of sample blocks. Each fixed block of 256 base draws owns a PCG32
+stream and Box–Muller normal draws, or a cursor into the call's immutable Sobol
+scramble; block order and reduction order are independent of
 worker count. Within the same version and build, fixed seeds reproduce prices,
 statistics, Greeks and solves across thread counts. Random streams and last-bit
 results may differ across versions, builds, platforms and the legacy engine.
@@ -893,8 +936,10 @@ Python maps them to `OSError`. Worker panics retain Rust unwinding and PyO3's
 The MC tests reuse the existing QuantLib numerical profile and its original
 wrapper matrix and budgets, plus independent scalar stencils, statistical
 coverage, numerical scaling, block boundaries, shared-instance calls and GIL
-release checks. They do not compare thread speed. American MC, digital MC,
-Sobol and antithetic sampling belong to later slices.
+release checks. Sampling cases retain legacy Sobol price/Greek precision budgets,
+exact odd-path and single-point regressions, cross-thread analytics and solves,
+and the mixed timing tool's bias/RMSE checks without timing pass conditions.
+They do not compare thread speed. American MC and digital MC belong to later slices.
 
 ## Checks
 
