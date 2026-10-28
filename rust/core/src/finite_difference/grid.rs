@@ -34,6 +34,10 @@ impl SpatialGrid {
 
     pub fn barrier_domain(&mut self, lower: f64, upper: f64) -> Result<()> {
         self.count = (((upper - lower) / self.spacing).ceil() as usize).clamp(3, self.count);
+        self.uniform_domain(lower, upper)
+    }
+
+    pub fn uniform_domain(&mut self, lower: f64, upper: f64) -> Result<()> {
         self.lower = lower;
         self.upper = upper;
         self.spacing = (upper - lower) / self.count as f64;
@@ -248,6 +252,36 @@ pub(super) struct TimeGrid {
 }
 
 impl TimeGrid {
+    pub fn validate_barrier_stability(
+        &self,
+        space: &SpatialGrid,
+        sigma: f64,
+        theta: f64,
+        scheduled: bool,
+        risk: &Curve,
+        dividend: &Curve,
+    ) -> Result<()> {
+        if theta == 0.0 {
+            for (index, &dt) in self.widths.iter().enumerate() {
+                let middle = self.times[index].midpoint(self.times[index + 1]);
+                let rate = risk.rate(middle);
+                let q = dividend.rate(middle);
+                let decay = if scheduled {
+                    let n = space.count as f64;
+                    (sigma * sigma * n * n).max((rate - q).abs() * n) + rate
+                } else {
+                    (1..space.count)
+                        .map(|i| -space.coefficients(i, rate, q, sigma)[1])
+                        .fold(0.0, f64::max)
+                };
+                if dt * decay > 1.0 {
+                    return Err(invalid_grid("explicit finite-difference grid is unstable"));
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn new(time: f64, steps: i32, risk: &Curve, dividend: &Curve) -> Self {
         Self::with_events(time, steps, risk, dividend, &[])
     }

@@ -447,11 +447,11 @@ impl AnalyticBinaryBarrierEngine {
     }
 }
 
-struct Contract<'a> {
-    monitoring: &'a BarrierOption,
-    digital: Option<&'a DigitalOption>,
-    payout: Option<f64>,
-    timing: SettlementTiming,
+pub(crate) struct Contract<'a> {
+    pub(crate) monitoring: &'a BarrierOption,
+    pub(crate) digital: Option<&'a DigitalOption>,
+    pub(crate) payout: Option<f64>,
+    pub(crate) timing: SettlementTiming,
 }
 impl Contract<'_> {
     fn vanilla(&self, context: &PricingContext, time: f64) -> Result<f64> {
@@ -469,7 +469,7 @@ impl Contract<'_> {
             ))
         }
     }
-    fn volatility_affects_price(&self, context: &PricingContext) -> bool {
+    pub(crate) fn volatility_affects_price(&self, context: &PricingContext) -> bool {
         let Ok((_, touched, finished)) = self.monitoring.state(context) else {
             return false;
         };
@@ -641,7 +641,7 @@ impl Contract<'_> {
 }
 
 impl BinaryBarrierOption {
-    fn contract(&self) -> Contract<'_> {
+    pub(crate) fn contract(&self) -> Contract<'_> {
         Contract {
             monitoring: &self.monitoring,
             digital: Some(&self.digital),
@@ -651,7 +651,7 @@ impl BinaryBarrierOption {
     }
 }
 impl TouchOption {
-    fn contract(&self) -> Contract<'_> {
+    pub(crate) fn contract(&self) -> Contract<'_> {
         Contract {
             monitoring: &self.monitoring,
             digital: None,

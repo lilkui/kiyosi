@@ -64,6 +64,9 @@ fn main() -> Result<()> {
         10.0,
     )?;
     assert!(kiyosi_core::AnalyticBinaryBarrierEngine.price(&binary, &context)? > 0.0);
+    let binary_fd = kiyosi_core::FiniteDifferenceBinaryBarrierEngine::default();
+    assert!(binary_fd.price(&binary, &context)? > 0.0);
+
     let mut touch_terms =
         kiyosi_core::TouchOptionTerms::new(start, end, 100.0, kiyosi_core::BarrierType::UpAndIn);
     touch_terms.settlement_timing = kiyosi_core::SettlementTiming::AtHit;
@@ -72,6 +75,7 @@ fn main() -> Result<()> {
         kiyosi_core::AnalyticBinaryBarrierEngine.price(&touch, &context)?,
         100.0
     );
+    assert_eq!(binary_fd.price(&touch, &context)?, 100.0);
     let barrier_result = kiyosi_core::AnalyticBarrierEngine.price_with_greeks(
         &barrier,
         &context,

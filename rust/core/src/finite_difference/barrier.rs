@@ -157,24 +157,7 @@ fn native_barrier(
     );
     let sigma = model.volatility();
     let theta = settings.scheme.theta();
-    if theta == 0.0 {
-        for (index, &dt) in grid.widths.iter().enumerate() {
-            let middle = grid.times[index].midpoint(grid.times[index + 1]);
-            let rate = risk.rate(middle);
-            let q = dividend.rate(middle);
-            let decay = if scheduled {
-                let n = space.count as f64;
-                (sigma * sigma * n * n).max((rate - q).abs() * n) + rate
-            } else {
-                (1..space.count)
-                    .map(|i| -space.coefficients(i, rate, q, sigma)[1])
-                    .fold(0.0, f64::max)
-            };
-            if dt * decay > 1.0 {
-                return Err(invalid_grid("explicit finite-difference grid is unstable"));
-            }
-        }
-    }
+    grid.validate_barrier_stability(&space, sigma, theta, scheduled, &risk, &dividend)?;
     let sign = if option.option_type() == OptionType::Call {
         1.0
     } else {
@@ -348,7 +331,12 @@ fn native_barrier(
     Ok(result)
 }
 
-fn project(space: &SpatialGrid, breaks: &[f64], index: usize, value: impl Fn(f64) -> f64) -> f64 {
+pub(super) fn project(
+    space: &SpatialGrid,
+    breaks: &[f64],
+    index: usize,
+    value: impl Fn(f64) -> f64,
+) -> f64 {
     let center = space.asset(index);
     if index == 0 || index == space.count {
         return value(center);

@@ -6,6 +6,7 @@ use crate::{
 };
 
 mod barrier;
+mod binary_barrier;
 mod grid;
 mod step;
 use grid::{Curve, SpatialGrid, TimeGrid};
@@ -491,6 +492,11 @@ engine_settings!(
 engine_settings!(
     FiniteDifferenceBarrierEngine,
     "Prices single-barrier contracts with exact continuous edges and scheduled event projection."
+);
+
+engine_settings!(
+    FiniteDifferenceBinaryBarrierEngine,
+    "Prices binary barriers and single touch/no-touch contracts with finite differences."
 );
 
 impl FiniteDifferenceVanillaEngine {

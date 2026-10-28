@@ -83,8 +83,9 @@ pub use double_barrier::{
 };
 pub use error::{Error, ErrorCategory, Result};
 pub use finite_difference::{
-    FiniteDifferenceBarrierEngine, FiniteDifferenceDigitalEngine, FiniteDifferenceScheme,
-    FiniteDifferenceSettings, FiniteDifferenceVanillaEngine,
+    FiniteDifferenceBarrierEngine, FiniteDifferenceBinaryBarrierEngine,
+    FiniteDifferenceDigitalEngine, FiniteDifferenceScheme, FiniteDifferenceSettings,
+    FiniteDifferenceVanillaEngine,
 };
 pub use implied::{ImpliedVolatilitySettings, implied_volatility};
 pub use instruments::{

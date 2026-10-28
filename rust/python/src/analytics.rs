@@ -393,6 +393,31 @@ pub(crate) fn implied_volatility(
             py.detach(|| core::implied_volatility(&engine, &option, &context, observed, controls)),
         );
     }
+    if let Ok(engine) =
+        engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceBinaryBarrierEngine>>()
+    {
+        let engine = engine.0;
+        return match instrument.extract::<binary_barrier::BinaryInstrument<'_>>()? {
+            binary_barrier::BinaryInstrument::Binary(option) => {
+                let option = option.0.clone();
+                domain(
+                    py,
+                    py.detach(|| {
+                        core::implied_volatility(&engine, &option, &context, observed, controls)
+                    }),
+                )
+            }
+            binary_barrier::BinaryInstrument::Touch(option) => {
+                let option = option.0.clone();
+                domain(
+                    py,
+                    py.detach(|| {
+                        core::implied_volatility(&engine, &option, &context, observed, controls)
+                    }),
+                )
+            }
+        };
+    }
     if engine.is_instance_of::<binary_barrier::AnalyticBinaryBarrierEngine>() {
         return match instrument.extract::<binary_barrier::BinaryInstrument<'_>>()? {
             binary_barrier::BinaryInstrument::Binary(option) => {

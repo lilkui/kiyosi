@@ -161,3 +161,32 @@ fd_engine!(
         py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
     }
 );
+
+fd_engine!(
+    FiniteDifferenceBinaryBarrierEngine,
+    binary_barrier::BinaryInstrument<'_>,
+    |py, option, engine, context, request, shifts| {
+        match option {
+            binary_barrier::BinaryInstrument::Binary(option) => {
+                let option = option.0.clone();
+                py.detach(|| engine.price(&option, &context))
+            }
+            binary_barrier::BinaryInstrument::Touch(option) => {
+                let option = option.0.clone();
+                py.detach(|| engine.price(&option, &context))
+            }
+        }
+    },
+    {
+        match option {
+            binary_barrier::BinaryInstrument::Binary(option) => {
+                let option = option.0.clone();
+                py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+            }
+            binary_barrier::BinaryInstrument::Touch(option) => {
+                let option = option.0.clone();
+                py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+            }
+        }
+    }
+);

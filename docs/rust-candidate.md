@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–21 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
+Tickets 01–22 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, and binary-barrier/single-touch finite differences. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -1699,6 +1699,74 @@ known = option.replace(touch_state="untouched")
 assert option.touch_state is None
 assert known.upper_barrier == option.upper_barrier
 ```
+
+## Binary-barrier and single-touch finite differences
+
+Rust `FiniteDifferenceBinaryBarrierEngine` and Python
+`kiyosi.pricing.FiniteDifferenceBinaryBarrierEngine` accept `BinaryBarrierOption`
+and `TouchOption`: cash or asset payment, up/down knock-in or knock-out, and
+continuous or scheduled observations. Binary barriers pay strictly in the money
+at expiry. One-touch pays at hit or expiry; no-touch pays only at expiry.
+At-hit no-touch remains an `InvalidOption` construction error in Rust; Python
+no-touch factories reject the inapplicable keyword with native `TypeError`.
+
+The engine uses the shared `FiniteDifferenceSettings` defaults (800 asset steps,
+200 time steps, damped Crank–Nicolson, automatic upper boundary). It supports
+flat and node risk-free/dividend curves. Curve knots and observation dates are
+inserted into the time grid. Continuous barriers are exact spatial boundaries
+using all configured asset steps; fitting an up barrier makes its grid independent
+of the validated upper-boundary setting. Scheduled events average the trigger cell and restart implicit damping. Binary
+knock-ins use a vanilla digital layer minus the surviving knock-out layer.
+Explicit Euler rejects unstable grids with `InvalidParameter`; invalid or
+clipped spatial domains use the same category. Refine the spatial/time grid and
+upper boundary to verify accuracy, especially for short maturities and Greeks.
+
+History, current observations and expiry use the existing core rules: unknown
+strictly prior history is distinct from `untouched`, equality triggers a barrier,
+and scheduled monitoring stops at the final fixing. Prior at-hit payments have
+zero remaining value. Resolved touch cash flows use risk-free discounts for cash
+and dividend discounts for asset delivery. Resolved binary payoffs use the
+analytic digital engine. Resolution precedes spatial-grid validation and requires
+only the curves relevant to the remaining payment. Unresolved scheduled at-hit
+one-touch needs curve coverage only through the final observation; expiry
+payments require expiry coverage. Life/calendar/history errors retain their
+existing categories and leave contracts, contexts and settings unchanged.
+
+`price_with_greeks` returns spline delta/gamma and fixed-grid speed, then uses
+shared numerical completion for other requested Greeks. Bumped calculations
+retain the central upper boundary. Greeks are absent at expiry and current
+barrier equality without a prior touch; stencils crossing observations or
+barriers leave affected measures absent. `implied_volatility` uses the existing
+caller-supplied bracket and rejects volatility-independent cash flows with
+`UnsupportedOperation`. Binary prices can have multiple volatility roots.
+Python releases the GIL around pricing, Greek requests and solves using owned
+Rust inputs. Engines are immutable and support concurrent calls.
+
+```python
+from datetime import date
+from kiyosi.instruments import cash_one_touch_up
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import FiniteDifferenceBinaryBarrierEngine, implied_volatility
+
+start = date(2025, 1, 1)
+option = cash_one_touch_up(effective_date=start, expiry_date=date(2026, 1, 1),
+                           barrier_level=120.13, payout=10,
+                           settlement_timing="at_hit")
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2),
+    spot_price=100, valuation_time=start)
+engine = FiniteDifferenceBinaryBarrierEngine(asset_upper_boundary=400)
+result = engine.price_with_greeks(option, context, ["delta", "vega"])
+sigma = implied_volatility(engine, option, context, result.price,
+                           lower_bound=0.1, upper_bound=0.3)
+assert result.delta > 0
+assert abs(sigma - 0.2) < 1e-7
+```
+
+The Rust example on `FiniteDifferenceBinaryBarrierEngine::price_with_greeks`
+shows the equivalent core API. All settings defaults and domain validation live
+in Rust; Python uses the existing strict numeric/index conversions, owning
+results and exception mapping.
 
 ## Checks
 
