@@ -1,12 +1,13 @@
 use std::{f64::consts::TAU, thread};
 
 use crate::{
-    Error, ErrorCategory, EuropeanOption, GreeksRequest, NumericalShiftSettings, OptionType,
-    PricingContext, PricingEngine, PricingResult, Result,
+    Error, ErrorCategory, EuropeanOption, GreeksRequest, NumericalShiftSettings, OptionContract,
+    OptionType, PricingContext, PricingEngine, PricingResult, Result,
 };
 
 const BLOCK_SIZE: usize = 256;
 
+mod american;
 mod sobol;
 
 /// Selects terminal sampling independently of antithetic pairing.
@@ -20,13 +21,14 @@ pub enum MonteCarloSampling {
     Sobol,
 }
 
-/// Configures exact terminal-distribution CPU sampling.
+/// Configures terminal or American exercise-grid CPU sampling.
 /// See [`MonteCarloVanillaEngine::new`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MonteCarloSettings {
     /// Sets the exact path count, from 1 through 10,000,000; defaults to 100,000.
     pub path_count: i32,
-    /// Sets a validated count from 2 through 10,000; defaults to 50 and is unused.
+    /// Sets 2..=10,000 grid points (default 50); American pricing before expiry needs 3.
+    /// European terminal sampling does not use the grid.
     pub step_count: i32,
     /// Selects a reproducible stream, or system entropy when absent (the default).
     pub seed: Option<u64>,
@@ -51,9 +53,14 @@ impl Default for MonteCarloSettings {
     }
 }
 
-/// Prices European vanilla contracts with flat-rate CPU sampling.
-/// Samples the exact terminal distribution without intermediate stepping.
-/// Sobol uses one dimension and `ceil(path_count / 2)` points with antithetic pairing.
+/// Prices European and American vanilla contracts with flat-rate CPU sampling.
+/// European contracts sample the exact terminal distribution without stepping.
+/// American contracts use strike-scaled quadratic continuation regression on a
+/// uniform grid, reducing to linear or constant fits for rank-deficient samples.
+/// Calls with nonpositive dividends and nonnegative rates use terminal sampling,
+/// retaining the immediate-exercise lower bound. See [`Self::default_american_spot_shift`].
+/// Sobol uses one dimension for terminal sampling or `step_count - 1` for exercise
+/// grids, and `ceil(path_count / 2)` points with antithetic pairing.
 /// Fixed seeds reproduce results across thread counts within the same build.
 /// Shared and distinct instances permit concurrent calls without mutation;
 /// every call owns its workers and buffers and changes no global thread settings.
@@ -141,11 +148,13 @@ impl MonteCarloVanillaEngine {
         self.settings
     }
 
-    /// Returns finite-difference Greeks using shared terminal samples.
+    /// Returns finite-difference Greeks using shared normal samples.
     /// Pins one request-local seed, including when the engine has no configured seed.
     /// Replays identical normal draws for every feasible bump; no samples or state
     /// survive the request. At expiry all Greeks are absent. Uses
     /// [`NumericalShiftSettings`] and [`crate::numerical_greeks`] availability rules.
+    /// American calls whose rate stencil crosses zero use the exercise grid on both
+    /// rate legs. For American spot bumps, use [`Self::default_american_spot_shift`].
     ///
     /// # Errors
     /// Rejects node curves before validating requests and shifts, then propagates
@@ -153,14 +162,17 @@ impl MonteCarloVanillaEngine {
     ///
     /// # Examples
     /// See [`Self::price`] for a shared-sample delta example.
-    pub fn price_with_greeks(
+    pub fn price_with_greeks<I: OptionContract>(
         &self,
-        option: &EuropeanOption,
+        option: &I,
         context: &PricingContext,
         request: GreeksRequest,
         settings: NumericalShiftSettings,
-    ) -> Result<PricingResult> {
-        crate::numerical_greeks(self, option, context, request, settings)
+    ) -> Result<PricingResult>
+    where
+        Self: PricingEngine<I>,
+    {
+        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request, settings)
     }
 
     /// Returns a discounted sample mean, or intrinsic value at expiry.
@@ -173,6 +185,8 @@ impl MonteCarloVanillaEngine {
     /// or non-finite terminal prices, or non-finite results. Inputs remain unchanged.
     /// Entropy and thread-creation failures retain their native [`std::io::Error`]
     /// in [`Error::operational_error`].
+    /// American pricing before expiry returns [`ErrorCategory::InvalidParameter`]
+    /// for fewer than three grid points, after life validation.
     ///
     /// # Panics
     /// Resumes worker panics after joining the call's workers.
@@ -196,9 +210,11 @@ impl MonteCarloVanillaEngine {
     /// assert!(analysis.require(kiyosi_core::Greek::Delta)? > 0.0);
     /// # Ok(()) }
     /// ```
-    pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-        let (sample, _, log_discount) = self.sample(option, context)?;
-        scaled_value(sample.scale, sample.mean, log_discount)
+    pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
+    where
+        Self: PricingEngine<I>,
+    {
+        <Self as PricingEngine<I>>::price(self, option, context)
     }
 
     /// Returns the price, standard error and asymptotic 95% confidence interval.
@@ -321,13 +337,6 @@ impl MonteCarloVanillaEngine {
         };
         let mut partials =
             vec![Ok((Moments::default(), Moments::default())); samples.div_ceil(BLOCK_SIZE)];
-        let available = thread::available_parallelism().map_or(1, |count| count.get());
-        let workers = if self.settings.thread_count == 0 {
-            available
-        } else {
-            (self.settings.thread_count as usize).min(available)
-        }
-        .min(partials.len());
         let simulate = |block: usize| -> Result<(Moments, Moments)> {
             let mut generator = Pcg32::new(seed, block as u64);
             let mut cursor = sobol
@@ -369,34 +378,7 @@ impl MonteCarloVanillaEngine {
             }
             Ok((moments, pairs))
         };
-        if workers == 1 {
-            for (block, partial) in partials.iter_mut().enumerate() {
-                *partial = simulate(block);
-            }
-        } else {
-            thread::scope(|scope| -> Result<()> {
-                let chunk_size = partials.len().div_ceil(workers);
-                let mut handles = Vec::new();
-                for (chunk, values) in partials.chunks_mut(chunk_size).enumerate() {
-                    let simulate = &simulate;
-                    handles.push(
-                        thread::Builder::new()
-                            .spawn_scoped(scope, move || {
-                                for (index, value) in values.iter_mut().enumerate() {
-                                    *value = simulate(chunk * chunk_size + index);
-                                }
-                            })
-                            .map_err(Error::operational)?,
-                    );
-                }
-                for handle in handles {
-                    if let Err(panic) = handle.join() {
-                        std::panic::resume_unwind(panic);
-                    }
-                }
-                Ok(())
-            })?;
-        }
+        run_blocks(&mut partials, self.settings.thread_count, simulate)?;
         let mut total = Moments::default();
         let mut pairs = Moments::default();
         for partial in partials {
@@ -426,7 +408,8 @@ impl PricingEngine for MonteCarloVanillaEngine {
         })))
     }
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-        Self::price(self, option, context)
+        let (sample, _, log_discount) = self.sample(option, context)?;
+        scaled_value(sample.scale, sample.mean, log_discount)
     }
     fn price_with_greeks(
         &self,
@@ -435,8 +418,50 @@ impl PricingEngine for MonteCarloVanillaEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        Self::price_with_greeks(self, option, context, request, settings)
+        crate::numerical_greeks(self, option, context, request, settings)
     }
+}
+
+fn run_blocks<T: Send>(
+    partials: &mut [T],
+    thread_count: i32,
+    simulate: impl Fn(usize) -> T + Sync,
+) -> Result<()> {
+    let available = thread::available_parallelism().map_or(1, |count| count.get());
+    let workers = if thread_count == 0 {
+        available
+    } else {
+        (thread_count as usize).min(available)
+    }
+    .min(partials.len());
+    if workers == 1 {
+        for (block, partial) in partials.iter_mut().enumerate() {
+            *partial = simulate(block);
+        }
+        return Ok(());
+    }
+    thread::scope(|scope| -> Result<()> {
+        let chunk_size = partials.len().div_ceil(workers);
+        let mut handles = Vec::new();
+        for (chunk, values) in partials.chunks_mut(chunk_size).enumerate() {
+            let simulate = &simulate;
+            handles.push(
+                thread::Builder::new()
+                    .spawn_scoped(scope, move || {
+                        for (index, value) in values.iter_mut().enumerate() {
+                            *value = simulate(chunk * chunk_size + index);
+                        }
+                    })
+                    .map_err(Error::operational)?,
+            );
+        }
+        for handle in handles {
+            if let Err(panic) = handle.join() {
+                std::panic::resume_unwind(panic);
+            }
+        }
+        Ok(())
+    })
 }
 
 fn unstable() -> Error {

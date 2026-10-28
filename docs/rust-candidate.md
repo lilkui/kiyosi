@@ -1,6 +1,6 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–11 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and European CPU Monte Carlo prices and analytics with
+Tickets 01–12 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, trading
 calendars and observation schedules. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
@@ -939,7 +939,85 @@ coverage, numerical scaling, block boundaries, shared-instance calls and GIL
 release checks. Sampling cases retain legacy Sobol price/Greek precision budgets,
 exact odd-path and single-point regressions, cross-thread analytics and solves,
 and the mixed timing tool's bias/RMSE checks without timing pass conditions.
-They do not compare thread speed. American MC and digital MC belong to later slices.
+They do not compare thread speed. Digital MC belongs to a later slice.
+
+## American CPU Monte Carlo
+
+`MonteCarloVanillaEngine.price` and `price_with_greeks` also accept
+`AmericanOption`; the shared `implied_volatility` solver supports it too.
+The engine retains the existing Longstaff–Schwartz method: `step_count` uniform
+grid points include valuation and expiry, with exact BSM increments on each
+interval. Continuation is fitted on in-the-money paths using the basis
+`1, spot/strike, (spot/strike)^2` and strike-scaled discounted cash flows.
+Gaussian elimination uses the existing relative pivot threshold `1e-14`,
+reducing quadratic to linear to constant fits when samples do not identify
+the higher basis. Empty fits skip that exercise date. Each pricing or bumped
+evaluation refits its exercise policy; immediate exercise bounds the final price.
+
+All European settings, strict Python conversions and immutable ownership rules
+apply. American pricing before expiry requires at least three grid points;
+this product check follows flat-rate applicability and inclusive life validation.
+Two points remain valid for engine construction and for intrinsic value at expiry.
+At expiry all Greeks are absent and implied volatility is unidentifiable.
+Node curves return `UnsupportedOperation`, including at expiry and before
+Greek-request or solver-setting validation. Failed requests leave inputs intact.
+
+All four pseudorandom/Sobol and plain/antithetic combinations are supported.
+Sobol consumes `step_count - 1` dimensions, except for terminal-only calls.
+Path counts still count actual paths, including the final unpaired path for odd
+pseudorandom antithetic counts. Fixed block streams and deterministic regression
+order preserve seeded results across thread caps within the same build.
+Path generation uses per-call workers; exercise regression runs serially.
+Buffers belong to each evaluation, with storage proportional to paths times
+intervals. Shared and distinct engines support concurrent calls, and Python
+releases the GIL around owned Rust inputs for prices, Greeks and solves.
+
+Calls with nonpositive dividends and nonnegative risk-free rates use the same
+terminal estimator as European calls, with the immediate-exercise floor.
+Minimum American steps are still checked first. For a requested rho stencil
+crossing zero rates, both rate legs use the full exercise grid to avoid mixing
+the terminal and regression estimators; the reported base price retains its
+usual estimator.
+
+Every feasible Greek bump and volatility trial replays the same normal draws
+under one request-local seed, even when no seed is configured. No state persists
+on the engine. Python's omitted or `None` American `spot_shift` uses **8% of
+spot**, derived from Rust's
+`MonteCarloVanillaEngine::default_american_spot_shift(context)`; explicit shifts
+are absolute. Rust passes this value in `NumericalShiftSettings`; other shifts
+retain their shared defaults. Small-bump exercise-policy noise and finite-bump
+bias remain, so check seed, path, grid and bump convergence. The public scalar
+Rust `numerical_greeks` helper uses its explicitly supplied shifts and scalar
+prices; the engine's Greek method additionally handles the rho branch boundary.
+
+`price_with_statistics` retains its European contract signature. Regression
+cash flows share an estimated exercise policy, so they do not provide the
+independent observations required by the terminal estimator's standard error
+and confidence interval. No American sampling-error guarantee is added.
+Solver tolerances control the sampled price residual or volatility interval;
+they do not guarantee accuracy against the true price or volatility. Sparse
+sampled curves can be non-monotone or discontinuous; supply a suitable local
+bracket. Existing solver errors and failure-state guarantees apply.
+
+```python
+from kiyosi.instruments import AmericanOption
+from kiyosi.pricing import MonteCarloVanillaEngine, implied_volatility
+
+put = AmericanOption(option_type="put", strike=100,
+                     effective_date=option.effective_date,
+                     expiry_date=option.expiry_date)
+engine = MonteCarloVanillaEngine(path_count=32768, step_count=50,
+                                sampling="sobol", antithetic=True, seed=42)
+result = engine.price_with_greeks(put, context, ["delta", "gamma"])
+sigma = implied_volatility(engine, put, context, result.price,
+                           lower_bound=0.15, upper_bound=0.25)
+```
+
+The candidate tests migrate the existing American MC QuantLib scenario/profile
+with unchanged price and Greek budgets and independent grid/bump stability
+checks. Public Rust and Python tests also cover immediate exercise, sparse and
+rank-deficient fits, currency scaling, odd paths, all sampling combinations,
+thread invariance, shared samples, solver recovery and input failures.
 
 ## Checks
 

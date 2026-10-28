@@ -18,6 +18,26 @@ fn main() -> Result<()> {
     let context = PricingContext::new(model, 100.0, start.into())?;
     let price = AnalyticVanillaEngine.price(&option, &context)?;
     assert!((price - 9.227005508154036).abs() < 1e-12);
+    let put = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let american_mc = MonteCarloVanillaEngine::new(MonteCarloSettings {
+        path_count: 32768,
+        seed: Some(42),
+        sampling: MonteCarloSampling::Sobol,
+        antithetic: true,
+        thread_count: 2,
+        ..Default::default()
+    })?;
+    let american_result = american_mc.price_with_greeks(
+        &put,
+        &context,
+        GreeksRequest::new([Greek::Delta]),
+        NumericalShiftSettings {
+            spot_shift: MonteCarloVanillaEngine::default_american_spot_shift(&context),
+            ..Default::default()
+        },
+    )?;
+    assert!((american_result.price() - 6.66).abs() < 0.3);
+    assert!(american_result.require(Greek::Delta)? < 0.0);
     let mc = MonteCarloVanillaEngine::new(MonteCarloSettings {
         seed: Some(42),
         thread_count: 2,

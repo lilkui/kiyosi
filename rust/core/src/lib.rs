@@ -1,4 +1,4 @@
-//! Calendars, schedules, vanilla/digital BSM, CRR, quadrature, finite-difference and European Monte Carlo pricing and American approximation,
+//! Calendars, schedules, vanilla/digital BSM, CRR, quadrature, finite-difference and vanilla Monte Carlo pricing and American approximation,
 //! independent of Python.
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared

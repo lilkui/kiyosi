@@ -72,6 +72,13 @@ fn integer_setting(
 pub(crate) fn shifts(
     settings: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<core::NumericalShiftSettings> {
+    shifts_with_defaults(settings, core::NumericalShiftSettings::default())
+}
+
+pub(crate) fn shifts_with_defaults(
+    settings: Option<&Bound<'_, PyDict>>,
+    d: core::NumericalShiftSettings,
+) -> PyResult<core::NumericalShiftSettings> {
     check_changes(
         settings,
         &[
@@ -82,7 +89,6 @@ pub(crate) fn shifts(
             "time_shift_days",
         ],
     )?;
-    let d = core::NumericalShiftSettings::default();
     Ok(core::NumericalShiftSettings {
         spot_shift: real_setting(settings, "spot_shift", d.spot_shift)?,
         volatility_shift: real_setting(settings, "volatility_shift", d.volatility_shift)?,
@@ -177,11 +183,26 @@ pub(crate) fn implied_volatility(
     let context = context.0.clone();
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloVanillaEngine>>() {
         let engine = engine.0;
-        let option = instrument.extract::<PyRef<'_, EuropeanOption>>()?.0.clone();
-        return domain(
-            py,
-            py.detach(|| core::implied_volatility(&engine, &option, &context, observed, controls)),
-        );
+        return match instrument.extract::<binomial::VanillaInstrument<'_>>()? {
+            binomial::VanillaInstrument::European(option) => {
+                let option = option.0.clone();
+                domain(
+                    py,
+                    py.detach(|| {
+                        core::implied_volatility(&engine, &option, &context, observed, controls)
+                    }),
+                )
+            }
+            binomial::VanillaInstrument::American(option) => {
+                let option = option.0.clone();
+                domain(
+                    py,
+                    py.detach(|| {
+                        core::implied_volatility(&engine, &option, &context, observed, controls)
+                    }),
+                )
+            }
+        };
     }
     if let Ok(engine) =
         engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceVanillaEngine>>()

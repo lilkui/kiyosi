@@ -459,10 +459,13 @@ class MonteCarloVanillaEngine:
     def sampling(self) -> MonteCarloSampling: ...
     @property
     def antithetic(self) -> bool: ...
-    def price(self, instrument: EuropeanOption, context: PricingContext) -> float: ...
+    def price(
+        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
+    ) -> float: ...
     def price_with_statistics(
         self, instrument: EuropeanOption, context: PricingContext
     ) -> MonteCarloEstimate: ...
+    @overload
     def price_with_greeks(
         self,
         instrument: EuropeanOption,
@@ -471,6 +474,19 @@ class MonteCarloVanillaEngine:
         *,
         all_greeks: bool = False,
         spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+    @overload
+    def price_with_greeks(
+        self,
+        instrument: AmericanOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float | None = ...,
         volatility_shift: float = ...,
         rate_shift: float = ...,
         time_shift_days: int = ...,
@@ -575,7 +591,7 @@ def implied_volatility(
 ) -> float: ...
 @overload
 def implied_volatility(
-    engine: BjerksundStenslandVanillaEngine,
+    engine: BjerksundStenslandVanillaEngine | MonteCarloVanillaEngine,
     instrument: AmericanOption,
     context: PricingContext,
     observed_price: float,

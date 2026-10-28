@@ -82,13 +82,21 @@ impl MonteCarloVanillaEngine {
     fn price(
         &self,
         py: Python<'_>,
-        instrument: &EuropeanOption,
+        instrument: binomial::VanillaInstrument<'_>,
         context: &PricingContext,
     ) -> PyResult<f64> {
         let engine = self.0;
-        let option = instrument.0.clone();
         let context = context.0.clone();
-        domain(py, py.detach(|| engine.price(&option, &context)))
+        match instrument {
+            binomial::VanillaInstrument::European(option) => {
+                let option = option.0.clone();
+                domain(py, py.detach(|| engine.price(&option, &context)))
+            }
+            binomial::VanillaInstrument::American(option) => {
+                let option = option.0.clone();
+                domain(py, py.detach(|| engine.price(&option, &context)))
+            }
+        }
     }
 
     fn price_with_statistics(
@@ -110,20 +118,49 @@ impl MonteCarloVanillaEngine {
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: &EuropeanOption,
+        instrument: binomial::VanillaInstrument<'_>,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<analytics::PricingResult> {
         let request = analytics::request(greeks, settings)?;
-        let shifts = analytics::shifts(settings)?;
         let engine = self.0;
-        let option = instrument.0.clone();
         let context = context.0.clone();
-        Ok(analytics::PricingResult(domain(
-            py,
-            py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
-        )?))
+        let result = match instrument {
+            binomial::VanillaInstrument::European(option) => {
+                let shifts = analytics::shifts(settings)?;
+                let option = option.0.clone();
+                domain(
+                    py,
+                    py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+                )
+            }
+            binomial::VanillaInstrument::American(option) => {
+                let default = core::NumericalShiftSettings {
+                    spot_shift: core::MonteCarloVanillaEngine::default_american_spot_shift(
+                        &context,
+                    ),
+                    ..Default::default()
+                };
+                let fields = settings
+                    .map(Bound::copy)
+                    .transpose()?
+                    .unwrap_or_else(|| PyDict::new(py));
+                if fields
+                    .get_item("spot_shift")?
+                    .is_some_and(|value| value.is_none())
+                {
+                    fields.del_item("spot_shift")?;
+                }
+                let shifts = analytics::shifts_with_defaults(Some(&fields), default)?;
+                let option = option.0.clone();
+                domain(
+                    py,
+                    py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+                )
+            }
+        }?;
+        Ok(analytics::PricingResult(result))
     }
 }
 
