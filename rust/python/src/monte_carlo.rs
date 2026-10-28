@@ -353,3 +353,63 @@ sampling_settings!(
         )?))
     }
 );
+
+#[pyclass(frozen, module = "kiyosi._native")]
+pub(crate) struct MonteCarloAutocallableEngine(pub(crate) core::MonteCarloAutocallableEngine);
+
+sampling_settings!(
+    MonteCarloAutocallableEngine,
+    fn price(
+        &self,
+        py: Python<'_>,
+        instrument: &Bound<'_, PyAny>,
+        context: &PricingContext,
+    ) -> PyResult<f64> {
+        let engine = self.0;
+        let context = context.0.clone();
+        autocallable::with_note!(
+            instrument,
+            note,
+            domain(py, py.detach(|| engine.price(&note, &context)))
+        )
+    },
+    fn price_with_statistics(
+        &self,
+        py: Python<'_>,
+        instrument: &Bound<'_, PyAny>,
+        context: &PricingContext,
+    ) -> PyResult<MonteCarloEstimate> {
+        let engine = self.0;
+        let context = context.0.clone();
+        autocallable::with_note!(
+            instrument,
+            note,
+            Ok(MonteCarloEstimate(domain(
+                py,
+                py.detach(|| engine.price_with_statistics(&note, &context))
+            )?))
+        )
+    },
+    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    fn price_with_greeks(
+        &self,
+        py: Python<'_>,
+        instrument: &Bound<'_, PyAny>,
+        context: &PricingContext,
+        greeks: Option<&Bound<'_, PyAny>>,
+        settings: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<analytics::PricingResult> {
+        let request = analytics::request(greeks, settings)?;
+        let shifts = analytics::shifts(settings)?;
+        let engine = self.0;
+        let context = context.0.clone();
+        autocallable::with_note!(
+            instrument,
+            note,
+            Ok(analytics::PricingResult(domain(
+                py,
+                py.detach(|| engine.price_with_greeks(&note, &context, request, shifts))
+            )?))
+        )
+    }
+);

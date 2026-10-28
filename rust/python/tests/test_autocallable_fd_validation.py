@@ -1,4 +1,4 @@
-"""Migrated FD contracts and numerical budgets from the legacy autocallable suite."""
+"""Migrated autocallable engine validation precedence from the legacy suite."""
 
 import unittest
 from datetime import date
@@ -41,7 +41,10 @@ class AutocallableValidationTests(unittest.TestCase):
                     spot_price=100,
                     valuation_time=valuation,
                 )
-                for engine in (pricing.FiniteDifferenceAutocallableEngine(),):
+                for engine in (
+                    pricing.FiniteDifferenceAutocallableEngine(),
+                    pricing.MonteCarloAutocallableEngine(path_count=2, seed=7),
+                ):
                     for operation in (
                         lambda engine=engine, note=note, context=context: engine.price(
                             note, context

@@ -13,6 +13,9 @@ pub(crate) fn implied_coupon(
     if let Ok(engine) = engine.extract::<PyRef<'_, QuadratureAutocallableEngine>>() {
         return solve_coupon(py, engine.0, instrument, context, observed_price, settings);
     }
+    if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloAutocallableEngine>>() {
+        return solve_coupon(py, engine.0, instrument, context, observed_price, settings);
+    }
     let engine =
         engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceAutocallableEngine>>()?;
     solve_coupon(py, engine.0, instrument, context, observed_price, settings)

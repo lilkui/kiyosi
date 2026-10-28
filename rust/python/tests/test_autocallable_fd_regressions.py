@@ -390,6 +390,12 @@ class AutocallableRegressionTests(unittest.TestCase):
                     )
                     for steps in (17, 128)
                 )
+                engines.append(
+                    (
+                        pricing.MonteCarloAutocallableEngine(path_count=1024, seed=42),
+                        "monte_carlo",
+                    )
+                )
                 for engine, scheme in engines:
                     quote = engine.price(note, context)
                     conventions = (

@@ -1,6 +1,6 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–32 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier CPU Monte Carlo prices and analytics with
+Tickets 01–33 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier/autocallable CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
 calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and snowball variants/presets and Phoenix quadrature/finite differences with implied-coupon solving. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
@@ -2429,9 +2429,9 @@ validated snowball; Phoenix `note.with_coupon(coupon)` replaces its single annua
 conditional coupon. Original notes and contexts remain unchanged on success and failure.
 
 Rust `implied_coupon(engine, phoenix, context, observed_price, settings)` needs
-no convention. Both functions accept `PricingEngine` implementations so later
-FD and MC engines can reuse the public contract. The current built-in engine is
-`QuadratureAutocallableEngine`; custom engines retain their own operational and
+no convention. Both functions accept `PricingEngine` implementations, including
+`QuadratureAutocallableEngine`, `FiniteDifferenceAutocallableEngine` and
+`MonteCarloAutocallableEngine`; custom engines retain their own operational and
 concurrency contracts. Solves prepare one request through the engine boundary.
 
 `ImpliedCouponSettings::default()` uses bounds `[0, 2]`, price tolerance `1e-8`,
@@ -2544,6 +2544,91 @@ prices/Greeks, payoff bounds, smooth extrema, domain/space/time refinement, even
 restarts, history, and all four note variants. Independent analytic portfolios,
 QuantLib references and quadrature comparisons check numerical accuracy; solver
 cases check recovery, residuals, state-layer changes and concurrent isolation.
+
+## Snowball and Phoenix CPU Monte Carlo
+
+Rust and Python `MonteCarloAutocallableEngine` price `SnowballOption`,
+`BinarySnowballOption`, `TernarySnowballOption`, `PhoenixOption` and all eight
+expanded snowball presets. `price`, `price_with_statistics` and
+`price_with_greeks` use the existing shared settlement and history rules:
+strict knock-in, inclusive knock-out and Phoenix coupon barriers, normalized
+principal and capped downside payments, signed coupons, current events once,
+and zero remaining value after a historical knock-out. Phoenix coupons accrue
+from the previous contractual observation, even when that observation is past,
+and discount separately at their payment dates.
+
+Settings and defaults are `MonteCarloSettings` in Rust and keyword arguments in
+Python: 100,000 paths, `seed=None`, automatic threads, pseudorandom sampling,
+and no antithetic pairing. `step_count` retains shared validation and its default
+50 but does not change the event grid. Exact lognormal BSM transitions use
+Actual/365 Fixed intervals from valuation through each remaining trading day
+when daily knock-in can affect settlement. Already knocked-in notes, expiry-only
+knock-in and notes without knock-in exposure use only remaining observations
+plus expiry. Valuation on a non-trading day does not trigger knock-in; intraday
+valuation skips that day's already-past midnight events. Observation and expiry
+dates must be trading days in the context's calendar.
+
+The engine accepts flat rates, including dated flat curves; node curves return
+`UnsupportedOperation` before life, history or Greek-request validation. Other
+validation timing and error categories match autocallable quadrature. Complete
+normal vectors are generated before evaluating each path, so early knock-out
+cannot shift later paths' random draws. Pseudorandom, scrambled Sobol,
+antithetic pairing, exact actual path counts and thread caps reuse the shared
+CPU sampler. Sobol needs power-of-two paths and at most 21,201 remaining path
+dimensions. A fixed seed reproduces prices and statistics across thread counts
+within a build; it need not reproduce the legacy C++ random sequence.
+
+Statistics use the shared `MonteCarloEstimate`: unbiased sample variance and an
+asymptotic 95% normal interval for pseudorandom samples, independent pair means
+for even antithetic counts, and absent uncertainty for Sobol, insufficient
+samples or odd antithetic counts. Known pseudorandom settlements and fixed
+cashflows have zero uncertainty, including before expiry with one path.
+
+All ten Greeks use scalar finite differences with shared normal draws and the
+core bump defaults. Expiry Greeks and infeasible stencils are absent. Spot/time
+stencils crossing active current events are unavailable; irrelevant or already
+completed knock-in does not suppress them. Discontinuous payoffs can make small
+bumps noisy. `implied_volatility`, `implied_snowball_coupon` and `implied_coupon`
+reuse the core solvers. Each analysis or solve pins one request-local seed when
+none is configured. Coupon endpoints replay the same paths when their grids
+agree; if a coupon removes knock-in exposure or fixes a payment, each endpoint
+retains its own event-grid shortcut, matching the existing semantics.
+
+Solver tolerances constrain the **sampled price curve**, not sampling error.
+Volatility need not be monotone; brackets are retained without root search, and
+a sampled digital-like curve may have flat intervals or multiple roots. Fixed
+cashflows reject implied volatility with `UnsupportedOperation`; equal coupon
+endpoint prices reject coupon solving with that category even for a matching
+quote. Inputs and engine settings remain unchanged on success and failure.
+
+Python prices, statistics, Greeks and solves release the GIL around owned Rust
+inputs with no Python callbacks. Shared and distinct engines support concurrent
+calls with request-owned workers and buffers. Calls are synchronous without
+cancellation polling; signal handling resumes when Python regains control.
+Entropy and worker-creation failures retain native I/O errors (`OSError` in
+Python), worker panics retain native behavior, and allocation exhaustion follows
+the allocator. Representation errors retain native Python exceptions, including
+rejection of booleans, fractional integer controls and integer overflow.
+
+```python
+from kiyosi.pricing import MonteCarloAutocallableEngine, implied_coupon
+
+engine = MonteCarloAutocallableEngine(
+    path_count=65536, seed=42, antithetic=True, thread_count=4)
+estimate = engine.price_with_statistics(phoenix, context)
+analysis = engine.price_with_greeks(phoenix, context, ["delta", "rho"], spot_shift=0.5)
+coupon = implied_coupon(engine, phoenix, context, estimate.price)
+assert abs(coupon - phoenix.coupon_rate) < 1e-7
+sobol = MonteCarloAutocallableEngine(path_count=32768, sampling="sobol", seed=42)
+assert sobol.price_with_statistics(phoenix, context).standard_error is None
+```
+
+Rust uses `MonteCarloAutocallableEngine::new(MonteCarloSettings { seed: Some(42),
+..Default::default() })`; its rustdoc includes a complete usage example. Tests
+cover independent cash/digital and QuantLib terminal portfolios, all four note
+families against quadrature under both monitoring modes, migrated cashflow and
+shared-path regressions, coupon endpoint exposure changes, native Python
+protocol boundaries, and exact thread consistency. No runtime threshold is used.
 
 ## Checks
 

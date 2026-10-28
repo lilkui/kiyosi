@@ -8,11 +8,13 @@ use crate::{
 const BLOCK_SIZE: usize = 256;
 
 mod american;
+mod autocallable;
 mod barrier;
 mod digital;
 mod double_barrier;
 mod sobol;
 
+pub use autocallable::MonteCarloAutocallableEngine;
 pub use barrier::MonteCarloBarrierEngine;
 pub use digital::MonteCarloDigitalEngine;
 pub use double_barrier::MonteCarloDoubleBarrierEngine;
@@ -28,14 +30,14 @@ pub enum MonteCarloSampling {
     Sobol,
 }
 
-/// Configures terminal, Asian, barrier or American exercise-grid CPU sampling.
+/// Configures terminal, Asian, barrier, autocallable or American CPU sampling.
 /// See [`MonteCarloVanillaEngine::new`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MonteCarloSettings {
     /// Sets the exact path count, from 1 through 10,000,000; defaults to 100,000.
     pub path_count: i32,
     /// Sets 2..=10,000 grid points (default 50); American pricing before expiry needs 3.
-    /// Asian arithmetic integration uses this many intervals; exact distributions and barriers ignore it.
+    /// Asian arithmetic integration uses this many intervals; exact distributions, barriers and autocallables ignore it.
     pub step_count: i32,
     /// Selects a reproducible stream, or system entropy when absent (the default).
     pub seed: Option<u64>,
@@ -81,9 +83,9 @@ pub struct MonteCarloVanillaEngine {
 /// Uses unbiased sample variance and a two-sided asymptotic 95% normal interval
 /// for pseudorandom draws, or independent pair means with even antithetic counts;
 /// sparse samples and heavy tails can make the interval unreliable.
-/// Sobol always leaves uncertainty absent. Before expiry, fewer than two independent
-/// observations or odd antithetic counts also leave uncertainty absent.
-/// Known pseudorandom expiry payoffs have zero uncertainty.
+/// Sobol always leaves uncertainty absent. Simulated payoffs with fewer than two
+/// independent observations or odd antithetic counts also leave uncertainty absent.
+/// Known pseudorandom settlements and fixed cashflows have zero uncertainty.
 /// See [`MonteCarloVanillaEngine::price_with_statistics`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MonteCarloEstimate {
@@ -252,46 +254,13 @@ impl MonteCarloVanillaEngine {
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
         let (sample, pairs, log_discount) = self.sample(option, context)?;
-        let price = scaled_value(sample.scale, sample.mean, log_discount)?;
-        let at_expiry = context.valuation_time() == option.expiry_date().start_of_day();
-        let uncertainty = if self.settings.antithetic {
-            pairs
-        } else {
-            sample
-        };
-        let standard_error = if self.settings.sampling == MonteCarloSampling::Sobol {
-            None
-        } else if at_expiry {
-            Some(0.0)
-        } else if uncertainty.count > 1
-            && (!self.settings.antithetic || self.settings.path_count % 2 == 0)
-        {
-            Some(scaled_value(
-                uncertainty.scale,
-                (uncertainty.m2.max(0.0)
-                    / (uncertainty.count - 1) as f64
-                    / uncertainty.count as f64)
-                    .sqrt(),
-                log_discount,
-            )?)
-        } else {
-            None
-        };
-        let confidence_interval = standard_error.map(|error| {
-            let half_width = 1.959963984540054 * error;
-            (price - half_width, price + half_width)
-        });
-        if standard_error.is_some_and(|value| !value.is_finite())
-            || confidence_interval
-                .is_some_and(|(lower, upper)| !lower.is_finite() || !upper.is_finite())
-        {
-            return Err(unstable());
-        }
-        Ok(MonteCarloEstimate {
-            price,
-            standard_error,
-            confidence_interval,
-        })
+        estimate(
+            self.settings,
+            sample,
+            pairs,
+            log_discount,
+            context.valuation_time() == option.expiry_date().start_of_day(),
+        )
     }
 
     fn sample(
@@ -370,6 +339,46 @@ impl PricingEngine for MonteCarloVanillaEngine {
     ) -> Result<PricingResult> {
         crate::numerical_greeks(self, option, context, request, settings)
     }
+}
+
+fn estimate(
+    settings: MonteCarloSettings,
+    sample: Moments,
+    pairs: Moments,
+    log_discount: f64,
+    known: bool,
+) -> Result<MonteCarloEstimate> {
+    let price = scaled_value(sample.scale, sample.mean, log_discount)?;
+    let uncertainty = if settings.antithetic { pairs } else { sample };
+    let standard_error = if settings.sampling == MonteCarloSampling::Sobol {
+        None
+    } else if known {
+        Some(0.0)
+    } else if uncertainty.count > 1 && (!settings.antithetic || settings.path_count % 2 == 0) {
+        Some(scaled_value(
+            uncertainty.scale,
+            (uncertainty.m2.max(0.0) / (uncertainty.count - 1) as f64 / uncertainty.count as f64)
+                .sqrt(),
+            log_discount,
+        )?)
+    } else {
+        None
+    };
+    let confidence_interval = standard_error.map(|error| {
+        let half_width = 1.959963984540054 * error;
+        (price - half_width, price + half_width)
+    });
+    if standard_error.is_some_and(|value| !value.is_finite())
+        || confidence_interval
+            .is_some_and(|(lower, upper)| !lower.is_finite() || !upper.is_finite())
+    {
+        return Err(unstable());
+    }
+    Ok(MonteCarloEstimate {
+        price,
+        standard_error,
+        confidence_interval,
+    })
 }
 
 fn terminal_samples<const N: usize>(

@@ -112,8 +112,9 @@ pub use market::{
     PricingContextChanges, Rate,
 };
 pub use monte_carlo::{
-    MonteCarloBarrierEngine, MonteCarloDigitalEngine, MonteCarloDoubleBarrierEngine,
-    MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings, MonteCarloVanillaEngine,
+    MonteCarloAutocallableEngine, MonteCarloBarrierEngine, MonteCarloDigitalEngine,
+    MonteCarloDoubleBarrierEngine, MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings,
+    MonteCarloVanillaEngine,
 };
 pub use numerical::numerical_greeks;
 pub use pricing::AnalyticVanillaEngine;

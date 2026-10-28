@@ -43,6 +43,16 @@ fn main() -> Result<()> {
         kiyosi_core::ImpliedCouponSettings::default(),
     )?;
     assert!((coupon - 0.08).abs() < 1e-7);
+    let phoenix_mc = kiyosi_core::MonteCarloAutocallableEngine::new(MonteCarloSettings {
+        path_count: 4096, seed: Some(42), antithetic: true, ..Default::default()
+    })?;
+    let estimate = phoenix_mc.price_with_statistics(&phoenix, &phoenix_context)?;
+    assert!((estimate.price() - phoenix_result.price()).abs()
+        < 4.0 * estimate.standard_error().unwrap_or(0.0));
+    let coupon = kiyosi_core::implied_coupon(
+        &phoenix_mc, &phoenix, &phoenix_context, estimate.price(), Default::default(),
+    )?;
+    assert!((coupon - 0.08).abs() < 1e-7);
     let binary = kiyosi_core::BinarySnowballOption::new(kiyosi_core::BinarySnowballTerms::new(
         0.06, start, end,
         kiyosi_core::autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?,

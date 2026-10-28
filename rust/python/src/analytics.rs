@@ -564,6 +564,19 @@ pub(crate) fn implied_volatility(
             )
         );
     }
+    if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloAutocallableEngine>>() {
+        let engine = engine.0;
+        return autocallable::with_note!(
+            instrument,
+            option,
+            domain(
+                py,
+                py.detach(|| core::implied_volatility(
+                    &engine, &option, &context, observed, controls
+                ))
+            )
+        );
+    }
     if let Ok(engine) =
         engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceAutocallableEngine>>()
     {

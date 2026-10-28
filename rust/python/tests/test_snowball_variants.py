@@ -14,7 +14,11 @@ from kiyosi.instruments import (
     TernarySnowballOption,
 )
 from kiyosi.market import RateTermStructure
-from kiyosi.pricing import QuadratureAutocallableEngine, implied_volatility
+from kiyosi.pricing import (
+    MonteCarloAutocallableEngine,
+    QuadratureAutocallableEngine,
+    implied_volatility,
+)
 from test_snowball import END, START, autocallable_observations, market, structured
 
 
@@ -241,6 +245,8 @@ class SnowballVariantTests(unittest.TestCase):
                 )
                 self.assertEqual(actual, explicit)
                 self.assertEqual(engine.price(actual, ctx), engine.price(explicit, ctx))
+                mc = MonteCarloAutocallableEngine(path_count=128, seed=42)
+                self.assertEqual(mc.price(actual, ctx), mc.price(explicit, ctx))
                 for note in (actual, explicit):
                     result = engine.price_with_greeks(
                         note, ctx, ["delta", "vega"], spot_shift=0.25
