@@ -1,0 +1,572 @@
+use super::gaussian::{
+    CubicInterpolation, Polynomial, TerminalPiece, Transition, integrate_curve, integrate_terminal,
+    integration_nodes, scaled,
+};
+use super::{QuadratureSettings, flat_rates};
+use crate::barrier::log_ratio;
+use crate::{
+    AutocallableBarrierState, AutocallableObservation, BlackScholesMertonParameters, Date, Error,
+    ErrorCategory, GreeksRequest, KnockInObservationMode, NumericalShiftSettings, PricingContext,
+    PricingEngine, PricingResult, Result, SnowballOption, Timestamp,
+};
+
+/// Prices basic snowballs by cubic Gaussian integration between exact event dates.
+/// Retains separate intact and knocked-in continuation layers for daily monitoring.
+/// Owns immutable settings; shared and distinct instances support concurrent pricing.
+/// See [`Self::new`] for an example.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct QuadratureAutocallableEngine {
+    settings: QuadratureSettings,
+}
+impl QuadratureAutocallableEngine {
+    /// Creates an engine with validated spatial budget and integration extent.
+    ///
+    /// # Errors
+    /// Propagates [`QuadratureSettings::validate`] errors without changing inputs.
+    ///
+    /// # Examples
+    /// ```
+    /// use kiyosi_core::*;
+    /// # fn main() -> Result<()> {
+    /// let start = Date::new(2025, 1, 1)?;
+    /// let end = Date::new(2025, 4, 1)?;
+    /// let mut terms = SnowballTerms::new(0.08, 100.0, 80.0, 100.0, 0.0, start, end,
+    ///     autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?);
+    /// terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+    /// let note = SnowballOption::new(terms)?;
+    /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
+    ///     100.0, start.into())?;
+    /// let engine = QuadratureAutocallableEngine::new(QuadratureSettings::default())?;
+    /// assert_eq!(engine.settings().asset_step_count, 512);
+    /// let result = engine.price_with_greeks(&note, &context,
+    ///     GreeksRequest::new([Greek::Delta, Greek::Vega]), Default::default())?;
+    /// assert!(result.price().is_finite());
+    /// assert!(result.has(Greek::Delta));
+    /// # Ok(()) }
+    /// ```
+    pub fn new(settings: QuadratureSettings) -> Result<Self> {
+        settings.validate()?;
+        Ok(Self { settings })
+    }
+    /// Returns owned settings; see [`Self::new`].
+    pub fn settings(&self) -> QuadratureSettings {
+        self.settings
+    }
+    /// Prices remaining cashflows, resolving current events before future integration.
+    /// Knock-in is strict below its level; knock-out is inclusive at its level.
+    /// Past knock-outs return zero, and terminal payments use normalized units.
+    /// See [`Self::new`] for an example.
+    ///
+    /// # Errors
+    /// Checks flat rates ([`ErrorCategory::UnsupportedOperation`]), inclusive life
+    /// ([`ErrorCategory::InvalidTimeRange`]), observation trading dates
+    /// ([`ErrorCategory::InvalidDate`]), missing/impossible prior history
+    /// ([`ErrorCategory::InvalidParameter`]/[`ErrorCategory::InvalidOption`]), then
+    /// trading expiry ([`ErrorCategory::InvalidDate`]). Non-finite prices or
+    /// unrepresentable transitions return [`ErrorCategory::InvalidResult`].
+    /// Inputs remain unchanged on success and failure.
+    pub fn price(&self, option: &SnowballOption, context: &PricingContext) -> Result<f64> {
+        price(option, context, self.settings, &mut None)
+    }
+    /// Computes requested scalar sensitivities using shared core bump defaults.
+    /// Expiry Greeks are absent. Spot and time stencils crossing active events
+    /// are unavailable; vega and rho remain defined at current thresholds.
+    /// See [`Self::new`] for an example.
+    ///
+    /// # Errors
+    /// Checks flat-rate applicability before request/shift validation, then
+    /// propagates [`crate::numerical_greeks`] errors. Inputs remain unchanged.
+    pub fn price_with_greeks(
+        &self,
+        option: &SnowballOption,
+        context: &PricingContext,
+        request: GreeksRequest,
+        shifts: NumericalShiftSettings,
+    ) -> Result<PricingResult> {
+        crate::numerical_greeks(self, option, context, request, shifts)
+    }
+}
+impl PricingEngine<SnowballOption> for QuadratureAutocallableEngine {
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        flat_rates(context).map(|_| ())
+    }
+    fn price(&self, option: &SnowballOption, context: &PricingContext) -> Result<f64> {
+        self.price(option, context)
+    }
+    fn prepare_request(
+        &self,
+    ) -> Result<Option<Box<dyn PricingEngine<SnowballOption> + Send + Sync + '_>>> {
+        Ok(Some(Box::new(Request {
+            settings: self.settings,
+            curve: std::sync::Mutex::new(None),
+        })))
+    }
+    fn volatility_affects_price(&self, option: &SnowballOption, context: &PricingContext) -> bool {
+        let initial = initial(option, context);
+        initial.settlement.is_none() && fixed_value(option, context, initial.knocked_in).is_none()
+    }
+}
+struct Request {
+    settings: QuadratureSettings,
+    curve: std::sync::Mutex<Option<PreparedCurve>>,
+}
+impl PricingEngine<SnowballOption> for Request {
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        flat_rates(context).map(|_| ())
+    }
+    fn price(&self, option: &SnowballOption, context: &PricingContext) -> Result<f64> {
+        let mut curve = self.curve.lock().map_err(|_| {
+            Error::new(
+                ErrorCategory::InvalidResult,
+                "quadrature request cache is poisoned",
+            )
+        })?;
+        price(option, context, self.settings, &mut curve)
+    }
+    fn volatility_affects_price(&self, option: &SnowballOption, context: &PricingContext) -> bool {
+        QuadratureAutocallableEngine::default().volatility_affects_price(option, context)
+    }
+}
+
+fn checked(value: f64) -> Result<f64> {
+    Ok(PricingResult::new(value)?.price())
+}
+
+struct Initial {
+    knocked_in: bool,
+    settlement: Option<f64>,
+}
+fn initial(note: &SnowballOption, context: &PricingContext) -> Initial {
+    if note.barrier_state() == Some(AutocallableBarrierState::KnockedOut) {
+        return Initial {
+            knocked_in: false,
+            settlement: Some(0.0),
+        };
+    }
+    let mut knocked_in = note.barrier_state() == Some(AutocallableBarrierState::KnockedIn);
+    if note.daily_at(context) {
+        knocked_in |= context.spot_price() < note.terms().knock_in_level;
+    }
+    let current = note
+        .observations()
+        .iter()
+        .find(|r| r.date.start_of_day() == context.valuation_time());
+    let settlement =
+        if let Some(record) = current.filter(|r| context.spot_price() >= r.knock_out_level) {
+            Some(note.knock_out_payment(record))
+        } else if context.valuation_time() == note.expiry_date().start_of_day() {
+            Some(note.terminal(
+                context.spot_price(),
+                knocked_in || context.spot_price() < note.terms().knock_in_level,
+            ))
+        } else {
+            None
+        };
+    Initial {
+        knocked_in,
+        settlement,
+    }
+}
+fn validate(note: &SnowballOption, context: &PricingContext) -> Result<()> {
+    super::time_to_expiry(note, context)?;
+    if note
+        .observations()
+        .iter()
+        .any(|r| !context.calendar().is_trading_day(r.date))
+    {
+        return Err(Error::new(
+            ErrorCategory::InvalidDate,
+            "observation is not a trading day",
+        ));
+    }
+    note.prior(context.valuation_time(), context.calendar())?;
+    if !context.calendar().is_trading_day(note.expiry_date()) {
+        return Err(Error::new(
+            ErrorCategory::InvalidDate,
+            "expiry is not a trading day",
+        ));
+    }
+    Ok(())
+}
+fn fixed_value(note: &SnowballOption, context: &PricingContext, knocked_in: bool) -> Option<f64> {
+    let t = note.terms();
+    if t.lower_strike != t.upper_strike || !knocked_in && t.maturity_coupon_rate != 0.0 {
+        return None;
+    }
+    let rate = context.model_parameters().risk_free_rate().ok()?;
+    let value = note.terminal(context.spot_price(), knocked_in)
+        * (-rate
+            * context
+                .valuation_time()
+                .years_until(note.expiry_date().into()))
+        .exp();
+    if !value.is_finite() {
+        return None;
+    }
+    for record in note
+        .observations()
+        .iter()
+        .filter(|r| r.date.start_of_day() > context.valuation_time())
+    {
+        let discount = (-rate * context.valuation_time().years_until(record.date.into())).exp();
+        if !discount.is_normal() || note.knock_out_payment(record) * discount != value {
+            return None;
+        }
+    }
+    let discount = (-rate
+        * context
+            .valuation_time()
+            .years_until(note.expiry_date().into()))
+    .exp();
+    discount.is_normal().then_some(value)
+}
+
+struct Curve {
+    cells: Vec<Polynomial>,
+    low: f64,
+    high: f64,
+}
+impl Curve {
+    fn evaluate(&self, nodes: &[f64], mean: f64, deviation: f64, discount: f64) -> f64 {
+        integrate_curve(&self.cells, nodes, mean, deviation, discount)
+            + integrate_terminal(&self.tails(nodes), mean, 1.0, 0.0, deviation, discount)
+    }
+    fn tails(&self, nodes: &[f64]) -> [TerminalPiece; 2] {
+        [
+            TerminalPiece {
+                lower: f64::NEG_INFINITY,
+                upper: nodes[0],
+                cash: self.low,
+                asset: 0.0,
+            },
+            TerminalPiece {
+                lower: nodes[nodes.len() - 1],
+                upper: f64::INFINITY,
+                cash: self.high,
+                asset: 0.0,
+            },
+        ]
+    }
+}
+struct PreparedCurve {
+    option: SnowballOption,
+    model: BlackScholesMertonParameters,
+    valuation: Timestamp,
+    knocked_in: bool,
+    nodes: Vec<f64>,
+    dates: Vec<Date>,
+    curve: Curve,
+    drift: f64,
+    deviation: f64,
+    discount: f64,
+}
+impl PreparedCurve {
+    fn evaluate(&self, spot: f64) -> Result<f64> {
+        checked(self.curve.evaluate(
+            &self.nodes,
+            log_ratio(spot, self.option.terms().initial_spot) + self.drift,
+            self.deviation,
+            self.discount,
+        ))
+    }
+}
+fn event(note: &SnowballOption, date: Date) -> Option<&AutocallableObservation> {
+    note.observations()
+        .binary_search_by_key(&date, |r| r.date)
+        .ok()
+        .map(|i| &note.observations()[i])
+}
+fn terminal(
+    note: &SnowballOption,
+    record: Option<&AutocallableObservation>,
+    breaks: &[f64],
+    knocked_in: bool,
+) -> Vec<TerminalPiece> {
+    let t = note.terms();
+    let mut edges = vec![f64::NEG_INFINITY];
+    edges.extend_from_slice(breaks);
+    edges.push(f64::INFINITY);
+    edges
+        .windows(2)
+        .map(|e| {
+            let point = if e[0].is_infinite() {
+                e[1] - 1.0
+            } else if e[1].is_infinite() {
+                e[0] + 1.0
+            } else {
+                e[0].midpoint(e[1])
+            };
+            let mut cash;
+            let mut asset = 0.0;
+            if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level, t.initial_spot))
+            {
+                cash = note.knock_out_payment(r);
+            } else if knocked_in || point < log_ratio(t.knock_in_level, t.initial_spot) {
+                cash = t.principal_ratio - t.upper_strike / t.initial_spot;
+                if t.lower_strike > 0.0 && point < log_ratio(t.lower_strike, t.initial_spot) {
+                    cash += t.lower_strike / t.initial_spot;
+                } else if point > log_ratio(t.upper_strike, t.initial_spot) {
+                    cash = t.principal_ratio;
+                } else {
+                    asset = 1.0 / t.initial_spot;
+                }
+            } else {
+                cash = note.terminal(t.initial_spot, false);
+            }
+            TerminalPiece {
+                lower: e[0],
+                upper: e[1],
+                cash,
+                asset,
+            }
+        })
+        .collect()
+}
+fn apply_event(
+    note: &SnowballOption,
+    date: Date,
+    nodes: &[f64],
+    alive: &mut Curve,
+    knocked: Option<&Curve>,
+) {
+    let t = note.terms();
+    let record = event(note, date);
+    let payment = record.map(|r| note.knock_out_payment(r));
+    if let Some(payment) = payment {
+        alive.high = payment;
+    }
+    if let Some(knocked) = knocked {
+        alive.low = knocked.low;
+    }
+    for (i, cell) in alive.cells.iter_mut().enumerate() {
+        let point = nodes[i].midpoint(nodes[i + 1]);
+        if record.is_some_and(|r| point > log_ratio(r.knock_out_level, t.initial_spot)) {
+            *cell = [payment.unwrap_or(0.0), 0.0, 0.0, 0.0];
+        } else if let Some(knocked) =
+            knocked.filter(|_| point < log_ratio(t.knock_in_level, t.initial_spot))
+        {
+            *cell = knocked.cells[i];
+        }
+    }
+}
+fn price(
+    note: &SnowballOption,
+    context: &PricingContext,
+    settings: QuadratureSettings,
+    prepared: &mut Option<PreparedCurve>,
+) -> Result<f64> {
+    let (rate, dividend) = flat_rates(context)?;
+    validate(note, context)?;
+    let state = initial(note, context);
+    if let Some(value) = state
+        .settlement
+        .or_else(|| fixed_value(note, context, state.knocked_in))
+    {
+        return checked(value);
+    }
+    let layers = note.terms().knock_in_observation_mode == KnockInObservationMode::EveryTradingDay
+        && !state.knocked_in
+        && note.knock_in_affects_payoff();
+    let mut dates = Vec::new();
+    if layers {
+        let mut date = context.valuation_date();
+        loop {
+            if date.start_of_day() > context.valuation_time()
+                && context.calendar().is_trading_day(date)
+            {
+                dates.push(date);
+            }
+            if date == note.expiry_date() {
+                break;
+            }
+            date = date.add_days(1)?;
+        }
+    } else {
+        dates.extend(
+            note.observations()
+                .iter()
+                .map(|r| r.date)
+                .filter(|d| d.start_of_day() > context.valuation_time()),
+        );
+        if dates.last() != Some(&note.expiry_date()) {
+            dates.push(note.expiry_date());
+        }
+    }
+    if let Some(curve) = prepared.as_ref().filter(|c| {
+        c.option == *note
+            && c.model == *context.model_parameters()
+            && c.valuation == context.valuation_time()
+            && c.knocked_in == state.knocked_in
+            && c.dates == dates
+    }) {
+        return curve.evaluate(context.spot_price());
+    }
+    let anchor = note.terms().initial_spot;
+    let mut breaks = vec![
+        log_ratio(note.terms().knock_in_level, anchor),
+        log_ratio(note.terms().upper_strike, anchor),
+    ];
+    if note.terms().lower_strike > 0.0 {
+        breaks.push(log_ratio(note.terms().lower_strike, anchor));
+    }
+    for r in note
+        .observations()
+        .iter()
+        .filter(|r| r.date.start_of_day() > context.valuation_time())
+    {
+        breaks.push(log_ratio(r.knock_out_level, anchor));
+    }
+    breaks.sort_by(f64::total_cmp);
+    breaks.dedup();
+    let sigma = context.model_parameters().volatility();
+    let drift_rate = rate - dividend - 0.5 * sigma * sigma;
+    let horizon = context
+        .valuation_time()
+        .years_until(note.expiry_date().into());
+    let transition = |time: f64| -> Result<(f64, f64, f64)> {
+        let drift = drift_rate * time;
+        let deviation = sigma * time.sqrt();
+        if !drift.is_finite() || !deviation.is_finite() || deviation <= 0.0 {
+            return Err(Error::new(
+                ErrorCategory::InvalidResult,
+                "quadrature transition is not representable",
+            ));
+        }
+        Ok((drift, deviation, -rate * time))
+    };
+    let terminal = terminal(
+        note,
+        event(note, note.expiry_date()),
+        &breaks,
+        state.knocked_in,
+    );
+    if dates.len() == 1 {
+        let (drift, deviation, discount) = transition(horizon)?;
+        return checked(integrate_terminal(
+            &terminal,
+            log_ratio(context.spot_price(), anchor),
+            anchor,
+            drift,
+            deviation,
+            discount,
+        ));
+    }
+    let extent = settings.integration_standard_deviations * sigma * horizon.sqrt();
+    let lower = 0.0_f64.min(breaks[0]) + (drift_rate * horizon).min(0.0) - extent;
+    let upper = 0.0_f64.max(breaks[breaks.len() - 1]) + (drift_rate * horizon).max(0.0) + extent;
+    let nodes = integration_nodes(lower, upper, settings.asset_step_count, &breaks)?;
+    let interpolation = CubicInterpolation::new(&nodes);
+    let terminal_in = if layers {
+        self::terminal(note, event(note, note.expiry_date()), &breaks, true)
+    } else {
+        Vec::new()
+    };
+    let mut alive = Curve {
+        cells: Vec::new(),
+        low: terminal[0].cash,
+        high: terminal[terminal.len() - 1].cash,
+    };
+    let mut knocked = Curve {
+        cells: Vec::new(),
+        low: terminal_in.first().map_or(0.0, |p| p.cash),
+        high: terminal_in.last().map_or(0.0, |p| p.cash),
+    };
+    let mut transitions: Vec<(f64, Transition)> = Vec::new();
+    for index in (0..dates.len()).rev() {
+        let final_event = index == dates.len() - 1;
+        if !final_event {
+            apply_event(
+                note,
+                dates[index],
+                &nodes,
+                &mut alive,
+                layers.then_some(&knocked),
+            );
+            if layers {
+                apply_event(note, dates[index], &nodes, &mut knocked, None);
+            }
+        }
+        let time = if index == 0 {
+            context.valuation_time().years_until(dates[index].into())
+        } else {
+            dates[index - 1]
+                .start_of_day()
+                .years_until(dates[index].into())
+        };
+        let (drift, deviation, discount) = transition(time)?;
+        if index == 0 {
+            let curve = PreparedCurve {
+                option: note.clone(),
+                model: context.model_parameters().clone(),
+                valuation: context.valuation_time(),
+                knocked_in: state.knocked_in,
+                nodes,
+                dates,
+                curve: alive,
+                drift,
+                deviation,
+                discount,
+            };
+            let value = curve.evaluate(context.spot_price())?;
+            *prepared = Some(curve);
+            return Ok(value);
+        }
+        let mut values = vec![0.0; nodes.len()];
+        let mut values_in = vec![0.0; if layers { nodes.len() } else { 0 }];
+        if final_event {
+            for (i, &node) in nodes.iter().enumerate() {
+                values[i] = integrate_terminal(&terminal, node, anchor, drift, deviation, discount);
+                if layers {
+                    values_in[i] =
+                        integrate_terminal(&terminal_in, node, anchor, drift, deviation, discount);
+                }
+            }
+        } else {
+            let ti = if let Some(i) = transitions.iter().position(|(t, _)| *t == time) {
+                i
+            } else {
+                transitions.push((time, Transition::new(&nodes, drift, deviation)));
+                transitions.len() - 1
+            };
+            transitions[ti]
+                .1
+                .integrate(&alive.cells, discount, &mut values);
+            if layers {
+                transitions[ti]
+                    .1
+                    .integrate(&knocked.cells, discount, &mut values_in);
+            }
+            let tails = alive.tails(&nodes);
+            let tails_in = knocked.tails(&nodes);
+            for (i, &node) in nodes.iter().enumerate() {
+                values[i] += integrate_terminal(&tails, node, anchor, drift, deviation, discount);
+                if layers {
+                    values_in[i] +=
+                        integrate_terminal(&tails_in, node, anchor, drift, deviation, discount);
+                }
+            }
+        }
+        if values.iter().chain(&values_in).any(|v| !v.is_finite()) {
+            return Err(Error::new(
+                ErrorCategory::InvalidResult,
+                "quadrature continuation is non-finite",
+            ));
+        }
+        alive = Curve {
+            cells: interpolation.interpolate(&values),
+            low: scaled(alive.low, discount),
+            high: scaled(alive.high, discount),
+        };
+        if layers {
+            knocked = Curve {
+                cells: interpolation.interpolate(&values_in),
+                low: scaled(knocked.low, discount),
+                high: scaled(knocked.high, discount),
+            };
+        }
+    }
+    Err(Error::new(
+        ErrorCategory::InvalidResult,
+        "quadrature has no future event",
+    ))
+}

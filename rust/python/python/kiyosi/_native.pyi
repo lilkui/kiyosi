@@ -1,5 +1,6 @@
 from collections.abc import Iterable, Iterator
 from datetime import date, datetime
+from datetime import date as _Date
 from enum import IntEnum
 from typing import Literal, Never, Self, TypeAlias, overload
 
@@ -900,6 +901,19 @@ class PricingResult:
 
 @overload
 def implied_volatility(
+    engine: QuadratureAutocallableEngine,
+    instrument: SnowballOption,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...
+@overload
+def implied_volatility(
     engine: AnalyticRangeAccrualEngine,
     instrument: RangeAccrualOption,
     context: PricingContext,
@@ -1557,3 +1571,104 @@ def cash_double_no_touch(
     observation_dates: Iterable[date] = ...,
     touch_state: Literal["untouched", "touched"] | None = None,
 ) -> DoubleTouchOption: ...
+
+class QuadratureAutocallableEngine:
+    def __init__(
+        self,
+        *,
+        asset_step_count: int = ...,
+        integration_standard_deviations: float = ...,
+    ) -> None: ...
+    @property
+    def asset_step_count(self) -> int: ...
+    @property
+    def integration_standard_deviations(self) -> float: ...
+    def price(self, instrument: SnowballOption, context: PricingContext) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: SnowballOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
+class AutocallableObservation:
+    def __init__(
+        self,
+        date: _Date,
+        knock_out_level: float,
+        *,
+        coupon_rate: float = ...,
+        coupon_barrier_level: float = ...,
+    ) -> None: ...
+    @property
+    def date(self) -> _Date: ...
+    @property
+    def knock_out_level(self) -> float: ...
+    @property
+    def coupon_rate(self) -> float: ...
+    @property
+    def coupon_barrier_level(self) -> float: ...
+
+def autocallable_observations(
+    observation_dates: Iterable[date],
+    knock_out_levels: Iterable[float],
+    *,
+    knock_out_coupon_rates: Iterable[float] | None = None,
+    coupon_barrier_levels: Iterable[float] | None = None,
+) -> list[AutocallableObservation]: ...
+
+class SnowballOption:
+    def __init__(
+        self,
+        *,
+        maturity_coupon_rate: float,
+        initial_spot: float,
+        knock_in_level: float,
+        upper_strike: float,
+        lower_strike: float,
+        knock_in_observation_mode: Literal["every_trading_day", "at_expiry"],
+        effective_date: date,
+        expiry_date: date,
+        observations: Iterable[AutocallableObservation],
+        barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+        principal_ratio: float = ...,
+    ) -> None: ...
+    def replace(
+        self, *, barrier_state: Literal["none", "knocked_in", "knocked_out"] | None
+    ) -> SnowballOption: ...
+    @property
+    def observations(self) -> list[AutocallableObservation]: ...
+    @property
+    def observation_dates(self) -> list[date]: ...
+    @property
+    def knock_out_levels(self) -> list[float]: ...
+    @property
+    def knock_out_coupon_rates(self) -> list[float]: ...
+    @property
+    def maturity_coupon_rate(self) -> float: ...
+    @property
+    def initial_spot(self) -> float: ...
+    @property
+    def knock_in_level(self) -> float: ...
+    @property
+    def upper_strike(self) -> float: ...
+    @property
+    def lower_strike(self) -> float: ...
+    @property
+    def principal_ratio(self) -> float: ...
+    @property
+    def knock_in_observation_mode(
+        self,
+    ) -> Literal["every_trading_day", "at_expiry"]: ...
+    @property
+    def barrier_state(self) -> Literal["none", "knocked_in", "knocked_out"] | None: ...
+    @property
+    def effective_date(self) -> date: ...
+    @property
+    def expiry_date(self) -> date: ...

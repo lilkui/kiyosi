@@ -4,6 +4,7 @@ use kiyosi_core as core;
 mod american;
 mod analytics;
 mod asian;
+mod autocallable;
 mod barrier;
 mod binary_barrier;
 mod binomial;
@@ -761,6 +762,13 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<asian::TurnbullWakemanArithmeticAveragePriceEngine>()?;
     binary_barrier::register(module)?;
     double_touch::register(module)?;
+    module.add_class::<autocallable::AutocallableObservation>()?;
+    module.add_class::<autocallable::SnowballOption>()?;
+    module.add_class::<autocallable::QuadratureAutocallableEngine>()?;
+    module.add_function(wrap_pyfunction!(
+        autocallable::autocallable_observations,
+        module
+    )?)?;
     module.add_class::<range_accrual::RangeAccrualOption>()?;
     module.add_class::<range_accrual::AnalyticRangeAccrualEngine>()?;
     module.add_class::<double_barrier::DoubleBarrierOption>()?;

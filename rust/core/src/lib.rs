@@ -38,6 +38,7 @@
 mod american;
 mod analytics;
 mod asian;
+mod autocallable;
 mod barrier;
 mod binary_barrier;
 mod binomial;
@@ -65,6 +66,10 @@ pub use asian::{
     AnalyticGeometricAveragePriceEngine, ArithmeticAveragePriceOption, DEFAULT_REALIZED_AVERAGE,
     GeometricAveragePriceOption, MonteCarloAsianEngine,
     TurnbullWakemanArithmeticAveragePriceEngine,
+};
+pub use autocallable::{
+    AutocallableBarrierState, AutocallableObservation, KnockInObservationMode, SnowballOption,
+    SnowballTerms, autocallable_observations,
 };
 pub use barrier::{
     AnalyticBarrierEngine, BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType,
@@ -107,7 +112,8 @@ pub use monte_carlo::{
 pub use numerical::numerical_greeks;
 pub use pricing::AnalyticVanillaEngine;
 pub use quadrature::{
-    QuadratureBarrierEngine, QuadratureDigitalEngine, QuadratureSettings, QuadratureVanillaEngine,
+    QuadratureAutocallableEngine, QuadratureBarrierEngine, QuadratureDigitalEngine,
+    QuadratureSettings, QuadratureVanillaEngine,
 };
 pub use range_accrual::{AnalyticRangeAccrualEngine, RangeAccrualOption, RangeAccrualTerms};
 pub use schedule::ObservationSchedule;

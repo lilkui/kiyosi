@@ -45,7 +45,11 @@ pub(crate) fn request(
     Ok(core::GreeksRequest::new(measures))
 }
 
-fn real_setting(settings: Option<&Bound<'_, PyDict>>, name: &str, default: f64) -> PyResult<f64> {
+pub(super) fn real_setting(
+    settings: Option<&Bound<'_, PyDict>>,
+    name: &str,
+    default: f64,
+) -> PyResult<f64> {
     settings
         .map(|s| s.get_item(name))
         .transpose()?
@@ -540,6 +544,17 @@ pub(crate) fn implied_volatility(
         let engine = engine.0;
         let option = instrument
             .extract::<PyRef<'_, barrier::BarrierOption>>()?
+            .0
+            .clone();
+        return domain(
+            py,
+            py.detach(|| core::implied_volatility(&engine, &option, &context, observed, controls)),
+        );
+    }
+    if let Ok(engine) = engine.extract::<PyRef<'_, autocallable::QuadratureAutocallableEngine>>() {
+        let engine = engine.0;
+        let option = instrument
+            .extract::<PyRef<'_, autocallable::SnowballOption>>()?
             .0
             .clone();
         return domain(

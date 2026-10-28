@@ -1,4 +1,4 @@
-"""Validated vanilla, digital, barrier, touch, Asian and range-accrual contracts."""
+"""Validated vanilla, digital, barrier, touch, Asian, range-accrual and basic snowball contracts."""
 
 from typing import Literal
 
@@ -6,6 +6,7 @@ from ._native import (
     AmericanOption,
     ArithmeticAveragePriceOption,
     AssetOrNothingOption,
+    AutocallableObservation,
     BarrierOption,
     BinaryBarrierOption,
     CashOrNothingOption,
@@ -14,12 +15,14 @@ from ._native import (
     EuropeanOption,
     GeometricAveragePriceOption,
     RangeAccrualOption,
+    SnowballOption,
     TouchOption,
     asset_binary_barrier_option,
     asset_no_touch_down,
     asset_no_touch_up,
     asset_one_touch_down,
     asset_one_touch_up,
+    autocallable_observations,
     cash_binary_barrier_option,
     cash_double_no_touch,
     cash_double_touch,
@@ -35,6 +38,7 @@ __all__ = [
     "AmericanOption",
     "ArithmeticAveragePriceOption",
     "AssetOrNothingOption",
+    "AutocallableObservation",
     "BarrierOption",
     "BinaryBarrierOption",
     "CashOrNothingOption",
@@ -44,12 +48,14 @@ __all__ = [
     "GeometricAveragePriceOption",
     "OptionType",
     "RangeAccrualOption",
+    "SnowballOption",
     "TouchOption",
     "asset_binary_barrier_option",
     "asset_no_touch_down",
     "asset_no_touch_up",
     "asset_one_touch_down",
     "asset_one_touch_up",
+    "autocallable_observations",
     "cash_binary_barrier_option",
     "cash_double_no_touch",
     "cash_double_touch",

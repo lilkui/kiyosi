@@ -1,3 +1,5 @@
+mod autocallable;
+pub use autocallable::QuadratureAutocallableEngine;
 mod barrier;
 pub(crate) mod gaussian;
 pub use barrier::{QuadratureBarrierEngine, QuadratureSettings};

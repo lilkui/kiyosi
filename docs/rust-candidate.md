@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–27 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier CPU Monte Carlo prices and analytics with
+Tickets 01–28 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, and analytic range-accrual coupons. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and basic snowball quadrature. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -2135,6 +2135,107 @@ Public Rust/Python tests migrate the existing history, terminal-payoff, curve,
 long-contract, tiny-volatility, extreme-tail and numerical-Greek regressions,
 using independent marginal/payoff references. The legacy implementation remains
 available for migration comparison.
+
+## Basic snowball quadrature
+
+Rust `SnowballOption::new(SnowballTerms)` owns validated contractual terms and a
+nonempty, strictly ordered vector of `AutocallableObservation` records. Each record
+associates a date, a positive knock-out level, a finite annual knock-out coupon,
+and a coupon barrier that must be zero for snowballs. `autocallable_observations`
+associates parallel slices, rejecting unequal lengths with `InvalidSchedule`;
+record values and schedule bounds are validated by the note constructor.
+`SnowballTerms::new(maturity_coupon_rate, initial_spot, knock_in_level,
+upper_strike, lower_strike, effective_date, expiry_date, observations)` defaults
+to daily monitoring, unknown history and unit principal. Required positive
+reference spot, knock-in level and upper strike, nonnegative principal and lower
+strike, ordered strikes, and finite signed coupons use `InvalidParameter`.
+Reversed life uses `InvalidTimeRange`; invalid schedules use `InvalidSchedule`.
+
+`KnockInObservationMode::EveryTradingDay` observes at midnight on every context
+trading date, including the effective date. `AtExpiry` observes only at expiry.
+Knock-in requires **spot < level**; equality is intact. Knock-out requires
+**spot >= level** on a contractual observation. On simultaneous events,
+knock-out settles principal plus that observation's annual coupon multiplied by
+Actual/365 Fixed time from the effective date. Otherwise expiry pays principal
+plus the annual maturity coupon times the full contract term if intact, or
+`principal + (clamp(spot, lower_strike, upper_strike) - upper_strike) / initial_spot`
+if knocked in. Principal, coupons and losses are independent normalized
+components; signed coupons and nonunit principal can produce negative values.
+
+`barrier_state: None` means unknown history. `Some(AutocallableBarrierState::None)`
+means known absence of events; `KnockedIn` and `KnockedOut` describe events
+**strictly before valuation**. History becomes mandatory after the first knock-out
+observation or daily knock-in observation. Missing history returns
+`InvalidParameter`; a claimed event before monitoring began returns
+`InvalidOption`, including any claimed prior knock-in for expiry-only monitoring.
+`replace(history)` returns an owning validated copy and preserves all terms and
+the original. Time consistency is checked during pricing, allowing corrections
+and historical revaluations. A past knock-out has no remaining cashflows; its
+price is zero. Current events occur at midnight; an intraday spot is not a fixing.
+
+`QuadratureAutocallableEngine::new(QuadratureSettings)` retains the existing
+cubic Gaussian integration algorithm, terminal affine-payoff integration and
+separate intact/knocked-in layers on daily event dates. Defaults are 512 asset
+steps and eight standard deviations. It accepts only basic snowballs in this
+slice. Request-local continuation reuse supports scalar numerical Greeks; no
+mutable cache is shared between requests. Check spatial and integration-domain
+convergence independently. Validation checks flat-rate applicability first
+(`UnsupportedOperation` for node curves), then inclusive contract life,
+observation trading dates, history, and trading expiry. Non-finite prices or
+unrepresentable grids/transitions return `InvalidResult`. Validation also runs
+for settled or fixed cashflows. Known fixed cashflows bypass numerical rollback.
+
+All ten Greeks use the shared numerical analysis and Rust bump defaults. Expiry
+Greeks are absent. Spot stencils crossing a current barrier are unavailable;
+time stencils touching active observations are unavailable. Vega and rho remain
+available at current barriers. Completed or economically irrelevant knock-in
+monitoring does not suppress otherwise valid sensitivities. Implied volatility
+uses the shared solver and caller's bracket unchanged; nonmonotone prices can
+have multiple roots. Settled and fixed cashflows return `UnsupportedOperation`
+after pricing validation because volatility is unidentifiable. Requests and
+solves preserve their inputs on success and failure.
+
+Python exports `AutocallableObservation`, `autocallable_observations`, and
+`SnowballOption` from `kiyosi.instruments`, and `QuadratureAutocallableEngine` from
+`kiyosi.pricing`. Constructors retain the existing record-based API and required
+`knock_in_observation_mode` choice (`"every_trading_day"` or `"at_expiry"`).
+`note.replace(barrier_state=...)` requires the history keyword; `None` clears it,
+whereas `"none"` records no event. Numeric, integer, date and choice protocols
+use the shared strict conversions and native representation exceptions. Defaults
+come from Rust. Observation properties return owning lists; values are immutable.
+Pricing, Greek and solve calls release the GIL over owned core data and support
+concurrent shared or distinct instances. Calls are synchronous; signal handling
+resumes on return to Python, with no cancellation polling inside rollback.
+
+```python
+from datetime import date
+from kiyosi.instruments import SnowballOption, autocallable_observations
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import QuadratureAutocallableEngine, implied_volatility
+
+start, end = date(2025, 1, 1), date(2025, 4, 1)
+note = SnowballOption(maturity_coupon_rate=0.06, initial_spot=100,
+    knock_in_level=80, upper_strike=100, lower_strike=60,
+    knock_in_observation_mode="at_expiry", effective_date=start, expiry_date=end,
+    observations=autocallable_observations([end], [110], knock_out_coupon_rates=[0.08]))
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3),
+    spot_price=103, valuation_time=start)
+engine = QuadratureAutocallableEngine()
+result = engine.price_with_greeks(note, context, ["delta", "vega"])
+sigma = implied_volatility(engine, note, context, result.price,
+                           lower_bound=0.2, upper_bound=0.4)
+assert abs(sigma - 0.3) < 1e-6
+```
+
+The candidate tests migrate signed and affine terminal portfolios using the
+existing independent QuantLib reference, strict event boundaries, history and
+calendar precedence, fixed cashflows, dense deterministic ladders, near-expiry
+transitions, all ten sensitivities, grid/domain and bump convergence, solver
+failures and concurrent reads. A separately refined conditional-payoff integral
+checks two-event knock-in/knock-out ordering under a custom trading calendar.
+Phoenix, binary/ternary variants, named presets and implied coupon solving are
+covered by subsequent tickets.
 
 ## Checks
 
