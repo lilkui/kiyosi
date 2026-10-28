@@ -1,10 +1,17 @@
 use super::{path_means, random_seed, scaled_value, unstable};
 use crate::barrier::{hit_value, log_ratio, resolved_price, validate_life, validate_schedule};
 use crate::{
-    AnalyticVanillaEngine, BarrierOption, EuropeanOption, Greek, GreeksRequest, MonteCarloSettings,
-    MonteCarloVanillaEngine, NumericalShiftSettings, ObservationMode, OptionContract, OptionType,
-    PricingContext, PricingEngine, PricingResult, RebateTiming, Result,
+    AnalyticDoubleBarrierEngine, AnalyticVanillaEngine, BarrierOption, DoubleBarrierOption,
+    EuropeanOption, Greek, GreeksRequest, MonteCarloSettings, MonteCarloVanillaEngine,
+    NumericalShiftSettings, ObservationMode, OptionContract, OptionType, PricingContext,
+    PricingEngine, PricingResult, RebateTiming, Result,
 };
+
+#[derive(Clone, Copy)]
+pub(super) enum Contract<'a> {
+    Single(&'a BarrierOption),
+    Double(&'a DoubleBarrierOption),
+}
 
 /// Prices single-barrier contracts with conditional-survival CPU Monte Carlo.
 ///
@@ -60,7 +67,7 @@ impl MonteCarloBarrierEngine {
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         Ok(self
             .native(
-                option,
+                Contract::Single(option),
                 context,
                 GreeksRequest::default(),
                 Default::default(),
@@ -111,28 +118,51 @@ impl MonteCarloBarrierEngine {
         self.validate_applicability(context)?;
         request.validate()?;
         settings.validate()?;
-        self.native(option, context, request, settings)
+        self.native(Contract::Single(option), context, request, settings)
     }
 
-    fn native(
+    pub(super) fn native(
         &self,
-        option: &BarrierOption,
+        contract: Contract<'_>,
         context: &PricingContext,
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let option = match contract {
+            Contract::Single(option) => option,
+            Contract::Double(option) => &option.lower,
+        };
+        let upper = match contract {
+            Contract::Single(_) => None,
+            Contract::Double(option) => Some(option.upper_barrier()),
+        };
         self.validate_applicability(context)?;
         validate_life(option, context)?;
         validate_schedule(option, context)?;
         let time = context.valuation_time();
         let expiry = option.expiry_date().start_of_day();
         let radius = crate::numerical::symmetric_shift(context.spot_price(), shifts.spot_shift);
-        let request = GreeksRequest::new([Greek::Delta, Greek::Gamma].into_iter().filter(|&g| {
-            request.has(g) && time != expiry && !option.at_spot_discontinuity(context, radius)
-        }));
-        if let Some(value) = resolved_price(option, context)? {
-            if crate::barrier::volatility_affects_price(option, context)
-                && (request.has(Greek::Delta) || request.has(Greek::Gamma))
+        let discontinuity = match contract {
+            Contract::Single(option) => option.at_spot_discontinuity(context, radius),
+            Contract::Double(option) => option.at_spot_discontinuity(context, radius),
+        };
+        let request = GreeksRequest::new(
+            [Greek::Delta, Greek::Gamma]
+                .into_iter()
+                .filter(|&g| request.has(g) && time != expiry && !discontinuity),
+        );
+        let (resolved, volatility_affects_price) = match contract {
+            Contract::Single(option) => (
+                resolved_price(option, context)?,
+                crate::barrier::volatility_affects_price(option, context),
+            ),
+            Contract::Double(option) => (
+                crate::double_barrier::resolved_price(option, context)?,
+                AnalyticDoubleBarrierEngine.volatility_affects_price(option, context),
+            ),
+        };
+        if let Some(value) = resolved {
+            if volatility_affects_price && (request.has(Greek::Delta) || request.has(Greek::Gamma))
             {
                 let vanilla = EuropeanOption::new(
                     option.option_type(),
@@ -209,7 +239,9 @@ impl MonteCarloBarrierEngine {
                     return Err(unstable());
                 }
                 if observe
-                    && (if up {
+                    && (if let Some(upper) = upper {
+                        asset <= option.barrier_level() || asset >= upper
+                    } else if up {
                         asset >= option.barrier_level()
                     } else {
                         asset <= option.barrier_level()
@@ -231,7 +263,52 @@ impl MonteCarloBarrierEngine {
             let weighted = |amount: f64, log_weight: f64| {
                 scaled_value(amount.abs(), amount.signum(), log_discount + log_weight)
             };
-            let (value, first, second) = if continuous {
+            let (value, first, second) = if let (true, Some(upper)) = (continuous, upper) {
+                let [survival, first, second] = super::double_barrier::survival(
+                    -barrier,
+                    terminal - barrier,
+                    log_ratio(upper, option.barrier_level()),
+                    steps[0].1,
+                    delta || gamma,
+                )?;
+                let rebate = if !knock_in && at_hit {
+                    0.0
+                } else {
+                    option.rebate()
+                };
+                let value = weighted(
+                    intrinsic,
+                    if knock_in {
+                        (-survival).ln_1p()
+                    } else {
+                        survival.ln()
+                    },
+                )? + weighted(
+                    rebate,
+                    if knock_in {
+                        survival.ln()
+                    } else {
+                        (-survival).ln_1p()
+                    },
+                )?;
+                let difference = (if knock_in { -1.0 } else { 1.0 }) * (intrinsic - rebate);
+                let derivative = |weight: f64| {
+                    scaled_value(
+                        difference.abs(),
+                        difference.signum() * weight.signum(),
+                        log_discount + weight.abs().ln(),
+                    )
+                };
+                (
+                    value,
+                    if delta || gamma {
+                        derivative(first)?
+                    } else {
+                        0.0
+                    },
+                    if gamma { derivative(second)? } else { 0.0 },
+                )
+            } else if continuous {
                 let live = if up {
                     asset < option.barrier_level()
                 } else {
@@ -309,6 +386,9 @@ impl MonteCarloBarrierEngine {
         let mut values = means;
         if continuous && !knock_in && at_hit && option.rebate() != 0.0 {
             let hit = |context: &PricingContext| {
+                if let Contract::Double(option) = contract {
+                    return crate::double_barrier::hit_value(option, context);
+                }
                 hit_value(
                     option.rebate(),
                     log_ratio(option.barrier_level(), context.spot_price()).abs(),
@@ -321,14 +401,15 @@ impl MonteCarloBarrierEngine {
             };
             values[0] += hit(context)?;
             if request.has(Greek::Delta) || request.has(Greek::Gamma) {
-                let derivatives = crate::numerical::complete_greeks(
-                    option,
-                    context,
-                    request,
-                    shifts,
-                    false,
-                    |context, _| PricingResult::new(hit(context)?),
-                )?;
+                let evaluate = |context: &PricingContext, _| PricingResult::new(hit(context)?);
+                let derivatives = match contract {
+                    Contract::Single(option) => crate::numerical::complete_greeks(
+                        option, context, request, shifts, false, evaluate,
+                    )?,
+                    Contract::Double(option) => crate::numerical::complete_greeks(
+                        option, context, request, shifts, false, evaluate,
+                    )?,
+                };
                 if let Some(value) = derivatives.get(Greek::Delta) {
                     values[1] += value;
                 }

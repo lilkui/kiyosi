@@ -1,6 +1,6 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–24 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
+Tickets 01–26 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
 calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, and cash double-touch/no-touch finite differences. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
@@ -1981,6 +1981,75 @@ See `DoubleTouchOption::cash` and
 Public acceptance tests retain the independent absorbing Brownian series,
 conditional lognormal integrals, cash payment parity, near-boundary Greek and
 grid convergence, history/settlement cases and concurrent-call checks.
+
+## Double-barrier CPU Monte Carlo
+
+Rust and Python `MonteCarloDoubleBarrierEngine` price `DoubleBarrierOption` with
+flat risk-free and dividend rates. They share single-barrier CPU sampling defaults,
+validation, exact path counts, Sobol dimensions, antithetic pairing and seeded
+thread reproducibility. `step_count` is validated but does not change monitoring.
+Continuous monitoring uses one terminal draw and conditional survival between
+both boundaries, using the existing image/spectral Brownian-bridge series.
+Scheduled monitoring samples the original future fixings and adds an unobserved
+expiry leg only when monitoring ends early. Both boundaries share the schedule
+and strictly prior touch history; equality touches either boundary.
+
+Core life, calendar, history and resolved-cashflow rules match the analytic and
+finite-difference double-barrier engines. Resolved vanilla payoffs use analytic
+pricing. Continuous at-hit rebates reuse the existing first-exit integration;
+scheduled at-hit rebates discount to the actual hit fixing. Prior at-hit rebates
+are already paid. Knock-in at-hit rebates remain invalid even with zero rebate.
+Node curves return `UnsupportedOperation` before request, life or solver checks.
+Unrepresentable paths/results and nonconvergent survival series return
+`InvalidResult`; failed calls preserve contracts, markets and engine settings.
+
+`price_with_greeks` provides requested likelihood-ratio delta/gamma using the
+price's samples, including continuous survival derivatives. Other Greeks are
+absent. Expiry and spot stencils crossing either current monitored boundary
+suppress delta/gamma. Numerical shifts also control the derivatives of continuous
+at-hit rebates. Rust `numerical_greeks` provides separate scalar sensitivities.
+No barrier `price_with_statistics` method or uncertainty interval is introduced.
+Near-expiry likelihood Greeks can have substantial sampling error.
+
+`implied_volatility` pins a request-local seed for seeded and unseeded engines.
+It rejects volatility-independent remaining cashflows, including excluded-strike
+knock-outs with zero rebate, using `UnsupportedOperation`. Barrier prices can be
+nonmonotone in volatility and sampled scheduled prices can jump: the caller's
+bracket must isolate a root, and solver tolerances apply to the sampled curve.
+Results own their storage. Shared and distinct engines support concurrent calls
+without changing global thread settings. Python releases the GIL around owned
+core work, uses the shared strict numeric/index conversions and native
+representation exceptions, and resumes signal handling on return. Resource
+failures, worker panics and allocation exhaustion follow the existing CPU mapping.
+
+```python
+from datetime import date
+from kiyosi.instruments import DoubleBarrierOption
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import MonteCarloDoubleBarrierEngine, implied_volatility
+
+start = date(2025, 1, 1)
+option = DoubleBarrierOption(option_type="call", strike=100, effective_date=start,
+    expiry_date=date(2026, 1, 1), lower_barrier=80, upper_barrier=120,
+    barrier_type="knock_out")
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2),
+    spot_price=100, valuation_time=start)
+engine = MonteCarloDoubleBarrierEngine(path_count=32768, seed=42, sampling="sobol",
+                                       antithetic=True, thread_count=4)
+result = engine.price_with_greeks(option, context, ["delta", "gamma"])
+assert abs(result.price - 1.0838814592583166) < 0.003
+sigma = implied_volatility(engine, option, context, result.price,
+                           lower_bound=0.15, upper_bound=0.25)
+assert abs(sigma - 0.2) < 1e-5
+```
+
+See `MonteCarloDoubleBarrierEngine::price_with_greeks` for a Rust example.
+Acceptance tests include independent QuantLib values, multi-seed Monte Carlo
+budgets, series-switch cases, converged exit-series and fixing-date integrals,
+finite-difference comparisons, history/event boundaries, fixed-cashflow inversion
+rejections, odd path parity, thread reproducibility and strict Python conversions.
+The legacy implementation remains available for migration comparison.
 
 ## Checks
 

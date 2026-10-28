@@ -757,6 +757,47 @@ class MonteCarloBarrierEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
+class MonteCarloDoubleBarrierEngine:
+    def __init__(
+        self,
+        *,
+        path_count: int = ...,
+        step_count: int = ...,
+        seed: int | None = None,
+        thread_count: int = ...,
+        sampling: MonteCarloSampling = ...,
+        antithetic: bool = ...,
+    ) -> None: ...
+    @property
+    def path_count(self) -> int: ...
+    @property
+    def step_count(self) -> int: ...
+    @property
+    def seed(self) -> int | None: ...
+    @property
+    def thread_count(self) -> int: ...
+    @property
+    def sampling(self) -> MonteCarloSampling: ...
+    @property
+    def antithetic(self) -> bool: ...
+    def price(
+        self,
+        instrument: DoubleBarrierOption,
+        context: PricingContext,
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: DoubleBarrierOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
 class MonteCarloAsianEngine:
     def __init__(
         self,
@@ -859,7 +900,9 @@ class PricingResult:
 
 @overload
 def implied_volatility(
-    engine: AnalyticDoubleBarrierEngine | FiniteDifferenceDoubleBarrierEngine,
+    engine: AnalyticDoubleBarrierEngine
+    | FiniteDifferenceDoubleBarrierEngine
+    | MonteCarloDoubleBarrierEngine,
     instrument: DoubleBarrierOption,
     context: PricingContext,
     observed_price: float,

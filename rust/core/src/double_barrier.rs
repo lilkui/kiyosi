@@ -806,3 +806,11 @@ fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Res
     }
     Ok(value.max(0.0))
 }
+
+pub(crate) fn hit_value(option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
+    checked(
+        option.rebate()
+            * AbsorbingDistribution::new(option, context)?
+                .hit_value(context.model_parameters().risk_free_rate()?)?,
+    )
+}

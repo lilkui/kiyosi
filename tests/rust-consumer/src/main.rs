@@ -38,6 +38,36 @@ fn main() -> Result<()> {
         start.into(),
     )?;
     let double_fd = kiyosi_core::FiniteDifferenceDoubleBarrierEngine::default();
+    let double_mc = kiyosi_core::MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
+        path_count: 32768,
+        seed: Some(42),
+        sampling: MonteCarloSampling::Sobol,
+        ..Default::default()
+    })?;
+    let sampled = double_mc.price_with_greeks(
+        &double,
+        &double_context,
+        GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+        Default::default(),
+    )?;
+    assert!((sampled.price() - 1.0838814592583166).abs() < 0.003);
+    assert!(sampled.has(Greek::Delta) && sampled.has(Greek::Gamma));
+    assert_eq!(double_mc.settings().path_count, 32768);
+    assert!(
+        (implied_volatility(
+            &double_mc,
+            &double,
+            &double_context,
+            sampled.price(),
+            ImpliedVolatilitySettings {
+                lower_bound: 0.15,
+                upper_bound: 0.25,
+                ..Default::default()
+            }
+        )? - 0.2)
+            .abs()
+            < 1e-5
+    );
     let double_result = double_fd.price_with_greeks(
         &double,
         &double_context,

@@ -10,10 +10,12 @@ const BLOCK_SIZE: usize = 256;
 mod american;
 mod barrier;
 mod digital;
+mod double_barrier;
 mod sobol;
 
 pub use barrier::MonteCarloBarrierEngine;
 pub use digital::MonteCarloDigitalEngine;
+pub use double_barrier::MonteCarloDoubleBarrierEngine;
 
 /// Selects terminal sampling independently of antithetic pairing.
 /// See [`MonteCarloVanillaEngine::new`] for a Sobol example.
