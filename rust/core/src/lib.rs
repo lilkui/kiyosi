@@ -97,10 +97,10 @@ pub use double_barrier::{
 pub use double_touch::{DoubleTouchOption, DoubleTouchOptionTerms};
 pub use error::{Error, ErrorCategory, Result};
 pub use finite_difference::{
-    FiniteDifferenceBarrierEngine, FiniteDifferenceBinaryBarrierEngine,
-    FiniteDifferenceDigitalEngine, FiniteDifferenceDoubleBarrierEngine,
-    FiniteDifferenceDoubleTouchEngine, FiniteDifferenceScheme, FiniteDifferenceSettings,
-    FiniteDifferenceVanillaEngine,
+    FiniteDifferenceAutocallableEngine, FiniteDifferenceBarrierEngine,
+    FiniteDifferenceBinaryBarrierEngine, FiniteDifferenceDigitalEngine,
+    FiniteDifferenceDoubleBarrierEngine, FiniteDifferenceDoubleTouchEngine, FiniteDifferenceScheme,
+    FiniteDifferenceSettings, FiniteDifferenceVanillaEngine,
 };
 pub use implied::{ImpliedVolatilitySettings, implied_volatility};
 pub use instruments::{

@@ -14,6 +14,7 @@ from kiyosi.instruments import BinarySnowballOption, PhoenixOption
 from kiyosi.market import RateTermStructure, all_days_calendar
 from kiyosi.pricing import (
     CouponQuoteConvention,
+    FiniteDifferenceAutocallableEngine,
     QuadratureAutocallableEngine,
     implied_coupon,
 )
@@ -96,14 +97,18 @@ class ImpliedCouponTests(unittest.TestCase):
         self.assertEqual(note.maturity_coupon_rate, 0.06)
 
     def test_all_products_and_presets_recover_signed_quotes_and_residuals(self):
-        engine = QuadratureAutocallableEngine(asset_step_count=64)
+        self.check_all_products(QuadratureAutocallableEngine(asset_step_count=64))
+        self.check_all_products(FiniteDifferenceAutocallableEngine(asset_step_count=64))
+
+    def check_all_products(self, engine):
         context = market()
         dates = [date(2025, 2, 3), END]
 
         def note(kind, coupon, convention):
             if kind == "PhoenixOption":
                 return phoenix(
-                    coupon_rate=coupon, knock_in_observation_mode="every_trading_day"
+                    coupon_rate=coupon,
+                    knock_in_observation_mode="every_trading_day",
                 )
             if kind in (
                 "SnowballOption",
@@ -123,7 +128,8 @@ class ImpliedCouponTests(unittest.TestCase):
                 }
                 if kind != "BinarySnowballOption":
                     fields.update(
-                        knock_in_level=80, knock_in_observation_mode="every_trading_day"
+                        knock_in_level=80,
+                        knock_in_observation_mode="every_trading_day",
                     )
                 if kind == "SnowballOption":
                     fields.update(

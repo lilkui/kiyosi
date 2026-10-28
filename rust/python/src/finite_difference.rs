@@ -9,7 +9,10 @@ fn scheme(value: &Bound<'_, PyAny>) -> PyResult<core::FiniteDifferenceScheme> {
     }
 }
 
-fn settings(fields: Option<&Bound<'_, PyDict>>) -> PyResult<core::FiniteDifferenceSettings> {
+fn settings(
+    fields: Option<&Bound<'_, PyDict>>,
+    mut settings: core::FiniteDifferenceSettings,
+) -> PyResult<core::FiniteDifferenceSettings> {
     check_changes(
         fields,
         &[
@@ -19,7 +22,6 @@ fn settings(fields: Option<&Bound<'_, PyDict>>) -> PyResult<core::FiniteDifferen
             "asset_upper_boundary",
         ],
     )?;
-    let mut settings = core::FiniteDifferenceSettings::default();
     if let Some(fields) = fields {
         if let Some(value) = fields.get_item("asset_step_count")? {
             settings.asset_step_count = integer(&value)?;
@@ -51,7 +53,10 @@ macro_rules! fd_engine {
             #[new]
             #[pyo3(signature = (**fields))]
             fn new(py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-                Ok(Self(domain(py, core::$name::new(settings(fields)?))?))
+                Ok(Self(domain(
+                    py,
+                    core::$name::new(settings(fields, core::$name::default().settings())?),
+                )?))
             }
             #[getter]
             fn asset_step_count(&self) -> i32 {
@@ -214,5 +219,20 @@ fd_engine!(
     {
         let option = option.0.clone();
         py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+    }
+);
+
+fd_engine!(
+    FiniteDifferenceAutocallableEngine,
+    &Bound<'_, PyAny>,
+    |py, option, engine, context, request, shifts| {
+        autocallable::with_note!(option, note, py.detach(|| engine.price(&note, &context)))
+    },
+    {
+        autocallable::with_note!(
+            option,
+            note,
+            py.detach(|| engine.price_with_greeks(&note, &context, request, shifts))
+        )
     }
 );

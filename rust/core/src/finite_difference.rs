@@ -5,6 +5,7 @@ use crate::{
     pricing::{black_scholes_arguments, weighted_cdf},
 };
 
+mod autocallable;
 mod barrier;
 mod binary_barrier;
 mod grid;
@@ -442,12 +443,22 @@ fn analysis(
 
 macro_rules! engine_settings {
     ($engine:ident, $description:literal) => {
+        engine_settings!($engine, $description, FiniteDifferenceSettings::default());
+    };
+    ($engine:ident, $description:literal, $defaults:expr) => {
         #[doc = $description]
         /// Owns immutable settings; distinct and shared instances support concurrent pricing.
         /// See [`Self::price_with_greeks`] for usage.
-        #[derive(Clone, Copy, Debug, Default, PartialEq)]
+        #[derive(Clone, Copy, Debug, PartialEq)]
         pub struct $engine {
             settings: FiniteDifferenceSettings,
+        }
+        impl Default for $engine {
+            fn default() -> Self {
+                Self {
+                    settings: $defaults,
+                }
+            }
         }
         impl $engine {
             /// Creates an engine after validating grid sizes and any explicit upper boundary.
@@ -507,6 +518,15 @@ engine_settings!(
 engine_settings!(
     FiniteDifferenceDoubleTouchEngine,
     "Prices cash double-touch and double-no-touch contracts with finite differences."
+);
+
+engine_settings!(
+    FiniteDifferenceAutocallableEngine,
+    "Prices snowball variants and Phoenix notes with event-projected finite differences; defaults to 800 asset and 2,000 time steps.",
+    FiniteDifferenceSettings {
+        time_step_count: 2000,
+        ..Default::default()
+    }
 );
 
 impl FiniteDifferenceVanillaEngine {

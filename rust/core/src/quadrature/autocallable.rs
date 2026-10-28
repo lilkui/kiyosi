@@ -3,12 +3,12 @@ use super::gaussian::{
     integration_nodes, scaled,
 };
 use super::{QuadratureSettings, flat_rates};
+use crate::autocallable::pricing::{fixed_value, initial, validate};
 use crate::barrier::log_ratio;
 use crate::{
-    AutocallableBarrierState, AutocallableNote, AutocallableObservation, AutocallableTerms,
-    BlackScholesMertonParameters, Date, Error, ErrorCategory, GreeksRequest,
-    KnockInObservationMode, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
-    Result, Timestamp,
+    AutocallableNote, AutocallableObservation, AutocallableTerms, BlackScholesMertonParameters,
+    Date, Error, ErrorCategory, GreeksRequest, KnockInObservationMode, NumericalShiftSettings,
+    PricingContext, PricingEngine, PricingResult, Result, Timestamp,
 };
 
 /// Prices snowball variants and Phoenix notes by cubic Gaussian integration between exact event dates.
@@ -145,127 +145,6 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for Request<T> {
 
 fn checked(value: f64) -> Result<f64> {
     Ok(PricingResult::new(value)?.price())
-}
-
-struct Initial {
-    knocked_in: bool,
-    settlement: Option<f64>,
-    coupon: f64,
-}
-fn initial<T: AutocallableTerms>(note: &AutocallableNote<T>, context: &PricingContext) -> Initial {
-    if note.barrier_state() == Some(AutocallableBarrierState::KnockedOut) {
-        return Initial {
-            knocked_in: false,
-            settlement: Some(0.0),
-            coupon: 0.0,
-        };
-    }
-    let mut knocked_in = note.barrier_state() == Some(AutocallableBarrierState::KnockedIn);
-    if note.daily_at(context) {
-        knocked_in |= context.spot_price() < note.view().knock_in_level;
-    }
-    let current = note
-        .observations()
-        .iter()
-        .find(|r| r.date.start_of_day() == context.valuation_time());
-    let coupon = current.map_or(0.0, |r| note.observation_coupon(r, context.spot_price()));
-    let settlement =
-        if let Some(record) = current.filter(|r| context.spot_price() >= r.knock_out_level) {
-            Some(note.knock_out_payment(record) + coupon)
-        } else if context.valuation_time() == note.expiry_date().start_of_day() {
-            Some(
-                coupon
-                    + note.terminal(
-                        context.spot_price(),
-                        knocked_in
-                            || note.view().has_knock_in
-                                && context.spot_price() < note.view().knock_in_level,
-                    ),
-            )
-        } else {
-            None
-        };
-    Initial {
-        knocked_in,
-        settlement,
-        coupon,
-    }
-}
-fn validate<T: AutocallableTerms>(
-    note: &AutocallableNote<T>,
-    context: &PricingContext,
-) -> Result<()> {
-    super::time_to_expiry(note, context)?;
-    if note
-        .observations()
-        .iter()
-        .any(|r| !context.calendar().is_trading_day(r.date))
-    {
-        return Err(Error::new(
-            ErrorCategory::InvalidDate,
-            "observation is not a trading day",
-        ));
-    }
-    note.prior(context.valuation_time(), context.calendar())?;
-    if !context.calendar().is_trading_day(note.expiry_date()) {
-        return Err(Error::new(
-            ErrorCategory::InvalidDate,
-            "expiry is not a trading day",
-        ));
-    }
-    Ok(())
-}
-fn fixed_value<T: AutocallableTerms>(
-    note: &AutocallableNote<T>,
-    context: &PricingContext,
-    knocked_in: bool,
-) -> Option<f64> {
-    let t = note.view();
-    if t.fixed_knocked_in_coupon.is_some() {
-        if !knocked_in && note.knock_in_affects_payoff() {
-            return None;
-        }
-    } else if t.lower_strike != t.upper_strike || !knocked_in && t.maturity_coupon_rate != 0.0 {
-        return None;
-    }
-    let rate = context.model_parameters().risk_free_rate().ok()?;
-    let value = note.terminal(context.spot_price(), knocked_in)
-        * (-rate
-            * context
-                .valuation_time()
-                .years_until(note.expiry_date().into()))
-        .exp();
-    if !value.is_finite() {
-        return None;
-    }
-    let mut coupons = 0.0;
-    for record in note
-        .observations()
-        .iter()
-        .rev()
-        .filter(|r| r.date.start_of_day() > context.valuation_time())
-    {
-        let discount = (-rate * context.valuation_time().years_until(record.date.into())).exp();
-        if !discount.is_normal() || note.knock_out_payment(record) * discount != value + coupons {
-            return None;
-        }
-        if t.phoenix {
-            let coupon = note.period_coupon(record);
-            if coupon != 0.0 && record.coupon_barrier_level != 0.0 {
-                return None;
-            }
-            coupons += coupon * discount;
-            if !coupons.is_finite() {
-                return None;
-            }
-        }
-    }
-    let discount = (-rate
-        * context
-            .valuation_time()
-            .years_until(note.expiry_date().into()))
-    .exp();
-    discount.is_normal().then_some(value + coupons)
 }
 
 struct Curve {

@@ -1,4 +1,5 @@
 mod presets;
+pub(crate) mod pricing;
 pub use presets::{SnowballPreset, SnowballPresetTerms};
 
 use crate::error::finite;

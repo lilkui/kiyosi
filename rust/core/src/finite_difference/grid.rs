@@ -4,8 +4,9 @@ pub(super) struct SpatialGrid {
     pub upper: f64,
     pub spacing: f64,
     pub count: usize,
-    scale: f64,
+    pub scale: f64,
     lower: f64,
+    pub nodes: Vec<f64>,
 }
 
 impl SpatialGrid {
@@ -21,6 +22,7 @@ impl SpatialGrid {
             count: settings.asset_step_count as usize,
             scale,
             lower: 0.0,
+            nodes: Vec::new(),
         };
         grid.spacing = grid.coordinate(upper) / grid.count as f64;
         if !upper.is_finite() || upper <= level || !grid.spacing.is_finite() || grid.spacing <= 0.0
@@ -55,13 +57,11 @@ impl SpatialGrid {
     }
 
     pub fn linear(&self, values: &[f64], asset: f64) -> f64 {
-        let position = self.coordinate(asset) / self.spacing;
-        let index = (position.floor() as usize).min(self.count - 1);
-        let weight = position - index as f64;
+        let (index, weight) = self.locate(asset);
         (1.0 - weight) * values[index] + weight * values[index + 1]
     }
 
-    fn coordinate(&self, asset: f64) -> f64 {
+    pub fn coordinate(&self, asset: f64) -> f64 {
         if self.scale == 0.0 {
             return asset - self.lower;
         }
@@ -74,10 +74,16 @@ impl SpatialGrid {
     }
 
     pub fn asset(&self, index: usize) -> f64 {
+        if !self.nodes.is_empty() {
+            return self.nodes[index];
+        }
         if index == self.count {
             return self.upper;
         }
-        let x = self.spacing * index as f64;
+        self.asset_of_coordinate(self.spacing * index as f64)
+    }
+
+    pub fn asset_of_coordinate(&self, x: f64) -> f64 {
         if self.scale == 0.0 {
             self.lower + x
         } else if x > 700.0 {
@@ -88,6 +94,21 @@ impl SpatialGrid {
     }
 
     pub fn coefficients(&self, index: usize, rate: f64, dividend: f64, sigma: f64) -> [f64; 3] {
+        if !self.nodes.is_empty() {
+            let asset = self.nodes[index];
+            let left = asset - self.nodes[index - 1];
+            let right = self.nodes[index + 1] - asset;
+            let total = self.nodes[index + 1] - self.nodes[index - 1];
+            let drift = rate - dividend;
+            let variance = (sigma * sigma).max(if drift >= 0.0 {
+                drift * (right / asset)
+            } else {
+                -drift * (left / asset)
+            });
+            let a = (asset / left) * (variance * (asset / total) - drift * (right / total));
+            let c = (asset / right) * (variance * (asset / total) + drift * (left / total));
+            return [a, -a - c - rate, c];
+        }
         let node = index as f64 + self.lower / self.spacing;
         let (drift, scaled_sigma) = if self.scale == 0.0 {
             ((rate - dividend) * node, sigma * node)
@@ -108,15 +129,46 @@ impl SpatialGrid {
         ]
     }
 
+    fn locate(&self, spot: f64) -> (usize, f64) {
+        if !self.nodes.is_empty() {
+            let index = self
+                .nodes
+                .partition_point(|&n| n <= spot)
+                .saturating_sub(1)
+                .min(self.count - 1);
+            return (
+                index,
+                (spot - self.nodes[index]) / (self.nodes[index + 1] - self.nodes[index]),
+            );
+        }
+        let position = self.coordinate(spot) / self.spacing;
+        let index = position.floor().clamp(0.0, (self.count - 1) as f64) as usize;
+        (index, position - index as f64)
+    }
+
+    fn width(&self, index: usize) -> f64 {
+        if self.nodes.is_empty() {
+            1.0
+        } else {
+            (self.nodes[index + 1] - self.nodes[index]) / self.spacing
+        }
+    }
+
     pub fn curvature(&self, values: &[f64]) -> Vec<f64> {
         let mut curvature = vec![0.0; values.len()];
         let mut factors = vec![0.0; values.len()];
         for node in 1..self.count {
-            let diagonal = 2.0 - 0.5 * factors[node - 1];
-            factors[node] = 0.5 / diagonal;
-            curvature[node] = (3.0
-                * ((values[node + 1] - values[node]) - (values[node] - values[node - 1]))
-                - 0.5 * curvature[node - 1])
+            let left = self.width(node - 1);
+            let right = self.width(node);
+            let total = left + right;
+            let a = left / total;
+            let diagonal = 2.0 - a * factors[node - 1];
+            factors[node] = (right / total) / diagonal;
+            curvature[node] = (6.0
+                * (((values[node + 1] - values[node]) / right
+                    - (values[node] - values[node - 1]) / left)
+                    / total)
+                - a * curvature[node - 1])
                 / diagonal;
         }
         for node in (1..self.count).rev() {
@@ -126,32 +178,41 @@ impl SpatialGrid {
     }
 
     pub fn sample(&self, values: &[f64], curvature: &[f64], spot: f64) -> [f64; 3] {
-        let position = self.coordinate(spot) / self.spacing;
-        let index = position.floor().clamp(0.0, (self.count - 1) as f64) as usize;
-        let weight = position - index as f64;
+        let (index, weight) = self.locate(spot);
+        let h = self.width(index);
         let left = 1.0 - weight;
         let lerp = |a: f64, b: f64| a + weight * (b - a);
         let linear = lerp(values[index], values[index + 1]);
         let correction = ((left * left * left - left) * curvature[index]
             + (weight * weight * weight - weight) * curvature[index + 1])
             / 6.0;
-        let interpolated = linear + correction;
+        let interpolated = linear + correction * h * h;
+        let first_control = values[index] + (values[index + 1] - values[index]) / 3.0
+            - (2.0 * curvature[index] + curvature[index + 1]) * h * h / 18.0;
+        let second_control = values[index] + 2.0 * (values[index + 1] - values[index]) / 3.0
+            - (curvature[index] + 2.0 * curvature[index + 1]) * h * h / 18.0;
         let minimum = values[index].min(values[index + 1]);
         let maximum = values[index].max(values[index + 1]);
-        if interpolated < minimum || interpolated > maximum {
-            let slope = values[index + 1] - values[index];
+        let overshoot = if self.nodes.is_empty() {
+            interpolated < minimum || interpolated > maximum
+        } else {
+            first_control.min(second_control) < minimum
+                || first_control.max(second_control) > maximum
+        };
+        if overshoot {
+            let slope = (values[index + 1] - values[index]) / h;
             let before = if index > 0 {
-                values[index] - values[index - 1]
+                (values[index] - values[index - 1]) / self.width(index - 1)
             } else {
                 slope
             };
             let after = if index + 2 < values.len() {
-                values[index + 2] - values[index + 1]
+                (values[index + 2] - values[index + 1]) / self.width(index + 1)
             } else {
                 slope
             };
-            let first = slope - (2.0 * curvature[index] + curvature[index + 1]) / 6.0;
-            let last = slope + (curvature[index] + 2.0 * curvature[index + 1]) / 6.0;
+            let first = slope - h * (2.0 * curvature[index] + curvature[index + 1]) / 6.0;
+            let last = slope + h * (curvature[index] + 2.0 * curvature[index + 1]) / 6.0;
             let maximum_turn = before > 0.0
                 && after < 0.0
                 && curvature[index] <= 0.0
@@ -165,7 +226,16 @@ impl SpatialGrid {
                 && first >= before
                 && last <= after;
             if !maximum_turn && !minimum_turn {
-                return [interpolated.clamp(minimum, maximum), 0.0, 0.0];
+                if self.nodes.is_empty() {
+                    return [interpolated.clamp(minimum, maximum), 0.0, 0.0];
+                }
+                let global_min = values.iter().copied().fold(f64::INFINITY, f64::min);
+                let global_max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                if first_control.min(second_control) < global_min
+                    || first_control.max(second_control) > global_max
+                {
+                    return [linear, slope / self.spacing, 0.0];
+                }
             }
         }
         let price = if weight == 0.0 {
@@ -175,8 +245,8 @@ impl SpatialGrid {
         } else {
             interpolated
         };
-        let derivative = ((values[index + 1] - values[index])
-            + ((1.0 - 3.0 * left * left) * curvature[index]
+        let derivative = ((values[index + 1] - values[index]) / h
+            + h * ((1.0 - 3.0 * left * left) * curvature[index]
                 + (3.0 * weight * weight - 1.0) * curvature[index + 1])
                 / 6.0)
             / self.spacing;

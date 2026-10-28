@@ -553,40 +553,30 @@ pub(crate) fn implied_volatility(
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, autocallable::QuadratureAutocallableEngine>>() {
         let engine = engine.0;
-        if let Ok(note) = instrument.extract::<PyRef<'_, autocallable::PhoenixOption>>() {
-            let option = note.0.clone();
-            return domain(
+        return autocallable::with_note!(
+            instrument,
+            option,
+            domain(
                 py,
-                py.detach(|| {
-                    core::implied_volatility(&engine, &option, &context, observed, controls)
-                }),
-            );
-        }
-        if let Ok(note) = instrument.extract::<PyRef<'_, autocallable::BinarySnowballOption>>() {
-            let option = note.0.clone();
-            return domain(
+                py.detach(|| core::implied_volatility(
+                    &engine, &option, &context, observed, controls
+                ))
+            )
+        );
+    }
+    if let Ok(engine) =
+        engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceAutocallableEngine>>()
+    {
+        let engine = engine.0;
+        return autocallable::with_note!(
+            instrument,
+            option,
+            domain(
                 py,
-                py.detach(|| {
-                    core::implied_volatility(&engine, &option, &context, observed, controls)
-                }),
-            );
-        }
-        if let Ok(note) = instrument.extract::<PyRef<'_, autocallable::TernarySnowballOption>>() {
-            let option = note.0.clone();
-            return domain(
-                py,
-                py.detach(|| {
-                    core::implied_volatility(&engine, &option, &context, observed, controls)
-                }),
-            );
-        }
-        let option = instrument
-            .extract::<PyRef<'_, autocallable::SnowballOption>>()?
-            .0
-            .clone();
-        return domain(
-            py,
-            py.detach(|| core::implied_volatility(&engine, &option, &context, observed, controls)),
+                py.detach(|| core::implied_volatility(
+                    &engine, &option, &context, observed, controls
+                ))
+            )
         );
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, barrier::QuadratureBarrierEngine>>() {

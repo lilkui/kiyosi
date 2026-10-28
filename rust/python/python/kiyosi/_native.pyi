@@ -35,7 +35,7 @@ CouponQuoteConvention: TypeAlias = Literal[
 
 @overload
 def implied_coupon(
-    engine: QuadratureAutocallableEngine,
+    engine: QuadratureAutocallableEngine | FiniteDifferenceAutocallableEngine,
     instrument: SnowballOption | BinarySnowballOption | TernarySnowballOption,
     context: PricingContext,
     observed_price: float,
@@ -49,7 +49,7 @@ def implied_coupon(
 ) -> float: ...
 @overload
 def implied_coupon(
-    engine: QuadratureAutocallableEngine,
+    engine: QuadratureAutocallableEngine | FiniteDifferenceAutocallableEngine,
     instrument: PhoenixOption,
     context: PricingContext,
     observed_price: float,
@@ -482,6 +482,47 @@ class FiniteDifferenceDoubleBarrierEngine:
     def price_with_greeks(
         self,
         instrument: DoubleBarrierOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
+class FiniteDifferenceAutocallableEngine:
+    def __init__(
+        self,
+        *,
+        asset_step_count: int = ...,
+        time_step_count: int = ...,
+        scheme: FiniteDifferenceScheme = ...,
+        asset_upper_boundary: float | None = None,
+    ) -> None: ...
+    @property
+    def asset_step_count(self) -> int: ...
+    @property
+    def time_step_count(self) -> int: ...
+    @property
+    def scheme(self) -> FiniteDifferenceScheme: ...
+    @property
+    def asset_upper_boundary(self) -> float | None: ...
+    def price(
+        self,
+        instrument: SnowballOption
+        | BinarySnowballOption
+        | TernarySnowballOption
+        | PhoenixOption,
+        context: PricingContext,
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: SnowballOption
+        | BinarySnowballOption
+        | TernarySnowballOption
+        | PhoenixOption,
         context: PricingContext,
         greeks: Greek | Iterable[Greek] | None = None,
         *,
@@ -934,7 +975,7 @@ class PricingResult:
 
 @overload
 def implied_volatility(
-    engine: QuadratureAutocallableEngine,
+    engine: QuadratureAutocallableEngine | FiniteDifferenceAutocallableEngine,
     instrument: SnowballOption
     | BinarySnowballOption
     | TernarySnowballOption

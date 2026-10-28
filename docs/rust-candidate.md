@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–31 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier CPU Monte Carlo prices and analytics with
+Tickets 01–32 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and snowball variants/presets and Phoenix quadrature with implied-coupon solving. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and snowball variants/presets and Phoenix quadrature/finite differences with implied-coupon solving. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -2477,6 +2477,72 @@ phoenix_quote = engine.price(phoenix, context)
 phoenix_coupon = implied_coupon(engine, phoenix, context, phoenix_quote)
 assert abs(phoenix_coupon - phoenix.coupon_rate) < 1e-7
 ```
+
+## Snowball and Phoenix finite differences
+
+`FiniteDifferenceAutocallableEngine` prices `SnowballOption`, `BinarySnowballOption`,
+`TernarySnowballOption`, `PhoenixOption`, and all snowball presets, which expand to
+ordinary core notes. It accepts flat and node risk-free/dividend curves. No other
+engine is selected for unsupported configurations. Constructor defaults are **800
+asset steps, 2,000 time steps, damped Crank–Nicolson, and an automatic upper domain**.
+Rust `new(FiniteDifferenceSettings::default())` explicitly selects the shared FD
+settings (200 time steps); Python omitted fields derive from the core engine defaults.
+
+The rollback retains intact and knocked-in layers when daily monitoring affects
+settlement. Exact future trading dates, contractual observations, expiry and curve
+knots enter the time grid. Explicit Euler retains daily subdivisions even when
+knock-in cannot affect settlement, and rejects unstable grids. Implicit Euler and
+Crank–Nicolson concentrate nodes around contractual levels, suppress sub-resolution
+anchors without changing event thresholds, and project discontinuous future events.
+Crank–Nicolson restarts four implicit half-steps after each event. Short initial
+intervals receive extra time resolution. Automatic domains use the existing
+volatility/carry expansion; expanded explicit domains use sinh coordinates.
+Explicit upper domains must exceed spot and all product levels. Check convergence
+when changing the grid, domain, volatility or distance to an event.
+
+Payments, normalized units, daily/expiry knock-in, inclusive knock-out and Phoenix
+coupon thresholds, signed coupons, principal/downside, history and immutable
+replacement follow the same core note semantics as quadrature. Current events
+resolve against actual spot before allocating a grid. Known fixed cashflows bypass
+the grid after contract/history validation; node-curve discounts are supported.
+Validation checks inclusive life, trading observations, prior history, and trading
+expiry before curve coverage and grid feasibility. Existing structured error
+categories and failure-state guarantees apply; originals remain unchanged.
+
+All ten Greeks are available when their stencils are feasible. Delta/gamma use the
+solved layer's cubic spline and speed differences spline gamma; other measures use
+the shared numerical completion and core bump defaults. Bumped pricing fixes the
+central upper domain. Expiry Greeks and stencils crossing active spot/time events
+are absent; vega and rho remain available at current thresholds. Feasible bumped
+failures fail the request.
+
+`implied_volatility`, `implied_snowball_coupon` (Rust), and `implied_coupon` use the
+existing solver controls, explicit snowball quote conventions, residual-checked
+coupon interpolation and bisection fallback. Fixed settlements and quotes without
+remaining parameter exposure return `UnsupportedOperation`; bracket, convergence
+and non-finite failures retain their structured categories. Solvers do not mutate
+notes, contexts or engine settings. Engines own immutable settings and support
+concurrent shared/distinct calls; Python price, Greek and solver calls release the
+GIL only around owned Rust inputs. Python native representation errors, strict
+numeric/index conversion, exception mapping and cancellation behavior follow the
+candidate-wide contracts above.
+
+```python
+from kiyosi.pricing import FiniteDifferenceAutocallableEngine, implied_coupon
+
+engine = FiniteDifferenceAutocallableEngine()
+result = engine.price_with_greeks(note, context, ["delta", "gamma", "vega"])
+coupon = implied_coupon(engine, note, context, result.price,
+                        quote_convention="preserve_maturity_coupon")
+```
+
+For Phoenix omit `quote_convention`. Rust construction and pricing are illustrated
+in `FiniteDifferenceAutocallableEngine::price_with_greeks` rustdoc. Candidate tests
+retain the migrated accuracy budgets for nearby barriers, one-second-to-expiry
+prices/Greeks, payoff bounds, smooth extrema, domain/space/time refinement, event
+restarts, history, and all four note variants. Independent analytic portfolios,
+QuantLib references and quadrature comparisons check numerical accuracy; solver
+cases check recovery, residuals, state-layer changes and concurrent isolation.
 
 ## Checks
 

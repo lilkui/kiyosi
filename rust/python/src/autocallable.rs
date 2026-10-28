@@ -4,12 +4,35 @@ use super::*;
 #[pyo3(signature = (engine, instrument, context, observed_price, **settings))]
 pub(crate) fn implied_coupon(
     py: Python<'_>,
-    engine: &QuadratureAutocallableEngine,
+    engine: &Bound<'_, PyAny>,
     instrument: &Bound<'_, PyAny>,
     context: &PricingContext,
     observed_price: &Bound<'_, PyAny>,
     settings: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<f64> {
+    if let Ok(engine) = engine.extract::<PyRef<'_, QuadratureAutocallableEngine>>() {
+        return solve_coupon(py, engine.0, instrument, context, observed_price, settings);
+    }
+    let engine =
+        engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceAutocallableEngine>>()?;
+    solve_coupon(py, engine.0, instrument, context, observed_price, settings)
+}
+
+fn solve_coupon<E>(
+    py: Python<'_>,
+    engine: E,
+    instrument: &Bound<'_, PyAny>,
+    context: &PricingContext,
+    observed_price: &Bound<'_, PyAny>,
+    settings: Option<&Bound<'_, PyDict>>,
+) -> PyResult<f64>
+where
+    E: core::PricingEngine<core::SnowballOption>
+        + core::PricingEngine<core::BinarySnowballOption>
+        + core::PricingEngine<core::TernarySnowballOption>
+        + core::PricingEngine<core::PhoenixOption>
+        + Sync,
+{
     check_changes(
         settings,
         &[
@@ -38,7 +61,6 @@ pub(crate) fn implied_coupon(
         .map(|s| s.get_item("quote_convention"))
         .transpose()?
         .flatten();
-    let engine = engine.0;
     let context = context.0.clone();
     if let Ok(note) = instrument.extract::<PyRef<'_, PhoenixOption>>() {
         if convention.is_some() {
@@ -936,3 +958,29 @@ impl QuadratureAutocallableEngine {
         )?))
     }
 }
+
+macro_rules! with_note {
+    ($instrument:expr, $note:ident, $body:expr) => {{
+        if let Ok(note) = $instrument.extract::<PyRef<'_, crate::autocallable::PhoenixOption>>() {
+            let $note = note.0.clone();
+            $body
+        } else if let Ok(note) =
+            $instrument.extract::<PyRef<'_, crate::autocallable::BinarySnowballOption>>()
+        {
+            let $note = note.0.clone();
+            $body
+        } else if let Ok(note) =
+            $instrument.extract::<PyRef<'_, crate::autocallable::TernarySnowballOption>>()
+        {
+            let $note = note.0.clone();
+            $body
+        } else {
+            let $note = $instrument
+                .extract::<PyRef<'_, crate::autocallable::SnowballOption>>()?
+                .0
+                .clone();
+            $body
+        }
+    }};
+}
+pub(crate) use with_note;

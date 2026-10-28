@@ -816,6 +816,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
             .getattr("Literal")?
             .get_item(("pseudo_random", "sobol"))?,
     )?;
+    module.add_class::<finite_difference::FiniteDifferenceAutocallableEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceVanillaEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceDigitalEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceBarrierEngine>()?;
