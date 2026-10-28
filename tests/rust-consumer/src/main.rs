@@ -25,6 +25,26 @@ fn main() -> Result<()> {
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
     let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
     let context = PricingContext::new(model, 100.0, start.into())?;
+    let binary = kiyosi_core::BinaryBarrierOption::cash(
+        kiyosi_core::BinaryBarrierTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            120.0,
+            kiyosi_core::BarrierType::UpAndOut,
+        ),
+        10.0,
+    )?;
+    assert!(kiyosi_core::AnalyticBinaryBarrierEngine.price(&binary, &context)? > 0.0);
+    let mut touch_terms =
+        kiyosi_core::TouchOptionTerms::new(start, end, 100.0, kiyosi_core::BarrierType::UpAndIn);
+    touch_terms.settlement_timing = kiyosi_core::SettlementTiming::AtHit;
+    let touch = kiyosi_core::TouchOption::asset(touch_terms)?;
+    assert_eq!(
+        kiyosi_core::AnalyticBinaryBarrierEngine.price(&touch, &context)?,
+        100.0
+    );
     let barrier_result = kiyosi_core::AnalyticBarrierEngine.price_with_greeks(
         &barrier,
         &context,

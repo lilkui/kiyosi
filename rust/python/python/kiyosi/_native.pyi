@@ -738,6 +738,19 @@ def implied_volatility(
     parameter_tolerance: float = ...,
     max_iterations: int = ...,
 ) -> float: ...
+@overload
+def implied_volatility(
+    engine: AnalyticBinaryBarrierEngine,
+    instrument: BinaryBarrierOption | TouchOption,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...
 
 class GeometricAveragePriceOption:
     def __init__(
@@ -879,6 +892,198 @@ class AnalyticBarrierEngine:
     def price_with_greeks(
         self,
         instrument: BarrierOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
+class BinaryBarrierOption:
+    def replace(
+        self, *, touch_state: Literal["untouched", "touched"] | None = ...
+    ) -> Self: ...
+    @property
+    def effective_date(self) -> date: ...
+    @property
+    def expiry_date(self) -> date: ...
+    @property
+    def barrier_level(self) -> float: ...
+    @property
+    def barrier_type(
+        self,
+    ) -> Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"]: ...
+    @property
+    def observation_mode(self) -> Literal["continuous", "scheduled"]: ...
+    @property
+    def observation_dates(self) -> list[date]: ...
+    @property
+    def observation_schedule(self) -> ObservationSchedule: ...
+    @property
+    def mean_observation_year_fraction(self) -> float: ...
+    @property
+    def touch_state(self) -> Literal["untouched", "touched"] | None: ...
+    @property
+    def payoff_type(self) -> Literal["cash", "asset"]: ...
+    @property
+    def payout(self) -> float | None: ...
+    @property
+    def option_type(self) -> Literal["call", "put"]: ...
+    @property
+    def strike(self) -> float: ...
+
+class TouchOption:
+    def replace(
+        self, *, touch_state: Literal["untouched", "touched"] | None = ...
+    ) -> Self: ...
+    @property
+    def effective_date(self) -> date: ...
+    @property
+    def expiry_date(self) -> date: ...
+    @property
+    def barrier_level(self) -> float: ...
+    @property
+    def barrier_type(
+        self,
+    ) -> Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"]: ...
+    @property
+    def observation_mode(self) -> Literal["continuous", "scheduled"]: ...
+    @property
+    def observation_dates(self) -> list[date]: ...
+    @property
+    def observation_schedule(self) -> ObservationSchedule: ...
+    @property
+    def mean_observation_year_fraction(self) -> float: ...
+    @property
+    def touch_state(self) -> Literal["untouched", "touched"] | None: ...
+    @property
+    def payoff_type(self) -> Literal["cash", "asset"]: ...
+    @property
+    def payout(self) -> float | None: ...
+    @property
+    def is_one_touch(self) -> bool: ...
+    @property
+    def is_up(self) -> bool: ...
+    @property
+    def settlement_timing(self) -> Literal["at_hit", "at_expiry"]: ...
+
+def cash_binary_barrier_option(
+    *,
+    option_type: Literal["call", "put"],
+    strike: float,
+    effective_date: date,
+    expiry_date: date,
+    barrier_level: float,
+    barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
+    payout: float,
+    observation_mode: Literal["continuous", "scheduled"] = ...,
+    observation_dates: Iterable[date] = ...,
+    touch_state: Literal["untouched", "touched"] | None = None,
+) -> BinaryBarrierOption: ...
+def asset_binary_barrier_option(
+    *,
+    option_type: Literal["call", "put"],
+    strike: float,
+    effective_date: date,
+    expiry_date: date,
+    barrier_level: float,
+    barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
+    observation_mode: Literal["continuous", "scheduled"] = ...,
+    observation_dates: Iterable[date] = ...,
+    touch_state: Literal["untouched", "touched"] | None = None,
+) -> BinaryBarrierOption: ...
+def cash_one_touch_up(
+    *,
+    effective_date: date,
+    expiry_date: date,
+    barrier_level: float,
+    payout: float,
+    settlement_timing: Literal["at_hit", "at_expiry"] = ...,
+    observation_mode: Literal["continuous", "scheduled"] = ...,
+    observation_dates: Iterable[date] = ...,
+    touch_state: Literal["untouched", "touched"] | None = None,
+) -> TouchOption: ...
+def cash_one_touch_down(
+    *,
+    effective_date: date,
+    expiry_date: date,
+    barrier_level: float,
+    payout: float,
+    settlement_timing: Literal["at_hit", "at_expiry"] = ...,
+    observation_mode: Literal["continuous", "scheduled"] = ...,
+    observation_dates: Iterable[date] = ...,
+    touch_state: Literal["untouched", "touched"] | None = None,
+) -> TouchOption: ...
+def cash_no_touch_up(
+    *,
+    effective_date: date,
+    expiry_date: date,
+    barrier_level: float,
+    payout: float,
+    observation_mode: Literal["continuous", "scheduled"] = ...,
+    observation_dates: Iterable[date] = ...,
+    touch_state: Literal["untouched", "touched"] | None = None,
+) -> TouchOption: ...
+def cash_no_touch_down(
+    *,
+    effective_date: date,
+    expiry_date: date,
+    barrier_level: float,
+    payout: float,
+    observation_mode: Literal["continuous", "scheduled"] = ...,
+    observation_dates: Iterable[date] = ...,
+    touch_state: Literal["untouched", "touched"] | None = None,
+) -> TouchOption: ...
+def asset_one_touch_up(
+    *,
+    effective_date: date,
+    expiry_date: date,
+    barrier_level: float,
+    settlement_timing: Literal["at_hit", "at_expiry"] = ...,
+    observation_mode: Literal["continuous", "scheduled"] = ...,
+    observation_dates: Iterable[date] = ...,
+    touch_state: Literal["untouched", "touched"] | None = None,
+) -> TouchOption: ...
+def asset_one_touch_down(
+    *,
+    effective_date: date,
+    expiry_date: date,
+    barrier_level: float,
+    settlement_timing: Literal["at_hit", "at_expiry"] = ...,
+    observation_mode: Literal["continuous", "scheduled"] = ...,
+    observation_dates: Iterable[date] = ...,
+    touch_state: Literal["untouched", "touched"] | None = None,
+) -> TouchOption: ...
+def asset_no_touch_up(
+    *,
+    effective_date: date,
+    expiry_date: date,
+    barrier_level: float,
+    observation_mode: Literal["continuous", "scheduled"] = ...,
+    observation_dates: Iterable[date] = ...,
+    touch_state: Literal["untouched", "touched"] | None = None,
+) -> TouchOption: ...
+def asset_no_touch_down(
+    *,
+    effective_date: date,
+    expiry_date: date,
+    barrier_level: float,
+    observation_mode: Literal["continuous", "scheduled"] = ...,
+    observation_dates: Iterable[date] = ...,
+    touch_state: Literal["untouched", "touched"] | None = None,
+) -> TouchOption: ...
+
+class AnalyticBinaryBarrierEngine:
+    def __init__(self) -> None: ...
+    def price(
+        self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: BinaryBarrierOption | TouchOption,
         context: PricingContext,
         greeks: Greek | Iterable[Greek] | None = None,
         *,

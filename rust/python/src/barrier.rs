@@ -1,6 +1,6 @@
 use super::*;
 
-fn kind(value: &Bound<'_, PyAny>) -> PyResult<core::BarrierType> {
+pub(super) fn kind(value: &Bound<'_, PyAny>) -> PyResult<core::BarrierType> {
     match value.extract::<&str>()? {
         "up_and_in" => Ok(core::BarrierType::UpAndIn),
         "up_and_out" => Ok(core::BarrierType::UpAndOut),
@@ -9,7 +9,7 @@ fn kind(value: &Bound<'_, PyAny>) -> PyResult<core::BarrierType> {
         _ => Err(PyValueError::new_err("unknown barrier_type")),
     }
 }
-fn mode(value: &Bound<'_, PyAny>) -> PyResult<core::ObservationMode> {
+pub(super) fn mode(value: &Bound<'_, PyAny>) -> PyResult<core::ObservationMode> {
     match value.extract::<&str>()? {
         "continuous" => Ok(core::ObservationMode::Continuous),
         "scheduled" => Ok(core::ObservationMode::Scheduled),
@@ -23,7 +23,7 @@ fn timing(value: &Bound<'_, PyAny>) -> PyResult<core::RebateTiming> {
         _ => Err(PyValueError::new_err("unknown rebate_timing")),
     }
 }
-fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<core::BarrierTouchState>> {
+pub(super) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<core::BarrierTouchState>> {
     if value.is_none() {
         return Ok(None);
     }

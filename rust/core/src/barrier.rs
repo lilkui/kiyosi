@@ -17,10 +17,10 @@ pub enum BarrierType {
     DownAndOut,
 }
 impl BarrierType {
-    fn is_up(self) -> bool {
+    pub(crate) fn is_up(self) -> bool {
         matches!(self, Self::UpAndIn | Self::UpAndOut)
     }
-    fn is_knock_in(self) -> bool {
+    pub(crate) fn is_knock_in(self) -> bool {
         matches!(self, Self::UpAndIn | Self::DownAndIn)
     }
 }
@@ -40,7 +40,7 @@ pub enum ObservationMode {
 pub enum BarrierTouchState {
     /// No earlier observation touched the barrier.
     Untouched,
-    /// An earlier observation touched the barrier; any at-hit rebate is already paid.
+    /// An earlier observation touched the barrier; any at-hit payment is already paid.
     Touched,
 }
 
@@ -311,7 +311,7 @@ impl BarrierOption {
         }
         Ok(self.touch_state() == Some(BarrierTouchState::Touched))
     }
-    fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
+    pub(crate) fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
         let time = context.valuation_time();
         let prior = self.prior(time)?;
         let hit = if self.barrier_type().is_up() {
@@ -330,7 +330,7 @@ impl BarrierOption {
                         .is_some_and(|d| d.start_of_day() <= time),
         ))
     }
-    fn payoff_requires_touch(&self) -> bool {
+    pub(crate) fn payoff_requires_touch(&self) -> bool {
         (self.continuous() || self.observation_dates().last() == Some(&self.expiry_date()))
             && if self.barrier_type().is_up() {
                 self.option_type() == OptionType::Call && self.strike() >= self.barrier_level()
@@ -410,7 +410,7 @@ impl AnalyticBarrierEngine {
         crate::numerical_greeks(self, option, context, request, settings)
     }
 }
-fn checked(value: f64) -> Result<f64> {
+pub(crate) fn checked(value: f64) -> Result<f64> {
     if value.is_finite() {
         Ok(value.max(0.0))
     } else {
@@ -536,15 +536,20 @@ fn volatility_affects_price(option: &BarrierOption, context: &PricingContext) ->
         || !knock_in && option.payoff_requires_touch() && option.rebate() == 0.0)
 }
 
-fn log_ratio(numerator: f64, denominator: f64) -> f64 {
+pub(crate) fn log_ratio(numerator: f64, denominator: f64) -> f64 {
     let relative = (numerator - denominator) / denominator;
     if relative.abs() < 0.5 {
         relative.ln_1p()
     } else {
-        numerator.ln() - denominator.ln()
+        let ratio = numerator / denominator;
+        if ratio.is_normal() {
+            ratio.ln()
+        } else {
+            numerator.ln() - denominator.ln()
+        }
     }
 }
-fn standardize(value: f64, volatility: f64, root: f64) -> f64 {
+pub(crate) fn standardize(value: f64, volatility: f64, root: f64) -> f64 {
     let width = volatility * root;
     if width == 0.0 {
         (value / volatility) / root
@@ -552,14 +557,14 @@ fn standardize(value: f64, volatility: f64, root: f64) -> f64 {
         value / width
     }
 }
-fn scaled_cdf(amount: f64, exponent: f64, argument: f64) -> f64 {
+pub(crate) fn scaled_cdf(amount: f64, exponent: f64, argument: f64) -> f64 {
     if amount == 0.0 {
         0.0
     } else {
         (amount.ln() + exponent + crate::pricing::log_normal_cdf(argument)).exp()
     }
 }
-fn scaled_cash(amount: f64, exponent: f64) -> f64 {
+pub(crate) fn scaled_cash(amount: f64, exponent: f64) -> f64 {
     if amount == 0.0 {
         return 0.0;
     }
@@ -583,41 +588,7 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
     let sigma = model.volatility();
     let upper = option.barrier_type().is_up();
     let knock_in = option.barrier_type().is_knock_in();
-    let shift = if option.continuous() {
-        0.0
-    } else {
-        // shortcut: BGK approximates scheduled monitoring; use a numerical engine for exact fixings.
-        let shift = (if upper { 1.0 } else { -1.0 })
-            * 0.5825971579390107
-            * sigma
-            * option.mean_observation_year_fraction().sqrt();
-        if option.observation_dates().last() != Some(&option.expiry_date()) {
-            return Err(Error::new(
-                ErrorCategory::UnsupportedOperation,
-                "analytic monitoring must end at expiry",
-            ));
-        }
-        let ratio = log_ratio(option.barrier_level(), spot) + shift;
-        let barrier = option.barrier_level() * shift.exp();
-        let breached = if barrier.is_finite() && barrier > 0.0 {
-            if upper {
-                spot >= barrier
-            } else {
-                spot <= barrier
-            }
-        } else if upper {
-            ratio <= 0.0
-        } else {
-            ratio >= 0.0
-        };
-        if breached {
-            return Err(Error::new(
-                ErrorCategory::UnsupportedOperation,
-                "spot breaches shifted analytic barrier",
-            ));
-        }
-        shift
-    };
+    let shift = analytic_log_shift(option, spot, sigma)?;
     let strike_above = log_ratio(option.strike(), option.barrier_level()) > shift;
     let requires_touch = option.payoff_requires_touch();
     let needs_vanilla = if requires_touch {
@@ -742,7 +713,7 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
     clippy::too_many_arguments,
     reason = "matches the existing reflection-tail formula"
 )]
-fn reflection_tail(
+pub(crate) fn reflection_tail(
     amount: f64,
     discount: f64,
     ratio: f64,
@@ -772,7 +743,7 @@ fn reflection_tail(
         - 0.5 * (2.0 * std::f64::consts::PI).ln())
     .exp()
 }
-fn hit_value(
+pub(crate) fn hit_value(
     amount: f64,
     distance: f64,
     upper: bool,
@@ -941,4 +912,43 @@ fn integrate(
         tolerance / 2.0,
         depth - 1,
     )
+}
+
+pub(crate) fn analytic_log_shift(option: &BarrierOption, spot: f64, sigma: f64) -> Result<f64> {
+    let upper = option.barrier_type().is_up();
+    if option.continuous() {
+        Ok(0.0)
+    } else {
+        // shortcut: BGK approximates scheduled monitoring; use a numerical engine for exact fixings.
+        let shift = (if upper { 1.0 } else { -1.0 })
+            * 0.5825971579390107
+            * sigma
+            * option.mean_observation_year_fraction().sqrt();
+        if option.observation_dates().last() != Some(&option.expiry_date()) {
+            return Err(Error::new(
+                ErrorCategory::UnsupportedOperation,
+                "analytic monitoring must end at expiry",
+            ));
+        }
+        let ratio = log_ratio(option.barrier_level(), spot) + shift;
+        let barrier = option.barrier_level() * shift.exp();
+        let breached = if barrier.is_finite() && barrier > 0.0 {
+            if upper {
+                spot >= barrier
+            } else {
+                spot <= barrier
+            }
+        } else if upper {
+            ratio <= 0.0
+        } else {
+            ratio >= 0.0
+        };
+        if breached {
+            return Err(Error::new(
+                ErrorCategory::UnsupportedOperation,
+                "spot breaches shifted analytic barrier",
+            ));
+        }
+        Ok(shift)
+    }
 }

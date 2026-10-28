@@ -380,6 +380,40 @@ pub(crate) fn implied_volatility(
             py.detach(|| core::implied_volatility(&engine, &option, &context, observed, controls)),
         );
     }
+    if engine.is_instance_of::<binary_barrier::AnalyticBinaryBarrierEngine>() {
+        return match instrument.extract::<binary_barrier::BinaryInstrument<'_>>()? {
+            binary_barrier::BinaryInstrument::Binary(option) => {
+                let option = option.0.clone();
+                domain(
+                    py,
+                    py.detach(|| {
+                        core::implied_volatility(
+                            &core::AnalyticBinaryBarrierEngine,
+                            &option,
+                            &context,
+                            observed,
+                            controls,
+                        )
+                    }),
+                )
+            }
+            binary_barrier::BinaryInstrument::Touch(option) => {
+                let option = option.0.clone();
+                domain(
+                    py,
+                    py.detach(|| {
+                        core::implied_volatility(
+                            &core::AnalyticBinaryBarrierEngine,
+                            &option,
+                            &context,
+                            observed,
+                            controls,
+                        )
+                    }),
+                )
+            }
+        };
+    }
     if engine.is_instance_of::<barrier::AnalyticBarrierEngine>() {
         let option = instrument
             .extract::<PyRef<'_, barrier::BarrierOption>>()?

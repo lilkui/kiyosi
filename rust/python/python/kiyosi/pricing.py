@@ -2,6 +2,7 @@
 
 from ._native import (
     AnalyticBarrierEngine,
+    AnalyticBinaryBarrierEngine,
     AnalyticDigitalEngine,
     AnalyticGeometricAveragePriceEngine,
     AnalyticVanillaEngine,
@@ -25,6 +26,7 @@ from ._native import (
 
 __all__ = [
     "AnalyticBarrierEngine",
+    "AnalyticBinaryBarrierEngine",
     "AnalyticDigitalEngine",
     "AnalyticGeometricAveragePriceEngine",
     "AnalyticVanillaEngine",

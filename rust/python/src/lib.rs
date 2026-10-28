@@ -5,6 +5,7 @@ mod american;
 mod analytics;
 mod asian;
 mod barrier;
+mod binary_barrier;
 mod binomial;
 mod digital;
 mod finite_difference;
@@ -755,6 +756,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<asian::ArithmeticAveragePriceOption>()?;
     module.add_class::<asian::AnalyticGeometricAveragePriceEngine>()?;
     module.add_class::<asian::TurnbullWakemanArithmeticAveragePriceEngine>()?;
+    binary_barrier::register(module)?;
     module.add_class::<barrier::BarrierOption>()?;
     module.add_class::<barrier::AnalyticBarrierEngine>()?;
     module.add_class::<EuropeanOption>()?;

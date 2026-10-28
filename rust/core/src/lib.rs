@@ -1,5 +1,5 @@
 //! Calendars, schedules, vanilla/digital BSM, geometric/arithmetic Asian analytics,
-//! Single-barrier analytics, CRR, quadrature, finite-difference and CPU Monte Carlo pricing
+//! single/binary-barrier and touch analytics, CRR, quadrature, finite-difference and CPU Monte Carlo pricing
 //! and American approximation,
 //! independent of Python.
 //!
@@ -39,6 +39,7 @@ mod american;
 mod analytics;
 mod asian;
 mod barrier;
+mod binary_barrier;
 mod binomial;
 mod calendar;
 mod digital;
@@ -65,6 +66,10 @@ pub use asian::{
 pub use barrier::{
     AnalyticBarrierEngine, BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType,
     ObservationMode, RebateTiming,
+};
+pub use binary_barrier::{
+    AnalyticBinaryBarrierEngine, BinaryBarrierOption, BinaryBarrierTerms, SettlementTiming,
+    TouchOption, TouchOptionTerms,
 };
 pub use binomial::{
     BinomialSettings, CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,

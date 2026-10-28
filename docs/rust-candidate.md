@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–16 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
+Tickets 01–17 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single-barrier analytic pricing with event history. The root
+calendars, observation schedules and single/binary-barrier and touch analytic pricing with event history. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -1313,6 +1313,102 @@ assert abs(sigma - 0.2) < 1e-7
 assert option.replace(touch_state="touched").touch_state == "touched"
 assert option.touch_state == "untouched"
 ```
+
+## Binary-barrier and single-touch analytics
+
+Rust constructs `BinaryBarrierOption::cash(BinaryBarrierTerms::new(direction,
+strike, start, end, barrier_level, barrier_type), payout)?` or
+`BinaryBarrierOption::asset(terms)?`. The binary pays at expiry only when its
+barrier is active and spot is **strictly** in the money; equality at strike pays
+zero. Construction validates positive finite cash payout first (when present),
+then strike and life, then barrier and schedule. Error categories match the
+digital and single-barrier contracts above.
+
+`TouchOption::cash(TouchOptionTerms::new(start, end, barrier_level, barrier_type),
+payout)?` and `TouchOption::asset(terms)?` have no strike or option direction.
+`UpAndIn`/`DownAndIn` select one-touch, `UpAndOut`/`DownAndOut` select no-touch.
+Both input-term types default to continuous monitoring, empty dates and unknown
+history. Touch terms also default to `SettlementTiming::AtExpiry`. One-touch can
+use `AtHit`; no-touch at-hit is representable in Rust but returns `InvalidOption`
+at construction. Cash payout is positive and finite; touch construction checks
+payout, settlement timing, barrier, life and schedule, in that order.
+
+`AnalyticBinaryBarrierEngine` prices both contract types with the existing
+binary-barrier formulas and single-barrier first-passage calculation, including
+negative rates, scaled normal tails and very small positive volatility. It
+requires explicitly flat risk-free and dividend rates before life, history or
+Greek-request validation, even for resolved or expired contracts. Non-finite
+results return `InvalidResult`. Continuous and scheduled monitoring share the
+single-barrier history contract above: unknown is distinct from untouched,
+equality touches, fixings are at midnight UTC, and history is strictly prior.
+Completed scheduled monitoring resolves activation even if its last fixing is
+before expiry. Unresolved scheduled analytics use the existing BGK approximation
+and require the last fixing at expiry; a breached shifted barrier or an early
+last fixing returns `UnsupportedOperation`. Resolved events and payoffs that
+mathematically require a touch settle before this approximation restriction.
+
+An at-hit one-touch observed now pays cash payout or **current spot**, including
+a scheduled overshoot and a hit exactly at expiry. A strictly prior at-hit touch
+is already paid and has zero remaining value. At-expiry one-touch activation
+retains its discounted cash or asset payoff. An untouched no-touch after its
+last observation retains its expiry payoff; a touched no-touch pays zero.
+Future continuous asset hits transfer the barrier amount. Scheduled asset
+at-hit pricing retains the existing shifted-barrier approximation and payout
+convention. `replace(history)?` and Python `.replace(touch_state=...)` preserve
+all other terms and the original owner; calendar and history-time consistency
+are checked during pricing. Rust schedule accessors borrow; Python copies own
+their data.
+
+All ten requested Greeks use shared scalar differences and Rust bump defaults;
+at expiry or a current barrier equality all Greeks are absent. Stencils crossing
+a barrier or fixing suppress affected measures. The shared implied-volatility
+solver retains the caller's bracket and error ordering. Fixed remaining cash
+or asset flows, zero settlements and paid historical hits return
+`UnsupportedOperation` because volatility is unidentifiable. Activated strike
+binaries still have digital volatility exposure; binaries can be non-monotone,
+so a bracket may contain several roots or fail to bracket an attainable quote.
+
+Python retains `cash_binary_barrier_option` and `asset_binary_barrier_option`,
+returning `BinaryBarrierOption`, plus `cash_one_touch_up/down`,
+`asset_one_touch_up/down`, `cash_no_touch_up/down` and `asset_no_touch_up/down`,
+returning `TouchOption`. Factories are keyword-only. One-touch accepts
+`settlement_timing="at_hit"` or `"at_expiry"`; no-touch factories omit that keyword.
+The same strict real, choice, date and iterable protocols apply, with native
+representation errors before core domain validation. Domain errors preserve
+structured categories. Pricing, Greeks and solves release the GIL around owned
+Rust data, following the crate-wide concurrency and failure contracts.
+
+```python
+from datetime import date
+from kiyosi.instruments import cash_binary_barrier_option, asset_one_touch_up
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import AnalyticBinaryBarrierEngine, implied_volatility
+
+start, end = date(2025, 1, 1), date(2026, 1, 1)
+binary = cash_binary_barrier_option(
+    option_type="call", strike=100, effective_date=start, expiry_date=end,
+    barrier_level=120, barrier_type="up_and_out", payout=10,
+    touch_state="untouched")
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2),
+    spot_price=100, valuation_time=start)
+engine = AnalyticBinaryBarrierEngine()
+result = engine.price_with_greeks(binary, context, ["delta", "vega"])
+sigma = implied_volatility(engine, binary, context, result.price,
+                           lower_bound=0.15, upper_bound=0.25)
+assert abs(sigma - 0.2) < 1e-7
+touch = asset_one_touch_up(effective_date=start, expiry_date=end,
+                          barrier_level=120, settlement_timing="at_hit")
+assert engine.price(touch, context.replace(spot_price=130)) == 130
+assert engine.price(touch.replace(touch_state="touched"),
+                    context.replace(valuation_time=date(2025, 7, 1))) == 0
+```
+
+Public Rust/Python tests migrate settlement, history, strict strike boundaries,
+scheduled monitoring, variance-underflow and extreme-scale regressions. All 268
+existing independent QuantLib binary/touch scenarios retain their price, Greek
+and reference-uncertainty budgets. The legacy implementation remains available;
+no performance threshold is added.
 
 ## Checks
 
