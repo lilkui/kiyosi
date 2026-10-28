@@ -250,7 +250,7 @@ fn event<'a, T: AutocallableTerms>(
 }
 
 // Project only the jump correction, leaving smooth daily continuation unchanged.
-fn project(
+pub(super) fn project(
     space: &SpatialGrid,
     breaks: &[f64],
     index: usize,

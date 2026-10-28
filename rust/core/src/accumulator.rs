@@ -147,12 +147,7 @@ impl Accumulator {
         context.valuation_time().micros_since_midnight() == 0
             && context.calendar().is_trading_day(context.valuation_date())
     }
-    pub(crate) fn initial(
-        &self,
-        context: &PricingContext,
-        rate: f64,
-        dividend: f64,
-    ) -> (f64, Option<f64>) {
+    pub(crate) fn initial(&self, context: &PricingContext) -> (f64, Option<f64>) {
         let mut quantity = self.accumulated_quantity();
         let spot = context.spot_price();
         if quantity == 0.0 && !self.accrues() {
@@ -164,12 +159,24 @@ impl Accumulator {
             }
             quantity += self.purchase(spot);
         }
+        let model = context.model_parameters();
         if context.valuation_time() == self.expiry_date().start_of_day()
-            || (!self.accrues() && rate == 0.0 && dividend == 0.0)
+            || (!self.accrues()
+                && model.risk_free_curve().flat_rate() == Some(0.0)
+                && model.dividend_curve().flat_rate() == Some(0.0))
         {
             return (quantity, Some(quantity * (spot - self.strike())));
         }
         (quantity, None)
+    }
+
+    pub(crate) fn volatility_affects_price(&self, context: &PricingContext) -> bool {
+        let model = context.model_parameters();
+        !(self.current_observation(context) && context.spot_price() >= self.knock_out_level())
+            && (self.accrues()
+                || self.accumulated_quantity() != 0.0
+                    && (model.risk_free_curve().flat_rate() != Some(0.0)
+                        || model.dividend_curve().flat_rate() != Some(0.0)))
     }
 }
 impl OptionContract for Accumulator {

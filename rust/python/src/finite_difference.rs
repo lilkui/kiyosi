@@ -114,6 +114,19 @@ macro_rules! fd_engine {
 }
 
 fd_engine!(
+    FiniteDifferenceAccumulatorEngine,
+    PyRef<'_, accumulator::Accumulator>,
+    |py, option, engine, context, request, shifts| {
+        let option = option.0.clone();
+        py.detach(|| engine.price(&option, &context))
+    },
+    {
+        let option = option.0.clone();
+        py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+    }
+);
+
+fd_engine!(
     FiniteDifferenceVanillaEngine,
     binomial::VanillaInstrument<'_>,
     |py, option, engine, context, request, shifts| {

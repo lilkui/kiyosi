@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–34 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier/autocallable CPU Monte Carlo prices and analytics with
+Tickets 01–35 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier/autocallable CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and snowball variants/presets and Phoenix quadrature/finite differences with implied-coupon solving, plus accumulator quadrature. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and snowball variants/presets and Phoenix quadrature/finite differences with implied-coupon solving, plus accumulator quadrature/finite differences. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -2709,8 +2709,72 @@ Rust and Python tests cover shared contract/history/error scenarios, exact
 terminal portfolios, an independently integrated two-event reference, the
 existing representative spatial/domain and Greek/bump convergence tolerances,
 quantity affinity, tiny-volatility tails, concurrent reads and request isolation.
-Accumulator finite differences and Monte Carlo arrive in later tickets; their
-legacy cross-engine tests remain with the legacy implementation.
+Accumulator Monte Carlo arrives in a later ticket; its legacy cross-engine tests
+remain with the legacy implementation.
+
+## Accumulator finite differences
+
+Rust and Python expose `FiniteDifferenceAccumulatorEngine` for the same
+`Accumulator` contracts, accrued quantity, trading calendar and current-event
+semantics described above. It accepts flat and node rate curves. It checks
+inclusive contract life and trading expiry before resolving immediate settlement;
+only future cashflows require curve coverage and a spatial grid. Immediate
+settlement therefore bypasses clipped domains and incomplete curve horizons.
+History replacement and every pricing, Greek and solve operation preserve inputs
+on success and failure.
+
+The engine reuses `FiniteDifferenceSettings`: **800 asset steps, 200 time steps,
+damped Crank–Nicolson and an automatic upper boundary**, with Python defaults
+derived from Rust. Explicit and implicit Euler are also available. Invalid
+settings return `InvalidParameter` at construction. Pricing rejects an upper
+boundary that does not exceed spot, strike and knock-out, or an unstable explicit
+grid, with `InvalidParameter`. Non-finite computed prices or derivatives return
+`InvalidResult`. Life/curve violations return `InvalidTimeRange`; non-trading
+expiry returns `InvalidDate`. Python representations retain native `TypeError`,
+`ValueError` and `OverflowError` through the existing strict protocols.
+
+The migrated algorithm evolves slope and intercept in accrued quantity on a
+uniform asset grid. Exact trading observations and curve knots split the time
+grid. Terminal payoffs are cell averaged across strike and knock-out; later
+events project only the jump correction, preserving smooth continuation.
+Crank–Nicolson restarts two intervals of implicit half-step damping after each
+event. At the upper boundary the affine asset slope discounts at the dividend
+yield and its cash intercept at the risk-free rate.
+
+Delta and gamma use spline derivatives; speed differences spline gamma. Other
+Greeks use shared numerical completion, including native delta/gamma for mixed
+derivatives. Greek requests hold the central upper domain fixed for bumped
+valuations. All ten measures have the existing units, bump validation, selective
+requests and event availability rules; expiry returns price with no Greeks.
+Vega and rho remain available at current thresholds. Scalar `numerical_greeks`
+is also available through Rust's `PricingEngine<Accumulator>` implementation.
+`implied_volatility` keeps the supplied bracket, solver settings, error categories
+and unidentifiable-payoff rules shared with accumulator quadrature. Prices can
+be non-monotone in volatility; a bracket selects a root or returns
+`UnbracketedVolatility`.
+
+```python
+from kiyosi.pricing import FiniteDifferenceAccumulatorEngine, implied_volatility
+
+# Reuses the accumulator and market from the quadrature example above.
+engine = FiniteDifferenceAccumulatorEngine(asset_step_count=1600,
+    time_step_count=800, asset_upper_boundary=440)
+result = engine.price_with_greeks(option, context, ["delta", "gamma", "vega"])
+assert result.delta is not None and result.gamma is not None
+sigma = implied_volatility(engine, option, context, result.price,
+    lower_bound=0.2, upper_bound=0.6)
+assert abs(sigma - 0.4) < 1e-6
+```
+
+Core and Python values support concurrent reads and shared-engine pricing.
+Python pricing, Greeks and solves release the GIL around owned Rust inputs;
+signal handling resumes on return to Python. Public API tests cover the same
+history, timing, validation, failure-state, curve and identifiability cases in
+both languages. Migrated numerical regressions check terminal price/Greek
+portfolios, all schemes, daily-event damping, spline/scalar consistency, mixed
+Greeks, and live QuantLib terminal portfolios with independent space, time and
+domain refinement. Explicit domains and coarse grids still require convergence
+checks appropriate to the contract.
 
 ## Checks
 

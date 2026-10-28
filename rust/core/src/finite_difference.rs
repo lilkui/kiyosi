@@ -5,6 +5,7 @@ use crate::{
     pricing::{black_scholes_arguments, weighted_cdf},
 };
 
+mod accumulator;
 mod autocallable;
 mod barrier;
 mod binary_barrier;
@@ -154,6 +155,16 @@ fn automatic_upper(
     if !payoff.american {
         return 4.0 * relevant;
     }
+    diffusion_upper(relevant, context, time, risk, dividend)
+}
+
+fn diffusion_upper(
+    relevant: f64,
+    context: &PricingContext,
+    time: f64,
+    risk: &Curve,
+    dividend: &Curve,
+) -> f64 {
     let sigma = context.model_parameters().volatility();
     let drift = risk
         .ends()
@@ -491,6 +502,11 @@ macro_rules! engine_settings {
         }
     };
 }
+engine_settings!(
+    FiniteDifferenceAccumulatorEngine,
+    "Prices trading-date accumulators using affine quantity layers and projected events."
+);
+
 engine_settings!(
     FiniteDifferenceVanillaEngine,
     "Prices European and American vanilla contracts with uniform or sinh finite-difference grids."

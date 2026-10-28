@@ -821,6 +821,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
             .get_item(("pseudo_random", "sobol"))?,
     )?;
     module.add_class::<finite_difference::FiniteDifferenceAutocallableEngine>()?;
+    module.add_class::<finite_difference::FiniteDifferenceAccumulatorEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceVanillaEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceDigitalEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceBarrierEngine>()?;

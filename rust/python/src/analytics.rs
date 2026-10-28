@@ -592,6 +592,19 @@ pub(crate) fn implied_volatility(
             )
         );
     }
+    if let Ok(engine) =
+        engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceAccumulatorEngine>>()
+    {
+        let engine = engine.0;
+        let option = instrument
+            .extract::<PyRef<'_, accumulator::Accumulator>>()?
+            .0
+            .clone();
+        return domain(
+            py,
+            py.detach(|| core::implied_volatility(&engine, &option, &context, observed, controls)),
+        );
+    }
     if let Ok(engine) = engine.extract::<PyRef<'_, accumulator::QuadratureAccumulatorEngine>>() {
         let engine = engine.0;
         let option = instrument

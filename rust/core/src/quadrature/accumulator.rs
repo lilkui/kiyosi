@@ -90,13 +90,7 @@ impl PricingEngine<Accumulator> for QuadratureAccumulatorEngine {
         })))
     }
     fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
-        let knocked_out =
-            option.current_observation(context) && context.spot_price() >= option.knock_out_level();
-        let model = context.model_parameters();
-        let exposed = option.accumulated_quantity() != 0.0
-            && (model.risk_free_curve().flat_rate() != Some(0.0)
-                || model.dividend_curve().flat_rate() != Some(0.0));
-        !knocked_out && (option.accrues() || exposed)
+        option.volatility_affects_price(context)
     }
 }
 fn checked(value: f64) -> Result<f64> {
@@ -203,7 +197,7 @@ fn price(
             "expiry must be a trading day",
         ));
     }
-    let (quantity, settlement) = option.initial(context, rate, dividend);
+    let (quantity, settlement) = option.initial(context);
     if let Some(value) = settlement {
         return checked(value);
     }

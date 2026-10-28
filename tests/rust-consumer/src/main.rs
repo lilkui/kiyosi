@@ -29,6 +29,15 @@ fn main() -> Result<()> {
     let sigma = implied_volatility(&accumulator_engine, &accumulator, &accumulator_context,
         result.price(), ImpliedVolatilitySettings { lower_bound: 0.2, upper_bound: 0.6, ..Default::default() })?;
     assert!((sigma - 0.4).abs() < 1e-6);
+    let accumulator_fd = kiyosi_core::FiniteDifferenceAccumulatorEngine::default();
+    let result = accumulator_fd.price_with_greeks(
+        &accumulator, &accumulator_context, GreeksRequest::new([Greek::Delta, Greek::Vega]),
+        Default::default(),
+    )?;
+    assert!(result.has(Greek::Delta) && result.has(Greek::Vega));
+    let sigma = implied_volatility(&accumulator_fd, &accumulator, &accumulator_context,
+        result.price(), ImpliedVolatilitySettings { lower_bound: 0.2, upper_bound: 0.6, ..Default::default() })?;
+    assert!((sigma - 0.4).abs() < 1e-6);
     let mut phoenix_terms = kiyosi_core::PhoenixTerms::new(
         0.08,
         100.0,

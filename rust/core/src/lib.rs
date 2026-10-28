@@ -1,6 +1,6 @@
 //! Calendars, schedules, vanilla/digital BSM, geometric/arithmetic Asian analytics,
 //! single/double/binary-barrier, touch and range-accrual analytics, CRR, quadrature, finite-difference and CPU Monte Carlo pricing
-//! accumulator quadrature and American approximation,
+//! accumulator quadrature/finite differences and American approximation,
 //! independent of Python.
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared
@@ -99,10 +99,11 @@ pub use double_barrier::{
 pub use double_touch::{DoubleTouchOption, DoubleTouchOptionTerms};
 pub use error::{Error, ErrorCategory, Result};
 pub use finite_difference::{
-    FiniteDifferenceAutocallableEngine, FiniteDifferenceBarrierEngine,
-    FiniteDifferenceBinaryBarrierEngine, FiniteDifferenceDigitalEngine,
-    FiniteDifferenceDoubleBarrierEngine, FiniteDifferenceDoubleTouchEngine, FiniteDifferenceScheme,
-    FiniteDifferenceSettings, FiniteDifferenceVanillaEngine,
+    FiniteDifferenceAccumulatorEngine, FiniteDifferenceAutocallableEngine,
+    FiniteDifferenceBarrierEngine, FiniteDifferenceBinaryBarrierEngine,
+    FiniteDifferenceDigitalEngine, FiniteDifferenceDoubleBarrierEngine,
+    FiniteDifferenceDoubleTouchEngine, FiniteDifferenceScheme, FiniteDifferenceSettings,
+    FiniteDifferenceVanillaEngine,
 };
 pub use implied::{ImpliedVolatilitySettings, implied_volatility};
 pub use instruments::{
