@@ -190,3 +190,16 @@ fd_engine!(
         }
     }
 );
+
+fd_engine!(
+    FiniteDifferenceDoubleBarrierEngine,
+    PyRef<'_, double_barrier::DoubleBarrierOption>,
+    |py, option, engine, context, request, shifts| {
+        let option = option.0.clone();
+        py.detach(|| engine.price(&option, &context))
+    },
+    {
+        let option = option.0.clone();
+        py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+    }
+);

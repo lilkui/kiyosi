@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–22 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
+Tickets 01–23 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, and binary-barrier/single-touch finite differences. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, and double-barrier finite differences. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -1767,6 +1767,66 @@ The Rust example on `FiniteDifferenceBinaryBarrierEngine::price_with_greeks`
 shows the equivalent core API. All settings defaults and domain validation live
 in Rust; Python uses the existing strict numeric/index conversions, owning
 results and exception mapping.
+
+## Double-barrier finite differences
+
+Rust `FiniteDifferenceDoubleBarrierEngine` and Python
+`kiyosi.pricing.FiniteDifferenceDoubleBarrierEngine` price existing
+`DoubleBarrierOption` contracts with flat or node risk-free/dividend curves,
+continuous or scheduled monitoring, knock-in/out payoffs and supported rebates.
+The shared settings default to 800 asset steps, 200 time steps, damped
+Crank–Nicolson and an automatic upper boundary; implicit and explicit Euler are
+also available. Unstable explicit steps return `InvalidParameter`.
+
+Continuous grids fit both physical barriers exactly and use all configured asset
+steps between them. An explicit upper boundary must exceed spot, strike and both
+barriers; it sets the spatial domain only for scheduled monitoring. Scheduled
+grids run from zero to that upper boundary, insert all original observation dates
+and curve knots, and project both boundary events simultaneously, including
+barriers sharing a cell. Observation events restart implicit damping. Refine
+the grid to verify numerical accuracy, particularly near boundaries and in narrow bands.
+
+Equality at either monitored barrier touches. Strictly prior history remains
+separate from the current observation, scheduled observations occur only at
+midnight, and monitoring may finish before expiry. Known history and current or
+expiry events resolve before grid validation. Previously paid at-hit rebates
+have zero remaining value; remaining cash flows use exact curve discounts.
+Life, calendar, history and curve-coverage errors use the same categories and
+validation timing as single-barrier FD pricing. Failed operations preserve inputs.
+
+`price_with_greeks` returns spline delta/gamma and fixed-grid speed, completing
+other requested sensitivities with the shared numerical shifts on the central
+spatial domain. Greeks are absent at expiry or current boundary equality without
+a prior touch; stencils crossing either barrier or an observation omit affected measures. The shared
+`implied_volatility` solver uses the supplied bracket and rejects
+volatility-independent settlements with `UnsupportedOperation`. Double-barrier
+prices need not be monotone in volatility, so the bracket must isolate the desired root.
+Python uses the shared strict numeric/index protocols, owning results and core
+exception mapping, and releases the GIL for pricing, Greeks and solving. Immutable
+engines support calls on distinct or shared instances concurrently.
+
+```python
+from datetime import date
+from kiyosi.instruments import DoubleBarrierOption
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import FiniteDifferenceDoubleBarrierEngine, implied_volatility
+
+start = date(2025, 1, 1)
+option = DoubleBarrierOption(option_type="call", strike=100, effective_date=start,
+    expiry_date=date(2026, 1, 1), lower_barrier=80, upper_barrier=120,
+    barrier_type="knock_out")
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2),
+    spot_price=100, valuation_time=start)
+engine = FiniteDifferenceDoubleBarrierEngine()
+result = engine.price_with_greeks(option, context, ["delta", "gamma"])
+assert abs(result.price - 1.0838814592583166) < 0.001
+sigma = implied_volatility(engine, option, context, result.price,
+                           lower_bound=0.15, upper_bound=0.25)
+assert abs(sigma - 0.2) < 1e-7
+```
+
+See `FiniteDifferenceDoubleBarrierEngine::price_with_greeks` for the Rust example.
 
 ## Checks
 

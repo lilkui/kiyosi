@@ -787,6 +787,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<finite_difference::FiniteDifferenceVanillaEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceDigitalEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceBarrierEngine>()?;
+    module.add_class::<finite_difference::FiniteDifferenceDoubleBarrierEngine>()?;
     module.add_class::<finite_difference::FiniteDifferenceBinaryBarrierEngine>()?;
     module.add(
         "FiniteDifferenceScheme",

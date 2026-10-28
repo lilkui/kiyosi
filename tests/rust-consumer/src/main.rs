@@ -37,6 +37,30 @@ fn main() -> Result<()> {
         100.0,
         start.into(),
     )?;
+    let double_fd = kiyosi_core::FiniteDifferenceDoubleBarrierEngine::default();
+    let double_result = double_fd.price_with_greeks(
+        &double,
+        &double_context,
+        GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+        Default::default(),
+    )?;
+    assert!((double_result.price() - 1.0838814592583166).abs() < 0.001);
+    assert!(double_result.has(Greek::Delta) && double_result.has(Greek::Gamma));
+    assert!(
+        (implied_volatility(
+            &double_fd,
+            &double,
+            &double_context,
+            double_result.price(),
+            ImpliedVolatilitySettings {
+                lower_bound: 0.15,
+                upper_bound: 0.25,
+                ..Default::default()
+            }
+        )? - 0.2)
+            .abs()
+            < 1e-7
+    );
     assert!(
         (kiyosi_core::AnalyticDoubleBarrierEngine.price(&double, &double_context)?
             - 1.0838814592583166)

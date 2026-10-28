@@ -86,7 +86,7 @@ impl DoubleBarrierOptionTerms {
 /// See [`Self::new`] and [`Self::replace`] for examples.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleBarrierOption {
-    lower: BarrierOption,
+    pub(crate) lower: BarrierOption,
     upper: f64,
 }
 impl DoubleBarrierOption {
@@ -320,36 +320,8 @@ impl AnalyticDoubleBarrierEngine {
                 "observation is not a trading day",
             ));
         }
-        let (prior, touched, finished) = option.state(context)?;
-        let knock_in = option.knock_in();
-        let cash = || {
-            if option.rebate() == 0.0 {
-                return Ok(0.0);
-            }
-            checked(scaled_cash(
-                option.rebate(),
-                context
-                    .model_parameters()
-                    .risk_free_curve()
-                    .log_factor(time, option.expiry_date().start_of_day())?,
-            ))
-        };
-        if touched && !knock_in {
-            return if option.rebate_timing() == RebateTiming::AtHit {
-                Ok(if prior { 0.0 } else { option.rebate() })
-            } else {
-                cash()
-            };
-        }
-        if !touched && finished && knock_in {
-            return cash();
-        }
-        let fixed = option.rebate() == 0.0 && option.payoff_requires_touch();
-        if fixed && !knock_in {
-            return Ok(0.0);
-        }
-        if touched || finished || fixed {
-            return AnalyticVanillaEngine.price(&option.vanilla()?, context);
+        if let Some(value) = resolved_price(option, context)? {
+            return Ok(value);
         }
         if option.observation_mode() == ObservationMode::Scheduled {
             return Err(Error::new(
@@ -397,6 +369,47 @@ impl PricingEngine<DoubleBarrierOption> for AnalyticDoubleBarrierEngine {
             || !touched && finished && option.knock_in()
             || !option.knock_in() && option.payoff_requires_touch() && option.rebate() == 0.0)
     }
+}
+
+pub(crate) fn resolved_price(
+    option: &DoubleBarrierOption,
+    context: &PricingContext,
+) -> Result<Option<f64>> {
+    let time = context.valuation_time();
+    let (prior, touched, finished) = option.state(context)?;
+    let knock_in = option.knock_in();
+    let cash = || {
+        if option.rebate() == 0.0 {
+            return Ok(0.0);
+        }
+        checked(scaled_cash(
+            option.rebate(),
+            context
+                .model_parameters()
+                .risk_free_curve()
+                .log_factor(time, option.expiry_date().start_of_day())?,
+        ))
+    };
+    if touched && !knock_in {
+        return if option.rebate_timing() == RebateTiming::AtHit {
+            Ok(Some(if prior { 0.0 } else { option.rebate() }))
+        } else {
+            cash().map(Some)
+        };
+    }
+    if !touched && finished && knock_in {
+        return cash().map(Some);
+    }
+    let fixed = option.rebate() == 0.0 && option.payoff_requires_touch();
+    if fixed && !knock_in {
+        return Ok(Some(0.0));
+    }
+    if touched || finished || fixed {
+        return AnalyticVanillaEngine
+            .price(&option.vanilla()?, context)
+            .map(Some);
+    }
+    Ok(None)
 }
 
 #[derive(Default)]

@@ -425,6 +425,39 @@ class FiniteDifferenceBarrierEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
+class FiniteDifferenceDoubleBarrierEngine:
+    def __init__(
+        self,
+        *,
+        asset_step_count: int = ...,
+        time_step_count: int = ...,
+        scheme: FiniteDifferenceScheme = ...,
+        asset_upper_boundary: float | None = None,
+    ) -> None: ...
+    @property
+    def asset_step_count(self) -> int: ...
+    @property
+    def time_step_count(self) -> int: ...
+    @property
+    def scheme(self) -> FiniteDifferenceScheme: ...
+    @property
+    def asset_upper_boundary(self) -> float | None: ...
+    def price(
+        self, instrument: DoubleBarrierOption, context: PricingContext
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: DoubleBarrierOption,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
 class FiniteDifferenceBinaryBarrierEngine:
     def __init__(
         self,
@@ -752,7 +785,7 @@ class PricingResult:
 
 @overload
 def implied_volatility(
-    engine: AnalyticDoubleBarrierEngine,
+    engine: AnalyticDoubleBarrierEngine | FiniteDifferenceDoubleBarrierEngine,
     instrument: DoubleBarrierOption,
     context: PricingContext,
     observed_price: float,

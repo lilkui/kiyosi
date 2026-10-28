@@ -25,6 +25,7 @@ from kiyosi.pricing import (
     AnalyticVanillaEngine,
     FiniteDifferenceBarrierEngine,
     FiniteDifferenceDigitalEngine,
+    FiniteDifferenceDoubleBarrierEngine,
     FiniteDifferenceScheme,
     FiniteDifferenceVanillaEngine,
     implied_volatility,
@@ -36,6 +37,7 @@ FACTORIES = (
     FiniteDifferenceVanillaEngine,
     FiniteDifferenceDigitalEngine,
     FiniteDifferenceBarrierEngine,
+    FiniteDifferenceDoubleBarrierEngine,
 )
 SCHEMES = ("explicit_euler", "implicit_euler", "crank_nicolson")
 

@@ -495,6 +495,11 @@ engine_settings!(
 );
 
 engine_settings!(
+    FiniteDifferenceDoubleBarrierEngine,
+    "Prices double-barrier contracts with exact continuous edges and simultaneous scheduled events."
+);
+
+engine_settings!(
     FiniteDifferenceBinaryBarrierEngine,
     "Prices binary barriers and single touch/no-touch contracts with finite differences."
 );
