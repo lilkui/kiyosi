@@ -838,6 +838,13 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<AnalyticVanillaEngine>()?;
     module.add_class::<analytics::PricingResult>()?;
     module.add_function(wrap_pyfunction!(analytics::implied_volatility, module)?)?;
+    module.add_function(wrap_pyfunction!(autocallable::implied_coupon, module)?)?;
+    module.add(
+        "CouponQuoteConvention",
+        py.import("typing")?
+            .getattr("Literal")?
+            .get_item(("shift_maturity_coupon", "preserve_maturity_coupon"))?,
+    )?;
     module.add_function(wrap_pyfunction!(weekdays_calendar, module)?)?;
     module.add_function(wrap_pyfunction!(all_days_calendar, module)?)?;
     module.add_function(wrap_pyfunction!(sse_calendar, module)?)?;

@@ -22,11 +22,44 @@ class ErrorCategory(IntEnum):
     UNBRACKETED_VOLATILITY = 13
     SOLVER_NON_CONVERGENCE = 14
     SOLVER_NON_FINITE = 15
+    UNBRACKETED_COUPON = 16
     BACKEND_FAILURE = 18
     UNSUPPORTED_OPERATION = 19
 
 class KiyosiError(Exception):
     category: ErrorCategory
+
+CouponQuoteConvention: TypeAlias = Literal[
+    "shift_maturity_coupon", "preserve_maturity_coupon"
+]
+
+@overload
+def implied_coupon(
+    engine: QuadratureAutocallableEngine,
+    instrument: SnowballOption | BinarySnowballOption | TernarySnowballOption,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    quote_convention: CouponQuoteConvention,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...
+@overload
+def implied_coupon(
+    engine: QuadratureAutocallableEngine,
+    instrument: PhoenixOption,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...
 
 class EuropeanOption:
     def __init__(

@@ -38,6 +38,21 @@ fn main() -> Result<()> {
         Default::default(),
     )?;
     assert!(phoenix_result.has(Greek::Delta) && phoenix_result.has(Greek::Vega));
+    let coupon = kiyosi_core::implied_coupon(
+        &phoenix_engine, &phoenix, &phoenix_context, phoenix_result.price(),
+        kiyosi_core::ImpliedCouponSettings::default(),
+    )?;
+    assert!((coupon - 0.08).abs() < 1e-7);
+    let binary = kiyosi_core::BinarySnowballOption::new(kiyosi_core::BinarySnowballTerms::new(
+        0.06, start, end,
+        kiyosi_core::autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?,
+    ))?;
+    let quote = phoenix_engine.price(&binary, &phoenix_context)?;
+    let coupon = kiyosi_core::implied_snowball_coupon(
+        &phoenix_engine, &binary, &phoenix_context, quote,
+        kiyosi_core::CouponQuoteConvention::PreserveMaturityCoupon, Default::default(),
+    )?;
+    assert!((coupon - 0.08).abs() < 1e-7);
     assert!(
         (implied_volatility(
             &phoenix_engine,

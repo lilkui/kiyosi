@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–30 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier CPU Monte Carlo prices and analytics with
+Tickets 01–31 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and snowball variants/presets and Phoenix quadrature. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and snowball variants/presets and Phoenix quadrature with implied-coupon solving. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -702,7 +702,7 @@ Categories implemented here are `INVALID_STRIKE` (2), `INVALID_VOLATILITY` (3),
 `INVALID_DATE` (7), `INVALID_TIME_RANGE` (8), `INVALID_RESULT` (9),
 `INVALID_SCHEDULE` (10), `INVALID_CALENDAR` (11), `INVALID_PARAMETER` (12),
 `UNBRACKETED_VOLATILITY` (13), `SOLVER_NON_CONVERGENCE` (14),
-`SOLVER_NON_FINITE` (15), `BACKEND_FAILURE` (18, reported operational failures), and `UNSUPPORTED_OPERATION` (19).
+`SOLVER_NON_FINITE` (15), `UNBRACKETED_COUPON` (16), `BACKEND_FAILURE` (18, reported operational failures), and `UNSUPPORTED_OPERATION` (19).
 Malformed curves and non-finite flat rates or
 shifts use `INVALID_PARAMETER`; scalar model rate validation retains its
 field-specific categories.
@@ -2413,6 +2413,70 @@ checks reuse the existing independent QuantLib terminal portfolios, signed
 cash-digital and one-second regressions, and spatial/domain convergence for
 multi-event binary and both ternary monitoring modes. Legacy implementations
 remain available for migration comparison.
+
+## Autocallable implied coupons
+
+Rust `implied_snowball_coupon(engine, note, context, observed_price, convention,
+settings)` accepts the three snowball types, including all expanded presets.
+`CouponQuoteConvention::ShiftMaturityCoupon` shifts maturity coupon along with
+observation coupons; `PreserveMaturityCoupon` fixes maturity coupon. The quoted
+coupon is the **first contractual observation coupon**, including past records.
+All observation coupons move by the difference from that first coupon, preserving
+ladders, dates and barriers. The ternary minimum coupon stays fixed. A shifted
+maturity coupon below that minimum is invalid, so choose valid endpoint bounds.
+Rust `note.with_coupon(coupon, convention)` returns the corresponding owning,
+validated snowball; Phoenix `note.with_coupon(coupon)` replaces its single annual
+conditional coupon. Original notes and contexts remain unchanged on success and failure.
+
+Rust `implied_coupon(engine, phoenix, context, observed_price, settings)` needs
+no convention. Both functions accept `PricingEngine` implementations so later
+FD and MC engines can reuse the public contract. The current built-in engine is
+`QuadratureAutocallableEngine`; custom engines retain their own operational and
+concurrency contracts. Solves prepare one request through the engine boundary.
+
+`ImpliedCouponSettings::default()` uses bounds `[0, 2]`, price tolerance `1e-8`,
+coupon interval tolerance `1e-8`, and 100 bisection iterations. Signed finite
+bounds are allowed and must be strictly ordered; tolerances must be finite and
+positive and the iteration limit positive. Observed prices must be finite.
+Settings and price validation precede endpoint replacement, which validates both
+notes before pricing. Engine validation then retains its usual flat-rate, life,
+calendar and history checks. Engine errors propagate, including `InvalidResult`.
+Non-finite scalar trial prices or residuals return `SolverNonFinite`.
+
+Equal endpoint prices return `UnsupportedOperation` for no quoted coupon exposure,
+even when the observed price matches. This includes settled knock-outs and
+terminal payoffs independent of the quoted coupon; expiry alone does not prevent
+a solve when a current coupon or shifted maturity coupon remains payable.
+Endpoint matches return the exact bound; same-sign residuals return
+`UnbracketedCoupon` (Python `UNBRACKETED_COUPON`, 16). The solver retains the
+quadrature coupon-price relationship: it first interpolates between endpoint
+prices and verifies the resulting residual, then bisects if necessary. Either
+price or interval tolerance stops bisection; exhausted iteration returns
+`SolverNonConvergence`. Endpoint and interpolation evaluations do not consume
+the bisection limit. No bracket expansion or root search is performed.
+
+Python exports `implied_coupon` and the `CouponQuoteConvention` Literal alias
+from `kiyosi.pricing`. Snowballs require the keyword-only `quote_convention`;
+Phoenix rejects that keyword. Numeric controls use the strict real protocol;
+`max_iterations` uses the integer index protocol, excluding booleans and floats,
+with native `OverflowError` outside signed 32-bit range. Protocol/signature
+errors remain native Python exceptions and precede core validation. Unknown
+choice strings raise `ValueError`. Defaults derive from Rust. Calls release
+the GIL around owned Rust inputs and have the synchronous signal-handling and
+concurrency contract described above.
+
+```python
+from kiyosi.pricing import QuadratureAutocallableEngine, implied_coupon
+
+engine = QuadratureAutocallableEngine()
+quote = engine.price(snowball, context)
+coupon = implied_coupon(engine, snowball, context, quote,
+                        quote_convention="preserve_maturity_coupon")
+assert abs(coupon - snowball.knock_out_coupon_rates[0]) < 1e-7
+phoenix_quote = engine.price(phoenix, context)
+phoenix_coupon = implied_coupon(engine, phoenix, context, phoenix_quote)
+assert abs(phoenix_coupon - phoenix.coupon_rate) < 1e-7
+```
 
 ## Checks
 

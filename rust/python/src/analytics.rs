@@ -59,7 +59,7 @@ pub(super) fn real_setting(
         .transpose()
         .map(|v| v.unwrap_or(default))
 }
-fn integer_setting(
+pub(crate) fn integer_setting(
     settings: Option<&Bound<'_, PyDict>>,
     name: &str,
     default: i32,

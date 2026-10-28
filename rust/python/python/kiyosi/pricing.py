@@ -9,6 +9,7 @@ from ._native import (
     AnalyticRangeAccrualEngine,
     AnalyticVanillaEngine,
     BjerksundStenslandVanillaEngine,
+    CouponQuoteConvention,
     CoxRossRubinsteinBarrierEngine,
     CoxRossRubinsteinDigitalEngine,
     CoxRossRubinsteinVanillaEngine,
@@ -32,6 +33,7 @@ from ._native import (
     QuadratureDigitalEngine,
     QuadratureVanillaEngine,
     TurnbullWakemanArithmeticAveragePriceEngine,
+    implied_coupon,
     implied_volatility,
 )
 
@@ -44,6 +46,7 @@ __all__ = [
     "AnalyticRangeAccrualEngine",
     "AnalyticVanillaEngine",
     "BjerksundStenslandVanillaEngine",
+    "CouponQuoteConvention",
     "CoxRossRubinsteinBarrierEngine",
     "CoxRossRubinsteinDigitalEngine",
     "CoxRossRubinsteinVanillaEngine",
@@ -67,5 +70,6 @@ __all__ = [
     "QuadratureDigitalEngine",
     "QuadratureVanillaEngine",
     "TurnbullWakemanArithmeticAveragePriceEngine",
+    "implied_coupon",
     "implied_volatility",
 ]

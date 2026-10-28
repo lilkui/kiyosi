@@ -337,11 +337,70 @@ impl AutocallableTerms for PhoenixTerms {}
 impl AutocallableTerms for BinarySnowballTerms {}
 impl AutocallableTerms for TernarySnowballTerms {}
 
+/// Selects snowball terms with a quoted observation coupon and explicit maturity convention.
+/// This trait is sealed; see [`crate::implied_snowball_coupon`] for an example.
+pub trait SnowballCouponTerms: AutocallableTerms + sealed::SnowballCoupon {}
+
+macro_rules! snowball_coupon {
+    ($($terms:ty),+) => {$(
+        impl SnowballCouponTerms for $terms {}
+        impl sealed::SnowballCoupon for $terms {
+            fn with_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self {
+                let mut terms = self.clone();
+                let shift = coupon - terms.observations.first().map_or(0.0, |record| record.coupon_rate);
+                for record in &mut terms.observations {
+                    record.coupon_rate += shift;
+                }
+                if convention == crate::CouponQuoteConvention::ShiftMaturityCoupon {
+                    terms.maturity_coupon_rate += shift;
+                }
+                terms
+            }
+        }
+    )+};
+}
+snowball_coupon!(SnowballTerms, BinarySnowballTerms, TernarySnowballTerms);
+
+impl<T: SnowballCouponTerms> AutocallableNote<T> {
+    /// Returns an owning note with the observation coupon schedule shifted to `coupon`.
+    /// The first observation anchors the shift, including past observations.
+    /// `convention` controls the maturity coupon; the ternary minimum stays fixed.
+    /// See [`crate::implied_snowball_coupon`] for an example.
+    ///
+    /// # Errors
+    /// Propagates term validation errors, including a shifted maturity coupon below
+    /// the ternary minimum. This note remains unchanged on success and failure.
+    pub fn with_coupon(
+        &self,
+        coupon: f64,
+        convention: crate::CouponQuoteConvention,
+    ) -> Result<Self> {
+        Self::new(self.0.with_coupon(coupon, convention))
+    }
+}
+
+impl PhoenixOption {
+    /// Returns an owning note with its conditional annual coupon replaced.
+    /// See [`crate::implied_coupon`] for an example.
+    ///
+    /// # Errors
+    /// Returns [`ErrorCategory::InvalidParameter`] for a non-finite coupon.
+    /// This note remains unchanged on success and failure.
+    pub fn with_coupon(&self, coupon: f64) -> Result<Self> {
+        let mut terms = self.0.clone();
+        terms.coupon_rate = coupon;
+        Self::new(terms)
+    }
+}
+
 mod sealed {
     use super::*;
     pub trait Terms {
         fn view(&self) -> View<'_>;
         fn set_history(&mut self, state: Option<AutocallableBarrierState>);
+    }
+    pub trait SnowballCoupon: Sized {
+        fn with_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self;
     }
     pub struct View<'a> {
         pub initial_spot: f64,

@@ -19,6 +19,7 @@ pub enum ErrorCategory {
     UnbracketedVolatility = 13,
     SolverNonConvergence = 14,
     SolverNonFinite = 15,
+    UnbracketedCoupon = 16,
     /// Identifies an operational failure; inspect [`Error::operational_error`].
     BackendFailure = 18,
     UnsupportedOperation = 19,
@@ -26,7 +27,7 @@ pub enum ErrorCategory {
 
 impl ErrorCategory {
     /// Categories implemented by this migration slice.
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 18] = [
         Self::InvalidOption,
         Self::InvalidStrike,
         Self::InvalidVolatility,
@@ -42,6 +43,7 @@ impl ErrorCategory {
         Self::UnbracketedVolatility,
         Self::SolverNonConvergence,
         Self::SolverNonFinite,
+        Self::UnbracketedCoupon,
         Self::BackendFailure,
         Self::UnsupportedOperation,
     ];
@@ -64,6 +66,7 @@ impl ErrorCategory {
             Self::UnbracketedVolatility => "UNBRACKETED_VOLATILITY",
             Self::SolverNonConvergence => "SOLVER_NON_CONVERGENCE",
             Self::SolverNonFinite => "SOLVER_NON_FINITE",
+            Self::UnbracketedCoupon => "UNBRACKETED_COUPON",
             Self::BackendFailure => "BACKEND_FAILURE",
             Self::UnsupportedOperation => "UNSUPPORTED_OPERATION",
         }

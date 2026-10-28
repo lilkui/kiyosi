@@ -43,6 +43,7 @@ mod barrier;
 mod binary_barrier;
 mod binomial;
 mod calendar;
+mod coupon;
 mod digital;
 mod double_barrier;
 mod double_touch;
@@ -70,8 +71,8 @@ pub use asian::{
 pub use autocallable::{
     AutocallableBarrierState, AutocallableNote, AutocallableObservation, AutocallableTerms,
     BinarySnowballOption, BinarySnowballTerms, KnockInObservationMode, PhoenixOption, PhoenixTerms,
-    SnowballOption, SnowballPreset, SnowballPresetTerms, SnowballTerms, TernarySnowballOption,
-    TernarySnowballTerms, autocallable_observations,
+    SnowballCouponTerms, SnowballOption, SnowballPreset, SnowballPresetTerms, SnowballTerms,
+    TernarySnowballOption, TernarySnowballTerms, autocallable_observations,
 };
 pub use barrier::{
     AnalyticBarrierEngine, BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType,
@@ -86,6 +87,9 @@ pub use binomial::{
     CoxRossRubinsteinVanillaEngine,
 };
 pub use calendar::{BusinessDayConvention, TradingCalendar};
+pub use coupon::{
+    CouponQuoteConvention, ImpliedCouponSettings, implied_coupon, implied_snowball_coupon,
+};
 pub use digital::AnalyticDigitalEngine;
 pub use double_barrier::{
     AnalyticDoubleBarrierEngine, DoubleBarrierOption, DoubleBarrierOptionTerms, DoubleBarrierType,

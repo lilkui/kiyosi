@@ -1,5 +1,87 @@
 use super::*;
 
+#[pyfunction]
+#[pyo3(signature = (engine, instrument, context, observed_price, **settings))]
+pub(crate) fn implied_coupon(
+    py: Python<'_>,
+    engine: &QuadratureAutocallableEngine,
+    instrument: &Bound<'_, PyAny>,
+    context: &PricingContext,
+    observed_price: &Bound<'_, PyAny>,
+    settings: Option<&Bound<'_, PyDict>>,
+) -> PyResult<f64> {
+    check_changes(
+        settings,
+        &[
+            "quote_convention",
+            "lower_bound",
+            "upper_bound",
+            "price_tolerance",
+            "parameter_tolerance",
+            "max_iterations",
+        ],
+    )?;
+    let observed = real(observed_price)?;
+    let d = core::ImpliedCouponSettings::default();
+    let controls = core::ImpliedCouponSettings {
+        lower_bound: analytics::real_setting(settings, "lower_bound", d.lower_bound)?,
+        upper_bound: analytics::real_setting(settings, "upper_bound", d.upper_bound)?,
+        price_tolerance: analytics::real_setting(settings, "price_tolerance", d.price_tolerance)?,
+        parameter_tolerance: analytics::real_setting(
+            settings,
+            "parameter_tolerance",
+            d.parameter_tolerance,
+        )?,
+        max_iterations: analytics::integer_setting(settings, "max_iterations", d.max_iterations)?,
+    };
+    let convention = settings
+        .map(|s| s.get_item("quote_convention"))
+        .transpose()?
+        .flatten();
+    let engine = engine.0;
+    let context = context.0.clone();
+    if let Ok(note) = instrument.extract::<PyRef<'_, PhoenixOption>>() {
+        if convention.is_some() {
+            return Err(PyTypeError::new_err(
+                "Phoenix has no quote_convention argument",
+            ));
+        }
+        let note = note.0.clone();
+        return domain(
+            py,
+            py.detach(|| core::implied_coupon(&engine, &note, &context, observed, controls)),
+        );
+    }
+    let convention =
+        convention.ok_or_else(|| PyTypeError::new_err("snowballs require quote_convention"))?;
+    let convention = match convention.extract::<&str>()? {
+        "shift_maturity_coupon" => core::CouponQuoteConvention::ShiftMaturityCoupon,
+        "preserve_maturity_coupon" => core::CouponQuoteConvention::PreserveMaturityCoupon,
+        _ => return Err(PyValueError::new_err("unknown coupon quote convention")),
+    };
+    macro_rules! solve {
+        ($note:expr) => {{
+            let note = $note.0.clone();
+            domain(
+                py,
+                py.detach(|| {
+                    core::implied_snowball_coupon(
+                        &engine, &note, &context, observed, convention, controls,
+                    )
+                }),
+            )
+        }};
+    }
+    if let Ok(note) = instrument.extract::<PyRef<'_, BinarySnowballOption>>() {
+        return solve!(note);
+    }
+    if let Ok(note) = instrument.extract::<PyRef<'_, TernarySnowballOption>>() {
+        return solve!(note);
+    }
+    let note = instrument.extract::<PyRef<'_, SnowballOption>>()?;
+    solve!(note)
+}
+
 fn state(value: &Bound<'_, PyAny>) -> PyResult<Option<core::AutocallableBarrierState>> {
     if value.is_none() {
         return Ok(None);

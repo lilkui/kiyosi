@@ -159,7 +159,8 @@ impl NumericalShiftSettings {
 /// The instrument parameter selects supported combinations; it defaults to
 /// [`EuropeanOption`]. See [`crate::AnalyticDigitalEngine::price`] for digital usage.
 pub trait PricingEngine<I = EuropeanOption> {
-    /// Checks engine applicability before numerical request or solver validation.
+    /// Checks engine applicability before numerical requests or implied-volatility validation.
+    /// Coupon solves validate their settings and endpoint replacements before pricing.
     /// The default accepts the context. See
     /// [`crate::MonteCarloVanillaEngine::price_with_greeks`] for flat-rate restrictions.
     ///
@@ -169,7 +170,7 @@ pub trait PricingEngine<I = EuropeanOption> {
         Ok(())
     }
 
-    /// Prepares request-local state for numerical Greeks and implied volatility.
+    /// Prepares request-local state for numerical Greeks and implied-parameter solves.
     /// Returns `None` when this engine already evaluates one consistent price
     /// function, as deterministic engines do by default. A returned engine must
     /// itself return `None` here. See [`crate::MonteCarloVanillaEngine::price_with_greeks`].
