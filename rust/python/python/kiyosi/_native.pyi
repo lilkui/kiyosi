@@ -1034,6 +1034,19 @@ class PricingResult:
 
 @overload
 def implied_volatility(
+    engine: QuadratureAccumulatorEngine,
+    instrument: Accumulator,
+    context: PricingContext,
+    observed_price: float,
+    *,
+    lower_bound: float = ...,
+    upper_bound: float = ...,
+    price_tolerance: float = ...,
+    parameter_tolerance: float = ...,
+    max_iterations: int = ...,
+) -> float: ...
+@overload
+def implied_volatility(
     engine: QuadratureAutocallableEngine
     | FiniteDifferenceAutocallableEngine
     | MonteCarloAutocallableEngine,
@@ -2051,3 +2064,61 @@ def loss_capped_snowball(
     barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
+
+class Accumulator:
+    def __init__(
+        self,
+        *,
+        strike: float,
+        knock_out_level: float,
+        daily_quantity: float,
+        acceleration_factor: float,
+        effective_date: date,
+        expiry_date: date,
+        accumulated_quantity: float = ...,
+    ) -> None: ...
+    @property
+    def strike(self) -> float: ...
+    @property
+    def knock_out_level(self) -> float: ...
+    @property
+    def daily_quantity(self) -> float: ...
+    @property
+    def acceleration_factor(self) -> float: ...
+    @property
+    def accumulated_quantity(self) -> float: ...
+    @property
+    def effective_date(self) -> date: ...
+    @property
+    def expiry_date(self) -> date: ...
+    def replace(self, *, accumulated_quantity: float) -> Self: ...
+    def __eq__(self, other: object) -> bool: ...
+
+class QuadratureAccumulatorEngine:
+    def __init__(
+        self,
+        *,
+        asset_step_count: int = ...,
+        integration_standard_deviations: float = ...,
+    ) -> None: ...
+    @property
+    def asset_step_count(self) -> int: ...
+    @property
+    def integration_standard_deviations(self) -> float: ...
+    def price(
+        self,
+        instrument: Accumulator,
+        context: PricingContext,
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: Accumulator,
+        context: PricingContext,
+        greeks: Greek | Iterable[Greek] | None = None,
+        *,
+        all_greeks: bool = False,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...

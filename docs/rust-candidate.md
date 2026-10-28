@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–33 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier/autocallable CPU Monte Carlo prices and analytics with
+Tickets 01–34 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier/autocallable CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and snowball variants/presets and Phoenix quadrature/finite differences with implied-coupon solving. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and snowball variants/presets and Phoenix quadrature/finite differences with implied-coupon solving, plus accumulator quadrature. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -2629,6 +2629,88 @@ cover independent cash/digital and QuantLib terminal portfolios, all four note
 families against quadrature under both monitoring modes, migrated cashflow and
 shared-path regressions, coupon endpoint exposure changes, native Python
 protocol boundaries, and exact thread consistency. No runtime threshold is used.
+
+## Accumulator quadrature
+
+`Accumulator` owns a purchase strike, inclusive knock-out level, daily quantity,
+below-strike acceleration factor, life dates and accrued quantity. Strike and
+knock-out must be finite and positive; quantities and the multiplier must be
+finite and nonnegative. Reversed life dates are rejected; equal dates are valid.
+Invalid strike returns `InvalidStrike`, other invalid amounts `InvalidParameter`,
+then reversed dates `InvalidTimeRange`. Accrued quantity defaults to **zero in
+Rust**, also supplying Python's default. Zero is known history, and fractions
+are valid: there is no unknown-history sentinel. History is a caller assertion;
+corrections and historical revaluations remain allowed without inferred bounds
+on quantity or a history record date. Python rejects explicit `None`.
+
+Rust constructs `Accumulator::new(AccumulatorTerms::new(strike, knock_out_level,
+daily_quantity, acceleration_factor, effective_date, expiry_date))`. Set
+`AccumulatorTerms::accumulated_quantity` or use `.replace(quantity)` for history.
+Python `.replace(accumulated_quantity=quantity)` requires that keyword and accepts
+only history replacement. Replacement validates before returning an owning value;
+the original and inputs remain valid on both success and failure.
+
+`QuadratureAccumulatorEngine` observes the context calendar's trading dates at
+midnight UTC, including the effective date and expiry. Each observation first
+checks `spot >= knock_out_level`: it settles all accrued units at
+`quantity * (spot - strike)` without a new purchase. Otherwise it adds
+`daily_quantity * acceleration_factor` strictly below strike, or `daily_quantity`
+at and above strike. Expiry settles after its observation. At an exact trading
+midnight valuation the current event is processed once; intraday and non-trading
+valuations introduce no current event. Prices exclude previously settled
+cashflows; callers must not value an already terminated contract.
+
+The engine checks flat rates (`UnsupportedOperation` for node curves, including
+at expiry), inclusive contract life (`InvalidTimeRange`), and trading expiry
+(`InvalidDate`), in order, before resolving current cashflows. It reuses the
+existing cubic Gaussian quadrature with separate slope/intercept layers in
+accrued quantity, exact terminal cash/asset moments, barrier-aligned cells and
+affine low-price tails. Shared `QuadratureSettings` defaults are 512 spatial steps
+and eight standard deviations. A single remaining observation uses exact moments,
+independent of the spatial budget. Non-finite transitions, grids and prices return
+`InvalidResult`. Signed prices, negative rates, zero purchases, acceleration zero
+or one, and knock-out at or below strike remain supported.
+
+All ten Greeks use the shared numerical defaults and error handling. Expiry
+Greeks are absent; spot stencils crossing current knock-out or active acceleration
+thresholds and time stencils crossing any trading observation are unavailable.
+Vega and rho remain available at current thresholds. Curve reuse is confined to
+a request and agrees with independent repricing. `implied_volatility` retains
+the caller's bracket and shared solver errors; prices can be non-monotone.
+It rejects unidentifiable volatility at expiry, current knock-out, zero exposure,
+and fixed holdings with no purchases and zero rates. Inputs remain unchanged.
+Core values are `Send + Sync`; shared reads and pricing are safe. Python values
+are immutable, conversions use the strict protocols above, and pricing, Greeks
+and solves release the GIL around owned core inputs only.
+
+```python
+from datetime import date
+from kiyosi.instruments import Accumulator
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import QuadratureAccumulatorEngine, implied_volatility
+
+option = Accumulator(strike=100, knock_out_level=110, daily_quantity=1,
+    acceleration_factor=2, effective_date=date(2025, 1, 1),
+    expiry_date=date(2025, 1, 6)).replace(accumulated_quantity=3)
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.4),
+    spot_price=100, valuation_time=date(2025, 1, 4))
+engine = QuadratureAccumulatorEngine()
+result = engine.price_with_greeks(option, context, ["delta", "vega"])
+assert result.delta is not None and result.vega is not None
+sigma = implied_volatility(engine, option, context, result.price,
+    lower_bound=0.2, upper_bound=0.6)
+assert abs(sigma - 0.4) < 1e-6
+assert engine.price(option, context.replace(spot_price=90,
+    valuation_time=option.expiry_date)) == -50
+```
+
+Rust and Python tests cover shared contract/history/error scenarios, exact
+terminal portfolios, an independently integrated two-event reference, the
+existing representative spatial/domain and Greek/bump convergence tolerances,
+quantity affinity, tiny-volatility tails, concurrent reads and request isolation.
+Accumulator finite differences and Monte Carlo arrive in later tickets; their
+legacy cross-engine tests remain with the legacy implementation.
 
 ## Checks
 

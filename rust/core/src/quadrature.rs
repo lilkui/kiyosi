@@ -1,3 +1,5 @@
+mod accumulator;
+pub use accumulator::QuadratureAccumulatorEngine;
 mod autocallable;
 pub use autocallable::QuadratureAutocallableEngine;
 mod barrier;

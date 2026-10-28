@@ -1,6 +1,6 @@
 //! Calendars, schedules, vanilla/digital BSM, geometric/arithmetic Asian analytics,
 //! single/double/binary-barrier, touch and range-accrual analytics, CRR, quadrature, finite-difference and CPU Monte Carlo pricing
-//! and American approximation,
+//! accumulator quadrature and American approximation,
 //! independent of Python.
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared
@@ -35,6 +35,7 @@
 //! # Ok(()) }
 //! ```
 
+mod accumulator;
 mod american;
 mod analytics;
 mod asian;
@@ -61,6 +62,7 @@ mod schedule;
 mod term_structure;
 mod time;
 
+pub use accumulator::{Accumulator, AccumulatorTerms};
 pub use american::BjerksundStenslandVanillaEngine;
 pub use analytics::{Greek, GreeksRequest, NumericalShiftSettings, PricingEngine, PricingResult};
 pub use asian::{
@@ -119,8 +121,8 @@ pub use monte_carlo::{
 pub use numerical::numerical_greeks;
 pub use pricing::AnalyticVanillaEngine;
 pub use quadrature::{
-    QuadratureAutocallableEngine, QuadratureBarrierEngine, QuadratureDigitalEngine,
-    QuadratureSettings, QuadratureVanillaEngine,
+    QuadratureAccumulatorEngine, QuadratureAutocallableEngine, QuadratureBarrierEngine,
+    QuadratureDigitalEngine, QuadratureSettings, QuadratureVanillaEngine,
 };
 pub use range_accrual::{AnalyticRangeAccrualEngine, RangeAccrualOption, RangeAccrualTerms};
 pub use schedule::ObservationSchedule;

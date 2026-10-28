@@ -13,6 +13,22 @@ use kiyosi_core::{
 fn main() -> Result<()> {
     let start = Date::new(2025, 1, 1)?;
     let end = Date::new(2026, 1, 1)?;
+    let accumulator = kiyosi_core::Accumulator::new(kiyosi_core::AccumulatorTerms::new(
+        100.0, 110.0, 1.0, 2.0, start, Date::new(2025, 1, 6)?,
+    ))?.replace(3.0)?;
+    let accumulator_context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.04, 0.01, 0.4)?,
+        100.0, Date::new(2025, 1, 4)?.into(),
+    )?;
+    let accumulator_engine = kiyosi_core::QuadratureAccumulatorEngine::default();
+    let result = accumulator_engine.price_with_greeks(
+        &accumulator, &accumulator_context, GreeksRequest::new([Greek::Delta, Greek::Vega]),
+        Default::default(),
+    )?;
+    assert!(result.has(Greek::Delta) && result.has(Greek::Vega));
+    let sigma = implied_volatility(&accumulator_engine, &accumulator, &accumulator_context,
+        result.price(), ImpliedVolatilitySettings { lower_bound: 0.2, upper_bound: 0.6, ..Default::default() })?;
+    assert!((sigma - 0.4).abs() < 1e-6);
     let mut phoenix_terms = kiyosi_core::PhoenixTerms::new(
         0.08,
         100.0,

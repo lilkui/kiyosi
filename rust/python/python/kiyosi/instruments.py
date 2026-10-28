@@ -3,6 +3,7 @@
 from typing import Literal
 
 from ._native import (
+    Accumulator,
     AmericanOption,
     ArithmeticAveragePriceOption,
     AssetOrNothingOption,
@@ -46,6 +47,7 @@ from ._native import (
 OptionType = Literal["call", "put"]
 
 __all__ = [
+    "Accumulator",
     "AmericanOption",
     "ArithmeticAveragePriceOption",
     "AssetOrNothingOption",

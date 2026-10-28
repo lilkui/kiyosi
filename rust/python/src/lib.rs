@@ -1,6 +1,7 @@
 //! Python representation adapters; all domain validation lives in kiyosi-core.
 
 use kiyosi_core as core;
+mod accumulator;
 mod american;
 mod analytics;
 mod asian;
@@ -756,6 +757,8 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
             .getattr("Literal")?
             .get_item(pyo3::types::PyTuple::new(py, names)?)?,
     )?;
+    module.add_class::<accumulator::Accumulator>()?;
+    module.add_class::<accumulator::QuadratureAccumulatorEngine>()?;
     module.add_class::<asian::GeometricAveragePriceOption>()?;
     module.add_class::<asian::ArithmeticAveragePriceOption>()?;
     module.add_class::<asian::AnalyticGeometricAveragePriceEngine>()?;
