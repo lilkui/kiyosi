@@ -812,6 +812,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<monte_carlo::MonteCarloBarrierEngine>()?;
     module.add_class::<monte_carlo::MonteCarloDoubleBarrierEngine>()?;
     module.add_class::<monte_carlo::MonteCarloAutocallableEngine>()?;
+    module.add_class::<monte_carlo::MonteCarloAccumulatorEngine>()?;
     module.add_class::<monte_carlo::MonteCarloAsianEngine>()?;
     module.add_class::<monte_carlo::MonteCarloEstimate>()?;
     module.add(

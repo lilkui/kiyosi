@@ -1,6 +1,6 @@
 //! Calendars, schedules, vanilla/digital BSM, geometric/arithmetic Asian analytics,
 //! single/double/binary-barrier, touch and range-accrual analytics, CRR, quadrature, finite-difference and CPU Monte Carlo pricing
-//! accumulator quadrature/finite differences and American approximation,
+//! accumulator quadrature/finite differences/Monte Carlo and American approximation,
 //! independent of Python.
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared
@@ -115,9 +115,9 @@ pub use market::{
     PricingContextChanges, Rate,
 };
 pub use monte_carlo::{
-    MonteCarloAutocallableEngine, MonteCarloBarrierEngine, MonteCarloDigitalEngine,
-    MonteCarloDoubleBarrierEngine, MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings,
-    MonteCarloVanillaEngine,
+    MonteCarloAccumulatorEngine, MonteCarloAutocallableEngine, MonteCarloBarrierEngine,
+    MonteCarloDigitalEngine, MonteCarloDoubleBarrierEngine, MonteCarloEstimate, MonteCarloSampling,
+    MonteCarloSettings, MonteCarloVanillaEngine,
 };
 pub use numerical::numerical_greeks;
 pub use pricing::AnalyticVanillaEngine;

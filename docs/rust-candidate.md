@@ -1,6 +1,6 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–35 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier/autocallable CPU Monte Carlo prices and analytics with
+Tickets 01–36 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier/autocallable/accumulator CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
 calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and snowball variants/presets and Phoenix quadrature/finite differences with implied-coupon solving, plus accumulator quadrature/finite differences. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
@@ -2709,7 +2709,7 @@ Rust and Python tests cover shared contract/history/error scenarios, exact
 terminal portfolios, an independently integrated two-event reference, the
 existing representative spatial/domain and Greek/bump convergence tolerances,
 quantity affinity, tiny-volatility tails, concurrent reads and request isolation.
-Accumulator Monte Carlo arrives in a later ticket; its legacy cross-engine tests
+Accumulator Monte Carlo is described below; legacy cross-engine tests
 remain with the legacy implementation.
 
 ## Accumulator finite differences
@@ -2775,6 +2775,73 @@ portfolios, all schemes, daily-event damping, spline/scalar consistency, mixed
 Greeks, and live QuantLib terminal portfolios with independent space, time and
 domain refinement. Explicit domains and coarse grids still require convergence
 checks appropriate to the contract.
+
+## Accumulator Monte Carlo
+
+Rust and Python expose `MonteCarloAccumulatorEngine` with `price`,
+`price_with_statistics` and `price_with_greeks`, plus the shared
+`implied_volatility` solver. It reuses accumulator history and event rules:
+prior quantity defaults to zero, a current trading midnight is observed once,
+inclusive knock-out precedes purchases, acceleration applies strictly below
+strike, and all outstanding units settle at knock-out or expiry. Already settled
+cashflows are excluded. Callers supply accrued quantity and must not price an
+already terminated contract.
+
+The engine draws exact BSM transitions on future trading dates, using
+Actual/365 Fixed elapsed time, including intraday and weekend gaps. It accepts
+explicitly flat risk-free and dividend rates. Node curves return
+`UnsupportedOperation` before life validation; valuation outside inclusive life
+returns `InvalidTimeRange`, then a non-trading expiry returns `InvalidDate`, even
+for zero exposure or immediate settlement. Non-finite paths, quantities,
+settlements and uncertainty return `InvalidResult`. Failures preserve inputs and
+settings. Extreme transitions must remain representable.
+
+Rust uses `MonteCarloSettings`, with defaults and validation shared with vanilla
+MC: 100,000 paths, no seed, automatic workers, pseudorandom sampling and no
+antithetic pairing. `step_count` defaults to 50 and is validated but unused.
+Sobol uses one dimension per future trading date, up to 21,201; known settlements
+skip sampling. Complete normal vectors are generated before path evaluation,
+so early knock-out does not change subsequent draws. Exact path counts, odd
+antithetic handling, seed range and worker caps follow the other CPU MC engines.
+Fixed seeds reproduce prices and statistics across thread counts in one build.
+Python settings use the same strict integer, Boolean and choice protocols.
+
+Statistics follow `MonteCarloEstimate`: pseudorandom standard errors use unbiased
+sample variance, or independent pair means for even antithetic counts. Sobol,
+insufficient independent observations and odd antithetic counts have absent
+uncertainty. Known pseudorandom settlements have zero uncertainty. Normal 95%
+intervals are asymptotic and can be unreliable for sparse or heavy-tailed payoffs.
+
+All ten Greeks use core scalar finite differences, replaying shared draws with a
+request-local seed even when no seed is configured. Expiry Greeks and spot/time
+stencils crossing active events remain absent. Vega and rho remain available at
+current thresholds. Small bumps can be noisy near sampled discontinuities;
+check larger shifts and sampling accuracy. Implied volatility pins the same
+draws for every trial, retains the caller's bracket, and rejects immediate
+settlement, zero exposure, expiry and fixed positions with both rates zero as
+unidentifiable (`UnsupportedOperation`). Prices may be non-monotone in volatility;
+solver convergence concerns the sampled curve, not its statistical error.
+
+```python
+from kiyosi.pricing import MonteCarloAccumulatorEngine, implied_volatility
+
+# Reuses the accumulator and market from the quadrature example above.
+engine = MonteCarloAccumulatorEngine(path_count=32768, seed=42, antithetic=True)
+estimate = engine.price_with_statistics(option, context)
+result = engine.price_with_greeks(option, context, ["delta", "vega"], spot_shift=0.25)
+sigma = implied_volatility(engine, option, context, estimate.price,
+                           lower_bound=0.2, upper_bound=0.6)
+assert abs(sigma - 0.4) < 1e-6
+```
+
+Shared and distinct engines support concurrent calls. Python releases the GIL
+around owned Rust inputs; calls are synchronous and signal handling resumes on
+return. Entropy and thread-creation failures retain native I/O details; worker
+panics resume in Rust after joining workers and follow the existing Python panic
+mapping. Allocation exhaustion follows the allocator's process behavior.
+Public tests check equivalent Rust/Python scenarios, independent terminal
+portfolios, quadrature agreement with statistical tolerances, event ordering,
+antithetic paths, thread consistency, validation and failure reuse.
 
 ## Checks
 
