@@ -222,3 +222,60 @@ sampling_settings!(
         )?))
     }
 );
+
+#[pyclass(frozen, module = "kiyosi._native")]
+pub(crate) struct MonteCarloAsianEngine(pub(crate) core::MonteCarloAsianEngine);
+
+sampling_settings!(
+    MonteCarloAsianEngine,
+    fn price(
+        &self,
+        py: Python<'_>,
+        instrument: asian::AsianInstrument<'_>,
+        context: &PricingContext,
+    ) -> PyResult<f64> {
+        let engine = self.0;
+        let context = context.0.clone();
+        match instrument {
+            asian::AsianInstrument::Geometric(option) => {
+                let option = option.0.clone();
+                domain(py, py.detach(|| engine.price(&option, &context)))
+            }
+            asian::AsianInstrument::Arithmetic(option) => {
+                let option = option.0.clone();
+                domain(py, py.detach(|| engine.price(&option, &context)))
+            }
+        }
+    },
+    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    fn price_with_greeks(
+        &self,
+        py: Python<'_>,
+        instrument: asian::AsianInstrument<'_>,
+        context: &PricingContext,
+        greeks: Option<&Bound<'_, PyAny>>,
+        settings: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<analytics::PricingResult> {
+        let request = analytics::request(greeks, settings)?;
+        let shifts = analytics::shifts(settings)?;
+        let engine = self.0;
+        let context = context.0.clone();
+        let result = match instrument {
+            asian::AsianInstrument::Geometric(option) => {
+                let option = option.0.clone();
+                domain(
+                    py,
+                    py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+                )
+            }
+            asian::AsianInstrument::Arithmetic(option) => {
+                let option = option.0.clone();
+                domain(
+                    py,
+                    py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+                )
+            }
+        }?;
+        Ok(analytics::PricingResult(result))
+    }
+);

@@ -1,6 +1,6 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–14 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital CPU Monte Carlo prices and analytics with
+Tickets 01–15 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
 calendars and observation schedules. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
@@ -1157,7 +1157,73 @@ with no Python state or callbacks accessed. Distinct and shared instances suppor
 concurrent reads and pricing; signals resume on return to Python. Rust follows
 the crate-wide `Send + Sync` contract. Public suites retain the applicable legacy
 regressions and all 24 live QuantLib geometric/Levy scenarios with existing
-accuracy and oracle uncertainty budgets. Asian Monte Carlo remains a later slice.
+accuracy and oracle uncertainty budgets. Asian CPU Monte Carlo is described below.
+
+## Continuous-average Asian CPU Monte Carlo
+
+`MonteCarloAsianEngine` prices both Asian contract types with the shared
+`MonteCarloSettings` in Rust and the same Python keywords as vanilla MC.
+Defaults, strict representation conversions, exact path counts, seeded thread
+reproducibility, owning results and operational failures follow vanilla MC.
+There is no Asian `price_with_statistics`: the existing support matrix is
+preserved, with no added confidence-interval guarantee.
+
+Geometric averages sample the exact lognormal distribution, including elapsed
+history weights and the lead-time variance of a forward start. Single-fixing
+contracts also sample their exact terminal distribution. Both use one normal
+dimension and ignore the validated `step_count`. Arithmetic averaging keeps
+`step_count` uniform trapezoidal intervals over the remaining averaging window.
+It integrates out the first interval conditionally, samples the remaining
+`step_count - 1` increments, and adds one separate normal dimension before a
+forward-starting window. Sobol consumes exactly these dimensions; antithetic
+sampling negates the whole normal vector and keeps an unpaired final path for
+odd pseudorandom counts. No full path matrix is retained.
+
+Pricing checks inclusive life and history consistency first. Expiry settles
+history (or spot for single fixings) before curve applicability. Before expiry,
+geometric MC requires explicitly flat rates, including for a single fixing;
+node curves return `UnsupportedOperation`. Arithmetic MC supports deterministic
+rate curves, integrating carry across knots on each interval. Both require
+curve coverage. Arithmetic accrued history that makes adjusted strike
+nonpositive uses the exact discounted expected payoff and zero gamma, avoiding
+sampling; implied volatility is then unidentifiable (`UnsupportedOperation`).
+Non-finite calculations and requested Greek samples return `InvalidResult`.
+
+`price_with_greeks` preserves native **delta and gamma**: pathwise delta and
+likelihood-ratio gamma for geometric samples, and conditional delta/gamma for
+arithmetic integration. Only requested native measures are returned; other
+Greeks and all expiry Greeks remain absent. Numerical shifts are validated
+before pricing but unused. Rust's `numerical_greeks` provides scalar differences
+with the unchanged absolute shift defaults and history-boundary availability
+rules. Each scalar analysis or implied-volatility solve pins one request-local
+seed even when none is configured, replaying draws without mutating the engine.
+Solving tolerances describe the sampled price, not accuracy against the true
+model price; check paths, integration steps and seed convergence.
+
+```python
+from kiyosi.pricing import MonteCarloAsianEngine, implied_volatility
+
+# Reuse arithmetic and context from the Asian example above.
+engine = MonteCarloAsianEngine(path_count=65536, step_count=64,
+                               sampling="sobol", antithetic=True, seed=42)
+result = engine.price_with_greeks(arithmetic, context, ["delta", "gamma"])
+sigma = implied_volatility(engine, arithmetic, context, result.price,
+                           lower_bound=0.1, upper_bound=0.4)
+assert abs(sigma - 0.2) < 1e-6
+```
+
+The Rust equivalent uses `MonteCarloAsianEngine::new(MonteCarloSettings { ... })`
+and borrowed Asian contracts and contexts. Shared and distinct instances support
+concurrent calls; Python prices, analyses and solves release the GIL around owned
+Rust inputs. Cancellation, signal handling, I/O failures, worker panics and
+allocation exhaustion follow the CPU MC contract above.
+
+Public Rust and isolated Python tests migrate the applicable existing Asian MC
+contracts and numerical budgets. They cover geometric analytic references,
+published arithmetic convergence cases, independent raw-path statistical
+comparisons, native sensitivities, history boundaries, tiny-volatility and
+monetary scaling, curves, threading, strict representations and solver failures.
+The legacy implementation remains available; no timing threshold is added.
 
 ## Checks
 

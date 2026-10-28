@@ -57,7 +57,8 @@ pub use american::BjerksundStenslandVanillaEngine;
 pub use analytics::{Greek, GreeksRequest, NumericalShiftSettings, PricingEngine, PricingResult};
 pub use asian::{
     AnalyticGeometricAveragePriceEngine, ArithmeticAveragePriceOption, DEFAULT_REALIZED_AVERAGE,
-    GeometricAveragePriceOption, TurnbullWakemanArithmeticAveragePriceEngine,
+    GeometricAveragePriceOption, MonteCarloAsianEngine,
+    TurnbullWakemanArithmeticAveragePriceEngine,
 };
 pub use binomial::{
     BinomialSettings, CoxRossRubinsteinDigitalEngine, CoxRossRubinsteinVanillaEngine,

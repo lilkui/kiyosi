@@ -94,3 +94,9 @@ asian_engine!(
     TurnbullWakemanArithmeticAveragePriceEngine,
     ArithmeticAveragePriceOption
 );
+
+#[derive(FromPyObject)]
+pub(crate) enum AsianInstrument<'py> {
+    Geometric(PyRef<'py, GeometricAveragePriceOption>),
+    Arithmetic(PyRef<'py, ArithmeticAveragePriceOption>),
+}

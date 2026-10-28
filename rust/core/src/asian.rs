@@ -1,3 +1,6 @@
+mod monte_carlo;
+pub use monte_carlo::MonteCarloAsianEngine;
+
 use crate::{
     Date, Error, ErrorCategory, EuropeanOption, GreeksRequest, NumericalShiftSettings,
     OptionContract, OptionType, PricingContext, PricingEngine, PricingResult, Result, Timestamp,

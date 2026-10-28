@@ -34,6 +34,42 @@ fn main() -> Result<()> {
     )?;
     let geometric_engine = kiyosi_core::AnalyticGeometricAveragePriceEngine;
     let arithmetic_engine = kiyosi_core::TurnbullWakemanArithmeticAveragePriceEngine;
+    let asian_mc = kiyosi_core::MonteCarloAsianEngine::new(MonteCarloSettings {
+        path_count: 16384,
+        step_count: 32,
+        seed: Some(42),
+        sampling: MonteCarloSampling::Sobol,
+        antithetic: true,
+        ..Default::default()
+    })?;
+    let asian_result = asian_mc.price_with_greeks(
+        &arithmetic,
+        &context,
+        GreeksRequest::all(),
+        Default::default(),
+    )?;
+    assert!(asian_result.require(Greek::Delta)? > 0.0);
+    assert!(!asian_result.has(Greek::Vega));
+    assert!(
+        (asian_mc.price(&geometric, &context)? - geometric_engine.price(&geometric, &context)?)
+            .abs()
+            < 0.01
+    );
+    assert!(
+        (implied_volatility(
+            &asian_mc,
+            &arithmetic,
+            &context,
+            asian_result.price(),
+            ImpliedVolatilitySettings {
+                lower_bound: 0.1,
+                upper_bound: 0.4,
+                ..Default::default()
+            }
+        )? - 0.2)
+            .abs()
+            < 1e-6
+    );
     let geometric_price = geometric_engine.price(&geometric, &context)?;
     let arithmetic_price = arithmetic_engine.price(&arithmetic, &context)?;
     assert!(arithmetic_price > geometric_price);

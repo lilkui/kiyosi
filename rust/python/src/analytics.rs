@@ -217,6 +217,29 @@ pub(crate) fn implied_volatility(
             }),
         );
     }
+    if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloAsianEngine>>() {
+        let engine = engine.0;
+        return match instrument.extract::<asian::AsianInstrument<'_>>()? {
+            asian::AsianInstrument::Geometric(option) => {
+                let option = option.0.clone();
+                domain(
+                    py,
+                    py.detach(|| {
+                        core::implied_volatility(&engine, &option, &context, observed, controls)
+                    }),
+                )
+            }
+            asian::AsianInstrument::Arithmetic(option) => {
+                let option = option.0.clone();
+                domain(
+                    py,
+                    py.detach(|| {
+                        core::implied_volatility(&engine, &option, &context, observed, controls)
+                    }),
+                )
+            }
+        };
+    }
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloDigitalEngine>>() {
         let engine = engine.0;
         let option = instrument

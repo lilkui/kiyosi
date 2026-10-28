@@ -24,14 +24,14 @@ pub enum MonteCarloSampling {
     Sobol,
 }
 
-/// Configures terminal or American exercise-grid CPU sampling.
+/// Configures terminal, Asian integration or American exercise-grid CPU sampling.
 /// See [`MonteCarloVanillaEngine::new`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MonteCarloSettings {
     /// Sets the exact path count, from 1 through 10,000,000; defaults to 100,000.
     pub path_count: i32,
     /// Sets 2..=10,000 grid points (default 50); American pricing before expiry needs 3.
-    /// European vanilla and digital terminal sampling do not use the grid.
+    /// Asian arithmetic integration uses this many intervals; exact distributions ignore it.
     pub step_count: i32,
     /// Selects a reproducible stream, or system entropy when absent (the default).
     pub seed: Option<u64>,
@@ -372,6 +372,27 @@ fn terminal_samples<const N: usize>(
     settings: MonteCarloSettings,
     payoff: impl Fn(f64) -> Result<[f64; N]> + Sync,
 ) -> Result<([Moments; N], [Moments; N])> {
+    path_samples(settings, 1, |normals| payoff(normals[0]))
+}
+
+pub(crate) fn path_means<const N: usize>(
+    settings: MonteCarloSettings,
+    dimensions: usize,
+    payoff: impl Fn(&[f64]) -> Result<[f64; N]> + Sync,
+) -> Result<[f64; N]> {
+    let (moments, _) = path_samples(settings, dimensions, payoff)?;
+    let mut means = [0.0; N];
+    for (mean, moment) in means.iter_mut().zip(moments) {
+        *mean = scaled_value(moment.scale, moment.mean, 0.0)?;
+    }
+    Ok(means)
+}
+
+fn path_samples<const N: usize>(
+    settings: MonteCarloSettings,
+    dimensions: usize,
+    payoff: impl Fn(&[f64]) -> Result<[f64; N]> + Sync,
+) -> Result<([Moments; N], [Moments; N])> {
     let seed = match settings.seed {
         Some(seed) => seed,
         None => random_seed()?,
@@ -383,7 +404,7 @@ fn terminal_samples<const N: usize>(
         paths
     };
     let sobol = if settings.sampling == MonteCarloSampling::Sobol {
-        Some(sobol::SobolSequence::new(1, seed)?)
+        Some(sobol::SobolSequence::new(dimensions, seed)?)
     } else {
         None
     };
@@ -397,28 +418,35 @@ fn terminal_samples<const N: usize>(
         let mut moments = empty;
         let mut pairs = empty;
         let mut spare = None;
+        let mut normals = vec![0.0; dimensions];
         for path in block * BLOCK_SIZE..((block + 1) * BLOCK_SIZE).min(samples) {
-            let normal = if let Some(cursor) = &mut cursor {
-                let value = cursor.normal();
-                cursor.next_path();
-                value
-            } else {
-                match spare.take() {
-                    Some(value) => value,
-                    None => {
-                        let radius = (-2.0 * generator.uniform().ln()).sqrt();
-                        let (sin, cos) = (TAU * generator.uniform()).sin_cos();
-                        spare = Some(radius * sin);
-                        radius * cos
+            for normal in &mut normals {
+                *normal = if let Some(cursor) = &mut cursor {
+                    cursor.normal()
+                } else {
+                    match spare.take() {
+                        Some(value) => value,
+                        None => {
+                            let radius = (-2.0 * generator.uniform().ln()).sqrt();
+                            let (sin, cos) = (TAU * generator.uniform()).sin_cos();
+                            spare = Some(radius * sin);
+                            radius * cos
+                        }
                     }
-                }
-            };
-            let positive = payoff(normal)?;
+                };
+            }
+            if let Some(cursor) = &mut cursor {
+                cursor.next_path();
+            }
+            let positive = payoff(&normals)?;
             for i in 0..N {
                 moments[i].add(positive[i]);
             }
             if settings.antithetic && path < paths / 2 {
-                let negative = payoff(-normal)?;
+                for normal in &mut normals {
+                    *normal = -*normal;
+                }
+                let negative = payoff(&normals)?;
                 for i in 0..N {
                     moments[i].add(negative[i]);
                     pairs[i].add(positive[i].midpoint(negative[i]));
@@ -482,7 +510,7 @@ fn run_blocks<T: Send>(
     })
 }
 
-fn unstable() -> Error {
+pub(crate) fn unstable() -> Error {
     Error::new(
         ErrorCategory::InvalidResult,
         "Monte Carlo produced a non-finite parameter, path or result",
@@ -507,7 +535,7 @@ fn scaled_value(scale: f64, weight: f64, log_discount: f64) -> Result<f64> {
     Ok(result)
 }
 
-fn random_seed() -> Result<u64> {
+pub(crate) fn random_seed() -> Result<u64> {
     let mut bytes = [0; 8];
     getrandom::fill(&mut bytes).map_err(|error| Error::operational(error.into()))?;
     Ok(u64::from_ne_bytes(bytes))
