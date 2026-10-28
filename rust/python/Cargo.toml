@@ -1,6 +1,6 @@
 [package]
 name = "kiyosi-python"
-description = "Python adapters for the isolated Rust pricing candidate"
+description = "Python adapters for the Rust pricing core"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

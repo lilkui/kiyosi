@@ -185,10 +185,11 @@ fn shared_sample_greeks_and_volatility_solves_preserve_inputs() {
     };
     let (up, down) = (bump(100.5), bump(100.0));
     assert_eq!(result.require(Greek::Delta).unwrap(), (up - down) / 0.5);
-    assert_eq!(
-        result.require(Greek::Gamma).unwrap(),
-        (up - 2.0 * result.price() + down) / 0.25 / 0.25
-    );
+    let gamma = (up - 2.0 * result.price() + down) / 0.25 / 0.25;
+    // Equivalent second-difference groupings can round differently.
+    let rounding = 4.0 * f64::EPSILON * (up.abs() + 2.0 * result.price().abs() + down.abs())
+        / shifts.spot_shift.powi(2);
+    assert!((result.require(Greek::Gamma).unwrap() - gamma).abs() <= rounding);
     for greek in [
         Greek::Delta,
         Greek::Gamma,

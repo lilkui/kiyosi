@@ -5,21 +5,20 @@
 
 [简体中文](README.md) | English
 
-kiyosi is a derivatives pricing library for Python users, supporting vanilla and exotic derivatives under the Black–Scholes–Merton model. It also provides a standalone C++ library.
+kiyosi is a derivatives pricing library for Python users, supporting vanilla and exotic derivatives under the Black–Scholes–Merton model. Its Rust core also works independently of Python.
 
 The project is in Alpha. Breaking API changes are possible.
 
-The staged Rust rewrite now has a [candidate](docs/rust-candidate.md) for European
-analytic pricing, American approximation pricing, vanilla/digital CRR, quadrature and finite-difference pricing, single-barrier CRR, quadrature, finite differences and CPU Monte Carlo, binary-barrier and single-touch finite differences, double-barrier and cash double-touch/no-touch finite differences, Greeks and implied volatility,
-single/double/binary-barrier and touch analytics with event history, accumulator quadrature/finite differences, analytic range-accrual coupons, snowball variants/presets and Phoenix quadrature/finite differences/CPU Monte Carlo with implied-coupon solving, term structures, trading calendars and observation schedules,
-with an independent Rust core and an isolated Python installation. The sections
-below describe the existing delivery.
+The default build and Python package use the Rust CPU core. See the
+[API and contracts](docs/rust-candidate.md), [acceptance record](docs/rust-acceptance.md),
+and [test guide](tests/README.md). Legacy source is retained until the cleanup ticket.
 
 ## Products and features
 
 | Product | Pricing methods |
 | --- | --- |
-| European and American vanilla options | Closed-form formulas, American approximations, binomial trees, quadrature, finite differences, and Monte Carlo |
+| European vanilla options | Closed-form formulas, binomial trees, quadrature, finite differences, and Monte Carlo |
+| American vanilla options | Bjerksund–Stensland approximation, binomial trees, finite differences, and Monte Carlo |
 | Cash-or-nothing and asset-or-nothing digital options | Analytic formulas, quadrature, finite differences, CRR binomial trees, and Monte Carlo |
 | Single-barrier vanilla options | Analytic methods, finite differences, Monte Carlo, CRR binomial trees, and quadrature |
 | Binary barrier options and single-barrier touch/no-touch options | Analytic methods and finite differences |
@@ -34,7 +33,7 @@ The library also provides:
 
 - Greeks, numerical sensitivities, and implied volatility and coupon solvers.
 - Risk-free rate and dividend yield term structures, trading calendars, and observation schedules.
-- Parallel CPU execution and an optional CUDA backend for Monte Carlo, with pseudorandom sampling, Sobol quasi-Monte Carlo sampling, and antithetic variates.
+- Parallel CPU Monte Carlo execution with pseudorandom sampling, Sobol quasi-Monte Carlo sampling, and antithetic variates.
 
 ## Install the Python package
 
@@ -44,9 +43,13 @@ Python 3.11 or later is required. Install from PyPI:
 python -m pip install kiyosi
 ```
 
-Prebuilt wheels require no local C++ toolchain. Source builds require a C++23 compiler, CMake 3.28+, and oneTBB 2023.1+ (downloaded automatically if not installed).
+Ordinary CPython 3.11–3.15 wheels target Linux x86-64 and Windows AMD64.
+Prebuilt wheels require no Rust toolchain. Source builds use maturin and Rust;
+Windows also needs the Visual Studio C++ linker tools.
 
-Windows source builds and CMake presets use clang-cl. Install the Visual Studio C++ tools and C++ Clang compiler component, and run build commands in a Visual Studio Developer PowerShell.
+For the standalone Rust core, add `kiyosi-core = { path = "rust/core" }` to a
+consumer's Cargo dependencies, adjusting the path to your checkout. Core build,
+test, documentation and packaging need only Cargo; the workspace defaults to it.
 
 ## Python quick start
 

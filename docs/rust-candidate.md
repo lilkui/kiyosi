@@ -1,16 +1,12 @@
-# Rust pricing and analytics candidate
+# Rust pricing and analytics
 
-Tickets 01–36 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier/autocallable/accumulator CPU Monte Carlo prices and analytics with
-flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and snowball variants/presets and Phoenix quadrature/finite differences with implied-coupon solving, plus accumulator quadrature/finite differences. The root
-`pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
-candidate also installs as `kiyosi`: use separate virtual environments or
-processes. There is no runtime implementation selector.
+The default Python package and build use the Rust CPU core. The supported product
+and engine inventory and executed delivery checks are recorded in the
+[acceptance record](rust-acceptance.md). No runtime backend selector is provided.
 
-The workspace version in `Cargo.toml` supplies both crates and Python's
-`__version__` and wheel metadata. It currently matches the legacy version.
-The workspace defaults to the core; ordinary `cargo build`, `cargo test`, and
-`cargo doc` never build PyO3 or discover Python.
+The workspace version in `Cargo.toml` supplies both crates, Python's `__version__`
+and distribution metadata. The workspace defaults to the core; ordinary
+`cargo build`, `cargo test`, and `cargo doc` never build PyO3 or discover Python.
 
 ## Rust API
 
@@ -46,7 +42,7 @@ Strike, spot, and volatility must be finite and strictly positive; both rates
 must be finite and may be negative. Constructors validate before returning a
 value. Accessors borrow or copy from owned data. `PricingContext::new` uses
 `TradingCalendar::default()` (weekdays, annualization 252); the Python default is
-derived from the same core value. Other exotic instruments and engines arrive in later tickets.
+derived from the same core value.
 The vanilla engine accepts only `EuropeanOption`: unsupported instrument types are
 excluded by Rust's signature and Python's native argument conversion.
 
@@ -237,8 +233,7 @@ return owning validated contracts; failure leaves originals intact. Omitted fiel
 retain their values. Settlement kind cannot change. Rust rejects a cash payout
 replacement on asset settlement with `UnsupportedOperation`; Python's asset
 contract has no payout parameter and rejects it with native `TypeError`.
-Digital contract replacement is a candidate interface; the legacy digital API
-provides construction only. Python properties are read-only and equality compares
+Python properties are read-only and equality compares
 contract values. Vanilla/digital engine mismatches use Rust type checking or
 Python's native argument-conversion errors.
 
@@ -256,8 +251,7 @@ stabilization for `volatility * sqrt(time) < 1e-5` with finite log discounts to
 avoid cancellation of time value. Infinite log discounts retain the quadrature
 limits. No other engine fallback is selected.
 
-These terminal engines expose no integration settings. The legacy
-`QuadratureSettings` spatial grid and extent configure path-dependent engines,
+These terminal engines expose no integration settings. `QuadratureSettings` spatial grid and extent configure path-dependent engines,
 including single-barrier quadrature described below. No such controls are added to terminal engines.
 
 Both require explicitly flat rates, including dated flat curves. Node curves
@@ -316,7 +310,7 @@ construction. Settings are immutable and owned; Rust `settings()` returns a
 copy and Python exposes read-only `step_count`. Python accepts integral inputs
 through the existing integer protocol, rejecting booleans, floats and `None`
 with `TypeError`, and values outside signed 32-bit range with `OverflowError`.
-Candidate constructor settings are keyword-only.
+Python constructor settings are keyword-only.
 
 Both engines require explicitly flat rates, including dated flat curves.
 Node curves return `UnsupportedOperation` before life or Greek request validation,
@@ -375,8 +369,7 @@ UTC, inclusive. Positive finite strike and ordered dates use the same core
 validation as European vanilla terms. Equal dates are valid. Rust
 `AmericanOption::replace(AmericanOptionChanges)` and Python `.replace(**fields)`
 return validated owning copies, preserving omitted fields and the original on
-success or failure. Python replacement is a candidate interface; the legacy
-American API provides construction only. Python properties are read-only.
+success or failure. Python properties are read-only.
 
 `BjerksundStenslandVanillaEngine` ports the existing **2002** approximation,
 including its bivariate quadrature, put-call symmetry, normalized powers and
@@ -483,8 +476,7 @@ allowed; non-finite query results return `InvalidResult`. `forward_rate(time)`
 uses the right-hand interval at knots and the left-hand interval at the last node.
 `shifted(shift)` adds a finite parallel continuous-rate spread and returns an owning
 curve with the same coverage. `nodes()` borrows stable storage for the curve's
-lifetime; `factors()` returns an owned vector including shifts. As in the legacy
-API, shifted factors can underflow or overflow even when forward rates remain
+lifetime; `factors()` returns an owned vector including shifts. Shifted factors can underflow or overflow even when forward rates remain
 finite; interval queries still validate their numerical results.
 
 Both model rate arguments accept `f64` or `RateTermStructure` independently.
@@ -616,17 +608,18 @@ Invalid indices raise `IndexError`. Python has no direct schedule constructor.
 See [SSE calendar maintenance](sse-calendar.md) for forecast limitations,
 upstream sources, generator commands and licensing.
 
-## Python candidate installation and usage
+## Python installation and usage
 
-Use a dedicated environment with CPython 3.11–3.15 and a Rust toolchain:
+Use CPython 3.11–3.15 and a Rust toolchain to build from this checkout:
 
 ```sh
-python -m venv .venv/candidate
-.venv/candidate/bin/python -m pip install './rust/python[test]'
-.venv/candidate/bin/python -m unittest discover -s rust/python/tests -p 'test_*.py'
+python -m venv .venv/rust
+.venv/rust/bin/python -m pip install '.[test]'
+.venv/rust/bin/python -m unittest discover -s rust/python/tests -p 'test_*.py'
 ```
 
-On Windows use `.venv\candidate\Scripts\python.exe` in place of the POSIX paths.
+On Windows use `.venv\rust\Scripts\python.exe` in place of the POSIX paths.
+Prebuilt wheels need no Rust compiler. The package name remains `kiyosi`.
 The [PyO3 guide](https://pyo3.rs/v0.30.1/) and
 [maturin layout guide](https://www.maturin.rs/project_layout.html) describe the
 binding and packaging tools. Wheels use each CPython version's ordinary ABI;
@@ -706,7 +699,7 @@ Categories implemented here are `INVALID_STRIKE` (2), `INVALID_VOLATILITY` (3),
 Malformed curves and non-finite flat rates or
 shifts use `INVALID_PARAMETER`; scalar model rate validation retains its
 field-specific categories.
-These identifiers and numbers match the legacy categories. Messages are diagnostic
+These category identifiers and numbers are stable. Messages are diagnostic
 text and must not be parsed. Resource failures and panics are not domain rejections.
 Monte Carlo resource failures retain a native I/O error in Rust and map to Python
 `OSError` (or its native subclass), with the OS error code when available; they
@@ -715,8 +708,7 @@ do not map to `KiyosiError`.
 The crate-level rustdoc states the default concurrency contract: all current
 values are `Send + Sync`, distinct and shared instances permit concurrent reads
 and pricing, and Rust mutation requires exclusive access. Python wrappers are
-immutable. Short analytic prices and Greek formulas retain the GIL, as in the
-legacy binding. Solves release it around core work with owned Rust inputs and
+immutable. Short analytic prices and Greek formulas retain the GIL. Solves release it around core work with owned Rust inputs and
 no Python callbacks or Python state. User-supplied Rust engines must uphold
 their own concurrency contract. Calls are synchronous; there is no cancellation API or core signal
 polling. Python signal handling (including `KeyboardInterrupt` on the main thread)
@@ -789,10 +781,10 @@ Both Python engines release the GIL for scalar pricing, analysis and solves usin
 owned Rust inputs. Shared and distinct engines support concurrent calls; there is
 no core cancellation polling, so Python signals are handled after a call returns.
 
-The candidate FD tests migrate applicable Rannacher, mixed-Greek, scaled-discount,
+The FD tests migrate applicable Rannacher, mixed-Greek, scaled-discount,
 interpolation, large-grid and configuration regressions. They use the existing
 independent QuantLib European, refined American and digital reference profiles,
-plus grid-refinement checks through public APIs. Legacy suites remain separate.
+plus grid-refinement checks through public APIs.
 
 ## European CPU Monte Carlo
 
@@ -919,7 +911,7 @@ stream and Box–Muller normal draws, or a cursor into the call's immutable Sobo
 scramble; block order and reduction order are independent of
 worker count. Within the same version and build, fixed seeds reproduce prices,
 statistics, Greeks and solves across thread counts. Random streams and last-bit
-results may differ across versions, builds, platforms and the legacy engine.
+results may differ across versions, builds, platforms and older implementations.
 No process-wide thread settings or shared mutable engine state are changed.
 
 All Python price, statistics, Greek and solve calls release the GIL around core
@@ -1013,7 +1005,7 @@ sigma = implied_volatility(engine, put, context, result.price,
                            lower_bound=0.15, upper_bound=0.25)
 ```
 
-The candidate tests migrate the existing American MC QuantLib scenario/profile
+The public API tests migrate the existing American MC QuantLib scenario/profile
 with unchanged price and Greek budgets and independent grid/bump stability
 checks. Public Rust and Python tests also cover immediate exercise, sparse and
 rank-deficient fits, currency scaling, odd paths, all sampling combinations,
@@ -1071,11 +1063,11 @@ sigma = implied_volatility(engine, cash, context, result.price,
 
 The Rust equivalent uses `DigitalOption`, `MonteCarloDigitalEngine::new` and
 `MonteCarloSettings`; the public methods accept borrowed contracts and contexts
-and return owned results. The candidate tests migrate the existing digital CPU
+and return owned results. The public API tests migrate the existing digital CPU
 price/likelihood error budgets, negative-carry, tiny-volatility, odd-path,
 thread-independence and failure regressions. They also compare all 40 existing
 live QuantLib digital scenarios and check multi-seed price RMSE against the
-independent cash-payoff variance. Legacy implementations remain available.
+independent cash-payoff variance.
 
 ## Continuous-average Asian analytic pricing
 
@@ -1218,12 +1210,11 @@ concurrent calls; Python prices, analyses and solves release the GIL around owne
 Rust inputs. Cancellation, signal handling, I/O failures, worker panics and
 allocation exhaustion follow the CPU MC contract above.
 
-Public Rust and isolated Python tests migrate the applicable existing Asian MC
+Public Rust and Python tests migrate the applicable existing Asian MC
 contracts and numerical budgets. They cover geometric analytic references,
 published arithmetic convergence cases, independent raw-path statistical
 comparisons, native sensitivities, history boundaries, tiny-volatility and
 monetary scaling, curves, threading, strict representations and solver failures.
-The legacy implementation remains available; no timing threshold is added.
 
 ## Single-barrier analytics and history
 
@@ -1372,8 +1363,7 @@ Shared and distinct instances support concurrent pricing and leave inputs unchan
 on success or failure. Signals resume when Python regains control. Public tests
 migrate the relevant legacy event and numerical regressions, compare small trees
 with independent exhaustive path enumeration, check continuous-grid refinement,
-and compare price/delta/gamma with live QuantLib 1.43. Legacy implementations stay
-available; no performance threshold or report is added.
+and compare price/delta/gamma with live QuantLib 1.43.
 
 ## Single-barrier quadrature
 
@@ -1521,11 +1511,10 @@ sigma = implied_volatility(engine, option, context, result.price,
 assert abs(sigma - 0.2) < 1e-5
 ```
 
-See `MonteCarloBarrierEngine::price_with_greeks` for a Rust example. Candidate
+See `MonteCarloBarrierEngine::price_with_greeks` for a Rust example. Public API
 acceptance tests retain continuous analytic and scheduled quadrature comparisons,
 rebates, early monitoring, odd counts, shared-sample Greeks, solver behavior,
-thread reproducibility, event boundaries and failure categories. The legacy
-implementation remains available for migration comparison.
+thread reproducibility, event boundaries and failure categories.
 
 ## Single-barrier finite differences
 
@@ -1603,8 +1592,7 @@ edges, event projection across grid placements, Rannacher restarts, interpolatio
 near extrema, large rebates, vanishing volatility, node-curve discounts, mixed
 sensitivities and volatility recovery. Independent live QuantLib comparisons,
 analytic binary decompositions and two-observation conditional integrals check
-accuracy; spatial and temporal refinements check convergence. Legacy delivery
-remains available, with no new dependency or performance gate.
+accuracy; spatial and temporal refinements check convergence.
 
 ## Binary-barrier and single-touch analytics
 
@@ -1699,8 +1687,7 @@ assert engine.price(touch.replace(touch_state="touched"),
 Public Rust/Python tests migrate settlement, history, strict strike boundaries,
 scheduled monitoring, variance-underflow and extreme-scale regressions. All 268
 existing independent QuantLib binary/touch scenarios retain their price, Greek
-and reference-uncertainty budgets. The legacy implementation remains available;
-no performance threshold is added.
+and reference-uncertainty budgets.
 
 ## Double-barrier analytic pricing
 
@@ -2049,7 +2036,6 @@ Acceptance tests include independent QuantLib values, multi-seed Monte Carlo
 budgets, series-switch cases, converged exit-series and fixing-date integrals,
 finite-difference comparisons, history/event boundaries, fixed-cashflow inversion
 rejections, odd path parity, thread reproducibility and strict Python conversions.
-The legacy implementation remains available for migration comparison.
 
 ## Range-accrual coupons
 
@@ -2133,8 +2119,7 @@ assert option.realized_hit_count is None
 
 Public Rust/Python tests migrate the existing history, terminal-payoff, curve,
 long-contract, tiny-volatility, extreme-tail and numerical-Greek regressions,
-using independent marginal/payoff references. The legacy implementation remains
-available for migration comparison.
+using independent marginal/payoff references.
 
 ## Basic snowball quadrature
 
@@ -2227,7 +2212,7 @@ sigma = implied_volatility(engine, note, context, result.price,
 assert abs(sigma - 0.3) < 1e-6
 ```
 
-The candidate tests migrate signed and affine terminal portfolios using the
+The public API tests migrate signed and affine terminal portfolios using the
 existing independent QuantLib reference, strict event boundaries, history and
 calendar precedence, fixed cashflows, dense deterministic ladders, near-expiry
 transitions, all ten sensitivities, grid/domain and bump convergence, solver
@@ -2405,14 +2390,13 @@ core validation. Empty, unordered or out-of-life dates are rejected by the same
 constructor as explicit terms. Presets retain ordinary history replacement and
 all pricing/analysis operations, with no extra engine or pricing fallback.
 
-Public Rust and isolated Python tests compare every preset with explicit terms
+Public Rust and Python tests compare every preset with explicit terms
 and prices, and exercise binary/ternary terminal regions, signed coupons,
 principal, all ten Greeks, volatility recovery, history and failure states,
 calendar validation, strict representations and concurrent reads. Numerical
 checks reuse the existing independent QuantLib terminal portfolios, signed
 cash-digital and one-second regressions, and spatial/domain convergence for
-multi-event binary and both ternary monitoring modes. Legacy implementations
-remain available for migration comparison.
+multi-event binary and both ternary monitoring modes.
 
 ## Autocallable implied coupons
 
@@ -2526,7 +2510,7 @@ notes, contexts or engine settings. Engines own immutable settings and support
 concurrent shared/distinct calls; Python price, Greek and solver calls release the
 GIL only around owned Rust inputs. Python native representation errors, strict
 numeric/index conversion, exception mapping and cancellation behavior follow the
-candidate-wide contracts above.
+library-wide contracts above.
 
 ```python
 from kiyosi.pricing import FiniteDifferenceAutocallableEngine, implied_coupon
@@ -2538,7 +2522,7 @@ coupon = implied_coupon(engine, note, context, result.price,
 ```
 
 For Phoenix omit `quote_convention`. Rust construction and pricing are illustrated
-in `FiniteDifferenceAutocallableEngine::price_with_greeks` rustdoc. Candidate tests
+in `FiniteDifferenceAutocallableEngine::price_with_greeks` rustdoc. Public API tests
 retain the migrated accuracy budgets for nearby barriers, one-second-to-expiry
 prices/Greeks, payoff bounds, smooth extrema, domain/space/time refinement, event
 restarts, history, and all four note variants. Independent analytic portfolios,
@@ -2709,8 +2693,6 @@ Rust and Python tests cover shared contract/history/error scenarios, exact
 terminal portfolios, an independently integrated two-event reference, the
 existing representative spatial/domain and Greek/bump convergence tolerances,
 quantity affinity, tiny-volatility tails, concurrent reads and request isolation.
-Accumulator Monte Carlo is described below; legacy cross-engine tests
-remain with the legacy implementation.
 
 ## Accumulator finite differences
 
@@ -2845,48 +2827,40 @@ antithetic paths, thread consistency, validation and failure reuse.
 
 ## Checks
 
-From the repository root:
+From the repository root, with a Python interpreter available for binding lint:
 
 ```sh
 cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test
-cargo doc --no-deps
-cargo package -p kiyosi-core
-PYO3_PYTHON=/nonexistent/python cargo run --manifest-path tests/rust-consumer/Cargo.toml
-ruff check rust/python
-ruff format --check rust/python
+cargo clippy --workspace --all-targets --locked -- -D warnings
+PYO3_PYTHON=/nonexistent/python cargo test --release --locked
+PYO3_PYTHON=/nonexistent/python RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --locked
+PYO3_PYTHON=/nonexistent/python cargo package -p kiyosi-core --locked
+PYO3_PYTHON=/nonexistent/python cargo run --release --locked --manifest-path tests/rust-consumer/Cargo.toml
+ruff check rust/python tools/generate_sse_calendar.py
+ruff format --check rust/python tools/generate_sse_calendar.py
 ty check rust/python/python
-maturin build --manifest-path rust/python/Cargo.toml --interpreter .venv/candidate/bin/python
-maturin sdist --manifest-path rust/python/Cargo.toml
+uv build --sdist --out-dir dist
 ```
 
-Install the built wheel into the candidate environment before running its tests.
-Also rebuild a wheel from the sdist in a temporary directory to check that the
-workspace and core path dependency are included. `cargo package --allow-dirty`
-is useful while developing; it still verifies the packaged core independently.
-For core-only build/test/doc/package checks, setting `PYO3_PYTHON` to a nonexistent
-path demonstrates that Python discovery is not involved. The separate consumer
-has its own workspace and uses only the public crate API.
+Install the wheel built from that sdist into a fresh environment and run the
+Rust-backed Python suite as described in the [test guide](../tests/README.md).
+Core-only checks with an invalid `PYO3_PYTHON` demonstrate that Python discovery
+is not involved. The separate consumer has its own workspace and uses only the
+public crate API. `cargo package --allow-dirty` is useful during development.
 
-Install the unchanged root `.[test]` into `.venv/legacy` separately, then run:
-
-```sh
-.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_european.py'
-.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_market.py'
-.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_calendars.py'
-.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_analytics.py'
-.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_digital.py'
-.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_american.py'
-.venv/legacy/bin/python -m unittest discover -s rust/python/tests -p 'test_binomial.py'
-.venv/legacy/bin/python -m unittest discover -s tests/python -p 'test_*.py'
-```
+The CI workflow builds ordinary CPython 3.11–3.15 wheels from the sdist on Linux
+and Windows and runs the full Rust-backed Python suite against each installed
+wheel. QuantLib 1.43 is required: missing reference dependencies fail discovery.
+QuantLib global settings are restored; comparisons run serially in each process.
+Actual local results and unverified environments are recorded separately in the
+[acceptance record](rust-acceptance.md).
 
 The shared market suite migrates the applicable legacy curve and replacement
 contracts, adds independent live QuantLib curve pricing and parity, and checks
 coverage timing, representation errors, ownership and concurrent pricing. The
-Rust public API tests cover equivalent market scenarios. Other product/engine
-cases remain in the legacy suite.
+Rust public API tests cover equivalent market scenarios. The support-matrix suite
+also checks every exported engine and rejects
+unsupported product/engine pairs through public pricing and analysis APIs.
 
 The shared CRR suite checks explicit rollback across small and large grids,
 odd/even and off-strike convergence, negative carry, immediate exercise,
@@ -2912,26 +2886,25 @@ valuation timing, construction, request/shift validation, solver errors, curve
 coverage and knots, concurrent reads, large-scale speed, tiny-volatility gamma,
 normal-tail delta and discount/settlement overflow and underflow regressions.
 Rust public API tests exercise equivalent contracts and reusable scalar numerical
-analysis. Candidate-only digital tests verify owning replacement and failure state;
-the legacy implementation has no digital contract replacement method.
+analysis. Digital tests verify owning replacement and failure state.
 
 The shared calendar suite reuses existing custom-calendar contracts and checks
 counting, adjustment, schedule endpoints, month clamping, large offsets,
 conversion errors, ownership, iteration and concurrent reads. It checks every
-date in the SSE data range against the generated Rust table in both isolated
-implementations. Generator tests cover the upstream forecast boundary and Rust
+date in the SSE data range against the generated Rust table through the Rust and
+Python public APIs. Generator tests cover the upstream forecast boundary and Rust
 rendering. Calendar data and its attribution ship in the standalone Cargo crate
-and candidate Python artifacts; Python is needed only to regenerate the data.
+and Python artifacts; Python is needed only to regenerate the data.
 
 The shared European suite covers the same domain and representation cases in
 both processes. It reuses all 20 existing European scenarios and the independent
 live QuantLib 1.43 oracle, restoring QuantLib settings after each scenario.
 Additional Rust and Python cases retain high-precision tiny-volatility/tail
 regressions, extreme scales, validation timing, expiry boundaries, owning values,
-and shared/distinct-instance concurrency. Candidate-only tests check installed
+and shared/distinct-instance concurrency. Installed-package tests check installed
 metadata, exports, category values and stub members. Tests require QuantLib;
 missing reference dependencies fail discovery.
 
 Windows and all CPython versions require separate build/test runs; a local Linux
 run does not establish that delivery matrix. No release or package publication
-is part of these tickets.
+is performed by these checks.

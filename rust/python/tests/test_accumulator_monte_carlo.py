@@ -206,7 +206,16 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         up = engine.price(note, context.replace(spot_price=100.5))
         down = engine.price(note, context.replace(spot_price=100))
         self.assertEqual(result.delta, (up - down) / 0.5)
-        self.assertEqual(result.gamma, (up - 2 * result.price + down) / 0.25**2)
+        # Equivalent second-difference groupings can round differently.
+        rounding = (
+            4
+            * sys.float_info.epsilon
+            * (abs(up) + 2 * abs(result.price) + abs(down))
+            / 0.25**2
+        )
+        self.assertAlmostEqual(
+            result.gamma, (up - 2 * result.price + down) / 0.25**2, delta=rounding
+        )
         for greek in ("speed", "vega", "vanna", "zomma", "rho"):
             self.assertTrue(math.isfinite(result.require(greek)))
         for greek in ("theta", "charm", "color"):

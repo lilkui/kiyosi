@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main, rust-rewrite]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-26.04, windows-2025-vs2026]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.15'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all --check
+      - name: Check, test, document, package and consume the core without Python
+        env:
+          PYO3_PYTHON: /nonexistent/python
+          RUSTDOCFLAGS: -D warnings
+        run: |
+          cargo check --locked
+          cargo test --release --locked
+          cargo doc --no-deps --locked
+          cargo package -p kiyosi-core --locked
+          cargo run --release --locked --manifest-path tests/rust-consumer/Cargo.toml
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  python-style:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+      - run: uv run --no-project --with ruff -- ruff check rust/python tools/generate_sse_calendar.py
+      - run: uv run --no-project --with ruff -- ruff format --check rust/python tools/generate_sse_calendar.py
+      - run: uv run --no-project --with ty -- ty check rust/python/python
+
+  distributions:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-26.04, windows-2025-vs2026]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: '3.15'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build the source distribution
+        run: uv build --sdist --out-dir dist
+      - name: Build and test all five CPython wheels from the sdist
+        run: uv run --no-project --with cibuildwheel -- cibuildwheel dist/*.tar.gz --output-dir dist
+      - name: Keep one source distribution from Linux
+        if: runner.os == 'Windows'
+        run: rm dist/*.tar.gz
+      - uses: actions/upload-artifact@v7
+        with:
+          name: distributions-${{ matrix.os }}
+          path: dist/*
+          if-no-files-found: error

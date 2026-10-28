@@ -31,8 +31,8 @@ jobs:
 
       - name: Verify release tag
         run: >-
-          python -c "import os, pathlib, re; text = pathlib.Path('CMakeLists.txt').read_text();
-          version = re.search(r'project\(kiyosi VERSION ([0-9.]+)', text).group(1);
+          python -c "import os, pathlib, tomllib;
+          version = tomllib.loads(pathlib.Path('Cargo.toml').read_text())['workspace']['package']['version'];
           tag = os.environ['GITHUB_REF_NAME'];
           assert tag == f'v{version}', f'release tag {tag!r} does not match package version {version!r}'"
 
@@ -67,12 +67,22 @@ jobs:
           github-token: ${{ github.token }}
           path: dist
 
-      - name: Check Windows wheel completeness
-        run: >-
-          python -c "from pathlib import Path;
-          missing = [abi for abi in ('cp311', 'cp312', 'cp313', 'cp314', 'cp315')
-          if len(list(Path('dist').glob(f'kiyosi-*-{abi}-{abi}-win_amd64.whl'))) != 1];
-          assert not missing, f'expected one Windows wheel per Python version: {missing}'"
+      - name: Check complete ordinary-wheel matrix and source distribution
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import tomllib
+
+          version = tomllib.loads(Path('Cargo.toml').read_text())['workspace']['package']['version']
+          distributions = Path('dist')
+          for abi in ('cp311', 'cp312', 'cp313', 'cp314', 'cp315'):
+              for platform in ('manylinux*_x86_64', 'win_amd64'):
+                  pattern = f'kiyosi-{version}-{abi}-{abi}-{platform}.whl'
+                  matches = list(distributions.glob(pattern))
+                  assert len(matches) == 1, (pattern, matches)
+          assert len(list(distributions.glob('*.whl'))) == 10
+          assert [path.name for path in distributions.glob('*.tar.gz')] == [f'kiyosi-{version}.tar.gz']
+          PY
 
       - name: Publish distributions
         uses: pypa/gh-action-pypi-publish@release/v1

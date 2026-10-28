@@ -1,21 +1,51 @@
 # Tests
 
-The isolated Rust candidate has separate [build and public API checks](../docs/rust-candidate.md#checks).
-Run its tests in its own environment; the suite below targets the existing delivery.
+The default delivery uses the Rust core and its Python bindings. Keep the installed
+package in an isolated environment so a legacy checkout cannot shadow it.
 
-Install the Python test extra from the repository root, then run the default suite:
+From the repository root:
 
 ```sh
+cargo test --release --locked
 python -m pip install '.[test]'
-python -m unittest discover -s tests/python -p 'test_*.py'
+python -m unittest discover -s rust/python/tests -p 'test_*.py'
 ```
 
-The extra pins QuantLib 1.43. It is required: missing QuantLib fails discovery rather than skipping price validation. QuantLib is not needed to use Kiyosi or to build and test the C++ core.
+`cargo test` uses only the core. The Python suite exercises the installed Rust
+extension, including the generator tests. During the rewrite, do not run the
+legacy C++ or `tests/python` suites unless explicitly requested. Some migrated
+tests reuse independent references and individual contract fixtures in
+`tests/python`; these files must remain available until those imports are moved.
 
-`test_quantlib_reference.py` compares live QuantLib prices and Greeks with the public Kiyosi Python APIs, including scalar price differences and implied-volatility recovery. `test_structured_reference.py` checks terminal-payoff portfolios and finite-difference convergence. Reference construction and explicit scenarios live in `tests/python/quantlib_reference`; there is no reference-generation command or committed pricing snapshot to refresh.
+The test extra pins QuantLib 1.43. It is required: missing QuantLib fails discovery
+rather than skipping price validation. QuantLib is unnecessary for runtime use,
+or for building, testing, documenting and packaging the standalone Rust core.
 
-The references use Actual/365 Fixed, continuously compounded BSM parameters, `WeekendsOnly` matched to Kiyosi's `weekdays_calendar`, and unrolled contract dates. Reference uncertainty checks are independent of Kiyosi engine error budgets. American references refine 800, 1600 and 3200 point grids and check bump stability, so full test runs take longer than snapshot comparisons. Arithmetic Asian checks compare the same Levy approximation, not the true arithmetic-average value. Structured checks use basic-payoff portfolios, not native structured-product engines.
+Independent price/Greek, scalar-bump and implied-volatility references and explicit
+scenarios live in `tests/python/quantlib_reference`. Structured references use
+basic-payoff portfolios. American references refine 800, 1600 and 3200 point
+grids and check bump stability. Arithmetic Asian comparisons validate the same
+Levy approximation, not the exact arithmetic-average value. Numerical acceptance
+also covers event/history boundaries, grid/domain and shift convergence, multi-seed
+Monte Carlo error, Sobol, antithetic paths and thread-count reproducibility.
 
-The QuantLib calculations change a global evaluation date. Tests restore settings with `SavedSettings`; run comparisons serially within a process, or use separate processes for parallel runs.
+The references use Actual/365 Fixed, continuously compounded BSM parameters,
+`WeekendsOnly` matched to `weekdays_calendar`, and unrolled contract dates.
+Reference uncertainty is checked independently of engine error budgets. QuantLib
+changes a process-global evaluation date: tests restore settings with
+`SavedSettings`. Run comparisons serially within a process, or isolate parallel
+runs in separate processes.
 
-C++ and Python API contract tests cover equivalent domain scenarios in their respective suites, including defaults, representation boundaries, event-sensitive history and implied-parameter identifiability.
+Rust and Python public API tests cover equivalent defaults, validation timing,
+stable errors, failed replacement state, event/history behavior, ownership and
+concurrency. `test_support_matrix.py` checks terminal prices and Greek availability
+for every CPU engine, unidentifiable volatility at expiry, and native rejection
+of unsupported product/engine pairs.
+
+For packaging acceptance, build an sdist with `uv build --sdist`, rebuild its wheel
+using `uv build --wheel path/to/kiyosi-VERSION.tar.gz`, install it in a fresh
+environment with the test extra, and run the Python suite above. CI repeats this
+for Linux x86-64 and Windows AMD64 with ordinary CPython 3.11–3.15 wheels.
+
+See the [API check commands](../docs/rust-candidate.md#checks) and the
+[executed acceptance record](../docs/rust-acceptance.md).

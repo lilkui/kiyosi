@@ -5,17 +5,18 @@
 
 简体中文 | [English](README.en.md)
 
-kiyosi 是一个面向 Python 用户的金融衍生品定价库，支持 Black–Scholes–Merton 模型下的香草及奇异衍生品定价，也提供可独立使用的 C++ 库。
+kiyosi 是一个面向 Python 用户的金融衍生品定价库，支持 Black–Scholes–Merton 模型下的香草及奇异衍生品定价，核心使用 Rust，可脱离 Python 独立使用。
 
 项目目前处于 Alpha 阶段，API 可能发生不兼容变更。
 
-Rust 重写正在分阶段进行。[候选版](docs/rust-candidate.md)提供欧式解析定价、美式近似定价、香草与数字期权 CRR、数值积分和有限差分、单障碍期权 CRR、数值积分、有限差分与 CPU 蒙特卡洛、二元障碍与单边触碰/不触碰有限差分、双障碍与现金双边触碰/不触碰有限差分、单/双障碍、二元障碍与单边触碰/不触碰解析定价及事件历史、区间累计解析定价、累购数值积分与有限差分、基础、二元、三元雪球及命名预设与凤凰数值积分、有限差分、CPU 蒙特卡洛和隐含票息求解、Greeks 与隐含波动率、期限结构、交易日历与观察日程，以及独立 Rust 核心与隔离安装的同名 Python 包；下文仍描述现有交付。
+默认构建与 Python 包统一使用 Rust CPU 核心。详见 [API 与行为契约](docs/rust-candidate.md)、[验收记录](docs/rust-acceptance.md)及[测试指南](tests/README.md)。旧源码保留至下一张清理票。
 
 ## 支持的产品与功能
 
 | 产品 | 定价方法 |
 | --- | --- |
-| 欧式、美式香草期权 | 解析解、美式近似、二叉树、数值积分、有限差分、蒙特卡洛 |
+| 欧式香草期权 | 解析解、二叉树、数值积分、有限差分、蒙特卡洛 |
+| 美式香草期权 | Bjerksund–Stensland 近似、二叉树、有限差分、蒙特卡洛 |
 | 现金或无、资产或无数字期权 | 解析解、数值积分、有限差分、CRR 二叉树、蒙特卡洛 |
 | 单障碍香草期权 | 解析方法、有限差分、蒙特卡洛、CRR 二叉树、数值积分 |
 | 二元障碍与单边触碰/不触碰期权 | 解析方法、有限差分 |
@@ -30,7 +31,7 @@ Rust 重写正在分阶段进行。[候选版](docs/rust-candidate.md)提供欧�
 
 - Greeks、数值敏感度、隐含波动率及隐含票息求解。
 - 无风险利率与股息率期限结构、交易日历和观察日程。
-- 蒙特卡洛 CPU 并行及可选 CUDA 后端、伪随机采样、Sobol 准蒙特卡洛采样和对偶变量。
+- CPU 蒙特卡洛并行、伪随机采样、Sobol 准蒙特卡洛采样和对偶变量。
 
 ## 安装 Python 包
 
@@ -40,9 +41,9 @@ Rust 重写正在分阶段进行。[候选版](docs/rust-candidate.md)提供欧�
 python -m pip install kiyosi
 ```
 
-预编译 wheel 无需本地 C++ 工具链；从源码构建需要 C++23 编译器、CMake 3.28+ 和 oneTBB 2023.1+（未安装时自动下载）。
+普通 CPython 3.11–3.15 wheel 覆盖 Linux x86-64 和 Windows AMD64。安装预编译 wheel 无需 Rust 工具链；从源码构建使用 maturin 和 Rust，Windows 还需要 Visual Studio C++ 链接工具。
 
-Windows 源码构建和 CMake 预设使用 clang-cl。请安装 Visual Studio C++ 工具及 C++ Clang 编译器组件，并在 Visual Studio Developer PowerShell 中运行构建命令。
+Rust 消费方可在 Cargo 依赖中加入 `kiyosi-core = { path = "rust/core" }`，并按实际仓库位置调整路径。核心的构建、测试、文档与打包只需要 Cargo，workspace 默认仅构建核心。
 
 ## Python 快速上手
 
