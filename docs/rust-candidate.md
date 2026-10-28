@@ -452,7 +452,7 @@ assert option.strike == 100
 
 Existing approximation regressions retain absolute `1e-11` price tolerance.
 Independent checks reuse every scenario and the Bjerksund–Stensland profile in
-`tests/python/quantlib_reference/american.json`. QuantLib finite-difference grids
+`rust/python/tests/quantlib_reference/american.json`. QuantLib finite-difference grids
 refine from 800 through 1600 to 3200, with independent refinement and bump-stability
 checks before comparison. Approximation price tolerance is **0.15**; numerical
 Greek budgets come from that profile plus measured reference uncertainty.
@@ -928,7 +928,7 @@ Python maps them to `OSError`. Worker panics retain Rust unwinding and PyO3's
 The MC tests reuse the existing QuantLib numerical profile and its original
 wrapper matrix and budgets, plus independent scalar stencils, statistical
 coverage, numerical scaling, block boundaries, shared-instance calls and GIL
-release checks. Sampling cases retain legacy Sobol price/Greek precision budgets,
+release checks. Sampling cases retain Sobol price/Greek precision budgets,
 exact odd-path and single-point regressions, cross-thread analytics and solves,
 and the mixed timing tool's bias/RMSE checks without timing pass conditions.
 They do not compare thread speed.
@@ -1147,9 +1147,9 @@ assert arithmetic.realized_average == 0
 Python prices, Greek requests and solves release the GIL around owned Rust inputs,
 with no Python state or callbacks accessed. Distinct and shared instances support
 concurrent reads and pricing; signals resume on return to Python. Rust follows
-the crate-wide `Send + Sync` contract. Public suites retain the applicable legacy
-regressions and all 24 live QuantLib geometric/Levy scenarios with existing
-accuracy and oracle uncertainty budgets. Asian CPU Monte Carlo is described below.
+the crate-wide `Send + Sync` contract. Public suites cover the regression cases
+and all 24 live QuantLib geometric/Levy scenarios with existing accuracy and
+oracle uncertainty budgets. Asian CPU Monte Carlo is described below.
 
 ## Continuous-average Asian CPU Monte Carlo
 
@@ -1361,7 +1361,7 @@ assert abs(engine.price(option, context.replace(model_parameters=
 Python price, analysis and solve calls release the GIL around owned Rust inputs.
 Shared and distinct instances support concurrent pricing and leave inputs unchanged
 on success or failure. Signals resume when Python regains control. Public tests
-migrate the relevant legacy event and numerical regressions, compare small trees
+cover event and numerical regressions, compare small trees
 with independent exhaustive path enumeration, check continuous-grid refinement,
 and compare price/delta/gamma with live QuantLib 1.43.
 
@@ -2560,7 +2560,7 @@ cannot shift later paths' random draws. Pseudorandom, scrambled Sobol,
 antithetic pairing, exact actual path counts and thread caps reuse the shared
 CPU sampler. Sobol needs power-of-two paths and at most 21,201 remaining path
 dimensions. A fixed seed reproduces prices and statistics across thread counts
-within a build; it need not reproduce the legacy C++ random sequence.
+within one version and build.
 
 Statistics use the shared `MonteCarloEstimate`: unbiased sample variance and an
 asymptotic 95% normal interval for pseudorandom samples, independent pair means
@@ -2847,16 +2847,19 @@ Rust-backed Python suite as described in the [test guide](../tests/README.md).
 Core-only checks with an invalid `PYO3_PYTHON` demonstrate that Python discovery
 is not involved. The separate consumer has its own workspace and uses only the
 public crate API. `cargo package --allow-dirty` is useful during development.
+In an extracted Python sdist, add `-p kiyosi-core` to core build, check, test and
+documentation commands because maturin removes workspace `default-members`.
 
 The CI workflow builds ordinary CPython 3.11–3.15 wheels from the sdist on Linux
 and Windows and runs the full Rust-backed Python suite against each installed
 wheel. QuantLib 1.43 is required: missing reference dependencies fail discovery.
 QuantLib global settings are restored; comparisons run serially in each process.
-Actual local results and unverified environments are recorded separately in the
-[acceptance record](rust-acceptance.md).
+Post-removal local results and unverified environments are recorded separately in
+the [cleanup record](rust-cleanup.md); the [cutover record](rust-acceptance.md)
+retains the original integration evidence.
 
-The shared market suite migrates the applicable legacy curve and replacement
-contracts, adds independent live QuantLib curve pricing and parity, and checks
+The shared market suite checks curve and replacement
+contracts, independent live QuantLib curve pricing and parity, and
 coverage timing, representation errors, ownership and concurrent pricing. The
 Rust public API tests cover equivalent market scenarios. The support-matrix suite
 also checks every exported engine and rejects

@@ -2,12 +2,10 @@
 
 import importlib
 import math
-import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 from itertools import product
-from pathlib import Path
 
 import QuantLib as ql
 from kiyosi import ErrorCategory, KiyosiError, pricing
@@ -374,8 +372,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         native = engine.price_with_greeks(
             option, market(), ["delta", "gamma", "vega", "rho"]
         )
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+
         differences = importlib.import_module("price_differences").price_differences
         bumped = differences(
             engine, option, market(), greeks=("delta", "gamma", "vega", "rho")

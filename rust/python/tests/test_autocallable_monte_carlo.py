@@ -1,4 +1,4 @@
-"""Autocallable CPU sampling through the installed Rust candidate."""
+"""Autocallable CPU sampling through the installed Rust extension."""
 
 import math
 import unittest
@@ -289,7 +289,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         )
 
     def test_quantlib_terminal_payoff_portfolios(self):
-        from test_structured_reference import contract, market, references
+        from support.structured import contract, market, references
 
         rows = [
             row

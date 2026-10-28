@@ -1,10 +1,9 @@
-"""CRR public contracts shared by the candidate and legacy builds."""
+"""CRR public contracts shared by the Rust implementation."""
 
 import importlib
 import json
 import math
 import numbers
-import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
@@ -557,8 +556,8 @@ class BinomialTests(unittest.TestCase):
                     self.assertAlmostEqual(sigma, 0.2, delta=1e-6)
 
     def test_existing_quantlib_european_and_american_profiles(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+        root = Path(__file__).resolve().parent
+
         oracle = importlib.import_module("quantlib_reference.oracle")
         american = importlib.import_module("quantlib_reference.american")
         scenarios = importlib.import_module("quantlib_reference.scenarios")

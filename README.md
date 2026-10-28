@@ -9,7 +9,7 @@ kiyosi 是一个面向 Python 用户的金融衍生品定价库，支持 Black�
 
 项目目前处于 Alpha 阶段，API 可能发生不兼容变更。
 
-默认构建与 Python 包统一使用 Rust CPU 核心。详见 [API 与行为契约](docs/rust-candidate.md)、[验收记录](docs/rust-acceptance.md)及[测试指南](tests/README.md)。旧源码保留至下一张清理票。
+默认构建与 Python 包统一使用 Rust CPU 核心。详见 [API 与行为契约](docs/rust-candidate.md)、[验收记录](docs/rust-acceptance.md)及[测试指南](tests/README.md)。仅交付 CPU 后端，不提供 C++ 或 C ABI。
 
 ## 支持的产品与功能
 

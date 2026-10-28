@@ -1,7 +1,7 @@
 # Tests
 
 The default delivery uses the Rust core and its Python bindings. Keep the installed
-package in an isolated environment so a legacy checkout cannot shadow it.
+package in an isolated environment for artifact verification.
 
 From the repository root:
 
@@ -12,17 +12,20 @@ python -m unittest discover -s rust/python/tests -p 'test_*.py'
 ```
 
 `cargo test` uses only the core. The Python suite exercises the installed Rust
-extension, including the generator tests. During the rewrite, do not run the
-legacy C++ or `tests/python` suites unless explicitly requested. Some migrated
-tests reuse independent references and individual contract fixtures in
-`tests/python`; these files must remain available until those imports are moved.
+extension, including the generator tests. Independent references and shared
+fixtures live alongside the suite in `rust/python/tests/quantlib_reference` and
+`rust/python/tests/support`.
+
+In an extracted Python sdist, use `cargo test -p kiyosi-core --release --locked`:
+maturin removes workspace `default-members` when preparing that archive. Selecting
+the core explicitly keeps build, test and documentation checks independent of Python.
 
 The test extra pins QuantLib 1.43. It is required: missing QuantLib fails discovery
 rather than skipping price validation. QuantLib is unnecessary for runtime use,
 or for building, testing, documenting and packaging the standalone Rust core.
 
 Independent price/Greek, scalar-bump and implied-volatility references and explicit
-scenarios live in `tests/python/quantlib_reference`. Structured references use
+scenarios live in `rust/python/tests/quantlib_reference`. Structured references use
 basic-payoff portfolios. American references refine 800, 1600 and 3200 point
 grids and check bump stability. Arithmetic Asian comparisons validate the same
 Levy approximation, not the exact arithmetic-average value. Numerical acceptance
@@ -48,4 +51,4 @@ environment with the test extra, and run the Python suite above. CI repeats this
 for Linux x86-64 and Windows AMD64 with ordinary CPython 3.11–3.15 wheels.
 
 See the [API check commands](../docs/rust-candidate.md#checks) and the
-[executed acceptance record](../docs/rust-acceptance.md).
+[post-removal acceptance record](../docs/rust-cleanup.md).

@@ -11,7 +11,7 @@ uv run --no-project --with lunar-python==1.4.8 python tools/generate_sse_calenda
 uv run --no-project --with lunar-python==1.4.8 python tools/generate_sse_calendar.py --check
 ```
 
-生成结果是 [`rust/core/src/sse_holidays.rs`](../rust/core/src/sse_holidays.rs) 中按日期排序的静态 Rust 整数数组，由核心通过 `include!` 编译；运行、构建、测试和打包核心均无需 Python 或日历包。`--write` 更新该文件，`--check` 将完整生成结果与已提交文件比较。迁移期间保留旧 C++ 数据表作为对照，生成工具不再修改旧表。
+生成结果是 [`rust/core/src/sse_holidays.rs`](../rust/core/src/sse_holidays.rs) 中按日期排序的静态 Rust 整数数组，由核心通过 `include!` 编译；运行、构建、测试和打包核心均无需 Python 或日历包。`--write` 更新该文件，`--check` 将完整生成结果与已提交文件比较。
 
 Rust `TradingCalendar::sse()` 和Python `sse_calendar()` 消费同一份数据，年化基数为 243。对于 1991—2099 年以外的日期，日历将周一至周五视为交易日。公共 API 测试逐日核对该范围内的日历查询与生成数据。
 

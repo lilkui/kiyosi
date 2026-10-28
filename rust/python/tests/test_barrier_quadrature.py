@@ -3,11 +3,9 @@
 import importlib
 import math
 import numbers
-import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
 
 import kiyosi
 import QuantLib as ql
@@ -233,8 +231,7 @@ class BarrierQuadratureTests(unittest.TestCase):
             )
 
     def test_continuous_prices_and_greeks_against_live_quantlib(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+
         oracle = importlib.import_module("quantlib_reference.barrier")
         oracle.g.require_version()
         engine = pricing.QuadratureBarrierEngine(

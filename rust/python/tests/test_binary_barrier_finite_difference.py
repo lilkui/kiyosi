@@ -2,11 +2,9 @@
 
 import importlib
 import math
-import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime
-from pathlib import Path
 
 import kiyosi
 import QuantLib as ql
@@ -398,7 +396,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             engine.time_step_count = 1
 
     def test_existing_independent_quantlib_price_scenarios(self):
-        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tests/python"))
+
         reference = importlib.import_module("quantlib_reference.binary")
         saved = ql.SavedSettings()
         self.addCleanup(lambda: saved.__exit__(None, None, None))

@@ -464,10 +464,8 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         self.assertEqual(results, [values[1]] * 2)
 
     def test_quantlib_terminal_portfolios_and_separate_grid_convergence(self):
-        from pathlib import Path
 
-        sys.path.append(str(Path(__file__).resolve().parents[3] / "tests" / "python"))
-        from test_structured_reference import contract, market, references, settings
+        from support.structured import contract, market, references, settings
 
         rows = [
             row

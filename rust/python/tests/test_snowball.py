@@ -1,11 +1,9 @@
-"""Basic snowball contracts through the installed Rust candidate."""
+"""Basic snowball contracts through the installed Rust extension."""
 
 import math
-import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
 
 from kiyosi import ErrorCategory as E
 from kiyosi import KiyosiError
@@ -23,8 +21,6 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from kiyosi.pricing import QuadratureAutocallableEngine, implied_volatility
-
-sys.path.append(str(Path(__file__).resolve().parents[3] / "tests" / "python"))
 from quantlib_reference import structured
 
 START, END = date(2025, 1, 1), date(2025, 4, 1)

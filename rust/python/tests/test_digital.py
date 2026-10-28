@@ -1,13 +1,11 @@
-"""Digital contracts shared by the isolated candidate and legacy environments."""
+"""Digital contracts shared by the Rust implementation."""
 
 import importlib
 import math
-import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 from fractions import Fraction
-from pathlib import Path
 
 import QuantLib as ql
 from kiyosi import ErrorCategory, KiyosiError
@@ -101,8 +99,7 @@ class DigitalTests(unittest.TestCase):
                 option.strike = 105
 
     def test_live_quantlib_prices_greeks_and_scalar_differences(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+
         digital = importlib.import_module("quantlib_reference.digital")
         oracle = importlib.import_module("quantlib_reference.oracle")
         differences = importlib.import_module("price_differences").price_differences
@@ -605,8 +602,7 @@ class DigitalTests(unittest.TestCase):
         self.assertAlmostEqual(result.speed, -0.07172406990163582, delta=1e-14)
 
     def test_expiry_reaching_time_stencils_use_scalar_derivatives_on_both_sides(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+
         differences = importlib.import_module("price_differences").price_differences
         context = self.context.replace(spot_price=1, valuation_time=date(2025, 12, 31))
         for direction in ("call", "put"):

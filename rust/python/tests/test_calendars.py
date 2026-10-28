@@ -1,6 +1,5 @@
-"""Calendar/schedule contracts shared by the candidate and isolated legacy package."""
+"""Public calendar and schedule contracts."""
 
-import importlib.util
 import numbers
 import re
 import unittest
@@ -17,16 +16,9 @@ from kiyosi.market import (
     sse_calendar,
     weekdays_calendar,
 )
+from support.custom_calendar import CustomCalendarTests  # noqa: F401
 
-# Retain the existing ownership, replacement, conflict, and strict conversion regressions.
 ROOT = Path(__file__).resolve().parents[3]
-spec = importlib.util.spec_from_file_location(
-    "legacy_custom_calendar_tests", ROOT / "tests/python/test_custom_calendar.py"
-)
-assert spec is not None and spec.loader is not None
-legacy = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(legacy)
-CustomCalendarTests = legacy.CustomCalendarTests
 
 
 class CalendarTests(unittest.TestCase):

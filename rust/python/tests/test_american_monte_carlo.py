@@ -328,8 +328,8 @@ class AmericanMonteCarloTests(unittest.TestCase):
             engine.step_count = 2
 
     def test_live_quantlib_refinement_and_existing_error_budgets(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+        root = Path(__file__).resolve().parent
+
         american = importlib.import_module("quantlib_reference.american")
         oracle = importlib.import_module("quantlib_reference.oracle")
         oracle.require_version()

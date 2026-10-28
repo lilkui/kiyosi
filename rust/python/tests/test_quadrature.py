@@ -420,8 +420,8 @@ class QuadratureTests(unittest.TestCase):
                 self.assertEqual(context.model_parameters.volatility, 0.2)
 
     def test_existing_quantlib_vanilla_profiles(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+        root = Path(__file__).resolve().parent
+
         scenarios = importlib.import_module("quantlib_reference.scenarios")
         oracle = importlib.import_module("quantlib_reference.oracle")
         oracle.require_version()
@@ -487,8 +487,7 @@ class QuadratureTests(unittest.TestCase):
                 )
 
     def test_existing_quantlib_digital_profiles(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+
         digital = importlib.import_module("quantlib_reference.digital")
         oracle = importlib.import_module("quantlib_reference.oracle")
         oracle.require_version()

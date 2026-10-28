@@ -41,6 +41,5 @@ Kiyosi is in alpha; there are no backward-compatibility commitments.
 
 - Format and lint modified Rust with rustfmt and Clippy, and Python with Ruff, using repository-selected rules.
 - Run affected Rust core and Rust-backed Python binding tests, plus documentation and packaging checks when affected. Find commands in repository configuration and the [Python test guide](tests/README.md).
-- During the Rust rewrite, skip the legacy C++ and legacy Python test suites unless the user explicitly requests them.
 - Update API and usage docs to reflect current behavior. Keep historical context in ADRs, migration guides or release notes.
 - Use Conventional Commits.

@@ -1,4 +1,4 @@
-"""Accumulator CPU Monte Carlo through the installed Rust candidate."""
+"""Accumulator CPU Monte Carlo through the installed Rust extension."""
 
 import math
 import sys

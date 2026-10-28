@@ -152,8 +152,7 @@ class MonteCarloTests(unittest.TestCase):
         )
 
     def test_shared_sample_greeks_match_independent_scalar_stencils(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+
         differences = importlib.import_module("price_differences").price_differences
         shifts = {"spot_shift": 1, "volatility_shift": 0.01, "rate_shift": 0.001}
         for direction in ("call", "put"):
@@ -384,8 +383,8 @@ class MonteCarloTests(unittest.TestCase):
             self.assertEqual(engine.price(option, context), actual.price)
 
     def test_existing_quantlib_monte_carlo_profile(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+        root = Path(__file__).resolve().parent
+
         scenarios = importlib.import_module("quantlib_reference.scenarios")
         oracle = importlib.import_module("quantlib_reference.oracle")
         oracle.require_version()
@@ -642,8 +641,7 @@ class SamplingTests(unittest.TestCase):
     def test_all_sampling_combinations_replay_analytics_and_preserve_failure_state(
         self,
     ):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+
         differences = importlib.import_module("price_differences").price_differences
         option, context = contract(), market()
         shifts = {"spot_shift": 1, "volatility_shift": 0.01, "rate_shift": 0.001}

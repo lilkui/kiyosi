@@ -11,7 +11,7 @@ The project is in Alpha. Breaking API changes are possible.
 
 The default build and Python package use the Rust CPU core. See the
 [API and contracts](docs/rust-candidate.md), [acceptance record](docs/rust-acceptance.md),
-and [test guide](tests/README.md). Legacy source is retained until the cleanup ticket.
+and [test guide](tests/README.md). Delivery is CPU only, with no public C++ or C ABI.
 
 ## Products and features
 

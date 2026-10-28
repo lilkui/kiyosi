@@ -1,4 +1,4 @@
-"""Coupon quotes through the installed Rust candidate public API."""
+"""Coupon quotes through the installed Rust extension public API."""
 
 import math
 import sys

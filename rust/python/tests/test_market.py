@@ -1,4 +1,4 @@
-"""Shared term-structure contracts, runnable against candidate and legacy packages."""
+"""Shared term-structure contracts, runnable against Rust implementation."""
 
 import math
 import numbers

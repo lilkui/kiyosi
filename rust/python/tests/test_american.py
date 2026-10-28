@@ -1,9 +1,8 @@
-"""American approximation contracts shared by the candidate and legacy builds."""
+"""American approximation contracts shared by the Rust implementation."""
 
 import importlib
 import json
 import math
-import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
@@ -282,8 +281,7 @@ class AmericanTests(unittest.TestCase):
         )
 
     def test_greeks_defaults_scalar_differences_and_shared_solving(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+
         differences = importlib.import_module("price_differences").price_differences
         for direction in ("call", "put"):
             option = AmericanOption(**dict(self.terms, option_type=direction))
@@ -476,8 +474,8 @@ class AmericanTests(unittest.TestCase):
             self.assertAlmostEqual(value / 1.1367038364232515e-163, 1, delta=1e-8)
 
     def test_live_quantlib_refinement_and_existing_error_budgets(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+        root = Path(__file__).resolve().parent
+
         american = importlib.import_module("quantlib_reference.american")
         oracle = importlib.import_module("quantlib_reference.oracle")
         oracle.require_version()

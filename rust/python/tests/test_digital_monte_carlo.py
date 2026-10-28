@@ -464,14 +464,10 @@ class DigitalNumericalTests(unittest.TestCase):
     def test_path_counts_statistics_and_live_quantlib_reference(self):
         # Reuse all 40 independent digital scenarios, selecting native delta/gamma only.
         import importlib
-        import sys
-        from pathlib import Path
 
         import QuantLib as ql
         from test_binomial import contract
 
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
         digital = importlib.import_module("quantlib_reference.digital")
         oracle = importlib.import_module("quantlib_reference.oracle")
         oracle.require_version()

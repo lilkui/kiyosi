@@ -1,5 +1,8 @@
 # Rust integration acceptance
 
+This is the ticket 37 cutover record, before legacy removal. For the current
+engineering tree and post-removal checks, see the [cleanup record](rust-cleanup.md).
+
 Ticket: [37 — integrate and switch to Rust](../.scratch/rust-rewrite/issues/37-integrate-and-switch-to-rust.md).
 Checks performed on 2026-10-28, starting at `e75bef89a4f7cb9c49344ea774e40ad36dbee7b2`.
 

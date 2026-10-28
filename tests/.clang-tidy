@@ -1,3 +1,0 @@
-InheritParentConfig: true
-# Tests deliberately cast unknown domain enums; Catch2 also casts flag bits.
-Checks: '-clang-analyzer-optin.core.EnumCastOutOfRange'

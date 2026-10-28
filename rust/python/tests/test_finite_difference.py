@@ -4,7 +4,6 @@ import importlib
 import json
 import math
 import numbers
-import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
@@ -429,8 +428,8 @@ class FiniteDifferenceTests(unittest.TestCase):
                 )
 
     def test_existing_quantlib_european_and_american_profiles(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+        root = Path(__file__).resolve().parent
+
         oracle = importlib.import_module("quantlib_reference.oracle")
         american = importlib.import_module("quantlib_reference.american")
         scenarios = importlib.import_module("quantlib_reference.scenarios")
@@ -501,8 +500,7 @@ class FiniteDifferenceTests(unittest.TestCase):
                         )
 
     def test_existing_quantlib_digital_profiles(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+
         digital = importlib.import_module("quantlib_reference.digital")
         oracle = importlib.import_module("quantlib_reference.oracle")
         oracle.require_version()
@@ -583,8 +581,7 @@ class FiniteDifferenceTests(unittest.TestCase):
                 )
 
     def test_american_long_expiry_domain_matches_live_quantlib(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+
         american = importlib.import_module("quantlib_reference.american")
         inputs = {
             "option": "call",

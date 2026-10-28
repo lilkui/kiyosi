@@ -209,7 +209,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
 
 class AutocallableQuantLibTests(unittest.TestCase):
     def test_terminal_portfolios_and_separate_grid_convergence(self):
-        from test_structured_reference import contract, market, references, settings
+        from support.structured import contract, market, references, settings
 
         rows = [
             row

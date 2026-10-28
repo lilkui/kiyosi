@@ -1,10 +1,9 @@
-"""Public API checks, also runnable against the isolated legacy installation."""
+"""Public API checks, through the Rust extension."""
 
 import importlib
 import json
 import math
 import numbers
-import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta, timezone
@@ -74,8 +73,8 @@ class EuropeanTests(unittest.TestCase):
                 )
 
     def test_existing_scenarios_against_live_quantlib(self):
-        test_root = Path(__file__).resolve().parents[3] / "tests" / "python"
-        sys.path.insert(0, str(test_root))
+        test_root = Path(__file__).resolve().parent
+
         oracle = importlib.import_module("quantlib_reference.oracle")
         oracle.require_version()
         config = json.loads(

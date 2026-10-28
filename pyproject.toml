@@ -33,14 +33,14 @@ module-name = "kiyosi._native"
 bindings = "pyo3"
 locked = true
 include = [
-    { path = "rust/python/tests/*.py", format = "sdist" },
-    { path = "tests/python/**/*.py", format = "sdist" },
-    { path = "tests/python/quantlib_reference/*.json", format = "sdist" },
+    { path = "rust/python/tests/**/*.py", format = "sdist" },
+    { path = "rust/python/tests/quantlib_reference/*.json", format = "sdist" },
     { path = "tests/rust-consumer/Cargo.*", format = "sdist" },
     { path = "tests/rust-consumer/src/*.rs", format = "sdist" },
+    { path = "tests/README.md", format = "sdist" },
     { path = "tools/generate_sse_calendar.py", format = "sdist" },
     { path = "benchmarks/sobol.py", format = "sdist" },
-    { path = "docs/**", format = "sdist" },
+    { path = "docs/**/*.md", format = "sdist" },
     { path = "README.en.md", format = "sdist" },
 ]
 
@@ -53,7 +53,6 @@ test-sources = [
     "Cargo.toml",
     "rust/python/tests",
     "rust/core/src/sse_holidays.rs",
-    "tests/python",
     "tools/generate_sse_calendar.py",
     "benchmarks/sobol.py",
 ]

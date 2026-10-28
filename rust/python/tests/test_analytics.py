@@ -1,9 +1,8 @@
-"""Shared European analytics contracts, run in separate candidate and legacy processes."""
+"""Shared European analytics contracts, through the Rust extension."""
 
 import importlib
 import json
 import math
-import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
@@ -52,8 +51,8 @@ class AnalyticsTests(unittest.TestCase):
         )
 
     def test_live_quantlib_greeks_scalar_differences_and_recovery(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+        root = Path(__file__).resolve().parent
+
         oracle = importlib.import_module("quantlib_reference.oracle")
         differences = importlib.import_module("price_differences").price_differences
         oracle.require_version()

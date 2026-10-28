@@ -1,11 +1,9 @@
 """Double-touch cash contracts and references independent of the PDE."""
 
 import math
-import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
 from types import SimpleNamespace
 
 from kiyosi import ErrorCategory, KiyosiError, pricing
@@ -21,8 +19,6 @@ from kiyosi.market import (
     all_days_calendar,
     weekdays_calendar,
 )
-
-sys.path.append(str(Path(__file__).resolve().parents[3] / "tests/python"))
 from price_differences import price_differences
 
 START, END = date(2025, 1, 1), date(2026, 1, 1)

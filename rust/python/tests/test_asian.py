@@ -2,11 +2,9 @@
 
 import importlib
 import math
-import sys
 import unittest
 from datetime import UTC, date, datetime, timedelta
 from fractions import Fraction
-from pathlib import Path
 
 import QuantLib as ql
 from kiyosi import ErrorCategory, KiyosiError
@@ -404,8 +402,7 @@ class AsianTests(unittest.TestCase):
         )
 
     def test_live_quantlib_geometric_and_same_levy_approximation(self):
-        root = Path(__file__).resolve().parents[3] / "tests/python"
-        sys.path.insert(0, str(root))
+
         asian = importlib.import_module("quantlib_reference.asian")
         oracle = importlib.import_module("quantlib_reference.oracle")
         differences = importlib.import_module("price_differences").price_differences

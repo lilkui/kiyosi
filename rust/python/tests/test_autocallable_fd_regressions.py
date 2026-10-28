@@ -1,10 +1,8 @@
 """Migrated FD contracts and numerical budgets from the legacy autocallable suite."""
 
-import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
 
 import kiyosi
 from kiyosi import pricing
@@ -23,8 +21,6 @@ from kiyosi.market import (
     all_days_calendar,
     weekdays_calendar,
 )
-
-sys.path.append(str(Path(__file__).resolve().parents[3] / "tests" / "python"))
 
 
 class AutocallableRegressionTests(unittest.TestCase):

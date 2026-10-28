@@ -2,11 +2,9 @@
 
 import importlib
 import math
-import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
 
 import kiyosi
 import QuantLib as ql
@@ -392,7 +390,7 @@ class BinaryBarrierTests(unittest.TestCase):
         self.assertIsNotNone(result.delta)
 
     def test_existing_quantlib_price_and_greek_scenarios(self):
-        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tests/python"))
+
         reference = importlib.import_module("quantlib_reference.binary")
         saved = ql.SavedSettings()
         self.addCleanup(lambda: saved.__exit__(None, None, None))
