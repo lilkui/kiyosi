@@ -68,8 +68,9 @@ pub use asian::{
     TurnbullWakemanArithmeticAveragePriceEngine,
 };
 pub use autocallable::{
-    AutocallableBarrierState, AutocallableObservation, KnockInObservationMode, SnowballOption,
-    SnowballTerms, autocallable_observations,
+    AutocallableBarrierState, AutocallableNote, AutocallableObservation, AutocallableTerms,
+    KnockInObservationMode, PhoenixOption, PhoenixTerms, SnowballOption, SnowballTerms,
+    autocallable_observations,
 };
 pub use barrier::{
     AnalyticBarrierEngine, BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType,

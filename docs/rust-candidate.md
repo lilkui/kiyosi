@@ -1,8 +1,8 @@
 # Rust pricing and analytics candidate
 
-Tickets 01–28 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier CPU Monte Carlo prices and analytics with
+Tickets 01–29 provide an isolated candidate for European vanilla/digital, American approximation, CRR, quadrature, finite-difference and vanilla/digital/Asian/single-barrier/double-barrier CPU Monte Carlo prices and analytics with
 flat BSM rates or configured risk-free and dividend term structures, continuous-average Asian analytics, trading
-calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and basic snowball quadrature. The root
+calendars, observation schedules and single/double/binary-barrier and touch analytic pricing with event history, plus single-barrier CRR, quadrature and finite differences, binary-barrier/single-touch finite differences, double-barrier finite differences, cash double-touch/no-touch finite differences, analytic range-accrual coupons, and basic snowball/Phoenix quadrature. The root
 `pyproject.toml`, CMake delivery, and legacy Python package remain usable. The
 candidate also installs as `kiyosi`: use separate virtual environments or
 processes. There is no runtime implementation selector.
@@ -2176,9 +2176,8 @@ price is zero. Current events occur at midnight; an intraday spot is not a fixin
 `QuadratureAutocallableEngine::new(QuadratureSettings)` retains the existing
 cubic Gaussian integration algorithm, terminal affine-payoff integration and
 separate intact/knocked-in layers on daily event dates. Defaults are 512 asset
-steps and eight standard deviations. It accepts only basic snowballs in this
-slice. Request-local continuation reuse supports scalar numerical Greeks; no
-mutable cache is shared between requests. Check spatial and integration-domain
+steps and eight standard deviations. It accepts basic snowballs and Phoenix notes.
+Request-local continuation reuse supports scalar numerical Greeks; no mutable cache is shared between requests. Check spatial and integration-domain
 convergence independently. Validation checks flat-rate applicability first
 (`UnsupportedOperation` for node curves), then inclusive contract life,
 observation trading dates, history, and trading expiry. Non-finite prices or
@@ -2234,8 +2233,80 @@ calendar precedence, fixed cashflows, dense deterministic ladders, near-expiry
 transitions, all ten sensitivities, grid/domain and bump convergence, solver
 failures and concurrent reads. A separately refined conditional-payoff integral
 checks two-event knock-in/knock-out ordering under a custom trading calendar.
-Phoenix, binary/ternary variants, named presets and implied coupon solving are
-covered by subsequent tickets.
+Binary/ternary variants, named presets and implied coupon solving are covered by
+subsequent tickets.
+
+## Phoenix quadrature
+
+Rust `PhoenixOption::new(PhoenixTerms)` and Python `kiyosi.instruments.PhoenixOption`
+use the same common terms, observation records, validation categories, calendar
+rules, history replacement and ownership contracts as basic snowballs. Rust's
+`SnowballOption` and `PhoenixOption` are aliases of `AutocallableNote<T>` for their
+respective terms. `AutocallableTerms` is sealed; settlement rules remain in the
+core. `PhoenixTerms::new(coupon_rate, initial_spot, knock_in_level, upper_strike,
+lower_strike, effective_date, expiry_date, observations)` supplies daily monitoring,
+unknown history and unit principal. Python requires the monitoring choice explicitly.
+
+The finite signed `coupon_rate` is annualized over each **contractual observation
+period** using Actual/365 Fixed: effective date to first observation, then previous
+observation to current observation. A coupon is paid when **spot >= coupon barrier**,
+including at equality, at knock-out and at expiry if expiry is an observation.
+A zero barrier pays unconditionally. Each record's `coupon_barrier_level` must be
+finite and nonnegative; its snowball `coupon_rate` field must be zero. Violations
+return `InvalidParameter` when constructing the note. Phoenix has no coupon
+memory and no maturity coupon. Knock-out pays principal plus the current conditional
+coupon. Otherwise maturity pays principal plus any current conditional coupon,
+less the same capped downside loss as snowballs when knocked in. Coupon barriers
+may exceed knock-out levels, so knock-out can occur without a coupon payment.
+
+Coupons strictly before valuation are settled and excluded. A current observation's
+coupon is included once; intraday valuation excludes that midnight's coupon. A
+seasoned note still uses the complete contractual schedule to determine period
+lengths. Unknown history, known no-event history, past knock-out and currently
+fixed cashflows retain their distinct validation and pricing behavior.
+
+The same `QuadratureAutocallableEngine` integrates conditional coupons at their
+own observation dates, with coupon thresholds included as grid breakpoints and
+unconditional coupons retained in both tails and daily monitoring layers. It
+supports all ten numerical Greeks and shared implied-volatility solving using
+Rust defaults. Spot stencils crossing an active current coupon threshold are
+unavailable for nonzero coupons; vega and rho remain available. Zero-rate or
+zero-length coupons do not suppress spot Greeks. Time stencils touching observations
+remain unavailable. Settled and volatility-independent cashflows return
+`UnsupportedOperation` from implied volatility after pricing validation. There
+is no root search beyond the caller's supplied bracket.
+
+```python
+from datetime import date
+from kiyosi.instruments import PhoenixOption, autocallable_observations
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import QuadratureAutocallableEngine, implied_volatility
+
+start, end = date(2025, 1, 1), date(2025, 4, 1)
+note = PhoenixOption(coupon_rate=0.08, initial_spot=100, knock_in_level=80,
+    upper_strike=100, lower_strike=60, knock_in_observation_mode="at_expiry",
+    effective_date=start, expiry_date=end,
+    observations=autocallable_observations([date(2025, 2, 3), end], [110, 105],
+                                         coupon_barrier_levels=[90, 90]))
+context = PricingContext(model_parameters=BlackScholesMertonParameters(
+    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3),
+    spot_price=103, valuation_time=start)
+engine = QuadratureAutocallableEngine()
+result = engine.price_with_greeks(note, context, ["delta", "vega"])
+sigma = implied_volatility(engine, note, context, result.price,
+                           lower_bound=0.2, upper_bound=0.4)
+assert abs(sigma - 0.3) < 1e-6
+assert note.coupon_barrier_levels == [90, 90]
+```
+
+Python uses the same strict numeric/date/choice conversions, native representation
+exceptions, immutable owning results and GIL release around owned Rust work as
+snowballs. No Python objects or callbacks are accessed during pricing. Shared and
+distinct instances support concurrent reads and pricing. Signal handling resumes
+on return to Python. Tests migrate the independent QuantLib terminal portfolios,
+conditional two-event payoff integral, signed coupon timing, unconditional tails,
+daily/grid/domain and bump convergence, scalar sensitivities, solver failures,
+history and calendar precedence, and strict Python representations.
 
 ## Checks
 

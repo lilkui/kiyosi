@@ -5,12 +5,13 @@ use super::gaussian::{
 use super::{QuadratureSettings, flat_rates};
 use crate::barrier::log_ratio;
 use crate::{
-    AutocallableBarrierState, AutocallableObservation, BlackScholesMertonParameters, Date, Error,
-    ErrorCategory, GreeksRequest, KnockInObservationMode, NumericalShiftSettings, PricingContext,
-    PricingEngine, PricingResult, Result, SnowballOption, Timestamp,
+    AutocallableBarrierState, AutocallableNote, AutocallableObservation, AutocallableTerms,
+    BlackScholesMertonParameters, Date, Error, ErrorCategory, GreeksRequest,
+    KnockInObservationMode, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
+    Result, Timestamp,
 };
 
-/// Prices basic snowballs by cubic Gaussian integration between exact event dates.
+/// Prices basic snowballs and Phoenix notes by cubic Gaussian integration between exact event dates.
 /// Retains separate intact and knocked-in continuation layers for daily monitoring.
 /// Owns immutable settings; shared and distinct instances support concurrent pricing.
 /// See [`Self::new`] for an example.
@@ -53,7 +54,9 @@ impl QuadratureAutocallableEngine {
         self.settings
     }
     /// Prices remaining cashflows, resolving current events before future integration.
-    /// Knock-in is strict below its level; knock-out is inclusive at its level.
+    /// Knock-in is strict below its level; knock-out and Phoenix coupon barriers
+    /// are inclusive. Phoenix coupons accrue over contractual observation periods
+    /// and are paid independently of knock-out, principal and downside loss.
     /// Past knock-outs return zero, and terminal payments use normalized units.
     /// See [`Self::new`] for an example.
     ///
@@ -65,7 +68,11 @@ impl QuadratureAutocallableEngine {
     /// trading expiry ([`ErrorCategory::InvalidDate`]). Non-finite prices or
     /// unrepresentable transitions return [`ErrorCategory::InvalidResult`].
     /// Inputs remain unchanged on success and failure.
-    pub fn price(&self, option: &SnowballOption, context: &PricingContext) -> Result<f64> {
+    pub fn price<T: AutocallableTerms>(
+        &self,
+        option: &AutocallableNote<T>,
+        context: &PricingContext,
+    ) -> Result<f64> {
         price(option, context, self.settings, &mut None)
     }
     /// Computes requested scalar sensitivities using shared core bump defaults.
@@ -76,9 +83,9 @@ impl QuadratureAutocallableEngine {
     /// # Errors
     /// Checks flat-rate applicability before request/shift validation, then
     /// propagates [`crate::numerical_greeks`] errors. Inputs remain unchanged.
-    pub fn price_with_greeks(
+    pub fn price_with_greeks<T: AutocallableTerms>(
         &self,
-        option: &SnowballOption,
+        option: &AutocallableNote<T>,
         context: &PricingContext,
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
@@ -86,35 +93,39 @@ impl QuadratureAutocallableEngine {
         crate::numerical_greeks(self, option, context, request, shifts)
     }
 }
-impl PricingEngine<SnowballOption> for QuadratureAutocallableEngine {
+impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for QuadratureAutocallableEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         flat_rates(context).map(|_| ())
     }
-    fn price(&self, option: &SnowballOption, context: &PricingContext) -> Result<f64> {
+    fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
     fn prepare_request(
         &self,
-    ) -> Result<Option<Box<dyn PricingEngine<SnowballOption> + Send + Sync + '_>>> {
+    ) -> Result<Option<Box<dyn PricingEngine<AutocallableNote<T>> + Send + Sync + '_>>> {
         Ok(Some(Box::new(Request {
             settings: self.settings,
             curve: std::sync::Mutex::new(None),
         })))
     }
-    fn volatility_affects_price(&self, option: &SnowballOption, context: &PricingContext) -> bool {
+    fn volatility_affects_price(
+        &self,
+        option: &AutocallableNote<T>,
+        context: &PricingContext,
+    ) -> bool {
         let initial = initial(option, context);
         initial.settlement.is_none() && fixed_value(option, context, initial.knocked_in).is_none()
     }
 }
-struct Request {
+struct Request<T: AutocallableTerms> {
     settings: QuadratureSettings,
-    curve: std::sync::Mutex<Option<PreparedCurve>>,
+    curve: std::sync::Mutex<Option<PreparedCurve<T>>>,
 }
-impl PricingEngine<SnowballOption> for Request {
+impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for Request<T> {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         flat_rates(context).map(|_| ())
     }
-    fn price(&self, option: &SnowballOption, context: &PricingContext) -> Result<f64> {
+    fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         let mut curve = self.curve.lock().map_err(|_| {
             Error::new(
                 ErrorCategory::InvalidResult,
@@ -123,7 +134,11 @@ impl PricingEngine<SnowballOption> for Request {
         })?;
         price(option, context, self.settings, &mut curve)
     }
-    fn volatility_affects_price(&self, option: &SnowballOption, context: &PricingContext) -> bool {
+    fn volatility_affects_price(
+        &self,
+        option: &AutocallableNote<T>,
+        context: &PricingContext,
+    ) -> bool {
         QuadratureAutocallableEngine::default().volatility_affects_price(option, context)
     }
 }
@@ -135,39 +150,49 @@ fn checked(value: f64) -> Result<f64> {
 struct Initial {
     knocked_in: bool,
     settlement: Option<f64>,
+    coupon: f64,
 }
-fn initial(note: &SnowballOption, context: &PricingContext) -> Initial {
+fn initial<T: AutocallableTerms>(note: &AutocallableNote<T>, context: &PricingContext) -> Initial {
     if note.barrier_state() == Some(AutocallableBarrierState::KnockedOut) {
         return Initial {
             knocked_in: false,
             settlement: Some(0.0),
+            coupon: 0.0,
         };
     }
     let mut knocked_in = note.barrier_state() == Some(AutocallableBarrierState::KnockedIn);
     if note.daily_at(context) {
-        knocked_in |= context.spot_price() < note.terms().knock_in_level;
+        knocked_in |= context.spot_price() < note.view().knock_in_level;
     }
     let current = note
         .observations()
         .iter()
         .find(|r| r.date.start_of_day() == context.valuation_time());
+    let coupon = current.map_or(0.0, |r| note.observation_coupon(r, context.spot_price()));
     let settlement =
         if let Some(record) = current.filter(|r| context.spot_price() >= r.knock_out_level) {
-            Some(note.knock_out_payment(record))
+            Some(note.knock_out_payment(record) + coupon)
         } else if context.valuation_time() == note.expiry_date().start_of_day() {
-            Some(note.terminal(
-                context.spot_price(),
-                knocked_in || context.spot_price() < note.terms().knock_in_level,
-            ))
+            Some(
+                coupon
+                    + note.terminal(
+                        context.spot_price(),
+                        knocked_in || context.spot_price() < note.view().knock_in_level,
+                    ),
+            )
         } else {
             None
         };
     Initial {
         knocked_in,
         settlement,
+        coupon,
     }
 }
-fn validate(note: &SnowballOption, context: &PricingContext) -> Result<()> {
+fn validate<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    context: &PricingContext,
+) -> Result<()> {
     super::time_to_expiry(note, context)?;
     if note
         .observations()
@@ -188,8 +213,12 @@ fn validate(note: &SnowballOption, context: &PricingContext) -> Result<()> {
     }
     Ok(())
 }
-fn fixed_value(note: &SnowballOption, context: &PricingContext, knocked_in: bool) -> Option<f64> {
-    let t = note.terms();
+fn fixed_value<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    context: &PricingContext,
+    knocked_in: bool,
+) -> Option<f64> {
+    let t = note.view();
     if t.lower_strike != t.upper_strike || !knocked_in && t.maturity_coupon_rate != 0.0 {
         return None;
     }
@@ -203,14 +232,26 @@ fn fixed_value(note: &SnowballOption, context: &PricingContext, knocked_in: bool
     if !value.is_finite() {
         return None;
     }
+    let mut coupons = 0.0;
     for record in note
         .observations()
         .iter()
+        .rev()
         .filter(|r| r.date.start_of_day() > context.valuation_time())
     {
         let discount = (-rate * context.valuation_time().years_until(record.date.into())).exp();
-        if !discount.is_normal() || note.knock_out_payment(record) * discount != value {
+        if !discount.is_normal() || note.knock_out_payment(record) * discount != value + coupons {
             return None;
+        }
+        if t.phoenix {
+            let coupon = note.period_coupon(record);
+            if coupon != 0.0 && record.coupon_barrier_level != 0.0 {
+                return None;
+            }
+            coupons += coupon * discount;
+            if !coupons.is_finite() {
+                return None;
+            }
         }
     }
     let discount = (-rate
@@ -218,7 +259,7 @@ fn fixed_value(note: &SnowballOption, context: &PricingContext, knocked_in: bool
             .valuation_time()
             .years_until(note.expiry_date().into()))
     .exp();
-    discount.is_normal().then_some(value)
+    discount.is_normal().then_some(value + coupons)
 }
 
 struct Curve {
@@ -248,8 +289,8 @@ impl Curve {
         ]
     }
 }
-struct PreparedCurve {
-    option: SnowballOption,
+struct PreparedCurve<T: AutocallableTerms> {
+    option: AutocallableNote<T>,
     model: BlackScholesMertonParameters,
     valuation: Timestamp,
     knocked_in: bool,
@@ -260,29 +301,32 @@ struct PreparedCurve {
     deviation: f64,
     discount: f64,
 }
-impl PreparedCurve {
+impl<T: AutocallableTerms> PreparedCurve<T> {
     fn evaluate(&self, spot: f64) -> Result<f64> {
         checked(self.curve.evaluate(
             &self.nodes,
-            log_ratio(spot, self.option.terms().initial_spot) + self.drift,
+            log_ratio(spot, self.option.view().initial_spot) + self.drift,
             self.deviation,
             self.discount,
         ))
     }
 }
-fn event(note: &SnowballOption, date: Date) -> Option<&AutocallableObservation> {
+fn event<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    date: Date,
+) -> Option<&AutocallableObservation> {
     note.observations()
         .binary_search_by_key(&date, |r| r.date)
         .ok()
         .map(|i| &note.observations()[i])
 }
-fn terminal(
-    note: &SnowballOption,
+fn terminal<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
     record: Option<&AutocallableObservation>,
     breaks: &[f64],
     knocked_in: bool,
 ) -> Vec<TerminalPiece> {
-    let t = note.terms();
+    let t = note.view();
     let mut edges = vec![f64::NEG_INFINITY];
     edges.extend_from_slice(breaks);
     edges.push(f64::INFINITY);
@@ -313,6 +357,12 @@ fn terminal(
             } else {
                 cash = note.terminal(t.initial_spot, false);
             }
+            if let Some(r) = record.filter(|r| {
+                r.coupon_barrier_level == 0.0
+                    || point > log_ratio(r.coupon_barrier_level, t.initial_spot)
+            }) {
+                cash += note.period_coupon(r);
+            }
             TerminalPiece {
                 lower: e[0],
                 upper: e[1],
@@ -322,38 +372,48 @@ fn terminal(
         })
         .collect()
 }
-fn apply_event(
-    note: &SnowballOption,
+fn apply_event<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
     date: Date,
     nodes: &[f64],
     alive: &mut Curve,
     knocked: Option<&Curve>,
 ) {
-    let t = note.terms();
+    let t = note.view();
     let record = event(note, date);
-    let payment = record.map(|r| note.knock_out_payment(r));
-    if let Some(payment) = payment {
-        alive.high = payment;
+    let amount = record.map_or(0.0, |r| note.period_coupon(r));
+    let coupon = |point: f64| {
+        record
+            .filter(|r| {
+                r.coupon_barrier_level == 0.0
+                    || point >= log_ratio(r.coupon_barrier_level, t.initial_spot)
+            })
+            .map_or(0.0, |_| amount)
+    };
+    if let Some(r) = record {
+        alive.high = note.knock_out_payment(r) + coupon(f64::INFINITY);
     }
     if let Some(knocked) = knocked {
         alive.low = knocked.low;
     }
+    alive.low += coupon(f64::NEG_INFINITY);
     for (i, cell) in alive.cells.iter_mut().enumerate() {
         let point = nodes[i].midpoint(nodes[i + 1]);
-        if record.is_some_and(|r| point > log_ratio(r.knock_out_level, t.initial_spot)) {
-            *cell = [payment.unwrap_or(0.0), 0.0, 0.0, 0.0];
+        if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level, t.initial_spot)) {
+            *cell = [note.knock_out_payment(r), 0.0, 0.0, 0.0];
         } else if let Some(knocked) =
             knocked.filter(|_| point < log_ratio(t.knock_in_level, t.initial_spot))
         {
             *cell = knocked.cells[i];
         }
+        cell[0] += coupon(point);
     }
 }
-fn price(
-    note: &SnowballOption,
+fn price<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
     context: &PricingContext,
     settings: QuadratureSettings,
-    prepared: &mut Option<PreparedCurve>,
+    prepared: &mut Option<PreparedCurve<T>>,
 ) -> Result<f64> {
     let (rate, dividend) = flat_rates(context)?;
     validate(note, context)?;
@@ -362,9 +422,16 @@ fn price(
         .settlement
         .or_else(|| fixed_value(note, context, state.knocked_in))
     {
-        return checked(value);
+        return checked(
+            value
+                + if state.settlement.is_none() {
+                    state.coupon
+                } else {
+                    0.0
+                },
+        );
     }
-    let layers = note.terms().knock_in_observation_mode == KnockInObservationMode::EveryTradingDay
+    let layers = note.view().knock_in_observation_mode == KnockInObservationMode::EveryTradingDay
         && !state.knocked_in
         && note.knock_in_affects_payoff();
     let mut dates = Vec::new();
@@ -399,15 +466,15 @@ fn price(
             && c.knocked_in == state.knocked_in
             && c.dates == dates
     }) {
-        return curve.evaluate(context.spot_price());
+        return checked(state.coupon + curve.evaluate(context.spot_price())?);
     }
-    let anchor = note.terms().initial_spot;
+    let anchor = note.view().initial_spot;
     let mut breaks = vec![
-        log_ratio(note.terms().knock_in_level, anchor),
-        log_ratio(note.terms().upper_strike, anchor),
+        log_ratio(note.view().knock_in_level, anchor),
+        log_ratio(note.view().upper_strike, anchor),
     ];
-    if note.terms().lower_strike > 0.0 {
-        breaks.push(log_ratio(note.terms().lower_strike, anchor));
+    if note.view().lower_strike > 0.0 {
+        breaks.push(log_ratio(note.view().lower_strike, anchor));
     }
     for r in note
         .observations()
@@ -415,6 +482,9 @@ fn price(
         .filter(|r| r.date.start_of_day() > context.valuation_time())
     {
         breaks.push(log_ratio(r.knock_out_level, anchor));
+        if note.view().phoenix && r.coupon_barrier_level > 0.0 {
+            breaks.push(log_ratio(r.coupon_barrier_level, anchor));
+        }
     }
     breaks.sort_by(f64::total_cmp);
     breaks.dedup();
@@ -442,14 +512,17 @@ fn price(
     );
     if dates.len() == 1 {
         let (drift, deviation, discount) = transition(horizon)?;
-        return checked(integrate_terminal(
-            &terminal,
-            log_ratio(context.spot_price(), anchor),
-            anchor,
-            drift,
-            deviation,
-            discount,
-        ));
+        return checked(
+            state.coupon
+                + integrate_terminal(
+                    &terminal,
+                    log_ratio(context.spot_price(), anchor),
+                    anchor,
+                    drift,
+                    deviation,
+                    discount,
+                ),
+        );
     }
     let extent = settings.integration_standard_deviations * sigma * horizon.sqrt();
     let lower = 0.0_f64.min(breaks[0]) + (drift_rate * horizon).min(0.0) - extent;
@@ -507,7 +580,7 @@ fn price(
                 deviation,
                 discount,
             };
-            let value = curve.evaluate(context.spot_price())?;
+            let value = checked(state.coupon + curve.evaluate(context.spot_price())?)?;
             *prepared = Some(curve);
             return Ok(value);
         }

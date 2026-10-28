@@ -13,6 +13,46 @@ use kiyosi_core::{
 fn main() -> Result<()> {
     let start = Date::new(2025, 1, 1)?;
     let end = Date::new(2026, 1, 1)?;
+    let mut phoenix_terms = kiyosi_core::PhoenixTerms::new(
+        0.08,
+        100.0,
+        80.0,
+        100.0,
+        60.0,
+        start,
+        end,
+        kiyosi_core::autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?,
+    );
+    phoenix_terms.knock_in_observation_mode = kiyosi_core::KnockInObservationMode::AtExpiry;
+    let phoenix = kiyosi_core::PhoenixOption::new(phoenix_terms)?;
+    let phoenix_context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.04, 0.01, 0.3)?,
+        103.0,
+        start.into(),
+    )?;
+    let phoenix_engine = kiyosi_core::QuadratureAutocallableEngine::default();
+    let phoenix_result = phoenix_engine.price_with_greeks(
+        &phoenix,
+        &phoenix_context,
+        GreeksRequest::new([Greek::Delta, Greek::Vega]),
+        Default::default(),
+    )?;
+    assert!(phoenix_result.has(Greek::Delta) && phoenix_result.has(Greek::Vega));
+    assert!(
+        (implied_volatility(
+            &phoenix_engine,
+            &phoenix,
+            &phoenix_context,
+            phoenix_result.price(),
+            ImpliedVolatilitySettings {
+                lower_bound: 0.2,
+                upper_bound: 0.4,
+                ..Default::default()
+            }
+        )? - 0.3)
+            .abs()
+            < 1e-6
+    );
     let barrier = kiyosi_core::BarrierOption::new(kiyosi_core::BarrierOptionTerms::new(
         OptionType::Call,
         100.0,

@@ -764,6 +764,7 @@ fn _native(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     double_touch::register(module)?;
     module.add_class::<autocallable::AutocallableObservation>()?;
     module.add_class::<autocallable::SnowballOption>()?;
+    module.add_class::<autocallable::PhoenixOption>()?;
     module.add_class::<autocallable::QuadratureAutocallableEngine>()?;
     module.add_function(wrap_pyfunction!(
         autocallable::autocallable_observations,

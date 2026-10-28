@@ -902,7 +902,7 @@ class PricingResult:
 @overload
 def implied_volatility(
     engine: QuadratureAutocallableEngine,
-    instrument: SnowballOption,
+    instrument: SnowballOption | PhoenixOption,
     context: PricingContext,
     observed_price: float,
     *,
@@ -1583,10 +1583,12 @@ class QuadratureAutocallableEngine:
     def asset_step_count(self) -> int: ...
     @property
     def integration_standard_deviations(self) -> float: ...
-    def price(self, instrument: SnowballOption, context: PricingContext) -> float: ...
+    def price(
+        self, instrument: SnowballOption | PhoenixOption, context: PricingContext
+    ) -> float: ...
     def price_with_greeks(
         self,
-        instrument: SnowballOption,
+        instrument: SnowballOption | PhoenixOption,
         context: PricingContext,
         greeks: Greek | Iterable[Greek] | None = None,
         *,
@@ -1652,6 +1654,56 @@ class SnowballOption:
     def knock_out_coupon_rates(self) -> list[float]: ...
     @property
     def maturity_coupon_rate(self) -> float: ...
+    @property
+    def initial_spot(self) -> float: ...
+    @property
+    def knock_in_level(self) -> float: ...
+    @property
+    def upper_strike(self) -> float: ...
+    @property
+    def lower_strike(self) -> float: ...
+    @property
+    def principal_ratio(self) -> float: ...
+    @property
+    def knock_in_observation_mode(
+        self,
+    ) -> Literal["every_trading_day", "at_expiry"]: ...
+    @property
+    def barrier_state(self) -> Literal["none", "knocked_in", "knocked_out"] | None: ...
+    @property
+    def effective_date(self) -> date: ...
+    @property
+    def expiry_date(self) -> date: ...
+
+class PhoenixOption:
+    def __init__(
+        self,
+        *,
+        coupon_rate: float,
+        initial_spot: float,
+        knock_in_level: float,
+        upper_strike: float,
+        lower_strike: float,
+        knock_in_observation_mode: Literal["every_trading_day", "at_expiry"],
+        effective_date: date,
+        expiry_date: date,
+        observations: Iterable[AutocallableObservation],
+        barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+        principal_ratio: float = ...,
+    ) -> None: ...
+    def replace(
+        self, *, barrier_state: Literal["none", "knocked_in", "knocked_out"] | None
+    ) -> PhoenixOption: ...
+    @property
+    def observations(self) -> list[AutocallableObservation]: ...
+    @property
+    def observation_dates(self) -> list[date]: ...
+    @property
+    def knock_out_levels(self) -> list[float]: ...
+    @property
+    def coupon_barrier_levels(self) -> list[float]: ...
+    @property
+    def coupon_rate(self) -> float: ...
     @property
     def initial_spot(self) -> float: ...
     @property

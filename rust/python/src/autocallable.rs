@@ -25,6 +25,12 @@ fn mode(value: &Bound<'_, PyAny>) -> PyResult<core::KnockInObservationMode> {
         _ => Err(PyValueError::new_err("unknown knock_in_observation_mode")),
     }
 }
+fn mode_name(value: core::KnockInObservationMode) -> &'static str {
+    match value {
+        core::KnockInObservationMode::EveryTradingDay => "every_trading_day",
+        core::KnockInObservationMode::AtExpiry => "at_expiry",
+    }
+}
 fn records(values: &Bound<'_, PyAny>) -> PyResult<Vec<core::AutocallableObservation>> {
     values
         .try_iter()?
@@ -210,10 +216,7 @@ impl SnowballOption {
     }
     #[getter]
     fn knock_in_observation_mode(&self) -> &'static str {
-        match self.0.terms().knock_in_observation_mode {
-            core::KnockInObservationMode::EveryTradingDay => "every_trading_day",
-            core::KnockInObservationMode::AtExpiry => "at_expiry",
-        }
+        mode_name(self.0.terms().knock_in_observation_mode)
     }
     #[getter]
     fn barrier_state(&self) -> Option<&'static str> {
@@ -240,6 +243,152 @@ impl SnowballOption {
         Ok(format!(
             "SnowballOption(maturity_coupon_rate={:?}, initial_spot={:?}, knock_in_level={:?}, upper_strike={:?}, lower_strike={:?}, knock_in_observation_mode={:?}, barrier_state={}, principal_ratio={:?}, effective_date={}, expiry_date={}, observations=[{}])",
             self.maturity_coupon_rate(),
+            self.initial_spot(),
+            self.knock_in_level(),
+            self.upper_strike(),
+            self.lower_strike(),
+            self.knock_in_observation_mode(),
+            state,
+            self.principal_ratio(),
+            self.effective_date(py)?.repr()?,
+            self.expiry_date(py)?.repr()?,
+            records
+        ))
+    }
+}
+
+/// Owns a validated Phoenix note; replacement never mutates the original.
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(Clone, PartialEq)]
+pub(crate) struct PhoenixOption(pub core::PhoenixOption);
+#[pymethods]
+impl PhoenixOption {
+    #[new]
+    #[pyo3(signature = (*, coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, **fields))]
+    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
+    fn new(
+        py: Python<'_>,
+        coupon_rate: &Bound<'_, PyAny>,
+        initial_spot: &Bound<'_, PyAny>,
+        knock_in_level: &Bound<'_, PyAny>,
+        upper_strike: &Bound<'_, PyAny>,
+        lower_strike: &Bound<'_, PyAny>,
+        knock_in_observation_mode: &Bound<'_, PyAny>,
+        effective_date: &Bound<'_, PyAny>,
+        expiry_date: &Bound<'_, PyAny>,
+        observations: &Bound<'_, PyAny>,
+        barrier_state: Option<&Bound<'_, PyAny>>,
+        fields: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        check_changes(fields, &["principal_ratio"])?;
+        let mut terms = core::PhoenixTerms::new(
+            real(coupon_rate)?,
+            real(initial_spot)?,
+            real(knock_in_level)?,
+            real(upper_strike)?,
+            real(lower_strike)?,
+            date(effective_date)?,
+            date(expiry_date)?,
+            records(observations)?,
+        );
+        terms.knock_in_observation_mode = mode(knock_in_observation_mode)?;
+        if let Some(value) = barrier_state {
+            terms.barrier_state = state(value)?;
+        }
+        terms.principal_ratio =
+            analytics::real_setting(fields, "principal_ratio", terms.principal_ratio)?;
+        Ok(Self(domain(py, core::PhoenixOption::new(terms))?))
+    }
+    #[pyo3(signature = (*, barrier_state))]
+    fn replace(&self, py: Python<'_>, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(domain(py, self.0.replace(state(barrier_state)?))?))
+    }
+    #[getter]
+    fn observations(&self) -> Vec<AutocallableObservation> {
+        self.0
+            .observations()
+            .iter()
+            .copied()
+            .map(AutocallableObservation)
+            .collect()
+    }
+    #[getter]
+    fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
+        self.0
+            .observations()
+            .iter()
+            .map(|r| python_date(py, r.date))
+            .collect()
+    }
+    #[getter]
+    fn knock_out_levels(&self) -> Vec<f64> {
+        self.0
+            .observations()
+            .iter()
+            .map(|r| r.knock_out_level)
+            .collect()
+    }
+    #[getter]
+    fn coupon_barrier_levels(&self) -> Vec<f64> {
+        self.0
+            .observations()
+            .iter()
+            .map(|r| r.coupon_barrier_level)
+            .collect()
+    }
+    #[getter]
+    fn coupon_rate(&self) -> f64 {
+        self.0.terms().coupon_rate
+    }
+    #[getter]
+    fn initial_spot(&self) -> f64 {
+        self.0.terms().initial_spot
+    }
+    #[getter]
+    fn knock_in_level(&self) -> f64 {
+        self.0.terms().knock_in_level
+    }
+    #[getter]
+    fn upper_strike(&self) -> f64 {
+        self.0.terms().upper_strike
+    }
+    #[getter]
+    fn lower_strike(&self) -> f64 {
+        self.0.terms().lower_strike
+    }
+    #[getter]
+    fn principal_ratio(&self) -> f64 {
+        self.0.terms().principal_ratio
+    }
+    #[getter]
+    fn knock_in_observation_mode(&self) -> &'static str {
+        mode_name(self.0.terms().knock_in_observation_mode)
+    }
+    #[getter]
+    fn barrier_state(&self) -> Option<&'static str> {
+        state_name(self.0.barrier_state())
+    }
+    #[getter]
+    fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
+        python_date(py, self.0.effective_date())
+    }
+    #[getter]
+    fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
+        python_date(py, self.0.expiry_date())
+    }
+    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
+        let records = self
+            .observations()
+            .iter()
+            .map(|r| r.__repr__(py))
+            .collect::<PyResult<Vec<_>>>()?
+            .join(", ");
+        let state = self
+            .barrier_state()
+            .map_or_else(|| "None".into(), |s| format!("{s:?}"));
+        Ok(format!(
+            "PhoenixOption(coupon_rate={:?}, initial_spot={:?}, knock_in_level={:?}, upper_strike={:?}, lower_strike={:?}, knock_in_observation_mode={:?}, barrier_state={}, principal_ratio={:?}, effective_date={}, expiry_date={}, observations=[{}])",
+            self.coupon_rate(),
             self.initial_spot(),
             self.knock_in_level(),
             self.upper_strike(),
@@ -304,19 +453,23 @@ impl QuadratureAutocallableEngine {
     fn price(
         &self,
         py: Python<'_>,
-        instrument: &SnowballOption,
+        instrument: &Bound<'_, PyAny>,
         context: &PricingContext,
     ) -> PyResult<f64> {
         let engine = self.0;
-        let option = instrument.0.clone();
         let context = context.0.clone();
+        if let Ok(note) = instrument.extract::<PyRef<'_, PhoenixOption>>() {
+            let option = note.0.clone();
+            return domain(py, py.detach(|| engine.price(&option, &context)));
+        }
+        let option = instrument.extract::<PyRef<'_, SnowballOption>>()?.0.clone();
         domain(py, py.detach(|| engine.price(&option, &context)))
     }
     #[pyo3(signature = (instrument, context, greeks=None, **settings))]
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: &SnowballOption,
+        instrument: &Bound<'_, PyAny>,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,
@@ -324,8 +477,15 @@ impl QuadratureAutocallableEngine {
         let request = analytics::request(greeks, settings)?;
         let shifts = analytics::shifts(settings)?;
         let engine = self.0;
-        let option = instrument.0.clone();
         let context = context.0.clone();
+        if let Ok(note) = instrument.extract::<PyRef<'_, PhoenixOption>>() {
+            let option = note.0.clone();
+            return Ok(analytics::PricingResult(domain(
+                py,
+                py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+            )?));
+        }
+        let option = instrument.extract::<PyRef<'_, SnowballOption>>()?.0.clone();
         Ok(analytics::PricingResult(domain(
             py,
             py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),

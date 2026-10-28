@@ -1,4 +1,4 @@
-"""Validated vanilla, digital, barrier, touch, Asian, range-accrual and basic snowball contracts."""
+"""Validated vanilla, digital, barrier, touch, Asian, range-accrual and snowball and Phoenix contracts."""
 
 from typing import Literal
 
@@ -14,6 +14,7 @@ from ._native import (
     DoubleTouchOption,
     EuropeanOption,
     GeometricAveragePriceOption,
+    PhoenixOption,
     RangeAccrualOption,
     SnowballOption,
     TouchOption,
@@ -47,6 +48,7 @@ __all__ = [
     "EuropeanOption",
     "GeometricAveragePriceOption",
     "OptionType",
+    "PhoenixOption",
     "RangeAccrualOption",
     "SnowballOption",
     "TouchOption",

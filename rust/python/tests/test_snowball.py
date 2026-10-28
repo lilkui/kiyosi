@@ -24,7 +24,7 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import QuadratureAutocallableEngine, implied_volatility
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tests" / "python"))
+sys.path.append(str(Path(__file__).resolve().parents[3] / "tests" / "python"))
 from quantlib_reference import structured
 
 START, END = date(2025, 1, 1), date(2025, 4, 1)
