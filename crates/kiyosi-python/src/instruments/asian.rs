@@ -21,8 +21,14 @@ macro_rules! average_option {
         /// expiry_date : datetime.date
         ///     Final contract date; expiry is at midnight UTC.
         /// realized_average : float, optional
-        ///     Prior average; zero denotes no history. Pricing checks time
-        ///     consistency.
+        ///     Nonnegative finite prior average; defaults to zero. Must be zero
+        ///     at or before averaging starts, and positive strictly after it;
+        ///     time consistency is checked at pricing.
+        ///
+        /// Raises
+        /// ------
+        /// InvalidInputError
+        ///     If strike, realized_average, life dates or the averaging window are invalid.
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(Clone, PartialEq)]
         pub(crate) struct $name(pub core::$name);

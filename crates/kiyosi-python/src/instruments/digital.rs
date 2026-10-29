@@ -59,12 +59,11 @@ macro_rules! digital_option {
             /// strike : float, optional
             ///     Positive finite exercise or purchase price.
             /// payout : float, optional
-            ///     Positive finite cash payment.
+            ///     Positive finite cash payment; accepted only for CashOrNothingOption.
             /// effective_date : datetime.date, optional
             ///     Inclusive first contract date.
             /// expiry_date : datetime.date, optional
             ///     Final contract date; expiry is at midnight UTC.
-            ///     The payout field is accepted only for CashOrNothingOption.
             ///
             /// Returns
             /// -------
@@ -125,7 +124,12 @@ payout : float
 effective_date : datetime.date
     Inclusive first contract date.
 expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC."
+    Final contract date; expiry is at midnight UTC.
+
+Raises
+------
+InvalidInputError
+    If payout or strike is nonpositive/non-finite, or expiry precedes effective_date."
 );
 digital_option!(
     AssetOrNothingOption,
@@ -141,7 +145,12 @@ strike : float
 effective_date : datetime.date
     Inclusive first contract date.
 expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC."
+    Final contract date; expiry is at midnight UTC.
+
+Raises
+------
+InvalidInputError
+    If strike is nonpositive/non-finite, or expiry precedes effective_date."
 );
 
 #[derive(FromPyObject)]

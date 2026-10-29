@@ -45,6 +45,8 @@ impl Greek {
         Self::Rho,
     ];
     /// Returns the lowercase Python choice string for this Greek.
+    ///
+    /// For example, `Greek::Vanna.name()` is `"vanna"`; see [`Self::ALL`].
     pub const fn name(self) -> &'static str {
         match self {
             Self::Delta => "delta",

@@ -23,6 +23,12 @@ use pyo3::types::{PyDate, PyDict};
 /// accumulated_quantity : float, optional
 ///     Caller-asserted outstanding quantity strictly before valuation.
 ///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If strike or knock-out level is invalid, quantities are negative or
+///     non-finite, or expiry precedes effective_date.
+///
 /// Notes
 /// -----
 /// A current midnight knock-out precedes purchases and purchases no units.

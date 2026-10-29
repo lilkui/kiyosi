@@ -16,6 +16,11 @@ use pyo3::types::{PyDate, PyDict};
 ///     Inclusive first contract date.
 /// expiry_date : datetime.date
 ///     Final contract date; expiry is at midnight UTC.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If strike is nonpositive or non-finite, or expiry precedes effective_date.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct AmericanOption(pub(crate) core::AmericanOption);

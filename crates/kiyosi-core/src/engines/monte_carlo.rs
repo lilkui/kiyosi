@@ -443,6 +443,7 @@ fn path_samples<const N: usize>(
         None
     };
     let empty = [Moments::default(); N];
+    // Seed and merge fixed blocks in index order so worker counts cannot change the result.
     let mut partials: Vec<_> = (0..samples.div_ceil(BLOCK_SIZE))
         .map(|_| Ok((empty, empty)))
         .collect();

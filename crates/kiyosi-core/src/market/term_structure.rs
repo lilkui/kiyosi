@@ -62,6 +62,10 @@ impl RateTermStructure {
     /// let end = Date::new(2026, 1, 1)?.start_of_day();
     /// let curve = RateTermStructure::new(start, vec![end], vec![0.95])?;
     /// assert!((curve.factor(start, end)? - 0.95).abs() < 1e-14);
+    /// assert_eq!(curve.nodes(), &[end]);
+    /// assert_eq!(curve.factors(), vec![0.95]);
+    /// assert_eq!(curve.reference_time(), Some(start));
+    /// assert_eq!(curve.max_time(), Some(end));
     /// # Ok(()) }
     /// ```
     pub fn new(reference: Timestamp, nodes: Vec<Timestamp>, factors: Vec<f64>) -> Result<Self> {
@@ -98,28 +102,40 @@ impl RateTermStructure {
     }
 
     /// Reports whether the curve is explicitly flat; constant node curves are not flat.
+    ///
+    /// See [`Self::flat`] and [`Self::new`] for the two representations.
     pub fn is_flat(&self) -> bool {
         self.rate.is_some()
     }
     /// Returns the explicitly configured flat rate, or `None` for node curves.
+    ///
+    /// See [`Self::shifted`] for a flat-rate replacement example.
     pub fn flat_rate(&self) -> Option<f64> {
         self.rate
     }
     /// Returns the inclusive lower coverage bound, or `None` for undated flat rates.
+    ///
+    /// See [`Self::new`] for a dated curve example.
     pub fn reference_time(&self) -> Option<Timestamp> {
         self.reference
     }
     /// Returns the inclusive upper coverage bound, or `None` for flat rates.
+    ///
+    /// See [`Self::new`] for a dated curve example.
     pub fn max_time(&self) -> Option<Timestamp> {
         self.nodes.last().copied()
     }
     /// Borrows the supplied nodes, excluding the implicit reference.
+    ///
+    /// Storage remains valid while the curve is borrowed; [`Self::shifted`] creates
+    /// a separate curve without invalidating the borrow. See [`Self::new`].
     pub fn nodes(&self) -> &[Timestamp] {
         &self.nodes
     }
     /// Returns owned node factors including any parallel shift.
     ///
-    /// Shifted factors may underflow to zero or overflow to infinity.
+    /// Flat curves return an empty vector. Shifted factors may underflow to zero
+    /// or overflow to infinity. See [`Self::new`] for node access.
     pub fn factors(&self) -> Vec<f64> {
         let Some(reference) = self.reference.filter(|_| self.spread != 0.0) else {
             return self.factors.clone();

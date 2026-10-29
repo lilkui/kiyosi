@@ -3,6 +3,7 @@ use crate::{Date, Error, RateTermStructure, Result, Timestamp, TradingCalendar, 
 /// A continuously compounded flat rate or an owning term structure.
 ///
 /// Non-finite scalar inputs return [`Error::InvalidInput`] on validation.
+/// See [`BlackScholesMertonParameters::new`] for mixing scalar rates and curves.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Rate {
     /// Supplies a continuously compounded scalar rate, validated by the model.
@@ -61,6 +62,21 @@ impl BlackScholesMertonParameters {
     /// Returns [`Error::InvalidInput`] for non-finite scalar rates or nonpositive
     /// or non-finite volatility. Risk-free rate validation precedes dividend
     /// yield and volatility validation.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi_core::{BlackScholesMertonParameters, Date, RateTermStructure};
+    /// # fn main() -> kiyosi_core::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let end = Date::new(2026, 1, 1)?.start_of_day();
+    /// let discounts = RateTermStructure::new(start, vec![end], vec![0.95])?;
+    /// let model = BlackScholesMertonParameters::new(discounts, 0.02, 0.2)?;
+    /// assert!((model.risk_free_curve().factor(start, end)? - 0.95).abs() < 1e-14);
+    /// assert_eq!(model.dividend_yield()?, 0.02);
+    /// assert!(model.risk_free_rate().is_err()); // Node curves have no scalar rate.
+    /// # Ok(()) }
+    /// ```
     pub fn new(
         risk_free_rate: impl Into<Rate>,
         dividend_yield: impl Into<Rate>,
@@ -119,10 +135,14 @@ impl BlackScholesMertonParameters {
             ))
     }
     /// Borrows the risk-free curve; storage remains valid for this model's lifetime.
+    ///
+    /// See [`Self::new`] for a curve-based model example.
     pub fn risk_free_curve(&self) -> &RateTermStructure {
         &self.risk_free_curve
     }
     /// Borrows the dividend curve; storage remains valid for this model's lifetime.
+    ///
+    /// Scalar yields become undated flat curves; see [`Self::new`].
     pub fn dividend_curve(&self) -> &RateTermStructure {
         &self.dividend_curve
     }

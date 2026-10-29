@@ -69,7 +69,7 @@ impl DoubleTouchOption {
     fn upper_barrier(&self) -> f64 {
         self.0.upper_barrier()
     }
-    /// Return the cash payout, or None for asset settlement.
+    /// Return the nonnegative finite cash payout.
     #[getter]
     fn payout(&self) -> f64 {
         self.0.payout()

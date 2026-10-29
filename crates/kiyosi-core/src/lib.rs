@@ -5,6 +5,14 @@
 //! Provides calendars, schedules, Greeks and implied-parameter solvers.
 //! The core builds with Cargo alone; Python bindings live in a separate crate.
 //!
+//! Construct a contract and a [`PricingContext`], then choose an engine for that
+//! contract. [`PricingEngine`] also supports [`numerical_greeks`] and the implied
+//! parameter solvers. Contract constructors validate terms; pricing validates
+//! valuation dates, calendar consistency and required prior history.
+//! Annual rates and volatility use decimal units. Rate curves use Actual/365
+//! Fixed time; [`TradingCalendar::trading_year_fraction`] uses its own day-count
+//! basis. [`Greek`] documents sensitivity reporting units.
+//!
 //! # Concurrency and errors
 //!
 //! Built-in public types own their data and are `Send + Sync`. Distinct and shared

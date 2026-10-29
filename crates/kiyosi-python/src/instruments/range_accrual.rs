@@ -31,6 +31,12 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 /// realized_hit_count : int or None, optional
 ///     Hits strictly before valuation, or None for unknown history.
 ///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If amounts, bounds or history are invalid, or expiry is not after
+///     effective_date. Pricing checks history against elapsed observations.
+///
 /// Notes
 /// -----
 /// Observe trading dates in (effective_date, expiry_date]. Bounds are

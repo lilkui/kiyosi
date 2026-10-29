@@ -1,5 +1,14 @@
 """Price contracts, compute sensitivities, and solve implied parameters.
 
+``FiniteDifferenceScheme`` selects ``"explicit_euler"``, ``"implicit_euler"``
+or ``"crank_nicolson"`` (with initial damping). ``MonteCarloSampling`` selects
+``"pseudo_random"`` or scrambled ``"sobol"``; a fixed seed reproduces draws
+across thread counts in the same build. Sobol estimates omit sampling error.
+
+``CouponQuoteConvention`` controls whether a snowball's maturity coupon
+shifts with observation coupons (``"shift_maturity_coupon"``) or stays fixed
+(``"preserve_maturity_coupon"``). Phoenix coupon solves omit this choice.
+
 Examples
 --------
 Price a European call and request its delta and vega:
@@ -25,6 +34,15 @@ Price a European call and request its delta and vega:
 9.227006
 >>> result.require("delta") > 0
 True
+
+Recover the model volatility from its price using a chosen bracket:
+
+>>> sigma = implied_volatility(
+...     AnalyticEuropeanEngine(), option, context, result.price,
+...     lower_bound=0.1, upper_bound=0.3,
+... )
+>>> round(sigma, 6)
+0.2
 """
 
 from ._native import (

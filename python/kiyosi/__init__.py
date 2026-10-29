@@ -20,6 +20,12 @@ instances support concurrent reads and pricing. Replacement creates a new
 value. Long calculations release the GIL around owned Rust inputs; short
 analytic calls may retain it.
 
+`Greek` accepts delta, gamma, speed, theta, charm, color, vega, vanna,
+zomma and rho. Spot derivatives use spot units, volatility and rate
+derivatives use percentage points, and time derivatives use calendar days
+of forward valuation time. `PricingResult` leaves unavailable or
+unrequested sensitivities as None; `require` raises if one is absent.
+
 Calls are synchronous, without core cancellation or signal polling. Python
 signal handling, including `KeyboardInterrupt`, resumes when control
 returns to Python.

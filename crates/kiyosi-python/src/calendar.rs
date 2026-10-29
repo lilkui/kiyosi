@@ -137,7 +137,7 @@ impl TradingCalendar {
 /// Returns
 /// -------
 /// TradingCalendar
-///     Owned result; no input is mutated.
+///     Calendar with the stated annualization basis.
 #[pyfunction]
 pub(crate) fn weekdays_calendar() -> TradingCalendar {
     TradingCalendar::default()
@@ -148,7 +148,7 @@ pub(crate) fn weekdays_calendar() -> TradingCalendar {
 /// Returns
 /// -------
 /// TradingCalendar
-///     Owned result; no input is mutated.
+///     Calendar with the stated annualization basis.
 #[pyfunction]
 pub(crate) fn all_days_calendar() -> TradingCalendar {
     TradingCalendar(core::TradingCalendar::all_days())
@@ -159,7 +159,7 @@ pub(crate) fn all_days_calendar() -> TradingCalendar {
 /// Returns
 /// -------
 /// TradingCalendar
-///     Owned result; no input is mutated.
+///     Calendar with the stated annualization basis.
 ///
 /// Notes
 /// -----

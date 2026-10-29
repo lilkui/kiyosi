@@ -71,11 +71,18 @@ macro_rules! quadrature_engine {
             ///     Market snapshot and valuation instant.
             /// greeks : str or iterable of str, optional
             ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-            /// **settings
-            ///     `all_greeks` requests every measure and requires omitting `greeks`.
-            ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
-            ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
-            ///     defaults; analytic engines still validate them.
+            /// all_greeks : bool, optional
+            ///     Request every measure; omit `greeks` when True. Defaults to False.
+            /// spot_shift : float, optional
+            ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+            /// volatility_shift : float, optional
+            ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+            /// rate_shift : float, optional
+            ///     Positive finite parallel risk-free-rate bump in decimal units;
+            ///     defaults to 0.0001.
+            /// time_shift_days : int, optional
+            ///     Positive forward/backward time bump in calendar days; defaults to 1.
+            ///     All bumps are validated even when analytic Greeks are available.
             ///
             /// Returns
             /// -------
@@ -127,9 +134,15 @@ quadrature_engine!(
 /// Parameters
 /// ----------
 /// asset_step_count : int, optional
-///     Spatial grid budget. Uses the core default when omitted.
+///     Spatial grid budget, at least 4; defaults to 512.
 /// integration_standard_deviations : float, optional
-///     Positive finite integration extent in standard deviations.
+///     Positive finite integration extent in standard deviations; defaults to 8.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If asset_step_count is below 4 or integration_standard_deviations
+///     is nonpositive or non-finite.
 ///
 /// See Also
 /// --------
@@ -222,11 +235,18 @@ impl QuadratureBarrierEngine {
     ///     Market snapshot and valuation instant.
     /// greeks : str or iterable of str, optional
     ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// **settings
-    ///     `all_greeks` requests every measure and requires omitting `greeks`.
-    ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
-    ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
-    ///     defaults; analytic engines still validate them.
+    /// all_greeks : bool, optional
+    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// spot_shift : float, optional
+    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+    /// volatility_shift : float, optional
+    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+    /// rate_shift : float, optional
+    ///     Positive finite parallel risk-free-rate bump in decimal units;
+    ///     defaults to 0.0001.
+    /// time_shift_days : int, optional
+    ///     Positive forward/backward time bump in calendar days; defaults to 1.
+    ///     All bumps are validated even when analytic Greeks are available.
     ///
     /// Returns
     /// -------
@@ -263,9 +283,15 @@ impl QuadratureBarrierEngine {
 /// Parameters
 /// ----------
 /// asset_step_count : int, optional
-///     Spatial grid budget. Uses the core default when omitted.
+///     Spatial grid budget, at least 4; defaults to 512.
 /// integration_standard_deviations : float, optional
-///     Positive finite integration extent in standard deviations.
+///     Positive finite integration extent in standard deviations; defaults to 8.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If asset_step_count is below 4 or integration_standard_deviations
+///     is nonpositive or non-finite.
 ///
 /// See Also
 /// --------
@@ -358,11 +384,18 @@ impl QuadratureAccumulatorEngine {
     ///     Market snapshot and valuation instant.
     /// greeks : str or iterable of str, optional
     ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// **settings
-    ///     `all_greeks` requests every measure and requires omitting `greeks`.
-    ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
-    ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
-    ///     defaults; analytic engines still validate them.
+    /// all_greeks : bool, optional
+    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// spot_shift : float, optional
+    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+    /// volatility_shift : float, optional
+    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+    /// rate_shift : float, optional
+    ///     Positive finite parallel risk-free-rate bump in decimal units;
+    ///     defaults to 0.0001.
+    /// time_shift_days : int, optional
+    ///     Positive forward/backward time bump in calendar days; defaults to 1.
+    ///     All bumps are validated even when analytic Greeks are available.
     ///
     /// Returns
     /// -------
@@ -399,9 +432,15 @@ impl QuadratureAccumulatorEngine {
 /// Parameters
 /// ----------
 /// asset_step_count : int, optional
-///     Spatial grid budget. Uses the core default when omitted.
+///     Spatial grid budget, at least 4; defaults to 512.
 /// integration_standard_deviations : float, optional
-///     Positive finite integration extent in standard deviations.
+///     Positive finite integration extent in standard deviations; defaults to 8.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If asset_step_count is below 4 or integration_standard_deviations
+///     is nonpositive or non-finite.
 ///
 /// See Also
 /// --------
@@ -511,11 +550,18 @@ impl QuadratureAutocallableEngine {
     ///     Market snapshot and valuation instant.
     /// greeks : str or iterable of str, optional
     ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// **settings
-    ///     `all_greeks` requests every measure and requires omitting `greeks`.
-    ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
-    ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
-    ///     defaults; analytic engines still validate them.
+    /// all_greeks : bool, optional
+    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// spot_shift : float, optional
+    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+    /// volatility_shift : float, optional
+    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+    /// rate_shift : float, optional
+    ///     Positive finite parallel risk-free-rate bump in decimal units;
+    ///     defaults to 0.0001.
+    /// time_shift_days : int, optional
+    ///     Positive forward/backward time bump in calendar days; defaults to 1.
+    ///     All bumps are validated even when analytic Greeks are available.
     ///
     /// Returns
     /// -------

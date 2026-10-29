@@ -23,7 +23,12 @@ macro_rules! binomial_engine {
         /// Parameters
         /// ----------
         /// step_count : int, optional
-        ///     Grid size. Uses the core default when omitted.
+        ///     Number of tree time steps, from 1 through 1,000,000; defaults to 256.
+        ///
+        /// Raises
+        /// ------
+        /// InvalidInputError
+        ///     If step_count is outside 1 through 1,000,000.
         ///
         /// Notes
         /// -----
@@ -100,11 +105,18 @@ macro_rules! binomial_engine {
             ///     Market snapshot and valuation instant.
             /// greeks : str or iterable of str, optional
             ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-            /// **settings
-            ///     `all_greeks` requests every measure and requires omitting `greeks`.
-            ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
-            ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
-            ///     defaults; analytic engines still validate them.
+            /// all_greeks : bool, optional
+            ///     Request every measure; omit `greeks` when True. Defaults to False.
+            /// spot_shift : float, optional
+            ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+            /// volatility_shift : float, optional
+            ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+            /// rate_shift : float, optional
+            ///     Positive finite parallel risk-free-rate bump in decimal units;
+            ///     defaults to 0.0001.
+            /// time_shift_days : int, optional
+            ///     Positive forward/backward time bump in calendar days; defaults to 1.
+            ///     All bumps are validated even when analytic Greeks are available.
             ///
             /// Returns
             /// -------
@@ -182,7 +194,12 @@ binomial_engine!(
 /// Parameters
 /// ----------
 /// step_count : int, optional
-///     Grid size. Uses the core default when omitted.
+///     Number of tree time steps, from 1 through 1,000,000; defaults to 256.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If step_count is outside 1 through 1,000,000.
 ///
 /// See Also
 /// --------
@@ -259,11 +276,18 @@ impl CoxRossRubinsteinBarrierEngine {
     ///     Market snapshot and valuation instant.
     /// greeks : str or iterable of str, optional
     ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// **settings
-    ///     `all_greeks` requests every measure and requires omitting `greeks`.
-    ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
-    ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
-    ///     defaults; analytic engines still validate them.
+    /// all_greeks : bool, optional
+    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// spot_shift : float, optional
+    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+    /// volatility_shift : float, optional
+    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+    /// rate_shift : float, optional
+    ///     Positive finite parallel risk-free-rate bump in decimal units;
+    ///     defaults to 0.0001.
+    /// time_shift_days : int, optional
+    ///     Positive forward/backward time bump in calendar days; defaults to 1.
+    ///     All bumps are validated even when analytic Greeks are available.
     ///
     /// Returns
     /// -------

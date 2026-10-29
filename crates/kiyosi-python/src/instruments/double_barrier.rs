@@ -44,6 +44,12 @@ fn kind(value: &Bound<'_, PyAny>) -> PyResult<core::DoubleBarrierType> {
 /// touch_state : {'untouched', 'touched'} or None, optional
 ///     Strictly prior history. None means unknown; untouched means known no
 ///     hit.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If boundaries, strike, rebate, life dates, monitoring schedule or
+///     rebate timing are invalid. Calendar and history checks occur at pricing.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct DoubleBarrierOption(pub core::DoubleBarrierOption);

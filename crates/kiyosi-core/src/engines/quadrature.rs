@@ -15,7 +15,6 @@ use crate::{
     PricingResult, Result,
 };
 
-// Keep the terminal engines' fixed Simpson budget and exp(-72) endpoint cutoff.
 fn normal_tail_integral(threshold: f64, amount: f64, log_discount: f64) -> f64 {
     if threshold.is_nan() {
         return threshold;
@@ -24,6 +23,7 @@ fn normal_tail_integral(threshold: f64, amount: f64, log_discount: f64) -> f64 {
         return weighted_cdf(amount, log_discount, -threshold);
     }
     let lower = threshold.abs();
+    // Scale out the boundary density so tiny Gaussian tails retain finite monetary values.
     let scaled_tail = threshold > 10.0;
     let discount = if scaled_tail { 1.0 } else { log_discount.exp() };
     let scale = if scaled_tail { 1.0 } else { amount * discount };

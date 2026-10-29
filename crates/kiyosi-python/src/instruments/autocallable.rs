@@ -91,17 +91,17 @@ impl AutocallableObservation {
     fn date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.date)
     }
-    /// Return positive inclusive knock-out threshold.
+    /// Return the supplied knock-out threshold; the note constructor validates it.
     #[getter]
     fn knock_out_level(&self) -> f64 {
         self.0.knock_out_level
     }
-    /// Return finite annual coupon rate in decimal units.
+    /// Return the supplied annual coupon in decimal units; note construction validates it.
     #[getter]
     fn coupon_rate(&self) -> f64 {
         self.0.coupon_rate
     }
-    /// Return the inclusive Phoenix coupon threshold.
+    /// Return the supplied Phoenix coupon threshold; note construction validates it.
     #[getter]
     fn coupon_barrier_level(&self) -> f64 {
         self.0.coupon_barrier_level
@@ -625,6 +625,12 @@ and trading-calendar consistency are checked during pricing."
 ///     event.
 /// principal_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If amounts, strikes, life dates or observation terms are invalid.
+///     Pricing checks the calendar and prior barrier history.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct SnowballOption(pub core::SnowballOption);
@@ -818,6 +824,12 @@ impl SnowballOption {
 ///     event.
 /// principal_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If coupons, principal, dates or observations are invalid, or
+///     barrier_state is knocked_in; this contract has no knock-in barrier.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct BinarySnowballOption(pub core::BinarySnowballOption);
@@ -976,6 +988,12 @@ impl BinarySnowballOption {
 ///     event.
 /// principal_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If coupons, principal, barriers, dates or observations are invalid.
+///     minimum_coupon_rate must not exceed maturity_coupon_rate.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct TernarySnowballOption(pub core::TernarySnowballOption);
@@ -1163,6 +1181,12 @@ impl TernarySnowballOption {
 ///     event.
 /// principal_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If amounts, strikes, life dates or observations are invalid.
+///     Observation coupon_rate must be zero; coupon_barrier_level is nonnegative.
 ///
 /// Notes
 /// -----

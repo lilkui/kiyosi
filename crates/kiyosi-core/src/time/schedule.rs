@@ -110,6 +110,7 @@ impl ObservationSchedule {
             let year = target_month.div_euclid(12);
             let month = target_month.rem_euclid(12) as u32 + 1;
             let mut day = start.day();
+            // Clamp each candidate from the original day so February does not shift later months.
             let target = loop {
                 match Date::new(year, month, day) {
                     Ok(date) => break date,
@@ -124,6 +125,8 @@ impl ObservationSchedule {
     }
 
     /// Borrows the strictly ordered date storage for this schedule's lifetime.
+    ///
+    /// See [`Self::fixed_interval`] for construction.
     pub fn dates(&self) -> &[Date] {
         &self.dates
     }

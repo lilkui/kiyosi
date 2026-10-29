@@ -4,6 +4,7 @@ use crate::{
 };
 
 pub(crate) fn symmetric_shift(value: f64, requested: f64) -> f64 {
+    // Reconstruct the bump so both stencil legs use the same representable distance.
     let high = value + requested;
     let shift = high - value;
     let low = value - shift;
@@ -19,9 +20,10 @@ pub(crate) fn symmetric_shift(value: f64, requested: f64) -> f64 {
     }
 }
 
-/// Computes numerical price sensitivities for scalar engines. Uses rounded
+/// Computes numerical price sensitivities for scalar engines.
 ///
-/// symmetric absolute bumps; collapsed/asymmetric or nonpositive stencils are unavailable.
+/// Uses rounded symmetric absolute bumps; collapsed, asymmetric or nonpositive
+/// stencils are unavailable.
 /// Time rolls stay within permitted valuation dates, curve coverage and neighboring knots, with
 /// right-hand differences at knots. Feasible bumped pricing errors fail the request.
 /// Vega/vanna/zomma/rho are per percentage point, time Greeks per calendar day.

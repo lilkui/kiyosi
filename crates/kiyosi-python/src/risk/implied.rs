@@ -34,10 +34,17 @@ use pyo3::types::PyDict;
 ///     Market snapshot; the original is unchanged.
 /// observed_price : float
 ///     Finite target price in the engine's payment units.
-/// **settings
-///     `lower_bound` and `upper_bound` bracket the parameter. Positive
-///     `price_tolerance` or `parameter_tolerance` stops iteration;
-///     `max_iterations` limits iterations. Omitted controls use core defaults.
+/// lower_bound : float, optional
+///     Positive finite lower annual volatility in decimal units; defaults to 0.0001.
+/// upper_bound : float, optional
+///     Finite upper annual volatility, above lower_bound; defaults to 4.
+/// price_tolerance : float, optional
+///     Positive finite absolute price residual tolerance; defaults to 1e-8.
+/// parameter_tolerance : float, optional
+///     Positive finite bracket-width tolerance in decimal units; defaults to
+///     1e-8. Either tolerance can stop iteration.
+/// max_iterations : int, optional
+///     Positive iteration budget; defaults to 100.
 ///
 /// Returns
 /// -------

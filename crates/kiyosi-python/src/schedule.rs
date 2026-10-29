@@ -11,7 +11,9 @@ use pyo3::types::PyDate;
 /// Notes
 /// -----
 /// Use fixed_interval_schedule or monthly_schedule. The dates property
-/// returns a copy; iteration retains the schedule owner.
+/// returns a copy; iteration retains the schedule owner. Integer indexing
+/// accepts negative indices and raises IndexError outside the sequence.
+/// Slices are not supported. len(schedule) counts observations.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct ObservationSchedule(pub(crate) core::ObservationSchedule);
@@ -92,7 +94,7 @@ impl ScheduleIterator {
 /// Raises
 /// ------
 /// InvalidInputError
-///     If life is reversed or the spacing/first offset is nonpositive.
+///     If end precedes start or interval_days is nonpositive.
 ///
 /// Notes
 /// -----
@@ -139,10 +141,12 @@ pub(crate) fn fixed_interval_schedule(
 /// Raises
 /// ------
 /// InvalidInputError
-///     If life is reversed or the spacing/first offset is nonpositive.
+///     If end precedes start or first_observation_month is nonpositive.
 ///
 /// Notes
 /// -----
+/// Clamp each candidate to its month end while retaining the original
+/// start-day anchor for later months.
 /// Exclude start and include candidates through end. Following adjustment
 /// merges collisions and stops before crossing end; end need not appear.
 #[pyfunction]

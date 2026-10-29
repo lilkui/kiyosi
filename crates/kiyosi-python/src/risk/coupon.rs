@@ -17,19 +17,32 @@ use pyo3::types::PyDict;
 /// Parameters
 /// ----------
 /// engine : object
-///     Supported pricing engine for the instrument.
+///     QuadratureAutocallableEngine, FiniteDifferenceAutocallableEngine or
+///     MonteCarloAutocallableEngine.
 /// instrument : object
-///     Contract to reprice; the original is unchanged.
+///     SnowballOption, BinarySnowballOption, TernarySnowballOption or
+///     PhoenixOption; the original is unchanged.
 /// context : PricingContext
 ///     Market snapshot; the original is unchanged.
 /// observed_price : float
 ///     Finite target price in the engine's payment units.
-/// **settings
-///     `lower_bound` and `upper_bound` bracket the parameter. Positive
-///     `price_tolerance` or `parameter_tolerance` stops iteration;
-///     `max_iterations` limits iterations. Omitted controls use core defaults.
-///     Snowballs require `quote_convention`: shift_maturity_coupon or
-///     preserve_maturity_coupon. Phoenix rejects this keyword.
+/// quote_convention : CouponQuoteConvention
+///     Required for snowballs: shift_maturity_coupon shifts the maturity
+///     coupon with observation coupons; preserve_maturity_coupon keeps it
+///     fixed. Omit this keyword for Phoenix.
+/// lower_bound : float, optional
+///     Finite lower annual coupon in decimal units; defaults to 0. Signed
+///     bounds are accepted when the resulting contract terms are valid.
+/// upper_bound : float, optional
+///     Finite upper annual coupon, above lower_bound; defaults to 2.
+/// price_tolerance : float, optional
+///     Positive finite absolute price residual tolerance; defaults to 1e-8.
+/// parameter_tolerance : float, optional
+///     Positive finite bracket-width tolerance in decimal units; defaults to
+///     1e-8. Either tolerance can stop iteration.
+/// max_iterations : int, optional
+///     Positive iteration budget; defaults to 100.
+///     Endpoint and affine-interpolation evaluations do not use this budget.
 ///
 /// Returns
 /// -------

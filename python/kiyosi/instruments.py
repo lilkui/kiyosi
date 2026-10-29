@@ -1,4 +1,25 @@
-"""Validated derivative contracts, snowball presets and observation adapters."""
+"""Validated derivative contracts, snowball presets and observation adapters.
+
+``OptionType`` selects ``"call"`` or ``"put"``. Contract dates are inclusive,
+with expiry at midnight UTC. Constructors validate terms; pricing validates
+their consistency with the market snapshot, calendar and supplied history.
+History describes events strictly before valuation; a current observation
+is evaluated from the current spot. Replacement returns a new contract.
+
+Examples
+--------
+Construct a digital call, then create an independent strike replacement.
+Cash and asset digitals pay zero when the expiry spot equals the strike:
+
+>>> from datetime import date
+>>> option = CashOrNothingOption(
+...     option_type="call", strike=100, payout=10,
+...     effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
+... )
+>>> replacement = option.replace(strike=105)
+>>> (option.strike, replacement.strike, replacement.payout)
+(100.0, 105.0, 10.0)
+"""
 
 from typing import Literal
 

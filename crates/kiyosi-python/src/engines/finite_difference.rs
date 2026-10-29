@@ -65,13 +65,22 @@ macro_rules! fd_engine {
         /// Parameters
         /// ----------
         /// asset_step_count : int, optional
-        ///     Spatial grid budget. Uses the core default when omitted.
+        ///     Number of spatial steps, at least 3; defaults to 800.
         /// time_step_count : int, optional
-        ///     Positive time-step budget; event dates and curve knots are added.
+        ///     Positive time-step budget, default 200; event dates and curve knots
+        ///     are added.
         /// scheme : FiniteDifferenceScheme, optional
         ///     Time-marching scheme; defaults to damped Crank-Nicolson.
         /// asset_upper_boundary : float or None, optional
-        ///     Positive upper spot boundary, or None for the automatic domain.
+        ///     Finite positive upper spot boundary, or None (default) for the
+        ///     automatic domain. Must exceed spot, strike and barriers at pricing.
+        ///
+        /// Raises
+        /// ------
+        /// InvalidInputError
+        ///     If asset_step_count is below 3, time_step_count is below 1, or an
+        ///     explicit upper boundary is nonpositive or non-finite. Boundary coverage
+        ///     and explicit-Euler stability are checked during pricing.
         ///
         /// Notes
         /// -----
@@ -161,11 +170,18 @@ macro_rules! fd_engine {
             ///     Market snapshot and valuation instant.
             /// greeks : str or iterable of str, optional
             ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-            /// **settings
-            ///     `all_greeks` requests every measure and requires omitting `greeks`.
-            ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
-            ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
-            ///     defaults; analytic engines still validate them.
+            /// all_greeks : bool, optional
+            ///     Request every measure; omit `greeks` when True. Defaults to False.
+            /// spot_shift : float, optional
+            ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+            /// volatility_shift : float, optional
+            ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+            /// rate_shift : float, optional
+            ///     Positive finite parallel risk-free-rate bump in decimal units;
+            ///     defaults to 0.0001.
+            /// time_shift_days : int, optional
+            ///     Positive forward/backward time bump in calendar days; defaults to 1.
+            ///     All bumps are validated even when analytic Greeks are available.
             ///
             /// Returns
             /// -------

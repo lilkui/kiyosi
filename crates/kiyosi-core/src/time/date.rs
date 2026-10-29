@@ -113,6 +113,9 @@ impl Timestamp {
     }
 
     /// Returns the date containing this instant, including dates before the common era.
+    ///
+    /// See [`Self::new`] for construction. This uses calendar-day boundaries,
+    /// rather than truncating negative timestamps toward zero.
     pub fn date(self) -> Date {
         // Construction limits the day count to chrono's supported range.
         Date(

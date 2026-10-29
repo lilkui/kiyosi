@@ -106,17 +106,26 @@ macro_rules! sampling_settings {
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count; Sobol sampling requires a power of two.
+///     Exact path count, 1 through 10,000,000; defaults to 100,000.
+///     Sobol sampling requires a power of two.
 /// step_count : int, optional
-///     Grid size; see Notes for product-specific use.
+///     Grid size, 2 through 10,000; defaults to 50. Validated even when
+///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
-///     Unsigned 64-bit seed, or None to use system entropy.
+///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// thread_count : int, optional
-///     Worker cap per call: zero is automatic, one is serial.
+///     Nonnegative worker cap per call: zero (default) is automatic, one is serial.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
-///     Pair opposite normal draws while preserving the exact path count.
+///     Pair opposite normal draws; defaults to False. An odd path count
+///     leaves one unpaired path.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If paths are outside 1 through 10,000,000, steps outside 2 through
+///     10,000, thread_count is negative, or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -182,8 +191,8 @@ sampling_settings!(
     ///
     /// Parameters
     /// ----------
-    /// instrument : object
-    ///     Supported contract; see the engine class for accepted types.
+    /// instrument : EuropeanOption
+    ///     European vanilla contract; American statistics are not exposed.
     /// context : PricingContext
     ///     Market snapshot and valuation instant.
     ///
@@ -225,11 +234,19 @@ sampling_settings!(
     ///     Market snapshot and valuation instant.
     /// greeks : str or iterable of str, optional
     ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// **settings
-    ///     `all_greeks` requests every measure and requires omitting `greeks`.
-    ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
-    ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
-    ///     defaults; analytic engines still validate them.
+    /// all_greeks : bool, optional
+    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// spot_shift : float or None, optional
+    ///     Positive finite absolute spot bump. European default: 0.01 spot units.
+    ///     American default: 8% of spot; None also selects this American default.
+    /// volatility_shift : float, optional
+    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+    /// rate_shift : float, optional
+    ///     Positive finite parallel risk-free-rate bump in decimal units;
+    ///     defaults to 0.0001.
+    /// time_shift_days : int, optional
+    ///     Positive forward/backward time bump in calendar days; defaults to 1.
+    ///     All bumps are validated even when analytic Greeks are available.
     ///
     /// Returns
     /// -------
@@ -333,17 +350,26 @@ impl MonteCarloEstimate {
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count; Sobol sampling requires a power of two.
+///     Exact path count, 1 through 10,000,000; defaults to 100,000.
+///     Sobol sampling requires a power of two.
 /// step_count : int, optional
-///     Grid size; see Notes for product-specific use.
+///     Grid size, 2 through 10,000; defaults to 50. Validated even when
+///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
-///     Unsigned 64-bit seed, or None to use system entropy.
+///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// thread_count : int, optional
-///     Worker cap per call: zero is automatic, one is serial.
+///     Nonnegative worker cap per call: zero (default) is automatic, one is serial.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
-///     Pair opposite normal draws while preserving the exact path count.
+///     Pair opposite normal draws; defaults to False. An odd path count
+///     leaves one unpaired path.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If paths are outside 1 through 10,000,000, steps outside 2 through
+///     10,000, thread_count is negative, or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -406,11 +432,18 @@ sampling_settings!(
     ///     Market snapshot and valuation instant.
     /// greeks : str or iterable of str, optional
     ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// **settings
-    ///     `all_greeks` requests every measure and requires omitting `greeks`.
-    ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
-    ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
-    ///     defaults; analytic engines still validate them.
+    /// all_greeks : bool, optional
+    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// spot_shift : float, optional
+    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+    /// volatility_shift : float, optional
+    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+    /// rate_shift : float, optional
+    ///     Positive finite parallel risk-free-rate bump in decimal units;
+    ///     defaults to 0.0001.
+    /// time_shift_days : int, optional
+    ///     Positive forward/backward time bump in calendar days; defaults to 1.
+    ///     All bumps are validated even when analytic Greeks are available.
     ///
     /// Returns
     /// -------
@@ -453,17 +486,26 @@ sampling_settings!(
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count; Sobol sampling requires a power of two.
+///     Exact path count, 1 through 10,000,000; defaults to 100,000.
+///     Sobol sampling requires a power of two.
 /// step_count : int, optional
-///     Grid size; see Notes for product-specific use.
+///     Grid size, 2 through 10,000; defaults to 50. Validated even when
+///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
-///     Unsigned 64-bit seed, or None to use system entropy.
+///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// thread_count : int, optional
-///     Worker cap per call: zero is automatic, one is serial.
+///     Nonnegative worker cap per call: zero (default) is automatic, one is serial.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
-///     Pair opposite normal draws while preserving the exact path count.
+///     Pair opposite normal draws; defaults to False. An odd path count
+///     leaves one unpaired path.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If paths are outside 1 through 10,000,000, steps outside 2 through
+///     10,000, thread_count is negative, or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -536,11 +578,18 @@ sampling_settings!(
     ///     Market snapshot and valuation instant.
     /// greeks : str or iterable of str, optional
     ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// **settings
-    ///     `all_greeks` requests every measure and requires omitting `greeks`.
-    ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
-    ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
-    ///     defaults; analytic engines still validate them.
+    /// all_greeks : bool, optional
+    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// spot_shift : float, optional
+    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+    /// volatility_shift : float, optional
+    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+    /// rate_shift : float, optional
+    ///     Positive finite parallel risk-free-rate bump in decimal units;
+    ///     defaults to 0.0001.
+    /// time_shift_days : int, optional
+    ///     Positive forward/backward time bump in calendar days; defaults to 1.
+    ///     All bumps are validated even when analytic Greeks are available.
     ///
     /// Returns
     /// -------
@@ -596,17 +645,26 @@ sampling_settings!(
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count; Sobol sampling requires a power of two.
+///     Exact path count, 1 through 10,000,000; defaults to 100,000.
+///     Sobol sampling requires a power of two.
 /// step_count : int, optional
-///     Grid size; see Notes for product-specific use.
+///     Grid size, 2 through 10,000; defaults to 50. Validated even when
+///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
-///     Unsigned 64-bit seed, or None to use system entropy.
+///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// thread_count : int, optional
-///     Worker cap per call: zero is automatic, one is serial.
+///     Nonnegative worker cap per call: zero (default) is automatic, one is serial.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
-///     Pair opposite normal draws while preserving the exact path count.
+///     Pair opposite normal draws; defaults to False. An odd path count
+///     leaves one unpaired path.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If paths are outside 1 through 10,000,000, steps outside 2 through
+///     10,000, thread_count is negative, or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -670,11 +728,18 @@ sampling_settings!(
     ///     Market snapshot and valuation instant.
     /// greeks : str or iterable of str, optional
     ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// **settings
-    ///     `all_greeks` requests every measure and requires omitting `greeks`.
-    ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
-    ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
-    ///     defaults; analytic engines still validate them.
+    /// all_greeks : bool, optional
+    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// spot_shift : float, optional
+    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+    /// volatility_shift : float, optional
+    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+    /// rate_shift : float, optional
+    ///     Positive finite parallel risk-free-rate bump in decimal units;
+    ///     defaults to 0.0001.
+    /// time_shift_days : int, optional
+    ///     Positive forward/backward time bump in calendar days; defaults to 1.
+    ///     All bumps are validated even when analytic Greeks are available.
     ///
     /// Returns
     /// -------
@@ -719,17 +784,26 @@ sampling_settings!(
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count; Sobol sampling requires a power of two.
+///     Exact path count, 1 through 10,000,000; defaults to 100,000.
+///     Sobol sampling requires a power of two.
 /// step_count : int, optional
-///     Grid size; see Notes for product-specific use.
+///     Grid size, 2 through 10,000; defaults to 50. Validated even when
+///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
-///     Unsigned 64-bit seed, or None to use system entropy.
+///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// thread_count : int, optional
-///     Worker cap per call: zero is automatic, one is serial.
+///     Nonnegative worker cap per call: zero (default) is automatic, one is serial.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
-///     Pair opposite normal draws while preserving the exact path count.
+///     Pair opposite normal draws; defaults to False. An odd path count
+///     leaves one unpaired path.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If paths are outside 1 through 10,000,000, steps outside 2 through
+///     10,000, thread_count is negative, or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -793,11 +867,18 @@ sampling_settings!(
     ///     Market snapshot and valuation instant.
     /// greeks : str or iterable of str, optional
     ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// **settings
-    ///     `all_greeks` requests every measure and requires omitting `greeks`.
-    ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
-    ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
-    ///     defaults; analytic engines still validate them.
+    /// all_greeks : bool, optional
+    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// spot_shift : float, optional
+    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+    /// volatility_shift : float, optional
+    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+    /// rate_shift : float, optional
+    ///     Positive finite parallel risk-free-rate bump in decimal units;
+    ///     defaults to 0.0001.
+    /// time_shift_days : int, optional
+    ///     Positive forward/backward time bump in calendar days; defaults to 1.
+    ///     All bumps are validated even when analytic Greeks are available.
     ///
     /// Returns
     /// -------
@@ -842,17 +923,26 @@ sampling_settings!(
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count; Sobol sampling requires a power of two.
+///     Exact path count, 1 through 10,000,000; defaults to 100,000.
+///     Sobol sampling requires a power of two.
 /// step_count : int, optional
-///     Grid size; see Notes for product-specific use.
+///     Grid size, 2 through 10,000; defaults to 50. Validated even when
+///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
-///     Unsigned 64-bit seed, or None to use system entropy.
+///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// thread_count : int, optional
-///     Worker cap per call: zero is automatic, one is serial.
+///     Nonnegative worker cap per call: zero (default) is automatic, one is serial.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
-///     Pair opposite normal draws while preserving the exact path count.
+///     Pair opposite normal draws; defaults to False. An odd path count
+///     leaves one unpaired path.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If paths are outside 1 through 10,000,000, steps outside 2 through
+///     10,000, thread_count is negative, or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -956,11 +1046,18 @@ sampling_settings!(
     ///     Market snapshot and valuation instant.
     /// greeks : str or iterable of str, optional
     ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// **settings
-    ///     `all_greeks` requests every measure and requires omitting `greeks`.
-    ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
-    ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
-    ///     defaults; analytic engines still validate them.
+    /// all_greeks : bool, optional
+    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// spot_shift : float, optional
+    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+    /// volatility_shift : float, optional
+    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+    /// rate_shift : float, optional
+    ///     Positive finite parallel risk-free-rate bump in decimal units;
+    ///     defaults to 0.0001.
+    /// time_shift_days : int, optional
+    ///     Positive forward/backward time bump in calendar days; defaults to 1.
+    ///     All bumps are validated even when analytic Greeks are available.
     ///
     /// Returns
     /// -------
@@ -1005,17 +1102,26 @@ sampling_settings!(
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count; Sobol sampling requires a power of two.
+///     Exact path count, 1 through 10,000,000; defaults to 100,000.
+///     Sobol sampling requires a power of two.
 /// step_count : int, optional
-///     Grid size; see Notes for product-specific use.
+///     Grid size, 2 through 10,000; defaults to 50. Validated even when
+///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
-///     Unsigned 64-bit seed, or None to use system entropy.
+///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// thread_count : int, optional
-///     Worker cap per call: zero is automatic, one is serial.
+///     Nonnegative worker cap per call: zero (default) is automatic, one is serial.
 /// sampling : MonteCarloSampling, optional
 ///     Sampling method; defaults to pseudo_random.
 /// antithetic : bool, optional
-///     Pair opposite normal draws while preserving the exact path count.
+///     Pair opposite normal draws; defaults to False. An odd path count
+///     leaves one unpaired path.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If paths are outside 1 through 10,000,000, steps outside 2 through
+///     10,000, thread_count is negative, or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -1116,11 +1222,18 @@ sampling_settings!(
     ///     Market snapshot and valuation instant.
     /// greeks : str or iterable of str, optional
     ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// **settings
-    ///     `all_greeks` requests every measure and requires omitting `greeks`.
-    ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
-    ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
-    ///     defaults; analytic engines still validate them.
+    /// all_greeks : bool, optional
+    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// spot_shift : float, optional
+    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+    /// volatility_shift : float, optional
+    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+    /// rate_shift : float, optional
+    ///     Positive finite parallel risk-free-rate bump in decimal units;
+    ///     defaults to 0.0001.
+    /// time_shift_days : int, optional
+    ///     Positive forward/backward time bump in calendar days; defaults to 1.
+    ///     All bumps are validated even when analytic Greeks are available.
     ///
     /// Returns
     /// -------

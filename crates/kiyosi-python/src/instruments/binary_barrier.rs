@@ -21,8 +21,8 @@ pub(crate) struct BinaryBarrierOption(pub core::BinaryBarrierOption);
 ///
 /// Notes
 /// -----
-/// Use a cash_one_touch, cash_no_touch, asset_one_touch or asset_no_touch
-/// factory for the required direction. Prior at-hit payments are settled.
+/// Use a directional factory such as cash_one_touch_up or asset_no_touch_down.
+/// Prior at-hit payments are settled.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct TouchOption(pub core::TouchOption);

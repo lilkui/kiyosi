@@ -168,6 +168,12 @@ impl TradingCalendar {
     }
 
     /// Tests a validated supported date. Weekend opening overrides are allowed.
+    ///
+    /// See [`Self::adjust`] for a weekday-calendar example.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom predicate supplied to [`Self::new`].
     pub fn is_trading_day(&self, date: Date) -> bool {
         match &self.kind {
             CalendarKind::AllDays => true,
@@ -185,7 +191,11 @@ impl TradingCalendar {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] if no trading date exists before reaching
-    /// the supported date-range boundary. Custom predicate panics propagate.
+    /// the supported date-range boundary.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom predicate supplied to [`Self::new`].
     ///
     /// # Examples
     ///
@@ -217,7 +227,11 @@ impl TradingCalendar {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for reversed ranges.
-    /// Custom predicate panics propagate. See [`Self::adjust`] for calendar setup.
+    /// See [`Self::adjust`] for calendar setup.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom predicate supplied to [`Self::new`].
     pub fn trading_days_between(&self, start: Date, end: Date) -> Result<i32> {
         validate_range(start, end)?;
         let mut date = start;
@@ -233,8 +247,12 @@ impl TradingCalendar {
     ///
     /// # Errors
     ///
-    /// Propagates [`Self::trading_days_between`] errors and predicate panics.
+    /// Propagates [`Self::trading_days_between`] errors.
     /// See [`Self::adjust`] for calendar setup.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from a custom predicate supplied to [`Self::new`].
     pub fn trading_year_fraction(&self, start: Date, end: Date) -> Result<f64> {
         Ok(f64::from(self.trading_days_between(start, end)?) / f64::from(self.basis))
     }

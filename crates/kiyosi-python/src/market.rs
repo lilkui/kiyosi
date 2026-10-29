@@ -17,6 +17,13 @@ use pyo3::types::{PyDate, PyDict};
 ///     Positive finite factors at the nodes; log factors interpolate
 ///     linearly.
 ///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If nodes or factors are empty or mismatched, times do not increase
+///     after the reference, factors are nonpositive/non-finite, or implied
+///     forward rates are non-finite.
+///
 /// Notes
 /// -----
 /// Dated curves reject times before their reference; node curves also reject
@@ -224,6 +231,11 @@ fn rate(value: &Bound<'_, PyAny>) -> PyResult<core::Rate> {
 ///     Continuously compounded dividend yield or owned rate curve.
 /// volatility : float
 ///     Positive finite annual volatility in decimal units.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If scalar rates are non-finite or volatility is nonpositive/non-finite.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct BlackScholesMertonParameters(pub(crate) core::BlackScholesMertonParameters);
@@ -340,6 +352,12 @@ impl BlackScholesMertonParameters {
 ///     UTC.
 /// calendar : TradingCalendar, optional
 ///     Trading calendar. Defaults to weekdays with a 252-day basis.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If spot_price is nonpositive/non-finite or valuation_time is outside
+///     either rate curve. Contract-life checks occur at pricing.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PricingContext(pub(crate) core::PricingContext);

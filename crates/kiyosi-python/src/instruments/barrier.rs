@@ -67,6 +67,12 @@ pub(crate) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<core::Barrier
 /// touch_state : {'untouched', 'touched'} or None, optional
 ///     Strictly prior history. None means unknown; untouched means known no
 ///     hit.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If levels, rebate, life dates, monitoring schedule or rebate timing
+///     are invalid. Trading-day and valuation-history checks occur at pricing.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct BarrierOption(pub core::BarrierOption);
