@@ -5,7 +5,7 @@ import numbers
 import unittest
 from datetime import UTC, datetime, timedelta, timezone
 
-from kiyosi import ErrorCategory, KiyosiError, pricing
+from kiyosi import ComputationFailureError, InvalidInputError, pricing
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -50,10 +50,10 @@ def vanilla(direction="call", strike=103):
 
 
 class RateTermStructureTests(unittest.TestCase):
-    def assert_category(self, category, operation, *args, **kwargs):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation, *args, **kwargs):
+        with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_log_interpolation_interval_factors_and_right_hand_forwards(self):
         curve = example_curve()
@@ -90,8 +90,8 @@ class RateTermStructureTests(unittest.TestCase):
     def test_node_validation_rejects_bad_factors_order_and_counts(self):
         for factor in (0, -0.5, math.nan, math.inf):
             with self.subTest(factor=factor):
-                self.assert_category(
-                    ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     RateTermStructure,
                     reference_time=REFERENCE,
                     times=[MIDDLE],
@@ -105,15 +105,15 @@ class RateTermStructureTests(unittest.TestCase):
             [MATURITY, MIDDLE],
         ):
             with self.subTest(times=times):
-                self.assert_category(
-                    ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     RateTermStructure,
                     reference_time=REFERENCE,
                     times=times,
                     factors=[0.95] * len(times),
                 )
-        self.assert_category(
-            ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             RateTermStructure,
             reference_time=REFERENCE,
             times=[MIDDLE, MATURITY],
@@ -172,8 +172,8 @@ class RateTermStructureTests(unittest.TestCase):
             effective_date=origin.date(),
             expiry_date=second.date(),
         )
-        self.assert_category(
-            ErrorCategory.INVALID_RESULT, engine.price, distant_option, distant_context
+        self.assert_rejection(
+            ComputationFailureError, engine.price, distant_option, distant_context
         )
 
     def test_queries_reject_extrapolation_and_reversed_intervals(self):
@@ -184,20 +184,14 @@ class RateTermStructureTests(unittest.TestCase):
             (MIDDLE, REFERENCE),
         ):
             with self.subTest(start=start, end=end):
-                self.assert_category(
-                    ErrorCategory.INVALID_TIME_RANGE, curve.factor, start, end
-                )
-                self.assert_category(
-                    ErrorCategory.INVALID_TIME_RANGE, curve.log_factor, start, end
-                )
+                self.assert_rejection(InvalidInputError, curve.factor, start, end)
+                self.assert_rejection(InvalidInputError, curve.log_factor, start, end)
         for time in (
             REFERENCE - timedelta(microseconds=1),
             MATURITY + timedelta(microseconds=1),
         ):
             with self.subTest(time=time):
-                self.assert_category(
-                    ErrorCategory.INVALID_TIME_RANGE, curve.forward_rate, time
-                )
+                self.assert_rejection(InvalidInputError, curve.forward_rate, time)
 
     def test_flat_curves_and_parallel_shifts_preserve_coverage(self):
         flat = RateTermStructure.flat(-0.03)
@@ -211,9 +205,7 @@ class RateTermStructureTests(unittest.TestCase):
         self.assertAlmostEqual(
             flat.factor(before, REFERENCE), math.exp(0.03), delta=1e-14
         )
-        self.assert_category(
-            ErrorCategory.INVALID_TIME_RANGE, dated.factor, before, REFERENCE
-        )
+        self.assert_rejection(InvalidInputError, dated.factor, before, REFERENCE)
         curve = example_curve()
         shifted = curve.shifted(0.01)
         self.assertEqual(shifted.reference_time, curve.reference_time)
@@ -228,12 +220,10 @@ class RateTermStructureTests(unittest.TestCase):
         self.assertAlmostEqual(
             flat.shifted(0.01).forward_rate(REFERENCE), -0.02, delta=1e-15
         )
-        self.assert_category(ErrorCategory.INVALID_PARAMETER, curve.shifted, math.inf)
+        self.assert_rejection(InvalidInputError, curve.shifted, math.inf)
         for rate in (math.nan, math.inf):
             with self.subTest(rate=rate):
-                self.assert_category(
-                    ErrorCategory.INVALID_PARAMETER, RateTermStructure.flat, rate
-                )
+                self.assert_rejection(InvalidInputError, RateTermStructure.flat, rate)
 
     def test_python_representation_errors_precede_core_validation(self):
         for value in (True, "0.03", None):
@@ -299,8 +289,8 @@ class RateTermStructureTests(unittest.TestCase):
             MATURITY + timedelta(microseconds=1),
         ):
             with self.subTest(time=time):
-                self.assert_category(
-                    ErrorCategory.INVALID_TIME_RANGE,
+                self.assert_rejection(
+                    InvalidInputError,
                     context.replace,
                     valuation_time=time,
                 )
@@ -310,9 +300,7 @@ class RateTermStructureTests(unittest.TestCase):
         self.assertEqual(replaced.risk_free_curve, risk_free)
         self.assertEqual(replaced.dividend_curve, dividend)
         self.assertEqual(replaced.volatility, 0.25)
-        self.assert_category(
-            ErrorCategory.INVALID_VOLATILITY, model.replace, volatility=0
-        )
+        self.assert_rejection(InvalidInputError, model.replace, volatility=0)
         self.assertEqual(model.volatility, 0.2)
 
     def test_curve_prices_match_quantlib_and_discounted_parity(self):
@@ -423,16 +411,14 @@ class RateTermStructureTests(unittest.TestCase):
                 obj.replace(1)
             with self.assertRaises(TypeError):
                 obj.replace(unknown=1)
-        for field, value, category in (
-            ("risk_free_rate", math.nan, ErrorCategory.INVALID_RISK_FREE_RATE),
-            ("dividend_yield", math.inf, ErrorCategory.INVALID_DIVIDEND_YIELD),
-            ("volatility", 0, ErrorCategory.INVALID_VOLATILITY),
+        for field, value, expected_error in (
+            ("risk_free_rate", math.nan, InvalidInputError),
+            ("dividend_yield", math.inf, InvalidInputError),
+            ("volatility", 0, InvalidInputError),
         ):
-            self.assert_category(category, model.replace, **{field: value})
+            self.assert_rejection(expected_error, model.replace, **{field: value})
         for spot in (0, math.nan, math.inf):
-            self.assert_category(
-                ErrorCategory.INVALID_SPOT_PRICE, context.replace, spot_price=spot
-            )
+            self.assert_rejection(InvalidInputError, context.replace, spot_price=spot)
         with self.assertRaises(OverflowError):
             model.replace(volatility=10**1000)
         with self.assertRaises(TypeError):
@@ -456,8 +442,8 @@ class RateTermStructureTests(unittest.TestCase):
             reference_time=REFERENCE, times=[MIDDLE], factors=[0.98]
         )
         shorter = context.replace(model_parameters=model.replace(risk_free_rate=short))
-        self.assert_category(
-            ErrorCategory.INVALID_TIME_RANGE,
+        self.assert_rejection(
+            InvalidInputError,
             pricing.AnalyticVanillaEngine().price,
             vanilla(),
             shorter,
@@ -466,13 +452,11 @@ class RateTermStructureTests(unittest.TestCase):
             REFERENCE - timedelta(microseconds=1),
             MATURITY + timedelta(microseconds=1),
         ):
-            self.assert_category(
-                ErrorCategory.INVALID_TIME_RANGE, market, valuation=time
-            )
+            self.assert_rejection(InvalidInputError, market, valuation=time)
         for risk, dividend in ((0, short), (short, 0)):
             candidate = market(rate=risk, dividend=dividend)
-            self.assert_category(
-                ErrorCategory.INVALID_TIME_RANGE,
+            self.assert_rejection(
+                InvalidInputError,
                 candidate.replace,
                 valuation_time=MATURITY,
             )
@@ -544,20 +528,20 @@ class RateTermStructureTests(unittest.TestCase):
         from concurrent.futures import ThreadPoolExecutor
 
         self.assertEqual(RateTermStructure.flat(1000).factor(REFERENCE, MATURITY), 0)
-        self.assert_category(
-            ErrorCategory.INVALID_RESULT,
+        self.assert_rejection(
+            ComputationFailureError,
             RateTermStructure.flat(-1000).factor,
             REFERENCE,
             MATURITY,
         )
-        self.assert_category(
-            ErrorCategory.INVALID_RESULT,
+        self.assert_rejection(
+            ComputationFailureError,
             RateTermStructure.flat(1e308).log_factor,
             REFERENCE,
             MATURITY + timedelta(days=365),
         )
-        self.assert_category(
-            ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             RateTermStructure.flat(1e308).shifted,
             1e308,
         )
@@ -566,9 +550,7 @@ class RateTermStructureTests(unittest.TestCase):
         self.assertAlmostEqual(
             shifted.factors[1], curve.factors[1] * math.exp(-0.01), delta=1e-14
         )
-        self.assert_category(
-            ErrorCategory.INVALID_PARAMETER, curve.shifted(1e308).shifted, 1e308
-        )
+        self.assert_rejection(InvalidInputError, curve.shifted(1e308).shifted, 1e308)
         context = market()
         model = context.model_parameters
         owned_curve = model.risk_free_curve

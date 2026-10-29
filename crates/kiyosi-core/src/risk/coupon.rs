@@ -1,6 +1,6 @@
 use crate::{
-    AutocallableNote, Error, ErrorCategory, ImpliedVolatilitySettings, PhoenixOption,
-    PricingContext, PricingEngine, Result, SnowballCouponTerms,
+    AutocallableNote, Error, ImpliedVolatilitySettings, PhoenixOption, PricingContext,
+    PricingEngine, Result, SnowballCouponTerms,
 };
 
 /// Selects how a snowball maturity coupon follows its quoted observation coupon.
@@ -48,12 +48,12 @@ impl Default for ImpliedCouponSettings {
 /// Inputs remain unchanged; custom engines retain their own concurrency contract.
 ///
 /// # Errors
-/// Checks settings and finite observed price ([`ErrorCategory::InvalidParameter`])
+/// Checks settings and finite observed price ([`Error::InvalidInput`])
 /// before replacing and pricing both bounds. Replacement and engine errors propagate.
-/// Equal endpoint prices return [`ErrorCategory::UnsupportedOperation`] before
-/// accepting endpoint matches; same-sign residuals return [`ErrorCategory::UnbracketedCoupon`].
-/// Non-finite scalar prices or residuals return [`ErrorCategory::SolverNonFinite`];
-/// exhausted bisection returns [`ErrorCategory::SolverNonConvergence`].
+/// Equal endpoint prices return [`Error::UnsupportedOperation`] before
+/// accepting endpoint matches; same-sign residuals return [`Error::RootNotBracketed`].
+/// Non-finite scalar prices or residuals return [`Error::ComputationFailure`];
+/// exhausted bisection returns [`Error::NonConvergence`].
 ///
 /// # Examples
 /// ```
@@ -153,9 +153,8 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
         || s.parameter_tolerance <= 0.0
         || s.max_iterations <= 0
     {
-        return Err(Error::new(
-            ErrorCategory::InvalidParameter,
-            "implied-coupon settings or price are invalid",
+        return Err(Error::InvalidInput(
+            "implied-coupon settings or price are invalid".into(),
         ));
     }
     if let Some(prepared) = engine.prepare_request()? {
@@ -164,10 +163,7 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
     let checked_price = |note: &I| {
         let price = engine.price(note, context)?;
         if !price.is_finite() {
-            return Err(Error::new(
-                ErrorCategory::SolverNonFinite,
-                "non-finite coupon price",
-            ));
+            return Err(Error::ComputationFailure("non-finite coupon price".into()));
         }
         Ok(price)
     };
@@ -175,9 +171,8 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
     let residual = |value: f64| {
         let residual = value - observed;
         if !residual.is_finite() {
-            return Err(Error::new(
-                ErrorCategory::SolverNonFinite,
-                "non-finite coupon residual",
+            return Err(Error::ComputationFailure(
+                "non-finite coupon residual".into(),
             ));
         }
         Ok(residual)
@@ -187,9 +182,8 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
     let upper_note = replace(option, hi)?;
     let (lower, upper) = (checked_price(&lower_note)?, checked_price(&upper_note)?);
     if lower == upper {
-        return Err(Error::new(
-            ErrorCategory::UnsupportedOperation,
-            "coupon does not affect remaining cashflows",
+        return Err(Error::UnsupportedOperation(
+            "coupon does not affect remaining cashflows".into(),
         ));
     }
     let (mut flo, fhi) = (residual(lower)?, residual(upper)?);
@@ -200,9 +194,8 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
         return Ok(hi);
     }
     if (flo < 0.0) == (fhi < 0.0) {
-        return Err(Error::new(
-            ErrorCategory::UnbracketedCoupon,
-            "price is not bracketed by coupon bounds",
+        return Err(Error::RootNotBracketed(
+            "price is not bracketed by coupon bounds".into(),
         ));
     }
     let span = upper - lower;
@@ -239,8 +232,7 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
             hi = mid;
         }
     }
-    Err(Error::new(
-        ErrorCategory::SolverNonConvergence,
-        "implied-coupon solver did not converge",
+    Err(Error::NonConvergence(
+        "implied-coupon solver did not converge".into(),
     ))
 }

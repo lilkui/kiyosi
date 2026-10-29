@@ -154,10 +154,10 @@ fn settlement_thresholds_history_replacement_and_expiry_greeks_are_exact() {
         30.0
     );
     for value in [-1.0, f64::NAN, f64::INFINITY] {
-        assert_eq!(
-            option.replace(value).unwrap_err().category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            option.replace(value).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     assert_eq!(option.accumulated_quantity(), 3.0);
     assert_eq!(option.replace(0.25).unwrap().accumulated_quantity(), 0.25);
@@ -182,24 +182,19 @@ fn validation_order_domains_and_failures_preserve_engine_and_inputs() {
             ..Default::default()
         },
     ] {
-        assert_eq!(
-            FiniteDifferenceAccumulatorEngine::new(settings)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            FiniteDifferenceAccumulatorEngine::new(settings).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for at in [
         Date::new(2024, 12, 31).unwrap().into(),
         Timestamp::new(day(1, 6), 0, 0, 0, 1).unwrap(),
     ] {
-        assert_eq!(
-            engine
-                .price(&option, &market(100.0, at))
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidTimeRange
-        );
+        assert!(matches!(
+            engine.price(&option, &market(100.0, at)).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let weekend = Accumulator::new(AccumulatorTerms::new(
         100.0,
@@ -210,14 +205,13 @@ fn validation_order_domains_and_failures_preserve_engine_and_inputs() {
         day(1, 5),
     ))
     .unwrap();
-    assert_eq!(
+    assert!(matches!(
         engine
             .price(&weekend, &market(100.0, day(1, 1).into()))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidDate
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &weekend,
@@ -225,22 +219,20 @@ fn validation_order_domains_and_failures_preserve_engine_and_inputs() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let clipped = FiniteDifferenceAccumulatorEngine::new(FiniteDifferenceSettings {
         asset_upper_boundary: Some(110.0),
         ..Default::default()
     })
     .unwrap();
-    assert_eq!(
+    assert!(matches!(
         clipped
             .price(&option, &market(100.0, day(1, 1).into()))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(
         clipped
             .price(&option, &market(110.0, day(1, 1).into()))
@@ -253,23 +245,21 @@ fn validation_order_domains_and_failures_preserve_engine_and_inputs() {
         ..Default::default()
     })
     .unwrap();
-    assert_eq!(
+    assert!(matches!(
         explicit
             .price(&option, &market(100.0, day(1, 1).into()))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
         engine
             .price(
                 &option.replace(f64::MAX).unwrap(),
                 &market(111.0, day(1, 6).into())
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
     assert_eq!(
         engine
             .price(&option, &market(110.0, day(1, 6).into()))
@@ -488,10 +478,10 @@ fn node_curves_price_fixed_holdings_and_only_future_cashflows_require_coverage()
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        engine.price(&option, &context).unwrap_err().category,
-        ErrorCategory::InvalidTimeRange
-    );
+    assert!(matches!(
+        engine.price(&option, &context).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(
         engine
             .price(
@@ -529,12 +519,12 @@ fn speed_propagates_nonfinite_shifted_prices_without_changing_inputs() {
                 ..Default::default()
             })
             .unwrap();
-        assert_eq!(
-            engine.price(&option, &shifted).unwrap_err().category,
-            ErrorCategory::InvalidResult
-        );
+        assert!(matches!(
+            engine.price(&option, &shifted).unwrap_err(),
+            Error::ComputationFailure(_)
+        ));
     }
-    assert_eq!(
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -545,10 +535,9 @@ fn speed_propagates_nonfinite_shifted_prices_without_changing_inputs() {
                     ..Default::default()
                 }
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
     assert_eq!(engine.price(&option, &context).unwrap(), quote);
     assert_eq!(option.accumulated_quantity(), f64::MAX);
     assert_eq!(context.spot_price(), 100.0);
@@ -569,19 +558,15 @@ fn implied_volatility_recovers_quotes_and_preserves_solver_failures_and_identifi
         (implied_volatility(&engine, &option, &context, quote, controls).unwrap() - 0.2).abs()
             < 1e-6
     );
-    assert_eq!(
-        implied_volatility(&engine, &option, &context, 1e10, controls)
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnbracketedVolatility
-    );
-    assert_eq!(
-        implied_volatility(&engine, &option, &context, f64::NAN, controls)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
-    assert_eq!(
+    assert!(matches!(
+        implied_volatility(&engine, &option, &context, 1e10, controls).unwrap_err(),
+        Error::RootNotBracketed(_)
+    ));
+    assert!(matches!(
+        implied_volatility(&engine, &option, &context, f64::NAN, controls).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
         implied_volatility(
             &engine,
             &option,
@@ -594,15 +579,14 @@ fn implied_volatility_recovers_quotes_and_preserves_solver_failures_and_identifi
                 ..controls
             }
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::SolverNonConvergence
-    );
+        .unwrap_err(),
+        Error::NonConvergence(_)
+    ));
     for context in [
         market(110.0, day(1, 1).into()),
         market(90.0, day(1, 6).into()),
     ] {
-        assert_eq!(
+        assert!(matches!(
             implied_volatility(
                 &engine,
                 &option,
@@ -610,10 +594,9 @@ fn implied_volatility_recovers_quotes_and_preserves_solver_failures_and_identifi
                 engine.price(&option, &context).unwrap(),
                 controls
             )
-            .unwrap_err()
-            .category,
-            ErrorCategory::UnsupportedOperation
-        );
+            .unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
     }
     for quantity in [0.0, 3.0] {
         let option = Accumulator::new(AccumulatorTerms {
@@ -628,7 +611,7 @@ fn implied_volatility_recovers_quotes_and_preserves_solver_failures_and_identifi
             day(1, 1).into(),
         )
         .unwrap();
-        assert_eq!(
+        assert!(matches!(
             implied_volatility(
                 &engine,
                 &option,
@@ -636,10 +619,9 @@ fn implied_volatility_recovers_quotes_and_preserves_solver_failures_and_identifi
                 engine.price(&option, &context).unwrap(),
                 controls
             )
-            .unwrap_err()
-            .category,
-            ErrorCategory::UnsupportedOperation
-        );
+            .unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
     }
     assert_eq!(engine.price(&option, &context).unwrap(), quote);
 }

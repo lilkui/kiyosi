@@ -9,11 +9,10 @@ impl FiniteDifferenceAutocallableEngine {
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidTimeRange`] outside life or curve coverage,
-    /// [`ErrorCategory::InvalidDate`] for non-trading observations or expiry,
-    /// [`ErrorCategory::InvalidParameter`] for missing history, clipped grids or unstable
-    /// explicit steps, [`ErrorCategory::InvalidOption`] for impossible history, and
-    /// [`ErrorCategory::InvalidResult`] for numerical failures. Inputs remain unchanged.
+    /// Returns [`Error::InvalidInput`] outside life or curve coverage, for
+    /// non-trading observations or expiry, missing or impossible history, clipped
+    /// grids, or unstable explicit steps. Numerical failures return
+    /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price<T: AutocallableTerms>(
         &self,
         option: &AutocallableNote<T>,

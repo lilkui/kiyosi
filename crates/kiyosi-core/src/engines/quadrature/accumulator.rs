@@ -5,8 +5,8 @@ use super::gaussian::{
 use super::{QuadratureSettings, flat_rates, time_to_expiry};
 use crate::engines::analytic::barrier::log_ratio;
 use crate::{
-    Accumulator, BlackScholesMertonParameters, Date, Error, ErrorCategory, GreeksRequest,
-    NumericalShiftSettings, PricingContext, PricingEngine, PricingResult, Result, Timestamp,
+    Accumulator, BlackScholesMertonParameters, Date, Error, GreeksRequest, NumericalShiftSettings,
+    PricingContext, PricingEngine, PricingResult, Result, Timestamp,
 };
 
 /// Prices trading-date accumulators using affine quantity layers and cubic Gaussian integration.
@@ -49,10 +49,10 @@ impl QuadratureAccumulatorEngine {
     /// Settles accrued units at knock-out or expiry. See [`Self::new`].
     ///
     /// # Errors
-    /// Checks flat rates ([`ErrorCategory::UnsupportedOperation`]), inclusive life
-    /// ([`ErrorCategory::InvalidTimeRange`]), then trading expiry
-    /// ([`ErrorCategory::InvalidDate`]). Non-finite results or unrepresentable grids
-    /// and transitions return [`ErrorCategory::InvalidResult`]. Inputs remain unchanged.
+    /// Checks flat rates ([`Error::UnsupportedOperation`]), inclusive life
+    /// ([`Error::InvalidInput`]), then trading expiry
+    /// ([`Error::InvalidInput`]). Non-finite results or unrepresentable grids
+    /// and transitions return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         price(option, context, self.settings, &mut None)
     }
@@ -107,10 +107,7 @@ impl PricingEngine<Accumulator> for Request {
     }
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         let mut curve = self.curve.lock().map_err(|_| {
-            Error::new(
-                ErrorCategory::InvalidResult,
-                "quadrature request cache is poisoned",
-            )
+            Error::ComputationFailure("quadrature request cache is poisoned".into())
         })?;
         price(option, context, self.settings, &mut curve)
     }
@@ -192,10 +189,7 @@ fn price(
     let (rate, dividend) = flat_rates(context)?;
     let horizon = time_to_expiry(option, context)?;
     if !context.calendar().is_trading_day(option.expiry_date()) {
-        return Err(Error::new(
-            ErrorCategory::InvalidDate,
-            "expiry must be a trading day",
-        ));
+        return Err(Error::InvalidInput("expiry must be a trading day".into()));
     }
     let (quantity, settlement) = option.initial(context);
     if let Some(value) = settlement {
@@ -229,9 +223,8 @@ fn price(
         let drift = drift_rate * time;
         let deviation = sigma * time.sqrt();
         if !drift.is_finite() || !deviation.is_finite() || deviation <= 0.0 {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "quadrature transition is not representable",
+            return Err(Error::ComputationFailure(
+                "quadrature transition is not representable".into(),
             ));
         }
         Ok((drift, deviation, -rate * time))
@@ -373,16 +366,14 @@ fn price(
                 );
             }
             if values.iter().any(|v| !v.is_finite()) {
-                return Err(Error::new(
-                    ErrorCategory::InvalidResult,
-                    "quadrature continuation is non-finite",
+                return Err(Error::ComputationFailure(
+                    "quadrature continuation is non-finite".into(),
                 ));
             }
             continuation[layer] = interpolation.interpolate(&values);
         }
     }
-    Err(Error::new(
-        ErrorCategory::InvalidResult,
-        "quadrature has no future observation",
+    Err(Error::ComputationFailure(
+        "quadrature has no future observation".into(),
     ))
 }

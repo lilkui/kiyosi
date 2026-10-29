@@ -8,8 +8,14 @@ from datetime import UTC, date, datetime
 from typing import get_args
 
 import QuantLib as ql
-from kiyosi import ErrorCategory as E
-from kiyosi import KiyosiError, instruments
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    NonConvergenceError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+    instruments,
+)
 from kiyosi.instruments import BinarySnowballOption, PhoenixOption
 from kiyosi.market import RateTermStructure, all_days_calendar
 from kiyosi.pricing import (
@@ -75,10 +81,10 @@ class ImpliedCouponTests(unittest.TestCase):
             )
             self.assertAlmostEqual(solved, 0.073, delta=1e-9)
 
-    def category(self, category, operation):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation):
+        with self.assertRaises(expected_error) as error:
             operation()
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_binary_recovers_both_quote_conventions(self):
         engine = QuadratureAutocallableEngine()
@@ -275,16 +281,15 @@ class ImpliedCouponTests(unittest.TestCase):
             {"parameter_tolerance": math.inf},
             {"max_iterations": 0},
         ):
-            self.category(
-                E.INVALID_PARAMETER, lambda settings=settings: solve(1, **settings)
+            self.assert_rejection(
+                InvalidInputError, lambda settings=settings: solve(1, **settings)
             )
         for quote in (math.nan, math.inf):
-            self.category(E.INVALID_PARAMETER, lambda quote=quote: solve(quote))
-        self.category(E.UNBRACKETED_COUPON, lambda: solve(10))
-        self.assertEqual(E.UNBRACKETED_COUPON.value, "UNBRACKETED_COUPON")
+            self.assert_rejection(InvalidInputError, lambda quote=quote: solve(quote))
+        self.assert_rejection(RootNotBracketedError, lambda: solve(10))
         late = market(100, END)
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             lambda: implied_coupon(
                 engine,
                 note,
@@ -293,8 +298,8 @@ class ImpliedCouponTests(unittest.TestCase):
                 quote_convention="preserve_maturity_coupon",
             ),
         )
-        self.category(
-            E.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             lambda: implied_coupon(
                 engine, note, late, 1, quote_convention="preserve_maturity_coupon"
             ),
@@ -303,8 +308,8 @@ class ImpliedCouponTests(unittest.TestCase):
         curved = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=curve)
         )
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             lambda: implied_coupon(
                 engine,
                 note,
@@ -313,8 +318,8 @@ class ImpliedCouponTests(unittest.TestCase):
                 quote_convention="preserve_maturity_coupon",
             ),
         )
-        self.category(
-            E.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             lambda: implied_coupon(
                 engine, note, curved, 1, quote_convention="preserve_maturity_coupon"
             ),
@@ -330,8 +335,8 @@ class ImpliedCouponTests(unittest.TestCase):
         )
         context = market(100, END)
         quote = engine.price(known, context)
-        self.category(
-            E.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             lambda: implied_coupon(
                 engine,
                 known,
@@ -372,8 +377,8 @@ class ImpliedCouponTests(unittest.TestCase):
                 {},
             ),
         ):
-            self.category(
-                E.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 lambda note=note, kwargs=kwargs: implied_coupon(
                     engine,
                     note,
@@ -392,8 +397,8 @@ class ImpliedCouponTests(unittest.TestCase):
             observations=known.observations,
             barrier_state="none",
         )
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             lambda: implied_coupon(
                 engine, ternary, market(), 1, quote_convention="shift_maturity_coupon"
             ),
@@ -410,8 +415,8 @@ class ImpliedCouponTests(unittest.TestCase):
                 if isinstance(note, PhoenixOption)
                 else {"quote_convention": "preserve_maturity_coupon"}
             )
-            self.category(
-                E.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 lambda settled=settled, kwargs=kwargs: implied_coupon(
                     engine, settled, market(100, END), 0, **kwargs
                 ),
@@ -491,11 +496,11 @@ class ImpliedCouponTests(unittest.TestCase):
             for coupon in pool.map(recover, range(4)):
                 self.assertAlmostEqual(coupon, 0.18, delta=1e-8)
 
-    def test_nonfinite_residual_and_exhausted_bisection_categories(self):
+    def test_nonfinite_residual_and_exhausted_bisection_errors(self):
         engine = QuadratureAutocallableEngine(asset_step_count=17)
         note = binary(barrier_state="none")
-        self.category(
-            E.SOLVER_NON_FINITE,
+        self.assert_rejection(
+            ComputationFailureError,
             lambda: implied_coupon(
                 engine,
                 note,
@@ -513,8 +518,8 @@ class ImpliedCouponTests(unittest.TestCase):
             ),
         )
         original = repr(note)
-        self.category(
-            E.SOLVER_NON_CONVERGENCE,
+        self.assert_rejection(
+            NonConvergenceError,
             lambda: implied_coupon(
                 engine,
                 note,

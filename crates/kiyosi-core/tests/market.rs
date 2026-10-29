@@ -1,4 +1,4 @@
-use kiyosi_core::{Date, RateTermStructure, Timestamp};
+use kiyosi_core::{Date, Error, RateTermStructure, Timestamp};
 
 fn at(year: i32, month: u32, day: u32) -> Timestamp {
     Date::new(year, month, day).unwrap().into()
@@ -29,16 +29,19 @@ fn log_interpolation_and_right_hand_forwards() {
     );
     assert!((curve.forward_rate(reference).unwrap() - 0.02).abs() < 1e-13);
     assert!((curve.forward_rate(middle).unwrap() - 0.08).abs() < 1e-13);
-    assert_eq!(curve.forward_rate(middle), curve.forward_rate(end));
-    assert_eq!(curve.factor(end, end), Ok(1.0));
+    assert_eq!(
+        curve.forward_rate(middle).unwrap(),
+        curve.forward_rate(end).unwrap()
+    );
+    assert_eq!(curve.factor(end, end).unwrap(), 1.0);
 }
 
 #[test]
 fn pricing_consumes_both_curves_and_replacement_is_transactional() {
     use kiyosi_core::{
         AnalyticVanillaEngine, BlackScholesMertonParameterChanges as ModelChanges,
-        BlackScholesMertonParameters as Model, ErrorCategory, EuropeanOption, OptionType,
-        PricingContext, PricingContextChanges, Rate,
+        BlackScholesMertonParameters as Model, Error, EuropeanOption, OptionType, PricingContext,
+        PricingContextChanges, Rate,
     };
     let start = at(2025, 1, 1);
     let middle = at(2025, 6, 30);
@@ -63,10 +66,10 @@ fn pricing_consumes_both_curves_and_replacement_is_transactional() {
     .unwrap();
     let model = Model::new(risk.clone(), dividend.clone(), 0.2).unwrap();
     assert_eq!(model.risk_free_curve(), &risk);
-    assert_eq!(
-        model.risk_free_rate().unwrap_err().category,
-        ErrorCategory::UnsupportedOperation
-    );
+    assert!(matches!(
+        model.risk_free_rate().unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let context = PricingContext::new(model.clone(), 100.0, start).unwrap();
     let call = EuropeanOption::new(OptionType::Call, 103.0, start.date(), end.date()).unwrap();
     let equivalent = PricingContext::new(
@@ -96,26 +99,24 @@ fn pricing_consumes_both_curves_and_replacement_is_transactional() {
     assert_eq!(changed.dividend_curve(), &dividend);
     assert_eq!(changed.volatility(), 0.25);
     assert_eq!(model.volatility(), 0.2);
-    assert_eq!(
+    assert!(matches!(
         model
             .replace(ModelChanges {
                 risk_free_rate: Some(Rate::Flat(f64::NAN)),
                 ..Default::default()
             })
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidRiskFreeRate
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
         context
             .replace(PricingContextChanges {
                 valuation_time: Some(at(2026, 1, 2)),
                 ..Default::default()
             })
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidTimeRange
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(context.valuation_time(), start);
     let rolled = context
         .replace(PricingContextChanges {
@@ -129,17 +130,14 @@ fn pricing_consumes_both_curves_and_replacement_is_transactional() {
 
 #[test]
 fn malformed_nodes_coverage_and_numerical_limits_have_stable_categories() {
-    use kiyosi_core::ErrorCategory::{InvalidParameter, InvalidResult, InvalidTimeRange};
     let reference = at(2025, 1, 1);
     let middle = at(2025, 6, 30);
     let end = at(2026, 1, 1);
     for bad in [0.0, -0.5, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        assert_eq!(
-            RateTermStructure::new(reference, vec![middle], vec![bad])
-                .unwrap_err()
-                .category,
-            InvalidParameter
-        );
+        assert!(matches!(
+            RateTermStructure::new(reference, vec![middle], vec![bad]).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for nodes in [
         vec![],
@@ -148,19 +146,15 @@ fn malformed_nodes_coverage_and_numerical_limits_have_stable_categories() {
         vec![middle, middle],
         vec![end, middle],
     ] {
-        assert_eq!(
-            RateTermStructure::new(reference, nodes.clone(), vec![0.95; nodes.len()])
-                .unwrap_err()
-                .category,
-            InvalidParameter
-        );
+        assert!(matches!(
+            RateTermStructure::new(reference, nodes.clone(), vec![0.95; nodes.len()]).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
-    assert_eq!(
-        RateTermStructure::new(reference, vec![middle, end], vec![0.95])
-            .unwrap_err()
-            .category,
-        InvalidParameter
-    );
+    assert!(matches!(
+        RateTermStructure::new(reference, vec![middle, end], vec![0.95]).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let curve = RateTermStructure::new(reference, vec![middle, end], vec![1.02, 0.99]).unwrap();
     assert!(curve.forward_rate(reference).unwrap() < 0.0);
     assert!(curve.forward_rate(middle).unwrap() > 0.0);
@@ -170,58 +164,59 @@ fn malformed_nodes_coverage_and_numerical_limits_have_stable_categories() {
         (reference, at(2026, 1, 2)),
         (middle, reference),
     ] {
-        assert_eq!(
-            curve.log_factor(start, end).unwrap_err().category,
-            InvalidTimeRange
-        );
-        assert_eq!(
-            curve.factor(start, end).unwrap_err().category,
-            InvalidTimeRange
-        );
+        assert!(matches!(
+            curve.log_factor(start, end).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
+            curve.factor(start, end).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for time in [at(2024, 12, 31), at(2026, 1, 2)] {
-        assert_eq!(
-            curve.forward_rate(time).unwrap_err().category,
-            InvalidTimeRange
-        );
+        assert!(matches!(
+            curve.forward_rate(time).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        assert_eq!(
-            RateTermStructure::flat(bad, None).unwrap_err().category,
-            InvalidParameter
-        );
-        assert_eq!(curve.shifted(bad).unwrap_err().category, InvalidParameter);
+        assert!(matches!(
+            RateTermStructure::flat(bad, None).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
+            curve.shifted(bad).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let huge = RateTermStructure::flat(f64::MAX, None).unwrap();
-    assert_eq!(
-        huge.shifted(f64::MAX).unwrap_err().category,
-        InvalidParameter
-    );
-    assert_eq!(
-        huge.log_factor(reference, at(2027, 1, 1))
-            .unwrap_err()
-            .category,
-        InvalidResult
-    );
-    assert_eq!(
+    assert!(matches!(
+        huge.shifted(f64::MAX).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
+        huge.log_factor(reference, at(2027, 1, 1)).unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
+    assert!(matches!(
         RateTermStructure::flat(-1000.0, None)
             .unwrap()
             .factor(reference, end)
-            .unwrap_err()
-            .category,
-        InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
     assert_eq!(
         RateTermStructure::flat(1000.0, None)
             .unwrap()
-            .factor(reference, end),
-        Ok(0.0)
+            .factor(reference, end)
+            .unwrap(),
+        0.0
     );
 }
 
 #[test]
 fn flat_and_parallel_shifted_curves_preserve_coverage_and_ownership() {
-    use kiyosi_core::ErrorCategory;
+    use kiyosi_core::Error;
     let reference = at(2025, 1, 1);
     let end = at(2026, 1, 1);
     let before = at(2024, 1, 2);
@@ -233,10 +228,10 @@ fn flat_and_parallel_shifted_curves_preserve_coverage_and_ownership() {
     assert!(flat.factors().is_empty());
     assert!((flat.factor(before, reference).unwrap() - 0.03_f64.exp()).abs() < 1e-14);
     let dated = RateTermStructure::flat(-0.03, Some(reference)).unwrap();
-    assert_eq!(
-        dated.factor(before, reference).unwrap_err().category,
-        ErrorCategory::InvalidTimeRange
-    );
+    assert!(matches!(
+        dated.factor(before, reference).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(dated.max_time(), None);
     let curve = RateTermStructure::new(reference, vec![end], vec![0.95]).unwrap();
     let changed = curve.shifted(0.01).unwrap();
@@ -251,22 +246,21 @@ fn flat_and_parallel_shifted_curves_preserve_coverage_and_ownership() {
     let mut factors = curve.factors();
     factors.clear();
     assert_eq!(curve.factors(), vec![0.95]);
-    assert_eq!(
+    assert!(matches!(
         curve
             .shifted(f64::MAX)
             .unwrap()
             .shifted(f64::MAX)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
 fn distant_microsecond_nodes_remain_distinct_and_pricing_rejects_unresolved_horizons() {
     use kiyosi_core::{
-        AnalyticVanillaEngine, BlackScholesMertonParameters, ErrorCategory, EuropeanOption,
-        OptionType, PricingContext,
+        AnalyticVanillaEngine, BlackScholesMertonParameters, Error, EuropeanOption, OptionType,
+        PricingContext,
     };
     let origin = at(1, 1, 1);
     let first = Timestamp::new(Date::new(9997, 12, 31).unwrap(), 23, 59, 59, 999999).unwrap();
@@ -306,21 +300,18 @@ fn distant_microsecond_nodes_remain_distinct_and_pricing_rejects_unresolved_hori
         second.date(),
     )
     .unwrap();
-    assert_eq!(
-        AnalyticVanillaEngine
-            .price(&call, &context)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+    assert!(matches!(
+        AnalyticVanillaEngine.price(&call, &context).unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
 }
 
 #[test]
 fn context_validation_timing_replacement_and_concurrent_owned_values() {
     use kiyosi_core::{
         AnalyticVanillaEngine, BlackScholesMertonParameterChanges as Changes,
-        BlackScholesMertonParameters as Model, ErrorCategory, EuropeanOption, OptionType,
-        PricingContext, PricingContextChanges,
+        BlackScholesMertonParameters as Model, Error, EuropeanOption, OptionType, PricingContext,
+        PricingContextChanges,
     };
     fn assert_send_sync<T: Send + Sync>() {}
     assert_send_sync::<RateTermStructure>();
@@ -330,12 +321,10 @@ fn context_validation_timing_replacement_and_concurrent_owned_values() {
     let dividend = RateTermStructure::flat(0.01, Some(start)).unwrap();
     let model = Model::new(risk.clone(), dividend, 0.2).unwrap();
     for time in [at(2024, 12, 31), at(2026, 1, 2)] {
-        assert_eq!(
-            PricingContext::new(model.clone(), 100.0, time)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidTimeRange
-        );
+        assert!(matches!(
+            PricingContext::new(model.clone(), 100.0, time).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let context = PricingContext::new(model.clone(), 100.0, start).unwrap();
     assert_eq!(model.replace(Changes::default()).unwrap(), model);
@@ -344,26 +333,24 @@ fn context_validation_timing_replacement_and_concurrent_owned_values() {
         context
     );
     for value in [0.0, f64::NAN, f64::INFINITY] {
-        assert_eq!(
+        assert!(matches!(
             model
                 .replace(Changes {
                     volatility: Some(value),
                     ..Default::default()
                 })
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidVolatility
-        );
-        assert_eq!(
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
             context
                 .replace(PricingContextChanges {
                     spot_price: Some(value),
                     ..Default::default()
                 })
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidSpotPrice
-        );
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let zero = model
         .replace(Changes {
@@ -372,8 +359,8 @@ fn context_validation_timing_replacement_and_concurrent_owned_values() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(zero.risk_free_rate(), Ok(0.0));
-    assert_eq!(zero.dividend_yield(), Ok(0.0));
+    assert_eq!(zero.risk_free_rate().unwrap(), 0.0);
+    assert_eq!(zero.dividend_yield().unwrap(), 0.0);
     let short = RateTermStructure::new(start, vec![at(2025, 6, 30)], vec![0.98]).unwrap();
     let short_model = Model::new(short, 0.0, 0.2).unwrap();
     let short_context = context
@@ -383,13 +370,12 @@ fn context_validation_timing_replacement_and_concurrent_owned_values() {
         })
         .unwrap();
     let call = EuropeanOption::new(OptionType::Call, 100.0, start.date(), end.date()).unwrap();
-    assert_eq!(
+    assert!(matches!(
         AnalyticVanillaEngine
             .price(&call, &short_context)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidTimeRange
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let changed = context
         .replace(PricingContextChanges {
             spot_price: Some(105.0),

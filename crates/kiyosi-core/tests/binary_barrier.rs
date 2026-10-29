@@ -79,10 +79,6 @@ fn binary_branches_preserve_in_out_parity() {
 fn touch(kind: BarrierType) -> TouchOptionTerms {
     TouchOptionTerms::new(day(2025, 1, 1), day(2026, 1, 1), 120.0, kind)
 }
-fn category<T: std::fmt::Debug>(result: Result<T>, expected: ErrorCategory) {
-    assert_eq!(result.unwrap_err().category, expected);
-}
-
 #[test]
 fn strict_prior_history_and_current_settlement_are_distinct() {
     let engine = AnalyticBinaryBarrierEngine;
@@ -107,15 +103,19 @@ fn strict_prior_history_and_current_settlement_are_distinct() {
                 amount * (-if asset { 0.01_f64 } else { 0.04_f64 }).exp()
             };
             assert!((now - expected).abs() < 1e-12);
-            category(
-                engine.price(&option, &market(130.0, day(2025, 1, 2))),
-                ErrorCategory::InvalidParameter,
-            );
+            assert!(matches!(
+                engine
+                    .price(&option, &market(130.0, day(2025, 1, 2)))
+                    .unwrap_err(),
+                Error::InvalidInput(_)
+            ));
             let known = option.replace(Some(BarrierTouchState::Touched)).unwrap();
-            category(
-                engine.price(&known, &market(130.0, day(2025, 1, 1))),
-                ErrorCategory::InvalidOption,
-            );
+            assert!(matches!(
+                engine
+                    .price(&known, &market(130.0, day(2025, 1, 1)))
+                    .unwrap_err(),
+                Error::InvalidInput(_)
+            ));
             let later = market(100.0, day(2025, 7, 1));
             let expected = if timing == SettlementTiming::AtHit {
                 0.0
@@ -126,28 +126,31 @@ fn strict_prior_history_and_current_settlement_are_distinct() {
             assert!((engine.price(&known, &later).unwrap() - expected).abs() < 1e-12);
             assert_eq!(known.replace(None).unwrap(), option);
             let quote = engine.price(&known, &later).unwrap();
-            category(
-                implied_volatility(&engine, &known, &later, quote, Default::default()),
-                ErrorCategory::UnsupportedOperation,
-            );
-            category(
+            assert!(matches!(
+                implied_volatility(&engine, &known, &later, quote, Default::default()).unwrap_err(),
+                Error::UnsupportedOperation(_)
+            ));
+            assert!(matches!(
                 implied_volatility(
                     &engine,
                     &option,
                     &market(130.0, day(2025, 1, 1)),
                     now,
                     Default::default(),
-                ),
-                ErrorCategory::UnsupportedOperation,
-            );
+                )
+                .unwrap_err(),
+                Error::UnsupportedOperation(_)
+            ));
         }
     }
     for kind in [BarrierType::UpAndIn, BarrierType::UpAndOut] {
         let option = BinaryBarrierOption::cash(terms(kind), 10.0).unwrap();
-        category(
-            engine.price(&option, &market(130.0, day(2025, 7, 1))),
-            ErrorCategory::InvalidParameter,
-        );
+        assert!(matches!(
+            engine
+                .price(&option, &market(130.0, day(2025, 7, 1)))
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
         let paid = option.replace(Some(BarrierTouchState::Touched)).unwrap();
         let quote = engine
             .price(&paid, &market(100.0, day(2025, 7, 1)))
@@ -167,10 +170,12 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
         t.observation_dates = vec![fixing];
         let unknown = TouchOption::cash(t.clone(), 10.0).unwrap();
         assert!(engine.price(&unknown, &market(120.0, fixing)).is_ok());
-        category(
-            engine.price(&unknown, &market(100.0, day(2025, 1, 3))),
-            ErrorCategory::InvalidParameter,
-        );
+        assert!(matches!(
+            engine
+                .price(&unknown, &market(100.0, day(2025, 1, 3)))
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
         t.touch_state = Some(BarrierTouchState::Untouched);
         let option = TouchOption::cash(t.clone(), 10.0).unwrap();
         let expected = if kind == BarrierType::UpAndIn {
@@ -196,10 +201,10 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
         assert_eq!(price == 0.0, kind == BarrierType::UpAndIn);
         t.touch_state = Some(BarrierTouchState::Touched);
         let touched = TouchOption::cash(t, 10.0).unwrap();
-        category(
-            engine.price(&touched, &market(120.0, fixing)),
-            ErrorCategory::InvalidOption,
-        );
+        assert!(matches!(
+            engine.price(&touched, &market(120.0, fixing)).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
         let mut b = terms(kind);
         b.observation_mode = ObservationMode::Scheduled;
         b.observation_dates = vec![fixing];
@@ -209,29 +214,33 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
             .price(&binary, &market(130.0, day(2025, 1, 3)))
             .unwrap();
         assert_eq!(value == 0.0, kind == BarrierType::UpAndIn);
-        category(
-            implied_volatility(&engine, &option, &intraday, price, Default::default()),
-            ErrorCategory::UnsupportedOperation,
-        );
+        assert!(matches!(
+            implied_volatility(&engine, &option, &intraday, price, Default::default()).unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
     }
     let mut t = touch(BarrierType::UpAndIn);
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_dates = vec![fixing];
-    category(
-        engine.price(
-            &TouchOption::cash(t.clone(), 10.0).unwrap(),
-            &market(100.0, t.effective_date),
-        ),
-        ErrorCategory::UnsupportedOperation,
-    );
+    assert!(matches!(
+        engine
+            .price(
+                &TouchOption::cash(t.clone(), 10.0).unwrap(),
+                &market(100.0, t.effective_date),
+            )
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     t.observation_dates = vec![day(2025, 1, 4), t.expiry_date];
-    category(
-        engine.price(
-            &TouchOption::cash(t, 10.0).unwrap(),
-            &market(120.0, day(2025, 1, 1)),
-        ),
-        ErrorCategory::InvalidDate,
-    );
+    assert!(matches!(
+        engine
+            .price(
+                &TouchOption::cash(t, 10.0).unwrap(),
+                &market(120.0, day(2025, 1, 1)),
+            )
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
@@ -239,39 +248,48 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
     let engine = AnalyticBinaryBarrierEngine;
     let t = terms(BarrierType::UpAndOut);
     for payout in [0.0, -1.0, f64::INFINITY, f64::NAN] {
-        category(
-            BinaryBarrierOption::cash(t.clone(), payout),
-            ErrorCategory::InvalidParameter,
-        );
-        category(
-            TouchOption::cash(touch(BarrierType::UpAndIn), payout),
-            ErrorCategory::InvalidParameter,
-        );
+        assert!(matches!(
+            BinaryBarrierOption::cash(t.clone(), payout).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
+            TouchOption::cash(touch(BarrierType::UpAndIn), payout).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let mut invalid = t.clone();
     invalid.strike = 0.0;
     invalid.barrier_level = 0.0;
-    category(
-        BinaryBarrierOption::asset(invalid),
-        ErrorCategory::InvalidStrike,
-    );
+    assert!(matches!(
+        BinaryBarrierOption::asset(invalid).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let mut invalid = touch(BarrierType::UpAndOut);
     invalid.settlement_timing = SettlementTiming::AtHit;
-    category(TouchOption::asset(invalid), ErrorCategory::InvalidOption);
+    assert!(matches!(
+        TouchOption::asset(invalid).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     for level in [0.0, -1.0, f64::NAN, f64::INFINITY] {
         let mut invalid = touch(BarrierType::UpAndIn);
         invalid.barrier_level = level;
-        category(TouchOption::asset(invalid), ErrorCategory::InvalidParameter);
+        assert!(matches!(
+            TouchOption::asset(invalid).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let mut invalid = touch(BarrierType::UpAndIn);
     invalid.observation_mode = ObservationMode::Scheduled;
-    category(TouchOption::asset(invalid), ErrorCategory::InvalidSchedule);
+    assert!(matches!(
+        TouchOption::asset(invalid).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let mut invalid = t.clone();
     invalid.expiry_date = day(2024, 1, 1);
-    category(
-        BinaryBarrierOption::asset(invalid),
-        ErrorCategory::InvalidTimeRange,
-    );
+    assert!(matches!(
+        BinaryBarrierOption::asset(invalid).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let option = BinaryBarrierOption::cash(t, 10.0)
         .unwrap()
         .replace(Some(BarrierTouchState::Untouched))
@@ -291,15 +309,17 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
             .abs()
             < 1e-6
     );
-    category(
-        engine.price_with_greeks(
-            &option,
-            &context,
-            GreeksRequest::new([]),
-            Default::default(),
-        ),
-        ErrorCategory::InvalidParameter,
-    );
+    assert!(matches!(
+        engine
+            .price_with_greeks(
+                &option,
+                &context,
+                GreeksRequest::new([]),
+                Default::default(),
+            )
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     for spot in [100.0, 120.0] {
         let expiry = market(spot, option.expiry_date());
         assert_eq!(engine.price(&option, &expiry).unwrap(), 0.0);
@@ -336,10 +356,10 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
             ..Default::default()
         })
         .unwrap();
-    category(
-        engine.price(&option, &curves),
-        ErrorCategory::UnsupportedOperation,
-    );
+    assert!(matches!(
+        engine.price(&option, &curves).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     assert_eq!(context.model_parameters().volatility(), 0.2);
     assert_eq!(option.payout(), Some(10.0));
 }

@@ -6,7 +6,12 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 
-from kiyosi import ErrorCategory, KiyosiError, pricing
+from kiyosi import (
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+    pricing,
+)
 from kiyosi.instruments import (
     DoubleTouchOption,
     cash_double_no_touch,
@@ -220,10 +225,10 @@ def scheduled_reference(dates, count=1024):
 
 
 class DoubleTouchTests(unittest.TestCase):
-    def assert_core_error(self, category, operation):
-        with self.assertRaises(KiyosiError) as caught:
+    def assert_core_error(self, expected_error, operation):
+        with self.assertRaises(expected_error) as caught:
             operation()
-        self.assertEqual(caught.exception.category, category)
+        self.assertIs(type(caught.exception), expected_error)
 
     def test_factories_defaults_owning_schedules_and_history(self):
         option = contract()
@@ -263,30 +268,30 @@ class DoubleTouchTests(unittest.TestCase):
                         contract(factory, **{key: value})
                 for value in (0, -1, math.inf, math.nan):
                     self.assert_core_error(
-                        ErrorCategory.INVALID_PARAMETER,
+                        InvalidInputError,
                         lambda factory=factory, key=key, value=value: contract(
                             factory, **{key: value}
                         ),
                     )
-            for changes, category in (
-                ({"lower_barrier": 120}, ErrorCategory.INVALID_PARAMETER),
-                ({"lower_barrier": 121}, ErrorCategory.INVALID_PARAMETER),
+            for changes, expected_error in (
+                ({"lower_barrier": 120}, InvalidInputError),
+                ({"lower_barrier": 121}, InvalidInputError),
                 (
                     {"expiry_date": START - timedelta(days=1)},
-                    ErrorCategory.INVALID_TIME_RANGE,
+                    InvalidInputError,
                 ),
-                ({"observation_mode": "scheduled"}, ErrorCategory.INVALID_SCHEDULE),
-                ({"observation_dates": [END]}, ErrorCategory.INVALID_SCHEDULE),
+                ({"observation_mode": "scheduled"}, InvalidInputError),
+                ({"observation_dates": [END]}, InvalidInputError),
                 (
                     {
                         "observation_mode": "scheduled",
                         "observation_dates": [END, FIRST],
                     },
-                    ErrorCategory.INVALID_SCHEDULE,
+                    InvalidInputError,
                 ),
             ):
                 self.assert_core_error(
-                    category,
+                    expected_error,
                     lambda factory=factory, changes=changes: contract(
                         factory, **changes
                     ),
@@ -395,14 +400,14 @@ class DoubleTouchTests(unittest.TestCase):
                     delta=1e-12,
                 )
                 self.assert_core_error(
-                    ErrorCategory.INVALID_PARAMETER,
+                    InvalidInputError,
                     lambda spot=spot, option=option: engine.price(
                         option, market(spot, time=later)
                     ),
                 )
             known = option.replace(touch_state="touched")
             self.assert_core_error(
-                ErrorCategory.INVALID_OPTION,
+                InvalidInputError,
                 lambda known=known: engine.price(known, market()),
             )
             expected = 0 if timing == "at_hit" else 3 * math.exp(-0.03 * 364 / 365)
@@ -410,7 +415,7 @@ class DoubleTouchTests(unittest.TestCase):
                 engine.price(known, market(time=later)), expected, delta=1e-12
             )
             self.assert_core_error(
-                ErrorCategory.UNSUPPORTED_OPERATION,
+                UnsupportedOperationError,
                 lambda known=known, expected=expected: pricing.implied_volatility(
                     engine, known, market(time=later), expected
                 ),
@@ -446,7 +451,7 @@ class DoubleTouchTests(unittest.TestCase):
         self.assertEqual(engine.price(option, market(120, time=event)), 0)
         after = event + timedelta(seconds=1)
         self.assert_core_error(
-            ErrorCategory.INVALID_PARAMETER,
+            InvalidInputError,
             lambda: engine.price(option, market(130, time=after)),
         )
         known = option.replace(touch_state="untouched")
@@ -463,7 +468,7 @@ class DoubleTouchTests(unittest.TestCase):
             self.assertEqual(result.vega, 0)
             self.assertAlmostEqual(result.rho, -remaining * expected / 100, delta=1e-8)
             self.assert_core_error(
-                ErrorCategory.UNSUPPORTED_OPERATION,
+                UnsupportedOperationError,
                 lambda context=context, expected=expected: pricing.implied_volatility(
                     engine, known, context, expected
                 ),
@@ -474,7 +479,7 @@ class DoubleTouchTests(unittest.TestCase):
             observation_dates=[date(2025, 1, 4)],
         )
         self.assert_core_error(
-            ErrorCategory.INVALID_DATE,
+            InvalidInputError,
             lambda: engine.price(weekend, market(130, calendar=weekdays_calendar())),
         )
 
@@ -514,7 +519,7 @@ class DoubleTouchTests(unittest.TestCase):
             )
             self.assertAlmostEqual(solved, 0.2, delta=1e-6)
             self.assert_core_error(
-                ErrorCategory.UNBRACKETED_VOLATILITY,
+                RootNotBracketedError,
                 lambda option=option: pricing.implied_volatility(
                     engine, option, market(), 2, lower_bound=0.15, upper_bound=0.25
                 ),
@@ -633,7 +638,7 @@ class DoubleTouchTests(unittest.TestCase):
             self.assertAlmostEqual(engine.price(option, context), touched, delta=3e-5)
             if early:
                 self.assert_core_error(
-                    ErrorCategory.INVALID_TIME_RANGE,
+                    InvalidInputError,
                     lambda fields=fields, context=context: engine.price(
                         contract(**fields), context
                     ),
@@ -656,7 +661,7 @@ class DoubleTouchTests(unittest.TestCase):
             delta=1e-8,
         )
         self.assert_core_error(
-            ErrorCategory.INVALID_PARAMETER,
+            InvalidInputError,
             lambda: pricing.FiniteDifferenceDoubleTouchEngine(asset_step_count=2),
         )
         with self.assertRaises(TypeError):
@@ -667,7 +672,7 @@ class DoubleTouchTests(unittest.TestCase):
             asset_step_count=400, time_step_count=1, scheme="explicit_euler"
         )
         self.assert_core_error(
-            ErrorCategory.INVALID_PARAMETER, lambda: unstable.price(option, market())
+            InvalidInputError, lambda: unstable.price(option, market())
         )
         with ThreadPoolExecutor(max_workers=2) as executor:
             values = list(

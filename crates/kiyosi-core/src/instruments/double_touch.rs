@@ -1,7 +1,7 @@
 use crate::{
     BarrierTouchState, BarrierType, Date, DoubleBarrierOption, DoubleBarrierOptionTerms,
-    DoubleBarrierType, Error, ErrorCategory, ObservationMode, ObservationSchedule, OptionContract,
-    OptionType, PricingContext, Result, SettlementTiming, Timestamp, TouchOptionTerms,
+    DoubleBarrierType, Error, ObservationMode, ObservationSchedule, OptionContract, OptionType,
+    PricingContext, Result, SettlementTiming, Timestamp, TouchOptionTerms,
 };
 
 /// Cash double-touch inputs; see [`DoubleTouchOption::cash`] for validation and usage.
@@ -70,8 +70,8 @@ impl DoubleTouchOption {
     /// Calendar compatibility and valuation-relative history are checked during pricing.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] for invalid positive finite payout,
-    /// then [`ErrorCategory::InvalidOption`] for at-hit no-touch settlement, then reuses
+    /// Returns [`Error::InvalidInput`] for invalid positive finite payout,
+    /// then for at-hit no-touch settlement, then reuses
     /// [`DoubleBarrierOption::new`] boundary, life and schedule validation categories.
     /// Failure preserves inputs; no-touch can settle only at expiry.
     ///
@@ -95,17 +95,15 @@ impl DoubleTouchOption {
     /// ```
     pub fn cash(terms: DoubleTouchOptionTerms, payout: f64) -> Result<Self> {
         if !payout.is_finite() || payout <= 0.0 {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "payout must be finite and positive",
+            return Err(Error::InvalidInput(
+                "payout must be finite and positive".into(),
             ));
         }
         if terms.settlement_timing == SettlementTiming::AtHit
             && terms.barrier_type == DoubleBarrierType::KnockOut
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidOption,
-                "at-hit settlement requires a one-touch",
+            return Err(Error::InvalidInput(
+                "at-hit settlement requires a one-touch".into(),
             ));
         }
         // Reuse double-barrier monitoring; the internal strike is not a touch payoff.

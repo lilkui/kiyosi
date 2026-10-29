@@ -12,11 +12,10 @@ impl FiniteDifferenceBarrierEngine {
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidTimeRange`] outside life or curve coverage,
-    /// [`ErrorCategory::InvalidDate`] for non-trading observations,
-    /// [`ErrorCategory::InvalidParameter`] for missing history, clipped/degenerate grids
-    /// or unstable explicit steps, [`ErrorCategory::InvalidOption`] for impossible history,
-    /// and [`ErrorCategory::InvalidResult`] for numerical failures. Inputs remain unchanged.
+    /// Returns [`Error::InvalidInput`] outside life or curve coverage, for
+    /// non-trading observations, missing or impossible history, clipped or
+    /// degenerate grids, or unstable explicit steps. Numerical failures return
+    /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         Ok(native_barrier(
             option,

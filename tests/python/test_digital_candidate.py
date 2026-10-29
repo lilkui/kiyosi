@@ -3,7 +3,7 @@
 import unittest
 from datetime import date
 
-from kiyosi import ErrorCategory, KiyosiError
+from kiyosi import InvalidInputError
 from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption
 
 
@@ -25,15 +25,15 @@ class DigitalReplacementTests(unittest.TestCase):
             self.assertEqual(replaced.option_type, "put")
             self.assertEqual(replaced.strike, 105)
             self.assertEqual(replaced.expiry_date, date(2027, 1, 1))
-            for field, category in (
-                ("strike", ErrorCategory.INVALID_STRIKE),
-                ("expiry_date", ErrorCategory.INVALID_TIME_RANGE),
+            for field, expected_error in (
+                ("strike", InvalidInputError),
+                ("expiry_date", InvalidInputError),
             ):
-                with self.assertRaises(KiyosiError) as error:
+                with self.assertRaises(expected_error) as error:
                     original.replace(
                         **{field: 0 if field == "strike" else date(2024, 1, 1)}
                     )
-                self.assertEqual(error.exception.category, category)
+                self.assertIs(type(error.exception), expected_error)
             for fields in (
                 {"strike": True},
                 {"strike": None},
@@ -46,11 +46,9 @@ class DigitalReplacementTests(unittest.TestCase):
             self.assertEqual(original, cls(**terms, **extra))
             if extra:
                 self.assertEqual(original.replace(payout=7).payout, 7)
-                with self.assertRaises(KiyosiError) as error:
+                with self.assertRaises(InvalidInputError) as error:
                     original.replace(payout=0)
-                self.assertEqual(
-                    error.exception.category, ErrorCategory.INVALID_PARAMETER
-                )
+                self.assertIs(type(error.exception), InvalidInputError)
                 self.assertEqual(original.payout, 10)
             else:
                 with self.assertRaises(TypeError):

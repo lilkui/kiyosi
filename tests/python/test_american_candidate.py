@@ -3,7 +3,7 @@
 import unittest
 from datetime import date, datetime
 
-from kiyosi import ErrorCategory, KiyosiError
+from kiyosi import InvalidInputError
 from kiyosi.instruments import AmericanOption
 
 
@@ -27,13 +27,13 @@ class AmericanReplacementTests(unittest.TestCase):
         self.assertEqual(updated.strike, 105)
         self.assertEqual(updated.effective_date, date(2026, 1, 1))
         self.assertEqual(updated.expiry_date, date(2027, 1, 1))
-        for fields, category in (
-            ({"strike": 0}, ErrorCategory.INVALID_STRIKE),
-            ({"expiry_date": date(2024, 1, 1)}, ErrorCategory.INVALID_TIME_RANGE),
+        for fields, expected_error in (
+            ({"strike": 0}, InvalidInputError),
+            ({"expiry_date": date(2024, 1, 1)}, InvalidInputError),
         ):
-            with self.assertRaises(KiyosiError) as error:
+            with self.assertRaises(expected_error) as error:
                 original.replace(**fields)
-            self.assertEqual(error.exception.category, category)
+            self.assertIs(type(error.exception), expected_error)
         for fields in (
             {"strike": True},
             {"strike": None},

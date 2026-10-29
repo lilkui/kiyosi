@@ -1,5 +1,5 @@
 use super::Pcg32;
-use crate::{Error, ErrorCategory, Result};
+use crate::{Error, Result};
 
 const BITS: usize = 52;
 const MASK: u64 = (1 << BITS) - 1;
@@ -15,9 +15,8 @@ pub(super) struct SobolSequence {
 impl SobolSequence {
     pub(super) fn new(dimensions: usize, seed: u64) -> Result<Self> {
         if !(1..=21_201).contains(&dimensions) {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "Sobol dimension must be in 1..=21,201",
+            return Err(Error::InvalidInput(
+                "Sobol dimension must be in 1..=21,201".into(),
             ));
         }
         let mut directions = vec![0; dimensions * BITS];

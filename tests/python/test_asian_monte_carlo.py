@@ -7,8 +7,13 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
-import kiyosi
-from kiyosi import pricing
+from kiyosi import (
+    InvalidInputError,
+    NonConvergenceError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+    pricing,
+)
 from kiyosi.instruments import ArithmeticAveragePriceOption, GeometricAveragePriceOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -42,10 +47,10 @@ def option(kind, direction="call", strike=100, averaging=START, realized=0):
 
 
 class AsianMonteCarloTests(unittest.TestCase):
-    def assert_category(self, category, operation, *args, **kwargs):
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation, *args, **kwargs):
+        with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_constructor_exports_defaults_and_representation_errors(self):
         cls = pricing.MonteCarloAsianEngine
@@ -79,9 +84,7 @@ class AsianMonteCarloTests(unittest.TestCase):
             {"thread_count": -1},
             {"sampling": "sobol", "path_count": 100},
         ):
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER, cls, **settings
-            )
+            self.assert_rejection(InvalidInputError, cls, **settings)
 
     def test_history_start_intraday_life_and_expiry(self):
         engine = pricing.MonteCarloAsianEngine(path_count=32, seed=42)
@@ -95,15 +98,15 @@ class AsianMonteCarloTests(unittest.TestCase):
                     if (shift > 0) == (realized > 0):
                         self.assertGreaterEqual(engine.price(instrument, context), 0)
                     else:
-                        self.assert_category(
-                            kiyosi.ErrorCategory.INVALID_PARAMETER,
+                        self.assert_rejection(
+                            InvalidInputError,
                             engine.price,
                             instrument,
                             context,
                         )
             for when in (START - timedelta(days=1), END + timedelta(days=1)):
-                self.assert_category(
-                    kiyosi.ErrorCategory.INVALID_TIME_RANGE,
+                self.assert_rejection(
+                    InvalidInputError,
                     engine.price,
                     option(kind),
                     market(valuation=when),
@@ -229,8 +232,8 @@ class AsianMonteCarloTests(unittest.TestCase):
                     )
                     self.assertEqual(selected.gamma, result.gamma)
                     self.assertIsNone(selected.delta)
-                    self.assert_category(
-                        kiyosi.ErrorCategory.INVALID_PARAMETER,
+                    self.assert_rejection(
+                        InvalidInputError,
                         engine.price_with_greeks,
                         instrument,
                         context,
@@ -356,8 +359,8 @@ class AsianMonteCarloTests(unittest.TestCase):
             math.exp(-0.04 * future) * math.expm1(0.03 * future) / 0.03,
             delta=1e-12,
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             pricing.implied_volatility,
             settled,
             instrument,
@@ -395,20 +398,20 @@ class AsianMonteCarloTests(unittest.TestCase):
             delta=0.002,
         )
         for averaging in (START, END):
-            self.assert_category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 engine.price,
                 option(GeometricAveragePriceOption, averaging=averaging),
                 context,
             )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             option(GeometricAveragePriceOption, realized=100),
             context,
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             option(GeometricAveragePriceOption),
             context,
@@ -436,10 +439,10 @@ class AsianMonteCarloTests(unittest.TestCase):
             ):
                 with self.assertRaises(exception):
                     engine.price_with_greeks(instrument, context, **settings)
-            for observed, settings, category in (
-                (-1, {}, kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY),
-                (math.nan, {}, kiyosi.ErrorCategory.INVALID_PARAMETER),
-                (quote, {"max_iterations": 0}, kiyosi.ErrorCategory.INVALID_PARAMETER),
+            for observed, settings, expected_error in (
+                (-1, {}, RootNotBracketedError),
+                (math.nan, {}, InvalidInputError),
+                (quote, {"max_iterations": 0}, InvalidInputError),
                 (
                     quote,
                     {
@@ -449,11 +452,11 @@ class AsianMonteCarloTests(unittest.TestCase):
                         "price_tolerance": 1e-15,
                         "parameter_tolerance": 1e-15,
                     },
-                    kiyosi.ErrorCategory.SOLVER_NON_CONVERGENCE,
+                    NonConvergenceError,
                 ),
             ):
-                self.assert_category(
-                    category,
+                self.assert_rejection(
+                    expected_error,
                     pricing.implied_volatility,
                     engine,
                     instrument,

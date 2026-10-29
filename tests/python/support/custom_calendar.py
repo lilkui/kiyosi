@@ -2,7 +2,7 @@ import unittest
 from datetime import date, datetime
 from pathlib import Path
 
-from kiyosi import ErrorCategory, KiyosiError, _native
+from kiyosi import InvalidInputError, _native
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
@@ -103,9 +103,12 @@ class CustomCalendarTests(unittest.TestCase):
             {"trading_days_per_year": 0},
             {"trading_days_per_year": -1},
         ):
-            with self.subTest(kwargs=kwargs), self.assertRaises(KiyosiError) as error:
+            with (
+                self.subTest(kwargs=kwargs),
+                self.assertRaises(InvalidInputError) as error,
+            ):
                 custom_calendar(base=weekdays_calendar(), **kwargs)
-            self.assertEqual(error.exception.category, ErrorCategory.INVALID_CALENDAR)
+            self.assertIs(type(error.exception), InvalidInputError)
 
     def test_representation_errors(self):
         for field in ("closed_dates", "open_dates"):

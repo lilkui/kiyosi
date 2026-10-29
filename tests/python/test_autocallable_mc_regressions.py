@@ -4,8 +4,7 @@ import math
 import unittest
 from datetime import UTC, date, datetime
 
-import kiyosi
-from kiyosi import pricing
+from kiyosi import ComputationFailureError, pricing
 from kiyosi.instruments import (
     BinarySnowballOption,
     PhoenixOption,
@@ -240,16 +239,14 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 valuation_time=valuation,
             )
             with self.subTest(valuation=valuation):
-                with self.assertRaises(kiyosi.KiyosiError) as error:
+                with self.assertRaises(ComputationFailureError) as error:
                     pricing.implied_volatility(
                         pricing.MonteCarloAutocallableEngine(path_count=2, seed=1),
                         note,
                         context,
                         1,
                     )
-                self.assertEqual(
-                    error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT
-                )
+                self.assertIs(type(error.exception), ComputationFailureError)
 
     def test_event_only_monte_carlo_ignores_unobserved_trading_days(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

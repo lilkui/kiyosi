@@ -49,31 +49,26 @@ fn current_settlement_preserves_strict_knock_in_and_inclusive_knock_out() {
 fn invalid_terms_and_history_fail_without_changing_the_note() {
     let mut t = terms();
     t.observations.push(t.observations[0]);
-    assert_eq!(
-        SnowballOption::new(t).unwrap_err().category,
-        ErrorCategory::InvalidSchedule
-    );
+    assert!(matches!(
+        SnowballOption::new(t).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let mut t = terms();
     t.lower_strike = 101.0;
-    assert_eq!(
-        SnowballOption::new(t).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
-    assert_eq!(
-        autocallable_observations(&[date(4, 1)], &[], None, None)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidSchedule
-    );
+    assert!(matches!(
+        SnowballOption::new(t).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
+        autocallable_observations(&[date(4, 1)], &[], None, None).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let note = SnowballOption::new(terms()).unwrap();
     let engine = QuadratureAutocallableEngine::default();
-    assert_eq!(
-        engine
-            .price(&note, &market(100.0, date(1, 2)))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&note, &market(100.0, date(1, 2))).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let known = note.replace(Some(AutocallableBarrierState::None)).unwrap();
     assert!(
         engine
@@ -84,23 +79,21 @@ fn invalid_terms_and_history_fail_without_changing_the_note() {
     let impossible = note
         .replace(Some(AutocallableBarrierState::KnockedOut))
         .unwrap();
-    assert_eq!(
+    assert!(matches!(
         engine
             .price(&impossible, &market(100.0, date(1, 1)))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidOption
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let mut t = terms();
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     t.barrier_state = Some(AutocallableBarrierState::KnockedIn);
-    assert_eq!(
+    assert!(matches!(
         engine
             .price(&SnowballOption::new(t).unwrap(), &market(70.0, date(4, 1)))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidOption
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(note.barrier_state(), None);
 }
 
@@ -248,7 +241,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     assert!(!result.has(Greek::Theta));
     assert_eq!(result.get(Greek::Vega), Some(0.0));
     assert_eq!(result.get(Greek::Rho), Some(0.0));
-    assert_eq!(
+    assert!(matches!(
         implied_volatility(
             &engine,
             &note,
@@ -256,10 +249,9 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
             result.price(),
             Default::default()
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::UnsupportedOperation
-    );
+        .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
 }
 
 #[test]

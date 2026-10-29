@@ -5,8 +5,12 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
-from kiyosi import ErrorCategory as E
-from kiyosi import KiyosiError
+from kiyosi import (
+    InvalidInputError,
+    NonConvergenceError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import (
     AutocallableObservation,
     PhoenixOption,
@@ -71,10 +75,10 @@ class PhoenixTests(unittest.TestCase):
                 engine.price(note, market(110, MIDDLE)), 0.25 + coupon * 33 / 365
             )
 
-    def category(self, expected, operation, *args, **kwargs):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected, operation, *args, **kwargs):
+        with self.assertRaises(expected) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, expected)
+        self.assertIs(type(error.exception), expected)
 
     def test_owned_defaults_replacement_and_strict_representations(self):
         note = contract(barrier_state=None)
@@ -120,30 +124,30 @@ class PhoenixTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             implied_volatility(engine, object(), market(), 1)
 
-    def test_core_validation_order_categories_and_history(self):
-        for fields, category in (
-            ({"coupon_rate": math.nan}, E.INVALID_PARAMETER),
-            ({"initial_spot": 0}, E.INVALID_PARAMETER),
-            ({"lower_strike": 101}, E.INVALID_PARAMETER),
-            ({"principal_ratio": -1}, E.INVALID_PARAMETER),
-            ({"observations": []}, E.INVALID_SCHEDULE),
+    def test_core_validation_order_errors_and_history(self):
+        for fields, expected_error in (
+            ({"coupon_rate": math.nan}, InvalidInputError),
+            ({"initial_spot": 0}, InvalidInputError),
+            ({"lower_strike": 101}, InvalidInputError),
+            ({"principal_ratio": -1}, InvalidInputError),
+            ({"observations": []}, InvalidInputError),
             (
                 {"observations": [AutocallableObservation(END, 110)] * 2},
-                E.INVALID_SCHEDULE,
+                InvalidInputError,
             ),
-            ({"expiry_date": date(2024, 1, 1)}, E.INVALID_TIME_RANGE),
+            ({"expiry_date": date(2024, 1, 1)}, InvalidInputError),
         ):
-            self.category(category, contract, **fields)
+            self.assert_rejection(expected_error, contract, **fields)
         for value in (-1, math.nan, math.inf):
-            self.category(
-                E.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 contract,
                 observations=[
                     AutocallableObservation(END, 110, coupon_barrier_level=value)
                 ],
             )
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             contract,
             observations=[AutocallableObservation(END, 110, coupon_rate=0.1)],
         )
@@ -151,17 +155,17 @@ class PhoenixTests(unittest.TestCase):
         unknown = contract(
             knock_in_observation_mode="every_trading_day", barrier_state=None
         )
-        self.category(
-            E.INVALID_PARAMETER, engine.price, unknown, market(valuation=MIDDLE)
+        self.assert_rejection(
+            InvalidInputError, engine.price, unknown, market(valuation=MIDDLE)
         )
-        self.category(
-            E.INVALID_OPTION,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             contract(barrier_state="knocked_in"),
             market(valuation=END),
         )
-        self.category(
-            E.INVALID_OPTION,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             contract(barrier_state="knocked_out"),
             market(),
@@ -170,20 +174,20 @@ class PhoenixTests(unittest.TestCase):
             expiry_date=date(2025, 4, 5),
             observations=[AutocallableObservation(date(2025, 2, 1), 110)],
         )
-        self.category(E.INVALID_DATE, engine.price, nontrading, market())
+        self.assert_rejection(InvalidInputError, engine.price, nontrading, market())
         nontrading = contract(expiry_date=date(2025, 4, 5), barrier_state=None)
-        self.category(
-            E.INVALID_PARAMETER, engine.price, nontrading, market(valuation=END)
+        self.assert_rejection(
+            InvalidInputError, engine.price, nontrading, market(valuation=END)
         )
-        self.category(
-            E.INVALID_DATE,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             nontrading.replace(barrier_state="none"),
             market(valuation=END),
         )
         for valuation in (date(2024, 12, 31), datetime(2025, 4, 1, 0, 0, 0, 1, UTC)):
-            self.category(
-                E.INVALID_TIME_RANGE,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 contract(),
                 market(valuation=valuation),
@@ -191,18 +195,18 @@ class PhoenixTests(unittest.TestCase):
         curve = RateTermStructure(
             reference_time=START, times=[END], factors=[math.exp(-0.04 * 90 / 365)]
         )
-        self.category(
-            E.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             engine.price_with_greeks,
             contract(),
             market(rate=curve),
             [],
         )
-        self.category(
-            E.INVALID_PARAMETER, engine.price_with_greeks, contract(), market(), []
+        self.assert_rejection(
+            InvalidInputError, engine.price_with_greeks, contract(), market(), []
         )
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             contract(),
             market(),
@@ -312,8 +316,13 @@ class PhoenixTests(unittest.TestCase):
         self.assertAlmostEqual(
             quote, (1 + 0.365 * 90 / 365) * math.exp(-0.04 * 90 / 365)
         )
-        self.category(
-            E.UNSUPPORTED_OPERATION, implied_volatility, engine, fixed, market(), quote
+        self.assert_rejection(
+            UnsupportedOperationError,
+            implied_volatility,
+            engine,
+            fixed,
+            market(),
+            quote,
         )
 
     def test_event_greeks_settled_history_and_solver_failures(self):
@@ -327,8 +336,8 @@ class PhoenixTests(unittest.TestCase):
         self.assertIsNotNone(result.rho)
         result = engine.price_with_greeks(note, market(110, MIDDLE), all_greeks=True)
         self.assertEqual((result.vega, result.rho), (0, 0))
-        self.category(
-            E.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             implied_volatility,
             engine,
             note,
@@ -339,8 +348,8 @@ class PhoenixTests(unittest.TestCase):
         self.assertEqual(engine.price(settled, market(valuation=END)), 0)
         result = engine.price_with_greeks(note, market(90, END), all_greeks=True)
         self.assertTrue(all(getattr(result, g) is None for g in GREEKS))
-        self.category(
-            E.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             implied_volatility,
             engine,
             note,
@@ -353,8 +362,8 @@ class PhoenixTests(unittest.TestCase):
             engine, note, ctx, quote, lower_bound=0.2, upper_bound=0.4
         )
         self.assertAlmostEqual(solved, 0.3, delta=1e-6)
-        self.category(
-            E.UNBRACKETED_VOLATILITY,
+        self.assert_rejection(
+            RootNotBracketedError,
             implied_volatility,
             engine,
             note,
@@ -363,8 +372,8 @@ class PhoenixTests(unittest.TestCase):
             lower_bound=0.2,
             upper_bound=0.4,
         )
-        self.category(
-            E.SOLVER_NON_CONVERGENCE,
+        self.assert_rejection(
+            NonConvergenceError,
             implied_volatility,
             engine,
             note,
@@ -609,8 +618,8 @@ class PhoenixTests(unittest.TestCase):
             price_tolerance=1e-11,
         )
         self.assertAlmostEqual(solved, vol, delta=1e-7)
-        self.category(
-            E.UNBRACKETED_VOLATILITY,
+        self.assert_rejection(
+            RootNotBracketedError,
             implied_volatility,
             engine,
             note,

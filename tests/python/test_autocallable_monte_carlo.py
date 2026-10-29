@@ -5,8 +5,11 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
-from kiyosi import ErrorCategory as E
-from kiyosi import KiyosiError
+from kiyosi import (
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import BinarySnowballOption, autocallable_observations
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import MonteCarloAutocallableEngine as MC
@@ -20,10 +23,10 @@ from test_snowball import END, START, contract, market
 
 
 class AutocallableMonteCarloTests(unittest.TestCase):
-    def category(self, category, operation):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation):
+        with self.assertRaises(expected_error) as error:
             operation()
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_terminal_price_matches_quadrature_with_sampling_error(self):
         note, context = contract(), market()
@@ -71,7 +74,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             {"thread_count": -1},
             {"path_count": 31, "sampling": "sobol"},
         ):
-            self.category(E.INVALID_PARAMETER, lambda fields=fields: MC(**fields))
+            self.assert_rejection(InvalidInputError, lambda fields=fields: MC(**fields))
         with self.assertRaises(AttributeError):
             engine.seed = 42
         note, context = phoenix(), market()
@@ -89,20 +92,23 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         ):
             with self.assertRaises(TypeError):
                 operation()
-        self.category(
-            E.INVALID_PARAMETER, lambda: engine.price_with_greeks(note, context, [])
+        self.assert_rejection(
+            InvalidInputError, lambda: engine.price_with_greeks(note, context, [])
         )
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             lambda: engine.price_with_greeks(note, context, "delta", spot_shift=0),
         )
         curve = RateTermStructure(reference_time=START, times=[END], factors=[0.99])
         curved = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=curve)
         )
-        self.category(E.UNSUPPORTED_OPERATION, lambda: engine.price(note, curved))
-        self.category(
-            E.UNSUPPORTED_OPERATION, lambda: engine.price_with_greeks(note, curved, [])
+        self.assert_rejection(
+            UnsupportedOperationError, lambda: engine.price(note, curved)
+        )
+        self.assert_rejection(
+            UnsupportedOperationError,
+            lambda: engine.price_with_greeks(note, curved, []),
         )
 
     def test_statistics_counts_sobol_and_shared_engine_concurrency(self):
@@ -235,12 +241,12 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             (estimate.price, estimate.standard_error, estimate.confidence_interval),
             (1, 0, (1, 1)),
         )
-        self.category(
-            E.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             lambda: implied_volatility(engine, fixed, market(rate=0), 1),
         )
-        self.category(
-            E.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             lambda: implied_coupon(
                 engine,
                 fixed,
@@ -249,11 +255,11 @@ class AutocallableMonteCarloTests(unittest.TestCase):
                 quote_convention="preserve_maturity_coupon",
             ),
         )
-        self.category(
-            E.INVALID_PARAMETER, lambda: implied_coupon(engine, note, context, math.nan)
+        self.assert_rejection(
+            InvalidInputError, lambda: implied_coupon(engine, note, context, math.nan)
         )
-        self.category(
-            E.UNBRACKETED_COUPON, lambda: implied_coupon(engine, note, context, 100)
+        self.assert_rejection(
+            RootNotBracketedError, lambda: implied_coupon(engine, note, context, 100)
         )
 
     def test_quantlib_terminal_payoff_portfolios(self):
@@ -294,8 +300,8 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             ),
         }
         engine = MC(path_count=2, seed=42, sampling="sobol")
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             lambda: engine.price(
                 contract(**fields, knock_in_observation_mode="every_trading_day"),
                 market(),

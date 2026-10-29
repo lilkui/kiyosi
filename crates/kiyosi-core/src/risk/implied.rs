@@ -1,5 +1,5 @@
 use crate::{
-    BlackScholesMertonParameterChanges, Error, ErrorCategory, OptionContract, PricingContext,
+    BlackScholesMertonParameterChanges, Error, OptionContract, PricingContext,
     PricingContextChanges, PricingEngine, Result,
 };
 
@@ -24,19 +24,20 @@ impl Default for ImpliedVolatilitySettings {
     }
 }
 
-/// Safeguarded Brent solve, retaining the caller's bracket. Endpoint pricing validates
+/// Solves implied volatility with safeguarded Brent iteration, retaining the caller's bracket.
+/// Endpoint pricing validates
 /// the contract before expiry identifiability checks. Inputs remain unchanged on failure.
-/// Pricing errors propagate; non-finite scalar prices/residuals use SolverNonFinite.
+/// Pricing errors propagate; non-finite scalar prices or residuals return [`Error::ComputationFailure`].
 /// Digital prices need not be monotone in volatility; the supplied bracket may select
 /// one of several roots or fail to bracket a quote attainable elsewhere.
 /// CRR engines intersect the supplied bracket with the tree's admissible volatility range.
 ///
 /// # Errors
-/// Returns [`ErrorCategory::InvalidParameter`] for invalid settings or non-finite quotes,
-/// [`ErrorCategory::UnsupportedOperation`] for volatility-independent payoffs, [`ErrorCategory::UnbracketedVolatility`]
+/// Returns [`Error::InvalidInput`] for invalid settings or non-finite quotes,
+/// [`Error::UnsupportedOperation`] for volatility-independent payoffs, [`Error::RootNotBracketed`]
 /// for same-sign endpoint residuals or a bracket outside the tree domain,
-/// [`ErrorCategory::SolverNonConvergence`] on exhaustion,
-/// or [`ErrorCategory::SolverNonFinite`] for non-finite evaluations. Engine errors propagate.
+/// [`Error::NonConvergence`] on exhaustion,
+/// or [`Error::ComputationFailure`] for non-finite evaluations. Engine errors propagate.
 ///
 /// # Examples
 /// ```
@@ -74,9 +75,8 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
         || s.parameter_tolerance <= 0.0
         || s.max_iterations <= 0
     {
-        return Err(Error::new(
-            ErrorCategory::InvalidParameter,
-            "implied-volatility settings or price are invalid",
+        return Err(Error::InvalidInput(
+            "implied-volatility settings or price are invalid".into(),
         ));
     }
     if let Some(prepared) = engine.prepare_request()? {
@@ -96,9 +96,8 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
         })?;
         let residual = engine.price(option, &shifted)? - observed_price;
         if !residual.is_finite() {
-            return Err(Error::new(
-                ErrorCategory::SolverNonFinite,
-                "non-finite solver evaluation",
+            return Err(Error::ComputationFailure(
+                "non-finite solver evaluation".into(),
             ));
         }
         Ok(residual)
@@ -108,9 +107,8 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     if context.valuation_time() == option.expiry_date().start_of_day()
         || !engine.volatility_affects_price(option, context)
     {
-        return Err(Error::new(
-            ErrorCategory::UnsupportedOperation,
-            "volatility does not affect the remaining payoff",
+        return Err(Error::UnsupportedOperation(
+            "volatility does not affect the remaining payoff".into(),
         ));
     }
     if fa.abs() <= s.price_tolerance {
@@ -120,9 +118,8 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
         return Ok(b);
     }
     if (fa < 0.0) == (fb < 0.0) {
-        return Err(Error::new(
-            ErrorCategory::UnbracketedVolatility,
-            "price is not bracketed by volatility bounds",
+        return Err(Error::RootNotBracketed(
+            "price is not bracketed by volatility bounds".into(),
         ));
     }
     if fa.abs() < fb.abs() {
@@ -172,8 +169,7 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
             std::mem::swap(&mut fa, &mut fb);
         }
     }
-    Err(Error::new(
-        ErrorCategory::SolverNonConvergence,
-        "implied-volatility solver did not converge",
+    Err(Error::NonConvergence(
+        "implied-volatility solver did not converge".into(),
     ))
 }

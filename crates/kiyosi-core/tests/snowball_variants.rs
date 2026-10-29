@@ -35,12 +35,11 @@ fn binary_has_no_knock_in_and_pays_signed_flat_maturity_coupon() {
             expected
         );
     }
-    assert_eq!(
+    assert!(matches!(
         note.replace(Some(AutocallableBarrierState::KnockedIn))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(note.barrier_state(), None);
 }
 
@@ -59,10 +58,10 @@ fn ternary_strict_knock_in_pays_floor_and_rejects_floor_above_coupon() {
         );
     }
     terms.minimum_coupon_rate = 0.07;
-    assert_eq!(
-        TernarySnowballOption::new(terms).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        TernarySnowballOption::new(terms).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
@@ -273,27 +272,24 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
         )
         .unwrap();
         assert!((solved - 0.3).abs() < 1e-6);
-        assert_eq!(
-            implied_volatility(&engine, &note, &context, 10.0, Default::default())
-                .unwrap_err()
-                .category,
-            ErrorCategory::UnbracketedVolatility
-        );
+        assert!(matches!(
+            implied_volatility(&engine, &note, &context, 10.0, Default::default()).unwrap_err(),
+            Error::RootNotBracketed(_)
+        ));
         let missing = note.replace(None).unwrap();
-        assert_eq!(
+        assert!(matches!(
             engine
                 .price(&missing, &market(100.0, date(4, 2)))
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidTimeRange
-        );
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
         let settled = note
             .replace(Some(AutocallableBarrierState::KnockedOut))
             .unwrap();
-        assert_eq!(
-            engine.price(&settled, &context).unwrap_err().category,
-            ErrorCategory::InvalidOption
-        );
+        assert!(matches!(
+            engine.price(&settled, &context).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
         let at_expiry = engine
             .price_with_greeks(
                 &note,
@@ -366,13 +362,10 @@ fn ternary_daily_layers_converge_and_retain_recovered_knock_in_history() {
     assert!(modes[1] < modes[0] - 0.001);
     let note = TernarySnowballOption::new(terms).unwrap();
     let engine = QuadratureAutocallableEngine::default();
-    assert_eq!(
-        engine
-            .price(&note, &market(100.0, date(1, 2)))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&note, &market(100.0, date(1, 2))).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let known = note
         .replace(Some(AutocallableBarrierState::KnockedIn))
         .unwrap();
@@ -413,21 +406,18 @@ fn preset_validation_uses_expanded_terms_and_preserves_inputs() {
             lower_strike: 101.0,
         },
     ] {
-        assert_eq!(
-            base.clone().expand(preset).unwrap_err().category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            base.clone().expand(preset).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
         assert_eq!(base, snapshot);
     }
     let mut unordered = base.clone();
     unordered.observation_dates.reverse();
-    assert_eq!(
-        unordered
-            .expand(SnowballPreset::Standard)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidSchedule
-    );
+    assert!(matches!(
+        unordered.expand(SnowballPreset::Standard).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let mut configured = base;
     configured.barrier_state = Some(AutocallableBarrierState::KnockedIn);
     configured.principal_ratio = 0.5;
@@ -443,34 +433,33 @@ fn preset_validation_uses_expanded_terms_and_preserves_inputs() {
 fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction() {
     for value in [f64::NAN, f64::INFINITY] {
         let binary = BinarySnowballTerms::new(value, date(1, 1), date(4, 1), observations());
-        assert_eq!(
-            BinarySnowballOption::new(binary).unwrap_err().category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            BinarySnowballOption::new(binary).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
         let ternary =
             TernarySnowballTerms::new(0.06, value, 80.0, date(1, 1), date(4, 1), observations());
-        assert_eq!(
-            TernarySnowballOption::new(ternary).unwrap_err().category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            TernarySnowballOption::new(ternary).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for bad in [
         Vec::new(),
         vec![AutocallableObservation::new(date(4, 2), 110.0)],
         vec![AutocallableObservation::new(date(4, 1), 110.0); 2],
     ] {
-        assert_eq!(
+        assert!(matches!(
             BinarySnowballOption::new(BinarySnowballTerms::new(
                 0.06,
                 date(1, 1),
                 date(4, 1),
                 bad.clone()
             ))
-            .unwrap_err()
-            .category,
-            ErrorCategory::InvalidSchedule
-        );
-        assert_eq!(
+            .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
             TernarySnowballOption::new(TernarySnowballTerms::new(
                 0.06,
                 0.02,
@@ -479,35 +468,32 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
                 date(4, 1),
                 bad
             ))
-            .unwrap_err()
-            .category,
-            ErrorCategory::InvalidSchedule
-        );
+            .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let mut binary = BinarySnowballTerms::new(0.06, date(1, 1), date(4, 1), observations());
     binary.principal_ratio = -1.0;
-    assert_eq!(
-        BinarySnowballOption::new(binary).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        BinarySnowballOption::new(binary).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let mut ternary =
         TernarySnowballTerms::new(0.06, 0.02, 0.0, date(1, 1), date(4, 1), Vec::new());
     // Schedule validation precedes knock-in validation, as in the legacy contract.
-    assert_eq!(
-        TernarySnowballOption::new(ternary.clone())
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidSchedule
-    );
+    assert!(matches!(
+        TernarySnowballOption::new(ternary.clone()).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     ternary.observations = observations();
-    assert_eq!(
-        TernarySnowballOption::new(ternary).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        TernarySnowballOption::new(ternary).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let mut binary = BinarySnowballTerms::new(0.06, date(1, 1), date(4, 1), observations());
     binary.observations[0].coupon_barrier_level = 1.0;
-    assert_eq!(
-        BinarySnowballOption::new(binary).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        BinarySnowballOption::new(binary).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }

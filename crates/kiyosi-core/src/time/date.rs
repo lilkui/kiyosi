@@ -1,6 +1,6 @@
 use chrono::{Datelike, Days, NaiveDate};
 
-use crate::{Error, ErrorCategory, Result};
+use crate::{Error, Result};
 
 const MICROS_PER_DAY: i64 = 86_400_000_000;
 
@@ -16,10 +16,7 @@ impl Date {
                 return Ok(Self(date));
             }
         }
-        Err(Error::new(
-            ErrorCategory::InvalidDate,
-            "unsupported calendar date",
-        ))
+        Err(Error::InvalidInput("unsupported calendar date".into()))
     }
 
     pub fn year(self) -> i32 {
@@ -48,9 +45,8 @@ impl Date {
         };
         match shifted {
             Some(date) => Self::new(date.year(), date.month(), date.day()),
-            None => Err(Error::new(
-                ErrorCategory::InvalidDate,
-                "date arithmetic exceeds supported range",
+            None => Err(Error::InvalidInput(
+                "date arithmetic exceeds supported range".into(),
             )),
         }
     }
@@ -69,10 +65,7 @@ impl Timestamp {
     /// Creates an instant on a supported date; leap seconds are not supported.
     pub fn new(date: Date, hour: u32, minute: u32, second: u32, microsecond: u32) -> Result<Self> {
         if hour > 23 || minute > 59 || second > 59 || microsecond > 999_999 {
-            return Err(Error::new(
-                ErrorCategory::InvalidDate,
-                "invalid time components",
-            ));
+            return Err(Error::InvalidInput("invalid time components".into()));
         }
         Ok(Self(
             date.start_of_day().0
@@ -107,13 +100,12 @@ impl Timestamp {
         let value = self
             .0
             .checked_add(micros)
-            .ok_or(Error::new(ErrorCategory::InvalidDate, "timestamp overflow"))?;
+            .ok_or(Error::InvalidInput("timestamp overflow".into()))?;
         let first = Date::new(-32767, 1, 1)?.start_of_day().0;
         let last = Date::new(32767, 12, 31)?.start_of_day().0 + MICROS_PER_DAY - 1;
         if value < first || value > last {
-            return Err(Error::new(
-                ErrorCategory::InvalidDate,
-                "timestamp outside supported range",
+            return Err(Error::InvalidInput(
+                "timestamp outside supported range".into(),
             ));
         }
         Ok(Self(value))

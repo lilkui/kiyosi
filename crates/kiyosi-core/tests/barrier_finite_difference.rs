@@ -171,22 +171,20 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        engine.price(&option, &later).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&option, &later).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let paid = option.replace(Some(BarrierTouchState::Touched)).unwrap();
     assert_eq!(engine.price(&paid, &later).unwrap(), 0.0);
-    assert_eq!(
-        engine.price(&paid, &market(100.0)).unwrap_err().category,
-        ErrorCategory::InvalidOption
-    );
-    assert_eq!(
-        implied_volatility(&engine, &paid, &later, 0.0, Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+    assert!(matches!(
+        engine.price(&paid, &market(100.0)).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
+        implied_volatility(&engine, &paid, &later, 0.0, Default::default()).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let at_expiry = later
         .replace(PricingContextChanges {
             valuation_time: Some(t.expiry_date.into()),
@@ -204,10 +202,10 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
         .unwrap();
     assert_eq!(result.price(), 0.0);
     assert!(Greek::ALL.iter().all(|&g| !result.has(g)));
-    assert_eq!(
-        engine.price(&option, &market(100.0)).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&option, &market(100.0)).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
@@ -294,10 +292,7 @@ fn explicit_stability_uses_the_continuous_domain_and_settings_validate_eagerly()
         if stable {
             assert!(result.is_ok());
         } else {
-            assert_eq!(
-                result.unwrap_err().category,
-                ErrorCategory::InvalidParameter
-            );
+            assert!(matches!(result.unwrap_err(), Error::InvalidInput(_)));
         }
     }
     for settings in [
@@ -314,12 +309,10 @@ fn explicit_stability_uses_the_continuous_domain_and_settings_validate_eagerly()
             ..Default::default()
         },
     ] {
-        assert_eq!(
-            FiniteDifferenceBarrierEngine::new(settings)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            FiniteDifferenceBarrierEngine::new(settings).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
 }
 
@@ -369,13 +362,12 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
+    assert!(matches!(
         engine
             .price(&BarrierOption::new(t).unwrap(), &uncovered)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidTimeRange
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
@@ -445,8 +437,8 @@ fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
         asset_upper_boundary: Some(400.0),
     })
     .unwrap();
-    assert_eq!(
-        engine.price(&option, &market(100.0)).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&option, &market(100.0)).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }

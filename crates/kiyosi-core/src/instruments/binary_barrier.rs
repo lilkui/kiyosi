@@ -1,7 +1,7 @@
 use crate::{
     BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType, Date, DigitalOption, Error,
-    ErrorCategory, ObservationMode, ObservationSchedule, OptionContract, OptionType,
-    PricingContext, Result, Timestamp,
+    ObservationMode, ObservationSchedule, OptionContract, OptionType, PricingContext, Result,
+    Timestamp,
 };
 
 /// Payment timing for a touch contract; see [`TouchOption::cash`].
@@ -89,11 +89,9 @@ impl BinaryBarrierOption {
     /// Validates payout, strike and life before barrier and schedule terms.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] for invalid payout or barrier,
-    /// [`ErrorCategory::InvalidStrike`] for invalid strike,
-    /// [`ErrorCategory::InvalidTimeRange`] for reversed life, or
-    /// [`ErrorCategory::InvalidSchedule`] for incompatible or invalid fixing dates.
-    /// History relative to valuation and calendar compatibility are checked during pricing.
+    /// Returns [`Error::InvalidInput`] for invalid payout, strike, life,
+    /// barrier or fixing dates, checked in that order. History relative to valuation
+    /// and calendar compatibility are checked during pricing.
     ///
     /// # Examples
     /// ```
@@ -211,9 +209,8 @@ impl TouchOptionTerms {
     }
     fn monitoring(self) -> Result<BarrierOption> {
         if self.settlement_timing == SettlementTiming::AtHit && !self.barrier_type.is_knock_in() {
-            return Err(Error::new(
-                ErrorCategory::InvalidOption,
-                "at-hit settlement requires a one-touch",
+            return Err(Error::InvalidInput(
+                "at-hit settlement requires a one-touch".into(),
             ));
         }
         // Reuse the validated barrier's monitoring rules; no strike is exposed or used for touch payoffs.
@@ -246,11 +243,8 @@ impl TouchOption {
     /// Current at-hit cash pays the payout; prior at-hit settlement has zero remaining value.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] for invalid positive payout or barrier,
-    /// [`ErrorCategory::InvalidTimeRange`] for reversed life,
-    /// [`ErrorCategory::InvalidSchedule`] for invalid fixings, or
-    /// [`ErrorCategory::InvalidOption`] for at-hit no-touch settlement.
-    /// Valuation-relative history and calendar checks occur during pricing.
+    /// Returns [`Error::InvalidInput`] for invalid positive payout or barrier,
+    /// reversed life, invalid fixings, or at-hit no-touch settlement.
     ///
     /// # Examples
     /// ```
@@ -264,9 +258,8 @@ impl TouchOption {
     /// ```
     pub fn cash(terms: TouchOptionTerms, payout: f64) -> Result<Self> {
         if !payout.is_finite() || payout <= 0.0 {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "payout must be finite and positive",
+            return Err(Error::InvalidInput(
+                "payout must be finite and positive".into(),
             ));
         }
         let settlement_timing = terms.settlement_timing;

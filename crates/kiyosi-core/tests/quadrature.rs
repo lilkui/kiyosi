@@ -207,7 +207,7 @@ fn expiry_is_strict_for_digitals_and_omits_all_greeks() {
                     }
                 );
                 assert!(result.values().iter().all(Option::is_none));
-                assert_eq!(
+                assert!(matches!(
                     implied_volatility(
                         &QuadratureDigitalEngine,
                         &option,
@@ -215,12 +215,11 @@ fn expiry_is_strict_for_digitals_and_omits_all_greeks() {
                         result.price(),
                         Default::default()
                     )
-                    .unwrap_err()
-                    .category,
-                    ErrorCategory::UnsupportedOperation
-                );
+                    .unwrap_err(),
+                    Error::UnsupportedOperation(_)
+                ));
             }
-            assert_eq!(
+            assert!(matches!(
                 implied_volatility(
                     &QuadratureVanillaEngine,
                     &vanilla,
@@ -228,10 +227,9 @@ fn expiry_is_strict_for_digitals_and_omits_all_greeks() {
                     result.price(),
                     Default::default()
                 )
-                .unwrap_err()
-                .category,
-                ErrorCategory::UnsupportedOperation
-            );
+                .unwrap_err(),
+                Error::UnsupportedOperation(_)
+            ));
         }
     }
 }
@@ -303,12 +301,10 @@ fn numerical_greeks_refine_and_implied_volatility_preserves_inputs() {
         )
         .unwrap();
         assert!((sigma - 0.2).abs() < 1e-7);
-        assert_eq!(
-            implied_volatility(&engine, &option, context, -1.0, Default::default())
-                .unwrap_err()
-                .category,
-            ErrorCategory::UnbracketedVolatility
-        );
+        assert!(matches!(
+            implied_volatility(&engine, &option, context, -1.0, Default::default()).unwrap_err(),
+            Error::RootNotBracketed(_)
+        ));
         assert_eq!(engine.price(&option, context).unwrap(), quote);
         assert_eq!(context.model_parameters().volatility(), 0.2);
     }
@@ -354,11 +350,11 @@ fn applicability_validation_order_and_nonfinite_results_are_structured() {
                     ..Default::default()
                 })
                 .unwrap();
-            assert_eq!(
-                engine.price(&option, &curved).unwrap_err().category,
-                ErrorCategory::UnsupportedOperation
-            );
-            assert_eq!(
+            assert!(matches!(
+                engine.price(&option, &curved).unwrap_err(),
+                Error::UnsupportedOperation(_)
+            ));
+            assert!(matches!(
                 engine
                     .price_with_greeks(
                         &option,
@@ -366,10 +362,9 @@ fn applicability_validation_order_and_nonfinite_results_are_structured() {
                         GreeksRequest::default(),
                         Default::default()
                     )
-                    .unwrap_err()
-                    .category,
-                ErrorCategory::UnsupportedOperation
-            );
+                    .unwrap_err(),
+                Error::UnsupportedOperation(_)
+            ));
         }
         for time in [
             Date::new(2024, 12, 31).unwrap().into(),
@@ -381,11 +376,11 @@ fn applicability_validation_order_and_nonfinite_results_are_structured() {
                     ..Default::default()
                 })
                 .unwrap();
-            assert_eq!(
-                engine.price(&option, &outside).unwrap_err().category,
-                ErrorCategory::InvalidTimeRange
-            );
-            assert_eq!(
+            assert!(matches!(
+                engine.price(&option, &outside).unwrap_err(),
+                Error::InvalidInput(_)
+            ));
+            assert!(matches!(
                 engine
                     .price_with_greeks(
                         &option,
@@ -393,10 +388,9 @@ fn applicability_validation_order_and_nonfinite_results_are_structured() {
                         GreeksRequest::default(),
                         Default::default()
                     )
-                    .unwrap_err()
-                    .category,
-                ErrorCategory::InvalidParameter
-            );
+                    .unwrap_err(),
+                Error::InvalidInput(_)
+            ));
         }
         for shifts in [
             NumericalShiftSettings {
@@ -416,22 +410,18 @@ fn applicability_validation_order_and_nonfinite_results_are_structured() {
                 ..Default::default()
             },
         ] {
-            assert_eq!(
+            assert!(matches!(
                 engine
                     .price_with_greeks(&option, &context, GreeksRequest::all(), shifts)
-                    .unwrap_err()
-                    .category,
-                ErrorCategory::InvalidParameter
-            );
+                    .unwrap_err(),
+                Error::InvalidInput(_)
+            ));
         }
         let invalid_discount = market(100.0, -1000.0, -1000.0, 0.2);
-        assert_eq!(
-            engine
-                .price(&option, &invalid_discount)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidResult
-        );
+        assert!(matches!(
+            engine.price(&option, &invalid_discount).unwrap_err(),
+            Error::ComputationFailure(_)
+        ));
         assert_eq!(context.model_parameters().volatility(), 0.2);
     }
     check(
@@ -448,20 +438,18 @@ fn applicability_validation_order_and_nonfinite_results_are_structured() {
     let context = market(100.0, 0.05, 0.02, f64::MAX);
     let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     let digital = DigitalOption::asset_or_nothing(OptionType::Call, 100.0, start, end).unwrap();
-    assert_eq!(
+    assert!(matches!(
         QuadratureVanillaEngine
             .price(&vanilla, &context)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
+    assert!(matches!(
         QuadratureDigitalEngine
             .price(&digital, &context)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
 }
 
 #[test]
@@ -476,7 +464,7 @@ fn feasible_bumped_failures_preserve_inputs_and_dated_flat_rates_are_supported()
     };
     let vanilla_price = QuadratureVanillaEngine.price(&vanilla, &context).unwrap();
     let asset_price = QuadratureDigitalEngine.price(&asset, &context).unwrap();
-    assert_eq!(
+    assert!(matches!(
         QuadratureVanillaEngine
             .price_with_greeks(
                 &vanilla,
@@ -484,17 +472,15 @@ fn feasible_bumped_failures_preserve_inputs_and_dated_flat_rates_are_supported()
                 GreeksRequest::new([Greek::Delta]),
                 shifts
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
+    assert!(matches!(
         QuadratureDigitalEngine
             .price_with_greeks(&asset, &context, GreeksRequest::new([Greek::Delta]), shifts)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
     assert_eq!(
         QuadratureVanillaEngine.price(&vanilla, &context).unwrap(),
         vanilla_price

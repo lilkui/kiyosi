@@ -17,7 +17,7 @@ impl CoxRossRubinsteinBarrierEngine {
     /// See [`CoxRossRubinsteinVanillaEngine::new`] for a settings example.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] outside 1 through 1,000,000 steps.
+    /// Returns [`Error::InvalidInput`] outside 1 through 1,000,000 steps.
     pub fn new(settings: BinomialSettings) -> Result<Self> {
         settings.validate()?;
         Ok(Self { settings })
@@ -34,11 +34,11 @@ impl CoxRossRubinsteinBarrierEngine {
     /// analytic pricing. Prior at-hit rebates are already paid. Inputs remain unchanged.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::UnsupportedOperation`] for node curves or off-grid future
-    /// fixings, [`ErrorCategory::InvalidTimeRange`] outside life, [`ErrorCategory::InvalidDate`]
-    /// for non-trading fixings, [`ErrorCategory::InvalidParameter`] for missing history,
-    /// [`ErrorCategory::InvalidOption`] for impossible history, or
-    /// [`ErrorCategory::InvalidResult`] for unstable tree parameters, nodes or results.
+    /// Returns [`Error::UnsupportedOperation`] for node curves or unsupported
+    /// fixings. Returns [`Error::InvalidInput`] outside life, for non-trading
+    /// fixings, or for missing or impossible history, checked in that order.
+    /// Unstable tree parameters, nodes or results return [`Error::ComputationFailure`].
+    /// Inputs remain unchanged.
     ///
     /// # Examples
     /// ```
@@ -70,7 +70,7 @@ impl CoxRossRubinsteinBarrierEngine {
     /// # Errors
     /// Checks flat-rate applicability before request/shift validation, then reuses
     /// [`Self::price`] errors. Empty requests and invalid shifts return
-    /// [`ErrorCategory::InvalidParameter`]. Inputs remain unchanged.
+    /// [`Error::InvalidInput`]. Inputs remain unchanged.
     pub fn price_with_greeks(
         &self,
         option: &BarrierOption,
@@ -140,9 +140,9 @@ impl CoxRossRubinsteinBarrierEngine {
                 }
                 let scaled = i128::from(offset) * steps as i128;
                 if scaled % i128::from(duration) != 0 {
-                    return Err(Error::new(
-                        ErrorCategory::UnsupportedOperation,
-                        "scheduled barrier observation does not coincide with a CRR tree step",
+                    return Err(Error::UnsupportedOperation(
+                        "scheduled barrier observation does not coincide with a CRR tree step"
+                            .into(),
                     ));
                 }
                 observed[(scaled / i128::from(duration)) as usize] = true;

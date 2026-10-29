@@ -6,8 +6,8 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime
 
-import kiyosi
 import QuantLib as ql
+from kiyosi import InvalidInputError, RootNotBracketedError, UnsupportedOperationError
 from kiyosi import instruments as ins
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -85,10 +85,10 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 0,
             )
 
-    def assert_category(self, category, operation, *args, **kwargs):
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation, *args, **kwargs):
+        with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category.name, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_two_fixing_prices_and_grid_convergence_against_independent_integrals(self):
         coarse = FiniteDifferenceBinaryBarrierEngine(
@@ -226,10 +226,10 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             delta=0.0004,
         )
         later_payment = touch(observation_mode="scheduled", observation_dates=[fixing])
-        self.assert_category("INVALID_TIME_RANGE", engine.price, later_payment, ctx)
+        self.assert_rejection(InvalidInputError, engine.price, later_payment, ctx)
         known = option.replace(touch_state="untouched")
         after = market(130, datetime(2025, 6, 30, 0, 0, 0, 1, tzinfo=UTC))
-        self.assert_category("INVALID_PARAMETER", engine.price, option, after)
+        self.assert_rejection(InvalidInputError, engine.price, option, after)
         self.assertEqual(engine.price(known, after), 0)
         self.assertEqual(engine.price(option, market(130, fixing)), 10)
         no_touch = touch(
@@ -276,21 +276,21 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             0.2,
             delta=1e-7,
         )
-        self.assert_category(
-            "UNBRACKETED_VOLATILITY", implied_volatility, engine, option, ctx, -1
+        self.assert_rejection(
+            RootNotBracketedError, implied_volatility, engine, option, ctx, -1
         )
-        self.assert_category("INVALID_PARAMETER", engine.price, touch(), ctx)
-        self.assert_category(
-            "INVALID_OPTION",
+        self.assert_rejection(InvalidInputError, engine.price, touch(), ctx)
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             option.replace(touch_state="touched"),
             market(),
         )
-        self.assert_category(
-            "INVALID_PARAMETER", engine.price_with_greeks, option, ctx, []
+        self.assert_rejection(
+            InvalidInputError, engine.price_with_greeks, option, ctx, []
         )
-        self.assert_category(
-            "INVALID_PARAMETER",
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             option,
             ctx,
@@ -311,8 +311,8 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         equality = engine.price_with_greeks(touch(), market(120.13), all_greeks=True)
         self.assertTrue(all(getattr(equality, g) is None for g in greeks))
         paid = touch(settlement_timing="at_hit", touch_state="touched")
-        self.assert_category(
-            "UNSUPPORTED_OPERATION", implied_volatility, engine, paid, ctx, 0
+        self.assert_rejection(
+            UnsupportedOperationError, implied_volatility, engine, paid, ctx, 0
         )
         self.assertEqual(engine.price(option, ctx), result.price)
         self.assertEqual(option.touch_state, "untouched")
@@ -337,11 +337,11 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         expected = engine(400).price(option, market())
         for upper in (10_000, 1e9):
             self.assertEqual(engine(upper).price(option, market()), expected)
-        self.assert_category(
-            "INVALID_PARAMETER", engine(480, "explicit_euler").price, option, market()
+        self.assert_rejection(
+            InvalidInputError, engine(480, "explicit_euler").price, option, market()
         )
 
-    def test_settings_protocols_defaults_and_error_categories(self):
+    def test_settings_protocols_defaults_and_errors(self):
         engine = FiniteDifferenceBinaryBarrierEngine()
         self.assertEqual(
             (
@@ -369,15 +369,15 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             {"time_step_count": 0},
             {"asset_upper_boundary": math.nan},
         ):
-            self.assert_category(
-                "INVALID_PARAMETER", FiniteDifferenceBinaryBarrierEngine, **fields
+            self.assert_rejection(
+                InvalidInputError, FiniteDifferenceBinaryBarrierEngine, **fields
             )
         for fields in (
             {"asset_upper_boundary": 120},
             {"scheme": "explicit_euler", "time_step_count": 1},
         ):
-            self.assert_category(
-                "INVALID_PARAMETER",
+            self.assert_rejection(
+                InvalidInputError,
                 FiniteDifferenceBinaryBarrierEngine(**fields).price,
                 touch(),
                 market(),
@@ -385,7 +385,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         weekend = touch(
             observation_mode="scheduled", observation_dates=[date(2025, 1, 4)]
         )
-        self.assert_category("INVALID_DATE", engine.price, weekend, market())
+        self.assert_rejection(InvalidInputError, engine.price, weekend, market())
         with self.assertRaises(TypeError):
             engine.price(object(), market())
         with self.assertRaises(TypeError):

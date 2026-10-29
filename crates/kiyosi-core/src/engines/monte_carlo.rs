@@ -1,8 +1,8 @@
 use std::{f64::consts::TAU, thread};
 
 use crate::{
-    Error, ErrorCategory, EuropeanOption, GreeksRequest, NumericalShiftSettings, OptionContract,
-    OptionType, PricingContext, PricingEngine, PricingResult, Result,
+    Error, EuropeanOption, GreeksRequest, NumericalShiftSettings, OptionContract, OptionType,
+    PricingContext, PricingEngine, PricingResult, Result,
 };
 
 const BLOCK_SIZE: usize = 256;
@@ -117,7 +117,7 @@ impl MonteCarloVanillaEngine {
     /// Creates an engine after validating paths, steps, threads and sampling, in that order.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] for paths outside 1..=10,000,000,
+    /// Returns [`Error::InvalidInput`] for paths outside 1..=10,000,000,
     /// steps outside 2..=10,000, a negative thread cap, or a non-power-of-two Sobol count.
     ///
     /// # Examples
@@ -140,17 +140,13 @@ impl MonteCarloVanillaEngine {
             || !(2..=10_000).contains(&settings.step_count)
             || settings.thread_count < 0
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "invalid Monte Carlo settings",
-            ));
+            return Err(Error::InvalidInput("invalid Monte Carlo settings".into()));
         }
         if settings.sampling == MonteCarloSampling::Sobol
             && !(settings.path_count as u32).is_power_of_two()
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "Sobol path count must be a power of two",
+            return Err(Error::InvalidInput(
+                "Sobol path count must be a power of two".into(),
             ));
         }
         Ok(Self { settings })
@@ -192,13 +188,13 @@ impl MonteCarloVanillaEngine {
     /// Calls complete synchronously without cancellation or signal polling.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::UnsupportedOperation`] for node curves before life
-    /// validation, [`ErrorCategory::InvalidTimeRange`] outside the inclusive contract
-    /// life, or [`ErrorCategory::InvalidResult`] for unstable parameters, nonpositive
+    /// Returns [`Error::UnsupportedOperation`] for node curves before life
+    /// validation, [`Error::InvalidInput`] outside the inclusive contract
+    /// life, or [`Error::ComputationFailure`] for unstable parameters, nonpositive
     /// or non-finite terminal prices, or non-finite results. Inputs remain unchanged.
     /// Entropy and thread-creation failures retain their native [`std::io::Error`]
-    /// in [`Error::operational_error`].
-    /// American pricing before expiry returns [`ErrorCategory::InvalidParameter`]
+    /// in [`Error::Io`].
+    /// American pricing before expiry returns
     /// for fewer than three grid points, after life validation.
     ///
     /// # Panics
@@ -236,7 +232,7 @@ impl MonteCarloVanillaEngine {
     /// see [`MonteCarloEstimate`] for antithetic and expiry rules.
     ///
     /// # Errors
-    /// Propagates [`Self::price`] errors and returns [`ErrorCategory::InvalidResult`]
+    /// Propagates [`Self::price`] errors and returns [`Error::ComputationFailure`]
     /// when uncertainty or interval endpoints are non-finite. Inputs remain unchanged.
     ///
     /// # Examples
@@ -278,9 +274,8 @@ impl MonteCarloVanillaEngine {
         let valuation = context.valuation_time();
         let expiry = option.expiry_date().start_of_day();
         if valuation < option.effective_date().start_of_day() || valuation > expiry {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "valuation must be within contract life",
+            return Err(Error::InvalidInput(
+                "valuation must be within contract life".into(),
             ));
         }
         let sign = if option.option_type() == OptionType::Call {
@@ -426,7 +421,9 @@ fn path_samples<const N: usize>(
         None
     };
     let empty = [Moments::default(); N];
-    let mut partials = vec![Ok((empty, empty)); samples.div_ceil(BLOCK_SIZE)];
+    let mut partials: Vec<_> = (0..samples.div_ceil(BLOCK_SIZE))
+        .map(|_| Ok((empty, empty)))
+        .collect();
     let simulate = |block: usize| -> Result<([Moments; N], [Moments; N])> {
         let mut generator = Pcg32::new(seed, block as u64);
         let mut cursor = sobol
@@ -515,7 +512,7 @@ fn run_blocks<T: Send>(
                             *value = simulate(chunk * chunk_size + index);
                         }
                     })
-                    .map_err(Error::operational)?,
+                    .map_err(Error::from)?,
             );
         }
         for handle in handles {
@@ -528,10 +525,7 @@ fn run_blocks<T: Send>(
 }
 
 pub(crate) fn unstable() -> Error {
-    Error::new(
-        ErrorCategory::InvalidResult,
-        "Monte Carlo produced a non-finite parameter, path or result",
-    )
+    Error::ComputationFailure("Monte Carlo produced a non-finite parameter, path or result".into())
 }
 
 fn scaled_value(scale: f64, weight: f64, log_discount: f64) -> Result<f64> {
@@ -554,7 +548,7 @@ fn scaled_value(scale: f64, weight: f64, log_discount: f64) -> Result<f64> {
 
 pub(crate) fn random_seed() -> Result<u64> {
     let mut bytes = [0; 8];
-    getrandom::fill(&mut bytes).map_err(|error| Error::operational(error.into()))?;
+    getrandom::fill(&mut bytes).map_err(|error| Error::Io(error.into()))?;
     Ok(u64::from_ne_bytes(bytes))
 }
 

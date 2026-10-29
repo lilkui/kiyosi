@@ -47,27 +47,21 @@ macro_rules! contract_tests {
             #[test]
             fn construction_replacement_and_validation_precedence() {
                 let (start, end) = dates();
-                for (strike, average, category) in [
-                    (0.0, -1.0, ErrorCategory::InvalidStrike),
-                    (100.0, -1.0, ErrorCategory::InvalidParameter),
-                    (100.0, 0.0, ErrorCategory::InvalidTimeRange),
-                ] {
-                    assert_eq!(
+                for (strike, average) in [(0.0, -1.0), (100.0, -1.0), (100.0, 0.0)] {
+                    assert!(matches!(
                         $option::new(OptionType::Call, strike, end, start, start, average)
-                            .unwrap_err()
-                            .category,
-                        category
-                    );
+                            .unwrap_err(),
+                        Error::InvalidInput(_)
+                    ));
                 }
                 for average in [-1.0, f64::NAN, f64::INFINITY] {
-                    assert_eq!(
+                    assert!(matches!(
                         $option::new(OptionType::Call, 100.0, start, start, end, average)
-                            .unwrap_err()
-                            .category,
-                        ErrorCategory::InvalidParameter
-                    );
+                            .unwrap_err(),
+                        Error::InvalidInput(_)
+                    ));
                 }
-                assert_eq!(
+                assert!(matches!(
                     $option::new(
                         OptionType::Call,
                         100.0,
@@ -76,10 +70,9 @@ macro_rules! contract_tests {
                         end,
                         0.0
                     )
-                    .unwrap_err()
-                    .category,
-                    ErrorCategory::InvalidSchedule
-                );
+                    .unwrap_err(),
+                    Error::InvalidInput(_)
+                ));
                 let original = $option::new(
                     OptionType::Put,
                     100.0,
@@ -108,26 +101,26 @@ macro_rules! contract_tests {
                 let seasoned = original.replace(110.0).unwrap();
                 for at in [start, averaging] {
                     assert!($engine.price(&original, &market(at)).is_ok());
-                    assert_eq!(
-                        $engine.price(&seasoned, &market(at)).unwrap_err().category,
-                        ErrorCategory::InvalidParameter
-                    );
+                    assert!(matches!(
+                        $engine.price(&seasoned, &market(at)).unwrap_err(),
+                        Error::InvalidInput(_)
+                    ));
                 }
                 for at in [Date::new(2025, 6, 1).unwrap(), end] {
                     assert!($engine.price(&seasoned, &market(at)).is_ok());
-                    assert_eq!(
-                        $engine.price(&original, &market(at)).unwrap_err().category,
-                        ErrorCategory::InvalidParameter
-                    );
+                    assert!(matches!(
+                        $engine.price(&original, &market(at)).unwrap_err(),
+                        Error::InvalidInput(_)
+                    ));
                 }
                 for at in [
                     Date::new(2024, 12, 31).unwrap(),
                     Date::new(2026, 1, 2).unwrap(),
                 ] {
-                    assert_eq!(
-                        $engine.price(&seasoned, &market(at)).unwrap_err().category,
-                        ErrorCategory::InvalidTimeRange
-                    );
+                    assert!(matches!(
+                        $engine.price(&seasoned, &market(at)).unwrap_err(),
+                        Error::InvalidInput(_)
+                    ));
                 }
                 let after = market(end)
                     .replace(PricingContextChanges {
@@ -135,10 +128,10 @@ macro_rules! contract_tests {
                         ..Default::default()
                     })
                     .unwrap();
-                assert_eq!(
-                    $engine.price(&seasoned, &after).unwrap_err().category,
-                    ErrorCategory::InvalidTimeRange
-                );
+                assert!(matches!(
+                    $engine.price(&seasoned, &after).unwrap_err(),
+                    Error::InvalidInput(_)
+                ));
                 assert_eq!($engine.price(&seasoned, &market(end)).unwrap(), 10.0);
                 let settled = $engine
                     .price_with_greeks(
@@ -149,12 +142,11 @@ macro_rules! contract_tests {
                     )
                     .unwrap();
                 assert!(settled.values().iter().all(Option::is_none));
-                assert_eq!(
+                assert!(matches!(
                     implied_volatility(&$engine, &seasoned, &market(end), 10.0, Default::default())
-                        .unwrap_err()
-                        .category,
-                    ErrorCategory::UnsupportedOperation
-                );
+                        .unwrap_err(),
+                    Error::UnsupportedOperation(_)
+                ));
                 for direction in [OptionType::Call, OptionType::Put] {
                     let single = $option::new(direction, 100.0, start, end, end, 0.0).unwrap();
                     let vanilla = EuropeanOption::new(direction, 100.0, start, end).unwrap();
@@ -164,13 +156,12 @@ macro_rules! contract_tests {
                             AnalyticVanillaEngine.price(&vanilla, &market(at)).unwrap()
                         );
                     }
-                    assert_eq!(
+                    assert!(matches!(
                         $engine
                             .price(&single.replace(110.0).unwrap(), &market(end))
-                            .unwrap_err()
-                            .category,
-                        ErrorCategory::InvalidParameter
-                    );
+                            .unwrap_err(),
+                        Error::InvalidInput(_)
+                    ));
                 }
             }
             #[test]
@@ -225,7 +216,7 @@ macro_rules! contract_tests {
                         .abs()
                         < 1e-7
                 );
-                assert_eq!(
+                assert!(matches!(
                     $engine
                         .price_with_greeks(
                             &option,
@@ -233,11 +224,10 @@ macro_rules! contract_tests {
                             GreeksRequest::default(),
                             Default::default()
                         )
-                        .unwrap_err()
-                        .category,
-                    ErrorCategory::InvalidParameter
-                );
-                assert_eq!(
+                        .unwrap_err(),
+                    Error::InvalidInput(_)
+                ));
+                assert!(matches!(
                     $engine
                         .price_with_greeks(
                             &option,
@@ -248,16 +238,14 @@ macro_rules! contract_tests {
                                 ..Default::default()
                             }
                         )
-                        .unwrap_err()
-                        .category,
-                    ErrorCategory::InvalidParameter
-                );
-                assert_eq!(
+                        .unwrap_err(),
+                    Error::InvalidInput(_)
+                ));
+                assert!(matches!(
                     implied_volatility(&$engine, &option, &context, -1.0, Default::default())
-                        .unwrap_err()
-                        .category,
-                    ErrorCategory::UnbracketedVolatility
-                );
+                        .unwrap_err(),
+                    Error::RootNotBracketed(_)
+                ));
                 let seasoned = option.replace(100.0).unwrap();
                 let middle = market(Date::new(2025, 7, 1).unwrap());
                 let result = $engine
@@ -340,10 +328,10 @@ fn arithmetic_solver_rejects_locked_payoffs_and_moments_handle_carry_singulariti
             if realized == 100.0 {
                 assert!((implied.unwrap() - 0.2).abs() < 1e-6);
             } else {
-                assert_eq!(
-                    implied.unwrap_err().category,
-                    ErrorCategory::UnsupportedOperation
-                );
+                assert!(matches!(
+                    implied.unwrap_err(),
+                    Error::UnsupportedOperation(_)
+                ));
             }
         }
     }
@@ -399,13 +387,12 @@ fn node_curves_use_weighted_geometric_carry_and_arithmetic_expiry_bypasses_appli
     assert!((actual - expected).abs() < 1e-11);
     let arithmetic =
         ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0).unwrap();
-    assert_eq!(
+    assert!(matches!(
         TurnbullWakemanArithmeticAveragePriceEngine
             .price(&arithmetic, &context)
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let expired = context
         .replace(PricingContextChanges {
             valuation_time: Some(end.into()),
@@ -655,7 +642,7 @@ fn single_fixing_preserves_independent_asset_discount_at_extreme_rates() {
 }
 
 #[test]
-fn non_finite_small_volatility_moments_preserve_invalid_result_category() {
+fn non_finite_small_volatility_moments_report_computation_failure() {
     let (start, end) = dates();
     let option =
         ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0).unwrap();
@@ -666,12 +653,11 @@ fn non_finite_small_volatility_moments_preserve_invalid_result_category() {
             start.into(),
         )
         .unwrap();
-        assert_eq!(
+        assert!(matches!(
             TurnbullWakemanArithmeticAveragePriceEngine
                 .price(&option, &context)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidResult
-        );
+                .unwrap_err(),
+            Error::ComputationFailure(_)
+        ));
     }
 }

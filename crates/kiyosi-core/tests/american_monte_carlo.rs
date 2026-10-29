@@ -35,10 +35,10 @@ fn american_put_includes_immediate_exercise_and_validates_steps_after_expiry() {
         ..engine.settings()
     })
     .unwrap();
-    assert_eq!(
-        engine.price(&put, &context).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&put, &context).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let expiry = context
         .replace(PricingContextChanges {
             valuation_time: Some(put.expiry_date().start_of_day()),
@@ -266,12 +266,10 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
             )
             .unwrap();
             assert!((solved - 0.2).abs() < 1e-7, "{solved}");
-            assert_eq!(
-                implied_volatility(&engine, &put, &context, -1.0, Default::default())
-                    .unwrap_err()
-                    .category,
-                ErrorCategory::UnbracketedVolatility
-            );
+            assert!(matches!(
+                implied_volatility(&engine, &put, &context, -1.0, Default::default()).unwrap_err(),
+                Error::RootNotBracketed(_)
+            ));
             let unavailable = engine
                 .price_with_greeks(
                     &put,
@@ -369,12 +367,10 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
             .into_iter()
             .all(|greek| result.get(greek).is_none())
     );
-    assert_eq!(
-        implied_volatility(&engine, &put, &at_expiry, 0.0, Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+    assert!(matches!(
+        implied_volatility(&engine, &put, &at_expiry, 0.0, Default::default()).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     for time in [
         Date::new(2024, 12, 31).unwrap().start_of_day(),
         Timestamp::new(put.expiry_date(), 0, 0, 0, 1).unwrap(),
@@ -385,10 +381,10 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
                 ..Default::default()
             })
             .unwrap();
-        assert_eq!(
-            engine.price(&put, &shifted).unwrap_err().category,
-            ErrorCategory::InvalidTimeRange
-        );
+        assert!(matches!(
+            engine.price(&put, &shifted).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let curve =
         RateTermStructure::new(put.effective_date().into(), vec![expiry], vec![0.95]).unwrap();
@@ -406,31 +402,27 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        engine.price(&put, &node).unwrap_err().category,
-        ErrorCategory::UnsupportedOperation
-    );
-    assert_eq!(
+    assert!(matches!(
+        engine.price(&put, &node).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+    assert!(matches!(
         engine
             .price_with_greeks(&put, &node, GreeksRequest::default(), Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
-    assert_eq!(
-        implied_volatility(&engine, &put, &node, f64::NAN, Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+    assert!(matches!(
+        implied_volatility(&engine, &put, &node, f64::NAN, Default::default()).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+    assert!(matches!(
         engine
             .price_with_greeks(&put, &context, GreeksRequest::default(), Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &put,
@@ -441,17 +433,15 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
                     ..Default::default()
                 }
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
+    assert!(matches!(
         engine
             .price(&put, &market(0.05, 0.02, 1000.0, 100.0))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
     assert_eq!(engine.price(&put, &context).unwrap(), price);
     assert_eq!(context.model_parameters().volatility(), 0.2);
 }

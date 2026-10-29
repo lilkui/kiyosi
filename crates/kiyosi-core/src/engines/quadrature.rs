@@ -10,7 +10,7 @@ use std::f64::consts::PI;
 
 use crate::engines::analytic::vanilla::{black_scholes_arguments, weighted_cdf};
 use crate::{
-    AnalyticVanillaEngine, DigitalOption, Error, ErrorCategory, EuropeanOption, GreeksRequest,
+    AnalyticVanillaEngine, DigitalOption, Error, EuropeanOption, GreeksRequest,
     NumericalShiftSettings, OptionContract, OptionType, PricingContext, PricingEngine,
     PricingResult, Result,
 };
@@ -81,9 +81,8 @@ fn time_to_expiry(option: &impl OptionContract, context: &PricingContext) -> Res
     let valuation = context.valuation_time();
     let expiry = option.expiry_date().start_of_day();
     if valuation < option.effective_date().start_of_day() || valuation > expiry {
-        return Err(Error::new(
-            ErrorCategory::InvalidTimeRange,
-            "valuation must be within contract life",
+        return Err(Error::InvalidInput(
+            "valuation must be within contract life".into(),
         ));
     }
     Ok(valuation.years_until(expiry))
@@ -107,9 +106,8 @@ fn arguments(
         root,
     );
     if !width.is_finite() || d2.is_nan() {
-        return Err(Error::new(
-            ErrorCategory::InvalidResult,
-            "integral pricing parameters are non-finite",
+        return Err(Error::ComputationFailure(
+            "integral pricing parameters are non-finite".into(),
         ));
     }
     Ok((d1, d2))
@@ -129,7 +127,7 @@ macro_rules! terminal_engine {
             /// All Greeks are absent at expiry. Uses [`NumericalShiftSettings`] defaults.
             ///
             /// # Errors
-            /// Rejects node curves with [`ErrorCategory::UnsupportedOperation`] before
+            /// Rejects node curves with [`Error::UnsupportedOperation`] before
             /// request validation, then propagates [`crate::numerical_greeks`] errors.
             /// Inputs remain unchanged on success and failure.
             ///
@@ -180,9 +178,9 @@ impl QuadratureVanillaEngine {
     /// Retains analytic stabilization below `sigma * sqrt(time) < 1e-5` when log discounts are finite.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::UnsupportedOperation`] for node curves before life
-    /// validation, [`ErrorCategory::InvalidTimeRange`] outside contract life, or
-    /// [`ErrorCategory::InvalidResult`] for non-finite parameters or prices.
+    /// Returns [`Error::UnsupportedOperation`] for node curves before life
+    /// validation, [`Error::InvalidInput`] outside contract life, or
+    /// [`Error::ComputationFailure`] for non-finite parameters or prices.
     ///
     /// # Examples
     /// ```

@@ -8,7 +8,12 @@ from datetime import UTC, date, datetime, timedelta
 from itertools import product
 
 import QuantLib as ql
-from kiyosi import ErrorCategory, KiyosiError, pricing
+from kiyosi import (
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+    pricing,
+)
 from kiyosi.instruments import DoubleBarrierOption, EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -164,10 +169,10 @@ def continuous_rebate_references(count):
 
 
 class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
-    def assert_core_error(self, category, operation):
-        with self.assertRaises(KiyosiError) as caught:
+    def assert_core_error(self, expected_error, operation):
+        with self.assertRaises(expected_error) as caught:
             operation()
-        self.assertEqual(caught.exception.category, category)
+        self.assertIs(type(caught.exception), expected_error)
 
     def test_continuous_prices_and_greeks_match_stable_independent_references(self):
         for direction, kind in product(("call", "put"), ("knock_in", "knock_out")):
@@ -218,13 +223,13 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 delta=1e-12,
             )
         self.assert_core_error(
-            ErrorCategory.INVALID_PARAMETER,
+            InvalidInputError,
             lambda: engine.price(
                 contract(), market(time=datetime(2025, 1, 1, 0, 0, 1, tzinfo=UTC))
             ),
         )
         self.assert_core_error(
-            ErrorCategory.INVALID_OPTION,
+            InvalidInputError,
             lambda: engine.price(contract(touch_state="touched"), market()),
         )
         for bound, inside in ((80, math.inf), (120, 0)):
@@ -274,7 +279,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             self.assertAlmostEqual(engine.price(option, context), expected, delta=1e-12)
             if kind == "knock_in":
                 self.assert_core_error(
-                    ErrorCategory.UNSUPPORTED_OPERATION,
+                    UnsupportedOperationError,
                     lambda option=option, context=context, expected=expected: (
                         pricing.implied_volatility(engine, option, context, expected)
                     ),
@@ -392,7 +397,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         )
         self.assertAlmostEqual(solved, 0.2, delta=1e-6)
         self.assert_core_error(
-            ErrorCategory.UNSUPPORTED_OPERATION,
+            UnsupportedOperationError,
             lambda: pricing.implied_volatility(
                 engine,
                 option.replace(touch_state="touched"),
@@ -482,18 +487,18 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             asset_step_count=400, time_step_count=1, scheme="explicit_euler"
         )
         self.assert_core_error(
-            ErrorCategory.INVALID_PARAMETER,
+            InvalidInputError,
             lambda: unstable.price(contract(), market()),
         )
         clipped = pricing.FiniteDifferenceDoubleBarrierEngine(asset_upper_boundary=110)
         self.assert_core_error(
-            ErrorCategory.INVALID_PARAMETER, lambda: clipped.price(contract(), market())
+            InvalidInputError, lambda: clipped.price(contract(), market())
         )
         weekend = date(2025, 7, 5)
         option = contract(observation_mode="scheduled", observation_dates=[weekend])
         engine = pricing.FiniteDifferenceDoubleBarrierEngine()
         self.assert_core_error(
-            ErrorCategory.INVALID_DATE,
+            InvalidInputError,
             lambda: engine.price(option, market(calendar=weekdays_calendar())),
         )
         option, context = contract(), market()
@@ -688,7 +693,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 engine.price_with_greeks(instrument, context, "delta", **{name: value})
         for request, controls in (([], {}), (["delta"], {"spot_shift": 0})):
             self.assert_core_error(
-                ErrorCategory.INVALID_PARAMETER,
+                InvalidInputError,
                 lambda request=request, controls=controls: engine.price_with_greeks(
                     instrument, context, request, **controls
                 ),
@@ -721,7 +726,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 )
             )
         self.assert_core_error(
-            ErrorCategory.UNBRACKETED_VOLATILITY,
+            RootNotBracketedError,
             lambda: pricing.implied_volatility(
                 engine, instrument, context, -1, lower_bound=0.15, upper_bound=0.25
             ),
@@ -774,7 +779,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             model_parameters=context.model_parameters.replace(risk_free_rate=short)
         )
         self.assert_core_error(
-            ErrorCategory.INVALID_TIME_RANGE,
+            InvalidInputError,
             lambda: engine.price(instrument, uncovered),
         )
         self.assertEqual(
@@ -786,6 +791,6 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         )
         for time in (START - timedelta(days=1), END + timedelta(days=1)):
             self.assert_core_error(
-                ErrorCategory.INVALID_TIME_RANGE,
+                InvalidInputError,
                 lambda time=time: engine.price(contract(), market(time=time)),
             )

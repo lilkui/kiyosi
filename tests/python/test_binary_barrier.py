@@ -6,8 +6,8 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
-import kiyosi
 import QuantLib as ql
+from kiyosi import InvalidInputError, UnsupportedOperationError
 from kiyosi import instruments as ins
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -69,10 +69,10 @@ class BinaryBarrierTests(unittest.TestCase):
             **changes,
         )
 
-    def assert_category(self, category, action):
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+    def assert_rejection(self, expected_error, action):
+        with self.assertRaises(expected_error) as error:
             action()
-        self.assertEqual(error.exception.category.name, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_strict_history_current_and_paid_cash_and_asset_settlement(self):
         engine = AnalyticBinaryBarrierEngine()
@@ -93,15 +93,15 @@ class BinaryBarrierTests(unittest.TestCase):
                 self.assertAlmostEqual(
                     engine.price(option, self.context(130)), expected, delta=1e-12
                 )
-                self.assert_category(
-                    "INVALID_PARAMETER",
+                self.assert_rejection(
+                    InvalidInputError,
                     lambda option=option: engine.price(
                         option, self.context(130, date(2025, 1, 2))
                     ),
                 )
                 known = option.replace(touch_state="touched")
-                self.assert_category(
-                    "INVALID_OPTION",
+                self.assert_rejection(
+                    InvalidInputError,
                     lambda known=known: engine.price(known, self.context(130)),
                 )
                 context = self.context(time=date(2025, 7, 1))
@@ -114,8 +114,8 @@ class BinaryBarrierTests(unittest.TestCase):
                 self.assertAlmostEqual(
                     engine.price(known, context), expected, delta=1e-12
                 )
-                self.assert_category(
-                    "UNSUPPORTED_OPERATION",
+                self.assert_rejection(
+                    UnsupportedOperationError,
                     lambda context=context, expected=expected, known=known: (
                         implied_volatility(engine, known, context, expected)
                     ),
@@ -133,8 +133,8 @@ class BinaryBarrierTests(unittest.TestCase):
             option = ins.cash_binary_barrier_option(
                 **self.terms(barrier_type=kind), payout=10
             )
-            self.assert_category(
-                "INVALID_PARAMETER",
+            self.assert_rejection(
+                InvalidInputError,
                 lambda option=option: engine.price(
                     option, self.context(130, date(2025, 7, 1))
                 ),
@@ -170,29 +170,29 @@ class BinaryBarrierTests(unittest.TestCase):
                     factory(**(self.terms() | extra | {field: True}))
                 with self.subTest(field=field), self.assertRaises(ValueError):
                     factory(**(self.terms() | extra | {field: "unknown"}))
-            for fields, category in (
-                ({"strike": 0, "barrier_level": 0}, "INVALID_STRIKE"),
-                ({"barrier_level": 0}, "INVALID_PARAMETER"),
-                ({"expiry_date": date(2024, 1, 1)}, "INVALID_TIME_RANGE"),
-                ({"observation_mode": "scheduled"}, "INVALID_SCHEDULE"),
-                ({"observation_dates": [date(2025, 1, 2)]}, "INVALID_SCHEDULE"),
+            for fields, expected_error in (
+                ({"strike": 0, "barrier_level": 0}, InvalidInputError),
+                ({"barrier_level": 0}, InvalidInputError),
+                ({"expiry_date": date(2024, 1, 1)}, InvalidInputError),
+                ({"observation_mode": "scheduled"}, InvalidInputError),
+                ({"observation_dates": [date(2025, 1, 2)]}, InvalidInputError),
                 (
                     {
                         "observation_mode": "scheduled",
                         "observation_dates": [date(2026, 1, 2)],
                     },
-                    "INVALID_SCHEDULE",
+                    InvalidInputError,
                 ),
                 (
                     {
                         "observation_mode": "scheduled",
                         "observation_dates": [date(2025, 1, 2)] * 2,
                     },
-                    "INVALID_SCHEDULE",
+                    InvalidInputError,
                 ),
             ):
-                self.assert_category(
-                    category,
+                self.assert_rejection(
+                    expected_error,
                     lambda fields=fields, factory=factory, extra=extra: factory(
                         **(self.terms() | extra | fields)
                     ),
@@ -204,11 +204,11 @@ class BinaryBarrierTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 option.strike = 0
         for payout in (0, -1, math.inf, math.nan):
-            self.assert_category(
-                "INVALID_PARAMETER", lambda payout=payout: self.touch(payout=payout)
+            self.assert_rejection(
+                InvalidInputError, lambda payout=payout: self.touch(payout=payout)
             )
-            self.assert_category(
-                "INVALID_PARAMETER",
+            self.assert_rejection(
+                InvalidInputError,
                 lambda payout=payout: ins.cash_binary_barrier_option(
                     **self.terms(strike=0), payout=payout
                 ),
@@ -242,12 +242,12 @@ class BinaryBarrierTests(unittest.TestCase):
                 observation_mode="scheduled",
                 observation_dates=(d for d in [fixing]),
             )
-            self.assert_category(
-                "UNSUPPORTED_OPERATION",
+            self.assert_rejection(
+                UnsupportedOperationError,
                 lambda option=option: engine.price(option, self.context()),
             )
-            self.assert_category(
-                "INVALID_OPTION",
+            self.assert_rejection(
+                InvalidInputError,
                 lambda option=option: engine.price(
                     option.replace(touch_state="touched"), self.context(120, fixing)
                 ),
@@ -257,8 +257,8 @@ class BinaryBarrierTests(unittest.TestCase):
                 engine.price(option, self.context(120, fixing)), expected, delta=1e-12
             )
             noon = datetime(2025, 1, 2, 12, tzinfo=UTC)
-            self.assert_category(
-                "INVALID_PARAMETER",
+            self.assert_rejection(
+                InvalidInputError,
                 lambda option=option, noon=noon: engine.price(
                     option, self.context(130, noon)
                 ),
@@ -280,8 +280,8 @@ class BinaryBarrierTests(unittest.TestCase):
             observation_dates=[date(2025, 1, 4)],
             touch_state="touched",
         )
-        self.assert_category(
-            "INVALID_DATE",
+        self.assert_rejection(
+            InvalidInputError,
             lambda: engine.price(weekend, self.context(time=date(2025, 1, 5))),
         )
 
@@ -306,14 +306,14 @@ class BinaryBarrierTests(unittest.TestCase):
                 upper_bound=0.25,
             )
             self.assertAlmostEqual(sigma, 0.2, delta=1e-7)
-            self.assert_category(
-                "INVALID_PARAMETER",
+            self.assert_rejection(
+                InvalidInputError,
                 lambda context=context, option=option: engine.price_with_greeks(
                     option, context, []
                 ),
             )
-            self.assert_category(
-                "INVALID_PARAMETER",
+            self.assert_rejection(
+                InvalidInputError,
                 lambda context=context, option=option: engine.price_with_greeks(
                     option, context, "delta", spot_shift=0
                 ),
@@ -331,14 +331,14 @@ class BinaryBarrierTests(unittest.TestCase):
             expiry = self.context(time=date(2026, 1, 1))
             terminal = engine.price_with_greeks(option, expiry, all_greeks=True)
             self.assertTrue(all(getattr(terminal, g) is None for g in GREEKS))
-            self.assert_category(
-                "UNSUPPORTED_OPERATION",
+            self.assert_rejection(
+                UnsupportedOperationError,
                 lambda option=option, expiry=expiry, terminal=terminal: (
                     implied_volatility(engine, option, expiry, terminal.price)
                 ),
             )
-            self.assert_category(
-                "INVALID_TIME_RANGE",
+            self.assert_rejection(
+                InvalidInputError,
                 lambda option=option: engine.price(
                     option,
                     self.context(time=datetime(2026, 1, 1, 0, 0, 0, 1, tzinfo=UTC)),
@@ -350,12 +350,12 @@ class BinaryBarrierTests(unittest.TestCase):
                 factors=[0.95],
             )
             curves = self.context(rate=curve)
-            self.assert_category(
-                "UNSUPPORTED_OPERATION",
+            self.assert_rejection(
+                UnsupportedOperationError,
                 lambda curves=curves, option=option: engine.price(option, curves),
             )
-            self.assert_category(
-                "UNSUPPORTED_OPERATION",
+            self.assert_rejection(
+                UnsupportedOperationError,
                 lambda curves=curves, option=option: engine.price_with_greeks(
                     option, curves, []
                 ),

@@ -1,4 +1,4 @@
-use crate::{Date, Error, ErrorCategory, Result, TradingCalendar, time::calendar::validate_range};
+use crate::{Date, Error, Result, TradingCalendar, time::calendar::validate_range};
 
 /// Immutable, strictly ordered owning observation dates. Accessors borrow stable storage
 /// until the schedule is moved, assigned or dropped; shared concurrent reads are safe.
@@ -8,9 +8,12 @@ pub struct ObservationSchedule {
 }
 
 impl ObservationSchedule {
-    /// Validates life bounds and strict ordering before trading-day status. Empty schedules
-    /// are valid. Reversed life returns `InvalidTimeRange`, ordering/bounds `InvalidSchedule`,
-    /// and non-trading observation dates `InvalidDate`.
+    /// Creates an owning schedule after validating life bounds, order and trading days.
+    /// Empty schedules are valid.
+    ///
+    /// # Errors
+    /// Returns [`Error::InvalidInput`] for reversed life, unordered or out-of-life
+    /// dates, or non-trading observation dates, checked in that order.
     pub fn new(
         dates: Vec<Date>,
         start: Date,
@@ -20,24 +23,26 @@ impl ObservationSchedule {
         validate_range(start, end)?;
         for (index, date) in dates.iter().enumerate() {
             if (index > 0 && *date <= dates[index - 1]) || *date < start || *date > end {
-                return Err(Error::new(
-                    ErrorCategory::InvalidSchedule,
-                    "observation dates must be ordered and within life bounds",
+                return Err(Error::InvalidInput(
+                    "observation dates must be ordered and within life bounds".into(),
                 ));
             }
         }
         if dates.iter().any(|date| !calendar.is_trading_day(*date)) {
-            return Err(Error::new(
-                ErrorCategory::InvalidDate,
-                "observation date is not a trading day",
+            return Err(Error::InvalidInput(
+                "observation date is not a trading day".into(),
             ));
         }
         Ok(Self { dates })
     }
 
-    /// Candidates `start + n * interval_days`, positive n. Start is excluded, end is
-    /// inclusive. Following adjustment merges collisions and stops before crossing end;
-    /// end need not appear. Nonpositive intervals return `InvalidSchedule` after life validation.
+    /// Creates candidates at `start + n * interval_days` for positive `n`.
+    /// Start is excluded and end is inclusive. Following adjustment merges collisions
+    /// and stops before crossing end; end need not appear.
+    ///
+    /// # Errors
+    /// Returns [`Error::InvalidInput`] for reversed life or nonpositive intervals,
+    /// checked in that order. Propagates date-range and schedule validation errors.
     pub fn fixed_interval(
         start: Date,
         end: Date,
@@ -46,10 +51,7 @@ impl ObservationSchedule {
     ) -> Result<Self> {
         validate_range(start, end)?;
         if interval_days <= 0 {
-            return Err(Error::new(
-                ErrorCategory::InvalidSchedule,
-                "interval must be positive",
-            ));
+            return Err(Error::InvalidInput("interval must be positive".into()));
         }
         let mut dates = Vec::new();
         let mut target = start;
@@ -73,10 +75,7 @@ impl ObservationSchedule {
     ) -> Result<Self> {
         validate_range(start, end)?;
         if first_observation_month <= 0 {
-            return Err(Error::new(
-                ErrorCategory::InvalidSchedule,
-                "first month must be positive",
-            ));
+            return Err(Error::InvalidInput("first month must be positive".into()));
         }
         let start_month = start.year() * 12 + start.month() as i32 - 1;
         let end_month = end.year() * 12 + end.month() as i32 - 1;

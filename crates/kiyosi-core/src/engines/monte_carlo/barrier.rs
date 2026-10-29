@@ -52,14 +52,14 @@ impl MonteCarloBarrierEngine {
     /// synchronously without cancellation polling. See [`Self::price_with_greeks`].
     ///
     /// # Errors
-    /// Returns [`crate::ErrorCategory::UnsupportedOperation`] for node curves,
-    /// [`crate::ErrorCategory::InvalidTimeRange`] outside life,
-    /// [`crate::ErrorCategory::InvalidDate`] for non-trading fixings,
-    /// [`crate::ErrorCategory::InvalidParameter`] for missing history or Sobol dimensions
-    /// above 21,201, [`crate::ErrorCategory::InvalidOption`] for impossible history,
-    /// or [`crate::ErrorCategory::InvalidResult`] for unrepresentable paths or results.
+    /// Returns [`crate::Error::UnsupportedOperation`] for node curves,
+    /// [`crate::Error::InvalidInput`] outside life,
+    /// [`crate::Error::InvalidInput`] for non-trading fixings,
+    /// [`crate::Error::InvalidInput`] for missing history or Sobol dimensions
+    /// above 21,201, [`crate::Error::InvalidInput`] for impossible history,
+    /// or [`crate::Error::ComputationFailure`] for unrepresentable paths or results.
     /// Operational failures retain their native [`std::io::Error`] through
-    /// [`crate::Error::operational_error`]. Inputs remain unchanged.
+    /// [`crate::Error::Io`]. Inputs remain unchanged.
     ///
     /// # Panics
     /// Resumes worker panics after joining the call's workers.
@@ -87,8 +87,8 @@ impl MonteCarloBarrierEngine {
     /// # Errors
     /// Checks flat rates before requests and shifts, then propagates [`Self::price`]
     /// errors. Empty requests or invalid shifts return
-    /// [`crate::ErrorCategory::InvalidParameter`]; non-finite requested Greek samples
-    /// return [`crate::ErrorCategory::InvalidResult`]. Inputs remain unchanged.
+    /// [`crate::Error::InvalidInput`]; non-finite requested Greek samples
+    /// return [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Examples
     /// ```

@@ -87,10 +87,10 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
         .unwrap();
     assert!(result.has(Greek::Delta) && result.has(Greek::Vega));
     assert_eq!(result.get(Greek::Gamma), None);
-    assert_eq!(
-        result.require(Greek::Gamma).unwrap_err().category,
-        ErrorCategory::InvalidResult
-    );
+    assert!(matches!(
+        result.require(Greek::Gamma).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let expiry = context
         .replace(PricingContextChanges {
             valuation_time: Some(option.expiry_date().into()),
@@ -113,6 +113,10 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
     ] {
         assert_eq!(result.price(), 10.0);
         assert!(result.values().iter().all(Option::is_none));
+        assert!(matches!(
+            result.require(Greek::Delta).unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
     }
     let outside = context
         .replace(PricingContextChanges {
@@ -120,7 +124,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
+    assert!(matches!(
         AnalyticVanillaEngine
             .price_with_greeks(
                 &option,
@@ -128,17 +132,15 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
         AnalyticVanillaEngine
             .price_with_greeks(&option, &outside, request, Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidTimeRange
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
         for settings in [
             NumericalShiftSettings {
@@ -154,23 +156,21 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
                 ..Default::default()
             },
         ] {
-            assert_eq!(
+            assert!(matches!(
                 AnalyticVanillaEngine
                     .price_with_greeks(&option, &context, request, settings)
-                    .unwrap_err()
-                    .category,
-                ErrorCategory::InvalidParameter
-            );
-            assert_eq!(
+                    .unwrap_err(),
+                Error::InvalidInput(_)
+            ));
+            assert!(matches!(
                 numerical_greeks(&AnalyticVanillaEngine, &option, &context, request, settings)
-                    .unwrap_err()
-                    .category,
-                ErrorCategory::InvalidParameter
-            );
+                    .unwrap_err(),
+                Error::InvalidInput(_)
+            ));
         }
     }
     for days in [0, -1] {
-        assert_eq!(
+        assert!(matches!(
             AnalyticVanillaEngine
                 .price_with_greeks(
                     &option,
@@ -181,10 +181,9 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
                         ..Default::default()
                     }
                 )
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
 }
 
@@ -258,30 +257,24 @@ fn solver_categories_bounds_and_failure_state_are_stable() {
             ..defaults
         },
     ] {
-        assert_eq!(
-            implied_volatility(&engine, &option, &context, price, settings)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            implied_volatility(&engine, &option, &context, price, settings).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for quote in [f64::NAN, f64::INFINITY] {
-        assert_eq!(
-            implied_volatility(&engine, &option, &context, quote, defaults)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            implied_volatility(&engine, &option, &context, quote, defaults).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for quote in [-1.0, 101.0] {
-        assert_eq!(
-            implied_volatility(&engine, &option, &context, quote, defaults)
-                .unwrap_err()
-                .category,
-            ErrorCategory::UnbracketedVolatility
-        );
+        assert!(matches!(
+            implied_volatility(&engine, &option, &context, quote, defaults).unwrap_err(),
+            Error::RootNotBracketed(_)
+        ));
     }
-    assert_eq!(
+    assert!(matches!(
         implied_volatility(
             &engine,
             &option,
@@ -294,39 +287,34 @@ fn solver_categories_bounds_and_failure_state_are_stable() {
                 ..defaults
             }
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::SolverNonConvergence
-    );
+        .unwrap_err(),
+        Error::NonConvergence(_)
+    ));
     let expiry = context
         .replace(PricingContextChanges {
             valuation_time: Some(option.expiry_date().into()),
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        implied_volatility(&engine, &option, &expiry, 0.0, defaults)
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+    assert!(matches!(
+        implied_volatility(&engine, &option, &expiry, 0.0, defaults).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let outside = context
         .replace(PricingContextChanges {
             valuation_time: Some(Timestamp::new(option.expiry_date(), 0, 0, 0, 1).unwrap()),
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        implied_volatility(&engine, &option, &outside, 0.0, defaults)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidTimeRange
-    );
+    assert!(matches!(
+        implied_volatility(&engine, &option, &outside, 0.0, defaults).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(context, saved);
 }
 
 #[test]
-fn non_finite_solver_values_and_pricing_errors_remain_distinct() {
+fn non_finite_solver_values_and_pricing_errors_report_computation_failure() {
     struct NonFinite;
     impl PricingEngine for NonFinite {
         fn price(&self, _: &EuropeanOption, _: &PricingContext) -> Result<f64> {
@@ -334,13 +322,11 @@ fn non_finite_solver_values_and_pricing_errors_remain_distinct() {
         }
     }
     let (option, context) = market();
-    assert_eq!(
-        implied_volatility(&NonFinite, &option, &context, 1.0, Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::SolverNonFinite
-    );
-    assert_eq!(
+    assert!(matches!(
+        implied_volatility(&NonFinite, &option, &context, 1.0, Default::default()).unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
+    assert!(matches!(
         numerical_greeks(
             &NonFinite,
             &option,
@@ -348,10 +334,9 @@ fn non_finite_solver_values_and_pricing_errors_remain_distinct() {
             GreeksRequest::all(),
             Default::default()
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::InvalidResult
-    );
+        .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
     let model = BlackScholesMertonParameters::new(-1000.0, 0.0, 0.2).unwrap();
     let market = context
         .replace(PricingContextChanges {
@@ -366,7 +351,7 @@ fn non_finite_solver_values_and_pricing_errors_remain_distinct() {
         option.expiry_date(),
     )
     .unwrap();
-    assert_eq!(
+    assert!(matches!(
         implied_volatility(
             &AnalyticVanillaEngine,
             &put,
@@ -374,10 +359,44 @@ fn non_finite_solver_values_and_pricing_errors_remain_distinct() {
             1.0,
             Default::default()
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::InvalidResult
-    );
+        .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
+}
+
+#[test]
+fn custom_engine_io_failures_propagate_through_solvers_and_greeks() {
+    struct Unavailable;
+    impl PricingEngine for Unavailable {
+        fn price(&self, _: &EuropeanOption, _: &PricingContext) -> Result<f64> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "custom pricing data unavailable",
+            )
+            .into())
+        }
+    }
+
+    let (option, context) = market();
+    let original = context.clone();
+    for error in [
+        implied_volatility(&Unavailable, &option, &context, 1.0, Default::default()).unwrap_err(),
+        numerical_greeks(
+            &Unavailable,
+            &option,
+            &context,
+            GreeksRequest::all(),
+            Default::default(),
+        )
+        .unwrap_err(),
+    ] {
+        let Error::Io(cause) = error else {
+            panic!("expected native I/O error, got {error:?}");
+        };
+        assert_eq!(cause.kind(), std::io::ErrorKind::PermissionDenied);
+        assert_eq!(cause.to_string(), "custom pricing data unavailable");
+    }
+    assert_eq!(context, original);
 }
 
 #[test]
@@ -450,7 +469,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
             AnalyticVanillaEngine.price(option, context)
         }
     }
-    assert_eq!(
+    assert!(matches!(
         numerical_greeks(
             &RejectBump,
             &option,
@@ -458,10 +477,9 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
             GreeksRequest::new([Greek::Delta]),
             Default::default()
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::InvalidStrike
-    );
+        .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(context.spot_price(), 100.0);
     let extreme = context
         .replace(PricingContextChanges {
@@ -585,7 +603,7 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
+    assert!(matches!(
         AnalyticVanillaEngine
             .price_with_greeks(
                 &option,
@@ -593,10 +611,9 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
                 GreeksRequest::new([Greek::Delta]),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidTimeRange
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
@@ -650,7 +667,7 @@ fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
         )
         .unwrap();
     assert!((delta.require(Greek::Delta).unwrap() - 0.539827837277029).abs() < 1e-12);
-    assert_eq!(
+    assert!(matches!(
         AnalyticVanillaEngine
             .price_with_greeks(
                 &tiny_option,
@@ -658,8 +675,7 @@ fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
                 GreeksRequest::all(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
 }

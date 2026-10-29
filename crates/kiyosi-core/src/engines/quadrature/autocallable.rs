@@ -7,8 +7,8 @@ use crate::engines::analytic::barrier::log_ratio;
 use crate::instruments::autocallable::pricing::{fixed_value, initial, validate};
 use crate::{
     AutocallableNote, AutocallableObservation, AutocallableTerms, BlackScholesMertonParameters,
-    Date, Error, ErrorCategory, GreeksRequest, KnockInObservationMode, NumericalShiftSettings,
-    PricingContext, PricingEngine, PricingResult, Result, Timestamp,
+    Date, Error, GreeksRequest, KnockInObservationMode, NumericalShiftSettings, PricingContext,
+    PricingEngine, PricingResult, Result, Timestamp,
 };
 
 /// Prices snowball variants and Phoenix notes by cubic Gaussian integration between exact event dates.
@@ -61,12 +61,10 @@ impl QuadratureAutocallableEngine {
     /// See [`Self::new`] for an example.
     ///
     /// # Errors
-    /// Checks flat rates ([`ErrorCategory::UnsupportedOperation`]), inclusive life
-    /// ([`ErrorCategory::InvalidTimeRange`]), observation trading dates
-    /// ([`ErrorCategory::InvalidDate`]), missing/impossible prior history
-    /// ([`ErrorCategory::InvalidParameter`]/[`ErrorCategory::InvalidOption`]), then
-    /// trading expiry ([`ErrorCategory::InvalidDate`]). Non-finite prices or
-    /// unrepresentable transitions return [`ErrorCategory::InvalidResult`].
+    /// Checks flat rates ([`Error::UnsupportedOperation`]), then inclusive life,
+    /// observation trading dates, missing or impossible prior history, and trading
+    /// expiry ([`Error::InvalidInput`]), in that order. Non-finite prices or
+    /// unrepresentable transitions return [`Error::ComputationFailure`].
     /// Inputs remain unchanged on success and failure.
     pub fn price<T: AutocallableTerms>(
         &self,
@@ -127,10 +125,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for Request<T> {
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         let mut curve = self.curve.lock().map_err(|_| {
-            Error::new(
-                ErrorCategory::InvalidResult,
-                "quadrature request cache is poisoned",
-            )
+            Error::ComputationFailure("quadrature request cache is poisoned".into())
         })?;
         price(option, context, self.settings, &mut curve)
     }
@@ -391,9 +386,8 @@ fn price<T: AutocallableTerms>(
         let drift = drift_rate * time;
         let deviation = sigma * time.sqrt();
         if !drift.is_finite() || !deviation.is_finite() || deviation <= 0.0 {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "quadrature transition is not representable",
+            return Err(Error::ComputationFailure(
+                "quadrature transition is not representable".into(),
             ));
         }
         Ok((drift, deviation, -rate * time))
@@ -514,9 +508,8 @@ fn price<T: AutocallableTerms>(
             }
         }
         if values.iter().chain(&values_in).any(|v| !v.is_finite()) {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "quadrature continuation is non-finite",
+            return Err(Error::ComputationFailure(
+                "quadrature continuation is non-finite".into(),
             ));
         }
         alive = Curve {
@@ -532,8 +525,7 @@ fn price<T: AutocallableTerms>(
             };
         }
     }
-    Err(Error::new(
-        ErrorCategory::InvalidResult,
-        "quadrature has no future event",
+    Err(Error::ComputationFailure(
+        "quadrature has no future event".into(),
     ))
 }

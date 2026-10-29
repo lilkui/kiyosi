@@ -1,6 +1,6 @@
 use kiyosi_core::{
-    AnalyticVanillaEngine, BlackScholesMertonParameters, Date, ErrorCategory, EuropeanOption,
-    OptionType, PricingContext, Timestamp, TradingCalendar,
+    AnalyticVanillaEngine, BlackScholesMertonParameters, Date, Error, EuropeanOption, OptionType,
+    PricingContext, Timestamp, TradingCalendar,
 };
 
 #[test]
@@ -37,31 +37,34 @@ fn valuation_uses_microseconds_and_expiry_is_midnight() {
             < AnalyticVanillaEngine.price(&option, &earlier).unwrap()
     );
     let expired = PricingContext::new(model.clone(), 110.0, end.into()).unwrap();
-    assert_eq!(AnalyticVanillaEngine.price(&option, &expired), Ok(10.0));
+    assert_eq!(
+        AnalyticVanillaEngine.price(&option, &expired).unwrap(),
+        10.0
+    );
     for at in [
         Date::new(2024, 12, 31).unwrap().into(),
         Timestamp::new(end, 0, 0, 0, 1).unwrap(),
     ] {
         let outside = PricingContext::new(model.clone(), 110.0, at).unwrap();
-        assert_eq!(
-            AnalyticVanillaEngine
-                .price(&option, &outside)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidTimeRange
-        );
+        assert!(matches!(
+            AnalyticVanillaEngine.price(&option, &outside).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let same_day = EuropeanOption::new(OptionType::Put, 120.0, end, end).unwrap();
-    assert_eq!(AnalyticVanillaEngine.price(&same_day, &expired), Ok(10.0));
+    assert_eq!(
+        AnalyticVanillaEngine.price(&same_day, &expired).unwrap(),
+        10.0
+    );
 }
 
 #[test]
 fn invalid_domain_values_are_rejected_before_construction() {
     for date in [(2025, 2, 29), (2024, 13, 1), (-32768, 1, 1), (32768, 1, 1)] {
-        assert_eq!(
-            Date::new(date.0, date.1, date.2).unwrap_err().category,
-            ErrorCategory::InvalidDate
-        );
+        assert!(matches!(
+            Date::new(date.0, date.1, date.2).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for year in [-32767, -1, 0, 1600, 2500, 9999, 32767] {
         let day = Date::new(year, 1, 1).unwrap();
@@ -70,51 +73,39 @@ fn invalid_domain_values_are_rejected_before_construction() {
     let start = Date::new(2025, 1, 1).unwrap();
     let end = Date::new(2026, 1, 1).unwrap();
     for bad in [0.0, -1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        assert_eq!(
-            EuropeanOption::new(OptionType::Call, bad, start, end)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidStrike
-        );
-        assert_eq!(
-            BlackScholesMertonParameters::new(0.0, 0.0, bad)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidVolatility
-        );
+        assert!(matches!(
+            EuropeanOption::new(OptionType::Call, bad, start, end).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
+            BlackScholesMertonParameters::new(0.0, 0.0, bad).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
         let model = BlackScholesMertonParameters::new(0.0, 0.0, 0.2).unwrap();
-        assert_eq!(
-            PricingContext::new(model, bad, start.into())
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidSpotPrice
-        );
+        assert!(matches!(
+            PricingContext::new(model, bad, start.into()).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        assert_eq!(
-            BlackScholesMertonParameters::new(bad, 0.0, 0.2)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidRiskFreeRate
-        );
-        assert_eq!(
-            BlackScholesMertonParameters::new(0.0, bad, 0.2)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidDividendYield
-        );
+        assert!(matches!(
+            BlackScholesMertonParameters::new(bad, 0.0, 0.2).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
+            BlackScholesMertonParameters::new(0.0, bad, 0.2).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     assert!(BlackScholesMertonParameters::new(-0.05, -0.02, 0.2).is_ok());
-    assert_eq!(
-        EuropeanOption::new(OptionType::Put, 100.0, end, start)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidTimeRange
-    );
-    assert_eq!(
-        Timestamp::new(start, 24, 0, 0, 0).unwrap_err().category,
-        ErrorCategory::InvalidDate
-    );
+    assert!(matches!(
+        EuropeanOption::new(OptionType::Put, 100.0, end, start).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
+        Timestamp::new(start, 24, 0, 0, 0).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
@@ -217,13 +208,10 @@ fn analytic_regressions_retain_tail_prices_and_extreme_scales() {
     let model = BlackScholesMertonParameters::new(-1000.0, 0.0, 0.3).unwrap();
     let context = PricingContext::new(model, 100.0, start.into()).unwrap();
     let option = EuropeanOption::new(OptionType::Put, 100.0, start, end).unwrap();
-    assert_eq!(
-        AnalyticVanillaEngine
-            .price(&option, &context)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+    assert!(matches!(
+        AnalyticVanillaEngine.price(&option, &context).unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
 }
 
 #[test]

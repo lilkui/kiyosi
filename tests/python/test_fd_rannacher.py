@@ -2,8 +2,7 @@ import math
 import unittest
 from datetime import date
 
-import kiyosi
-from kiyosi import pricing
+from kiyosi import ComputationFailureError, pricing
 from kiyosi.instruments import (
     AmericanOption,
     AssetOrNothingOption,
@@ -33,11 +32,9 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
         engine = pricing.FiniteDifferenceDigitalEngine(
             asset_step_count=1000, time_step_count=3, asset_upper_boundary=400
         )
-        with self.assertRaises(kiyosi.KiyosiError) as rejected:
+        with self.assertRaises(ComputationFailureError) as rejected:
             engine.price(option, context)
-        self.assertEqual(
-            rejected.exception.category, kiyosi.ErrorCategory.INVALID_RESULT
-        )
+        self.assertIs(type(rejected.exception), ComputationFailureError)
 
     def test_payoff_bounds_allow_known_carry_truncation(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)

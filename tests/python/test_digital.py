@@ -8,7 +8,12 @@ from datetime import UTC, date, datetime, timedelta
 from fractions import Fraction
 
 import QuantLib as ql
-from kiyosi import ErrorCategory, KiyosiError
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption, EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -56,10 +61,10 @@ class DigitalTests(unittest.TestCase):
         terms = dict(self.terms, **changes)
         return (CashOrNothingOption(**terms, payout=10), AssetOrNothingOption(**terms))
 
-    def category(self, expected, call, *args, **kwargs):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected, call, *args, **kwargs):
+        with self.assertRaises(expected) as error:
             call(*args, **kwargs)
-        self.assertEqual(error.exception.category, expected)
+        self.assertIs(type(error.exception), expected)
 
     def test_prices_greeks_and_volatility_recovery(self):
         for cls, expected, extra in (
@@ -186,8 +191,8 @@ class DigitalTests(unittest.TestCase):
                     self.assertEqual(result.price, expected)
                     for name in GREEKS:
                         self.assertIsNone(getattr(result, name))
-                    self.category(
-                        ErrorCategory.UNSUPPORTED_OPERATION,
+                    self.assert_rejection(
+                        UnsupportedOperationError,
                         implied_volatility,
                         self.engine,
                         option,
@@ -200,18 +205,18 @@ class DigitalTests(unittest.TestCase):
                 datetime(2026, 1, 1, 0, 0, 0, 1, tzinfo=UTC),
             ):
                 outside = self.context.replace(valuation_time=time)
-                self.category(
-                    ErrorCategory.INVALID_TIME_RANGE, self.engine.price, option, outside
+                self.assert_rejection(
+                    InvalidInputError, self.engine.price, option, outside
                 )
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     self.engine.price_with_greeks,
                     option,
                     outside,
                     [],
                 )
-                self.category(
-                    ErrorCategory.INVALID_TIME_RANGE,
+                self.assert_rejection(
+                    InvalidInputError,
                     implied_volatility,
                     self.engine,
                     option,
@@ -223,14 +228,14 @@ class DigitalTests(unittest.TestCase):
         for cls in (CashOrNothingOption, AssetOrNothingOption):
             extra = {"payout": 10} if cls is CashOrNothingOption else {}
             for strike in (0, -1, math.nan, math.inf):
-                self.category(
-                    ErrorCategory.INVALID_STRIKE,
+                self.assert_rejection(
+                    InvalidInputError,
                     cls,
                     **dict(self.terms, strike=strike),
                     **extra,
                 )
-            self.category(
-                ErrorCategory.INVALID_TIME_RANGE,
+            self.assert_rejection(
+                InvalidInputError,
                 cls,
                 **dict(self.terms, expiry_date=date(2024, 1, 1)),
                 **extra,
@@ -256,8 +261,8 @@ class DigitalTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 cls("call", 100, date(2025, 1, 1), date(2026, 1, 1))
         for payout in (0, -1, math.nan, math.inf):
-            self.category(
-                ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 CashOrNothingOption,
                 **self.terms,
                 payout=payout,
@@ -265,8 +270,8 @@ class DigitalTests(unittest.TestCase):
         # All representation checks precede the core's payout-first domain validation.
         with self.assertRaises(TypeError):
             CashOrNothingOption(**dict(self.terms, strike=True), payout=0)
-        self.category(
-            ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             CashOrNothingOption,
             **dict(self.terms, strike=0),
             payout=0,
@@ -291,8 +296,8 @@ class DigitalTests(unittest.TestCase):
                     self.engine.price_with_greeks(option, self.context, **changes)
             with self.assertRaises(ValueError):
                 self.engine.price_with_greeks(option, self.context, "Delta")
-            self.category(
-                ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 self.engine.price_with_greeks,
                 option,
                 self.context,
@@ -310,8 +315,8 @@ class DigitalTests(unittest.TestCase):
                             option, self.context, "delta", **{field: value}
                         )
                 for value in (0, -1):
-                    self.category(
-                        ErrorCategory.INVALID_PARAMETER,
+                    self.assert_rejection(
+                        InvalidInputError,
                         self.engine.price_with_greeks,
                         option,
                         self.context,
@@ -334,8 +339,8 @@ class DigitalTests(unittest.TestCase):
                 {"price_tolerance": 0},
                 {"parameter_tolerance": math.nan},
             ):
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     implied_volatility,
                     self.engine,
                     option,
@@ -343,13 +348,13 @@ class DigitalTests(unittest.TestCase):
                     quote,
                     **settings,
                 )
-            for value, category in (
-                (math.nan, ErrorCategory.INVALID_PARAMETER),
-                (-1, ErrorCategory.UNBRACKETED_VOLATILITY),
-                (1000, ErrorCategory.UNBRACKETED_VOLATILITY),
+            for value, expected_error in (
+                (math.nan, InvalidInputError),
+                (-1, RootNotBracketedError),
+                (1000, RootNotBracketedError),
             ):
-                self.category(
-                    category,
+                self.assert_rejection(
+                    expected_error,
                     implied_volatility,
                     self.engine,
                     option,
@@ -397,11 +402,11 @@ class DigitalTests(unittest.TestCase):
                 self.assertAlmostEqual(
                     getattr(actual, name), getattr(expected, name), delta=1e-10
                 )
-            self.category(
-                ErrorCategory.INVALID_TIME_RANGE, self.engine.price, option, uncovered
+            self.assert_rejection(
+                InvalidInputError, self.engine.price, option, uncovered
             )
-            self.category(
-                ErrorCategory.INVALID_TIME_RANGE,
+            self.assert_rejection(
+                InvalidInputError,
                 implied_volatility,
                 self.engine,
                 option,
@@ -460,8 +465,8 @@ class DigitalTests(unittest.TestCase):
                         else CashOrNothingOption(**terms, payout=amount)
                     )
                     if overflow:
-                        self.category(
-                            ErrorCategory.INVALID_RESULT,
+                        self.assert_rejection(
+                            ComputationFailureError,
                             self.engine.price,
                             option,
                             context,
@@ -514,8 +519,8 @@ class DigitalTests(unittest.TestCase):
             math.isclose(result.delta, 1.984762737385059e300, rel_tol=1e-12)
         )
         self.assertIsNone(result.gamma)
-        self.category(
-            ErrorCategory.INVALID_RESULT,
+        self.assert_rejection(
+            ComputationFailureError,
             self.engine.price_with_greeks,
             option,
             context,
@@ -544,8 +549,8 @@ class DigitalTests(unittest.TestCase):
                         self.assertEqual(math.copysign(1, result.gamma), expected_sign)
                         self.assertGreater(abs(result.gamma), 1e200)
                     else:
-                        self.category(
-                            ErrorCategory.INVALID_RESULT,
+                        self.assert_rejection(
+                            ComputationFailureError,
                             self.engine.price_with_greeks,
                             option,
                             context,

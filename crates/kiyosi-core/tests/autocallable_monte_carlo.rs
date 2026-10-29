@@ -173,12 +173,10 @@ fn sampling_settings_counts_and_threads_preserve_prices_and_uncertainty() {
             ..Default::default()
         },
     ] {
-        assert_eq!(
-            MonteCarloAutocallableEngine::new(settings)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            MonteCarloAutocallableEngine::new(settings).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
 }
 
@@ -331,28 +329,24 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
     })
     .unwrap();
     let missing = SnowballOption::new(terms.clone()).unwrap();
-    assert_eq!(
+    assert!(matches!(
         engine
             .price(&missing, &market(100.0, date(1, 2)))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     terms.barrier_state = Some(AutocallableBarrierState::KnockedOut);
     let out = SnowballOption::new(terms.clone()).unwrap();
-    assert_eq!(
-        engine
-            .price(&out, &market(100.0, date(1, 1)))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidOption
-    );
+    assert!(matches!(
+        engine.price(&out, &market(100.0, date(1, 1))).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let estimate = engine
         .price_with_statistics(&out, &market(100.0, date(3, 3)))
         .unwrap();
     assert_eq!(estimate.price(), 0.0);
     assert_eq!(estimate.standard_error(), Some(0.0));
-    assert_eq!(
+    assert!(matches!(
         implied_volatility(
             &engine,
             &out,
@@ -360,10 +354,9 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
             0.0,
             Default::default()
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::UnsupportedOperation
-    );
+        .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     terms.barrier_state = Some(AutocallableBarrierState::None);
     let note = SnowballOption::new(terms).unwrap();
     for (spot, expected) in [
@@ -395,10 +388,10 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        engine.price(&note, &curved).unwrap_err().category,
-        ErrorCategory::UnsupportedOperation
-    );
+    assert!(matches!(
+        engine.price(&note, &curved).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
 }
 
 #[test]
@@ -423,13 +416,10 @@ fn sobol_dimension_limit_applies_only_to_remaining_simulation_dates() {
         ..Default::default()
     })
     .unwrap();
-    assert_eq!(
-        engine
-            .price(&note, &market(100.0, start))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&note, &market(100.0, start)).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     assert!(
         engine

@@ -3,8 +3,7 @@
 import unittest
 from datetime import date
 
-import kiyosi
-from kiyosi import pricing
+from kiyosi import InvalidInputError, pricing
 from kiyosi.instruments import AutocallableObservation, BinarySnowballOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
@@ -23,14 +22,12 @@ class AutocallableValidationTests(unittest.TestCase):
                 ],
             )
             for valuation, expected in (
-                (start, kiyosi.ErrorCategory.INVALID_DATE),
+                (start, InvalidInputError),
                 (
                     date(2025, 1, 3),
-                    kiyosi.ErrorCategory.INVALID_PARAMETER
-                    if history is None
-                    else kiyosi.ErrorCategory.INVALID_DATE,
+                    InvalidInputError,
                 ),
-                (date(2025, 1, 5), kiyosi.ErrorCategory.INVALID_TIME_RANGE),
+                (date(2025, 1, 5), InvalidInputError),
             ):
                 context = PricingContext(
                     model_parameters=BlackScholesMertonParameters(
@@ -59,6 +56,6 @@ class AutocallableValidationTests(unittest.TestCase):
                         with self.subTest(
                             history=history, valuation=valuation, engine=type(engine)
                         ):
-                            with self.assertRaises(kiyosi.KiyosiError) as error:
+                            with self.assertRaises(expected) as error:
                                 operation()
-                            self.assertEqual(error.exception.category, expected)
+                            self.assertIs(type(error.exception), expected)

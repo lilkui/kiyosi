@@ -198,18 +198,14 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
         .unwrap();
     let later = market(100.0, date(3, 3));
     assert_eq!(engine.price(&settled, &later).unwrap(), 0.0);
-    assert_eq!(
-        implied_volatility(&engine, &settled, &later, 0.0, Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
-    assert_eq!(
-        implied_coupon(&engine, &settled, &later, 0.0, Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+    assert!(matches!(
+        implied_volatility(&engine, &settled, &later, 0.0, Default::default()).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+    assert!(matches!(
+        implied_coupon(&engine, &settled, &later, 0.0, Default::default()).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     assert_eq!(note, original);
     assert_eq!(context.model_parameters().volatility(), 0.2);
 }
@@ -228,15 +224,14 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
             .time_step_count,
         200
     );
-    assert_eq!(
+    assert!(matches!(
         FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
             time_step_count: 0,
             ..Default::default()
         })
-        .unwrap_err()
-        .category,
-        ErrorCategory::InvalidParameter
-    );
+        .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let start = date(1, 1);
     let end = date(4, 1);
     let note = SnowballOption::new(SnowballTerms::new(
@@ -251,49 +246,39 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
     ))
     .unwrap();
     let engine = FiniteDifferenceAutocallableEngine::default();
-    assert_eq!(
-        engine
-            .price(&note, &market(100.0, date(1, 2)))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&note, &market(100.0, date(1, 2))).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let known = note.replace(Some(AutocallableBarrierState::None)).unwrap();
     let impossible = note
         .replace(Some(AutocallableBarrierState::KnockedOut))
         .unwrap();
-    assert_eq!(
+    assert!(matches!(
         engine
             .price(&impossible, &market(100.0, start))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidOption
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let clipped = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
         asset_upper_boundary: Some(110.0),
         ..Default::default()
     })
     .unwrap();
-    assert_eq!(
-        clipped
-            .price(&known, &market(100.0, start))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        clipped.price(&known, &market(100.0, start)).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let unstable = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
         time_step_count: 1,
         scheme: FiniteDifferenceScheme::ExplicitEuler,
         ..Default::default()
     })
     .unwrap();
-    assert_eq!(
-        unstable
-            .price(&known, &market(100.0, start))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        unstable.price(&known, &market(100.0, start)).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let ctx = market(100.0, start);
     let curve = RateTermStructure::new(
         start.into(),
@@ -335,10 +320,10 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        engine.price(&known, &short_ctx).unwrap_err().category,
-        ErrorCategory::InvalidTimeRange
-    );
+    assert!(matches!(
+        engine.price(&known, &short_ctx).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(note.barrier_state(), None);
 }
 
@@ -388,12 +373,10 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
         .unwrap();
     assert!((result.price() - 0.99).abs() < 1e-14);
     assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
-    assert_eq!(
-        implied_volatility(&engine, &fixed, &ctx, result.price(), Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+    assert!(matches!(
+        implied_volatility(&engine, &fixed, &ctx, result.price(), Default::default()).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
 }
 
 #[test]
@@ -495,8 +478,8 @@ fn explicit_uniform_grid_retains_the_legacy_top_node_stability_bound() {
         asset_upper_boundary: Some(400.0),
     })
     .unwrap();
-    assert_eq!(
-        engine.price(&note, &ctx).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&note, &ctx).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }

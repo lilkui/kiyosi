@@ -1,6 +1,5 @@
 use crate::{
-    Date, Error, ErrorCategory, EuropeanOption, OptionContract, OptionType, PricingContext, Result,
-    Timestamp,
+    Date, Error, EuropeanOption, OptionContract, OptionType, PricingContext, Result, Timestamp,
 };
 
 /// Denotes no realized average before averaging starts; see [`GeometricAveragePriceOption::new`].
@@ -22,18 +21,16 @@ impl AverageTerms {
         end: Date,
         realized: f64,
     ) -> Result<Self> {
-        crate::error::finite(strike, ErrorCategory::InvalidStrike, true)?;
+        crate::error::finite(strike, true)?;
         if !realized.is_finite() || realized < 0.0 {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "realized average must be finite and non-negative",
+            return Err(Error::InvalidInput(
+                "realized average must be finite and non-negative".into(),
             ));
         }
         let terms = EuropeanOption::new(direction, strike, start, end)?;
         if averaging < start || averaging > end {
-            return Err(Error::new(
-                ErrorCategory::InvalidSchedule,
-                "averaging start must be within contract life",
+            return Err(Error::InvalidInput(
+                "averaging start must be within contract life".into(),
             ));
         }
         Ok(Self {
@@ -46,15 +43,13 @@ impl AverageTerms {
         let valuation = context.valuation_time();
         let expiry = self.terms.expiry_date().start_of_day();
         if valuation < self.terms.effective_date().start_of_day() || valuation > expiry {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "valuation must be within contract life",
+            return Err(Error::InvalidInput(
+                "valuation must be within contract life".into(),
             ));
         }
         if (valuation > self.averaging_start.start_of_day()) == (self.realized == 0.0) {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "realized average must match the elapsed averaging period",
+            return Err(Error::InvalidInput(
+                "realized average must match the elapsed averaging period".into(),
             ));
         }
         Ok(valuation.years_until(expiry))
@@ -94,10 +89,9 @@ macro_rules! average_option {
             /// is required strictly after the averaging start, checked during pricing.
             ///
             /// # Errors
-            /// Returns [`ErrorCategory::InvalidStrike`] for invalid strike, then
-            /// [`ErrorCategory::InvalidParameter`] for negative/non-finite history,
-            /// [`ErrorCategory::InvalidTimeRange`] for reversed life dates, then
-            /// [`ErrorCategory::InvalidSchedule`] for averaging outside contract life.
+            /// Returns [`Error::InvalidInput`] for invalid strike, negative or non-finite
+            /// history, reversed life dates, or averaging outside contract life, checked in
+            /// that order.
             ///
             /// # Examples
             /// ```

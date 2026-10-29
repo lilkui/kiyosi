@@ -5,8 +5,12 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
-from kiyosi import ErrorCategory as E
-from kiyosi import KiyosiError, instruments
+from kiyosi import (
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+    instruments,
+)
 from kiyosi.instruments import (
     AutocallableObservation,
     BinarySnowballOption,
@@ -55,10 +59,10 @@ class SnowballVariantTests(unittest.TestCase):
                     engine.price(note, market(spot, END)), 0.5 + coupon * 90 / 365
                 )
 
-    def category(self, expected, operation, *args, **kwargs):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected, operation, *args, **kwargs):
+        with self.assertRaises(expected) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, expected)
+        self.assertIs(type(error.exception), expected)
 
     def fixed(self, kind, **changes):
         fields = {
@@ -296,27 +300,29 @@ class SnowballVariantTests(unittest.TestCase):
                     with self.assertRaises(TypeError):
                         self.fixed(kind, **{field: value})
                 for value in (math.nan, math.inf):
-                    self.category(
-                        E.INVALID_PARAMETER, self.fixed, kind, **{field: value}
+                    self.assert_rejection(
+                        InvalidInputError, self.fixed, kind, **{field: value}
                     )
-            for records, category in (
-                ([], E.INVALID_SCHEDULE),
-                ([AutocallableObservation(END, 0)], E.INVALID_PARAMETER),
+            for records, expected_error in (
+                ([], InvalidInputError),
+                ([AutocallableObservation(END, 0)], InvalidInputError),
                 (
                     [AutocallableObservation(END, 110, coupon_barrier_level=1)],
-                    E.INVALID_PARAMETER,
+                    InvalidInputError,
                 ),
             ):
-                self.category(category, self.fixed, kind, observations=records)
+                self.assert_rejection(
+                    expected_error, self.fixed, kind, observations=records
+                )
             with self.assertRaises(TypeError):
                 self.fixed(kind, observations=[object()])
             with self.assertRaises(TypeError):
                 self.fixed(kind, effective_date=datetime(2025, 1, 1))
-            self.category(
-                E.INVALID_TIME_RANGE, self.fixed, kind, expiry_date=date(2024, 12, 31)
+            self.assert_rejection(
+                InvalidInputError, self.fixed, kind, expiry_date=date(2024, 12, 31)
             )
-            self.category(
-                E.INVALID_SCHEDULE,
+            self.assert_rejection(
+                InvalidInputError,
                 self.fixed,
                 kind,
                 observations=[],
@@ -327,33 +333,35 @@ class SnowballVariantTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 note.replace(barrier_state=True)
             self.assertIsNone(note.barrier_state)
-            self.category(
-                E.INVALID_OPTION,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 note.replace(barrier_state="knocked_out"),
                 market(),
             )
-            self.category(
-                E.INVALID_PARAMETER, engine.price_with_greeks, note, market(), []
+            self.assert_rejection(
+                InvalidInputError, engine.price_with_greeks, note, market(), []
             )
-            self.category(
-                E.INVALID_TIME_RANGE, engine.price, note, market(100, date(2025, 4, 2))
+            self.assert_rejection(
+                InvalidInputError, engine.price, note, market(100, date(2025, 4, 2))
             )
         binary = self.fixed(BinarySnowballOption)
-        self.category(E.INVALID_PARAMETER, binary.replace, barrier_state="knocked_in")
+        self.assert_rejection(
+            InvalidInputError, binary.replace, barrier_state="knocked_in"
+        )
         self.assertIsNone(binary.barrier_state)
         for value in (True, "0.02"):
             with self.assertRaises(TypeError):
                 self.fixed(TernarySnowballOption, minimum_coupon_rate=value)
         for value in (0.07, math.inf, math.nan):
-            self.category(
-                E.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 self.fixed,
                 TernarySnowballOption,
                 minimum_coupon_rate=value,
             )
-        self.category(
-            E.INVALID_SCHEDULE,
+        self.assert_rejection(
+            InvalidInputError,
             self.fixed,
             TernarySnowballOption,
             observations=[],
@@ -362,8 +370,8 @@ class SnowballVariantTests(unittest.TestCase):
         daily = self.fixed(
             TernarySnowballOption, knock_in_observation_mode="every_trading_day"
         )
-        self.category(
-            E.INVALID_PARAMETER, engine.price, daily, market(100, date(2025, 1, 2))
+        self.assert_rejection(
+            InvalidInputError, engine.price, daily, market(100, date(2025, 1, 2))
         )
         self.assertEqual(
             engine.price(daily.replace(barrier_state="knocked_in"), market(100, END)),
@@ -371,7 +379,9 @@ class SnowballVariantTests(unittest.TestCase):
         )
         # Calendar applicability is checked before history and expiry settlement.
         curve = RateTermStructure(reference_time=START, times=[END], factors=[0.99])
-        self.category(E.UNSUPPORTED_OPERATION, engine.price, binary, market(rate=curve))
+        self.assert_rejection(
+            UnsupportedOperationError, engine.price, binary, market(rate=curve)
+        )
 
     def test_preset_rejections_and_strict_numeric_conversion(self):
         common = {
@@ -393,33 +403,33 @@ class SnowballVariantTests(unittest.TestCase):
             for value in (True, "100"):
                 with self.assertRaises(TypeError):
                     instruments.standard_snowball(**(common | {field: value}))
-        self.category(
-            E.INVALID_SCHEDULE,
+        self.assert_rejection(
+            InvalidInputError,
             instruments.standard_snowball,
             **(common | {"observation_dates": []}),
         )
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             instruments.loss_capped_snowball,
             **common,
             lower_strike=101,
         )
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             instruments.parachute_snowball,
             **common,
             final_knock_out_level=0,
         )
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             instruments.otm_snowball,
             **common,
             upper_strike=math.nan,
         )
         stepped = common.copy()
         stepped["initial_knock_out_level"] = stepped.pop("knock_out_level")
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             instruments.step_down_snowball,
             **stepped,
             knock_out_level_decrement=math.inf,
@@ -459,8 +469,8 @@ class SnowballVariantTests(unittest.TestCase):
                 engine, note, ctx, result.price, lower_bound=0.2, upper_bound=0.4
             )
             self.assertAlmostEqual(sigma, 0.3, delta=1e-6)
-            self.category(
-                E.UNBRACKETED_VOLATILITY, implied_volatility, engine, note, ctx, 10
+            self.assert_rejection(
+                RootNotBracketedError, implied_volatility, engine, note, ctx, 10
             )
             self.assertEqual(repr(note), original)
             self.assertEqual(ctx.model_parameters.volatility, 0.3)
@@ -489,8 +499,8 @@ class SnowballVariantTests(unittest.TestCase):
             self.assertIsNone(current.delta)
             self.assertIsNone(current.theta)
             self.assertEqual((current.vega, current.rho), (0, 0))
-            self.category(
-                E.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 implied_volatility,
                 engine,
                 note,
@@ -498,8 +508,8 @@ class SnowballVariantTests(unittest.TestCase):
                 current.price,
             )
             intraday = datetime(2025, 2, 3, 0, 0, 0, 1, UTC)
-            self.category(
-                E.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 note.replace(barrier_state=None),
                 market(110, intraday),
@@ -519,8 +529,8 @@ class SnowballVariantTests(unittest.TestCase):
             self.assertAlmostEqual(
                 engine.price(fixed, ctx), math.exp(-0.04 * 90 / 365), delta=1e-15
             )
-            self.category(
-                E.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 implied_volatility,
                 engine,
                 fixed,

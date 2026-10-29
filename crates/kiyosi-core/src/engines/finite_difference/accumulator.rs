@@ -8,10 +8,9 @@ impl FiniteDifferenceAccumulatorEngine {
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidTimeRange`] outside contract life or curve coverage,
-    /// [`ErrorCategory::InvalidDate`] for non-trading expiry, [`ErrorCategory::InvalidParameter`]
-    /// for clipped domains or unstable explicit steps, and [`ErrorCategory::InvalidResult`]
-    /// for numerical failures. Inputs remain unchanged on every outcome.
+    /// Returns [`Error::InvalidInput`] outside contract life or curve coverage,
+    /// for non-trading expiry, clipped domains or unstable explicit steps.
+    /// Numerical failures return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         Ok(native(
             option,
@@ -96,10 +95,7 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
 fn validate(option: &Accumulator, context: &PricingContext) -> Result<()> {
     time_to_expiry(option, context)?;
     if !context.calendar().is_trading_day(option.expiry_date()) {
-        return Err(Error::new(
-            ErrorCategory::InvalidDate,
-            "expiry must be a trading day",
-        ));
+        return Err(Error::InvalidInput("expiry must be a trading day".into()));
     }
     Ok(())
 }

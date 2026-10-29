@@ -6,7 +6,13 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from itertools import product
 
-from kiyosi import ErrorCategory, KiyosiError, pricing
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+    pricing,
+)
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure, weekdays_calendar
 from test_double_barrier import END, START, contract, market, reference
@@ -19,10 +25,10 @@ from test_double_barrier_finite_difference import (
 
 
 class DoubleBarrierMonteCarloTests(unittest.TestCase):
-    def assert_category(self, category, operation, *args, **kwargs):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation, *args, **kwargs):
+        with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_continuous_prices_and_shared_sample_greeks_match_quantlib(self):
         engine = pricing.MonteCarloDoubleBarrierEngine(
@@ -300,13 +306,9 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                     valuation_time=datetime(2025, 1, 1, tzinfo=UTC)
                     + timedelta(microseconds=1)
                 )
-                self.assert_category(
-                    ErrorCategory.INVALID_PARAMETER, engine.price, option, later
-                )
+                self.assert_rejection(InvalidInputError, engine.price, option, later)
                 touched = option.replace(touch_state="touched")
-                self.assert_category(
-                    ErrorCategory.INVALID_OPTION, engine.price, touched, context
-                )
+                self.assert_rejection(InvalidInputError, engine.price, touched, context)
                 self.assertEqual(
                     engine.price(touched, later), analytic.price(touched, later)
                 )
@@ -389,7 +391,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             {"thread_count": -1},
             {"path_count": 3, "sampling": "sobol"},
         ):
-            self.assert_category(ErrorCategory.INVALID_PARAMETER, factory, **fields)
+            self.assert_rejection(InvalidInputError, factory, **fields)
         for seed in (-1, 2**64):
             with self.assertRaises(OverflowError):
                 factory(seed=seed)
@@ -425,15 +427,15 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             {"upper_barrier": 80},
             {"upper_barrier": math.inf},
         ):
-            self.assert_category(ErrorCategory.INVALID_PARAMETER, contract, **fields)
-        self.assert_category(
-            ErrorCategory.INVALID_OPTION,
+            self.assert_rejection(InvalidInputError, contract, **fields)
+        self.assert_rejection(
+            InvalidInputError,
             contract,
             barrier_type="knock_in",
             rebate_timing="at_hit",
         )
 
-    def test_error_categories_validation_order_and_failure_state(self):
+    def test_errors_validation_order_and_failure_state(self):
         engine = pricing.MonteCarloDoubleBarrierEngine(path_count=32, seed=42)
         option, context = contract(), market()
         quote = engine.price(option, context)
@@ -442,18 +444,18 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         )
         for changes in ({"rate": curve}, {"dividend": curve}):
             curved = market(**changes)
-            self.assert_category(
-                ErrorCategory.UNSUPPORTED_OPERATION, engine.price, option, curved
+            self.assert_rejection(
+                UnsupportedOperationError, engine.price, option, curved
             )
-            self.assert_category(
-                ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 engine.price_with_greeks,
                 option,
                 curved,
                 [],
             )
-            self.assert_category(
-                ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
                 option,
@@ -461,21 +463,21 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 math.nan,
             )
         for time in (START - timedelta(days=1), END + timedelta(days=1)):
-            self.assert_category(
-                ErrorCategory.INVALID_TIME_RANGE,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 option,
                 market(time=time),
             )
-        self.assert_category(
-            ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             option,
             context,
             [],
         )
-        self.assert_category(
-            ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             option,
             context,
@@ -483,8 +485,8 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             spot_shift=0,
         )
         for rate, volatility in ((-1000, 0.2), (0.04, 50)):
-            self.assert_category(
-                ErrorCategory.INVALID_RESULT,
+            self.assert_rejection(
+                ComputationFailureError,
                 engine.price,
                 option,
                 market(rate=rate, dividend=rate, volatility=volatility),
@@ -492,8 +494,8 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         tiny = market(volatility=1e-200)
         price = engine.price(option, tiny)
         self.assertEqual(engine.price_with_greeks(option, tiny, "rho").price, price)
-        self.assert_category(
-            ErrorCategory.INVALID_RESULT,
+        self.assert_rejection(
+            ComputationFailureError,
             engine.price_with_greeks,
             option,
             tiny,
@@ -502,8 +504,8 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         invalid = contract(
             observation_mode="scheduled", observation_dates=[START + timedelta(days=3)]
         )
-        self.assert_category(
-            ErrorCategory.INVALID_DATE,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             invalid,
             context.replace(calendar=weekdays_calendar()),
@@ -528,13 +530,13 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=4) as pool:
             for sigma in pool.map(solve, range(8)):
                 self.assertAlmostEqual(sigma, 0.2, delta=1e-5)
-        for observed, controls, category in (
-            (-1, {}, ErrorCategory.UNBRACKETED_VOLATILITY),
-            (math.nan, {}, ErrorCategory.INVALID_PARAMETER),
-            (quote, {"max_iterations": 0}, ErrorCategory.INVALID_PARAMETER),
+        for observed, controls, expected_error in (
+            (-1, {}, RootNotBracketedError),
+            (math.nan, {}, InvalidInputError),
+            (quote, {"max_iterations": 0}, InvalidInputError),
         ):
-            self.assert_category(
-                category,
+            self.assert_rejection(
+                expected_error,
                 pricing.implied_volatility,
                 engine,
                 option,
@@ -557,8 +559,8 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             (contract(option_type="put", strike=75), market()),
             (contract(touch_state="untouched"), market(time=END)),
         ):
-            self.assert_category(
-                ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
                 option,
@@ -579,6 +581,4 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         engine = pricing.MonteCarloDoubleBarrierEngine(
             path_count=1, seed=42, sampling="sobol"
         )
-        self.assert_category(
-            ErrorCategory.INVALID_PARAMETER, engine.price, option, market()
-        )
+        self.assert_rejection(InvalidInputError, engine.price, option, market())

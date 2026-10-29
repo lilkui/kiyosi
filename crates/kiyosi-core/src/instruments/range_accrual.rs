@@ -1,4 +1,4 @@
-use crate::{Date, Error, ErrorCategory, OptionContract, PricingContext, Result, Timestamp};
+use crate::{Date, Error, OptionContract, PricingContext, Result, Timestamp};
 
 /// Supplies equally weighted range-coupon terms; see [`RangeAccrualOption::new`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -55,8 +55,8 @@ impl RangeAccrualOption {
     /// Validates finite amounts, ordered bounds, nonnegative history and positive term.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] for invalid amounts, bounds or negative
-    /// history, then [`ErrorCategory::InvalidTimeRange`] for nonpositive contract life.
+    /// Returns [`Error::InvalidInput`] for invalid amounts, bounds or negative
+    /// history, then for nonpositive contract life.
     /// History relative to valuation is validated by [`crate::AnalyticRangeAccrualEngine::price`].
     ///
     /// # Examples
@@ -82,15 +82,13 @@ impl RangeAccrualOption {
             || terms.lower_bound >= terms.upper_bound
             || terms.realized_hit_count.is_some_and(|n| n < 0)
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "invalid range accrual amounts, bounds or history",
+            return Err(Error::InvalidInput(
+                "invalid range accrual amounts, bounds or history".into(),
             ));
         }
         if terms.expiry_date <= terms.effective_date {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "range accrual requires a positive contract term",
+            return Err(Error::InvalidInput(
+                "range accrual requires a positive contract term".into(),
             ));
         }
         Ok(Self { terms })

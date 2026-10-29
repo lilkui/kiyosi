@@ -33,21 +33,19 @@ fn history_is_strictly_prior_and_boundary_hit_rebates_are_not_paid_twice() {
         7.0
     );
     let later = Timestamp::new(Date::new(2025, 1, 2).unwrap(), 0, 0, 0, 0).unwrap();
-    assert_eq!(
+    assert!(matches!(
         AnalyticBarrierEngine
             .price(&option, &market(100.0, later))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let touched = option.replace(Some(BarrierTouchState::Touched)).unwrap();
-    assert_eq!(
+    assert!(matches!(
         AnalyticBarrierEngine
             .price(&touched, &market(100.0, start))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidOption
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(
         AnalyticBarrierEngine
             .price(&touched, &market(100.0, later))
@@ -172,30 +170,30 @@ fn construction_defaults_validation_order_and_calendar_are_core_semantics() {
         let mut invalid = t.clone();
         invalid.barrier_level = value;
         invalid.strike = -1.0;
-        assert_eq!(
-            BarrierOption::new(invalid).unwrap_err().category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            BarrierOption::new(invalid).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let mut invalid = t.clone();
     invalid.strike = -1.0;
-    assert_eq!(
-        BarrierOption::new(invalid).unwrap_err().category,
-        ErrorCategory::InvalidStrike
-    );
+    assert!(matches!(
+        BarrierOption::new(invalid).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let mut invalid = t.clone();
     invalid.expiry_date = Date::new(2024, 1, 1).unwrap();
-    assert_eq!(
-        BarrierOption::new(invalid).unwrap_err().category,
-        ErrorCategory::InvalidTimeRange
-    );
+    assert!(matches!(
+        BarrierOption::new(invalid).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let mut invalid = t.clone();
     invalid.barrier_type = BarrierType::UpAndIn;
     invalid.rebate_timing = RebateTiming::AtHit;
-    assert_eq!(
-        BarrierOption::new(invalid).unwrap_err().category,
-        ErrorCategory::InvalidOption
-    );
+    assert!(matches!(
+        BarrierOption::new(invalid).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let mut scheduled = t.clone();
     scheduled.observation_mode = ObservationMode::Scheduled;
     for dates in [
@@ -205,20 +203,19 @@ fn construction_defaults_validation_order_and_calendar_are_core_semantics() {
         vec![Date::new(2026, 1, 2).unwrap()],
     ] {
         scheduled.observation_dates = dates;
-        assert_eq!(
-            BarrierOption::new(scheduled.clone()).unwrap_err().category,
-            ErrorCategory::InvalidSchedule
-        );
+        assert!(matches!(
+            BarrierOption::new(scheduled.clone()).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     scheduled.observation_dates = vec![Date::new(2025, 1, 4).unwrap()];
     let weekend = BarrierOption::new(scheduled).unwrap();
-    assert_eq!(
+    assert!(matches!(
         AnalyticBarrierEngine
             .price(&weekend, &market(100.0, t.effective_date.into()))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidDate
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(option, BarrierOption::new(t).unwrap());
 }
 
@@ -268,7 +265,7 @@ fn expiry_settlement_matrix_includes_equality_and_paid_rebates() {
                         AnalyticBarrierEngine.price(&option, &context).unwrap(),
                         expected
                     );
-                    assert_eq!(
+                    assert!(matches!(
                         implied_volatility(
                             &AnalyticBarrierEngine,
                             &option,
@@ -276,10 +273,9 @@ fn expiry_settlement_matrix_includes_equality_and_paid_rebates() {
                             expected,
                             Default::default()
                         )
-                        .unwrap_err()
-                        .category,
-                        ErrorCategory::UnsupportedOperation
-                    );
+                        .unwrap_err(),
+                        Error::UnsupportedOperation(_)
+                    ));
                 }
             }
         }
@@ -294,13 +290,12 @@ fn completed_schedules_resolve_before_analytic_applicability_and_do_not_repeat_f
     t.observation_dates = vec![fixing];
     t.rebate = 7.0;
     let option = BarrierOption::new(t.clone()).unwrap();
-    assert_eq!(
+    assert!(matches!(
         AnalyticBarrierEngine
             .price(&option, &market(100.0, t.effective_date.into()))
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let hit = market(120.0, fixing.into());
     assert!(
         (AnalyticBarrierEngine.price(&option, &hit).unwrap()
@@ -309,13 +304,12 @@ fn completed_schedules_resolve_before_analytic_applicability_and_do_not_repeat_f
             < 1e-12
     );
     let noon = Timestamp::new(fixing, 12, 0, 0, 0).unwrap();
-    assert_eq!(
+    assert!(matches!(
         AnalyticBarrierEngine
             .price(&option, &market(150.0, noon))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let untouched = option.replace(Some(BarrierTouchState::Untouched)).unwrap();
     let vanilla =
         EuropeanOption::new(t.option_type, t.strike, t.effective_date, t.expiry_date).unwrap();
@@ -328,13 +322,12 @@ fn completed_schedules_resolve_before_analytic_applicability_and_do_not_repeat_f
             .unwrap()
     );
     let touched = option.replace(Some(BarrierTouchState::Touched)).unwrap();
-    assert_eq!(
+    assert!(matches!(
         AnalyticBarrierEngine
             .price(&touched, &market(150.0, fixing.into()))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidOption
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
@@ -503,7 +496,7 @@ fn scheduled_requests_validate_calendar_once_and_keep_state_local() {
     let sigma = implied_volatility(&engine, &option, &context, result.price(), settings).unwrap();
     assert!((sigma - 0.2).abs() < 1e-7);
     assert_eq!(queries.swap(0, Ordering::Relaxed), 2);
-    assert_eq!(
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -514,10 +507,9 @@ fn scheduled_requests_validate_calendar_once_and_keep_state_local() {
                     ..Default::default()
                 }
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(queries.load(Ordering::Relaxed), 0);
     std::thread::scope(|scope| {
         let first = scope.spawn(|| {
@@ -565,13 +557,12 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
                 ..Default::default()
             })
             .unwrap();
-        assert_eq!(
+        assert!(matches!(
             AnalyticBarrierEngine
                 .price(&scheduled, &outside)
-                .unwrap_err()
-                .category,
-            ErrorCategory::UnsupportedOperation
-        );
+                .unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
     }
     let t = terms(BarrierType::UpAndOut);
     let option = BarrierOption::new(t.clone())
@@ -598,7 +589,7 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
+    assert!(matches!(
         AnalyticBarrierEngine
             .price_with_greeks(
                 &option,
@@ -606,46 +597,37 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let controls = ImpliedVolatilitySettings {
         lower_bound: 0.0,
         ..Default::default()
     };
-    assert_eq!(
-        implied_volatility(&AnalyticBarrierEngine, &option, &curved, 1.0, controls)
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
-    assert_eq!(
-        implied_volatility(&AnalyticBarrierEngine, &option, &context, 1.0, controls)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        implied_volatility(&AnalyticBarrierEngine, &option, &curved, 1.0, controls).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+    assert!(matches!(
+        implied_volatility(&AnalyticBarrierEngine, &option, &context, 1.0, controls).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let controls = ImpliedVolatilitySettings {
         lower_bound: 0.15,
         upper_bound: 0.25,
         ..Default::default()
     };
-    assert_eq!(
-        implied_volatility(&AnalyticBarrierEngine, &option, &context, -1.0, controls)
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnbracketedVolatility
-    );
+    assert!(matches!(
+        implied_volatility(&AnalyticBarrierEngine, &option, &context, -1.0, controls).unwrap_err(),
+        Error::RootNotBracketed(_)
+    ));
     assert_eq!(option.touch_state(), Some(BarrierTouchState::Untouched));
     let resolved = option.replace(Some(BarrierTouchState::Touched)).unwrap();
     let later = market(100.0, Date::new(2025, 1, 2).unwrap().into());
-    assert_eq!(
-        implied_volatility(&AnalyticBarrierEngine, &resolved, &later, 0.0, controls)
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+    assert!(matches!(
+        implied_volatility(&AnalyticBarrierEngine, &resolved, &later, 0.0, controls).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
 }
 
 #[test]
@@ -814,14 +796,14 @@ fn publicly_prepared_requests_revalidate_different_schedules_and_calendars() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        prepared.price(&option, &restricted).unwrap_err().category,
-        ErrorCategory::InvalidDate
-    );
+    assert!(matches!(
+        prepared.price(&option, &restricted).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     t.observation_dates = vec![Date::new(2025, 1, 4).unwrap()];
     let weekend = BarrierOption::new(t).unwrap();
-    assert_eq!(
-        prepared.price(&weekend, &context).unwrap_err().category,
-        ErrorCategory::InvalidDate
-    );
+    assert!(matches!(
+        prepared.price(&weekend, &context).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }

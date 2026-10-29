@@ -5,8 +5,11 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
-from kiyosi import ErrorCategory as E
-from kiyosi import KiyosiError
+from kiyosi import (
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import (
     AutocallableObservation,
     SnowballOption,
@@ -68,10 +71,10 @@ class SnowballTests(unittest.TestCase):
         ):
             self.assertAlmostEqual(engine.price(note, market(spot, END)), expected)
 
-    def category(self, expected, operation, *args, **kwargs):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected, operation, *args, **kwargs):
+        with self.assertRaises(expected) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, expected)
+        self.assertIs(type(error.exception), expected)
 
     def test_core_defaults_ownership_and_native_protocol_errors(self):
         engine = QuadratureAutocallableEngine()
@@ -135,42 +138,44 @@ class SnowballTests(unittest.TestCase):
             note.initial_spot = 5
 
     def test_domain_validation_timing_and_failure_state(self):
-        self.category(E.INVALID_SCHEDULE, autocallable_observations, [END], [])
-        for fields, category in (
-            ({"observations": []}, E.INVALID_SCHEDULE),
+        self.assert_rejection(InvalidInputError, autocallable_observations, [END], [])
+        for fields, expected_error in (
+            ({"observations": []}, InvalidInputError),
             (
                 {"observations": [AutocallableObservation(END, 110)] * 2},
-                E.INVALID_SCHEDULE,
+                InvalidInputError,
             ),
-            ({"lower_strike": 101}, E.INVALID_PARAMETER),
-            ({"initial_spot": 0}, E.INVALID_PARAMETER),
-            ({"maturity_coupon_rate": math.inf}, E.INVALID_PARAMETER),
+            ({"lower_strike": 101}, InvalidInputError),
+            ({"initial_spot": 0}, InvalidInputError),
+            ({"maturity_coupon_rate": math.inf}, InvalidInputError),
             (
                 {
                     "observations": [
                         AutocallableObservation(END, 110, coupon_barrier_level=1)
                     ]
                 },
-                E.INVALID_PARAMETER,
+                InvalidInputError,
             ),
-            ({"expiry_date": date(2024, 1, 1)}, E.INVALID_TIME_RANGE),
+            ({"expiry_date": date(2024, 1, 1)}, InvalidInputError),
         ):
-            self.category(category, contract, **fields)
+            self.assert_rejection(expected_error, contract, **fields)
         # Records retain input values until the authoritative note constructor validates them.
         invalid = AutocallableObservation(END, math.nan)
-        self.category(E.INVALID_PARAMETER, contract, observations=[invalid])
+        self.assert_rejection(InvalidInputError, contract, observations=[invalid])
         engine = QuadratureAutocallableEngine()
         unknown = contract(knock_in_observation_mode="every_trading_day")
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             unknown,
             market(valuation=date(2025, 1, 2)),
         )
         impossible = contract(barrier_state="knocked_in")
-        self.category(E.INVALID_OPTION, engine.price, impossible, market(valuation=END))
-        self.category(
-            E.INVALID_OPTION,
+        self.assert_rejection(
+            InvalidInputError, engine.price, impossible, market(valuation=END)
+        )
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             unknown.replace(barrier_state="knocked_out"),
             market(),
@@ -180,26 +185,26 @@ class SnowballTests(unittest.TestCase):
             expiry_date=date(2025, 4, 5),
             observations=[AutocallableObservation(date(2025, 2, 1), 110)],
         )
-        self.category(E.INVALID_DATE, engine.price, nontrading, market())
+        self.assert_rejection(InvalidInputError, engine.price, nontrading, market())
         nontrading = contract(
             expiry_date=date(2025, 4, 5),
             observations=[AutocallableObservation(date(2025, 2, 3), 110)],
         )
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             nontrading,
             market(valuation=date(2025, 3, 3)),
         )
-        self.category(
-            E.INVALID_DATE,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             nontrading.replace(barrier_state="none"),
             market(valuation=date(2025, 3, 3)),
         )
         for valuation in (date(2024, 12, 31), datetime(2025, 4, 1, 0, 0, 0, 1, UTC)):
-            self.category(
-                E.INVALID_TIME_RANGE,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 contract(),
                 market(valuation=valuation),
@@ -209,18 +214,18 @@ class SnowballTests(unittest.TestCase):
             times=[END],
             factors=[math.exp(-0.04 * 90 / 365)],
         )
-        self.category(
-            E.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             engine.price_with_greeks,
             contract(),
             market(rate=curve),
             [],
         )
-        self.category(
-            E.INVALID_PARAMETER, engine.price_with_greeks, contract(), market(), []
+        self.assert_rejection(
+            InvalidInputError, engine.price_with_greeks, contract(), market(), []
         )
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             contract(),
             market(),
@@ -322,8 +327,8 @@ class SnowballTests(unittest.TestCase):
         self.assertIsNone(result.gamma)
         self.assertIsNone(result.theta)
         self.assertEqual((result.vega, result.rho), (0, 0))
-        self.category(
-            E.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             implied_volatility,
             engine,
             note,
@@ -331,8 +336,8 @@ class SnowballTests(unittest.TestCase):
             result.price,
         )
         past = market(110, datetime(2025, 2, 3, 0, 0, 0, 1, UTC))
-        self.category(
-            E.INVALID_PARAMETER, engine.price, note.replace(barrier_state=None), past
+        self.assert_rejection(
+            InvalidInputError, engine.price, note.replace(barrier_state=None), past
         )
         settled = note.replace(barrier_state="knocked_out")
         result = engine.price_with_greeks(
@@ -370,7 +375,9 @@ class SnowballTests(unittest.TestCase):
             {"integration_standard_deviations": 0},
             {"integration_standard_deviations": math.nan},
         ):
-            self.category(E.INVALID_PARAMETER, QuadratureAutocallableEngine, **fields)
+            self.assert_rejection(
+                InvalidInputError, QuadratureAutocallableEngine, **fields
+            )
         note = contract(
             lower_strike=100,
             maturity_coupon_rate=0,
@@ -383,8 +390,8 @@ class SnowballTests(unittest.TestCase):
         self.assertAlmostEqual(result.price, math.exp(-0.04 * 90 / 365), delta=1e-15)
         self.assertEqual(result.delta, 0)
         self.assertGreater(result.rho * -1, 0)
-        self.category(
-            E.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             implied_volatility,
             engine,
             note,
@@ -469,8 +476,8 @@ class SnowballTests(unittest.TestCase):
             price_tolerance=1e-11,
         )
         self.assertAlmostEqual(solved, vol, delta=1e-7)
-        self.category(
-            E.UNBRACKETED_VOLATILITY,
+        self.assert_rejection(
+            RootNotBracketedError,
             implied_volatility,
             engine,
             note,

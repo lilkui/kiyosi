@@ -1,6 +1,6 @@
 use super::{Moments, estimate, path_samples, random_seed, scaled_value, unstable};
 use crate::{
-    Accumulator, Error, ErrorCategory, GreeksRequest, MonteCarloEstimate, MonteCarloSettings,
+    Accumulator, Error, GreeksRequest, MonteCarloEstimate, MonteCarloSettings,
     MonteCarloVanillaEngine, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
     Result,
 };
@@ -81,13 +81,13 @@ impl MonteCarloAccumulatorEngine {
     /// Calls finish synchronously without cancellation polling. See [`Self::new`].
     ///
     /// # Errors
-    /// Checks flat rates ([`ErrorCategory::UnsupportedOperation`]), inclusive life
-    /// ([`ErrorCategory::InvalidTimeRange`]), then trading expiry
-    /// ([`ErrorCategory::InvalidDate`]), including for fixed settlements.
-    /// Sobol dimensions above 21,201 return [`ErrorCategory::InvalidParameter`].
+    /// Checks flat rates ([`Error::UnsupportedOperation`]), inclusive life
+    /// ([`Error::InvalidInput`]), then trading expiry
+    /// ([`Error::InvalidInput`]), including for fixed settlements.
+    /// Sobol dimensions above 21,201 return [`Error::InvalidInput`].
     /// Non-finite paths, quantities, settlements or uncertainty return
-    /// [`ErrorCategory::InvalidResult`]. Entropy and thread failures retain native
-    /// I/O details through [`Error::operational_error`]. Inputs remain unchanged.
+    /// [`Error::ComputationFailure`]. Entropy and thread failures retain native
+    /// I/O details through [`Error::Io`]. Inputs remain unchanged.
     ///
     /// # Panics
     /// Resumes worker panics after joining the call's workers.
@@ -105,16 +105,12 @@ impl MonteCarloAccumulatorEngine {
         if context.valuation_time() < option.effective_date().start_of_day()
             || context.valuation_time() > option.expiry_date().start_of_day()
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "valuation must be within contract life",
+            return Err(Error::InvalidInput(
+                "valuation must be within contract life".into(),
             ));
         }
         if !context.calendar().is_trading_day(option.expiry_date()) {
-            return Err(Error::new(
-                ErrorCategory::InvalidDate,
-                "expiry must be a trading day",
-            ));
+            return Err(Error::InvalidInput("expiry must be a trading day".into()));
         }
         let (quantity, settlement) = option.initial(context);
         if let Some(value) = settlement {

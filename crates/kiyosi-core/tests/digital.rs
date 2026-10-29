@@ -150,7 +150,7 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
                     assert_eq!(result.price(), expected);
                     assert!(result.values().iter().all(Option::is_none));
                 }
-                assert_eq!(
+                assert!(matches!(
                     implied_volatility(
                         &AnalyticDigitalEngine,
                         &option,
@@ -158,10 +158,9 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
                         expected,
                         Default::default()
                     )
-                    .unwrap_err()
-                    .category,
-                    ErrorCategory::UnsupportedOperation
-                );
+                    .unwrap_err(),
+                    Error::UnsupportedOperation(_)
+                ));
                 for at in [
                     Timestamp::new(Date::new(2024, 12, 31).unwrap(), 23, 59, 59, 999999).unwrap(),
                     Timestamp::new(end, 0, 0, 0, 1).unwrap(),
@@ -172,14 +171,11 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
                             ..Default::default()
                         })
                         .unwrap();
-                    assert_eq!(
-                        AnalyticDigitalEngine
-                            .price(&option, &outside)
-                            .unwrap_err()
-                            .category,
-                        ErrorCategory::InvalidTimeRange
-                    );
-                    assert_eq!(
+                    assert!(matches!(
+                        AnalyticDigitalEngine.price(&option, &outside).unwrap_err(),
+                        Error::InvalidInput(_)
+                    ));
+                    assert!(matches!(
                         AnalyticDigitalEngine
                             .price_with_greeks(
                                 &option,
@@ -187,10 +183,9 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
                                 GreeksRequest::default(),
                                 Default::default()
                             )
-                            .unwrap_err()
-                            .category,
-                        ErrorCategory::InvalidParameter
-                    );
+                            .unwrap_err(),
+                        Error::InvalidInput(_)
+                    ));
                 }
             }
         }
@@ -203,53 +198,46 @@ fn constructors_and_replacements_validate_before_returning_owned_values() {
     let cash = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
     let asset = DigitalOption::asset_or_nothing(OptionType::Put, 100.0, start, end).unwrap();
     for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
-        assert_eq!(
-            DigitalOption::cash_or_nothing(OptionType::Call, 0.0, bad, end, start)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
-        assert_eq!(
-            DigitalOption::asset_or_nothing(OptionType::Call, bad, start, end)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidStrike
-        );
-        assert_eq!(
+        assert!(matches!(
+            DigitalOption::cash_or_nothing(OptionType::Call, 0.0, bad, end, start).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
+            DigitalOption::asset_or_nothing(OptionType::Call, bad, start, end).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
             cash.replace(DigitalOptionChanges {
                 payout: Some(bad),
                 ..Default::default()
             })
-            .unwrap_err()
-            .category,
-            ErrorCategory::InvalidParameter
-        );
+            .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
         for option in [&cash, &asset] {
-            assert_eq!(
+            assert!(matches!(
                 option
                     .replace(DigitalOptionChanges {
                         strike: Some(bad),
                         ..Default::default()
                     })
-                    .unwrap_err()
-                    .category,
-                ErrorCategory::InvalidStrike
-            );
+                    .unwrap_err(),
+                Error::InvalidInput(_)
+            ));
         }
     }
     for option in [&cash, &asset] {
         assert_eq!(option.replace(Default::default()).unwrap(), *option);
-        assert_eq!(
+        assert!(matches!(
             option
                 .replace(DigitalOptionChanges {
                     effective_date: Some(end),
                     expiry_date: Some(start),
                     ..Default::default()
                 })
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidTimeRange
-        );
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
         let updated = option
             .replace(DigitalOptionChanges {
                 option_type: Some(OptionType::Put),
@@ -265,16 +253,15 @@ fn constructors_and_replacements_validate_before_returning_owned_values() {
         assert_eq!(option.expiry_date(), end);
     }
     assert_eq!(cash.payout(), Some(10.0));
-    assert_eq!(
+    assert!(matches!(
         asset
             .replace(DigitalOptionChanges {
                 payout: Some(10.0),
                 ..Default::default()
             })
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
 }
 
 #[test]
@@ -336,7 +323,7 @@ fn selected_greeks_preserve_finite_results_and_tiny_volatility_gamma() {
         .unwrap();
     assert!((selected.require(Greek::Delta).unwrap() / 1.984762737385059e300 - 1.0).abs() < 1e-12);
     assert_eq!(selected.get(Greek::Gamma), None);
-    assert_eq!(
+    assert!(matches!(
         AnalyticDigitalEngine
             .price_with_greeks(
                 &option,
@@ -344,10 +331,9 @@ fn selected_greeks_preserve_finite_results_and_tiny_volatility_gamma() {
                 GreeksRequest::new([Greek::Gamma]),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
     for sigma in [1e-200, f64::from_bits(1)] {
         let context = market(100.0, 0.0, 0.0, sigma)
             .replace(PricingContextChanges {
@@ -383,7 +369,7 @@ fn selected_greeks_preserve_finite_results_and_tiny_volatility_gamma() {
                 let value = gamma.unwrap().require(Greek::Gamma).unwrap();
                 assert!(value.is_finite() && value.signum() == sign && value.abs() > 1e200);
             } else {
-                assert_eq!(gamma.unwrap_err().category, ErrorCategory::InvalidResult);
+                assert!(matches!(gamma.unwrap_err(), Error::ComputationFailure(_)));
             }
         }
     }
@@ -591,17 +577,16 @@ fn digital_analysis_preserves_settings_solver_and_curve_horizon_failures() {
                     ..Default::default()
                 },
             ] {
-                assert_eq!(
+                assert!(matches!(
                     AnalyticDigitalEngine
                         .price_with_greeks(&option, &context, GreeksRequest::all(), settings)
-                        .unwrap_err()
-                        .category,
-                    ErrorCategory::InvalidParameter
-                );
+                        .unwrap_err(),
+                    Error::InvalidInput(_)
+                ));
             }
         }
         for quote in [-1.0, 1000.0] {
-            assert_eq!(
+            assert!(matches!(
                 implied_volatility(
                     &AnalyticDigitalEngine,
                     &option,
@@ -609,12 +594,11 @@ fn digital_analysis_preserves_settings_solver_and_curve_horizon_failures() {
                     quote,
                     Default::default()
                 )
-                .unwrap_err()
-                .category,
-                ErrorCategory::UnbracketedVolatility
-            );
+                .unwrap_err(),
+                Error::RootNotBracketed(_)
+            ));
         }
-        assert_eq!(
+        assert!(matches!(
             implied_volatility(
                 &AnalyticDigitalEngine,
                 &option,
@@ -622,10 +606,9 @@ fn digital_analysis_preserves_settings_solver_and_curve_horizon_failures() {
                 f64::NAN,
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-            ErrorCategory::InvalidParameter
-        );
+            .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
         let curve = RateTermStructure::new(
             start.into(),
             vec![Date::new(2025, 6, 1).unwrap().into()],
@@ -646,14 +629,11 @@ fn digital_analysis_preserves_settings_solver_and_curve_horizon_failures() {
                 ..Default::default()
             })
             .unwrap();
-        assert_eq!(
-            AnalyticDigitalEngine
-                .price(&option, &short)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidTimeRange
-        );
-        assert_eq!(
+        assert!(matches!(
+            AnalyticDigitalEngine.price(&option, &short).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
             implied_volatility(
                 &AnalyticDigitalEngine,
                 &option,
@@ -661,10 +641,9 @@ fn digital_analysis_preserves_settings_solver_and_curve_horizon_failures() {
                 quote,
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-            ErrorCategory::InvalidTimeRange
-        );
+            .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
         assert_eq!(context.model_parameters().volatility(), 0.2);
         assert_eq!(
             AnalyticDigitalEngine.price(&option, &context).unwrap(),

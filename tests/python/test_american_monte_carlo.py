@@ -10,7 +10,12 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import QuantLib as ql
-from kiyosi import ErrorCategory, KiyosiError
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import AmericanOption, CashOrNothingOption, EuropeanOption
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import (
@@ -28,10 +33,10 @@ def contract(direction="put", strike=100):
 
 
 class AmericanMonteCarloTests(unittest.TestCase):
-    def category(self, expected, operation, *args, **kwargs):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected, operation, *args, **kwargs):
+        with self.assertRaises(expected) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, expected)
+        self.assertIs(type(error.exception), expected)
 
     def test_immediate_exercise_and_minimum_grid_validation_timing(self):
         option = contract()
@@ -39,14 +44,14 @@ class AmericanMonteCarloTests(unittest.TestCase):
         engine = MonteCarloVanillaEngine(path_count=4096, seed=42)
         self.assertAlmostEqual(engine.price(option, context), 50, delta=1e-10)
         engine = MonteCarloVanillaEngine(step_count=2, seed=42)
-        self.category(ErrorCategory.INVALID_PARAMETER, engine.price, option, context)
+        self.assert_rejection(InvalidInputError, engine.price, option, context)
         expiry = context.replace(valuation_time=END)
         self.assertEqual(engine.price(option, expiry), 50)
         result = engine.price_with_greeks(option, expiry, all_greeks=True)
         self.assertEqual(result.price, 50)
         self.assertTrue(all(getattr(result, name) is None for name in GREEKS))
-        self.category(
-            ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             implied_volatility,
             engine,
             option,
@@ -57,8 +62,8 @@ class AmericanMonteCarloTests(unittest.TestCase):
             START - timedelta(days=1),
             datetime(2026, 1, 1, 0, 0, 0, 1, tzinfo=UTC),
         ):
-            self.category(
-                ErrorCategory.INVALID_TIME_RANGE,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 option,
                 context.replace(valuation_time=valuation),
@@ -181,8 +186,8 @@ class AmericanMonteCarloTests(unittest.TestCase):
                     upper_bound=0.25,
                 )
                 self.assertAlmostEqual(solved, 0.2, delta=1e-7)
-                self.category(
-                    ErrorCategory.UNBRACKETED_VOLATILITY,
+                self.assert_rejection(
+                    RootNotBracketedError,
                     implied_volatility,
                     engine,
                     option,
@@ -223,8 +228,8 @@ class AmericanMonteCarloTests(unittest.TestCase):
                 with self.assertRaises(TypeError):
                     engine.price_with_greeks(option, context, "delta", **{name: value})
             for value in (0, -1, math.inf, math.nan):
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     engine.price_with_greeks,
                     option,
                     context,
@@ -242,25 +247,25 @@ class AmericanMonteCarloTests(unittest.TestCase):
         curved = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=curve)
         )
-        self.category(
-            ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             engine.price_with_greeks,
             option,
             curved,
             [],
         )
-        self.category(
-            ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             option,
             context,
             [],
         )
-        self.category(
-            ErrorCategory.INVALID_RESULT, engine.price, option, market(sigma=1000)
+        self.assert_rejection(
+            ComputationFailureError, engine.price, option, market(sigma=1000)
         )
-        self.category(
-            ErrorCategory.INVALID_RESULT,
+        self.assert_rejection(
+            ComputationFailureError,
             engine.price_with_greeks,
             option,
             context,

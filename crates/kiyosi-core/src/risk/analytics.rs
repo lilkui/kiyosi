@@ -1,4 +1,4 @@
-use crate::{Error, ErrorCategory, EuropeanOption, PricingContext, Result};
+use crate::{Error, EuropeanOption, PricingContext, Result};
 
 /// Spot derivatives are per spot unit; volatility/rate derivatives per percentage
 /// point; time derivatives per calendar day of forward valuation time.
@@ -65,10 +65,7 @@ impl GreeksRequest {
     }
     pub(crate) fn validate(self) -> Result<()> {
         if !self.0.contains(&true) {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "empty Greeks request",
-            ));
+            return Err(Error::InvalidInput("empty Greeks request".into()));
         }
         Ok(())
     }
@@ -90,10 +87,16 @@ impl PricingResult {
     pub fn has(&self, greek: Greek) -> bool {
         self.get(greek).is_some()
     }
+    /// Returns a measure or rejects one unavailable in this result.
+    ///
+    /// # Errors
+    /// Returns [`Error::UnsupportedOperation`] when the measure was not requested
+    /// or cannot be provided at this valuation point. [`Self::get`] returns `None`
+    /// for these cases. See [`crate::AnalyticVanillaEngine::price_with_greeks`]
+    /// for an example of requesting measures.
     pub fn require(&self, greek: Greek) -> Result<f64> {
-        self.get(greek).ok_or(Error::new(
-            ErrorCategory::InvalidResult,
-            "requested Greek is unavailable",
+        self.get(greek).ok_or(Error::UnsupportedOperation(
+            "requested Greek is unavailable".into(),
         ))
     }
     /// Borrowed immutable storage, valid for this result's lifetime.
@@ -102,7 +105,7 @@ impl PricingResult {
     }
     pub(crate) fn new(price: f64) -> Result<Self> {
         if !price.is_finite() {
-            return Err(Error::new(ErrorCategory::InvalidResult, "non-finite price"));
+            return Err(Error::ComputationFailure("non-finite price".into()));
         }
         Ok(Self {
             price,
@@ -112,7 +115,7 @@ impl PricingResult {
     pub(crate) fn set(&mut self, request: GreeksRequest, greek: Greek, value: f64) -> Result<()> {
         if request.has(greek) {
             if !value.is_finite() {
-                return Err(Error::new(ErrorCategory::InvalidResult, "non-finite Greek"));
+                return Err(Error::ComputationFailure("non-finite Greek".into()));
             }
             self.values[greek as usize] = Some(value);
         }
@@ -145,10 +148,7 @@ impl NumericalShiftSettings {
             .any(|x| !x.is_finite() || *x <= 0.0)
             || self.time_shift_days <= 0
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "numerical shifts are invalid",
-            ));
+            return Err(Error::InvalidInput("numerical shifts are invalid".into()));
         }
         Ok(())
     }

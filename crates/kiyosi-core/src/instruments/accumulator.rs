@@ -1,4 +1,4 @@
-use crate::{Date, Error, ErrorCategory, OptionContract, PricingContext, Result, Timestamp};
+use crate::{Date, Error, OptionContract, PricingContext, Result, Timestamp};
 
 /// Supplies accumulator terms; see [`Accumulator::new`] for validation and usage.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -54,9 +54,8 @@ impl Accumulator {
     /// Creates a validated contract, allowing equal life dates and zero quantities.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidStrike`] for invalid strike, then
-    /// [`ErrorCategory::InvalidParameter`] for invalid level or quantities, then
-    /// [`ErrorCategory::InvalidTimeRange`] for reversed life dates. Inputs are unchanged.
+    /// Returns [`Error::InvalidInput`] for invalid strike, invalid level or
+    /// quantities, or reversed life dates, checked in that order. Inputs are unchanged.
     ///
     /// # Examples
     /// ```
@@ -70,8 +69,8 @@ impl Accumulator {
     /// # Ok(()) }
     /// ```
     pub fn new(terms: AccumulatorTerms) -> Result<Self> {
-        crate::error::finite(terms.strike, ErrorCategory::InvalidStrike, true)?;
-        crate::error::finite(terms.knock_out_level, ErrorCategory::InvalidParameter, true)?;
+        crate::error::finite(terms.strike, true)?;
+        crate::error::finite(terms.knock_out_level, true)?;
         if [
             terms.daily_quantity,
             terms.acceleration_factor,
@@ -80,16 +79,12 @@ impl Accumulator {
         .iter()
         .any(|v| !v.is_finite() || *v < 0.0)
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "quantities must be finite and nonnegative",
+            return Err(Error::InvalidInput(
+                "quantities must be finite and nonnegative".into(),
             ));
         }
         if terms.expiry_date < terms.effective_date {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "expiry precedes effective date",
-            ));
+            return Err(Error::InvalidInput("expiry precedes effective date".into()));
         }
         Ok(Self { terms })
     }

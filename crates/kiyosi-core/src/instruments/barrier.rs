@@ -1,6 +1,6 @@
 use crate::{
-    Date, Error, ErrorCategory, EuropeanOption, ObservationSchedule, OptionContract, OptionType,
-    PricingContext, Result, Timestamp, TradingCalendar,
+    Date, Error, EuropeanOption, ObservationSchedule, OptionContract, OptionType, PricingContext,
+    Result, Timestamp, TradingCalendar,
 };
 
 /// Direction and activation behavior; see [`BarrierOption::new`].
@@ -125,11 +125,9 @@ impl BarrierOption {
     /// Trading-day compatibility and history relative to valuation are checked during pricing.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] for invalid level or rebate,
-    /// [`ErrorCategory::InvalidTimeRange`] for reversed life,
-    /// [`ErrorCategory::InvalidSchedule`] for incompatible, unordered or out-of-life dates,
-    /// [`ErrorCategory::InvalidStrike`] for invalid strike, or
-    /// [`ErrorCategory::InvalidOption`] for an at-hit knock-in rebate.
+    /// Returns [`Error::InvalidInput`] for invalid level or rebate, reversed
+    /// life, incompatible or invalid fixing dates, invalid strike, or an at-hit
+    /// knock-in rebate, checked in that order.
     ///
     /// # Examples
     /// ```
@@ -144,18 +142,16 @@ impl BarrierOption {
     /// ```
     pub fn new(terms: BarrierOptionTerms) -> Result<Self> {
         if !terms.barrier_level.is_finite() || terms.barrier_level <= 0.0 {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "barrier level must be finite and positive",
+            return Err(Error::InvalidInput(
+                "barrier level must be finite and positive".into(),
             ));
         }
         crate::time::calendar::validate_range(terms.effective_date, terms.expiry_date)?;
         if (terms.observation_mode == ObservationMode::Continuous)
             != terms.observation_dates.is_empty()
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidSchedule,
-                "monitoring mode and dates disagree",
+            return Err(Error::InvalidInput(
+                "monitoring mode and dates disagree".into(),
             ));
         }
         let schedule = ObservationSchedule::new(
@@ -171,15 +167,13 @@ impl BarrierOption {
             terms.expiry_date,
         )?;
         if !terms.rebate.is_finite() || terms.rebate < 0.0 {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "rebate must be finite and nonnegative",
+            return Err(Error::InvalidInput(
+                "rebate must be finite and nonnegative".into(),
             ));
         }
         if terms.barrier_type.is_knock_in() && terms.rebate_timing == RebateTiming::AtHit {
-            return Err(Error::new(
-                ErrorCategory::InvalidOption,
-                "knock-in rebates cannot pay at hit",
+            return Err(Error::InvalidInput(
+                "knock-in rebates cannot pay at hit".into(),
             ));
         }
         Ok(Self {
@@ -300,15 +294,11 @@ impl BarrierOption {
             self.observation_dates()[0].start_of_day() < time
         };
         if !had && self.touch_state() == Some(BarrierTouchState::Touched) {
-            return Err(Error::new(
-                ErrorCategory::InvalidOption,
-                "touch predates monitoring",
-            ));
+            return Err(Error::InvalidInput("touch predates monitoring".into()));
         }
         if had && self.touch_state().is_none() {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "prior barrier touch state is required",
+            return Err(Error::InvalidInput(
+                "prior barrier touch state is required".into(),
             ));
         }
         Ok(self.touch_state() == Some(BarrierTouchState::Touched))

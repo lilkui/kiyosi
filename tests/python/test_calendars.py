@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from kiyosi import ErrorCategory, KiyosiError
+from kiyosi import InvalidInputError
 from kiyosi.market import (
     all_days_calendar,
     custom_calendar,
@@ -190,30 +190,26 @@ class CalendarTests(unittest.TestCase):
             with self.assertRaises(StopIteration):
                 next(first)
 
-    def test_validation_categories_and_order(self):
+    def test_validation_errors_and_order(self):
         start, end = date(2025, 1, 1), date(2025, 2, 1)
         for factory, field in (
             (fixed_interval_schedule, "interval_days"),
             (monthly_schedule, "first_observation_month"),
         ):
             for value in (0, -1, -(2**31)):
-                with self.assertRaises(KiyosiError) as error:
+                with self.assertRaises(InvalidInputError) as error:
                     factory(start=start, end=end, **{field: value})
-                self.assertEqual(
-                    error.exception.category, ErrorCategory.INVALID_SCHEDULE
-                )
-                with self.assertRaises(KiyosiError) as error:
+                self.assertIs(type(error.exception), InvalidInputError)
+                with self.assertRaises(InvalidInputError) as error:
                     factory(start=end, end=start, **{field: value})
-                self.assertEqual(
-                    error.exception.category, ErrorCategory.INVALID_TIME_RANGE
-                )
+                self.assertIs(type(error.exception), InvalidInputError)
         for operation in (
             weekdays_calendar().trading_days_between,
             weekdays_calendar().trading_year_fraction,
         ):
-            with self.assertRaises(KiyosiError) as error:
+            with self.assertRaises(InvalidInputError) as error:
                 operation(end, start)
-            self.assertEqual(error.exception.category, ErrorCategory.INVALID_TIME_RANGE)
+            self.assertIs(type(error.exception), InvalidInputError)
 
     def test_representations_use_native_errors_and_integer_protocol(self):
         start, end = date(2025, 1, 1), date(2025, 2, 1)

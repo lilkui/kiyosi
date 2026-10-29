@@ -3,7 +3,7 @@
 import unittest
 from datetime import date
 
-from kiyosi import ErrorCategory, KiyosiError, pricing
+from kiyosi import UnsupportedOperationError, pricing
 from kiyosi import instruments as ins
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -249,13 +249,11 @@ class SupportMatrixTests(unittest.TestCase):
                     )
                     self.assertAlmostEqual(result.price, expected)
                     self.assertIsNone(result.delta)
-                    with self.assertRaises(KiyosiError) as error:
+                    with self.assertRaises(UnsupportedOperationError) as error:
                         pricing.implied_volatility(
                             engine, instrument, self.context, expected
                         )
-                    self.assertEqual(
-                        error.exception.category, ErrorCategory.UNSUPPORTED_OPERATION
-                    )
+                    self.assertIs(type(error.exception), UnsupportedOperationError)
 
     def test_other_product_engine_pairs_are_rejected_by_native_conversion(self):
         for instrument, supported, _ in self.cases:

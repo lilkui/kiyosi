@@ -11,7 +11,13 @@ from fractions import Fraction
 from pathlib import Path
 
 import QuantLib as ql
-from kiyosi import ErrorCategory, KiyosiError
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    NonConvergenceError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import (
@@ -29,10 +35,10 @@ def contract(direction="call", strike=100):
 
 
 class MonteCarloTests(unittest.TestCase):
-    def category(self, expected, operation, *args, **kwargs):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected, operation, *args, **kwargs):
+        with self.assertRaises(expected) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, expected)
+        self.assertIs(type(error.exception), expected)
 
     def test_defaults_terminal_prices_and_statistics(self):
         default = MonteCarloVanillaEngine()
@@ -84,8 +90,8 @@ class MonteCarloTests(unittest.TestCase):
             ("thread_count", (-1,)),
         ):
             for value in values:
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     MonteCarloVanillaEngine,
                     **{field: value},
                 )
@@ -200,8 +206,8 @@ class MonteCarloTests(unittest.TestCase):
         self.assertEqual(result.price, 10)
         for name in GREEKS:
             self.assertIsNone(getattr(result, name))
-        self.category(
-            ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             implied_volatility,
             engine,
             option,
@@ -212,8 +218,8 @@ class MonteCarloTests(unittest.TestCase):
             START - timedelta(days=1),
             datetime(2026, 1, 1, 0, 0, 0, 1, tzinfo=UTC),
         ):
-            self.category(
-                ErrorCategory.INVALID_TIME_RANGE,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 option,
                 market(valuation=valuation),
@@ -225,19 +231,19 @@ class MonteCarloTests(unittest.TestCase):
             model_parameters=context.model_parameters.replace(risk_free_rate=nodes),
             valuation_time=END,
         )
-        self.category(
-            ErrorCategory.UNSUPPORTED_OPERATION, engine.price, option, node_context
+        self.assert_rejection(
+            UnsupportedOperationError, engine.price, option, node_context
         )
-        self.category(
-            ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             engine.price_with_greeks,
             option,
             node_context,
             [],
         )
         for invalid_quote in (0, math.nan):
-            self.category(
-                ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 implied_volatility,
                 engine,
                 option,
@@ -245,31 +251,31 @@ class MonteCarloTests(unittest.TestCase):
                 invalid_quote,
                 max_iterations=0,
             )
-        self.category(
-            ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             option,
             context,
             [],
         )
-        self.category(
-            ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             option,
             context,
             "delta",
             spot_shift=0,
         )
-        self.category(
-            ErrorCategory.INVALID_RESULT,
+        self.assert_rejection(
+            ComputationFailureError,
             engine.price_with_greeks,
             option,
             context,
             "rho",
             rate_shift=1000,
         )
-        self.category(
-            ErrorCategory.INVALID_RESULT, engine.price, option, market(sigma=1e308)
+        self.assert_rejection(
+            ComputationFailureError, engine.price, option, market(sigma=1e308)
         )
         missing = engine.price_with_greeks(
             option, context, ["delta", "vega"], spot_shift=100, volatility_shift=0.2
@@ -307,8 +313,8 @@ class MonteCarloTests(unittest.TestCase):
                     implied_volatility(other, option, context, quote, **bounds),
                     expected,
                 )
-            self.category(
-                ErrorCategory.UNBRACKETED_VOLATILITY,
+            self.assert_rejection(
+                RootNotBracketedError,
                 implied_volatility,
                 engine,
                 option,
@@ -316,16 +322,16 @@ class MonteCarloTests(unittest.TestCase):
                 -1,
                 **bounds,
             )
-            self.category(
-                ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 implied_volatility,
                 engine,
                 option,
                 context,
                 math.nan,
             )
-            self.category(
-                ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 implied_volatility,
                 engine,
                 option,
@@ -333,8 +339,8 @@ class MonteCarloTests(unittest.TestCase):
                 quote,
                 max_iterations=0,
             )
-            self.category(
-                ErrorCategory.SOLVER_NON_CONVERGENCE,
+            self.assert_rejection(
+                NonConvergenceError,
                 implied_volatility,
                 engine,
                 option,
@@ -558,13 +564,14 @@ class SamplingTests(unittest.TestCase):
                     paths,
                 )
             for paths in (0, 3, 100_000, 8_388_609, 16_777_216):
-                with self.subTest(paths=paths), self.assertRaises(KiyosiError) as error:
+                with (
+                    self.subTest(paths=paths),
+                    self.assertRaises(InvalidInputError) as error,
+                ):
                     MonteCarloVanillaEngine(
                         path_count=paths, sampling="sobol", antithetic=antithetic
                     )
-                self.assertEqual(
-                    error.exception.category, ErrorCategory.INVALID_PARAMETER
-                )
+                self.assertIs(type(error.exception), InvalidInputError)
             for paths in (1, 2):
                 engine = MonteCarloVanillaEngine(
                     path_count=paths,
@@ -679,13 +686,11 @@ class SamplingTests(unittest.TestCase):
                             ),
                             sigma,
                         )
-                    with self.assertRaises(KiyosiError) as error:
+                    with self.assertRaises(ComputationFailureError) as error:
                         engine.price_with_greeks(
                             option, context, "rho", rate_shift=1000
                         )
-                    self.assertEqual(
-                        error.exception.category, ErrorCategory.INVALID_RESULT
-                    )
+                    self.assertIs(type(error.exception), ComputationFailureError)
                     self.assertEqual(engine.price(option, context), expected.price)
                     for steps in (2, 10_000):
                         self.assertEqual(
@@ -787,11 +792,9 @@ class SamplingTests(unittest.TestCase):
                 )
                 analysis = engine.price_with_greeks(option, expiry, all_greeks=True)
                 self.assertTrue(all(getattr(analysis, name) is None for name in GREEKS))
-                with self.assertRaises(KiyosiError) as error:
+                with self.assertRaises(UnsupportedOperationError) as error:
                     implied_volatility(engine, option, expiry, 10)
-                self.assertEqual(
-                    error.exception.category, ErrorCategory.UNSUPPORTED_OPERATION
-                )
+                self.assertIs(type(error.exception), UnsupportedOperationError)
 
     def test_sobol_greek_accuracy_and_multiseed_rmse(self):
         tolerances = {
@@ -859,11 +862,9 @@ class SamplingTests(unittest.TestCase):
                 option, context = contract(), market()
                 baseline = engine.price(option, context)
                 for valuation in (START - timedelta(days=1), END + timedelta(days=1)):
-                    with self.assertRaises(KiyosiError) as error:
+                    with self.assertRaises(InvalidInputError) as error:
                         engine.price(option, market(valuation=valuation))
-                    self.assertEqual(
-                        error.exception.category, ErrorCategory.INVALID_TIME_RANGE
-                    )
+                    self.assertIs(type(error.exception), InvalidInputError)
                 curve = RateTermStructure(
                     reference_time=START, times=[END], factors=[0.95]
                 )
@@ -873,16 +874,12 @@ class SamplingTests(unittest.TestCase):
                     ),
                     valuation_time=END,
                 )
-                with self.assertRaises(KiyosiError) as error:
+                with self.assertRaises(UnsupportedOperationError) as error:
                     engine.price_with_greeks(option, node, [])
-                self.assertEqual(
-                    error.exception.category, ErrorCategory.UNSUPPORTED_OPERATION
-                )
-                with self.assertRaises(KiyosiError) as error:
+                self.assertIs(type(error.exception), UnsupportedOperationError)
+                with self.assertRaises(InvalidInputError) as error:
                     engine.price_with_greeks(option, context, [])
-                self.assertEqual(
-                    error.exception.category, ErrorCategory.INVALID_PARAMETER
-                )
+                self.assertIs(type(error.exception), InvalidInputError)
                 self.assertEqual(engine.price(option, context), baseline)
         # First Sobol path is finite; its opposite overflows, so the paired call fails.
         context = market().replace(
@@ -899,7 +896,7 @@ class SamplingTests(unittest.TestCase):
             path_count=2, seed=42, sampling="sobol", antithetic=True
         )
         baseline = paired.price(contract(), market())
-        with self.assertRaises(KiyosiError) as error:
+        with self.assertRaises(ComputationFailureError) as error:
             paired.price(contract(), context)
-        self.assertEqual(error.exception.category, ErrorCategory.INVALID_RESULT)
+        self.assertIs(type(error.exception), ComputationFailureError)
         self.assertEqual(paired.price(contract(), market()), baseline)

@@ -107,40 +107,40 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
 fn phoenix_validation_defaults_and_history_share_core_categories() {
     let mut t = terms();
     t.observations[0].coupon_rate = 0.1;
-    assert_eq!(
-        PhoenixOption::new(t).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        PhoenixOption::new(t).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     for value in [-1.0, f64::NAN, f64::INFINITY] {
         let mut t = terms();
         t.observations[0].coupon_barrier_level = value;
-        assert_eq!(
-            PhoenixOption::new(t).unwrap_err().category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            PhoenixOption::new(t).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let mut t = terms();
     t.observations.clear();
-    assert_eq!(
-        PhoenixOption::new(t).unwrap_err().category,
-        ErrorCategory::InvalidSchedule
-    );
+    assert!(matches!(
+        PhoenixOption::new(t).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let mut t = terms();
     t.coupon_rate = f64::NAN;
-    assert_eq!(
-        PhoenixOption::new(t).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        PhoenixOption::new(t).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let mut t = terms();
     t.knock_in_observation_mode = KnockInObservationMode::EveryTradingDay;
     t.barrier_state = None;
     let note = PhoenixOption::new(t).unwrap();
     let engine = QuadratureAutocallableEngine::default();
     let ctx = market(100.0, date(2, 3));
-    assert_eq!(
-        engine.price(&note, &ctx).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&note, &ctx).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let known = note.replace(Some(AutocallableBarrierState::None)).unwrap();
     assert_eq!(known.observations(), note.observations());
     assert_eq!(note.barrier_state(), None);
@@ -148,22 +148,20 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
     let impossible = note
         .replace(Some(AutocallableBarrierState::KnockedOut))
         .unwrap();
-    assert_eq!(
+    assert!(matches!(
         engine
             .price(&impossible, &market(100.0, date(1, 1)))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidOption
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let mut t = terms();
     t.barrier_state = Some(AutocallableBarrierState::KnockedIn);
-    assert_eq!(
+    assert!(matches!(
         engine
             .price(&PhoenixOption::new(t).unwrap(), &ctx)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidOption
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
@@ -214,7 +212,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
         engine.price(&settled, &market(100.0, date(3, 3))).unwrap(),
         0.0
     );
-    assert_eq!(
+    assert!(matches!(
         implied_volatility(
             &engine,
             &settled,
@@ -222,10 +220,9 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
             0.0,
             Default::default()
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::UnsupportedOperation
-    );
+        .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
 }
 
 #[test]

@@ -242,10 +242,10 @@ fn exact_intraday_alignment_early_ending_monitoring_and_node_equality() {
                 ..Default::default()
             })
             .unwrap();
-        assert_eq!(
-            engine.price(&option, &shifted).unwrap_err().category,
-            ErrorCategory::UnsupportedOperation
-        );
+        assert!(matches!(
+            engine.price(&option, &shifted).unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
     }
     for sigma in [0.1, 0.2, 0.3, 0.4] {
         for up in [false, true] {
@@ -335,12 +335,11 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
         BinomialSettings::default()
     );
     for steps in [0, -1, 1_000_001] {
-        assert_eq!(
+        assert!(matches!(
             CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: steps })
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for steps in [1, 1_000_000] {
         assert!(
@@ -365,38 +364,36 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
         0.2,
     );
     let unknown = BarrierOption::new(t.clone()).unwrap();
-    assert_eq!(
-        engine.price(&unknown, &context).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&unknown, &context).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let untouched = unknown.replace(Some(BarrierTouchState::Untouched)).unwrap();
-    assert_eq!(
-        engine.price(&untouched, &context).unwrap_err().category,
-        ErrorCategory::UnsupportedOperation
-    );
+    assert!(matches!(
+        engine.price(&untouched, &context).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let touched = unknown.replace(Some(BarrierTouchState::Touched)).unwrap();
     assert_eq!(engine.price(&touched, &context).unwrap(), 0.0);
-    assert_eq!(
+    assert!(matches!(
         engine
             .price(&touched, &market(t.effective_date.into(), 100.0, 0.04, 0.2))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidOption
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let hit = market(t.effective_date.into(), 120.0, 0.04, 0.2);
     let result = engine
         .price_with_greeks(&unknown, &hit, GreeksRequest::all(), Default::default())
         .unwrap();
     assert_eq!(result.price(), 3.0);
     assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
-    assert_eq!(
+    assert!(matches!(
         engine
             .price_with_greeks(&unknown, &hit, GreeksRequest::default(), Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &unknown,
@@ -407,10 +404,9 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
                     ..Default::default()
                 }
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(unknown.touch_state(), None);
     assert_eq!(engine.settings().step_count, 3);
 
@@ -426,11 +422,11 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
         t.expiry_date.into(),
     )
     .unwrap();
-    assert_eq!(
-        engine.price(&unknown, &nonflat).unwrap_err().category,
-        ErrorCategory::UnsupportedOperation
-    );
-    assert_eq!(
+    assert!(matches!(
+        engine.price(&unknown, &nonflat).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &unknown,
@@ -438,31 +434,28 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let live = BarrierOption::new(terms(BarrierType::UpAndOut, 10)).unwrap();
     for (rate, sigma) in [(0.04, 1e-200), (0.04, 1e6), (-1e6, 0.2)] {
-        assert_eq!(
+        assert!(matches!(
             engine
                 .price(&live, &market(t.effective_date.into(), 100.0, rate, sigma))
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidResult
-        );
+                .unwrap_err(),
+            Error::ComputationFailure(_)
+        ));
     }
     for time in [
         Date::new(2024, 12, 31).unwrap().into(),
         Timestamp::new(t.expiry_date, 0, 0, 0, 1).unwrap(),
     ] {
-        assert_eq!(
+        assert!(matches!(
             engine
                 .price(&live, &market(time, 100.0, 0.04, 0.2))
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidTimeRange
-        );
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
 }
 
@@ -556,7 +549,7 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
         })
         .unwrap();
     assert!((engine.price(&option, &shifted).unwrap() - quote).abs() < 2e-7);
-    assert_eq!(
+    assert!(matches!(
         implied_volatility(
             &engine,
             &option,
@@ -568,10 +561,9 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
                 ..Default::default()
             }
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::UnbracketedVolatility
-    );
+        .unwrap_err(),
+        Error::RootNotBracketed(_)
+    ));
     let result = numerical_greeks(
         &engine,
         &option,
@@ -596,7 +588,7 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
     t.rebate = 7.0;
     let fixed = BarrierOption::new(t.clone()).unwrap();
     let later = market(Date::new(2025, 1, 2).unwrap().into(), 100.0, 0.04, 0.2);
-    assert_eq!(
+    assert!(matches!(
         implied_volatility(
             &engine,
             &fixed,
@@ -604,10 +596,9 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
             engine.price(&fixed, &later).unwrap(),
             Default::default()
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::UnsupportedOperation
-    );
+        .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     assert_eq!(engine.price(&option, &context).unwrap(), quote);
     assert_eq!(context.model_parameters().volatility(), 0.2);
 }

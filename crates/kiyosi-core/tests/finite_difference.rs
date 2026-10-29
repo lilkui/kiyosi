@@ -113,18 +113,14 @@ fn settings_validate_without_allocating_or_imposing_grid_caps() {
             ..defaults
         },
     ] {
-        assert_eq!(
-            FiniteDifferenceVanillaEngine::new(settings)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
-        assert_eq!(
-            FiniteDifferenceDigitalEngine::new(settings)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            FiniteDifferenceVanillaEngine::new(settings).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
+            FiniteDifferenceDigitalEngine::new(settings).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
 }
 
@@ -239,13 +235,12 @@ fn schemes_track_prices_and_stability_includes_drift() {
         ..Default::default()
     })
     .unwrap();
-    assert_eq!(
+    assert!(matches!(
         unstable
             .price(&option, &market(95.0, 2.0, 0.0, 0.001))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
@@ -333,7 +328,7 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
         ..Default::default()
     })
     .unwrap();
-    assert_eq!(
+    assert!(matches!(
         near.price_with_greeks(
             &option,
             &context,
@@ -343,10 +338,9 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
                 ..Default::default()
             }
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::InvalidParameter
-    );
+        .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
@@ -427,7 +421,7 @@ fn node_curves_align_time_steps_and_keep_optimal_intermediate_exercise() {
     }
     let digital =
         DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
-    assert_eq!(
+    assert!(matches!(
         FiniteDifferenceDigitalEngine::default()
             .price_with_greeks(
                 &digital,
@@ -435,10 +429,9 @@ fn node_curves_align_time_steps_and_keep_optimal_intermediate_exercise() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
 }
 
 #[test]
@@ -453,13 +446,12 @@ fn payoff_bounds_allow_carry_error_but_reject_oscillations() {
         ..Default::default()
     })
     .unwrap();
-    assert_eq!(
+    assert!(matches!(
         engine
             .price(&option, &market(20.0, 0.05, 0.02, 10.0))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
     for rate in [-0.05, 0.05] {
         for steps in [1, 200] {
             let context = market(100.0, rate, 0.4 * rate, 0.2);
@@ -496,10 +488,10 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
         ..Default::default()
     })
     .unwrap();
-    assert_eq!(
-        engine.price(&option, &context).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&option, &context).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let expiry = context
         .replace(PricingContextChanges {
             valuation_time: Some(end.into()),
@@ -511,7 +503,7 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
         .unwrap();
     assert_eq!(result.price(), 0.0);
     assert!(result.values().iter().all(Option::is_none));
-    assert_eq!(
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -519,11 +511,10 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -534,29 +525,27 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
                     ..Default::default()
                 }
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let before = context
         .replace(PricingContextChanges {
             valuation_time: Some(Date::new(2024, 12, 31).unwrap().into()),
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        engine.price(&option, &before).unwrap_err().category,
-        ErrorCategory::InvalidTimeRange
-    );
+    assert!(matches!(
+        engine.price(&option, &before).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let tiny = f64::from_bits(1);
     let tiny_option = EuropeanOption::new(OptionType::Call, tiny, start, end).unwrap();
-    assert_eq!(
+    assert!(matches!(
         FiniteDifferenceVanillaEngine::default()
             .price(&tiny_option, &market(tiny, 0.05, 0.02, 0.2))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(context, market(100.0, 0.05, 0.02, 0.2));
     assert_eq!(engine.settings().asset_upper_boundary, Some(1.0));
     let huge = FiniteDifferenceSettings {
@@ -565,27 +554,25 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
         ..Default::default()
     };
     let clipped = FiniteDifferenceVanillaEngine::new(huge).unwrap();
-    assert_eq!(
-        clipped.price(&option, &context).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
-    assert_eq!(
+    assert!(matches!(
+        clipped.price(&option, &context).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
         clipped
             .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let digital =
         DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
-    assert_eq!(
+    assert!(matches!(
         FiniteDifferenceDigitalEngine::new(huge)
             .unwrap()
             .price(&digital, &context)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 fn check_solver<I: OptionContract, E: PricingEngine<I>>(
@@ -602,12 +589,10 @@ fn check_solver<I: OptionContract, E: PricingEngine<I>>(
     assert!(
         (implied_volatility(engine, option, context, quote, settings).unwrap() - 0.2).abs() < 1e-7
     );
-    assert_eq!(
-        implied_volatility(engine, option, context, -1.0, settings)
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnbracketedVolatility
-    );
+    assert!(matches!(
+        implied_volatility(engine, option, context, -1.0, settings).unwrap_err(),
+        Error::RootNotBracketed(_)
+    ));
     assert_eq!(engine.price(option, context).unwrap(), quote);
 }
 

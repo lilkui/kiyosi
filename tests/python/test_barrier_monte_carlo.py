@@ -5,18 +5,23 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 
-import kiyosi
-from kiyosi import pricing
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+    pricing,
+)
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
 
 class BarrierMonteCarloTests(unittest.TestCase):
-    def assert_category(self, category, operation, *args, **kwargs):
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation, *args, **kwargs):
+        with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_continuous_prices_and_native_greeks_match_analytic(self):
         for sampling in ("pseudo_random", "sobol"):
@@ -207,16 +212,14 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     valuation_time=datetime(2025, 1, 1, tzinfo=UTC)
                     + timedelta(microseconds=1)
                 )
-                self.assert_category(
-                    kiyosi.ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     engine.price,
                     contract,
                     later,
                 )
                 touched = contract.replace(touch_state="touched")
-                self.assert_category(
-                    kiyosi.ErrorCategory.INVALID_OPTION, engine.price, touched, context
-                )
+                self.assert_rejection(InvalidInputError, engine.price, touched, context)
                 self.assertEqual(
                     engine.price(touched, later),
                     pricing.AnalyticBarrierEngine().price(touched, later),
@@ -308,9 +311,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
             {"thread_count": -1},
             {"path_count": 3, "sampling": "sobol"},
         ):
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER, factory, **fields
-            )
+            self.assert_rejection(InvalidInputError, factory, **fields)
         for seed in (-1, 2**64):
             with self.assertRaises(OverflowError):
                 factory(seed=seed)
@@ -337,7 +338,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 operation(*args)
 
-    def test_applicability_error_categories_validation_order_and_failure_state(self):
+    def test_applicability_errors_validation_order_and_failure_state(self):
         engine = pricing.MonteCarloBarrierEngine(path_count=32, seed=42)
         contract, context = option(), market()
         quote = engine.price(contract, context)
@@ -346,21 +347,21 @@ class BarrierMonteCarloTests(unittest.TestCase):
         )
         for changes in ({"rate": curve}, {"dividend": curve}):
             curved = market(**changes)
-            self.assert_category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 engine.price,
                 contract,
                 curved,
             )
-            self.assert_category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 engine.price_with_greeks,
                 contract,
                 curved,
                 [],
             )
-            self.assert_category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
                 contract,
@@ -368,21 +369,21 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 math.nan,
             )
         for valuation in (START - timedelta(days=1), END + timedelta(days=1)):
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_TIME_RANGE,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 contract,
                 market(valuation=valuation),
             )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             contract,
             context,
             [],
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             contract,
             context,
@@ -390,8 +391,8 @@ class BarrierMonteCarloTests(unittest.TestCase):
             spot_shift=0,
         )
         for sigma, rate in ((50, 0.03), (0.2, -1000)):
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_RESULT,
+            self.assert_rejection(
+                ComputationFailureError,
                 engine.price,
                 contract,
                 market(volatility=sigma, rate=rate),
@@ -415,13 +416,13 @@ class BarrierMonteCarloTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=4) as pool:
             for sigma in pool.map(solve, range(8)):
                 self.assertAlmostEqual(sigma, 0.2, delta=1e-5)
-        for observed, controls, category in (
-            (-1, {}, kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY),
-            (math.nan, {}, kiyosi.ErrorCategory.INVALID_PARAMETER),
-            (quote, {"max_iterations": 0}, kiyosi.ErrorCategory.INVALID_PARAMETER),
+        for observed, controls, expected_error in (
+            (-1, {}, RootNotBracketedError),
+            (math.nan, {}, InvalidInputError),
+            (quote, {"max_iterations": 0}, InvalidInputError),
         ):
-            self.assert_category(
-                category,
+            self.assert_rejection(
+                expected_error,
                 pricing.implied_volatility,
                 engine,
                 contract,
@@ -431,8 +432,8 @@ class BarrierMonteCarloTests(unittest.TestCase):
             )
         fixed = contract.replace(touch_state="touched")
         later = market(valuation=START + timedelta(days=1))
-        self.assert_category(
-            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             pricing.implied_volatility,
             engine,
             fixed,
@@ -453,9 +454,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
         engine = pricing.MonteCarloBarrierEngine(
             path_count=1, seed=42, sampling="sobol"
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER, engine.price, contract, market()
-        )
+        self.assert_rejection(InvalidInputError, engine.price, contract, market())
 
     def test_scaled_rare_hits_and_only_requested_greek_failures(self):
         engine = pricing.MonteCarloBarrierEngine(path_count=1, seed=42)
@@ -468,8 +467,8 @@ class BarrierMonteCarloTests(unittest.TestCase):
         self.assertEqual(
             engine.price_with_greeks(contract, context, "rho").price, price
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_RESULT,
+        self.assert_rejection(
+            ComputationFailureError,
             engine.price_with_greeks,
             contract,
             context,
@@ -480,8 +479,8 @@ class BarrierMonteCarloTests(unittest.TestCase):
         invalid = option(
             observation_mode="scheduled", observation_dates=[START + timedelta(days=3)]
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_DATE,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             invalid,
             market().replace(calendar=weekdays_calendar()),

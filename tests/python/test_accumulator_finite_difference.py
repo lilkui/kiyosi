@@ -4,8 +4,14 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
-import kiyosi
-from kiyosi import pricing
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    NonConvergenceError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+    pricing,
+)
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import (
     RateTermStructure,
@@ -17,10 +23,10 @@ from test_accumulator import START, contract, market, terminal_reference
 
 
 class AccumulatorFiniteDifferenceTests(unittest.TestCase):
-    def category(self, category, operation, *args, **kwargs):
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation, *args, **kwargs):
+        with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_settings_protocols_defaults_exports_and_ownership(self):
         self.assertIn("FiniteDifferenceAccumulatorEngine", pricing.__all__)
@@ -51,8 +57,8 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             {"asset_upper_boundary": math.nan},
             {"asset_upper_boundary": math.inf},
         ):
-            self.category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 pricing.FiniteDifferenceAccumulatorEngine,
                 **fields,
             )
@@ -110,8 +116,8 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                     self.assertIsNone(getattr(result, greek))
         self.assertEqual(engine.price(option, market(110, START)), 30)
         for value in (-1, math.nan, math.inf):
-            self.category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 option.replace,
                 accumulated_quantity=value,
             )
@@ -122,25 +128,25 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         self.assertEqual(
             option.replace(accumulated_quantity=0.25).accumulated_quantity, 0.25
         )
-        for instrument, context, category in (
+        for instrument, context, expected_error in (
             (
                 option,
                 market(100, START - timedelta(days=1)),
-                kiyosi.ErrorCategory.INVALID_TIME_RANGE,
+                InvalidInputError,
             ),
             (
                 option,
                 market(100, datetime(2025, 1, 6, 0, 0, 0, 1, tzinfo=UTC)),
-                kiyosi.ErrorCategory.INVALID_TIME_RANGE,
+                InvalidInputError,
             ),
-            (contract(date(2025, 1, 5)), market(), kiyosi.ErrorCategory.INVALID_DATE),
+            (contract(date(2025, 1, 5)), market(), InvalidInputError),
             (
                 contract(end, quantity=sys.float_info.max),
                 market(111, end),
-                kiyosi.ErrorCategory.INVALID_RESULT,
+                ComputationFailureError,
             ),
         ):
-            self.category(category, engine.price, instrument, context)
+            self.assert_rejection(expected_error, engine.price, instrument, context)
         self.assertEqual(engine.price(option, market(110, end)), 30)
 
     def test_midnight_intraday_and_calendar_events_are_applied_once(self):
@@ -183,13 +189,11 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
     def test_validation_precedes_state_and_bumped_failures_leave_inputs_intact(self):
         option, context = contract(), market()
         engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=110)
-        self.category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER, engine.price, option, context
-        )
+        self.assert_rejection(InvalidInputError, engine.price, option, context)
         # Immediate settlement needs no spatial domain.
         self.assertEqual(engine.price(option, market(110, START)), 30)
-        self.category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             option,
             context,
@@ -198,16 +202,16 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=110.1)
         context = market(110.05)
         quote = engine.price(option, context)
-        self.category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             option,
             context,
             "delta",
             spot_shift=-1,
         )
-        self.category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             option,
             context,
@@ -221,9 +225,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         unstable = pricing.FiniteDifferenceAccumulatorEngine(
             asset_step_count=800, time_step_count=1, scheme="explicit_euler"
         )
-        self.category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER, unstable.price, option, market()
-        )
+        self.assert_rejection(InvalidInputError, unstable.price, option, market())
 
     def test_native_interpolation_mixed_greeks_and_event_availability(self):
         option = contract(date(2025, 4, 1))
@@ -346,9 +348,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         context = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=short)
         )
-        self.category(
-            kiyosi.ErrorCategory.INVALID_TIME_RANGE, engine.price, option, context
-        )
+        self.assert_rejection(InvalidInputError, engine.price, option, context)
         self.assertEqual(engine.price(option, context.replace(spot_price=399)), 598)
 
     def test_implied_solver_identifiability_protocols_and_failure_state(self):
@@ -363,8 +363,8 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             0.4,
             delta=1e-6,
         )
-        self.category(
-            kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY,
+        self.assert_rejection(
+            RootNotBracketedError,
             pricing.implied_volatility,
             engine,
             option,
@@ -373,8 +373,8 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             lower_bound=0.2,
             upper_bound=0.6,
         )
-        self.category(
-            kiyosi.ErrorCategory.SOLVER_NON_CONVERGENCE,
+        self.assert_rejection(
+            NonConvergenceError,
             pricing.implied_volatility,
             engine,
             option,
@@ -392,8 +392,8 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             (contract(daily=0, quantity=0), market()),
             (contract(daily=0), market(90, rate=0, dividend=0)),
         ):
-            self.category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
                 instrument,
@@ -412,8 +412,8 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             pricing.implied_volatility(
                 engine, option, context, quote, max_iterations=2**40
             )
-        self.category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             pricing.implied_volatility,
             engine,
             option,
@@ -429,14 +429,14 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         context = market(100, datetime(2025, 1, 3, 12, tzinfo=UTC))
         quote = engine.price(option, context)
         for spot in (98, 102):
-            self.category(
-                kiyosi.ErrorCategory.INVALID_RESULT,
+            self.assert_rejection(
+                ComputationFailureError,
                 engine.price,
                 option,
                 context.replace(spot_price=spot),
             )
-        self.category(
-            kiyosi.ErrorCategory.INVALID_RESULT,
+        self.assert_rejection(
+            ComputationFailureError,
             engine.price_with_greeks,
             option,
             context,

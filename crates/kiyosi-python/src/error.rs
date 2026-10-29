@@ -2,24 +2,26 @@ use kiyosi_core as core;
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 
-pyo3::create_exception!(_native, KiyosiError, PyException);
+pyo3::create_exception!(kiyosi._native, KiyosiError, PyException);
+pyo3::create_exception!(kiyosi._native, InvalidInputError, KiyosiError);
+pyo3::create_exception!(kiyosi._native, UnsupportedOperationError, KiyosiError);
+pyo3::create_exception!(kiyosi._native, ComputationFailureError, KiyosiError);
+pyo3::create_exception!(kiyosi._native, RootNotBracketedError, KiyosiError);
+pyo3::create_exception!(kiyosi._native, NonConvergenceError, KiyosiError);
 
-pub(crate) fn domain<T>(py: Python<'_>, result: core::Result<T>) -> PyResult<T> {
-    result.map_err(|error| {
-        if let Some(native) = error.operational_error() {
-            return match native.raw_os_error() {
-                Some(code) => std::io::Error::from_raw_os_error(code).into(),
-                None => std::io::Error::new(native.kind(), native.to_string()).into(),
-            };
+pub(crate) fn domain<T>(_py: Python<'_>, result: core::Result<T>) -> PyResult<T> {
+    result.map_err(|error| match error {
+        core::Error::InvalidInput(message) => InvalidInputError::new_err(message.into_owned()),
+        core::Error::UnsupportedOperation(message) => {
+            UnsupportedOperationError::new_err(message.into_owned())
         }
-        let exception = KiyosiError::new_err(error.message);
-        let category = py
-            .import("kiyosi._native")
-            .and_then(|module| module.getattr("ErrorCategory"))
-            .and_then(|enum_type| enum_type.getattr(error.category.name()));
-        match category.and_then(|category| exception.value(py).setattr("category", category)) {
-            Ok(()) => exception,
-            Err(mapping_error) => mapping_error,
+        core::Error::ComputationFailure(message) => {
+            ComputationFailureError::new_err(message.into_owned())
         }
+        core::Error::RootNotBracketed(message) => {
+            RootNotBracketedError::new_err(message.into_owned())
+        }
+        core::Error::NonConvergence(message) => NonConvergenceError::new_err(message.into_owned()),
+        core::Error::Io(error) => error.into(),
     })
 }

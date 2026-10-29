@@ -1,7 +1,6 @@
 use crate::{
-    AnalyticVanillaEngine, Error, ErrorCategory, GreeksRequest, NumericalShiftSettings,
-    ObservationSchedule, OptionType, PricingContext, PricingEngine, PricingResult, Result,
-    TradingCalendar,
+    AnalyticVanillaEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationSchedule,
+    OptionType, PricingContext, PricingEngine, PricingResult, Result, TradingCalendar,
 };
 use crate::{BarrierOption, RebateTiming};
 
@@ -14,11 +13,10 @@ impl AnalyticBarrierEngine {
     /// Scheduled unresolved monitoring uses the BGK approximation and must end at expiry.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::UnsupportedOperation`] for node curves or unsupported schedules,
-    /// [`ErrorCategory::InvalidTimeRange`] outside life, [`ErrorCategory::InvalidDate`] for
-    /// non-trading fixings, [`ErrorCategory::InvalidParameter`] for missing history,
-    /// [`ErrorCategory::InvalidOption`] for impossible history, or [`ErrorCategory::InvalidResult`]
-    /// for non-finite prices. Inputs remain unchanged.
+    /// Returns [`Error::UnsupportedOperation`] for node curves or unsupported
+    /// schedules. Returns [`Error::InvalidInput`] outside life, for non-trading
+    /// fixings, or for missing or impossible history, checked in that order.
+    /// Non-finite prices return [`Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Examples
     /// ```
@@ -55,10 +53,7 @@ pub(crate) fn checked(value: f64) -> Result<f64> {
     if value.is_finite() {
         Ok(value.max(0.0))
     } else {
-        Err(Error::new(
-            ErrorCategory::InvalidResult,
-            "non-finite barrier price",
-        ))
+        Err(Error::ComputationFailure("non-finite barrier price".into()))
     }
 }
 fn price(
@@ -69,16 +64,15 @@ fn price(
     context.model_parameters().risk_free_rate()?;
     context.model_parameters().dividend_yield()?;
     validate_life(option, context)?;
-    let validate = || validate_schedule(option, context);
-    let cached = schedule.get_or_init(|| ScheduleValidation {
-        schedule: option.observation_schedule().clone(),
-        calendar: context.calendar().clone(),
-        result: validate(),
+    let cached = schedule.get().filter(|cached| {
+        &cached.schedule == option.observation_schedule() && cached.calendar == *context.calendar()
     });
-    if &cached.schedule == option.observation_schedule() && cached.calendar == *context.calendar() {
-        cached.result.clone()?;
-    } else {
-        validate()?;
+    if cached.is_none() {
+        validate_schedule(option, context)?;
+        let _ = schedule.set(ScheduleValidation {
+            schedule: option.observation_schedule().clone(),
+            calendar: context.calendar().clone(),
+        });
     }
     match resolved_price(option, context)? {
         Some(value) => Ok(value),
@@ -89,9 +83,8 @@ fn price(
 pub(crate) fn validate_life(option: &BarrierOption, context: &PricingContext) -> Result<()> {
     let time = context.valuation_time();
     if time < option.effective_date().start_of_day() || time > option.expiry_date().start_of_day() {
-        return Err(Error::new(
-            ErrorCategory::InvalidTimeRange,
-            "valuation outside contract life",
+        return Err(Error::InvalidInput(
+            "valuation outside contract life".into(),
         ));
     }
     Ok(())
@@ -103,9 +96,8 @@ pub(crate) fn validate_schedule(option: &BarrierOption, context: &PricingContext
         .iter()
         .any(|&d| !context.calendar().is_trading_day(d))
     {
-        return Err(Error::new(
-            ErrorCategory::InvalidDate,
-            "observation is not a trading day",
+        return Err(Error::InvalidInput(
+            "observation is not a trading day".into(),
         ));
     }
     Ok(())
@@ -172,7 +164,6 @@ impl PricingEngine<BarrierOption> for AnalyticBarrierEngine {
 struct ScheduleValidation {
     schedule: ObservationSchedule,
     calendar: TradingCalendar,
-    result: Result<()>,
 }
 struct BarrierPricer(std::sync::OnceLock<ScheduleValidation>);
 impl PricingEngine<BarrierOption> for BarrierPricer {
@@ -501,9 +492,8 @@ fn integrated_hit_value(
         endpoint
     };
     if !lower.is_finite() || !peak.is_finite() {
-        return Err(Error::new(
-            ErrorCategory::InvalidResult,
-            "barrier hit integral is not representable",
+        return Err(Error::ComputationFailure(
+            "barrier hit integral is not representable".into(),
         ));
     }
     let upper = lower + if lower < 1.0 { 12.0 } else { 40.0 / lower };
@@ -585,9 +575,8 @@ pub(crate) fn analytic_log_shift(option: &BarrierOption, spot: f64, sigma: f64) 
             * sigma
             * option.mean_observation_year_fraction().sqrt();
         if option.observation_dates().last() != Some(&option.expiry_date()) {
-            return Err(Error::new(
-                ErrorCategory::UnsupportedOperation,
-                "analytic monitoring must end at expiry",
+            return Err(Error::UnsupportedOperation(
+                "analytic monitoring must end at expiry".into(),
             ));
         }
         let ratio = log_ratio(option.barrier_level(), spot) + shift;
@@ -604,9 +593,8 @@ pub(crate) fn analytic_log_shift(option: &BarrierOption, spot: f64, sigma: f64) 
             ratio >= 0.0
         };
         if breached {
-            return Err(Error::new(
-                ErrorCategory::UnsupportedOperation,
-                "spot breaches shifted analytic barrier",
+            return Err(Error::UnsupportedOperation(
+                "spot breaches shifted analytic barrier".into(),
             ));
         }
         Ok(shift)

@@ -1,7 +1,7 @@
 use std::f64::consts::{FRAC_1_SQRT_2, PI};
 
 use crate::{
-    Error, ErrorCategory, EuropeanOption, Greek, GreeksRequest, NumericalShiftSettings, OptionType,
+    Error, EuropeanOption, Greek, GreeksRequest, NumericalShiftSettings, OptionType,
     PricingContext, PricingEngine, PricingResult, Result,
 };
 
@@ -181,14 +181,13 @@ impl AnalyticVanillaEngine {
         Ok(result)
     }
     /// Prices within the inclusive contract life. At expiry returns intrinsic value.
-    /// Non-finite numerical results return `InvalidResult`.
+    /// Non-finite numerical results return [`Error::ComputationFailure`].
     pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         let valuation = context.valuation_time();
         let expiry = option.expiry_date().start_of_day();
         if valuation < option.effective_date().start_of_day() || valuation > expiry {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "valuation must be within the contract life",
+            return Err(Error::InvalidInput(
+                "valuation must be within the contract life".into(),
             ));
         }
         let model = context.model_parameters();
@@ -247,9 +246,8 @@ pub(crate) fn lognormal_price(
     let (asset_log, risk_log) = log_discounts;
     let width = volatility * root_time;
     if !width.is_finite() {
-        return Err(Error::new(
-            ErrorCategory::InvalidResult,
-            "unstable volatility limit",
+        return Err(Error::ComputationFailure(
+            "unstable volatility limit".into(),
         ));
     }
     let (d1, d2) = black_scholes_arguments(spot, strike, log_forward, volatility, root_time);
@@ -287,9 +285,8 @@ pub(crate) fn lognormal_price(
         value = sign * cash * (standardized * width).exp_m1() + time_value;
     }
     if !value.is_finite() {
-        return Err(Error::new(
-            ErrorCategory::InvalidResult,
-            "analytic pricing produced a non-finite result",
+        return Err(Error::ComputationFailure(
+            "analytic pricing produced a non-finite result".into(),
         ));
     }
     Ok(value)

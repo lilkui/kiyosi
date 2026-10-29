@@ -1,6 +1,4 @@
-use kiyosi_core::{
-    BusinessDayConvention, Date, ErrorCategory, ObservationSchedule, TradingCalendar,
-};
+use kiyosi_core::{BusinessDayConvention, Date, Error, ObservationSchedule, TradingCalendar};
 
 fn day(year: i32, month: u32, day: u32) -> Date {
     Date::new(year, month, day).unwrap()
@@ -39,24 +37,20 @@ fn custom_calendars_own_overrides_validate_and_retain_basis() {
     assert!(layered.is_trading_day(day(2026, 10, 1)));
     assert_eq!(layered.trading_days_per_year(), 365);
     for basis in [0, -1] {
-        assert_eq!(
-            TradingCalendar::new(|_| true, basis).unwrap_err().category,
-            ErrorCategory::InvalidCalendar
-        );
-        assert_eq!(
-            TradingCalendar::custom(base.clone(), vec![], vec![], Some(basis))
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidCalendar
-        );
+        assert!(matches!(
+            TradingCalendar::new(|_| true, basis).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
+            TradingCalendar::custom(base.clone(), vec![], vec![], Some(basis)).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let conflict = day(2026, 10, 1);
-    assert_eq!(
-        TradingCalendar::custom(base, vec![conflict], vec![conflict], None)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidCalendar
-    );
+    assert!(matches!(
+        TradingCalendar::custom(base, vec![conflict], vec![conflict], None).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
@@ -115,32 +109,24 @@ fn schedule_validation_and_boundaries_preserve_error_timing() {
     let end = day(2025, 2, 1);
     let calendar = TradingCalendar::default();
     for interval in [0, -1, i64::MIN] {
-        assert_eq!(
-            ObservationSchedule::fixed_interval(start, end, interval, &calendar)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidSchedule
-        );
-        assert_eq!(
-            ObservationSchedule::fixed_interval(end, start, interval, &calendar)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidTimeRange
-        );
+        assert!(matches!(
+            ObservationSchedule::fixed_interval(start, end, interval, &calendar).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
+            ObservationSchedule::fixed_interval(end, start, interval, &calendar).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for month in [0, -1, i32::MIN] {
-        assert_eq!(
-            ObservationSchedule::monthly(start, end, month, &calendar)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidSchedule
-        );
-        assert_eq!(
-            ObservationSchedule::monthly(end, start, month, &calendar)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidTimeRange
-        );
+        assert!(matches!(
+            ObservationSchedule::monthly(start, end, month, &calendar).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
+            ObservationSchedule::monthly(end, start, month, &calendar).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for dates in [
         vec![end, start],
@@ -148,19 +134,15 @@ fn schedule_validation_and_boundaries_preserve_error_timing() {
         vec![day(2024, 12, 31)],
         vec![day(2025, 2, 2)],
     ] {
-        assert_eq!(
-            ObservationSchedule::new(dates, start, end, &calendar)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidSchedule
-        );
+        assert!(matches!(
+            ObservationSchedule::new(dates, start, end, &calendar).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
-    assert_eq!(
-        ObservationSchedule::new(vec![day(2025, 1, 4)], start, end, &calendar)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidDate
-    );
+    assert!(matches!(
+        ObservationSchedule::new(vec![day(2025, 1, 4)], start, end, &calendar).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(
         ObservationSchedule::new(vec![start, end], start, end, &TradingCalendar::all_days())
             .unwrap()
@@ -202,10 +184,10 @@ fn closed_calendars_stop_at_domain_and_schedule_bounds() {
         (day(-32767, 1, 1), BusinessDayConvention::Preceding),
         (day(32767, 12, 31), BusinessDayConvention::Following),
     ] {
-        assert_eq!(
-            closed.adjust(boundary, convention).unwrap_err().category,
-            ErrorCategory::InvalidDate
-        );
+        assert!(matches!(
+            closed.adjust(boundary, convention).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let start = day(32767, 12, 30);
     let end = day(32767, 12, 31);
@@ -219,13 +201,10 @@ fn closed_calendars_stop_at_domain_and_schedule_bounds() {
             .unwrap()
             .is_empty()
     );
-    assert_eq!(
-        closed
-            .trading_days_between(end, start)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidTimeRange
-    );
+    assert!(matches!(
+        closed.trading_days_between(end, start).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let end_only = TradingCalendar::new(move |date| date == end, 1).unwrap();
     assert_eq!(
         ObservationSchedule::fixed_interval(start, end, 1, &end_only)

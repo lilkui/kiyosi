@@ -1,7 +1,6 @@
 use crate::{
-    BlackScholesMertonParameterChanges, Error, ErrorCategory, Greek, GreeksRequest,
-    NumericalShiftSettings, OptionContract, PricingContext, PricingContextChanges, PricingEngine,
-    PricingResult, Result,
+    BlackScholesMertonParameterChanges, Error, Greek, GreeksRequest, NumericalShiftSettings,
+    OptionContract, PricingContext, PricingContextChanges, PricingEngine, PricingResult, Result,
 };
 
 pub(crate) fn symmetric_shift(value: f64, requested: f64) -> f64 {
@@ -29,8 +28,8 @@ pub(crate) fn symmetric_shift(value: f64, requested: f64) -> f64 {
 /// life through [`OptionContract`]; engine/instrument support remains type checked.
 ///
 /// # Errors
-/// Returns [`ErrorCategory::InvalidParameter`] for empty requests or invalid bumps,
-/// [`ErrorCategory::InvalidResult`] for non-finite prices or derivatives, and
+/// Returns [`Error::InvalidInput`] for empty requests or invalid bumps,
+/// [`Error::ComputationFailure`] for non-finite prices or derivatives, and
 /// propagates engine and bumped-context errors. Inputs remain unchanged.
 ///
 /// # Examples
@@ -79,10 +78,7 @@ pub(crate) fn complete_greeks(
     let checked = |context: &PricingContext| -> Result<f64> {
         let value = native(context, GreeksRequest::default())?.price();
         if !value.is_finite() {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "non-finite bumped price",
-            ));
+            return Err(Error::ComputationFailure("non-finite bumped price".into()));
         }
         Ok(value)
     };

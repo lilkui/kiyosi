@@ -2,9 +2,9 @@
 
 import ast
 import importlib.metadata
+import pickle
 import tomllib
 import unittest
-from enum import Enum
 from pathlib import Path
 
 import kiyosi
@@ -12,15 +12,59 @@ from kiyosi import _native, instruments, market, pricing
 
 
 class PackageTests(unittest.TestCase):
-    def test_error_categories_are_named_enum_members(self):
-        for category in kiyosi.ErrorCategory:
-            with self.subTest(category=category.name):
-                self.assertIsInstance(category, Enum)
-                self.assertNotIsInstance(category, int)
-                self.assertEqual(category.value, category.name)
-                self.assertNotEqual(category, category.value)
-                self.assertTrue(category)
-                self.assertIs(kiyosi.ErrorCategory(category.name), category)
+    def test_domain_exception_hierarchy_and_diagnostics(self):
+        self.assertEqual(kiyosi.KiyosiError.__bases__, (Exception,))
+        for name in (
+            "InvalidInputError",
+            "UnsupportedOperationError",
+            "ComputationFailureError",
+            "RootNotBracketedError",
+            "NonConvergenceError",
+        ):
+            with self.subTest(exception=name):
+                exception_type = getattr(kiyosi, name)
+                self.assertIs(exception_type, getattr(_native, name))
+                self.assertEqual(exception_type.__bases__, (kiyosi.KiyosiError,))
+                self.assertEqual(exception_type.__module__, "kiyosi._native")
+                error = exception_type("diagnostic details")
+                self.assertEqual(str(error), "diagnostic details")
+                self.assertEqual(error.args, ("diagnostic details",))
+                restored = pickle.loads(pickle.dumps(error))
+                self.assertIs(type(restored), exception_type)
+                self.assertEqual(restored.args, error.args)
+                self.assertFalse(hasattr(error, "category"))
+        self.assertFalse(hasattr(kiyosi, "ErrorCategory"))
+        self.assertFalse(hasattr(_native, "ErrorCategory"))
+        self.assertNotIn("ErrorCategory", kiyosi.__all__)
+
+    def test_domain_rejections_preserve_native_conversion_exceptions(self):
+        from datetime import date
+
+        from kiyosi.instruments import EuropeanOption
+
+        terms = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_date": date(2025, 1, 1),
+            "expiry_date": date(2026, 1, 1),
+        }
+        with self.assertRaisesRegex(
+            kiyosi.InvalidInputError, "value must be finite and in its valid range"
+        ) as rejection:
+            EuropeanOption(**(terms | {"strike": -1}))
+        self.assertIs(type(rejection.exception), kiyosi.InvalidInputError)
+        self.assertIsInstance(rejection.exception, kiyosi.KiyosiError)
+        self.assertFalse(hasattr(rejection.exception, "category"))
+        for fields, exception_type in (
+            ({"strike": True}, TypeError),
+            ({"option_type": "unknown"}, ValueError),
+        ):
+            with (
+                self.subTest(fields=fields),
+                self.assertRaises(exception_type) as error,
+            ):
+                EuropeanOption(**(terms | fields))
+            self.assertNotIsInstance(error.exception, kiyosi.KiyosiError)
 
     def test_installed_version_and_typed_exports(self):
         workspace = Path(__file__).resolve().parents[2]
@@ -59,10 +103,16 @@ class PackageTests(unittest.TestCase):
                         self.assertTrue(
                             hasattr(runtime, member.name), f"{name}.{member.name}"
                         )
-        categories = declarations["ErrorCategory"]
-        expected = {
-            member.targets[0].id
-            for member in categories.body
-            if isinstance(member, ast.Assign)
-        }
-        self.assertEqual(expected, set(kiyosi.ErrorCategory.__members__))
+        self.assertNotIn("ErrorCategory", declarations)
+        for name in (
+            "InvalidInputError",
+            "UnsupportedOperationError",
+            "ComputationFailureError",
+            "RootNotBracketedError",
+            "NonConvergenceError",
+        ):
+            self.assertIn(name, kiyosi.__all__)
+            self.assertEqual(
+                [ast.unparse(base) for base in declarations[name].bases],
+                ["KiyosiError"],
+            )

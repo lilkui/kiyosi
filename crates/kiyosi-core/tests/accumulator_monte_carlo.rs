@@ -332,28 +332,25 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
         (
             option.clone(),
             market(110.0, Date::new(2024, 12, 31).unwrap()),
-            ErrorCategory::InvalidTimeRange,
+            (|error| matches!(error, Error::InvalidInput(_))) as fn(Error) -> bool,
         ),
         (
             option.clone(),
             market(110.0, Timestamp::new(day(1, 6), 0, 0, 0, 1).unwrap()),
-            ErrorCategory::InvalidTimeRange,
+            (|error| matches!(error, Error::InvalidInput(_))) as fn(Error) -> bool,
         ),
         (
             self::option(day(1, 5)),
             market(110.0, day(1, 1)),
-            ErrorCategory::InvalidDate,
+            (|error| matches!(error, Error::InvalidInput(_))) as fn(Error) -> bool,
         ),
         (
             option.replace(f64::MAX).unwrap(),
             market(111.0, day(1, 1)),
-            ErrorCategory::InvalidResult,
+            (|error| matches!(error, Error::ComputationFailure(_))) as fn(Error) -> bool,
         ),
     ] {
-        assert_eq!(
-            engine.price(&contract, &context).unwrap_err().category,
-            category
-        );
+        assert!(category(engine.price(&contract, &context).unwrap_err()));
     }
     let context = market(110.0, day(1, 1));
     for settings in [
@@ -379,14 +376,12 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
             ..Default::default()
         },
     ] {
-        assert_eq!(
-            MonteCarloAccumulatorEngine::new(settings)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            MonteCarloAccumulatorEngine::new(settings).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
-    assert_eq!(
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -394,11 +389,10 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -409,10 +403,9 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
                     ..Default::default()
                 }
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let curve =
         RateTermStructure::new(day(1, 1).into(), vec![day(1, 6).into()], vec![0.99]).unwrap();
     let curved = context
@@ -429,11 +422,11 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        engine.price(&option, &curved).unwrap_err().category,
-        ErrorCategory::UnsupportedOperation
-    );
-    assert_eq!(
+    assert!(matches!(
+        engine.price(&option, &curved).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -441,10 +434,9 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     assert_eq!(engine.price(&option, &context).unwrap(), 30.0);
     assert_eq!(option.accumulated_quantity(), 3.0);
 }
@@ -508,26 +500,21 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
             Some(0.0)
         );
         assert_eq!(engine.price(&contract, &context).unwrap(), expected);
-        assert_eq!(
+        assert!(matches!(
             implied_volatility(&engine, &contract, &context, expected, Default::default())
-                .unwrap_err()
-                .category,
-            ErrorCategory::UnsupportedOperation
-        );
+                .unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
     }
     let context = market(100.25, Timestamp::new(day(1, 3), 12, 0, 0, 0).unwrap());
-    assert_eq!(
-        implied_volatility(&engine, &option, &context, f64::NAN, Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
-    assert_eq!(
-        implied_volatility(&engine, &option, &context, 1e100, Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnbracketedVolatility
-    );
+    assert!(matches!(
+        implied_volatility(&engine, &option, &context, f64::NAN, Default::default()).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
+        implied_volatility(&engine, &option, &context, 1e100, Default::default()).unwrap_err(),
+        Error::RootNotBracketed(_)
+    ));
 }
 
 #[test]
@@ -547,10 +534,10 @@ fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
         ..Default::default()
     })
     .unwrap();
-    assert_eq!(
-        engine.price(&option, &context).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&option, &context).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let knocked_out = context
         .replace(PricingContextChanges {
             spot_price: Some(110.0),

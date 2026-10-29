@@ -394,10 +394,6 @@ fn thread_step_and_sampling_contracts_preserve_exact_samples_and_pairing() {
     }
 }
 
-fn category<T: std::fmt::Debug>(result: Result<T>, expected: ErrorCategory) {
-    assert_eq!(result.unwrap_err().category, expected);
-}
-
 #[test]
 fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampling() {
     let engine = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
@@ -447,15 +443,15 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                         ..Default::default()
                     })
                     .unwrap();
-                category(
-                    engine.price(&option, &later),
-                    ErrorCategory::InvalidParameter,
-                );
+                assert!(matches!(
+                    engine.price(&option, &later).unwrap_err(),
+                    Error::InvalidInput(_)
+                ));
                 let touched = option.replace(Some(BarrierTouchState::Touched)).unwrap();
-                category(
-                    engine.price(&touched, &context),
-                    ErrorCategory::InvalidOption,
-                );
+                assert!(matches!(
+                    engine.price(&touched, &context).unwrap_err(),
+                    Error::InvalidInput(_)
+                ));
                 assert_eq!(
                     engine.price(&touched, &later).unwrap(),
                     AnalyticDoubleBarrierEngine.price(&touched, &later).unwrap()
@@ -563,14 +559,12 @@ fn solver_pins_request_samples_and_rejects_fixed_cashflows() {
         prepared.price(&option, &context).unwrap()
     );
     for observed in [-1.0, f64::NAN] {
-        category(
-            implied_volatility(&engine, &option, &context, observed, controls),
-            if observed.is_nan() {
-                ErrorCategory::InvalidParameter
-            } else {
-                ErrorCategory::UnbracketedVolatility
-            },
-        );
+        let error = implied_volatility(&engine, &option, &context, observed, controls).unwrap_err();
+        if observed.is_nan() {
+            assert!(matches!(error, Error::InvalidInput(_)));
+        } else {
+            assert!(matches!(error, Error::RootNotBracketed(_)));
+        }
     }
     let later = context
         .replace(PricingContextChanges {
@@ -581,25 +575,26 @@ fn solver_pins_request_samples_and_rejects_fixed_cashflows() {
     t.rebate = 3.0;
     t.touch_state = Some(BarrierTouchState::Touched);
     let touched = DoubleBarrierOption::new(t).unwrap();
-    category(
+    assert!(matches!(
         implied_volatility(
             &engine,
             &touched,
             &later,
             engine.price(&touched, &later).unwrap(),
             controls,
-        ),
-        ErrorCategory::UnsupportedOperation,
-    );
+        )
+        .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let mut t = terms(OptionType::Call, DoubleBarrierType::KnockIn);
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_dates = vec![Date::new(2025, 7, 1).unwrap()];
     t.touch_state = Some(BarrierTouchState::Untouched);
     let finished = DoubleBarrierOption::new(t).unwrap();
-    category(
-        implied_volatility(&engine, &finished, &later, 0.0, controls),
-        ErrorCategory::UnsupportedOperation,
-    );
+    assert!(matches!(
+        implied_volatility(&engine, &finished, &later, 0.0, controls).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     for direction in [OptionType::Call, OptionType::Put] {
         let mut t = terms(direction, DoubleBarrierType::KnockOut);
         t.strike = if direction == OptionType::Call {
@@ -609,10 +604,10 @@ fn solver_pins_request_samples_and_rejects_fixed_cashflows() {
         };
         let excluded = DoubleBarrierOption::new(t).unwrap();
         assert_eq!(engine.price(&excluded, &context).unwrap(), 0.0);
-        category(
-            implied_volatility(&engine, &excluded, &context, 0.0, controls),
-            ErrorCategory::UnsupportedOperation,
-        );
+        assert!(matches!(
+            implied_volatility(&engine, &excluded, &context, 0.0, controls).unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
     }
     assert_eq!(engine.price(&option, &context).unwrap(), quote);
     assert_eq!(context.model_parameters().volatility(), 0.2);
@@ -639,10 +634,10 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
             ..Default::default()
         },
     ] {
-        category(
-            MonteCarloDoubleBarrierEngine::new(settings),
-            ErrorCategory::InvalidParameter,
-        );
+        assert!(matches!(
+            MonteCarloDoubleBarrierEngine::new(settings).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let engine = engine();
     let option =
@@ -667,55 +662,62 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
                 ..Default::default()
             })
             .unwrap();
-        category(
-            engine.price(&option, &curved),
-            ErrorCategory::UnsupportedOperation,
-        );
-        category(
-            engine.price_with_greeks(
+        assert!(matches!(
+            engine.price(&option, &curved).unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
+        assert!(matches!(
+            engine
+                .price_with_greeks(
+                    &option,
+                    &curved,
+                    GreeksRequest::default(),
+                    Default::default(),
+                )
+                .unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
+        assert!(matches!(
+            implied_volatility(&engine, &option, &curved, f64::NAN, Default::default())
+                .unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
+    }
+    assert!(matches!(
+        engine
+            .price_with_greeks(
                 &option,
-                &curved,
+                &context,
                 GreeksRequest::default(),
                 Default::default(),
-            ),
-            ErrorCategory::UnsupportedOperation,
-        );
-        category(
-            implied_volatility(&engine, &option, &curved, f64::NAN, Default::default()),
-            ErrorCategory::UnsupportedOperation,
-        );
-    }
-    category(
-        engine.price_with_greeks(
-            &option,
-            &context,
-            GreeksRequest::default(),
-            Default::default(),
-        ),
-        ErrorCategory::InvalidParameter,
-    );
-    category(
-        engine.price_with_greeks(
-            &option,
-            &context,
-            GreeksRequest::all(),
-            NumericalShiftSettings {
-                spot_shift: 0.0,
-                ..Default::default()
-            },
-        ),
-        ErrorCategory::InvalidParameter,
-    );
+            )
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
+        engine
+            .price_with_greeks(
+                &option,
+                &context,
+                GreeksRequest::all(),
+                NumericalShiftSettings {
+                    spot_shift: 0.0,
+                    ..Default::default()
+                },
+            )
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let outside = context
         .replace(PricingContextChanges {
             valuation_time: Some(Timestamp::new(option.expiry_date(), 0, 0, 0, 1).unwrap()),
             ..Default::default()
         })
         .unwrap();
-    category(
-        engine.price(&option, &outside),
-        ErrorCategory::InvalidTimeRange,
-    );
+    assert!(matches!(
+        engine.price(&option, &outside).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let mut t = terms(OptionType::Call, DoubleBarrierType::KnockOut);
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_dates = vec![Date::new(2025, 1, 4).unwrap()];
@@ -726,10 +728,10 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
             ..Default::default()
         })
         .unwrap();
-    category(
-        engine.price(&invalid, &weekdays),
-        ErrorCategory::InvalidDate,
-    );
+    assert!(matches!(
+        engine.price(&invalid, &weekdays).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     for (rate, sigma) in [(-1000.0, 0.2), (0.04, 50.0)] {
         let extreme = context
             .replace(PricingContextChanges {
@@ -739,10 +741,10 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
                 ..Default::default()
             })
             .unwrap();
-        category(
-            engine.price(&option, &extreme),
-            ErrorCategory::InvalidResult,
-        );
+        assert!(matches!(
+            engine.price(&option, &extreme).unwrap_err(),
+            Error::ComputationFailure(_)
+        ));
     }
     let tiny = context
         .replace(PricingContextChanges {
@@ -763,15 +765,17 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
             .price(),
         price
     );
-    category(
-        engine.price_with_greeks(
-            &option,
-            &tiny,
-            GreeksRequest::new([Greek::Gamma]),
-            Default::default(),
-        ),
-        ErrorCategory::InvalidResult,
-    );
+    assert!(matches!(
+        engine
+            .price_with_greeks(
+                &option,
+                &tiny,
+                GreeksRequest::new([Greek::Gamma]),
+                Default::default(),
+            )
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
     assert_eq!(engine.price(&option, &context).unwrap(), quote);
 }
 
@@ -790,8 +794,8 @@ fn sobol_dimension_limit_counts_the_unobserved_expiry_leg() {
         .take(21201)
         .collect();
     let option = DoubleBarrierOption::new(t).unwrap();
-    category(
-        engine().price(&option, &market()),
-        ErrorCategory::InvalidParameter,
-    );
+    assert!(matches!(
+        engine().price(&option, &market()).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }

@@ -1,9 +1,8 @@
 use crate::DoubleBarrierOption;
 use crate::engines::analytic::barrier::{checked, log_ratio, scaled_cash, scaled_cdf};
 use crate::{
-    AnalyticVanillaEngine, Error, ErrorCategory, GreeksRequest, NumericalShiftSettings,
-    ObservationMode, OptionType, PricingContext, PricingEngine, PricingResult, RebateTiming,
-    Result,
+    AnalyticVanillaEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationMode,
+    OptionType, PricingContext, PricingEngine, PricingResult, RebateTiming, Result,
 };
 use std::f64::consts::PI;
 
@@ -16,11 +15,12 @@ impl AnalyticDoubleBarrierEngine {
     /// Resolved contracts settle before the continuous-monitoring restriction.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::UnsupportedOperation`] for node curves or unresolved schedules,
-    /// [`ErrorCategory::InvalidTimeRange`] outside life, [`ErrorCategory::InvalidDate`] for
-    /// non-trading fixings, [`ErrorCategory::InvalidParameter`] for missing history,
-    /// [`ErrorCategory::InvalidOption`] for impossible history, or [`ErrorCategory::InvalidResult`]
-    /// for unrepresentable or nonconvergent calculations. Inputs remain unchanged.
+    /// Returns [`Error::UnsupportedOperation`] for node curves or unresolved schedules,
+    /// [`Error::InvalidInput`] outside life, for non-trading fixings, or for
+    /// missing or impossible history, checked in that order. Unrepresentable
+    /// calculations return [`Error::ComputationFailure`]; series or integration
+    /// limits reached without convergence return [`Error::NonConvergence`].
+    /// Inputs remain unchanged.
     ///
     /// # Examples
     /// ```
@@ -40,9 +40,8 @@ impl AnalyticDoubleBarrierEngine {
         if time < option.effective_date().start_of_day()
             || time > option.expiry_date().start_of_day()
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "valuation outside contract life",
+            return Err(Error::InvalidInput(
+                "valuation outside contract life".into(),
             ));
         }
         if option
@@ -50,18 +49,16 @@ impl AnalyticDoubleBarrierEngine {
             .iter()
             .any(|&d| !context.calendar().is_trading_day(d))
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidDate,
-                "observation is not a trading day",
+            return Err(Error::InvalidInput(
+                "observation is not a trading day".into(),
             ));
         }
         if let Some(value) = resolved_price(option, context)? {
             return Ok(value);
         }
         if option.observation_mode() == ObservationMode::Scheduled {
-            return Err(Error::new(
-                ErrorCategory::UnsupportedOperation,
-                "analytic double-barrier pricing requires continuous monitoring",
+            return Err(Error::UnsupportedOperation(
+                "analytic double-barrier pricing requires continuous monitoring".into(),
             ));
         }
         analytic_price(option, context)
@@ -251,9 +248,8 @@ impl AbsorbingDistribution {
         let variance = deviation * deviation;
         let ratio = deviation / band;
         if deviation <= 0.0 || !deviation.is_finite() || !(drift * time).is_finite() {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "double-barrier transition is not representable",
+            return Err(Error::ComputationFailure(
+                "double-barrier transition is not representable".into(),
             ));
         }
         let mut sum = Sum::default();
@@ -385,10 +381,14 @@ impl AbsorbingDistribution {
             }
         }
         let value = sum.total();
-        if !converged || !value.is_finite() || value < -1e-12 * scale {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "double-barrier density series did not converge to a representable moment",
+        if !value.is_finite() || value < -1e-12 * scale {
+            return Err(Error::ComputationFailure(
+                "double-barrier density series produced an invalid moment".into(),
+            ));
+        }
+        if !converged {
+            return Err(Error::NonConvergence(
+                "double-barrier density series did not converge".into(),
             ));
         }
         Ok(value.max(0.0))
@@ -449,9 +449,8 @@ impl AbsorbingDistribution {
             value += rate * integral.total();
         }
         if !value.is_finite() || value < -1e-12 {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "double-barrier first-exit value is not representable",
+            return Err(Error::ComputationFailure(
+                "double-barrier first-exit value is not representable".into(),
             ));
         }
         Ok(value.max(0.0))
@@ -471,13 +470,17 @@ fn integrate_exit(
     let first = (center - left) * (values[0] + 4.0 * low + values[1]) / 6.0;
     let second = (right - center) * (values[1] + 4.0 * high + values[2]) / 6.0;
     let refined = first + second;
+    if !refined.is_finite() {
+        return Err(Error::ComputationFailure(
+            "double-barrier first-exit integral is not representable".into(),
+        ));
+    }
     if (refined - estimate).abs() <= 15.0 * tolerance || center == left || center == right {
         return Ok(refined + (refined - estimate) / 15.0);
     }
     if depth == 0 {
-        return Err(Error::new(
-            ErrorCategory::InvalidResult,
-            "double-barrier first-exit integral did not converge",
+        return Err(Error::NonConvergence(
+            "double-barrier first-exit integral did not converge".into(),
         ));
     }
     Ok(integrate_exit(
@@ -534,9 +537,8 @@ fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Res
                     .max(option.strike())
                     .max(option.rebate())
     {
-        return Err(Error::new(
-            ErrorCategory::InvalidResult,
-            "analytic double-barrier price is not representable",
+        return Err(Error::ComputationFailure(
+            "analytic double-barrier price is not representable".into(),
         ));
     }
     Ok(value.max(0.0))
@@ -548,4 +550,55 @@ pub(crate) fn hit_value(option: &DoubleBarrierOption, context: &PricingContext) 
             * AbsorbingDistribution::new(option, context)?
                 .hit_value(context.model_parameters().risk_free_rate()?)?,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn first_exit_integral_exhaustion_reports_non_convergence() {
+        let evaluate = |x: f64| Ok(x.powi(4));
+        let error = integrate_exit(
+            &evaluate,
+            [0.0, 1.0],
+            [0.0, 0.0625, 1.0],
+            1.25 / 6.0,
+            1e-12,
+            0,
+        )
+        .unwrap_err();
+        assert!(matches!(error, Error::NonConvergence(_)));
+    }
+
+    #[test]
+    fn first_exit_integral_preserves_evaluation_failure() {
+        let evaluate = |_: f64| checked(f64::INFINITY);
+        let error = integrate_exit(&evaluate, [0.0, 1.0], [0.0; 3], 0.0, 1e-12, 0).unwrap_err();
+        assert!(matches!(error, Error::ComputationFailure(_)));
+    }
+
+    #[test]
+    fn non_finite_first_exit_integral_is_computation_failure() {
+        let evaluate = |_: f64| Ok(f64::MAX);
+        let error =
+            integrate_exit(&evaluate, [0.0, 1.0], [f64::MAX; 3], 0.0, 1e-12, 0).unwrap_err();
+        assert!(matches!(error, Error::ComputationFailure(_)));
+    }
+
+    #[test]
+    fn unrepresentable_double_barrier_transition_is_computation_failure() {
+        let distribution = AbsorbingDistribution {
+            initial: 0.5,
+            band: 1.0,
+            log_lower: 0.0,
+            volatility: f64::MAX,
+            drift: 0.0,
+            time: 4.0,
+        };
+        assert!(matches!(
+            distribution.moment(0, 0.0, 1.0, 0.0, false),
+            Err(Error::ComputationFailure(_))
+        ));
+    }
 }

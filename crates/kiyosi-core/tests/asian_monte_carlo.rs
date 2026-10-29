@@ -277,34 +277,18 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
         ..Default::default()
     })
     .unwrap();
-    for (valuation, history, category) in [
+    for (valuation, history, rejects) in [
         (
             Timestamp::new(date(3, 31), 23, 59, 59, 999999).unwrap(),
             100.0,
-            Some(ErrorCategory::InvalidParameter),
+            true,
         ),
-        (averaging.into(), 0.0, None),
-        (
-            averaging.into(),
-            100.0,
-            Some(ErrorCategory::InvalidParameter),
-        ),
-        (
-            Timestamp::new(averaging, 0, 0, 0, 1).unwrap(),
-            0.0,
-            Some(ErrorCategory::InvalidParameter),
-        ),
-        (Timestamp::new(averaging, 0, 0, 0, 1).unwrap(), 100.0, None),
-        (
-            Date::new(2024, 12, 31).unwrap().into(),
-            100.0,
-            Some(ErrorCategory::InvalidTimeRange),
-        ),
-        (
-            Timestamp::new(end, 0, 0, 0, 1).unwrap(),
-            100.0,
-            Some(ErrorCategory::InvalidTimeRange),
-        ),
+        (averaging.into(), 0.0, false),
+        (averaging.into(), 100.0, true),
+        (Timestamp::new(averaging, 0, 0, 0, 1).unwrap(), 0.0, true),
+        (Timestamp::new(averaging, 0, 0, 0, 1).unwrap(), 100.0, false),
+        (Date::new(2024, 12, 31).unwrap().into(), 100.0, true),
+        (Timestamp::new(end, 0, 0, 0, 1).unwrap(), 100.0, true),
     ] {
         let a = ArithmeticAveragePriceOption::new(
             OptionType::Call,
@@ -326,9 +310,10 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
         .unwrap();
         let context = market(100.0, 0.2, valuation);
         for result in [engine.price(&a, &context), engine.price(&g, &context)] {
-            match category {
-                Some(category) => assert_eq!(result.unwrap_err().category, category),
-                None => assert!(result.unwrap() >= 0.0),
+            if rejects {
+                assert!(matches!(result.unwrap_err(), Error::InvalidInput(_)));
+            } else {
+                assert!(result.unwrap() >= 0.0);
             }
         }
         let invalid = engine.price_with_greeks(
@@ -340,10 +325,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
                 ..Default::default()
             },
         );
-        assert_eq!(
-            invalid.unwrap_err().category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(invalid.unwrap_err(), Error::InvalidInput(_)));
         assert_eq!(a.realized_average(), history);
     }
     for (averaging, history, expected) in [(start, 110.0, 10.0), (end, 0.0, 0.0)] {
@@ -374,12 +356,10 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             assert_eq!(result.price(), expected);
             assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
         }
-        assert_eq!(
-            implied_volatility(&engine, &a, &context, expected, Default::default())
-                .unwrap_err()
-                .category,
-            ErrorCategory::UnsupportedOperation
-        );
+        assert!(matches!(
+            implied_volatility(&engine, &a, &context, expected, Default::default()).unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
     }
     assert_eq!(engine.settings().seed, Some(42));
     for settings in [
@@ -401,10 +381,10 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             ..Default::default()
         },
     ] {
-        assert_eq!(
-            MonteCarloAsianEngine::new(settings).unwrap_err().category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            MonteCarloAsianEngine::new(settings).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     assert_eq!(
         MonteCarloAsianEngine::default().settings(),
@@ -530,10 +510,10 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
             .price(&a, &market(100.0, 0.2, valuation.into()))
             .unwrap();
         assert!((actual - expected).abs() < 1e-10);
-        assert_eq!(
-            engine.price(&g, &context).unwrap_err().category,
-            ErrorCategory::UnsupportedOperation
-        );
+        assert!(matches!(
+            engine.price(&g, &context).unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
     }
     let context = PricingContext::new(model, 100.0, end.into()).unwrap();
     let g = GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 110.0)
@@ -553,7 +533,7 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
             .unwrap()
     );
     assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
-    assert_eq!(
+    assert!(matches!(
         implied_volatility(
             &engine,
             &affine,
@@ -561,10 +541,9 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
             result.price(),
             Default::default()
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::UnsupportedOperation
-    );
+        .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let node_context = PricingContext::new(
         BlackScholesMertonParameters::new(curve, 0.01, 0.2).unwrap(),
         100.0,
@@ -580,14 +559,14 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
     )
     .unwrap();
     let a = affine.replace(0.0).unwrap();
-    assert_eq!(
-        engine.price(&a, &short_context).unwrap_err().category,
-        ErrorCategory::InvalidTimeRange
-    );
-    assert_eq!(
-        engine.price(&affine, &short_context).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&a, &short_context).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
+        engine.price(&affine, &short_context).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]

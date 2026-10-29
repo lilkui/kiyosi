@@ -6,7 +6,7 @@ from datetime import date
 from itertools import product
 
 import QuantLib as ql
-from kiyosi import ErrorCategory, KiyosiError
+from kiyosi import InvalidInputError, UnsupportedOperationError
 from kiyosi.instruments import DoubleBarrierOption, EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -108,10 +108,10 @@ class DoubleBarrierTests(unittest.TestCase):
                 delta=1e-9,
             )
 
-    def assert_category(self, category, action):
-        with self.assertRaises(KiyosiError) as caught:
+    def assert_rejection(self, expected_error, action):
+        with self.assertRaises(expected_error) as caught:
             action()
-        self.assertEqual(caught.exception.category, category)
+        self.assertIs(type(caught.exception), expected_error)
 
     def test_defaults_representations_core_validation_and_owned_replacement(self):
         from kiyosi.instruments import BarrierOption
@@ -169,40 +169,42 @@ class DoubleBarrierTests(unittest.TestCase):
         for field in ("effective_date", "expiry_date"):
             with self.assertRaises(TypeError):
                 contract(**{field: "2025-01-01"})
-        for values, category in [
-            ({"lower_barrier": 0}, ErrorCategory.INVALID_PARAMETER),
-            ({"lower_barrier": math.nan}, ErrorCategory.INVALID_PARAMETER),
-            ({"upper_barrier": math.inf}, ErrorCategory.INVALID_PARAMETER),
-            ({"upper_barrier": 80}, ErrorCategory.INVALID_PARAMETER),
-            ({"lower_barrier": 130}, ErrorCategory.INVALID_PARAMETER),
-            ({"strike": 0}, ErrorCategory.INVALID_STRIKE),
-            ({"expiry_date": date(2024, 1, 1)}, ErrorCategory.INVALID_TIME_RANGE),
-            ({"rebate": -1}, ErrorCategory.INVALID_PARAMETER),
-            ({"rebate": math.nan}, ErrorCategory.INVALID_PARAMETER),
+        for values, expected_error in [
+            ({"lower_barrier": 0}, InvalidInputError),
+            ({"lower_barrier": math.nan}, InvalidInputError),
+            ({"upper_barrier": math.inf}, InvalidInputError),
+            ({"upper_barrier": 80}, InvalidInputError),
+            ({"lower_barrier": 130}, InvalidInputError),
+            ({"strike": 0}, InvalidInputError),
+            ({"expiry_date": date(2024, 1, 1)}, InvalidInputError),
+            ({"rebate": -1}, InvalidInputError),
+            ({"rebate": math.nan}, InvalidInputError),
             (
                 {"barrier_type": "knock_in", "rebate_timing": "at_hit"},
-                ErrorCategory.INVALID_OPTION,
+                InvalidInputError,
             ),
-            ({"observation_dates": [END]}, ErrorCategory.INVALID_SCHEDULE),
-            ({"observation_mode": "scheduled"}, ErrorCategory.INVALID_SCHEDULE),
+            ({"observation_dates": [END]}, InvalidInputError),
+            ({"observation_mode": "scheduled"}, InvalidInputError),
             (
                 {"observation_mode": "scheduled", "observation_dates": [END, END]},
-                ErrorCategory.INVALID_SCHEDULE,
+                InvalidInputError,
             ),
             (
                 {"observation_mode": "scheduled", "observation_dates": [END, START]},
-                ErrorCategory.INVALID_SCHEDULE,
+                InvalidInputError,
             ),
             (
                 {
                     "observation_mode": "scheduled",
                     "observation_dates": [date(2026, 1, 2)],
                 },
-                ErrorCategory.INVALID_SCHEDULE,
+                InvalidInputError,
             ),
         ]:
             with self.subTest(values=values):
-                self.assert_category(category, lambda values=values: contract(**values))
+                self.assert_rejection(
+                    expected_error, lambda values=values: contract(**values)
+                )
         for changes, error in [
             ({"touch_state": "unknown"}, ValueError),
             ({"touch_state": False}, TypeError),
@@ -239,8 +241,8 @@ class DoubleBarrierTests(unittest.TestCase):
             past = option.replace(touch_state="touched")
             expected = 0 if timing == "at_hit" else 3 * math.exp(-0.04 * 364 / 365)
             self.assertAlmostEqual(engine.price(past, later), expected, delta=1e-12)
-            self.assert_category(
-                ErrorCategory.INVALID_OPTION,
+            self.assert_rejection(
+                InvalidInputError,
                 lambda past=past: engine.price(past, market()),
             )
             if spot in (80, 120):
@@ -258,12 +260,12 @@ class DoubleBarrierTests(unittest.TestCase):
                     "zomma",
                 ):
                     self.assertIsNone(getattr(result, name))
-        self.assert_category(
-            ErrorCategory.INVALID_PARAMETER, lambda: engine.price(contract(), later)
+        self.assert_rejection(
+            InvalidInputError, lambda: engine.price(contract(), later)
         )
         microsecond = market(time=datetime(2025, 1, 1, microsecond=1, tzinfo=UTC))
-        self.assert_category(
-            ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             lambda: engine.price(contract(), microsecond),
         )
         for kind, spot in product(("knock_in", "knock_out"), (80, 110, 120)):
@@ -278,11 +280,9 @@ class DoubleBarrierTests(unittest.TestCase):
             self.assertIsNone(result.vega)
         option = contract(touch_state="untouched")
         after = market(time=datetime(2026, 1, 1, microsecond=1, tzinfo=UTC))
-        self.assert_category(
-            ErrorCategory.INVALID_TIME_RANGE, lambda: engine.price(option, after)
-        )
-        self.assert_category(
-            ErrorCategory.INVALID_TIME_RANGE,
+        self.assert_rejection(InvalidInputError, lambda: engine.price(option, after))
+        self.assert_rejection(
+            InvalidInputError,
             lambda: engine.price(option, market(time=date(2024, 12, 31))),
         )
         inside = contract(barrier_type="knock_in", touch_state="touched")
@@ -302,13 +302,13 @@ class DoubleBarrierTests(unittest.TestCase):
         first = date(2025, 6, 30)
         for dates in ([first], [first, END]):
             option = contract(observation_mode="scheduled", observation_dates=dates)
-            self.assert_category(
-                ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 lambda option=option: engine.price(option, market()),
             )
             touched = option.replace(touch_state="touched")
-            self.assert_category(
-                ErrorCategory.INVALID_OPTION,
+            self.assert_rejection(
+                InvalidInputError,
                 lambda touched=touched: engine.price(touched, market()),
             )
         for kind in ("knock_in", "knock_out"):
@@ -334,8 +334,8 @@ class DoubleBarrierTests(unittest.TestCase):
                 delta=1e-12,
             )
             intraday = market(130, time=datetime(2025, 6, 30, 12, tzinfo=UTC))
-            self.assert_category(
-                ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 lambda option=option, intraday=intraday: engine.price(option, intraday),
             )
             known = option.replace(touch_state="untouched")
@@ -357,8 +357,8 @@ class DoubleBarrierTests(unittest.TestCase):
             observation_mode="scheduled", observation_dates=[date(2025, 7, 5)]
         )
         restricted = market().replace(calendar=weekdays_calendar())
-        self.assert_category(
-            ErrorCategory.INVALID_DATE, lambda: engine.price(weekend, restricted)
+        self.assert_rejection(
+            InvalidInputError, lambda: engine.price(weekend, restricted)
         )
 
     def test_image_spectral_switch_boundary_limits_and_tiny_volatility(self):
@@ -499,8 +499,8 @@ class DoubleBarrierTests(unittest.TestCase):
             "rate_shift",
             "time_shift_days",
         ):
-            self.assert_category(
-                ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 lambda field=field: engine.price_with_greeks(
                     option, context, ["delta"], **{field: 0}
                 ),
@@ -511,13 +511,13 @@ class DoubleBarrierTests(unittest.TestCase):
             engine.price_with_greeks(option, context, ["delta"], time_shift_days=1.5)
         with self.assertRaises(OverflowError):
             implied_volatility(engine, option, context, quote, max_iterations=2**80)
-        self.assert_category(
-            ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             lambda: engine.price_with_greeks(option, context, []),
         )
         fixed = contract(rebate=3, touch_state="touched")
-        self.assert_category(
-            ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             lambda: implied_volatility(
                 engine, fixed, later, engine.price(fixed, later)
             ),
@@ -530,15 +530,15 @@ class DoubleBarrierTests(unittest.TestCase):
         curved = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=node)
         )
-        self.assert_category(
-            ErrorCategory.UNSUPPORTED_OPERATION, lambda: engine.price(option, curved)
+        self.assert_rejection(
+            UnsupportedOperationError, lambda: engine.price(option, curved)
         )
-        self.assert_category(
-            ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             lambda: engine.price_with_greeks(option, curved, []),
         )
-        self.assert_category(
-            ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             lambda: implied_volatility(engine, option, curved, math.nan),
         )
         near = market(80.005)

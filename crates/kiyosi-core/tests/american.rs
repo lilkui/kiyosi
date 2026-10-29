@@ -18,40 +18,34 @@ fn american_construction_and_replacement_validate_without_mutating() {
     let (start, end) = (day(2025, 1, 1), day(2026, 1, 1));
     let option = AmericanOption::new(OptionType::Put, 100.0, start, end).unwrap();
     for strike in [0.0, -1.0, f64::INFINITY, f64::NAN] {
-        assert_eq!(
-            AmericanOption::new(OptionType::Call, strike, end, start)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidStrike
-        );
-        assert_eq!(
+        assert!(matches!(
+            AmericanOption::new(OptionType::Call, strike, end, start).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
             option
                 .replace(AmericanOptionChanges {
                     strike: Some(strike),
                     ..Default::default()
                 })
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidStrike
-        );
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
-    assert_eq!(
-        AmericanOption::new(OptionType::Call, 100.0, end, start)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidTimeRange
-    );
-    assert_eq!(
+    assert!(matches!(
+        AmericanOption::new(OptionType::Call, 100.0, end, start).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
         option
             .replace(AmericanOptionChanges {
                 expiry_date: Some(start),
                 effective_date: Some(end),
                 ..Default::default()
             })
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidTimeRange
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(option.replace(Default::default()).unwrap(), option);
     let replaced = option
         .replace(AmericanOptionChanges {
@@ -122,12 +116,11 @@ fn american_expiry_and_exercise_window_are_inclusive() {
                 .unwrap();
             assert_eq!(result.price(), expected);
             assert!(result.values().iter().all(Option::is_none));
-            assert_eq!(
+            assert!(matches!(
                 implied_volatility(&engine, &option, &context, expected, Default::default())
-                    .unwrap_err()
-                    .category,
-                ErrorCategory::UnsupportedOperation
-            );
+                    .unwrap_err(),
+                Error::UnsupportedOperation(_)
+            ));
         }
         for time in [
             Timestamp::new(day(2024, 12, 31), 23, 59, 59, 999_999).unwrap(),
@@ -139,10 +132,10 @@ fn american_expiry_and_exercise_window_are_inclusive() {
                     ..Default::default()
                 })
                 .unwrap();
-            assert_eq!(
-                engine.price(&option, &context).unwrap_err().category,
-                ErrorCategory::InvalidTimeRange
-            );
+            assert!(matches!(
+                engine.price(&option, &context).unwrap_err(),
+                Error::InvalidInput(_)
+            ));
         }
         let context = market(100.0, 0.05, 0.03, 0.2)
             .replace(PricingContextChanges {
@@ -201,7 +194,7 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
         (
             ImpliedVolatilitySettings::default(),
             -1.0,
-            ErrorCategory::UnbracketedVolatility,
+            (|error| matches!(error, Error::RootNotBracketed(_))) as fn(Error) -> bool,
         ),
         (
             ImpliedVolatilitySettings {
@@ -209,7 +202,7 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
                 ..Default::default()
             },
             all.price(),
-            ErrorCategory::InvalidParameter,
+            (|error| matches!(error, Error::InvalidInput(_))) as fn(Error) -> bool,
         ),
         (
             ImpliedVolatilitySettings {
@@ -219,17 +212,14 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
                 ..Default::default()
             },
             all.price(),
-            ErrorCategory::SolverNonConvergence,
+            (|error| matches!(error, Error::NonConvergence(_))) as fn(Error) -> bool,
         ),
     ] {
-        assert_eq!(
-            implied_volatility(&engine, &option, &context, quote, settings)
-                .unwrap_err()
-                .category,
-            expected
-        );
+        assert!(expected(
+            implied_volatility(&engine, &option, &context, quote, settings).unwrap_err()
+        ));
     }
-    assert_eq!(
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -237,11 +227,10 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -252,20 +241,17 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
                     ..Default::default()
                 }
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(context, original);
     assert_eq!(engine.price(&option, &context).unwrap(), all.price());
     let put = AmericanOption::new(OptionType::Put, 100.0, start, end).unwrap();
     let quote = engine.price(&put, &context).unwrap();
-    assert_eq!(
-        implied_volatility(&engine, &put, &context, quote, Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+    assert!(matches!(
+        implied_volatility(&engine, &put, &context, quote, Default::default()).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     assert!(
         (implied_volatility(
             &engine,
@@ -293,11 +279,36 @@ fn american_applicability_and_error_order_are_preserved() {
     for direction in [OptionType::Call, OptionType::Put] {
         let option = AmericanOption::new(direction, 100.0, start, end).unwrap();
         for (r, q, vol, category) in [
-            (-0.01, 0.02, 0.2, ErrorCategory::UnsupportedOperation),
-            (0.05, 0.1, 0.02, ErrorCategory::UnsupportedOperation),
-            (0.0, 0.02, 0.01, ErrorCategory::UnsupportedOperation),
-            (0.05, 0.03, 1e200, ErrorCategory::InvalidResult),
-            (0.1, 0.05, 1e-200, ErrorCategory::InvalidResult),
+            (
+                -0.01,
+                0.02,
+                0.2,
+                (|error| matches!(error, Error::UnsupportedOperation(_))) as fn(Error) -> bool,
+            ),
+            (
+                0.05,
+                0.1,
+                0.02,
+                (|error| matches!(error, Error::UnsupportedOperation(_))) as fn(Error) -> bool,
+            ),
+            (
+                0.0,
+                0.02,
+                0.01,
+                (|error| matches!(error, Error::UnsupportedOperation(_))) as fn(Error) -> bool,
+            ),
+            (
+                0.05,
+                0.03,
+                1e200,
+                (|error| matches!(error, Error::ComputationFailure(_))) as fn(Error) -> bool,
+            ),
+            (
+                0.1,
+                0.05,
+                1e-200,
+                (|error| matches!(error, Error::ComputationFailure(_))) as fn(Error) -> bool,
+            ),
         ] {
             let (r, q) = if direction == OptionType::Call {
                 (r, q)
@@ -305,11 +316,8 @@ fn american_applicability_and_error_order_are_preserved() {
                 (q, r)
             };
             let context = market(100.0, r, q, vol);
-            assert_eq!(
-                engine.price(&option, &context).unwrap_err().category,
-                category
-            );
-            assert_eq!(
+            assert!(category(engine.price(&option, &context).unwrap_err()));
+            assert!(category(
                 engine
                     .price_with_greeks(
                         &option,
@@ -318,9 +326,7 @@ fn american_applicability_and_error_order_are_preserved() {
                         Default::default()
                     )
                     .unwrap_err()
-                    .category,
-                category
-            );
+            ));
         }
         let curve = RateTermStructure::new(start.into(), vec![end.into()], vec![(-0.05_f64).exp()])
             .unwrap();
@@ -329,11 +335,11 @@ fn american_applicability_and_error_order_are_preserved() {
             BlackScholesMertonParameters::new(0.05, curve, 0.2).unwrap(),
         ] {
             let context = PricingContext::new(model, 100.0, end.into()).unwrap();
-            assert_eq!(
-                engine.price(&option, &context).unwrap_err().category,
-                ErrorCategory::UnsupportedOperation
-            );
-            assert_eq!(
+            assert!(matches!(
+                engine.price(&option, &context).unwrap_err(),
+                Error::UnsupportedOperation(_)
+            ));
+            assert!(matches!(
                 engine
                     .price_with_greeks(
                         &option,
@@ -341,16 +347,15 @@ fn american_applicability_and_error_order_are_preserved() {
                         GreeksRequest::default(),
                         Default::default()
                     )
-                    .unwrap_err()
-                    .category,
-                ErrorCategory::UnsupportedOperation
-            );
+                    .unwrap_err(),
+                Error::UnsupportedOperation(_)
+            ));
         }
     }
     let call = AmericanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     let zero_rate = market(100.0, 0.0, 0.02, 0.2);
     assert!(engine.price(&call, &zero_rate).is_ok());
-    assert_eq!(
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &call,
@@ -358,10 +363,9 @@ fn american_applicability_and_error_order_are_preserved() {
                 GreeksRequest::new([Greek::Rho]),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
 }
 
 #[test]

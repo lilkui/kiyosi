@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 
 use crate::engines::analytic::vanilla::log_normal_cdf;
 use crate::{
-    AmericanOption, AnalyticVanillaEngine, Error, ErrorCategory, EuropeanOption, GreeksRequest,
+    AmericanOption, AnalyticVanillaEngine, Error, EuropeanOption, GreeksRequest,
     NumericalShiftSettings, OptionType, PricingContext, PricingEngine, PricingResult, Result,
     numerical_greeks,
 };
@@ -166,9 +166,8 @@ fn ksi(
 }
 
 fn unsupported_boundary() -> Error {
-    Error::new(
-        ErrorCategory::UnsupportedOperation,
-        "Bjerksund-Stensland exercise boundaries must exceed the strike",
+    Error::UnsupportedOperation(
+        "Bjerksund-Stensland exercise boundaries must exceed the strike".into(),
     )
 }
 
@@ -201,9 +200,8 @@ fn bjerksund_call(
         (root - offset) / variance
     };
     if variance == 0.0 || !variance.is_finite() || !beta.is_finite() || beta <= 1.0 {
-        return Err(Error::new(
-            ErrorCategory::InvalidResult,
-            "Bjerksund-Stensland exercise exponent is numerically unstable",
+        return Err(Error::ComputationFailure(
+            "Bjerksund-Stensland exercise exponent is numerically unstable".into(),
         ));
     }
     let b_inf = beta / (beta - 1.0) * strike;
@@ -291,11 +289,11 @@ impl BjerksundStenslandVanillaEngine {
     /// At expiry returns intrinsic value, including under negative rates.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::UnsupportedOperation`] for node curves (before life
+    /// Returns [`Error::UnsupportedOperation`] for node curves (before life
     /// validation), negative transformed interest rates before expiry (call: rate;
     /// put: dividend), or exercise boundaries at/below strike. Returns
-    /// [`ErrorCategory::InvalidTimeRange`] outside the inclusive exercise window and
-    /// [`ErrorCategory::InvalidResult`] for unstable exponents or non-finite results.
+    /// [`Error::InvalidInput`] outside the inclusive exercise window and
+    /// [`Error::ComputationFailure`] for unstable exponents or non-finite results.
     /// European continuation pricing errors propagate. Inputs remain unchanged.
     ///
     /// # Examples
@@ -316,9 +314,8 @@ impl BjerksundStenslandVanillaEngine {
         let valuation = context.valuation_time();
         let expiry = option.expiry_date().start_of_day();
         if valuation < option.effective_date().start_of_day() || valuation > expiry {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "valuation must be within the contract life",
+            return Err(Error::InvalidInput(
+                "valuation must be within the contract life".into(),
             ));
         }
         let time = valuation.years_until(expiry);
@@ -326,9 +323,8 @@ impl BjerksundStenslandVanillaEngine {
         let (rate, dividend) = (model.risk_free_rate()?, model.dividend_yield()?);
         let call = option.option_type() == OptionType::Call;
         if time > 0.0 && (if call { rate } else { dividend }) < 0.0 {
-            return Err(Error::new(
-                ErrorCategory::UnsupportedOperation,
-                "Bjerksund-Stensland requires a non-negative transformed interest rate",
+            return Err(Error::UnsupportedOperation(
+                "Bjerksund-Stensland requires a non-negative transformed interest rate".into(),
             ));
         }
         let european = EuropeanOption::new(
@@ -361,9 +357,8 @@ impl BjerksundStenslandVanillaEngine {
             )?
         };
         if !value.is_finite() {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "Bjerksund-Stensland pricing produced a non-finite result",
+            return Err(Error::ComputationFailure(
+                "Bjerksund-Stensland pricing produced a non-finite result".into(),
             ));
         }
         let intrinsic = (if call { spot - strike } else { strike - spot }).max(0.0);

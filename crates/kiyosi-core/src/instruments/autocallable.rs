@@ -3,9 +3,7 @@ pub(crate) mod pricing;
 pub use presets::{SnowballPreset, SnowballPresetTerms};
 
 use crate::error::finite;
-use crate::{
-    Date, Error, ErrorCategory, OptionContract, PricingContext, Result, Timestamp, TradingCalendar,
-};
+use crate::{Date, Error, OptionContract, PricingContext, Result, Timestamp, TradingCalendar};
 
 const DEFAULT_PRINCIPAL_RATIO: f64 = 1.0;
 
@@ -61,7 +59,7 @@ impl AutocallableObservation {
 /// Contractual values and ordering are validated when constructing a note.
 ///
 /// # Errors
-/// Returns [`ErrorCategory::InvalidSchedule`] for unequal sequence lengths.
+/// Returns [`Error::InvalidInput`] for unequal sequence lengths.
 ///
 /// # Examples
 /// ```
@@ -82,9 +80,8 @@ pub fn autocallable_observations(
         || coupons.is_some_and(|v| v.len() != dates.len())
         || coupon_barriers.is_some_and(|v| v.len() != dates.len())
     {
-        return Err(Error::new(
-            ErrorCategory::InvalidSchedule,
-            "observation sequence lengths differ",
+        return Err(Error::InvalidInput(
+            "observation sequence lengths differ".into(),
         ));
     }
     Ok(dates
@@ -385,7 +382,7 @@ impl PhoenixOption {
     /// See [`crate::implied_coupon`] for an example.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] for a non-finite coupon.
+    /// Returns [`Error::InvalidInput`] for a non-finite coupon.
     /// This note remains unchanged on success and failure.
     pub fn with_coupon(&self, coupon: f64) -> Result<Self> {
         let mut terms = self.0.clone();
@@ -522,10 +519,9 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// Calendar and history time consistency are checked during pricing.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] for invalid numeric terms or
-    /// product-incompatible observation fields, [`ErrorCategory::InvalidTimeRange`]
-    /// for reversed life, and [`ErrorCategory::InvalidSchedule`] for empty,
-    /// unordered or out-of-life observations. Inputs are consumed on failure.
+    /// Returns [`Error::InvalidInput`] for invalid numeric terms or
+    /// product-incompatible observation fields, reversed life, or empty, unordered
+    /// or out-of-life observations. Inputs are consumed on failure.
     ///
     /// # Examples
     /// ```
@@ -630,22 +626,17 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         }
         match self.barrier_state() {
             None if had_out || had_in => {
-                return Err(Error::new(
-                    ErrorCategory::InvalidParameter,
-                    "prior autocallable state is required",
+                return Err(Error::InvalidInput(
+                    "prior autocallable state is required".into(),
                 ));
             }
             Some(AutocallableBarrierState::KnockedOut) if !had_out => {
-                return Err(Error::new(
-                    ErrorCategory::InvalidOption,
-                    "knock-out predates observations",
+                return Err(Error::InvalidInput(
+                    "knock-out predates observations".into(),
                 ));
             }
             Some(AutocallableBarrierState::KnockedIn) if !had_in => {
-                return Err(Error::new(
-                    ErrorCategory::InvalidOption,
-                    "knock-in predates monitoring",
-                ));
+                return Err(Error::InvalidInput("knock-in predates monitoring".into()));
             }
             _ => {}
         }
@@ -769,83 +760,76 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
 impl sealed::View<'_> {
     fn validate(&self) -> Result<()> {
         let terms = self;
-        let invalid = ErrorCategory::InvalidParameter;
         if terms.fixed_knocked_in_coupon.is_none() {
             for value in [terms.initial_spot, terms.upper_strike] {
-                finite(value, invalid, true)?;
+                finite(value, true)?;
             }
-            finite(terms.lower_strike, invalid, false)?;
+            finite(terms.lower_strike, false)?;
             if terms.lower_strike < 0.0 || terms.lower_strike > terms.upper_strike {
-                return Err(Error::new(invalid, "invalid lower strike"));
+                return Err(Error::InvalidInput("invalid lower strike".into()));
             }
         }
-        finite(terms.principal_ratio, invalid, false)?;
+        finite(terms.principal_ratio, false)?;
         if terms.principal_ratio < 0.0 {
-            return Err(Error::new(invalid, "negative autocallable principal"));
+            return Err(Error::InvalidInput(
+                "negative autocallable principal".into(),
+            ));
         }
         if terms.expiry_date < terms.effective_date {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "expiry precedes effective date",
-            ));
+            return Err(Error::InvalidInput("expiry precedes effective date".into()));
         }
         if terms.observations.is_empty() {
-            return Err(Error::new(
-                ErrorCategory::InvalidSchedule,
-                "empty autocallable schedule",
-            ));
+            return Err(Error::InvalidInput("empty autocallable schedule".into()));
         }
         for (i, r) in terms.observations.iter().enumerate() {
             if r.date < terms.effective_date
                 || r.date > terms.expiry_date
                 || i > 0 && r.date <= terms.observations[i - 1].date
             {
-                return Err(Error::new(
-                    ErrorCategory::InvalidSchedule,
-                    "observations must be ordered within life",
+                return Err(Error::InvalidInput(
+                    "observations must be ordered within life".into(),
                 ));
             }
         }
         for r in terms.observations {
-            finite(r.knock_out_level, invalid, true)?;
+            finite(r.knock_out_level, true)?;
         }
         if !terms.has_knock_in && terms.barrier_state == Some(AutocallableBarrierState::KnockedIn) {
-            return Err(Error::new(
-                invalid,
-                "knock-in state requires a knock-in barrier",
+            return Err(Error::InvalidInput(
+                "knock-in state requires a knock-in barrier".into(),
             ));
         }
-        finite(terms.knock_in_level, invalid, true)?;
+        finite(terms.knock_in_level, true)?;
         if let Some(coupon) = terms.fixed_knocked_in_coupon {
-            finite(coupon, invalid, false)?;
+            finite(coupon, false)?;
             if coupon > terms.maturity_coupon_rate {
-                return Err(Error::new(
-                    invalid,
-                    "minimum coupon exceeds maturity coupon",
+                return Err(Error::InvalidInput(
+                    "minimum coupon exceeds maturity coupon".into(),
                 ));
             }
         }
         if terms.phoenix {
-            finite(terms.coupon_rate, invalid, false)?;
+            finite(terms.coupon_rate, false)?;
             for r in terms.observations {
-                finite(r.coupon_barrier_level, invalid, false)?;
+                finite(r.coupon_barrier_level, false)?;
                 if r.coupon_barrier_level < 0.0 || r.coupon_rate != 0.0 {
-                    return Err(Error::new(invalid, "invalid Phoenix observation terms"));
+                    return Err(Error::InvalidInput(
+                        "invalid Phoenix observation terms".into(),
+                    ));
                 }
             }
         } else {
             for r in terms.observations {
-                finite(r.coupon_rate, invalid, false)?;
+                finite(r.coupon_rate, false)?;
             }
-            finite(terms.maturity_coupon_rate, invalid, false)?;
+            finite(terms.maturity_coupon_rate, false)?;
             if terms
                 .observations
                 .iter()
                 .any(|r| r.coupon_barrier_level != 0.0)
             {
-                return Err(Error::new(
-                    invalid,
-                    "snowballs do not support conditional observation coupons",
+                return Err(Error::InvalidInput(
+                    "snowballs do not support conditional observation coupons".into(),
                 ));
             }
         }

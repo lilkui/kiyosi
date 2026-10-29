@@ -7,7 +7,12 @@ from datetime import UTC, date, datetime, timedelta
 from fractions import Fraction
 
 import QuantLib as ql
-from kiyosi import ErrorCategory, KiyosiError
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import (
     ArithmeticAveragePriceOption,
     EuropeanOption,
@@ -65,10 +70,10 @@ def market(at=START, rate=0.04, dividend=0.01, volatility=0.2, spot=100):
 
 
 class AsianTests(unittest.TestCase):
-    def category(self, expected, call, *args, **kwargs):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected, call, *args, **kwargs):
+        with self.assertRaises(expected) as error:
             call(*args, **kwargs)
-        self.assertEqual(error.exception.category, expected)
+        self.assertIs(type(error.exception), expected)
 
     def test_owned_history_replacement_and_native_representation_errors(self):
         for kind, engine_type in PAIRS:
@@ -79,8 +84,8 @@ class AsianTests(unittest.TestCase):
             self.assertEqual(updated.realized_average, 105.5)
             for name in terms():
                 self.assertEqual(getattr(option, name), getattr(updated, name))
-            self.category(
-                ErrorCategory.INVALID_PARAMETER, option.replace, realized_average=-1
+            self.assert_rejection(
+                InvalidInputError, option.replace, realized_average=-1
             )
             self.assertEqual(option.realized_average, 0)
             for name in (*terms(), "realized_average"):
@@ -128,11 +133,11 @@ class AsianTests(unittest.TestCase):
         averaging = date(2025, 2, 1)
         for kind, engine_type in PAIRS:
             for strike, average, expected in (
-                (0, -1, ErrorCategory.INVALID_STRIKE),
-                (100, -1, ErrorCategory.INVALID_PARAMETER),
-                (100, 0, ErrorCategory.INVALID_TIME_RANGE),
+                (0, -1, InvalidInputError),
+                (100, -1, InvalidInputError),
+                (100, 0, InvalidInputError),
             ):
-                self.category(
+                self.assert_rejection(
                     expected,
                     kind,
                     **terms(
@@ -143,14 +148,14 @@ class AsianTests(unittest.TestCase):
                     ),
                 )
             for average in (-1, math.nan, math.inf):
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     kind,
                     **terms(realized_average=average),
                 )
             for invalid in (START - timedelta(days=1), END + timedelta(days=1)):
-                self.category(
-                    ErrorCategory.INVALID_SCHEDULE,
+                self.assert_rejection(
+                    InvalidInputError,
                     kind,
                     **terms(averaging_start_date=invalid),
                 )
@@ -159,26 +164,26 @@ class AsianTests(unittest.TestCase):
             engine = engine_type()
             for at in (START, averaging):
                 self.assertGreater(engine.price(original, market(at)), 0)
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER, engine.price, seasoned, market(at)
+                self.assert_rejection(
+                    InvalidInputError, engine.price, seasoned, market(at)
                 )
             for at in (averaging + timedelta(days=1), END):
                 self.assertGreater(engine.price(seasoned, market(at)), 0)
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER, engine.price, original, market(at)
+                self.assert_rejection(
+                    InvalidInputError, engine.price, original, market(at)
                 )
             for at in (
                 START - timedelta(days=1),
                 datetime(2026, 1, 1, microsecond=1, tzinfo=UTC),
             ):
-                self.category(
-                    ErrorCategory.INVALID_TIME_RANGE, engine.price, seasoned, market(at)
+                self.assert_rejection(
+                    InvalidInputError, engine.price, seasoned, market(at)
                 )
             self.assertEqual(engine.price(seasoned, market(END)), 10)
             result = engine.price_with_greeks(seasoned, market(END), all_greeks=True)
             self.assertTrue(all(getattr(result, g) is None for g in GREEKS))
-            self.category(
-                ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 implied_volatility,
                 engine,
                 seasoned,
@@ -198,8 +203,8 @@ class AsianTests(unittest.TestCase):
                         engine.price(single, market(at)),
                         AnalyticVanillaEngine().price(vanilla, market(at)),
                     )
-                    self.category(
-                        ErrorCategory.INVALID_PARAMETER,
+                    self.assert_rejection(
+                        InvalidInputError,
                         engine.price,
                         single.replace(realized_average=110),
                         market(at),
@@ -230,15 +235,15 @@ class AsianTests(unittest.TestCase):
             ):
                 with self.assertRaises(exception):
                     engine.price_with_greeks(option, context, **settings)
-            self.category(
-                ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price_with_greeks,
                 option,
                 context,
                 [],
             )
-            self.category(
-                ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price_with_greeks,
                 option,
                 context,
@@ -258,16 +263,16 @@ class AsianTests(unittest.TestCase):
                 0.2,
                 delta=1e-7,
             )
-            self.category(
-                ErrorCategory.UNBRACKETED_VOLATILITY,
+            self.assert_rejection(
+                RootNotBracketedError,
                 implied_volatility,
                 engine,
                 option,
                 context,
                 -1,
             )
-            self.category(
-                ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 implied_volatility,
                 engine,
                 option,
@@ -322,8 +327,8 @@ class AsianTests(unittest.TestCase):
     def test_non_finite_small_volatility_moments_preserve_invalid_result(self):
         option = ArithmeticAveragePriceOption(**terms())
         for sigma in (1e-6, 0.001):
-            self.category(
-                ErrorCategory.INVALID_RESULT,
+            self.assert_rejection(
+                ComputationFailureError,
                 TurnbullWakemanArithmeticAveragePriceEngine().price,
                 option,
                 market(rate=400, dividend=0, volatility=sigma),
@@ -361,19 +366,19 @@ class AsianTests(unittest.TestCase):
         )
         engine = TurnbullWakemanArithmeticAveragePriceEngine()
         arithmetic = ArithmeticAveragePriceOption(**terms())
-        self.category(
-            ErrorCategory.UNSUPPORTED_OPERATION, engine.price, arithmetic, context
+        self.assert_rejection(
+            UnsupportedOperationError, engine.price, arithmetic, context
         )
         # Request validation precedes pricing applicability for these analytic engines.
-        self.category(
-            ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             arithmetic,
             context,
             [],
         )
-        self.category(
-            ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             arithmetic.replace(realized_average=110),
             context,
@@ -387,10 +392,10 @@ class AsianTests(unittest.TestCase):
         )
         short = RateTermStructure(reference_time=START, times=[middle], factors=[0.99])
         for kind, engine_type in PAIRS:
-            self.category(
-                ErrorCategory.INVALID_TIME_RANGE
+            self.assert_rejection(
+                InvalidInputError
                 if kind is GeometricAveragePriceOption
-                else ErrorCategory.UNSUPPORTED_OPERATION,
+                else UnsupportedOperationError,
                 engine_type().price,
                 kind(**terms()),
                 market(rate=short),

@@ -101,10 +101,10 @@ fn history_replacement_owns_validated_values_and_preserves_terms() {
     assert_eq!(seasoned.accumulated_quantity(), 3.0);
     assert_eq!(seasoned.replace(0.0).unwrap(), option);
     for invalid in [-1.0, f64::NAN, f64::INFINITY] {
-        assert_eq!(
-            seasoned.replace(invalid).unwrap_err().category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            seasoned.replace(invalid).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
         assert_eq!(seasoned.accumulated_quantity(), 3.0);
     }
     assert_eq!(option.strike(), 100.0);
@@ -127,14 +127,10 @@ fn validation_categories_and_order_preserve_accepted_degenerate_terms() {
                 3 => t.acceleration_factor = invalid,
                 _ => t.accumulated_quantity = invalid,
             }
-            assert_eq!(
-                Accumulator::new(t).unwrap_err().category,
-                if field == 0 {
-                    ErrorCategory::InvalidStrike
-                } else {
-                    ErrorCategory::InvalidParameter
-                }
-            );
+            assert!(matches!(
+                Accumulator::new(t).unwrap_err(),
+                Error::InvalidInput(_)
+            ));
         }
     }
     let mut t = terms(day(1, 1));
@@ -142,15 +138,15 @@ fn validation_categories_and_order_preserve_accepted_degenerate_terms() {
     t.acceleration_factor = 0.0;
     assert!(Accumulator::new(t).is_ok());
     t.expiry_date = Date::new(2024, 12, 31).unwrap();
-    assert_eq!(
-        Accumulator::new(t).unwrap_err().category,
-        ErrorCategory::InvalidTimeRange
-    );
+    assert!(matches!(
+        Accumulator::new(t).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     t.strike = 0.0;
-    assert_eq!(
-        Accumulator::new(t).unwrap_err().category,
-        ErrorCategory::InvalidStrike
-    );
+    assert!(matches!(
+        Accumulator::new(t).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
@@ -207,31 +203,28 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
         Date::new(2024, 12, 31).unwrap().into(),
         Timestamp::new(day(1, 6), 0, 0, 0, 1).unwrap(),
     ] {
-        assert_eq!(
+        assert!(matches!(
             engine
                 .price(&option, &market(100.0, at, 0.2, 0.04, 0.01))
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidTimeRange
-        );
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let weekend = Accumulator::new(terms(day(1, 5))).unwrap();
-    assert_eq!(
+    assert!(matches!(
         engine
             .price(&weekend, &market(100.0, day(1, 3).into(), 0.2, 0.04, 0.01))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidDate
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let huge = option.replace(f64::MAX).unwrap();
-    assert_eq!(
+    assert!(matches!(
         engine
             .price(&huge, &market(111.0, day(1, 6).into(), 0.2, 0.04, 0.01))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
+    assert!(matches!(
         engine
             .price(
                 &option,
@@ -243,10 +236,9 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
                     0.01
                 )
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
 }
 
 #[test]
@@ -603,12 +595,10 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
         ),
     ] {
         let quote = engine.price(&option, &context).unwrap();
-        assert_eq!(
-            implied_volatility(&engine, &option, &context, quote, settings)
-                .unwrap_err()
-                .category,
-            ErrorCategory::UnsupportedOperation
-        );
+        assert!(matches!(
+            implied_volatility(&engine, &option, &context, quote, settings).unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
     }
     let curve =
         RateTermStructure::new(day(1, 1).into(), vec![day(2, 3).into()], vec![0.99]).unwrap();
@@ -618,7 +608,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -626,11 +616,10 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -638,10 +627,9 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     for settings in [
         QuadratureSettings {
             asset_step_count: 3,
@@ -656,12 +644,10 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
             ..Default::default()
         },
     ] {
-        assert_eq!(
-            QuadratureAccumulatorEngine::new(settings)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            QuadratureAccumulatorEngine::new(settings).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
 }
 

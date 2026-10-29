@@ -45,14 +45,14 @@ impl MonteCarloDoubleBarrierEngine {
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
-    /// Returns [`crate::ErrorCategory::UnsupportedOperation`] for node curves,
-    /// [`crate::ErrorCategory::InvalidTimeRange`] outside life,
-    /// [`crate::ErrorCategory::InvalidDate`] for non-trading fixings,
-    /// [`crate::ErrorCategory::InvalidParameter`] for missing history or Sobol
-    /// dimensions above 21,201, [`crate::ErrorCategory::InvalidOption`] for
-    /// impossible history, or [`crate::ErrorCategory::InvalidResult`] for
+    /// Returns [`crate::Error::UnsupportedOperation`] for node curves,
+    /// [`crate::Error::InvalidInput`] outside life,
+    /// [`crate::Error::InvalidInput`] for non-trading fixings,
+    /// [`crate::Error::InvalidInput`] for missing history or Sobol
+    /// dimensions above 21,201, [`crate::Error::InvalidInput`] for
+    /// impossible history, or [`crate::Error::ComputationFailure`] for
     /// unrepresentable paths, nonconvergent series or results. Operational failures
-    /// retain native I/O details through [`crate::Error::operational_error`].
+    /// retain native I/O details through [`crate::Error::Io`].
     /// Inputs remain unchanged on every outcome.
     ///
     /// # Panics
@@ -83,8 +83,8 @@ impl MonteCarloDoubleBarrierEngine {
     /// # Errors
     /// Checks flat rates before requests and shifts, then propagates [`Self::price`]
     /// errors. Empty requests or invalid shifts return
-    /// [`crate::ErrorCategory::InvalidParameter`]; non-finite requested Greek samples
-    /// return [`crate::ErrorCategory::InvalidResult`]. Inputs remain unchanged.
+    /// [`crate::Error::InvalidInput`]; non-finite requested Greek samples
+    /// return [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Panics
     /// Resumes worker panics after joining the call's workers, as in [`Self::price`].

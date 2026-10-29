@@ -14,7 +14,7 @@
 //! rejections use [`Result`], never panics. Allocation exhaustion follows Rust's
 //! allocator behavior (normally process abort); internal panics are not domain errors.
 //! Monte Carlo entropy-source and thread-creation failures retain native I/O
-//! details through [`Error::operational_error`] and the standard error source.
+//! details through [`Error::Io`] and the standard error source.
 //!
 //! ```
 //! use kiyosi_core::{AnalyticVanillaEngine, BlackScholesMertonParameters, Date,
@@ -72,7 +72,7 @@ pub use engines::quadrature::{
     QuadratureAccumulatorEngine, QuadratureAutocallableEngine, QuadratureBarrierEngine,
     QuadratureDigitalEngine, QuadratureSettings, QuadratureVanillaEngine,
 };
-pub use error::{Error, ErrorCategory, Result};
+pub use error::{Error, Result};
 pub use instruments::accumulator::{Accumulator, AccumulatorTerms};
 pub use instruments::asian::{
     ArithmeticAveragePriceOption, DEFAULT_REALIZED_AVERAGE, GeometricAveragePriceOption,

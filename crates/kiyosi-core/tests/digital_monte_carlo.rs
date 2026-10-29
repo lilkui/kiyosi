@@ -128,7 +128,7 @@ fn tiny_volatility_preserves_exercise_and_only_checks_requested_greeks() {
                     )
                     .unwrap();
                 assert!(!result.has(Greek::Rho));
-                assert_eq!(
+                assert!(matches!(
                     engine
                         .price_with_greeks(
                             &option,
@@ -136,10 +136,9 @@ fn tiny_volatility_preserves_exercise_and_only_checks_requested_greeks() {
                             GreeksRequest::new([Greek::Gamma]),
                             Default::default()
                         )
-                        .unwrap_err()
-                        .category,
-                    ErrorCategory::InvalidResult
-                );
+                        .unwrap_err(),
+                    Error::ComputationFailure(_)
+                ));
             }
         }
     }
@@ -187,7 +186,7 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                     }
                 );
                 assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
-                assert_eq!(
+                assert!(matches!(
                     implied_volatility(
                         &engine,
                         &option,
@@ -195,10 +194,9 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                         result.price(),
                         Default::default()
                     )
-                    .unwrap_err()
-                    .category,
-                    ErrorCategory::UnsupportedOperation
-                );
+                    .unwrap_err(),
+                    Error::UnsupportedOperation(_)
+                ));
             }
             let outside = base
                 .replace(PricingContextChanges {
@@ -206,11 +204,11 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                     ..Default::default()
                 })
                 .unwrap();
-            assert_eq!(
-                engine.price(&option, &outside).unwrap_err().category,
-                ErrorCategory::InvalidTimeRange
-            );
-            assert_eq!(
+            assert!(matches!(
+                engine.price(&option, &outside).unwrap_err(),
+                Error::InvalidInput(_)
+            ));
+            assert!(matches!(
                 engine
                     .price_with_greeks(
                         &option,
@@ -218,10 +216,9 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                         GreeksRequest::default(),
                         Default::default()
                     )
-                    .unwrap_err()
-                    .category,
-                ErrorCategory::InvalidParameter
-            );
+                    .unwrap_err(),
+                Error::InvalidInput(_)
+            ));
             let curve = RateTermStructure::new(
                 option.effective_date().into(),
                 vec![option.expiry_date().into()],
@@ -241,14 +238,13 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                     ..Default::default()
                 })
                 .unwrap();
-            assert_eq!(
+            assert!(matches!(
                 engine
                     .price_with_greeks(&option, &node, GreeksRequest::default(), Default::default())
-                    .unwrap_err()
-                    .category,
-                ErrorCategory::UnsupportedOperation
-            );
-            assert_eq!(
+                    .unwrap_err(),
+                Error::UnsupportedOperation(_)
+            ));
+            assert!(matches!(
                 numerical_greeks(
                     &engine,
                     &option,
@@ -256,16 +252,14 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                     GreeksRequest::default(),
                     Default::default()
                 )
-                .unwrap_err()
-                .category,
-                ErrorCategory::UnsupportedOperation
-            );
-            assert_eq!(
+                .unwrap_err(),
+                Error::UnsupportedOperation(_)
+            ));
+            assert!(matches!(
                 implied_volatility(&engine, &option, &node, f64::NAN, Default::default())
-                    .unwrap_err()
-                    .category,
-                ErrorCategory::UnsupportedOperation
-            );
+                    .unwrap_err(),
+                Error::UnsupportedOperation(_)
+            ));
             assert!(engine.price(&option, &base).unwrap().is_finite());
             assert_eq!(engine.settings().seed, Some(42));
         }
@@ -314,7 +308,7 @@ fn discounted_samples_and_greeks_preserve_extreme_scales_and_failure_state() {
         )
         .unwrap();
     assert!(delta.require(Greek::Delta).unwrap().is_finite());
-    assert_eq!(
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -322,20 +316,18 @@ fn discounted_samples_and_greeks_preserve_extreme_scales_and_failure_state() {
                 GreeksRequest::new([Greek::Gamma]),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
     assert_eq!(engine.price(&option, &context).unwrap(), delta.price());
     let overflowing =
         DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 1e308, start, end).unwrap();
-    assert_eq!(
+    assert!(matches!(
         engine
             .price(&overflowing, &market(100.0, -10.0, -10.0, 0.2))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
 }
 
 #[test]
@@ -383,12 +375,10 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
                     implied_volatility(&other, &option, &context, quote, bounds).unwrap()
                 );
             }
-            assert_eq!(
-                implied_volatility(&engine, &option, &context, 20.0, bounds)
-                    .unwrap_err()
-                    .category,
-                ErrorCategory::UnbracketedVolatility
-            );
+            assert!(matches!(
+                implied_volatility(&engine, &option, &context, 20.0, bounds).unwrap_err(),
+                Error::RootNotBracketed(_)
+            ));
         }
     }
     for paths in [1, 2, 3, 511, 512, 513, 1025] {
@@ -466,10 +456,10 @@ fn settings_reuse_vanilla_validation_and_cash_sampling_variance() {
             ..Default::default()
         },
     ] {
-        assert_eq!(
-            MonteCarloDigitalEngine::new(settings).unwrap_err().category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            MonteCarloDigitalEngine::new(settings).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for direction in [OptionType::Call, OptionType::Put] {
         let option = options(direction)[0].clone();

@@ -5,8 +5,13 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
-import kiyosi
-from kiyosi import pricing
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+    pricing,
+)
 from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
@@ -48,10 +53,10 @@ def options():
 
 
 class DigitalNumericalTests(unittest.TestCase):
-    def assert_category(self, category, operation, *args, **kwargs):
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation, *args, **kwargs):
+        with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_prices_and_supported_greeks_match_analytic_contracts(self):
         for remaining in (1, 365):
@@ -187,15 +192,15 @@ class DigitalNumericalTests(unittest.TestCase):
             for engine in (
                 pricing.MonteCarloDigitalEngine(path_count=2, seed=42, antithetic=True),
             ):
-                self.assert_category(
-                    kiyosi.ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     engine.price_with_greeks,
                     option,
                     market(),
                     [],
                 )
-                self.assert_category(
-                    kiyosi.ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     engine.price_with_greeks,
                     option,
                     market(),
@@ -205,8 +210,8 @@ class DigitalNumericalTests(unittest.TestCase):
                 with self.assertRaises(TypeError):
                     engine.price_with_greeks(option, market(), "delta", spot_shift=True)
                 for valuation in (START - timedelta(days=1), END + timedelta(days=1)):
-                    self.assert_category(
-                        kiyosi.ErrorCategory.INVALID_TIME_RANGE,
+                    self.assert_rejection(
+                        InvalidInputError,
                         engine.price,
                         option,
                         market(valuation=valuation),
@@ -224,8 +229,8 @@ class DigitalNumericalTests(unittest.TestCase):
                 )
                 self.assertEqual(engine.price(option, context), 50 if asset else 5)
                 self.assertIsNone(engine.price_with_greeks(option, context, "rho").rho)
-                self.assert_category(
-                    kiyosi.ErrorCategory.INVALID_RESULT,
+                self.assert_rejection(
+                    ComputationFailureError,
                     engine.price_with_greeks,
                     option,
                     context,
@@ -270,8 +275,8 @@ class DigitalNumericalTests(unittest.TestCase):
             {"thread_count": -1},
             {"path_count": 3, "sampling": "sobol"},
         ):
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 pricing.MonteCarloDigitalEngine,
                 **fields,
             )
@@ -299,18 +304,16 @@ class DigitalNumericalTests(unittest.TestCase):
             valuation_time=END,
         )
         for option, _ in options():
-            self.assert_category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION, mc.price, option, node
-            )
-            self.assert_category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(UnsupportedOperationError, mc.price, option, node)
+            self.assert_rejection(
+                UnsupportedOperationError,
                 mc.price_with_greeks,
                 option,
                 node,
                 [],
             )
-            self.assert_category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 pricing.implied_volatility,
                 mc,
                 option,
@@ -328,8 +331,8 @@ class DigitalNumericalTests(unittest.TestCase):
                 self.assertEqual(result.price, (spot if asset else 10) if pays else 0)
                 for name in GREEKS:
                     self.assertIsNone(getattr(result, name))
-                self.assert_category(
-                    kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                self.assert_rejection(
+                    UnsupportedOperationError,
                     pricing.implied_volatility,
                     engine,
                     option,
@@ -357,8 +360,8 @@ class DigitalNumericalTests(unittest.TestCase):
                     )
                     # Asset payoffs can select a nearby root across sampled payoff jumps.
                     self.assertAlmostEqual(sigma, 0.2, delta=0.002 if asset else 0.001)
-                    self.assert_category(
-                        kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY,
+                    self.assert_rejection(
+                        RootNotBracketedError,
                         pricing.implied_volatility,
                         engine,
                         option,
@@ -439,8 +442,8 @@ class DigitalNumericalTests(unittest.TestCase):
         delta = engine.price_with_greeks(option, context, "delta")
         self.assertTrue(math.isfinite(delta.delta))
         self.assertIsNone(delta.gamma)
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_RESULT,
+        self.assert_rejection(
+            ComputationFailureError,
             engine.price_with_greeks,
             option,
             context,
@@ -454,8 +457,8 @@ class DigitalNumericalTests(unittest.TestCase):
             effective_date=START,
             expiry_date=END,
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_RESULT,
+        self.assert_rejection(
+            ComputationFailureError,
             engine.price,
             overflowing,
             market(rate=-10, dividend=-10),

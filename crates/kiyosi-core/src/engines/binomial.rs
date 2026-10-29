@@ -2,7 +2,7 @@ mod barrier;
 pub use barrier::CoxRossRubinsteinBarrierEngine;
 
 use crate::{
-    AmericanOption, DigitalOption, Error, ErrorCategory, EuropeanOption, Greek, GreeksRequest,
+    AmericanOption, DigitalOption, Error, EuropeanOption, Greek, GreeksRequest,
     ImpliedVolatilitySettings, NumericalShiftSettings, OptionContract, OptionType, PricingContext,
     PricingEngine, PricingResult, Result,
 };
@@ -23,10 +23,7 @@ impl Default for BinomialSettings {
 impl BinomialSettings {
     fn validate(self) -> Result<()> {
         if !(1..=1_000_000).contains(&self.step_count) {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "invalid binomial step count",
-            ));
+            return Err(Error::InvalidInput("invalid binomial step count".into()));
         }
         Ok(())
     }
@@ -45,7 +42,7 @@ impl CoxRossRubinsteinVanillaEngine {
     /// Creates an engine after validating its step count.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] outside 1 through 1,000,000 steps.
+    /// Returns [`Error::InvalidInput`] outside 1 through 1,000,000 steps.
     ///
     /// # Examples
     /// ```
@@ -69,9 +66,9 @@ impl CoxRossRubinsteinVanillaEngine {
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::UnsupportedOperation`] for node curves before life
-    /// validation, [`ErrorCategory::InvalidTimeRange`] outside contract life, and
-    /// [`ErrorCategory::InvalidResult`] for unstable probabilities, asset nodes or values.
+    /// Returns [`Error::UnsupportedOperation`] for node curves before life
+    /// validation, [`Error::InvalidInput`] outside contract life, and
+    /// [`Error::ComputationFailure`] for unstable probabilities, asset nodes or values.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
         Self: PricingEngine<I>,
@@ -128,9 +125,8 @@ fn time_step(
     let valuation = context.valuation_time();
     let expiry = option.expiry_date().start_of_day();
     if valuation < option.effective_date().start_of_day() || valuation > expiry {
-        return Err(Error::new(
-            ErrorCategory::InvalidTimeRange,
-            "valuation must be within contract life",
+        return Err(Error::InvalidInput(
+            "valuation must be within contract life".into(),
         ));
     }
     Ok(valuation.years_until(expiry) / f64::from(settings.step_count))
@@ -151,9 +147,8 @@ fn prepare_implied(
             settings.lower_bound = settings.lower_bound.max(minimum);
         }
         if settings.lower_bound >= settings.upper_bound {
-            return Err(Error::new(
-                ErrorCategory::UnbracketedVolatility,
-                "volatility bounds exclude the tree domain",
+            return Err(Error::RootNotBracketed(
+                "volatility bounds exclude the tree domain".into(),
             ));
         }
     }
@@ -170,10 +165,7 @@ struct Payoff {
 }
 
 fn unstable() -> Error {
-    Error::new(
-        ErrorCategory::InvalidResult,
-        "binomial tree produced unstable parameters, nodes or values",
-    )
+    Error::ComputationFailure("binomial tree produced unstable parameters, nodes or values".into())
 }
 
 fn scaled(value: f64, exponent: f64) -> f64 {
@@ -492,7 +484,7 @@ impl CoxRossRubinsteinDigitalEngine {
     /// See [`CoxRossRubinsteinVanillaEngine::new`] for a settings example.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] outside 1 through 1,000,000 steps.
+    /// Returns [`Error::InvalidInput`] outside 1 through 1,000,000 steps.
     pub fn new(settings: BinomialSettings) -> Result<Self> {
         settings.validate()?;
         Ok(Self { settings })
@@ -520,7 +512,7 @@ impl CoxRossRubinsteinDigitalEngine {
     /// # Errors
     /// Checks flat-rate applicability before request and shift validation, then reuses
     /// [`Self::price`] errors. Empty requests or invalid shifts return
-    /// [`ErrorCategory::InvalidParameter`]. Inputs remain unchanged.
+    /// [`Error::InvalidInput`]. Inputs remain unchanged.
     ///
     /// # Examples
     /// ```

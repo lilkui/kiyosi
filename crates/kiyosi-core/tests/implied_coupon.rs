@@ -267,25 +267,25 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
             ..defaults
         },
     ] {
-        assert_eq!(
-            solve(1.0, settings).unwrap_err().category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            solve(1.0, settings).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for quote in [f64::NAN, f64::INFINITY] {
-        assert_eq!(
-            solve(quote, defaults).unwrap_err().category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            solve(quote, defaults).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
-    assert_eq!(
-        solve(10.0, defaults).unwrap_err().category,
-        ErrorCategory::UnbracketedCoupon
-    );
+    assert!(matches!(
+        solve(10.0, defaults).unwrap_err(),
+        Error::RootNotBracketed(_)
+    ));
     let known = note.replace(Some(AutocallableBarrierState::None)).unwrap();
     let terminal = market(100.0, date(4, 1));
     let quote = engine.price(&known, &terminal).unwrap();
-    assert_eq!(
+    assert!(matches!(
         implied_snowball_coupon(
             &engine,
             &known,
@@ -294,10 +294,9 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
             PreserveMaturityCoupon,
             defaults
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::UnsupportedOperation
-    );
+        .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let shifted = implied_snowball_coupon(
         &engine,
         &known,
@@ -311,7 +310,7 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
     let knocked_out = note
         .replace(Some(AutocallableBarrierState::KnockedOut))
         .unwrap();
-    assert_eq!(
+    assert!(matches!(
         implied_snowball_coupon(
             &engine,
             &knocked_out,
@@ -320,11 +319,10 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
             ShiftMaturityCoupon,
             defaults
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::UnsupportedOperation
-    );
-    assert_eq!(
+        .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+    assert!(matches!(
         implied_snowball_coupon(
             &engine,
             &note,
@@ -333,11 +331,10 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
             PreserveMaturityCoupon,
             defaults
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::InvalidParameter
-    );
-    assert_eq!(
+        .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
         implied_snowball_coupon(
             &engine,
             &note,
@@ -346,10 +343,9 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
             PreserveMaturityCoupon,
             defaults
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::InvalidParameter
-    );
+        .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(note, binary());
     assert_eq!(context, market(100.0, date(1, 1)));
 }
@@ -380,13 +376,13 @@ fn custom_engine_failures_and_bisection_use_stable_categories() {
         Curve(|_| f64::INFINITY),
         Curve(|c| if c == 0.0 { -f64::MAX } else { f64::MAX }),
     ] {
-        assert_eq!(
-            solve(&curve, f64::MAX, s).unwrap_err().category,
-            ErrorCategory::SolverNonFinite
-        );
+        assert!(matches!(
+            solve(&curve, f64::MAX, s).unwrap_err(),
+            Error::ComputationFailure(_)
+        ));
     }
     let nonlinear = Curve(|c| c * c);
-    assert_eq!(
+    assert!(matches!(
         solve(
             &nonlinear,
             0.3,
@@ -395,10 +391,9 @@ fn custom_engine_failures_and_bisection_use_stable_categories() {
                 ..s
             }
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::SolverNonConvergence
-    );
+        .unwrap_err(),
+        Error::NonConvergence(_)
+    ));
     assert!((solve(&nonlinear, 0.3, s).unwrap() - 0.3_f64.sqrt()).abs() < 1e-7);
     let interval_only = ImpliedCouponSettings {
         parameter_tolerance: 2.0,
@@ -408,10 +403,10 @@ fn custom_engine_failures_and_bisection_use_stable_categories() {
     };
     assert_eq!(solve(&nonlinear, 0.3, interval_only).unwrap(), 1.0);
     let interior_nan = Curve(|c| if c > 0.0 && c < 2.0 { f64::NAN } else { c });
-    assert_eq!(
-        solve(&interior_nan, 0.3, s).unwrap_err().category,
-        ErrorCategory::SolverNonFinite
-    );
+    assert!(matches!(
+        solve(&interior_nan, 0.3, s).unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
 }
 
 #[test]
@@ -511,7 +506,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
     let mut terms = note.terms().clone();
     terms.maturity_coupon_rate = f64::MAX;
     let extreme = BinarySnowballOption::new(terms).unwrap();
-    assert_eq!(
+    assert!(matches!(
         implied_snowball_coupon(
             &engine,
             &extreme,
@@ -523,10 +518,9 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
                 ..Default::default()
             }
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::InvalidParameter
-    );
+        .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let ternary = TernarySnowballOption::new(TernarySnowballTerms::new(
         0.06,
         0.02,
@@ -536,7 +530,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         note.observations().to_vec(),
     ))
     .unwrap();
-    assert_eq!(
+    assert!(matches!(
         implied_snowball_coupon(
             &engine,
             &ternary,
@@ -545,10 +539,9 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
             ShiftMaturityCoupon,
             Default::default()
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::InvalidParameter
-    );
+        .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(ternary.terms().maturity_coupon_rate, 0.06);
     let curve =
         RateTermStructure::new(date(1, 1).into(), vec![date(4, 1).into()], vec![0.99]).unwrap();
@@ -566,10 +559,16 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         })
         .unwrap();
     for (observed, expected) in [
-        (f64::NAN, ErrorCategory::InvalidParameter),
-        (1.0, ErrorCategory::UnsupportedOperation),
+        (
+            f64::NAN,
+            (|error| matches!(error, Error::InvalidInput(_))) as fn(Error) -> bool,
+        ),
+        (
+            1.0,
+            (|error| matches!(error, Error::UnsupportedOperation(_))) as fn(Error) -> bool,
+        ),
     ] {
-        assert_eq!(
+        assert!(expected(
             implied_snowball_coupon(
                 &engine,
                 &note,
@@ -579,9 +578,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
                 Default::default()
             )
             .unwrap_err()
-            .category,
-            expected
-        );
+        ));
     }
 }
 
@@ -603,12 +600,10 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
     terms.barrier_state = Some(AutocallableBarrierState::None);
     let phoenix = PhoenixOption::new(terms).unwrap();
     let quote = engine.price(&phoenix, &context).unwrap();
-    assert_eq!(
-        implied_coupon(&engine, &phoenix, &context, quote, Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+    assert!(matches!(
+        implied_coupon(&engine, &phoenix, &context, quote, Default::default()).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let current = market(110.0, date(4, 1));
     let quote = engine
         .price(&phoenix.with_coupon(0.18).unwrap(), &current)
@@ -632,7 +627,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
     terms.barrier_state = Some(AutocallableBarrierState::None);
     let note = SnowballOption::new(terms).unwrap();
     let quote = engine.price(&note, &context).unwrap();
-    assert_eq!(
+    assert!(matches!(
         implied_snowball_coupon(
             &engine,
             &note,
@@ -641,10 +636,9 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
             CouponQuoteConvention::ShiftMaturityCoupon,
             Default::default()
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::UnsupportedOperation
-    );
+        .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
 }
 
 #[test]

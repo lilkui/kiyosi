@@ -9,7 +9,13 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 import QuantLib as ql
-from kiyosi import ErrorCategory, KiyosiError
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    NonConvergenceError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import (
     AmericanOption,
     AssetOrNothingOption,
@@ -50,10 +56,10 @@ def engine_for(kind):
 
 
 class QuadratureTests(unittest.TestCase):
-    def category(self, expected, operation, *args, **kwargs):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected, operation, *args, **kwargs):
+        with self.assertRaises(expected) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, expected)
+        self.assertIs(type(error.exception), expected)
 
     def test_strict_expiry_and_lifetime_boundaries(self):
         for kind in KINDS:
@@ -75,8 +81,8 @@ class QuadratureTests(unittest.TestCase):
                     self.assertEqual(result.price, expected)
                     for name in GREEKS:
                         self.assertIsNone(getattr(result, name))
-                    self.category(
-                        ErrorCategory.UNSUPPORTED_OPERATION,
+                    self.assert_rejection(
+                        UnsupportedOperationError,
                         implied_volatility,
                         engine,
                         option,
@@ -88,18 +94,18 @@ class QuadratureTests(unittest.TestCase):
                     datetime(2026, 1, 1, 0, 0, 0, 1, tzinfo=UTC),
                 ):
                     context = market(valuation=valuation)
-                    self.category(
-                        ErrorCategory.INVALID_TIME_RANGE, engine.price, option, context
+                    self.assert_rejection(
+                        InvalidInputError, engine.price, option, context
                     )
-                    self.category(
-                        ErrorCategory.INVALID_PARAMETER,
+                    self.assert_rejection(
+                        InvalidInputError,
                         engine.price_with_greeks,
                         option,
                         context,
                         [],
                     )
-                    self.category(
-                        ErrorCategory.INVALID_TIME_RANGE,
+                    self.assert_rejection(
+                        InvalidInputError,
                         implied_volatility,
                         engine,
                         option,
@@ -149,7 +155,7 @@ class QuadratureTests(unittest.TestCase):
                 option, context, "delta", spot_shift=math.ulp(0.0)
             )
             self.assertIsNone(collapsed.delta)
-            self.category(ErrorCategory.INVALID_RESULT, collapsed.require, "delta")
+            self.assert_rejection(UnsupportedOperationError, collapsed.require, "delta")
             saved_delta = result.delta
             del engine, option, context
             self.assertEqual(result.delta, saved_delta)
@@ -174,18 +180,18 @@ class QuadratureTests(unittest.TestCase):
                 curved = context.replace(
                     model_parameters=parameters, valuation_time=END
                 )
-                self.category(
-                    ErrorCategory.UNSUPPORTED_OPERATION, engine.price, option, curved
+                self.assert_rejection(
+                    UnsupportedOperationError, engine.price, option, curved
                 )
-                self.category(
-                    ErrorCategory.UNSUPPORTED_OPERATION,
+                self.assert_rejection(
+                    UnsupportedOperationError,
                     engine.price_with_greeks,
                     option,
                     curved,
                     [],
                 )
-                self.category(
-                    ErrorCategory.UNSUPPORTED_OPERATION,
+                self.assert_rejection(
+                    UnsupportedOperationError,
                     implied_volatility,
                     engine,
                     option,
@@ -201,8 +207,8 @@ class QuadratureTests(unittest.TestCase):
                 {"rate_shift": math.inf},
                 {"time_shift_days": 0},
             ):
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     engine.price_with_greeks,
                     option,
                     context,
@@ -235,14 +241,14 @@ class QuadratureTests(unittest.TestCase):
                     implied_volatility(engine, bad, context, 1)
             with self.assertRaises(TypeError):
                 type(engine)(asset_step_count=512)
-            self.category(
-                ErrorCategory.INVALID_RESULT,
+            self.assert_rejection(
+                ComputationFailureError,
                 engine.price,
                 option,
                 market(rate=-1000, dividend=-1000),
             )
-            self.category(
-                ErrorCategory.INVALID_RESULT,
+            self.assert_rejection(
+                ComputationFailureError,
                 engine.price,
                 contract(kind, end=date(2035, 1, 1)),
                 market(sigma=sys.float_info.max),
@@ -271,8 +277,8 @@ class QuadratureTests(unittest.TestCase):
                     0.2,
                     delta=1e-7,
                 )
-                self.category(
-                    ErrorCategory.UNBRACKETED_VOLATILITY,
+                self.assert_rejection(
+                    RootNotBracketedError,
                     implied_volatility,
                     engine,
                     option,
@@ -284,8 +290,8 @@ class QuadratureTests(unittest.TestCase):
                     {"lower_bound": 0},
                     {"price_tolerance": math.nan},
                 ):
-                    self.category(
-                        ErrorCategory.INVALID_PARAMETER,
+                    self.assert_rejection(
+                        InvalidInputError,
                         implied_volatility,
                         engine,
                         option,
@@ -304,8 +310,8 @@ class QuadratureTests(unittest.TestCase):
                     implied_volatility(
                         engine, option, context, quote, max_iterations=2**31
                     )
-                self.category(
-                    ErrorCategory.SOLVER_NON_CONVERGENCE,
+                self.assert_rejection(
+                    NonConvergenceError,
                     implied_volatility,
                     engine,
                     option,
@@ -463,8 +469,8 @@ class QuadratureTests(unittest.TestCase):
             option = contract(kind, strike=1e300)
             context = market(1e308, 0, -0.4)
             quote = engine.price(option, context)
-            self.category(
-                ErrorCategory.INVALID_RESULT,
+            self.assert_rejection(
+                ComputationFailureError,
                 engine.price_with_greeks,
                 option,
                 context,
@@ -477,8 +483,8 @@ class QuadratureTests(unittest.TestCase):
         option = contract(CashOrNothingOption, "put", payout=1e308)
         context = market(rate=-0.4, dividend=-0.4)
         quote = engine.price(option, context)
-        self.category(
-            ErrorCategory.INVALID_RESULT,
+        self.assert_rejection(
+            ComputationFailureError,
             engine.price_with_greeks,
             option,
             context,

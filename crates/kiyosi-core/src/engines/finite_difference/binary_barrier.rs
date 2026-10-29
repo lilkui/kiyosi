@@ -13,11 +13,11 @@ impl FiniteDifferenceBinaryBarrierEngine {
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidTimeRange`] outside life or required curve coverage,
-    /// [`ErrorCategory::InvalidDate`] for non-trading observations,
-    /// [`ErrorCategory::InvalidParameter`] for unknown required history, invalid grids or
-    /// unstable explicit steps, [`ErrorCategory::InvalidOption`] for impossible history,
-    /// and [`ErrorCategory::InvalidResult`] for numerical failures. Inputs remain unchanged.
+    /// Returns [`Error::InvalidInput`] outside life or required curve coverage,
+    /// for non-trading observations,
+    /// for unknown required history, invalid grids or
+    /// unstable explicit steps, for impossible history,
+    /// and [`Error::ComputationFailure`] for numerical failures. Inputs remain unchanged.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
         Self: PricingEngine<I>,
@@ -120,9 +120,10 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// See [`DoubleTouchOption::cash`] for construction and pricing.
     ///
     /// # Errors
-    /// Reuses [`FiniteDifferenceBinaryBarrierEngine::price`] categories and validation order.
-    /// Upper domain bounds must exceed spot and both barriers for unresolved monitoring.
-    /// Inputs and immutable settings remain unchanged on every outcome.
+    /// Returns [`Error::InvalidInput`] outside life or required curve coverage,
+    /// for non-trading observations, unknown or impossible history, invalid grids,
+    /// or unstable explicit steps. Numerical failures return
+    /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
         <Self as PricingEngine<DoubleTouchOption>>::price(self, option, context)
     }

@@ -193,10 +193,6 @@ fn context(spot: f64, time: Timestamp) -> PricingContext {
         })
         .unwrap()
 }
-fn category<T: std::fmt::Debug>(result: Result<T>, expected: ErrorCategory) {
-    assert_eq!(result.unwrap_err().category, expected);
-}
-
 #[test]
 fn history_current_expiry_and_prior_payments_use_core_rules() {
     let engine = engine(400);
@@ -225,29 +221,32 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
                     < 1e-12
             );
             let tomorrow = Date::new(2025, 1, 2).unwrap().start_of_day();
-            category(
-                engine.price(&option, &context(130.0, tomorrow)),
-                ErrorCategory::InvalidParameter,
-            );
+            assert!(matches!(
+                engine
+                    .price(&option, &context(130.0, tomorrow))
+                    .unwrap_err(),
+                Error::InvalidInput(_)
+            ));
             let known = option.replace(Some(BarrierTouchState::Touched)).unwrap();
-            category(
-                engine.price(&known, &market()),
-                ErrorCategory::InvalidOption,
-            );
+            assert!(matches!(
+                engine.price(&known, &market()).unwrap_err(),
+                Error::InvalidInput(_)
+            ));
             let value = engine.price(&known, &context(100.0, tomorrow)).unwrap();
             if timing == SettlementTiming::AtHit {
                 assert_eq!(value, 0.0);
             }
-            category(
+            assert!(matches!(
                 implied_volatility(
                     &engine,
                     &known,
                     &context(100.0, tomorrow),
                     value,
                     Default::default(),
-                ),
-                ErrorCategory::UnsupportedOperation,
-            );
+                )
+                .unwrap_err(),
+                Error::UnsupportedOperation(_)
+            ));
             let untouched = option.replace(Some(BarrierTouchState::Untouched)).unwrap();
             for spot in [100.0, 120.0, 130.0] {
                 let ctx = context(spot, end().into());
@@ -329,17 +328,19 @@ fn early_scheduled_at_hit_horizon_and_resolved_flows_use_only_required_curves() 
     let expected = AnalyticDigitalEngine.price(&digital, &ctx).unwrap();
     assert!((engine(1600).price(&option, &ctx).unwrap() - expected).abs() < 0.0004);
     terms.settlement_timing = SettlementTiming::AtExpiry;
-    category(
-        engine(400).price(&TouchOption::cash(terms, 10.0).unwrap(), &ctx),
-        ErrorCategory::InvalidTimeRange,
-    );
+    assert!(matches!(
+        engine(400)
+            .price(&TouchOption::cash(terms, 10.0).unwrap(), &ctx)
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let at = context(130.0, fixing.into());
     assert_eq!(engine(400).price(&option, &at).unwrap(), 10.0);
     let after = context(130.0, Timestamp::new(fixing, 0, 0, 0, 1).unwrap());
-    category(
-        engine(400).price(&option, &after),
-        ErrorCategory::InvalidParameter,
-    );
+    assert!(matches!(
+        engine(400).price(&option, &after).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(
         engine(400)
             .price(
@@ -389,14 +390,16 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
     )
     .unwrap();
     assert!((recovered - 0.2).abs() < 1e-7);
-    category(
-        implied_volatility(&engine, &option, &ctx, -1.0, Default::default()),
-        ErrorCategory::UnbracketedVolatility,
-    );
-    category(
-        engine.price_with_greeks(&option, &ctx, GreeksRequest::default(), Default::default()),
-        ErrorCategory::InvalidParameter,
-    );
+    assert!(matches!(
+        implied_volatility(&engine, &option, &ctx, -1.0, Default::default()).unwrap_err(),
+        Error::RootNotBracketed(_)
+    ));
+    assert!(matches!(
+        engine
+            .price_with_greeks(&option, &ctx, GreeksRequest::default(), Default::default())
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let at = context(120.13, start().into());
     let unknown = option.replace(None).unwrap();
     let result_at = engine
@@ -421,10 +424,10 @@ fn grids_schedules_and_validation_fail_before_mutating_inputs() {
             ..Default::default()
         },
     ] {
-        category(
-            FiniteDifferenceBinaryBarrierEngine::new(settings),
-            ErrorCategory::InvalidParameter,
-        );
+        assert!(matches!(
+            FiniteDifferenceBinaryBarrierEngine::new(settings).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for settings in [
         FiniteDifferenceSettings {
@@ -437,24 +440,28 @@ fn grids_schedules_and_validation_fail_before_mutating_inputs() {
             ..Default::default()
         },
     ] {
-        category(
+        assert!(matches!(
             FiniteDifferenceBinaryBarrierEngine::new(settings)
                 .unwrap()
-                .price(&option, &market()),
-            ErrorCategory::InvalidParameter,
-        );
+                .price(&option, &market())
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     terms.observation_mode = ObservationMode::Scheduled;
     terms.observation_dates = vec![Date::new(2025, 1, 4).unwrap()];
     terms.touch_state = Some(BarrierTouchState::Touched);
     let weekend = TouchOption::cash(terms.clone(), 10.0).unwrap();
-    category(
-        engine(400).price(&weekend, &market()),
-        ErrorCategory::InvalidDate,
-    );
+    assert!(matches!(
+        engine(400).price(&weekend, &market()).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     terms.barrier_type = BarrierType::UpAndOut;
     terms.settlement_timing = SettlementTiming::AtHit;
-    category(TouchOption::cash(terms, 10.0), ErrorCategory::InvalidOption);
+    assert!(matches!(
+        TouchOption::cash(terms, 10.0).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(option.touch_state(), None);
 }
 
@@ -560,8 +567,10 @@ fn continuous_binary_domains_retain_configured_nodes_and_explicit_stability() {
             expected
         );
     }
-    category(
-        make(480.0, FiniteDifferenceScheme::ExplicitEuler).price(&option, &market()),
-        ErrorCategory::InvalidParameter,
-    );
+    assert!(matches!(
+        make(480.0, FiniteDifferenceScheme::ExplicitEuler)
+            .price(&option, &market())
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }

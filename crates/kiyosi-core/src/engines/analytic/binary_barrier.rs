@@ -3,8 +3,8 @@ use crate::engines::analytic::barrier::{
     standardize,
 };
 use crate::{
-    AnalyticDigitalEngine, Error, ErrorCategory, GreeksRequest, NumericalShiftSettings,
-    OptionContract, OptionType, PricingContext, PricingEngine, PricingResult, Result,
+    AnalyticDigitalEngine, Error, GreeksRequest, NumericalShiftSettings, OptionContract,
+    OptionType, PricingContext, PricingEngine, PricingResult, Result,
 };
 use crate::{BinaryBarrierOption, SettlementTiming, TouchOption};
 
@@ -18,11 +18,10 @@ impl AnalyticBinaryBarrierEngine {
     /// and must end at expiry. Terminal binary equality at strike pays zero.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::UnsupportedOperation`] for node curves or unsupported schedules,
-    /// [`ErrorCategory::InvalidTimeRange`] outside life, [`ErrorCategory::InvalidDate`] for
-    /// non-trading fixings, [`ErrorCategory::InvalidParameter`] for missing history,
-    /// [`ErrorCategory::InvalidOption`] for impossible history, or
-    /// [`ErrorCategory::InvalidResult`] for non-finite results. Inputs remain unchanged.
+    /// Returns [`Error::UnsupportedOperation`] for node curves or unsupported
+    /// schedules. Returns [`Error::InvalidInput`] outside life, for non-trading
+    /// fixings, or for missing or impossible history, checked in that order.
+    /// Non-finite results return [`Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Examples
     /// ```
@@ -97,9 +96,8 @@ impl Contract<'_> {
         if valuation < option.effective_date().start_of_day()
             || valuation > option.expiry_date().start_of_day()
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "valuation outside contract life",
+            return Err(Error::InvalidInput(
+                "valuation outside contract life".into(),
             ));
         }
         if option
@@ -107,9 +105,8 @@ impl Contract<'_> {
             .iter()
             .any(|&d| !context.calendar().is_trading_day(d))
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidDate,
-                "observation is not a trading day",
+            return Err(Error::InvalidInput(
+                "observation is not a trading day".into(),
             ));
         }
         let (prior, touched, finished) = option.state(context)?;

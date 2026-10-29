@@ -1,5 +1,5 @@
 use crate::{
-    AmericanOption, DigitalOption, Error, ErrorCategory, EuropeanOption, Greek, GreeksRequest,
+    AmericanOption, DigitalOption, Error, EuropeanOption, Greek, GreeksRequest,
     NumericalShiftSettings, OptionContract, OptionType, PricingContext, PricingEngine,
     PricingResult, Result,
     engines::analytic::vanilla::{black_scholes_arguments, weighted_cdf},
@@ -81,13 +81,10 @@ impl FiniteDifferenceSettings {
 }
 
 fn invalid_grid(message: &'static str) -> Error {
-    Error::new(ErrorCategory::InvalidParameter, message)
+    Error::InvalidInput(message.into())
 }
 fn unstable() -> Error {
-    Error::new(
-        ErrorCategory::InvalidResult,
-        "finite-difference system is numerically unstable",
-    )
+    Error::ComputationFailure("finite-difference system is numerically unstable".into())
 }
 
 #[derive(Clone, Copy)]
@@ -130,9 +127,8 @@ fn time_to_expiry(option: &impl OptionContract, context: &PricingContext) -> Res
     let valuation = context.valuation_time();
     let expiry = option.expiry_date().start_of_day();
     if valuation < option.effective_date().start_of_day() || valuation > expiry {
-        return Err(Error::new(
-            ErrorCategory::InvalidTimeRange,
-            "valuation must be within contract life",
+        return Err(Error::InvalidInput(
+            "valuation must be within contract life".into(),
         ));
     }
     Ok(valuation.years_until(expiry))
@@ -391,9 +387,8 @@ fn native(
                         0.0
                     }
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "finite-difference digital price violates payoff bounds",
+            return Err(Error::ComputationFailure(
+                "finite-difference digital price violates payoff bounds".into(),
             ));
         }
         Ok(value.clamp(0.0, bound))
@@ -475,7 +470,7 @@ macro_rules! engine_settings {
             /// Creates an engine after validating grid sizes and any explicit upper boundary.
             ///
             /// # Errors
-            /// Returns [`ErrorCategory::InvalidParameter`] for fewer than three asset steps,
+            /// Returns [`Error::InvalidInput`] for fewer than three asset steps,
             /// nonpositive time steps or a nonpositive/non-finite explicit upper boundary.
             /// Validation precedes storing settings; no grid is allocated here.
             /// See [`Self::price_with_greeks`] for engine-specific usage.
@@ -552,9 +547,9 @@ impl FiniteDifferenceVanillaEngine {
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidTimeRange`] outside contract life or curve coverage,
-    /// [`ErrorCategory::InvalidParameter`] for clipped/degenerate grids or unstable explicit steps,
-    /// and [`ErrorCategory::InvalidResult`] for numerical failures. Inputs remain unchanged.
+    /// Returns [`Error::InvalidInput`] outside contract life or curve coverage,
+    /// for clipped/degenerate grids or unstable explicit steps,
+    /// and [`Error::ComputationFailure`] for numerical failures. Inputs remain unchanged.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
         Self: PricingEngine<I>,
@@ -661,9 +656,9 @@ impl FiniteDifferenceDigitalEngine {
     /// See [`FiniteDifferenceVanillaEngine::price_with_greeks`] for context construction.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::UnsupportedOperation`] for node curves, then reuses
+    /// Returns [`Error::UnsupportedOperation`] for node curves, then reuses
     /// [`FiniteDifferenceVanillaEngine::price`] errors. Payoff-bound violations return
-    /// [`ErrorCategory::InvalidResult`]. Inputs remain unchanged.
+    /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Examples
     /// ```

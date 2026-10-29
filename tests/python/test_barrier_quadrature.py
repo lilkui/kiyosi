@@ -7,9 +7,14 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
-import kiyosi
 import QuantLib as ql
-from kiyosi import pricing
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+    pricing,
+)
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import PricingContext, RateTermStructure
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
@@ -20,10 +25,10 @@ def engines():
 
 
 class BarrierQuadratureTests(unittest.TestCase):
-    def assert_category(self, category, operation, *args, **kwargs):
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation, *args, **kwargs):
+        with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_early_observation_rebate_discount(self):
         engine = pricing.QuadratureBarrierEngine()
@@ -55,15 +60,15 @@ class BarrierQuadratureTests(unittest.TestCase):
         for engine in engines():
             contract = option()
             expected = engine.price(contract, market())
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 contract,
                 market(valuation=START + timedelta(days=1)),
             )
             self.assertEqual(engine.price(contract, market()), expected)
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_OPTION,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 option(touch_state="touched"),
                 market(),
@@ -150,24 +155,24 @@ class BarrierQuadratureTests(unittest.TestCase):
                 )
             self.assertIsNone(result.speed)
 
-    def test_valuation_and_greek_validation_preserve_core_categories(self):
+    def test_valuation_and_greek_validation_preserve_core_errors(self):
         for engine in engines():
             for valuation in (START - timedelta(days=1), END + timedelta(days=1)):
-                self.assert_category(
-                    kiyosi.ErrorCategory.INVALID_TIME_RANGE,
+                self.assert_rejection(
+                    InvalidInputError,
                     engine.price,
                     option(),
                     market(valuation=valuation),
                 )
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price_with_greeks,
                 option(),
                 market(),
                 [],
             )
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price_with_greeks,
                 option(),
                 market(),
@@ -203,8 +208,8 @@ class BarrierQuadratureTests(unittest.TestCase):
             self.assertAlmostEqual(volatility, 0.2, delta=0.0002)
             fixed = option(rebate=7, rebate_timing="at_expiry", touch_state="touched")
             later = market(valuation=START + timedelta(days=1))
-            self.assert_category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
                 fixed,
@@ -410,9 +415,7 @@ class BarrierQuadratureTests(unittest.TestCase):
             {"integration_standard_deviations": math.inf},
             {"integration_standard_deviations": math.nan},
         ):
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER, constructor, **changes
-            )
+            self.assert_rejection(InvalidInputError, constructor, **changes)
         with self.assertRaises(TypeError):
             constructor(512)
         with self.assertRaises(TypeError):
@@ -449,9 +452,7 @@ class BarrierQuadratureTests(unittest.TestCase):
                 (engine.price_with_greeks, (option(), context, [])),
                 (pricing.implied_volatility, (engine, option(), context, math.nan)),
             ):
-                self.assert_category(
-                    kiyosi.ErrorCategory.UNSUPPORTED_OPERATION, operation, *args
-                )
+                self.assert_rejection(UnsupportedOperationError, operation, *args)
         bad = option(
             observation_mode="scheduled",
             observation_dates=[date(2025, 1, 4)],
@@ -462,12 +463,10 @@ class BarrierQuadratureTests(unittest.TestCase):
             spot_price=120,
             valuation_time=START + timedelta(days=30),
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_DATE, engine.price, bad, weekdays
-        )
+        self.assert_rejection(InvalidInputError, engine.price, bad, weekdays)
         for sigma in (1e200, 1e308):
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_RESULT,
+            self.assert_rejection(
+                ComputationFailureError,
                 engine.price,
                 option(),
                 market(volatility=sigma),
@@ -478,8 +477,8 @@ class BarrierQuadratureTests(unittest.TestCase):
         scheduled = option(
             observation_mode="scheduled", observation_dates=[START + timedelta(days=91)]
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_RESULT,
+        self.assert_rejection(
+            ComputationFailureError,
             huge_grid.price,
             scheduled,
             market(volatility=100),
@@ -513,13 +512,13 @@ class BarrierQuadratureTests(unittest.TestCase):
             for price, sigma in pool.map(evaluate, range(4)):
                 self.assertEqual(price, quote)
                 self.assertAlmostEqual(sigma, 0.2, delta=2e-7)
-        for observed, controls, category in (
-            (-1, {}, kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY),
-            (math.nan, {}, kiyosi.ErrorCategory.INVALID_PARAMETER),
-            (quote, {"max_iterations": 0}, kiyosi.ErrorCategory.INVALID_PARAMETER),
+        for observed, controls, expected_error in (
+            (-1, {}, RootNotBracketedError),
+            (math.nan, {}, InvalidInputError),
+            (quote, {"max_iterations": 0}, InvalidInputError),
         ):
-            self.assert_category(
-                category,
+            self.assert_rejection(
+                expected_error,
                 pricing.implied_volatility,
                 engine,
                 contract,

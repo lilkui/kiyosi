@@ -40,9 +40,8 @@ impl MonteCarloVanillaEngine {
         let valuation = context.valuation_time();
         let expiry = option.expiry_date().start_of_day();
         if valuation < option.effective_date().start_of_day() || valuation > expiry {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "valuation must be within contract life",
+            return Err(Error::InvalidInput(
+                "valuation must be within contract life".into(),
             ));
         }
         let sign = if option.option_type() == OptionType::Call {
@@ -57,9 +56,8 @@ impl MonteCarloVanillaEngine {
             return Ok(immediate);
         }
         if self.settings.step_count < 3 {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "American Monte Carlo requires at least three grid points",
+            return Err(Error::InvalidInput(
+                "American Monte Carlo requires at least three grid points".into(),
             ));
         }
         if terminal_only
@@ -99,7 +97,9 @@ impl MonteCarloVanillaEngine {
         } else {
             None
         };
-        let mut partials = vec![Ok(Vec::new()); samples.div_ceil(BLOCK_SIZE)];
+        let mut partials: Vec<_> = (0..samples.div_ceil(BLOCK_SIZE))
+            .map(|_| Ok(Vec::new()))
+            .collect();
         run_blocks(&mut partials, self.settings.thread_count, |block| {
             let mut generator = Pcg32::new(seed, block as u64);
             let mut cursor = sobol

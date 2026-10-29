@@ -1,4 +1,4 @@
-use crate::{Error, ErrorCategory, Result, Timestamp, error::finite};
+use crate::{Error, Result, Timestamp, error::finite};
 
 /// Owning, immutable continuous-rate curve using Actual/365 Fixed.
 /// Node factors interpolate linearly in log space from an implicit factor of one
@@ -16,7 +16,7 @@ pub struct RateTermStructure {
 
 impl RateTermStructure {
     /// Creates a finite flat rate, optionally restricted to times at or after a reference.
-    /// Non-finite rates return `InvalidParameter`.
+    /// Non-finite rates return [`Error::InvalidInput`].
     ///
     /// ```
     /// use kiyosi_core::{Date, RateTermStructure};
@@ -28,7 +28,7 @@ impl RateTermStructure {
     /// # Ok(()) }
     /// ```
     pub fn flat(rate: f64, reference: Option<Timestamp>) -> Result<Self> {
-        finite(rate, ErrorCategory::InvalidParameter, false)?;
+        finite(rate, false)?;
         Ok(Self {
             reference,
             rate: Some(rate),
@@ -40,12 +40,11 @@ impl RateTermStructure {
     }
 
     /// Creates strictly increasing nodes after the reference with positive finite factors.
-    /// Empty, mismatched or malformed nodes return `InvalidParameter`.
+    /// Empty, mismatched or malformed nodes return [`Error::InvalidInput`].
     pub fn new(reference: Timestamp, nodes: Vec<Timestamp>, factors: Vec<f64>) -> Result<Self> {
         if nodes.is_empty() || nodes.len() != factors.len() {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "curve nodes and factors must have the same nonzero size",
+            return Err(Error::InvalidInput(
+                "curve nodes and factors must have the same nonzero size".into(),
             ));
         }
         let mut previous = reference;
@@ -53,15 +52,14 @@ impl RateTermStructure {
         let mut forwards = Vec::with_capacity(nodes.len());
         for (&node, &factor) in nodes.iter().zip(&factors) {
             if node <= previous {
-                return Err(Error::new(
-                    ErrorCategory::InvalidParameter,
-                    "curve nodes must increase after the reference",
+                return Err(Error::InvalidInput(
+                    "curve nodes must increase after the reference".into(),
                 ));
             }
-            finite(factor, ErrorCategory::InvalidParameter, true)?;
+            finite(factor, true)?;
             let log = factor.ln();
             let forward = (previous_log - log) / previous.years_until(node);
-            finite(forward, ErrorCategory::InvalidParameter, false)?;
+            finite(forward, false)?;
             forwards.push(forward);
             previous = node;
             previous_log = log;
@@ -107,27 +105,23 @@ impl RateTermStructure {
             .map(|(&node, &factor)| (factor.ln() - self.spread * reference.years_until(node)).exp())
             .collect()
     }
-    /// Validates coverage, returning `InvalidTimeRange` outside the curve's bounds.
+    /// Validates coverage, returning [`Error::InvalidInput`] outside the curve's bounds.
     pub fn validate_time(&self, time: Timestamp) -> Result<()> {
         if self.reference.is_some_and(|reference| time < reference)
             || self.max_time().is_some_and(|end| time > end)
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "timestamp is outside curve coverage",
+            return Err(Error::InvalidInput(
+                "timestamp is outside curve coverage".into(),
             ));
         }
         Ok(())
     }
-    /// Log factor over an ordered, covered interval. Non-finite results return `InvalidResult`.
+    /// Log factor over an ordered, covered interval. Non-finite results return [`Error::ComputationFailure`].
     pub fn log_factor(&self, start: Timestamp, end: Timestamp) -> Result<f64> {
         self.validate_time(start)?;
         self.validate_time(end)?;
         if end < start {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "curve interval is reversed",
-            ));
+            return Err(Error::InvalidInput("curve interval is reversed".into()));
         }
         let mut value = -self.rate.unwrap_or(self.spread) * start.years_until(end);
         if !self.is_flat() {
@@ -144,13 +138,21 @@ impl RateTermStructure {
                 index += 1;
             }
         }
-        finite(value, ErrorCategory::InvalidResult, false)?;
+        if !value.is_finite() {
+            return Err(Error::ComputationFailure(
+                "value must be finite and in its valid range".into(),
+            ));
+        }
         Ok(value)
     }
-    /// Interval factor. Underflow to zero is allowed; overflow returns `InvalidResult`.
+    /// Interval factor. Underflow to zero is allowed; overflow returns [`Error::ComputationFailure`].
     pub fn factor(&self, start: Timestamp, end: Timestamp) -> Result<f64> {
         let value = self.log_factor(start, end)?.exp();
-        finite(value, ErrorCategory::InvalidResult, false)?;
+        if !value.is_finite() {
+            return Err(Error::ComputationFailure(
+                "value must be finite and in its valid range".into(),
+            ));
+        }
         Ok(value)
     }
     /// Right-hand instantaneous forward rate. The last node uses its left interval.
@@ -165,19 +167,19 @@ impl RateTermStructure {
         }))
     }
     /// Returns an owning parallel shift with unchanged coverage; never mutates this curve.
-    /// Non-finite shifts or resulting rates return `InvalidParameter`.
+    /// Non-finite shifts or resulting rates return [`Error::InvalidInput`].
     pub fn shifted(&self, shift: f64) -> Result<Self> {
-        finite(shift, ErrorCategory::InvalidParameter, false)?;
+        finite(shift, false)?;
         let mut copy = self.clone();
         if let Some(rate) = self.rate {
             let rate = rate + shift;
-            finite(rate, ErrorCategory::InvalidParameter, false)?;
+            finite(rate, false)?;
             copy.rate = Some(rate);
         } else {
             copy.spread += shift;
-            finite(copy.spread, ErrorCategory::InvalidParameter, false)?;
+            finite(copy.spread, false)?;
             for rate in &self.forwards {
-                finite(rate + copy.spread, ErrorCategory::InvalidParameter, false)?;
+                finite(rate + copy.spread, false)?;
             }
         }
         Ok(copy)
@@ -193,18 +195,16 @@ impl RateTermStructure {
         {
             let time = valuation.years_until(node);
             if time <= previous {
-                return Err(Error::new(
-                    ErrorCategory::InvalidResult,
-                    "curve knots are not distinct in pricing time",
+                return Err(Error::ComputationFailure(
+                    "curve knots are not distinct in pricing time".into(),
                 ));
             }
             previous = time;
             previous_time = node;
         }
         if previous_time < end && valuation.years_until(end) <= previous {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "pricing horizon is not distinct from its preceding knot",
+            return Err(Error::ComputationFailure(
+                "pricing horizon is not distinct from its preceding knot".into(),
             ));
         }
         Ok(())

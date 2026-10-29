@@ -5,7 +5,12 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, time, timedelta
 
-import kiyosi
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import RangeAccrualOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -106,8 +111,8 @@ class RangeAccrualTests(unittest.TestCase):
         engine = AnalyticRangeAccrualEngine()
         for rate, dividend in ((curve, 0), (0, curve)):
             context = market(rate=rate, dividend=dividend)
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_RESULT, engine.price, option, context
+            self.assert_rejection(
+                ComputationFailureError, engine.price, option, context
             )
             self.assertEqual(
                 engine.price(
@@ -158,10 +163,10 @@ class RangeAccrualTests(unittest.TestCase):
         self.assertEqual(option.replace(), option)
         self.assertEqual(option, contract())
 
-    def test_solver_failure_categories_and_no_mutation(self):
+    def test_solver_failures_and_no_mutation(self):
         engine, option, context = AnalyticRangeAccrualEngine(), contract(), market()
-        self.assert_category(
-            kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY,
+        self.assert_rejection(
+            RootNotBracketedError,
             implied_volatility,
             engine,
             option,
@@ -170,24 +175,24 @@ class RangeAccrualTests(unittest.TestCase):
             lower_bound=0.1,
             upper_bound=0.4,
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             implied_volatility,
             engine,
             contract(annual_coupon_rate=0),
             context,
             0,
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             implied_volatility,
             engine,
             option.replace(realized_hit_count=15),
             market(option.expiry_date),
             0,
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             implied_volatility,
             engine,
             option,
@@ -218,10 +223,10 @@ class RangeAccrualTests(unittest.TestCase):
             delta=1e-8,
         )
 
-    def assert_category(self, category, call, *args, **kwargs):
-        with self.assertRaises(kiyosi.KiyosiError) as raised:
+    def assert_rejection(self, expected_error, call, *args, **kwargs):
+        with self.assertRaises(expected_error) as raised:
             call(*args, **kwargs)
-        self.assertEqual(raised.exception.category, category)
+        self.assertIs(type(raised.exception), expected_error)
 
     def test_terms_representation_and_owning_replacement(self):
         option = contract()
@@ -246,23 +251,17 @@ class RangeAccrualTests(unittest.TestCase):
                 with self.subTest(name=name, value=value), self.assertRaises(TypeError):
                     contract(**{name: value})
             for value in (-1, math.inf, math.nan):
-                self.assert_category(
-                    kiyosi.ErrorCategory.INVALID_PARAMETER, contract, **{name: value}
-                )
+                self.assert_rejection(InvalidInputError, contract, **{name: value})
         for values in (
             {"notional": 0},
             {"lower_bound": 110},
             {"upper_bound": 90},
             {"realized_hit_count": -1},
         ):
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER, contract, **values
-            )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_TIME_RANGE, contract, expiry_date=START
-        )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(InvalidInputError, contract, **values)
+        self.assert_rejection(InvalidInputError, contract, expiry_date=START)
+        self.assert_rejection(
+            InvalidInputError,
             option.replace,
             realized_hit_count=-1,
         )
@@ -326,20 +325,20 @@ class RangeAccrualTests(unittest.TestCase):
             (START + timedelta(days=1), 1),
             (instant(START) + timedelta(days=1, hours=12), 2),
         ):
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 contract(realized_hit_count=count),
                 market(valuation),
             )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             contract(),
             market(START + timedelta(days=2)),
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_TIME_RANGE,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             contract(realized_hit_count=16),
             market(instant(START) + timedelta(days=16, microseconds=1)),
@@ -352,8 +351,8 @@ class RangeAccrualTests(unittest.TestCase):
         self.assertAlmostEqual(
             engine.price(option, context), reference(option, context), delta=1e-12
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_DATE,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             contract(expiry_date=date(2025, 1, 5)),
             context,
@@ -362,12 +361,10 @@ class RangeAccrualTests(unittest.TestCase):
             reference_time=START, times=[START + timedelta(days=1)], factors=[0.999]
         )
         short = market(rate=short_curve)
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_TIME_RANGE, engine.price, contract(), short
-        )
+        self.assert_rejection(InvalidInputError, engine.price, contract(), short)
         self.assertEqual(engine.price(contract(annual_coupon_rate=0), short), 0)
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_TIME_RANGE,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             contract(),
             market(dividend=short_curve),
@@ -389,8 +386,8 @@ class RangeAccrualTests(unittest.TestCase):
         )
         self.assertIsNotNone(result.charm)
         self.assertIsNotNone(result.color)
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             contract(annual_coupon_rate=0),
             market(START + timedelta(days=3)),
@@ -493,9 +490,7 @@ class RangeAccrualTests(unittest.TestCase):
             engine.price(option, market()) / expected, 1, delta=2e-11
         )
         overflow = contract(notional=1e300, annual_coupon_rate=1e100)
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_RESULT, engine.price, overflow, market()
-        )
+        self.assert_rejection(ComputationFailureError, engine.price, overflow, market())
 
     def test_adjacent_price_bounds_at_tiny_volatility(self):
         below = math.nextafter(100.0, 0.0)
@@ -686,15 +681,15 @@ class RangeAccrualTests(unittest.TestCase):
             self.assertIsNone(getattr(result, name))
         self.assertIsNotNone(result.vega)
         self.assertIsNotNone(result.rho)
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             option,
             market(),
             [],
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             option,
             market(),

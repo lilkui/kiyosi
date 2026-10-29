@@ -245,7 +245,7 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
                     }
                 );
                 assert!(result.values().iter().all(Option::is_none));
-                assert_eq!(
+                assert!(matches!(
                     implied_volatility(
                         &digital,
                         &option,
@@ -253,10 +253,9 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
                         result.price(),
                         Default::default()
                     )
-                    .unwrap_err()
-                    .category,
-                    ErrorCategory::UnsupportedOperation
-                );
+                    .unwrap_err(),
+                    Error::UnsupportedOperation(_)
+                ));
             }
         }
         for time in [
@@ -269,20 +268,20 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
                     ..Default::default()
                 })
                 .unwrap();
-            assert_eq!(
-                vanilla.price(&european, &context).unwrap_err().category,
-                ErrorCategory::InvalidTimeRange
-            );
-            assert_eq!(
-                vanilla.price(&american, &context).unwrap_err().category,
-                ErrorCategory::InvalidTimeRange
-            );
+            assert!(matches!(
+                vanilla.price(&european, &context).unwrap_err(),
+                Error::InvalidInput(_)
+            ));
+            assert!(matches!(
+                vanilla.price(&american, &context).unwrap_err(),
+                Error::InvalidInput(_)
+            ));
             let option =
                 DigitalOption::cash_or_nothing(direction, 100.0, 10.0, start, end).unwrap();
-            assert_eq!(
-                digital.price(&option, &context).unwrap_err().category,
-                ErrorCategory::InvalidTimeRange
-            );
+            assert!(matches!(
+                digital.price(&option, &context).unwrap_err(),
+                Error::InvalidInput(_)
+            ));
         }
     }
 }
@@ -291,18 +290,16 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
 fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
     assert_eq!(BinomialSettings::default().step_count, 256);
     for steps in [-1, 0, 1_000_001] {
-        assert_eq!(
+        assert!(matches!(
             CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: steps })
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
-        assert_eq!(
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
             CoxRossRubinsteinDigitalEngine::new(BinomialSettings { step_count: steps })
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for steps in [1, 1_000_000] {
         assert_eq!(
@@ -333,7 +330,7 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
         start.into(),
     )
     .unwrap();
-    assert_eq!(
+    assert!(matches!(
         vanilla
             .price_with_greeks(
                 &option,
@@ -341,11 +338,10 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+    assert!(matches!(
         digital
             .price_with_greeks(
                 &cash,
@@ -353,10 +349,9 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let flat = RateTermStructure::flat(0.05, Some(start.into())).unwrap();
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(flat, 0.02, 0.2).unwrap(),
@@ -365,8 +360,10 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
     )
     .unwrap();
     assert_eq!(
-        vanilla.price(&option, &context),
-        vanilla.price(&option, &market(100.0, 0.05, 0.02, 0.2))
+        vanilla.price(&option, &context).unwrap(),
+        vanilla
+            .price(&option, &market(100.0, 0.05, 0.02, 0.2))
+            .unwrap()
     );
     for settings in [
         NumericalShiftSettings {
@@ -378,20 +375,18 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
             ..Default::default()
         },
     ] {
-        assert_eq!(
+        assert!(matches!(
             vanilla
                 .price_with_greeks(&option, &context, GreeksRequest::all(), settings)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
-        assert_eq!(
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
             digital
                 .price_with_greeks(&cash, &context, GreeksRequest::all(), settings)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for (sigma, rate, dividend) in [
         (1e-200, 0.05, 0.02),
@@ -399,23 +394,21 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
         (0.2, -1000.0, -1000.0),
     ] {
         let bad = market(100.0, rate, dividend, sigma);
-        assert_eq!(
-            vanilla.price(&option, &bad).unwrap_err().category,
-            ErrorCategory::InvalidResult
-        );
-        assert_eq!(
-            digital.price(&cash, &bad).unwrap_err().category,
-            ErrorCategory::InvalidResult
-        );
+        assert!(matches!(
+            vanilla.price(&option, &bad).unwrap_err(),
+            Error::ComputationFailure(_)
+        ));
+        assert!(matches!(
+            digital.price(&cash, &bad).unwrap_err(),
+            Error::ComputationFailure(_)
+        ));
     }
     let before = context.clone();
     let quote = vanilla.price(&option, &context).unwrap();
-    assert_eq!(
-        implied_volatility(&vanilla, &option, &context, -1.0, Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnbracketedVolatility
-    );
+    assert!(matches!(
+        implied_volatility(&vanilla, &option, &context, -1.0, Default::default()).unwrap_err(),
+        Error::RootNotBracketed(_)
+    ));
     assert_eq!(context, before);
     assert_eq!(vanilla.settings(), BinomialSettings::default());
     assert_eq!(vanilla.price(&option, &context).unwrap(), quote);
@@ -442,7 +435,7 @@ fn implied_brackets_intersect_tree_domain_for_all_supported_contracts() {
             (implied_volatility(engine, option, context, quote, settings).unwrap() - 0.2).abs()
                 < 1e-6
         );
-        assert_eq!(
+        assert!(matches!(
             implied_volatility(
                 engine,
                 option,
@@ -453,10 +446,9 @@ fn implied_brackets_intersect_tree_domain_for_all_supported_contracts() {
                     ..Default::default()
                 }
             )
-            .unwrap_err()
-            .category,
-            ErrorCategory::UnbracketedVolatility
-        );
+            .unwrap_err(),
+            Error::RootNotBracketed(_)
+        ));
     }
     recover(
         &vanilla,
@@ -574,7 +566,7 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
     let context = market(100.0, 0.15, 0.0, 0.2);
     let before = context.clone();
     let price = engine.price(&option, &context).unwrap();
-    assert_eq!(
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -585,10 +577,9 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
                     ..Default::default()
                 }
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
     assert_eq!(context, before);
     assert_eq!(engine.price(&option, &context).unwrap(), price);
 }

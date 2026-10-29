@@ -7,9 +7,14 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
-import kiyosi
 import QuantLib as ql
-from kiyosi import pricing
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+    pricing,
+)
 from kiyosi.instruments import BarrierOption, EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -56,18 +61,18 @@ def engines():
 
 
 class BarrierBinomialTests(unittest.TestCase):
-    def assert_category(self, category, operation, *args, **kwargs):
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation, *args, **kwargs):
+        with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_crr_requires_exact_future_observation_alignment(self):
         contract = option(
             observation_mode="scheduled",
             observation_dates=[START + timedelta(days=91), END],
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             pricing.CoxRossRubinsteinBarrierEngine(step_count=256).price,
             contract,
             market(),
@@ -75,8 +80,8 @@ class BarrierBinomialTests(unittest.TestCase):
         aligned = pricing.CoxRossRubinsteinBarrierEngine(step_count=360)
         self.assertGreater(aligned.price(contract, market()), 0)
         intraday = datetime(2025, 1, 1, 12, tzinfo=UTC)
-        self.assert_category(
-            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             aligned.price,
             contract,
             market(valuation=intraday),
@@ -86,15 +91,15 @@ class BarrierBinomialTests(unittest.TestCase):
         for engine in engines():
             contract = option()
             expected = engine.price(contract, market())
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 contract,
                 market(valuation=START + timedelta(days=1)),
             )
             self.assertEqual(engine.price(contract, market()), expected)
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_OPTION,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 option(touch_state="touched"),
                 market(),
@@ -162,24 +167,24 @@ class BarrierBinomialTests(unittest.TestCase):
                     engine.price(contract, context), expected, delta=1e-12
                 )
 
-    def test_valuation_and_greek_validation_preserve_core_categories(self):
+    def test_valuation_and_greek_validation_preserve_core_errors(self):
         for engine in engines():
             for valuation in (START - timedelta(days=1), END + timedelta(days=1)):
-                self.assert_category(
-                    kiyosi.ErrorCategory.INVALID_TIME_RANGE,
+                self.assert_rejection(
+                    InvalidInputError,
                     engine.price,
                     option(),
                     market(valuation=valuation),
                 )
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price_with_greeks,
                 option(),
                 market(),
                 [],
             )
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price_with_greeks,
                 option(),
                 market(),
@@ -215,8 +220,8 @@ class BarrierBinomialTests(unittest.TestCase):
             self.assertAlmostEqual(volatility, 0.2, delta=0.0002)
             fixed = option(rebate=7, rebate_timing="at_expiry", touch_state="touched")
             later = market(valuation=START + timedelta(days=1))
-            self.assert_category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
                 fixed,
@@ -262,9 +267,7 @@ class BarrierBinomialTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 engine.step_count = 2
         for value in (0, -1, 1_000_001):
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER, factory, step_count=value
-            )
+            self.assert_rejection(InvalidInputError, factory, step_count=value)
         for value in (True, False, 1.0, 1.5, "1", None):
             with self.assertRaises(TypeError):
                 factory(step_count=value)
@@ -328,8 +331,8 @@ class BarrierBinomialTests(unittest.TestCase):
                 if kind.endswith("out"):
                     self.assertEqual(result.delta, 0)
                 self.assertIsNone(contract.touch_state)
-                self.assert_category(
-                    kiyosi.ErrorCategory.INVALID_OPTION, engine.price, touched, market()
+                self.assert_rejection(
+                    InvalidInputError, engine.price, touched, market()
                 )
 
     def test_microsecond_alignment_and_inclusive_noncentral_node_hits(self):
@@ -344,8 +347,8 @@ class BarrierBinomialTests(unittest.TestCase):
         time = datetime(2025, 1, 1, 12, tzinfo=UTC)
         context = market(valuation=time)
         self.assertGreater(engine.price(contract, context), 0)
-        self.assert_category(
-            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             engine.price,
             contract,
             market(valuation=time + timedelta(microseconds=1)),
@@ -378,21 +381,21 @@ class BarrierBinomialTests(unittest.TestCase):
         for time in (START, END):
             for changes in ({"rate": curve}, {"dividend": curve}):
                 context = market(valuation=time, **changes)
-                self.assert_category(
-                    kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                self.assert_rejection(
+                    UnsupportedOperationError,
                     engine.price,
                     option(),
                     context,
                 )
-                self.assert_category(
-                    kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                self.assert_rejection(
+                    UnsupportedOperationError,
                     engine.price_with_greeks,
                     option(),
                     context,
                     [],
                 )
-                self.assert_category(
-                    kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                self.assert_rejection(
+                    UnsupportedOperationError,
                     pricing.implied_volatility,
                     engine,
                     option(),
@@ -407,12 +410,10 @@ class BarrierBinomialTests(unittest.TestCase):
             spot_price=100,
             valuation_time=START,
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_DATE, engine.price, invalid, weekdays
-        )
+        self.assert_rejection(InvalidInputError, engine.price, invalid, weekdays)
         for sigma, rate in ((1e-200, 0.03), (50, 0.03), (0.2, -1000)):
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_RESULT,
+            self.assert_rejection(
+                ComputationFailureError,
                 engine.price,
                 option(),
                 market(volatility=sigma, rate=rate),
@@ -448,18 +449,18 @@ class BarrierBinomialTests(unittest.TestCase):
         self.assertAlmostEqual(
             engine.price(contract, market(volatility=solved)), quote, delta=2e-7
         )
-        for price, controls, category in (
+        for price, controls, expected_error in (
             (
                 quote,
                 {"upper_bound": 0.0002},
-                kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY,
+                RootNotBracketedError,
             ),
-            (-1, {"upper_bound": 0.5}, kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY),
-            (math.nan, {}, kiyosi.ErrorCategory.INVALID_PARAMETER),
-            (quote, {"max_iterations": 0}, kiyosi.ErrorCategory.INVALID_PARAMETER),
+            (-1, {"upper_bound": 0.5}, RootNotBracketedError),
+            (math.nan, {}, InvalidInputError),
+            (quote, {"max_iterations": 0}, InvalidInputError),
         ):
-            self.assert_category(
-                category,
+            self.assert_rejection(
+                expected_error,
                 pricing.implied_volatility,
                 engine,
                 contract,

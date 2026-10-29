@@ -1,7 +1,7 @@
 use crate::RangeAccrualOption;
 use crate::{
-    Error, ErrorCategory, GreeksRequest, NumericalShiftSettings, ObservationSchedule,
-    PricingContext, PricingEngine, PricingResult, Result,
+    Error, GreeksRequest, NumericalShiftSettings, ObservationSchedule, PricingContext,
+    PricingEngine, PricingResult, Result,
     engines::analytic::barrier::{checked, log_ratio, scaled_cash, standardize},
     engines::quadrature::gaussian::{Sum, log_interval_mass},
 };
@@ -34,11 +34,10 @@ impl AnalyticRangeAccrualEngine {
     /// then return zero without requiring curve coverage. Payment occurs only at expiry.
     ///
     /// # Errors
-    /// Checks, in order: valuation after expiry ([`ErrorCategory::InvalidTimeRange`]),
-    /// non-trading expiry ([`ErrorCategory::InvalidDate`]), missing or excessive prior hits
-    /// ([`ErrorCategory::InvalidParameter`]), required curve coverage
-    /// ([`ErrorCategory::InvalidTimeRange`]), and unresolvable curve knots or non-finite transitions/prices
-    /// ([`ErrorCategory::InvalidResult`]).
+    /// Checks valuation after expiry, non-trading expiry, missing or excessive
+    /// prior hits, and required curve coverage, in that order
+    /// ([`Error::InvalidInput`]). Unresolvable curve knots or non-finite
+    /// transitions or prices return [`Error::ComputationFailure`].
     /// Inputs remain unchanged on every outcome.
     ///
     /// # Examples
@@ -56,16 +55,10 @@ impl AnalyticRangeAccrualEngine {
         let valuation = context.valuation_time();
         let expiry = option.expiry_date().start_of_day();
         if valuation > expiry {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "valuation is after expiry",
-            ));
+            return Err(Error::InvalidInput("valuation is after expiry".into()));
         }
         if !context.calendar().is_trading_day(option.expiry_date()) {
-            return Err(Error::new(
-                ErrorCategory::InvalidDate,
-                "expiry must be a trading day",
-            ));
+            return Err(Error::InvalidInput("expiry must be a trading day".into()));
         }
         let schedule = ObservationSchedule::fixed_interval(
             option.effective_date(),
@@ -78,9 +71,8 @@ impl AnalyticRangeAccrualEngine {
         if (first != 0 && option.realized_hit_count().is_none())
             || option.realized_hit_count().unwrap_or(0) as usize > first
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "missing or excessive prior hits",
+            return Err(Error::InvalidInput(
+                "missing or excessive prior hits".into(),
             ));
         }
         let mut hits = f64::from(option.realized_hit_count().unwrap_or(0));
@@ -132,9 +124,8 @@ impl AnalyticRangeAccrualEngine {
                 - 0.5 * volatility * volatility * time;
             let root = time.sqrt();
             if !drift.is_finite() || !(volatility * root).is_finite() {
-                return Err(Error::new(
-                    ErrorCategory::InvalidResult,
-                    "non-finite range transition",
+                return Err(Error::ComputationFailure(
+                    "non-finite range transition".into(),
                 ));
             }
             let probability = log_interval_mass(

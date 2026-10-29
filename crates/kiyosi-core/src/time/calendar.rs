@@ -1,6 +1,6 @@
 use std::{fmt, sync::Arc};
 
-use crate::{Date, Error, ErrorCategory, Result};
+use crate::{Date, Error, Result};
 
 /// Direction of inclusive business-day adjustment.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -89,16 +89,15 @@ impl TradingCalendar {
     }
 
     /// Validates the positive annualization basis before retaining an owning predicate.
-    /// Nonpositive bases return `InvalidCalendar`. The closure must satisfy the type's
+    /// Nonpositive bases return [`Error::InvalidInput`]. The closure must satisfy the type's
     /// determinism contract. A panic in user code remains a native Rust panic.
     pub fn new(
         predicate: impl Fn(Date) -> bool + Send + Sync + 'static,
         basis: i32,
     ) -> Result<Self> {
         if basis <= 0 {
-            return Err(Error::new(
-                ErrorCategory::InvalidCalendar,
-                "annual trading-day count must be positive",
+            return Err(Error::InvalidInput(
+                "annual trading-day count must be positive".into(),
             ));
         }
         Ok(Self {
@@ -108,7 +107,7 @@ impl TradingCalendar {
     }
 
     /// Owning open/closed overrides. Inputs may be unsorted and repeated; conflicts return
-    /// `InvalidCalendar`. The optional positive basis defaults to the base's, never recalculated.
+    /// [`Error::InvalidInput`]. The optional positive basis defaults to the base's, never recalculated.
     /// Validation completes before a calendar is returned; the base is never mutated.
     pub fn custom(
         base: Self,
@@ -121,9 +120,8 @@ impl TradingCalendar {
         open.sort_unstable();
         open.dedup();
         if closed.iter().any(|date| open.binary_search(date).is_ok()) {
-            return Err(Error::new(
-                ErrorCategory::InvalidCalendar,
-                "override date is both open and closed",
+            return Err(Error::InvalidInput(
+                "override date is both open and closed".into(),
             ));
         }
         let basis = basis.unwrap_or(base.basis);
@@ -155,7 +153,7 @@ impl TradingCalendar {
         }
     }
 
-    /// Adjusts inclusively; `InvalidDate` if no trading date exists in the supported direction.
+    /// Adjusts inclusively; [`Error::InvalidInput`] if no trading date exists in the supported direction.
     pub fn adjust(&self, nominal: Date, convention: BusinessDayConvention) -> Result<Date> {
         let direction = match convention {
             BusinessDayConvention::Following => 1,
@@ -170,7 +168,7 @@ impl TradingCalendar {
         }
     }
 
-    /// Counts trading dates in `[start, end)`. Reversed ranges return `InvalidTimeRange`.
+    /// Counts trading dates in `[start, end)`. Reversed ranges return [`Error::InvalidInput`].
     pub fn trading_days_between(&self, start: Date, end: Date) -> Result<i32> {
         validate_range(start, end)?;
         let mut date = start;
@@ -190,10 +188,7 @@ impl TradingCalendar {
 
 pub(crate) fn validate_range(start: Date, end: Date) -> Result<()> {
     if end < start {
-        return Err(Error::new(
-            ErrorCategory::InvalidTimeRange,
-            "range end precedes start",
-        ));
+        return Err(Error::InvalidInput("range end precedes start".into()));
     }
     Ok(())
 }

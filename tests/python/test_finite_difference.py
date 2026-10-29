@@ -11,7 +11,12 @@ from pathlib import Path
 from typing import get_args
 
 import QuantLib as ql
-from kiyosi import ErrorCategory, KiyosiError
+from kiyosi import (
+    InvalidInputError,
+    NonConvergenceError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import (
     AmericanOption,
     AssetOrNothingOption,
@@ -50,10 +55,10 @@ def engine_for(kind, **settings):
 
 
 class FiniteDifferenceTests(unittest.TestCase):
-    def category(self, category, operation, *args, **kwargs):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation, *args, **kwargs):
+        with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_settings_defaults_representation_validation_and_immutability(self):
         @numbers.Integral.register
@@ -82,9 +87,7 @@ class FiniteDifferenceTests(unittest.TestCase):
                 self.assertEqual(factory(time_step_count=count).time_step_count, count)
             for name, minimum in (("asset_step_count", 3), ("time_step_count", 1)):
                 for bad in (-1, 0, minimum - 1):
-                    self.category(
-                        ErrorCategory.INVALID_PARAMETER, factory, **{name: bad}
-                    )
+                    self.assert_rejection(InvalidInputError, factory, **{name: bad})
                 for bad in (True, False, 1.0, 1.5, "3", None):
                     with self.assertRaises(TypeError):
                         factory(**{name: bad})
@@ -92,8 +95,8 @@ class FiniteDifferenceTests(unittest.TestCase):
                     with self.assertRaises(OverflowError):
                         factory(**{name: bad})
             for bad in (0, -1, math.nan, math.inf):
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER, factory, asset_upper_boundary=bad
+                self.assert_rejection(
+                    InvalidInputError, factory, asset_upper_boundary=bad
                 )
             for bad in (True, "400", object()):
                 with self.assertRaises(TypeError):
@@ -125,11 +128,11 @@ class FiniteDifferenceTests(unittest.TestCase):
             clipped = engine_for(
                 kind, time_step_count=2**31 - 1, asset_upper_boundary=1
             )
-            self.category(
-                ErrorCategory.INVALID_PARAMETER, clipped.price, contract(kind), market()
+            self.assert_rejection(
+                InvalidInputError, clipped.price, contract(kind), market()
             )
-            self.category(
-                ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 clipped.price_with_greeks,
                 contract(kind),
                 market(),
@@ -138,9 +141,7 @@ class FiniteDifferenceTests(unittest.TestCase):
             engine = engine_for(kind, asset_upper_boundary=1)
             for direction, sign in (("call", 1), ("put", -1)):
                 option = contract(kind, direction)
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER, engine.price, option, market()
-                )
+                self.assert_rejection(InvalidInputError, engine.price, option, market())
                 for spot in (math.nextafter(100, 0), 100, math.nextafter(100, 101)):
                     context = market(spot=spot, valuation=END)
                     pays = sign * (spot - 100) > 0
@@ -157,8 +158,8 @@ class FiniteDifferenceTests(unittest.TestCase):
                     self.assertTrue(
                         all(getattr(result, name) is None for name in GREEKS)
                     )
-                    self.category(
-                        ErrorCategory.UNSUPPORTED_OPERATION,
+                    self.assert_rejection(
+                        UnsupportedOperationError,
                         implied_volatility,
                         engine,
                         option,
@@ -169,16 +170,16 @@ class FiniteDifferenceTests(unittest.TestCase):
                     START - timedelta(days=1),
                     datetime(2026, 1, 1, microsecond=1, tzinfo=UTC),
                 ):
-                    self.category(
-                        ErrorCategory.INVALID_TIME_RANGE,
+                    self.assert_rejection(
+                        InvalidInputError,
                         engine.price,
                         option,
                         market(valuation=valuation),
                     )
             if kind is not AmericanOption:
                 tiny = math.ulp(0.0)
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     engine_for(kind).price,
                     contract(kind, strike=tiny),
                     market(spot=tiny),
@@ -194,16 +195,16 @@ class FiniteDifferenceTests(unittest.TestCase):
                 {"rate_shift": math.inf},
                 {"time_shift_days": 0},
             ):
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     engine.price_with_greeks,
                     option,
                     context,
                     "delta",
                     **settings,
                 )
-            self.category(
-                ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price_with_greeks,
                 option,
                 context,
@@ -269,11 +270,11 @@ class FiniteDifferenceTests(unittest.TestCase):
             engine, option = engine_for(kind), contract(kind)
             for valuation in (START, END):
                 shifted = context.replace(valuation_time=valuation)
-                self.category(
-                    ErrorCategory.UNSUPPORTED_OPERATION, engine.price, option, shifted
+                self.assert_rejection(
+                    UnsupportedOperationError, engine.price, option, shifted
                 )
-                self.category(
-                    ErrorCategory.UNSUPPORTED_OPERATION,
+                self.assert_rejection(
+                    UnsupportedOperationError,
                     engine.price_with_greeks,
                     option,
                     shifted,
@@ -282,8 +283,8 @@ class FiniteDifferenceTests(unittest.TestCase):
                 with self.assertRaises(TypeError):
                     engine.price_with_greeks(option, shifted, [], spot_shift=True)
         short = RateTermStructure(reference_time=START, times=[middle], factors=[0.99])
-        self.category(
-            ErrorCategory.INVALID_TIME_RANGE,
+        self.assert_rejection(
+            InvalidInputError,
             FiniteDifferenceVanillaEngine().price,
             contract(EuropeanOption),
             market(rate=short),
@@ -310,8 +311,8 @@ class FiniteDifferenceTests(unittest.TestCase):
                     0.2,
                     delta=1e-7,
                 )
-                self.category(
-                    ErrorCategory.UNBRACKETED_VOLATILITY,
+                self.assert_rejection(
+                    RootNotBracketedError,
                     implied_volatility,
                     engine,
                     option,
@@ -320,16 +321,16 @@ class FiniteDifferenceTests(unittest.TestCase):
                     lower_bound=0.1,
                     upper_bound=0.22,
                 )
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     implied_volatility,
                     engine,
                     option,
                     context,
                     math.nan,
                 )
-                self.category(
-                    ErrorCategory.SOLVER_NON_CONVERGENCE,
+                self.assert_rejection(
+                    NonConvergenceError,
                     implied_volatility,
                     engine,
                     option,
@@ -346,8 +347,8 @@ class FiniteDifferenceTests(unittest.TestCase):
             scheme="explicit_euler", asset_step_count=80, time_step_count=500
         )
         option, context = contract(EuropeanOption), market()
-        self.category(
-            ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             implied_volatility,
             engine,
             option,

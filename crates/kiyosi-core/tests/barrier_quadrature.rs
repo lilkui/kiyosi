@@ -192,18 +192,18 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
         .price_with_greeks(&option, &boundary, GreeksRequest::all(), Default::default())
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
-    assert_eq!(
-        engine.price(&option, &past).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        engine.price(&option, &past).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let paid = option.replace(Some(BarrierTouchState::Touched)).unwrap();
     assert_eq!(engine.price(&paid, &past).unwrap(), 0.0);
     let untouched = option.replace(Some(BarrierTouchState::Untouched)).unwrap();
     assert!(engine.price(&untouched, &past).unwrap() > 0.0);
-    assert_eq!(
-        engine.price(&paid, &context).unwrap_err().category,
-        ErrorCategory::InvalidOption
-    );
+    assert!(matches!(
+        engine.price(&paid, &context).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     t.observation_dates = vec![observed];
     t.rebate_timing = RebateTiming::AtExpiry;
     t.touch_state = Some(BarrierTouchState::Untouched);
@@ -233,7 +233,7 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
             }
         );
         assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
-        assert_eq!(
+        assert!(matches!(
             implied_volatility(
                 &engine,
                 &stopped,
@@ -241,18 +241,17 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
                 result.price(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-            ErrorCategory::UnsupportedOperation
-        );
+            .unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
     }
     t.observation_dates = vec![day(1, 4)];
     t.touch_state = Some(BarrierTouchState::Touched);
     let invalid = BarrierOption::new(t).unwrap();
-    assert_eq!(
-        engine.price(&invalid, &past).unwrap_err().category,
-        ErrorCategory::InvalidDate
-    );
+    assert!(matches!(
+        engine.price(&invalid, &past).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
@@ -266,15 +265,14 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
         }
     );
     for (steps, extent) in [(3, 8.0), (512, 0.0), (512, f64::INFINITY), (512, f64::NAN)] {
-        assert_eq!(
+        assert!(matches!(
             QuadratureBarrierEngine::new(QuadratureSettings {
                 asset_step_count: steps,
                 integration_standard_deviations: extent
             })
-            .unwrap_err()
-            .category,
-            ErrorCategory::InvalidParameter
-        );
+            .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let option = BarrierOption::new(terms(BarrierType::DownAndOut, OptionType::Call)).unwrap();
     let context = market(0.04);
@@ -289,15 +287,14 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
             ..Default::default()
         },
     ] {
-        assert_eq!(
+        assert!(matches!(
             engine
                 .price_with_greeks(&option, &context, GreeksRequest::all(), shifts)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
-    assert_eq!(
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -305,10 +302,9 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     for sigma in [f64::MAX, 1e200] {
         let model = BlackScholesMertonParameters::new(0.04, 0.01, sigma).unwrap();
         let invalid = context
@@ -317,10 +313,10 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
                 ..Default::default()
             })
             .unwrap();
-        assert_eq!(
-            engine.price(&option, &invalid).unwrap_err().category,
-            ErrorCategory::InvalidResult
-        );
+        assert!(matches!(
+            engine.price(&option, &invalid).unwrap_err(),
+            Error::ComputationFailure(_)
+        ));
     }
     for date in [
         Date::new(2024, 12, 31).unwrap(),
@@ -332,10 +328,10 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
                 ..Default::default()
             })
             .unwrap();
-        assert_eq!(
-            engine.price(&option, &invalid).unwrap_err().category,
-            ErrorCategory::InvalidTimeRange
-        );
+        assert!(matches!(
+            engine.price(&option, &invalid).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let curve = RateTermStructure::new(
         day(1, 1).into(),
@@ -356,11 +352,11 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        engine.price(&option, &nodes).unwrap_err().category,
-        ErrorCategory::UnsupportedOperation
-    );
-    assert_eq!(
+    assert!(matches!(
+        engine.price(&option, &nodes).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -368,10 +364,9 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     assert_eq!(engine.price(&option, &context).unwrap(), quote);
 }
 
@@ -433,14 +428,14 @@ fn greeks_sensitivities_and_solving_share_scalar_semantics() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        solve(&fixed, &later, 0.0).unwrap_err().category,
-        ErrorCategory::UnsupportedOperation
-    );
-    assert_eq!(
-        solve(&option, &context, -1.0).unwrap_err().category,
-        ErrorCategory::UnbracketedVolatility
-    );
+    assert!(matches!(
+        solve(&fixed, &later, 0.0).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+    assert!(matches!(
+        solve(&option, &context, -1.0).unwrap_err(),
+        Error::RootNotBracketed(_)
+    ));
     assert_eq!(context.model_parameters().volatility(), 0.2);
 }
 

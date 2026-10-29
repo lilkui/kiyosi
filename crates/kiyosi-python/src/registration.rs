@@ -5,23 +5,30 @@ use crate::market::{BlackScholesMertonParameters, PricingContext};
 use crate::{calendar, engines, error, instruments, market, risk, schedule};
 use kiyosi_core as core;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 
 pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("__version__", core::VERSION)?;
-    let categories = PyDict::new(py);
-    for category in core::ErrorCategory::ALL {
-        categories.set_item(category.name(), category.name())?;
-    }
-    let kwargs = PyDict::new(py);
-    kwargs.set_item("module", "kiyosi._native")?;
-    module.add(
-        "ErrorCategory",
-        py.import("enum")?
-            .getattr("Enum")?
-            .call(("ErrorCategory", categories), Some(&kwargs))?,
-    )?;
     module.add("KiyosiError", py.get_type::<error::KiyosiError>())?;
+    module.add(
+        "InvalidInputError",
+        py.get_type::<error::InvalidInputError>(),
+    )?;
+    module.add(
+        "UnsupportedOperationError",
+        py.get_type::<error::UnsupportedOperationError>(),
+    )?;
+    module.add(
+        "ComputationFailureError",
+        py.get_type::<error::ComputationFailureError>(),
+    )?;
+    module.add(
+        "RootNotBracketedError",
+        py.get_type::<error::RootNotBracketedError>(),
+    )?;
+    module.add(
+        "NonConvergenceError",
+        py.get_type::<error::NonConvergenceError>(),
+    )?;
     let names = core::Greek::ALL.map(|g| g.name());
     module.add(
         "Greek",

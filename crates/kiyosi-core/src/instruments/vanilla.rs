@@ -1,4 +1,4 @@
-use crate::{Date, Error, ErrorCategory, Result, error::finite};
+use crate::{Date, Error, Result, error::finite};
 
 /// Direction of a vanilla option payoff.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -24,12 +24,9 @@ impl EuropeanOption {
         effective_date: Date,
         expiry_date: Date,
     ) -> Result<Self> {
-        finite(strike, ErrorCategory::InvalidStrike, true)?;
+        finite(strike, true)?;
         if expiry_date < effective_date {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "expiry precedes effective date",
-            ));
+            return Err(Error::InvalidInput("expiry precedes effective date".into()));
         }
         Ok(Self {
             option_type,
@@ -133,9 +130,8 @@ impl DigitalOption {
     /// Creates a European contract paying fixed cash strictly in the money.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] for nonpositive or non-finite
-    /// payout, then [`ErrorCategory::InvalidStrike`] for invalid strike, or
-    /// [`ErrorCategory::InvalidTimeRange`] for reversed dates, in that order.
+    /// Returns [`Error::InvalidInput`] for nonpositive or non-finite payout,
+    /// invalid strike, or reversed dates, checked in that order.
     ///
     /// # Examples
     /// ```
@@ -157,7 +153,7 @@ impl DigitalOption {
         effective_date: Date,
         expiry_date: Date,
     ) -> Result<Self> {
-        finite(payout, ErrorCategory::InvalidParameter, true)?;
+        finite(payout, true)?;
         Ok(Self {
             terms: EuropeanOption::new(option_type, strike, effective_date, expiry_date)?,
             payout: Some(payout),
@@ -167,8 +163,8 @@ impl DigitalOption {
     /// Creates a European contract paying the terminal asset strictly in the money.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidStrike`] for nonpositive or non-finite strike,
-    /// or [`ErrorCategory::InvalidTimeRange`] for reversed dates.
+    /// Returns [`Error::InvalidInput`] for nonpositive or non-finite strike,
+    /// then for reversed dates.
     ///
     /// # Examples
     /// ```
@@ -195,7 +191,7 @@ impl DigitalOption {
     ///
     /// # Errors
     /// Reuses constructor validation. Setting cash payout on an asset contract returns
-    /// [`ErrorCategory::UnsupportedOperation`]. Failure leaves the original unchanged.
+    /// [`Error::UnsupportedOperation`]. Failure leaves the original unchanged.
     ///
     /// # Examples
     /// ```
@@ -224,9 +220,8 @@ impl DigitalOption {
                 end,
             )
         } else if changes.payout.is_some() {
-            Err(Error::new(
-                ErrorCategory::UnsupportedOperation,
-                "asset settlement has no cash payout",
+            Err(Error::UnsupportedOperation(
+                "asset settlement has no cash payout".into(),
             ))
         } else {
             Self::asset_or_nothing(direction, strike, start, end)
@@ -289,8 +284,8 @@ impl AmericanOption {
     /// Creates an American vanilla contract with ordered, inclusive exercise dates.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidStrike`] for nonpositive or non-finite strike,
-    /// then [`ErrorCategory::InvalidTimeRange`] for reversed dates.
+    /// Returns [`Error::InvalidInput`] for nonpositive or non-finite strike,
+    /// then for reversed dates.
     ///
     /// # Examples
     /// ```

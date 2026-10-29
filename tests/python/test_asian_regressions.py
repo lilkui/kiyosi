@@ -3,8 +3,12 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 
-import kiyosi
-from kiyosi import pricing
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    UnsupportedOperationError,
+    pricing,
+)
 from kiyosi.instruments import ArithmeticAveragePriceOption, GeometricAveragePriceOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 from kiyosi.pricing import implied_volatility
@@ -137,13 +141,11 @@ class AsianRegressionTests(unittest.TestCase):
                         self.assertGreater(result.gamma, 0)
                         self.assertGreater(result.vega, 0)
                 for selection in selections[:3]:
-                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                    with self.assertRaises(InvalidInputError) as error:
                         engine.price_with_greeks(
                             option, context, **selection, spot_shift=0
                         )
-                    self.assertEqual(
-                        error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
-                    )
+                    self.assertIs(type(error.exception), InvalidInputError)
 
     def test_accrued_arithmetic_calls_retain_representable_discounted_prices(self):
         start = date(2025, 1, 1)
@@ -198,22 +200,22 @@ class AsianRegressionTests(unittest.TestCase):
             spot_price=100,
             valuation_time=start + timedelta(days=365),
         )
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+        with self.assertRaises(ComputationFailureError) as error:
             engine.price(option, context)
-        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+        self.assertIs(type(error.exception), ComputationFailureError)
 
     def test_asian_terms_preserve_validation_precedence(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for option_type in (GeometricAveragePriceOption, ArithmeticAveragePriceOption):
-            for strike, average, category in (
-                (0, -1, kiyosi.ErrorCategory.INVALID_STRIKE),
-                (100, -1, kiyosi.ErrorCategory.INVALID_PARAMETER),
-                (100, 0, kiyosi.ErrorCategory.INVALID_TIME_RANGE),
+            for strike, average, expected_error in (
+                (0, -1, InvalidInputError),
+                (100, -1, InvalidInputError),
+                (100, 0, InvalidInputError),
             ):
                 with self.subTest(
                     option_type=option_type, strike=strike, average=average
                 ):
-                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                    with self.assertRaises(expected_error) as error:
                         option_type(
                             option_type="call",
                             strike=strike,
@@ -222,7 +224,7 @@ class AsianRegressionTests(unittest.TestCase):
                             averaging_start_date=start,
                             expiry_date=start,
                         )
-                    self.assertEqual(error.exception.category, category)
+                    self.assertIs(type(error.exception), expected_error)
 
     def test_arithmetic_asians_retain_time_value_when_squared_volatility_underflows(
         self,
@@ -359,11 +361,11 @@ class AsianRegressionTests(unittest.TestCase):
                         )
                     else:
                         for observed in (quote, quote + 1):
-                            with self.assertRaises(kiyosi.KiyosiError) as error:
+                            with self.assertRaises(UnsupportedOperationError) as error:
                                 implied_volatility(engine, option, context, observed)
-                            self.assertEqual(
-                                error.exception.category,
-                                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                            self.assertIs(
+                                type(error.exception),
+                                UnsupportedOperationError,
                             )
                         if direction == "put":
                             self.assertEqual(quote, 0)
@@ -591,14 +593,12 @@ class AsianRegressionTests(unittest.TestCase):
                     self.assertAlmostEqual(
                         actual, expected, delta=max(1e-12, expected * 1e-12)
                     )
-                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                    with self.assertRaises(InvalidInputError) as error:
                         engine.price(
                             GeometricAveragePriceOption(**terms, realized_average=1e14),
                             context,
                         )
-                    self.assertEqual(
-                        error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
-                    )
+                    self.assertIs(type(error.exception), InvalidInputError)
             expired = PricingContext(
                 model_parameters=BlackScholesMertonParameters(
                     risk_free_rate=0.05,

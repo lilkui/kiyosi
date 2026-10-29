@@ -6,8 +6,13 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
-from kiyosi import ErrorCategory as E
-from kiyosi import KiyosiError, pricing
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+    pricing,
+)
 from kiyosi.instruments import Accumulator
 from kiyosi.market import RateTermStructure, custom_calendar, weekdays_calendar
 from kiyosi.pricing import MonteCarloAccumulatorEngine as MC
@@ -15,10 +20,10 @@ from test_accumulator import START, contract, market, terminal_reference
 
 
 class AccumulatorMonteCarloTests(unittest.TestCase):
-    def category(self, category, operation):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation):
+        with self.assertRaises(expected_error) as error:
             operation()
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_current_events_settle_before_sampling(self):
         end = date(2025, 1, 6)
@@ -95,7 +100,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             {"thread_count": -1},
             {"path_count": 31, "sampling": "sobol"},
         ):
-            self.category(E.INVALID_PARAMETER, lambda fields=fields: MC(**fields))
+            self.assert_rejection(InvalidInputError, lambda fields=fields: MC(**fields))
         with self.assertRaises(AttributeError):
             engine.seed = 42
         note, context = contract(), market()
@@ -271,31 +276,31 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
     def test_validation_fixed_payoffs_and_failure_reuse(self):
         engine = MC(path_count=32, seed=42)
         note, context = contract(date(2025, 1, 6)), market()
-        for instrument, invalid, category in (
-            (note, market(110, START - timedelta(days=1)), E.INVALID_TIME_RANGE),
+        for instrument, invalid, expected_error in (
+            (note, market(110, START - timedelta(days=1)), InvalidInputError),
             (
                 note,
                 market(110, datetime(2025, 1, 6, 0, 0, 0, 1, tzinfo=UTC)),
-                E.INVALID_TIME_RANGE,
+                InvalidInputError,
             ),
-            (contract(date(2025, 1, 5)), market(110, START), E.INVALID_DATE),
+            (contract(date(2025, 1, 5)), market(110, START), InvalidInputError),
             (
                 contract(quantity=sys.float_info.max),
                 market(111, START),
-                E.INVALID_RESULT,
+                ComputationFailureError,
             ),
         ):
-            self.category(
-                category,
+            self.assert_rejection(
+                expected_error,
                 lambda instrument=instrument, invalid=invalid: engine.price(
                     instrument, invalid
                 ),
             )
-        self.category(
-            E.INVALID_PARAMETER, lambda: engine.price_with_greeks(note, context, [])
+        self.assert_rejection(
+            InvalidInputError, lambda: engine.price_with_greeks(note, context, [])
         )
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             lambda: engine.price_with_greeks(note, context, "delta", spot_shift=0),
         )
         curve = RateTermStructure(
@@ -305,16 +310,16 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             curved = context.replace(
                 model_parameters=context.model_parameters.replace(**{field: curve})
             )
-            self.category(
-                E.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 lambda curved=curved: engine.price(note, curved),
             )
-            self.category(
-                E.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 lambda curved=curved: engine.price_with_greeks(note, curved, []),
             )
-            self.category(
-                E.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 lambda curved=curved: pricing.implied_volatility(
                     engine, note, curved, math.nan
                 ),
@@ -329,18 +334,18 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             result = engine.price_with_statistics(instrument, fixed)
             self.assertEqual(result.price, expected)
             self.assertEqual(result.standard_error, 0)
-            self.category(
-                E.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 lambda instrument=instrument, fixed=fixed, expected=expected: (
                     pricing.implied_volatility(engine, instrument, fixed, expected)
                 ),
             )
-        for quote, category in (
-            (math.nan, E.INVALID_PARAMETER),
-            (1e100, E.UNBRACKETED_VOLATILITY),
+        for quote, expected_error in (
+            (math.nan, InvalidInputError),
+            (1e100, RootNotBracketedError),
         ):
-            self.category(
-                category,
+            self.assert_rejection(
+                expected_error,
                 lambda quote=quote: pricing.implied_volatility(
                     engine, note, context, quote
                 ),
@@ -352,7 +357,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         engine = MC(path_count=2, seed=42, sampling="sobol")
         note = contract(date(2090, 1, 2))
         context = market(valuation=START, daily=True)
-        self.category(E.INVALID_PARAMETER, lambda: engine.price(note, context))
+        self.assert_rejection(InvalidInputError, lambda: engine.price(note, context))
         result = engine.price_with_statistics(note, context.replace(spot_price=110))
         self.assertEqual(result.price, 30)
         self.assertIsNone(result.standard_error)

@@ -6,9 +6,13 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
-import kiyosi
 import QuantLib as ql
-from kiyosi import pricing
+from kiyosi import (
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+    pricing,
+)
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
@@ -19,24 +23,24 @@ def engines():
 
 
 class BarrierFiniteDifferenceTests(unittest.TestCase):
-    def assert_category(self, category, operation, *args, **kwargs):
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation, *args, **kwargs):
+        with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_history_is_required_and_failure_does_not_change_engine(self):
         for engine in engines():
             contract = option()
             expected = engine.price(contract, market())
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 contract,
                 market(valuation=START + timedelta(days=1)),
             )
             self.assertEqual(engine.price(contract, market()), expected)
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_OPTION,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price,
                 option(touch_state="touched"),
                 market(),
@@ -104,24 +108,24 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                     engine.price(contract, context), expected, delta=1e-12
                 )
 
-    def test_valuation_and_greek_validation_preserve_core_categories(self):
+    def test_valuation_and_greek_validation_preserve_core_errors(self):
         for engine in engines():
             for valuation in (START - timedelta(days=1), END + timedelta(days=1)):
-                self.assert_category(
-                    kiyosi.ErrorCategory.INVALID_TIME_RANGE,
+                self.assert_rejection(
+                    InvalidInputError,
                     engine.price,
                     option(),
                     market(valuation=valuation),
                 )
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price_with_greeks,
                 option(),
                 market(),
                 [],
             )
-            self.assert_category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price_with_greeks,
                 option(),
                 market(),
@@ -157,8 +161,8 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
             self.assertAlmostEqual(volatility, 0.2, delta=0.0002)
             fixed = option(rebate=7, rebate_timing="at_expiry", touch_state="touched")
             later = market(valuation=START + timedelta(days=1))
-            self.assert_category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
                 fixed,
@@ -328,13 +332,13 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
             for price, sigma in pool.map(evaluate, range(4)):
                 self.assertEqual(price, quote)
                 self.assertAlmostEqual(sigma, 0.2, delta=2e-7)
-        for observed, controls, category in (
-            (-1, {}, kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY),
-            (math.nan, {}, kiyosi.ErrorCategory.INVALID_PARAMETER),
-            (quote, {"max_iterations": 0}, kiyosi.ErrorCategory.INVALID_PARAMETER),
+        for observed, controls, expected_error in (
+            (-1, {}, RootNotBracketedError),
+            (math.nan, {}, InvalidInputError),
+            (quote, {"max_iterations": 0}, InvalidInputError),
         ):
-            self.assert_category(
-                category,
+            self.assert_rejection(
+                expected_error,
                 pricing.implied_volatility,
                 engine,
                 contract,
@@ -389,9 +393,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         uncovered = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=short)
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_TIME_RANGE, engine.price, contract, uncovered
-        )
+        self.assert_rejection(InvalidInputError, engine.price, contract, uncovered)
         current = option("up_and_out", rebate=7, rebate_timing="at_hit")
         self.assertEqual(engine.price(current, uncovered), 7)
 
@@ -432,8 +434,8 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                 engine.price_with_greeks(contract, context, "delta", **{name: value})
         clipped = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=110)
         quote = clipped.price(contract, context)
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             clipped.price_with_greeks,
             contract,
             context,
@@ -494,8 +496,8 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
             scheme="explicit_euler",
             asset_upper_boundary=400,
         )
-        self.assert_category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price,
             contract,
             market(rate=0.04),

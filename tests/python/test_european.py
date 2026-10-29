@@ -10,8 +10,8 @@ from datetime import UTC, date, datetime, timedelta, timezone
 from fractions import Fraction
 from pathlib import Path
 
-import kiyosi
 import QuantLib as ql
+from kiyosi import ComputationFailureError, InvalidInputError
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -125,11 +125,9 @@ class EuropeanTests(unittest.TestCase):
             date(2026, 1, 2),
         ):
             context = self.context(valuation_time=at)
-            with self.subTest(at=at), self.assertRaises(kiyosi.KiyosiError) as error:
+            with self.subTest(at=at), self.assertRaises(InvalidInputError) as error:
                 engine.price(option, context)
-            self.assertEqual(
-                error.exception.category, kiyosi.ErrorCategory.INVALID_TIME_RANGE
-            )
+            self.assertIs(type(error.exception), InvalidInputError)
 
     def test_dates_and_datetimes_use_stored_components(self):
         class ShadowedDate(date):
@@ -211,45 +209,43 @@ class EuropeanTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             EuropeanOption("call", 100, date(2025, 1, 1), date(2026, 1, 1))
 
-    def test_domain_categories_and_failed_construction_preserve_inputs(self):
+    def test_domain_errors_and_failed_construction_preserve_inputs(self):
         context, option = self.context(), self.option()
         for bad in (0, -1, math.nan, math.inf, -math.inf):
-            for make, category in (
+            for make, expected_error in (
                 (
                     lambda bad=bad: self.option(strike=bad),
-                    kiyosi.ErrorCategory.INVALID_STRIKE,
+                    InvalidInputError,
                 ),
                 (
                     lambda bad=bad: self.context(spot_price=bad),
-                    kiyosi.ErrorCategory.INVALID_SPOT_PRICE,
+                    InvalidInputError,
                 ),
                 (
                     lambda bad=bad: BlackScholesMertonParameters(
                         risk_free_rate=0, dividend_yield=0, volatility=bad
                     ),
-                    kiyosi.ErrorCategory.INVALID_VOLATILITY,
+                    InvalidInputError,
                 ),
             ):
                 with (
-                    self.subTest(bad=bad, category=category),
-                    self.assertRaises(kiyosi.KiyosiError) as error,
+                    self.subTest(bad=bad, expected_error=expected_error),
+                    self.assertRaises(expected_error) as error,
                 ):
                     make()
-                self.assertEqual(error.exception.category, category)
-        for field, category in (
-            ("risk_free_rate", kiyosi.ErrorCategory.INVALID_RISK_FREE_RATE),
-            ("dividend_yield", kiyosi.ErrorCategory.INVALID_DIVIDEND_YIELD),
+                self.assertIs(type(error.exception), expected_error)
+        for field, expected_error in (
+            ("risk_free_rate", InvalidInputError),
+            ("dividend_yield", InvalidInputError),
         ):
             values = {"risk_free_rate": 0, "dividend_yield": 0, "volatility": 0.2}
             values[field] = math.inf
-            with self.assertRaises(kiyosi.KiyosiError) as error:
+            with self.assertRaises(expected_error) as error:
                 BlackScholesMertonParameters(**values)
-            self.assertEqual(error.exception.category, category)
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+            self.assertIs(type(error.exception), expected_error)
+        with self.assertRaises(InvalidInputError) as error:
             self.option(effective_date=date(2027, 1, 1))
-        self.assertEqual(
-            error.exception.category, kiyosi.ErrorCategory.INVALID_TIME_RANGE
-        )
+        self.assertIs(type(error.exception), InvalidInputError)
         self.assertAlmostEqual(
             AnalyticVanillaEngine().price(option, context), 9.227005508154036
         )
@@ -309,8 +305,8 @@ class EuropeanTests(unittest.TestCase):
         model = BlackScholesMertonParameters(
             risk_free_rate=-1000, dividend_yield=0, volatility=0.3
         )
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+        with self.assertRaises(ComputationFailureError) as error:
             AnalyticVanillaEngine().price(
                 self.option(option_type="put"), self.context(model_parameters=model)
             )
-        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+        self.assertIs(type(error.exception), ComputationFailureError)

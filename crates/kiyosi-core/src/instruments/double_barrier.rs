@@ -1,7 +1,7 @@
 use crate::{
-    BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType, Date, Error, ErrorCategory,
-    EuropeanOption, ObservationMode, ObservationSchedule, OptionContract, OptionType,
-    PricingContext, RebateTiming, Result, Timestamp,
+    BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType, Date, Error, EuropeanOption,
+    ObservationMode, ObservationSchedule, OptionContract, OptionType, PricingContext, RebateTiming,
+    Result, Timestamp,
 };
 
 /// Activation by either boundary; see [`DoubleBarrierOption::new`].
@@ -91,9 +91,9 @@ impl DoubleBarrierOption {
     /// Calendar compatibility and history relative to valuation are checked during pricing.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] unless finite `0 < lower < upper`,
+    /// Returns [`Error::InvalidInput`] unless finite `0 < lower < upper`,
     /// then reuses [`BarrierOption::new`] categories and validation order, including
-    /// [`ErrorCategory::InvalidOption`] for at-hit knock-in rebates even if zero.
+    /// for at-hit knock-in rebates even if zero.
     ///
     /// # Examples
     /// ```
@@ -112,9 +112,8 @@ impl DoubleBarrierOption {
             || terms.lower_barrier <= 0.0
             || terms.upper_barrier <= terms.lower_barrier
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "double barriers require finite 0 < lower < upper",
+            return Err(Error::InvalidInput(
+                "double barriers require finite 0 < lower < upper".into(),
             ));
         }
         let mut lower = BarrierOptionTerms::new(

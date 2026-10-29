@@ -4,8 +4,7 @@ import math
 import unittest
 from datetime import date
 
-from kiyosi import ErrorCategory as E
-from kiyosi import KiyosiError
+from kiyosi import InvalidInputError, UnsupportedOperationError
 from kiyosi.instruments import BinarySnowballOption, autocallable_observations
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import FiniteDifferenceAutocallableEngine as FD
@@ -16,10 +15,10 @@ from test_snowball import contract as snowball
 
 
 class AutocallableFiniteDifferenceTests(unittest.TestCase):
-    def category(self, category, operation):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation):
+        with self.assertRaises(expected_error) as error:
             operation()
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_engine_defaults_and_representation_errors(self):
         engine = FD()
@@ -44,7 +43,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
             {"asset_step_count": 2},
             {"asset_upper_boundary": math.nan},
         ):
-            self.category(E.INVALID_PARAMETER, lambda fields=fields: FD(**fields))
+            self.assert_rejection(InvalidInputError, lambda fields=fields: FD(**fields))
         with self.assertRaises(AttributeError):
             engine.time_step_count = 1
         with self.assertRaises(TypeError):
@@ -102,7 +101,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
             scheme="explicit_euler",
             asset_upper_boundary=400,
         )
-        self.category(E.INVALID_PARAMETER, lambda: engine.price(note, market()))
+        self.assert_rejection(InvalidInputError, lambda: engine.price(note, market()))
 
     def test_event_greeks_node_curves_and_failed_replacement(self):
         engine = FD()
@@ -136,7 +135,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         invalid = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=short)
         )
-        self.category(E.INVALID_TIME_RANGE, lambda: engine.price(note, invalid))
+        self.assert_rejection(InvalidInputError, lambda: engine.price(note, invalid))
         self.assertEqual(engine.price(note, context), original_price)
 
     def test_fixed_prices_and_unidentifiable_parameters_validate_first(self):
@@ -154,12 +153,12 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         self.assertEqual(
             (result.price, result.delta, result.gamma, result.vega), (1, 0, 0, 0)
         )
-        self.category(
-            E.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             lambda: implied_volatility(engine, note, context, 1),
         )
-        self.category(
-            E.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             lambda: implied_coupon(
                 engine,
                 note,
@@ -168,8 +167,8 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
                 quote_convention="preserve_maturity_coupon",
             ),
         )
-        self.category(
-            E.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             lambda: implied_coupon(
                 engine,
                 note,
@@ -182,7 +181,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
             knock_in_observation_mode="every_trading_day", barrier_state=None
         )
         later = market(100, date(2025, 2, 3))
-        self.category(E.INVALID_PARAMETER, lambda: engine.price(missing, later))
+        self.assert_rejection(InvalidInputError, lambda: engine.price(missing, later))
         self.assertIsNone(missing.barrier_state)
 
 

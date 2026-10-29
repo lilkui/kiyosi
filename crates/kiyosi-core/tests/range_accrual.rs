@@ -283,10 +283,10 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
     let changed = option.replace(Some(3)).unwrap();
     assert_eq!(changed.realized_hit_count(), Some(3));
     assert_eq!(changed.replace(None).unwrap(), option);
-    assert_eq!(
-        option.replace(Some(-1)).unwrap_err().category,
-        ErrorCategory::InvalidParameter
-    );
+    assert!(matches!(
+        option.replace(Some(-1)).unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     assert_eq!(option, RangeAccrualOption::new(terms()).unwrap());
     for bad in [-1.0, f64::INFINITY, f64::NAN] {
         for field in 0..4 {
@@ -298,10 +298,10 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
                 _ => input.upper_bound = bad,
             }
             input.expiry_date = input.effective_date;
-            assert_eq!(
-                RangeAccrualOption::new(input).unwrap_err().category,
-                ErrorCategory::InvalidParameter
-            );
+            assert!(matches!(
+                RangeAccrualOption::new(input).unwrap_err(),
+                Error::InvalidInput(_)
+            ));
         }
     }
     for input in [
@@ -322,21 +322,20 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
             ..terms()
         },
     ] {
-        assert_eq!(
-            RangeAccrualOption::new(input).unwrap_err().category,
-            ErrorCategory::InvalidParameter
-        );
+        assert!(matches!(
+            RangeAccrualOption::new(input).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for end in [day(1), add(day(1), -1)] {
-        assert_eq!(
+        assert!(matches!(
             RangeAccrualOption::new(RangeAccrualTerms {
                 expiry_date: end,
                 ..terms()
             })
-            .unwrap_err()
-            .category,
-            ErrorCategory::InvalidTimeRange
-        );
+            .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     assert!(
         RangeAccrualOption::new(RangeAccrualTerms {
@@ -375,22 +374,20 @@ fn history_is_strictly_prior_and_valuation_can_precede_effective_date() {
         (day(3).into(), None),
     ] {
         let live = option.replace(hits).unwrap();
-        assert_eq!(
+        assert!(matches!(
             AnalyticRangeAccrualEngine
                 .price(&live, &market(at, 100.0))
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let after = market(Timestamp::new(day(17), 0, 0, 0, 1).unwrap(), 100.0);
-    assert_eq!(
+    assert!(matches!(
         AnalyticRangeAccrualEngine
             .price(&option, &after)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidTimeRange
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
 }
 
 #[test]
@@ -409,13 +406,12 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
                 ..Default::default()
             })
             .unwrap();
-        assert_eq!(
+        assert!(matches!(
             AnalyticRangeAccrualEngine
                 .price(&option, &context)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidTimeRange
-        );
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
         let zero = RangeAccrualOption::new(RangeAccrualTerms {
             annual_coupon_rate: 0.0,
             ..terms()
@@ -425,13 +421,12 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
             AnalyticRangeAccrualEngine.price(&zero, &context).unwrap(),
             0.0
         );
-        assert_eq!(
+        assert!(matches!(
             AnalyticRangeAccrualEngine
                 .price(&zero, &market(day(4), 100.0))
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidParameter
-        );
+                .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     let context = market(day(3), 100.0)
         .replace(PricingContextChanges {
@@ -445,13 +440,12 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
         ..terms()
     })
     .unwrap();
-    assert_eq!(
+    assert!(matches!(
         AnalyticRangeAccrualEngine
             .price(&weekend, &context)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidDate
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let monday = RangeAccrualOption::new(RangeAccrualTerms {
         effective_date: day(3),
         expiry_date: day(6),
@@ -529,13 +523,12 @@ fn tiny_volatility_and_coupon_scaling_preserve_representable_prices() {
         ..terms()
     })
     .unwrap();
-    assert_eq!(
+    assert!(matches!(
         AnalyticRangeAccrualEngine
             .price(&overflow, &market(day(1), 100.0))
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
 }
 
 #[test]
@@ -544,14 +537,13 @@ fn request_and_solver_errors_preserve_inputs() {
     let option = RangeAccrualOption::new(terms()).unwrap();
     let context = market(day(1), 100.0);
     let shifts = NumericalShiftSettings::default();
-    assert_eq!(
+    assert!(matches!(
         engine
             .price_with_greeks(&option, &context, GreeksRequest::default(), shifts)
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -562,10 +554,9 @@ fn request_and_solver_errors_preserve_inputs() {
                     ..shifts
                 }
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let unavailable = engine
         .price_with_greeks(
             &option,
@@ -583,31 +574,25 @@ fn request_and_solver_errors_preserve_inputs() {
         upper_bound: 0.4,
         ..Default::default()
     };
-    assert_eq!(
-        implied_volatility(&engine, &option, &context, -1.0, settings)
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnbracketedVolatility
-    );
+    assert!(matches!(
+        implied_volatility(&engine, &option, &context, -1.0, settings).unwrap_err(),
+        Error::RootNotBracketed(_)
+    ));
     let zero = RangeAccrualOption::new(RangeAccrualTerms {
         annual_coupon_rate: 0.0,
         ..terms()
     })
     .unwrap();
-    assert_eq!(
-        implied_volatility(&engine, &zero, &context, 0.0, settings)
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+    assert!(matches!(
+        implied_volatility(&engine, &zero, &context, 0.0, settings).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let end = option.replace(Some(15)).unwrap();
     let terminal = market(day(17), 100.0);
-    assert_eq!(
-        implied_volatility(&engine, &end, &terminal, 0.0, settings)
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+    assert!(matches!(
+        implied_volatility(&engine, &end, &terminal, 0.0, settings).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     let result = engine
         .price_with_greeks(&end, &terminal, GreeksRequest::all(), shifts)
         .unwrap();
@@ -731,13 +716,12 @@ fn unresolvable_curve_knots_fail_before_pricing_future_observations() {
             ..terms()
         };
         let option = RangeAccrualOption::new(input).unwrap();
-        assert_eq!(
+        assert!(matches!(
             AnalyticRangeAccrualEngine
                 .price(&option, &context)
-                .unwrap_err()
-                .category,
-            ErrorCategory::InvalidResult
-        );
+                .unwrap_err(),
+            Error::ComputationFailure(_)
+        ));
         input.annual_coupon_rate = 0.0;
         assert_eq!(
             AnalyticRangeAccrualEngine

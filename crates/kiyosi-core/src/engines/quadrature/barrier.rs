@@ -3,8 +3,8 @@ use crate::engines::analytic::barrier::{
     checked, hit_value, log_ratio, resolved_price, scaled_cash, validate_life, validate_schedule,
 };
 use crate::{
-    BarrierOption, Error, ErrorCategory, GreeksRequest, NumericalShiftSettings, OptionType,
-    PricingContext, PricingEngine, PricingResult, RebateTiming, Result,
+    BarrierOption, Error, GreeksRequest, NumericalShiftSettings, OptionType, PricingContext,
+    PricingEngine, PricingResult, RebateTiming, Result,
 };
 
 /// Configures the spatial budget and integration extent for event-date quadrature.
@@ -28,17 +28,14 @@ impl QuadratureSettings {
     /// Validates the spatial budget and extent. See [`QuadratureBarrierEngine::new`].
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] below four steps or for a non-finite
+    /// Returns [`Error::InvalidInput`] below four steps or for a non-finite
     /// or nonpositive extent. Does not change the settings.
     pub fn validate(&self) -> Result<()> {
         if self.asset_step_count < 4
             || !self.integration_standard_deviations.is_finite()
             || self.integration_standard_deviations <= 0.0
         {
-            return Err(Error::new(
-                ErrorCategory::InvalidParameter,
-                "quadrature requires at least four asset steps and a finite positive integration extent",
-            ));
+            return Err(Error::InvalidInput("quadrature requires at least four asset steps and a finite positive integration extent".into()));
         }
         Ok(())
     }
@@ -91,12 +88,10 @@ impl QuadratureBarrierEngine {
     /// Resolved vanilla payoffs use analytic pricing. See [`Self::new`] for an example.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::UnsupportedOperation`] for node curves,
-    /// [`ErrorCategory::InvalidTimeRange`] outside life, [`ErrorCategory::InvalidDate`]
-    /// for non-trading fixings, [`ErrorCategory::InvalidParameter`] for missing history,
-    /// [`ErrorCategory::InvalidOption`] for impossible history, or
-    /// [`ErrorCategory::InvalidResult`] for unrepresentable grids, transitions or results.
-    /// Inputs remain unchanged on success and failure.
+    /// Returns [`Error::UnsupportedOperation`] for node curves. Returns
+    /// [`Error::InvalidInput`] outside life, for non-trading fixings, or for
+    /// missing or impossible history, checked in that order. Unrepresentable grids,
+    /// transitions or results return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         price(option, context, self.settings, &mut None)
     }
@@ -168,10 +163,7 @@ impl PricingEngine<BarrierOption> for BarrierPricer {
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         let mut prepared = self.prepared.lock().map_err(|_| {
-            Error::new(
-                ErrorCategory::InvalidResult,
-                "quadrature request cache is poisoned",
-            )
+            Error::ComputationFailure("quadrature request cache is poisoned".into())
         })?;
         price(option, context, self.settings, &mut prepared)
     }
@@ -181,10 +173,7 @@ impl PricingEngine<BarrierOption> for BarrierPricer {
 }
 
 fn invalid_transition() -> Error {
-    Error::new(
-        ErrorCategory::InvalidResult,
-        "quadrature transition is not representable",
-    )
+    Error::ComputationFailure("quadrature transition is not representable".into())
 }
 fn continuous_price(
     option: &BarrierOption,
@@ -450,9 +439,8 @@ fn event_layer(
             .map(|&node| {
                 let spot = scaled(option.strike(), node);
                 if !spot.is_finite() || spot <= 0.0 {
-                    return Err(Error::new(
-                        ErrorCategory::InvalidResult,
-                        "quadrature asset grid is not representable",
+                    return Err(Error::ComputationFailure(
+                        "quadrature asset grid is not representable".into(),
                     ));
                 }
                 let shifted = context.replace(crate::PricingContextChanges {
@@ -657,14 +645,12 @@ fn scheduled_price(
             );
         }
         if values.iter().any(|value| !value.is_finite()) {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "quadrature continuation is non-finite",
+            return Err(Error::ComputationFailure(
+                "quadrature continuation is non-finite".into(),
             ));
         }
     }
-    Err(Error::new(
-        ErrorCategory::InvalidResult,
-        "quadrature has no future observation",
+    Err(Error::ComputationFailure(
+        "quadrature has no future observation".into(),
     ))
 }

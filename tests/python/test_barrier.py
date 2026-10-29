@@ -4,8 +4,8 @@ import math
 import unittest
 from datetime import UTC, date, datetime, timedelta
 
-import kiyosi
 import QuantLib as ql
+from kiyosi import InvalidInputError, RootNotBracketedError, UnsupportedOperationError
 from kiyosi.instruments import BarrierOption, EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -47,20 +47,18 @@ class BarrierTests(unittest.TestCase):
         self.assertEqual(option.touch_state, None)
         self.assertEqual(option.observation_mode, "continuous")
         self.assertEqual(engine.price(option, self.context(120)), 7)
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+        with self.assertRaises(InvalidInputError) as error:
             engine.price(option, self.context(time=date(2025, 1, 2)))
-        self.assertEqual(
-            error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
-        )
+        self.assertIs(type(error.exception), InvalidInputError)
         touched = option.replace(touch_state="touched")
         self.assertEqual(engine.price(touched, self.context(time=date(2025, 1, 2))), 0)
         self.assertIsNone(option.touch_state)
         self.assertEqual(touched.replace(touch_state=None), option)
 
-    def assert_category(self, category, action):
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+    def assert_rejection(self, expected_error, action):
+        with self.assertRaises(expected_error) as error:
             action()
-        self.assertEqual(error.exception.category.name, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_construction_representation_and_replacement_failures_preserve_owner(self):
         option = BarrierOption(**self.terms())
@@ -82,37 +80,37 @@ class BarrierTests(unittest.TestCase):
                 BarrierOption(**self.terms(**{field: "unknown"}))
             with self.subTest(field=field), self.assertRaises(TypeError):
                 BarrierOption(**self.terms(**{field: True}))
-        for values, category in (
-            ({"barrier_level": 0}, "INVALID_PARAMETER"),
-            ({"barrier_level": float("nan"), "strike": -1}, "INVALID_PARAMETER"),
-            ({"strike": 0}, "INVALID_STRIKE"),
-            ({"rebate": -1}, "INVALID_PARAMETER"),
-            ({"rebate": float("inf")}, "INVALID_PARAMETER"),
-            ({"expiry_date": date(2024, 1, 1)}, "INVALID_TIME_RANGE"),
+        for values, expected_error in (
+            ({"barrier_level": 0}, InvalidInputError),
+            ({"barrier_level": float("nan"), "strike": -1}, InvalidInputError),
+            ({"strike": 0}, InvalidInputError),
+            ({"rebate": -1}, InvalidInputError),
+            ({"rebate": float("inf")}, InvalidInputError),
+            ({"expiry_date": date(2024, 1, 1)}, InvalidInputError),
             (
                 {"barrier_type": "up_and_in", "rebate_timing": "at_hit"},
-                "INVALID_OPTION",
+                InvalidInputError,
             ),
-            ({"observation_mode": "scheduled"}, "INVALID_SCHEDULE"),
-            ({"observation_dates": [date(2025, 1, 2)]}, "INVALID_SCHEDULE"),
+            ({"observation_mode": "scheduled"}, InvalidInputError),
+            ({"observation_dates": [date(2025, 1, 2)]}, InvalidInputError),
             (
                 {
                     "observation_mode": "scheduled",
                     "observation_dates": [date(2026, 1, 2)],
                 },
-                "INVALID_SCHEDULE",
+                InvalidInputError,
             ),
             (
                 {
                     "observation_mode": "scheduled",
                     "observation_dates": [date(2025, 1, 2)] * 2,
                 },
-                "INVALID_SCHEDULE",
+                InvalidInputError,
             ),
         ):
             with self.subTest(values=values):
-                self.assert_category(
-                    category,
+                self.assert_rejection(
+                    expected_error,
                     lambda values=values: BarrierOption(**self.terms(**values)),
                 )
         for fields, error in (
@@ -167,8 +165,8 @@ class BarrierTests(unittest.TestCase):
                             self.assertTrue(
                                 all(getattr(result, g) is None for g in GREEKS)
                             )
-                            self.assert_category(
-                                "UNSUPPORTED_OPERATION",
+                            self.assert_rejection(
+                                UnsupportedOperationError,
                                 lambda option=option, context=context, expected=expected: (
                                     implied_volatility(
                                         engine, option, context, expected
@@ -182,8 +180,8 @@ class BarrierTests(unittest.TestCase):
             context = self.context(time=date(2025, 1, 2))
             expected = 0 if timing == "at_hit" else 7 * math.exp(-0.05 * 364 / 365)
             self.assertAlmostEqual(engine.price(option, context), expected, delta=1e-12)
-            self.assert_category(
-                "UNSUPPORTED_OPERATION",
+            self.assert_rejection(
+                UnsupportedOperationError,
                 lambda option=option, context=context, expected=expected: (
                     implied_volatility(engine, option, context, expected)
                 ),
@@ -197,11 +195,11 @@ class BarrierTests(unittest.TestCase):
                 observation_mode="scheduled", observation_dates=[fixing], rebate=7
             )
         )
-        self.assert_category(
-            "UNSUPPORTED_OPERATION", lambda: engine.price(option, self.context())
+        self.assert_rejection(
+            UnsupportedOperationError, lambda: engine.price(option, self.context())
         )
-        self.assert_category(
-            "INVALID_OPTION",
+        self.assert_rejection(
+            InvalidInputError,
             lambda: engine.price(
                 option.replace(touch_state="touched"), self.context(time=fixing)
             ),
@@ -212,8 +210,8 @@ class BarrierTests(unittest.TestCase):
             delta=1e-12,
         )
         noon = datetime(2025, 1, 2, 12, tzinfo=UTC)
-        self.assert_category(
-            "INVALID_PARAMETER", lambda: engine.price(option, self.context(150, noon))
+        self.assert_rejection(
+            InvalidInputError, lambda: engine.price(option, self.context(150, noon))
         )
         untouched = option.replace(touch_state="untouched")
         vanilla = EuropeanOption(
@@ -238,8 +236,8 @@ class BarrierTests(unittest.TestCase):
                 touch_state="touched",
             )
         )
-        self.assert_category(
-            "INVALID_DATE",
+        self.assert_rejection(
+            InvalidInputError,
             lambda: engine.price(weekend, self.context(time=date(2025, 1, 5))),
         )
 
@@ -272,8 +270,8 @@ class BarrierTests(unittest.TestCase):
                 engine.price(shifted, context),
                 delta=1e-11,
             )
-            self.assert_category(
-                "UNSUPPORTED_OPERATION",
+            self.assert_rejection(
+                UnsupportedOperationError,
                 lambda scheduled=scheduled, up=up, noon=noon: engine.price(
                     scheduled, self.context(150 if up else 50, noon)
                 ),
@@ -466,28 +464,28 @@ class BarrierTests(unittest.TestCase):
             {"volatility_shift": float("nan")},
             {"time_shift_days": 0},
         ):
-            self.assert_category(
-                "INVALID_PARAMETER",
+            self.assert_rejection(
+                InvalidInputError,
                 lambda fields=fields: engine.price_with_greeks(
                     option, context, "delta", **fields
                 ),
             )
-        self.assert_category(
-            "INVALID_PARAMETER", lambda: engine.price_with_greeks(option, context, [])
+        self.assert_rejection(
+            InvalidInputError, lambda: engine.price_with_greeks(option, context, [])
         )
         for changes in (
             {"lower_bound": 0},
             {"max_iterations": 0},
             {"price_tolerance": -1},
         ):
-            self.assert_category(
-                "INVALID_PARAMETER",
+            self.assert_rejection(
+                InvalidInputError,
                 lambda changes=changes: implied_volatility(
                     engine, option, context, 1, **changes
                 ),
             )
-        self.assert_category(
-            "UNBRACKETED_VOLATILITY",
+        self.assert_rejection(
+            RootNotBracketedError,
             lambda: implied_volatility(
                 engine, option, context, -1, lower_bound=0.15, upper_bound=0.25
             ),
@@ -498,12 +496,12 @@ class BarrierTests(unittest.TestCase):
         curved = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=curve)
         )
-        self.assert_category(
-            "UNSUPPORTED_OPERATION",
+        self.assert_rejection(
+            UnsupportedOperationError,
             lambda: engine.price_with_greeks(option, curved, []),
         )
-        self.assert_category(
-            "UNSUPPORTED_OPERATION",
+        self.assert_rejection(
+            UnsupportedOperationError,
             lambda: implied_volatility(engine, option, curved, 1, lower_bound=0),
         )
         with ThreadPoolExecutor(4) as pool:

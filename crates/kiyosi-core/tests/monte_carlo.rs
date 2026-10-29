@@ -168,36 +168,33 @@ fn analyses_share_one_seed_and_solvers_recover_seeded_quotes() {
 #[test]
 fn settings_validate_boundaries_before_committing_an_engine() {
     for paths in [i32::MIN, -1, 0, 10_000_001, i32::MAX] {
-        assert_eq!(
+        assert!(matches!(
             MonteCarloVanillaEngine::new(MonteCarloSettings {
                 path_count: paths,
                 ..Default::default()
             })
-            .unwrap_err()
-            .category,
-            ErrorCategory::InvalidParameter
-        );
+            .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     for steps in [i32::MIN, 0, 1, 10_001, i32::MAX] {
-        assert_eq!(
+        assert!(matches!(
             MonteCarloVanillaEngine::new(MonteCarloSettings {
                 step_count: steps,
                 ..Default::default()
             })
-            .unwrap_err()
-            .category,
-            ErrorCategory::InvalidParameter
-        );
+            .unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
-    assert_eq!(
+    assert!(matches!(
         MonteCarloVanillaEngine::new(MonteCarloSettings {
             thread_count: -1,
             ..Default::default()
         })
-        .unwrap_err()
-        .category,
-        ErrorCategory::InvalidParameter
-    );
+        .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     for paths in [1, 10_000_000] {
         for steps in [2, 10_000] {
             let settings = MonteCarloSettings {
@@ -336,20 +333,18 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
         )
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|greek| !result.has(greek)));
-    assert_eq!(
-        implied_volatility(&engine, &option, &at(expiry), 0.0, Default::default())
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
+    assert!(matches!(
+        implied_volatility(&engine, &option, &at(expiry), 0.0, Default::default()).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     for time in [
         Timestamp::new(Date::new(2024, 12, 31).unwrap(), 23, 59, 59, 999_999).unwrap(),
         Timestamp::new(option.expiry_date(), 0, 0, 0, 1).unwrap(),
     ] {
-        assert_eq!(
-            engine.price(&option, &at(time)).unwrap_err().category,
-            ErrorCategory::InvalidTimeRange
-        );
+        assert!(matches!(
+            engine.price(&option, &at(time)).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
     }
     assert!(
         engine
@@ -375,11 +370,11 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        engine.price(&option, &node_context).unwrap_err().category,
-        ErrorCategory::UnsupportedOperation
-    );
-    assert_eq!(
+    assert!(matches!(
+        engine.price(&option, &node_context).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -387,11 +382,10 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::UnsupportedOperation
-    );
-    assert_eq!(
+            .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+    assert!(matches!(
         numerical_greeks(
             &engine,
             &option,
@@ -399,12 +393,11 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
             GreeksRequest::default(),
             Default::default()
         )
-        .unwrap_err()
-        .category,
-        ErrorCategory::UnsupportedOperation
-    );
+        .unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
     for quote in [0.0, f64::NAN] {
-        assert_eq!(
+        assert!(matches!(
             implied_volatility(
                 &engine,
                 &option,
@@ -415,12 +408,11 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
                     ..Default::default()
                 }
             )
-            .unwrap_err()
-            .category,
-            ErrorCategory::UnsupportedOperation
-        );
+            .unwrap_err(),
+            Error::UnsupportedOperation(_)
+        ));
     }
-    assert_eq!(
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -428,12 +420,11 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
                 GreeksRequest::default(),
                 Default::default()
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidParameter
-    );
+            .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
     let baseline = engine.price(&option, &context).unwrap();
-    assert_eq!(
+    assert!(matches!(
         engine
             .price_with_greeks(
                 &option,
@@ -444,10 +435,9 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
                     ..Default::default()
                 }
             )
-            .unwrap_err()
-            .category,
-        ErrorCategory::InvalidResult
-    );
+            .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
     let missing = engine
         .price_with_greeks(
             &option,
@@ -640,17 +630,16 @@ fn sobol_path_validation_and_seeded_single_point_preserve_existing_contract() {
             );
         }
         for paths in [0, 3, 100_000, 8_388_609, 16_777_216] {
-            assert_eq!(
+            assert!(matches!(
                 MonteCarloVanillaEngine::new(MonteCarloSettings {
                     path_count: paths,
                     sampling: MonteCarloSampling::Sobol,
                     antithetic,
                     ..defaults
                 })
-                .unwrap_err()
-                .category,
-                ErrorCategory::InvalidParameter
-            );
+                .unwrap_err(),
+                Error::InvalidInput(_)
+            ));
         }
         let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
             path_count: 1,
@@ -858,7 +847,7 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
                     .abs()
                     < 1e-10
             );
-            assert_eq!(
+            assert!(matches!(
                 engine
                     .price_with_greeks(
                         &option,
@@ -869,10 +858,9 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
                             ..Default::default()
                         }
                     )
-                    .unwrap_err()
-                    .category,
-                ErrorCategory::InvalidResult
-            );
+                    .unwrap_err(),
+                Error::ComputationFailure(_)
+            ));
             assert_eq!(engine.price(&option, &context).unwrap(), expected.price());
             let unseeded = MonteCarloVanillaEngine::new(MonteCarloSettings {
                 seed: None,
@@ -936,10 +924,10 @@ fn antithetic_companion_failures_preserve_engine_and_inputs() {
     })
     .unwrap();
     let baseline = pair.price(&option, &market()).unwrap();
-    assert_eq!(
-        pair.price(&option, &context).unwrap_err().category,
-        ErrorCategory::InvalidResult
-    );
+    assert!(matches!(
+        pair.price(&option, &context).unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
     assert_eq!(pair.price(&option, &market()).unwrap(), baseline);
     assert!(pair.settings().antithetic);
 }

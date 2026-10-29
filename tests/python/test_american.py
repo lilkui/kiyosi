@@ -10,7 +10,13 @@ from fractions import Fraction
 from pathlib import Path
 
 import QuantLib as ql
-from kiyosi import ErrorCategory, KiyosiError
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    NonConvergenceError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import AmericanOption, CashOrNothingOption, EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -58,10 +64,10 @@ class AmericanTests(unittest.TestCase):
             valuation_time=at or self.terms["effective_date"],
         )
 
-    def category(self, expected, call, *args, **kwargs):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected, call, *args, **kwargs):
+        with self.assertRaises(expected) as error:
             call(*args, **kwargs)
-        self.assertEqual(error.exception.category, expected)
+        self.assertIs(type(error.exception), expected)
 
     def test_maturity_regressions(self):
         for days, call, put in (
@@ -118,8 +124,8 @@ class AmericanTests(unittest.TestCase):
                 result = self.engine.price_with_greeks(option, context, all_greeks=True)
                 self.assertEqual(result.price, expected)
                 self.assertTrue(all(getattr(result, name) is None for name in GREEKS))
-                self.category(
-                    ErrorCategory.UNSUPPORTED_OPERATION,
+                self.assert_rejection(
+                    UnsupportedOperationError,
                     implied_volatility,
                     self.engine,
                     option,
@@ -130,8 +136,8 @@ class AmericanTests(unittest.TestCase):
                 datetime(2024, 12, 31, 23, 59, 59, 999999, UTC),
                 datetime(2026, 1, 1, 0, 0, 0, 1, UTC),
             ):
-                self.category(
-                    ErrorCategory.INVALID_TIME_RANGE,
+                self.assert_rejection(
+                    InvalidInputError,
                     self.engine.price,
                     option,
                     self.market(at=at),
@@ -148,13 +154,13 @@ class AmericanTests(unittest.TestCase):
 
     def test_construction_protocols_validation_order_and_ownership(self):
         for strike in (0, -1, float("nan"), float("inf")):
-            self.category(
-                ErrorCategory.INVALID_STRIKE,
+            self.assert_rejection(
+                InvalidInputError,
                 AmericanOption,
                 **dict(self.terms, strike=strike, expiry_date=date(2024, 1, 1)),
             )
-        self.category(
-            ErrorCategory.INVALID_TIME_RANGE,
+        self.assert_rejection(
+            InvalidInputError,
             AmericanOption,
             **dict(self.terms, expiry_date=date(2024, 1, 1)),
         )
@@ -187,22 +193,28 @@ class AmericanTests(unittest.TestCase):
     def test_applicability_and_error_order(self):
         for direction in ("call", "put"):
             option = AmericanOption(**dict(self.terms, option_type=direction))
-            for r, q, sigma, category in (
-                (-0.01, 0.02, 0.2, ErrorCategory.UNSUPPORTED_OPERATION),
-                (0.05, 0.1, 0.02, ErrorCategory.UNSUPPORTED_OPERATION),
-                (0, 0.02, 0.01, ErrorCategory.UNSUPPORTED_OPERATION),
-                (0, 0.1, 0.05, ErrorCategory.UNSUPPORTED_OPERATION),
-                (0.05, 0.03, 1e200, ErrorCategory.INVALID_RESULT),
-                (0.1, 0.05, 1e-200, ErrorCategory.INVALID_RESULT),
+            for r, q, sigma, expected_error in (
+                (-0.01, 0.02, 0.2, UnsupportedOperationError),
+                (0.05, 0.1, 0.02, UnsupportedOperationError),
+                (0, 0.02, 0.01, UnsupportedOperationError),
+                (0, 0.1, 0.05, UnsupportedOperationError),
+                (0.05, 0.03, 1e200, ComputationFailureError),
+                (0.1, 0.05, 1e-200, ComputationFailureError),
             ):
                 context = self.market(
                     rate=r if direction == "call" else q,
                     dividend=q if direction == "call" else r,
                     volatility=sigma,
                 )
-                self.category(category, self.engine.price, option, context)
-                self.category(
-                    category, self.engine.price_with_greeks, option, context, "delta"
+                self.assert_rejection(
+                    expected_error, self.engine.price, option, context
+                )
+                self.assert_rejection(
+                    expected_error,
+                    self.engine.price_with_greeks,
+                    option,
+                    context,
+                    "delta",
                 )
             curve = RateTermStructure(
                 reference_time=self.terms["effective_date"],
@@ -214,21 +226,21 @@ class AmericanTests(unittest.TestCase):
                 self.market(dividend=curve),
                 self.market(rate=curve, at=self.terms["expiry_date"]),
             ):
-                self.category(
-                    ErrorCategory.UNSUPPORTED_OPERATION,
+                self.assert_rejection(
+                    UnsupportedOperationError,
                     self.engine.price,
                     option,
                     context,
                 )
-                self.category(
-                    ErrorCategory.UNSUPPORTED_OPERATION,
+                self.assert_rejection(
+                    UnsupportedOperationError,
                     self.engine.price_with_greeks,
                     option,
                     context,
                     [],
                 )
-                self.category(
-                    ErrorCategory.UNSUPPORTED_OPERATION,
+                self.assert_rejection(
+                    UnsupportedOperationError,
                     implied_volatility,
                     self.engine,
                     option,
@@ -247,8 +259,8 @@ class AmericanTests(unittest.TestCase):
         )
         context = self.market(rate=0, dividend=0.02)
         self.assertGreater(self.engine.price(self.option, context), 0)
-        self.category(
-            ErrorCategory.UNSUPPORTED_OPERATION,
+        self.assert_rejection(
+            UnsupportedOperationError,
             self.engine.price_with_greeks,
             self.option,
             context,
@@ -276,8 +288,8 @@ class AmericanTests(unittest.TestCase):
                     )
             # Fixed bracket avoids the put's unsupported low-volatility exercise boundary.
             if direction == "put":
-                self.category(
-                    ErrorCategory.UNSUPPORTED_OPERATION,
+                self.assert_rejection(
+                    UnsupportedOperationError,
                     implied_volatility,
                     self.engine,
                     option,
@@ -308,16 +320,16 @@ class AmericanTests(unittest.TestCase):
             )
         for value in values:
             self.assertAlmostEqual(value, 0.2, delta=1e-6)
-        self.category(
-            ErrorCategory.UNBRACKETED_VOLATILITY,
+        self.assert_rejection(
+            RootNotBracketedError,
             implied_volatility,
             self.engine,
             self.option,
             self.context,
             -1,
         )
-        self.category(
-            ErrorCategory.SOLVER_NON_CONVERGENCE,
+        self.assert_rejection(
+            NonConvergenceError,
             implied_volatility,
             self.engine,
             self.option,
@@ -332,8 +344,8 @@ class AmericanTests(unittest.TestCase):
         self.assertEqual(self.engine.price(self.option, self.context), quote)
 
     def test_analysis_rejects_protocols_and_unsupported_pairs(self):
-        self.category(
-            ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             self.engine.price_with_greeks,
             self.option,
             self.context,
@@ -345,8 +357,8 @@ class AmericanTests(unittest.TestCase):
             {"rate_shift": -1},
             {"time_shift_days": 0},
         ):
-            self.category(
-                ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 self.engine.price_with_greeks,
                 self.option,
                 self.context,

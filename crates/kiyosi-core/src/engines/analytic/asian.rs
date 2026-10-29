@@ -1,7 +1,7 @@
 use crate::{ArithmeticAveragePriceOption, GeometricAveragePriceOption};
 use crate::{
-    Error, ErrorCategory, GreeksRequest, NumericalShiftSettings, PricingContext, PricingEngine,
-    PricingResult, Result,
+    Error, GreeksRequest, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
+    Result,
 };
 
 use crate::instruments::asian::AverageTerms;
@@ -19,9 +19,8 @@ pub struct TurnbullWakemanArithmeticAveragePriceEngine;
 
 pub(crate) fn checked(value: f64) -> Result<f64> {
     if !value.is_finite() {
-        return Err(Error::new(
-            ErrorCategory::InvalidResult,
-            "Asian pricing produced a non-finite result",
+        return Err(Error::ComputationFailure(
+            "Asian pricing produced a non-finite result".into(),
         ));
     }
     Ok(value.max(0.0))
@@ -52,9 +51,9 @@ impl AnalyticGeometricAveragePriceEngine {
     /// Prices geometric averaging, preserving forward starts, history and expiry settlement.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidTimeRange`] outside life or curve coverage,
-    /// [`ErrorCategory::InvalidParameter`] for inconsistent history, and
-    /// [`ErrorCategory::InvalidResult`] for non-finite calculations. Inputs remain unchanged.
+    /// Returns [`Error::InvalidInput`] outside life or curve coverage,
+    /// for inconsistent history, and
+    /// [`Error::ComputationFailure`] for non-finite calculations. Inputs remain unchanged.
     ///
     /// # Examples
     /// ```
@@ -185,9 +184,9 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     ///
     /// # Errors
     /// Reuses geometric life/history errors, then returns
-    /// [`ErrorCategory::UnsupportedOperation`] for node curves before expiry,
-    /// [`ErrorCategory::InvalidTimeRange`] for curve coverage, or
-    /// [`ErrorCategory::InvalidResult`] for invalid moments or non-finite results.
+    /// [`Error::UnsupportedOperation`] for node curves before expiry,
+    /// [`Error::InvalidInput`] for curve coverage, or
+    /// [`Error::ComputationFailure`] for invalid moments or non-finite results.
     /// Inputs remain unchanged.
     ///
     /// # Examples
@@ -217,9 +216,8 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
         }
         let model = context.model_parameters();
         if !model.risk_free_curve().is_flat() || !model.dividend_curve().is_flat() {
-            return Err(Error::new(
-                ErrorCategory::UnsupportedOperation,
-                "Turnbull-Wakeman requires flat rates",
+            return Err(Error::UnsupportedOperation(
+                "Turnbull-Wakeman requires flat rates".into(),
             ));
         }
         coverage(o, context)?;
@@ -235,9 +233,8 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
         let delta = tau - lead;
         let m1 = (carry * lead).exp() * exprel(carry * delta);
         if !m1.is_finite() || m1 <= 0.0 {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "invalid arithmetic moment",
+            return Err(Error::ComputationFailure(
+                "invalid arithmetic moment".into(),
             ));
         }
         let strike = o.adjusted_strike(tau);
@@ -277,9 +274,8 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
                     };
             let log_variance = vol2 * variance_time;
             if !log_variance.is_finite() || log_variance < -1e-12 {
-                return Err(Error::new(
-                    ErrorCategory::InvalidResult,
-                    "invalid arithmetic variance",
+                return Err(Error::ComputationFailure(
+                    "invalid arithmetic variance".into(),
                 ));
             }
             sigma * (variance_time / tau).max(0.0).sqrt()
@@ -289,17 +285,15 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
                 * divided_exprel((2.0 * carry + vol2) * delta, carry * delta);
             let variance = m2.ln() - 2.0 * m1.ln();
             if !variance.is_finite() || variance < -1e-12 {
-                return Err(Error::new(
-                    ErrorCategory::InvalidResult,
-                    "invalid arithmetic variance",
+                return Err(Error::ComputationFailure(
+                    "invalid arithmetic variance".into(),
                 ));
             }
             (variance.max(0.0) / tau).sqrt()
         };
         if !adjusted_vol.is_finite() {
-            return Err(Error::new(
-                ErrorCategory::InvalidResult,
-                "invalid arithmetic variance",
+            return Err(Error::ComputationFailure(
+                "invalid arithmetic variance".into(),
             ));
         }
         if adjusted_vol == 0.0 {
@@ -348,8 +342,8 @@ macro_rules! asian_analytics {
             /// all Greeks are unavailable at expiry. See [`Self::price`] for a setup example.
             ///
             /// # Errors
-            /// Returns [`ErrorCategory::InvalidParameter`] for empty requests or invalid shifts
-            /// before pricing, [`ErrorCategory::InvalidResult`] for non-finite derivatives,
+            /// Returns [`Error::InvalidInput`] for empty requests or invalid shifts
+            /// before pricing, [`Error::ComputationFailure`] for non-finite derivatives,
             /// and propagates pricing and feasible bumped-pricing errors.
             /// Inputs remain unchanged; unavailable stencils leave measures absent.
             pub fn price_with_greeks(

@@ -5,8 +5,12 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, time, timedelta
 from itertools import pairwise
 
-import kiyosi
-from kiyosi import pricing
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    UnsupportedOperationError,
+    pricing,
+)
 from kiyosi.instruments import Accumulator, EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -95,10 +99,10 @@ def exposure(option, context):
 
 
 class AccumulatorQuadratureTests(unittest.TestCase):
-    def category(self, category, operation, *args, **kwargs):
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation, *args, **kwargs):
+        with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_contract_history_protocols_validation_and_ownership(self):
         fields = {
@@ -140,10 +144,8 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(OverflowError):
                 Accumulator(**(fields | {field: 10**400}))
             for value in (-1, math.nan, math.inf):
-                self.category(
-                    kiyosi.ErrorCategory.INVALID_STRIKE
-                    if field == "strike"
-                    else kiyosi.ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     Accumulator,
                     **(fields | {field: value}),
                 )
@@ -151,8 +153,8 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 updated.replace(accumulated_quantity=value)
         for value in (-1, math.nan, math.inf):
-            self.category(
-                kiyosi.ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 updated.replace,
                 accumulated_quantity=value,
             )
@@ -167,13 +169,13 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             for value in (datetime(2025, 1, 1, tzinfo=UTC), "2025-01-01", None):
                 with self.assertRaises(TypeError):
                     Accumulator(**(fields | {field: value}))
-        self.category(
-            kiyosi.ErrorCategory.INVALID_TIME_RANGE,
+        self.assert_rejection(
+            InvalidInputError,
             Accumulator,
             **(fields | {"expiry_date": START - timedelta(days=1)}),
         )
-        self.category(
-            kiyosi.ErrorCategory.INVALID_STRIKE,
+        self.assert_rejection(
+            InvalidInputError,
             Accumulator,
             **(fields | {"strike": 0, "expiry_date": START - timedelta(days=1)}),
         )
@@ -213,18 +215,18 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             curved = context.replace(
                 model_parameters=context.model_parameters.replace(**{field: curve})
             )
-            self.category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION, engine.price, option, curved
+            self.assert_rejection(
+                UnsupportedOperationError, engine.price, option, curved
             )
-            self.category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 engine.price_with_greeks,
                 option,
                 curved,
                 [],
             )
-            self.category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
                 option,
@@ -238,23 +240,23 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             (contract(daily=0, quantity=0), market()),
         ):
             quote = engine.price(instrument, scenario)
-            self.category(
-                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+            self.assert_rejection(
+                UnsupportedOperationError,
                 pricing.implied_volatility,
                 engine,
                 instrument,
                 scenario,
                 quote,
             )
-        self.category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             option,
             market(),
             [],
         )
-        self.category(
-            kiyosi.ErrorCategory.INVALID_PARAMETER,
+        self.assert_rejection(
+            InvalidInputError,
             engine.price_with_greeks,
             option,
             market(),
@@ -334,12 +336,10 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         ):
             with (
                 self.subTest(kwargs=kwargs),
-                self.assertRaises(kiyosi.KiyosiError) as error,
+                self.assertRaises(InvalidInputError) as error,
             ):
                 pricing.QuadratureAccumulatorEngine(**kwargs)
-            self.assertEqual(
-                error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
-            )
+            self.assertIs(type(error.exception), InvalidInputError)
         vanilla = EuropeanOption(
             option_type="call",
             strike=100,
@@ -400,29 +400,29 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 ):
                     self.assertIsNone(getattr(result, greek))
         self.assertEqual(engine.price(option, market(110, START)), 30)
-        for instrument, context, category in (
+        for instrument, context, expected_error in (
             (
                 option,
                 market(100, end + timedelta(days=1)),
-                kiyosi.ErrorCategory.INVALID_TIME_RANGE,
+                InvalidInputError,
             ),
             (
                 contract(date(2025, 1, 5)),
                 market(100, date(2025, 1, 3)),
-                kiyosi.ErrorCategory.INVALID_DATE,
+                InvalidInputError,
             ),
             (
                 contract(end, quantity=sys.float_info.max),
                 market(111, end),
-                kiyosi.ErrorCategory.INVALID_RESULT,
+                ComputationFailureError,
             ),
         ):
             with (
-                self.subTest(category=category),
-                self.assertRaises(kiyosi.KiyosiError) as error,
+                self.subTest(expected_error=expected_error),
+                self.assertRaises(expected_error) as error,
             ):
                 engine.price(instrument, context)
-            self.assertEqual(error.exception.category, category)
+            self.assertIs(type(error.exception), expected_error)
         self.assertEqual(engine.price(option, market(110, end)), 30)
 
     def test_quantity_affinity_exact_limits_and_shared_instance_threads(self):
@@ -483,9 +483,9 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             )
         self.assertEqual(engine.price(contract(end, 90), market(90, end)), -30)
         self.assertEqual(engine.price(contract(end, 90), market(89, end)), -55)
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+        with self.assertRaises(ComputationFailureError) as error:
             engine.price(option, market(volatility=1e308))
-        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+        self.assertIs(type(error.exception), ComputationFailureError)
 
     def test_greek_availability_and_normalized_convergence(self):
         option = contract()

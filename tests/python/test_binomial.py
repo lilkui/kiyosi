@@ -10,7 +10,12 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import QuantLib as ql
-from kiyosi import ErrorCategory, KiyosiError
+from kiyosi import (
+    ComputationFailureError,
+    InvalidInputError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import (
     AmericanOption,
     AssetOrNothingOption,
@@ -140,10 +145,10 @@ class BinomialTests(unittest.TestCase):
         self.assertEqual(result.price, engine.price(option, context))
         self.assertIsNone(result.speed)
 
-    def category(self, category, operation, *args, **kwargs):
-        with self.assertRaises(KiyosiError) as error:
+    def assert_rejection(self, expected_error, operation, *args, **kwargs):
+        with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)
-        self.assertEqual(error.exception.category, category)
+        self.assertIs(type(error.exception), expected_error)
 
     def test_default_steps_and_european_price(self):
         option = EuropeanOption(
@@ -184,9 +189,7 @@ class BinomialTests(unittest.TestCase):
                 with self.assertRaises(AttributeError):
                     engine.step_count = 5
             for count in (0, -1, 1_000_001):
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER, factory, step_count=count
-                )
+                self.assert_rejection(InvalidInputError, factory, step_count=count)
             for count in (True, False, 1.0, 1.5, "1", None):
                 with self.assertRaises(TypeError):
                     factory(step_count=count)
@@ -318,8 +321,8 @@ class BinomialTests(unittest.TestCase):
                     self.assertEqual(result.price, expected)
                     for name in GREEKS:
                         self.assertIsNone(getattr(result, name))
-                    self.category(
-                        ErrorCategory.UNSUPPORTED_OPERATION,
+                    self.assert_rejection(
+                        UnsupportedOperationError,
                         implied_volatility,
                         engine,
                         option,
@@ -330,8 +333,8 @@ class BinomialTests(unittest.TestCase):
                     START - timedelta(days=1),
                     datetime(2026, 1, 1, tzinfo=UTC) + timedelta(microseconds=1),
                 ):
-                    self.category(
-                        ErrorCategory.INVALID_TIME_RANGE,
+                    self.assert_rejection(
+                        InvalidInputError,
                         engine.price,
                         option,
                         market(valuation=time),
@@ -345,11 +348,11 @@ class BinomialTests(unittest.TestCase):
             engine, option = engine_for(kind), contract(kind)
             for valuation in (START, END):
                 context = market(rate=curve, valuation=valuation)
-                self.category(
-                    ErrorCategory.UNSUPPORTED_OPERATION, engine.price, option, context
+                self.assert_rejection(
+                    UnsupportedOperationError, engine.price, option, context
                 )
-                self.category(
-                    ErrorCategory.UNSUPPORTED_OPERATION,
+                self.assert_rejection(
+                    UnsupportedOperationError,
                     engine.price_with_greeks,
                     option,
                     context,
@@ -357,8 +360,8 @@ class BinomialTests(unittest.TestCase):
                 )
             for field in ("rate", "dividend"):
                 context = market(**{field: curve})
-                self.category(
-                    ErrorCategory.UNSUPPORTED_OPERATION, engine.price, option, context
+                self.assert_rejection(
+                    UnsupportedOperationError, engine.price, option, context
                 )
             flat = RateTermStructure.flat(rate=0.05, reference_time=START)
             self.assertEqual(
@@ -369,14 +372,14 @@ class BinomialTests(unittest.TestCase):
                 (50, 0.05, 0.02),
                 (0.2, -1000, -1000),
             ):
-                self.category(
-                    ErrorCategory.INVALID_RESULT,
+                self.assert_rejection(
+                    ComputationFailureError,
                     engine.price,
                     option,
                     market(sigma=sigma, rate=rate, dividend=dividend),
                 )
-            self.category(
-                ErrorCategory.INVALID_PARAMETER,
+            self.assert_rejection(
+                InvalidInputError,
                 engine.price_with_greeks,
                 option,
                 market(),
@@ -388,8 +391,8 @@ class BinomialTests(unittest.TestCase):
                 {"rate_shift": -1},
                 {"time_shift_days": 0},
             ):
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     engine.price_with_greeks,
                     option,
                     market(),
@@ -462,8 +465,8 @@ class BinomialTests(unittest.TestCase):
                     0.2,
                     delta=1e-6,
                 )
-                self.category(
-                    ErrorCategory.UNBRACKETED_VOLATILITY,
+                self.assert_rejection(
+                    RootNotBracketedError,
                     implied_volatility,
                     engine,
                     option,
@@ -471,8 +474,8 @@ class BinomialTests(unittest.TestCase):
                     quote,
                     upper_bound=0.01,
                 )
-                self.category(
-                    ErrorCategory.UNBRACKETED_VOLATILITY,
+                self.assert_rejection(
+                    RootNotBracketedError,
                     implied_volatility,
                     engine,
                     option,
@@ -480,16 +483,16 @@ class BinomialTests(unittest.TestCase):
                     -1,
                     upper_bound=0.4,
                 )
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     implied_volatility,
                     engine,
                     option,
                     context,
                     math.nan,
                 )
-                self.category(
-                    ErrorCategory.INVALID_PARAMETER,
+                self.assert_rejection(
+                    InvalidInputError,
                     implied_volatility,
                     engine,
                     option,

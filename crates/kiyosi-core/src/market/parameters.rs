@@ -1,10 +1,7 @@
-use crate::{
-    Date, Error, ErrorCategory, RateTermStructure, Result, Timestamp, TradingCalendar,
-    error::finite,
-};
+use crate::{Date, Error, RateTermStructure, Result, Timestamp, TradingCalendar, error::finite};
 
 /// A continuously compounded flat rate or an owning term structure.
-/// Scalar inputs receive the model field's error category on validation.
+/// Non-finite scalar inputs return [`Error::InvalidInput`] on validation.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Rate {
     Flat(f64),
@@ -22,12 +19,9 @@ impl From<RateTermStructure> for Rate {
     }
 }
 impl Rate {
-    fn into_curve(self, category: ErrorCategory) -> Result<RateTermStructure> {
+    fn into_curve(self) -> Result<RateTermStructure> {
         match self {
-            Self::Flat(rate) => {
-                finite(rate, category, false)?;
-                RateTermStructure::flat(rate, None)
-            }
+            Self::Flat(rate) => RateTermStructure::flat(rate, None),
             Self::Curve(curve) => Ok(curve),
         }
     }
@@ -50,20 +44,20 @@ pub struct BlackScholesMertonParameters {
 }
 
 impl BlackScholesMertonParameters {
-    /// Accepts scalar rates, curves, or a mixture. Non-finite scalar rates return
-    /// `InvalidRiskFreeRate` / `InvalidDividendYield`; invalid volatility returns `InvalidVolatility`.
+    /// Creates a model from scalar rates, curves or a mixture.
+    ///
+    /// # Errors
+    /// Returns [`Error::InvalidInput`] for non-finite scalar rates or nonpositive
+    /// or non-finite volatility. Risk-free rate validation precedes dividend
+    /// yield and volatility validation.
     pub fn new(
         risk_free_rate: impl Into<Rate>,
         dividend_yield: impl Into<Rate>,
         volatility: f64,
     ) -> Result<Self> {
-        let risk_free_curve = risk_free_rate
-            .into()
-            .into_curve(ErrorCategory::InvalidRiskFreeRate)?;
-        let dividend_curve = dividend_yield
-            .into()
-            .into_curve(ErrorCategory::InvalidDividendYield)?;
-        finite(volatility, ErrorCategory::InvalidVolatility, true)?;
+        let risk_free_curve = risk_free_rate.into().into_curve()?;
+        let dividend_curve = dividend_yield.into().into_curve()?;
+        finite(volatility, true)?;
         Ok(Self {
             risk_free_curve,
             dividend_curve,
@@ -82,19 +76,21 @@ impl BlackScholesMertonParameters {
             changes.volatility.unwrap_or(self.volatility),
         )
     }
-    /// Explicit flat rate, or `UnsupportedOperation` for node curves.
+    /// Explicit flat rate, or [`Error::UnsupportedOperation`] for node curves.
     pub fn risk_free_rate(&self) -> Result<f64> {
-        self.risk_free_curve.flat_rate().ok_or(Error::new(
-            ErrorCategory::UnsupportedOperation,
-            "risk-free curve is not explicitly flat",
-        ))
+        self.risk_free_curve
+            .flat_rate()
+            .ok_or(Error::UnsupportedOperation(
+                "risk-free curve is not explicitly flat".into(),
+            ))
     }
-    /// Explicit flat yield, or `UnsupportedOperation` for node curves.
+    /// Explicit flat yield, or [`Error::UnsupportedOperation`] for node curves.
     pub fn dividend_yield(&self) -> Result<f64> {
-        self.dividend_curve.flat_rate().ok_or(Error::new(
-            ErrorCategory::UnsupportedOperation,
-            "dividend curve is not explicitly flat",
-        ))
+        self.dividend_curve
+            .flat_rate()
+            .ok_or(Error::UnsupportedOperation(
+                "dividend curve is not explicitly flat".into(),
+            ))
     }
     /// Borrows the risk-free curve; storage remains valid for this model's lifetime.
     pub fn risk_free_curve(&self) -> &RateTermStructure {
@@ -148,7 +144,7 @@ impl PricingContext {
         valuation_time: Timestamp,
         calendar: TradingCalendar,
     ) -> Result<Self> {
-        finite(spot_price, ErrorCategory::InvalidSpotPrice, true)?;
+        finite(spot_price, true)?;
         model_parameters
             .risk_free_curve()
             .validate_time(valuation_time)?;

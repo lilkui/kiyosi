@@ -2,8 +2,8 @@ use std::f64::consts::PI;
 
 use crate::engines::analytic::vanilla::{black_scholes_arguments, weighted_cdf};
 use crate::{
-    DigitalOption, Error, ErrorCategory, Greek, GreeksRequest, NumericalShiftSettings, OptionType,
-    PricingContext, PricingEngine, PricingResult, Result,
+    DigitalOption, Error, Greek, GreeksRequest, NumericalShiftSettings, OptionType, PricingContext,
+    PricingEngine, PricingResult, Result,
 };
 
 /// Prices European cash-or-nothing and asset-or-nothing contracts under BSM.
@@ -17,9 +17,9 @@ impl AnalyticDigitalEngine {
     /// At expiry all Greeks are unavailable. Bumps use [`NumericalShiftSettings`].
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidParameter`] for empty requests or invalid shifts
+    /// Returns [`Error::InvalidInput`] for empty requests or invalid shifts
     /// before pricing. Propagates [`Self::price`] errors and returns
-    /// [`ErrorCategory::InvalidResult`] for non-finite requested derivatives.
+    /// [`Error::ComputationFailure`] for non-finite requested derivatives.
     /// Inputs remain unchanged on success and failure.
     ///
     /// # Examples
@@ -58,8 +58,8 @@ impl AnalyticDigitalEngine {
     /// Prices a digital contract over its inclusive life, settling strictly in the money.
     ///
     /// # Errors
-    /// Returns [`ErrorCategory::InvalidTimeRange`] outside contract life or curve coverage,
-    /// and [`ErrorCategory::InvalidResult`] for non-finite numerical results.
+    /// Returns [`Error::InvalidInput`] outside contract life or curve coverage,
+    /// and [`Error::ComputationFailure`] for non-finite numerical results.
     ///
     /// # Examples
     /// ```
@@ -89,9 +89,8 @@ impl AnalyticDigitalEngine {
         let valuation = context.valuation_time();
         let expiry = option.expiry_date().start_of_day();
         if valuation < option.effective_date().start_of_day() || valuation > expiry {
-            return Err(Error::new(
-                ErrorCategory::InvalidTimeRange,
-                "valuation must be within the contract life",
+            return Err(Error::InvalidInput(
+                "valuation must be within the contract life".into(),
             ));
         }
         let spot = context.spot_price();

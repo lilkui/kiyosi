@@ -10,7 +10,12 @@ from fractions import Fraction
 from pathlib import Path
 
 import QuantLib as ql
-from kiyosi import ErrorCategory, KiyosiError
+from kiyosi import (
+    InvalidInputError,
+    NonConvergenceError,
+    RootNotBracketedError,
+    UnsupportedOperationError,
+)
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -135,9 +140,9 @@ class AnalyticsTests(unittest.TestCase):
             self.assertEqual(selected.delta, full.delta)
             self.assertEqual(selected.require("delta"), full.delta)
             self.assertIsNone(selected.gamma)
-            with self.assertRaises(KiyosiError) as error:
+            with self.assertRaises(UnsupportedOperationError) as error:
                 selected.require("gamma")
-            self.assertEqual(error.exception.category, ErrorCategory.INVALID_RESULT)
+            self.assertIs(type(error.exception), UnsupportedOperationError)
         expiry = self.context.replace(
             spot_price=110, valuation_time=self.option.expiry_date
         )
@@ -156,6 +161,8 @@ class AnalyticsTests(unittest.TestCase):
             "rho",
         ):
             self.assertIsNone(getattr(result, name))
+            with self.assertRaises(UnsupportedOperationError):
+                result.require(name)
         for changes in (
             {},
             {"all_greeks": 1},
@@ -168,9 +175,9 @@ class AnalyticsTests(unittest.TestCase):
         for request in ("Delta", "unknown"):
             with self.assertRaises(ValueError):
                 self.engine.price_with_greeks(self.option, self.context, request)
-        with self.assertRaises(KiyosiError) as error:
+        with self.assertRaises(InvalidInputError) as error:
             self.engine.price_with_greeks(self.option, self.context, [])
-        self.assertEqual(error.exception.category, ErrorCategory.INVALID_PARAMETER)
+        self.assertIs(type(error.exception), InvalidInputError)
         for value in (1, "unknown"):
             with self.assertRaises(TypeError if value == 1 else ValueError):
                 full.require(value)
@@ -249,22 +256,18 @@ class AnalyticsTests(unittest.TestCase):
             "time_shift_days",
         ):
             for bad in (0, -1):
-                with self.assertRaises(KiyosiError) as error:
+                with self.assertRaises(InvalidInputError) as error:
                     self.engine.price_with_greeks(
                         self.option, self.context, "delta", **{field: bad}
                     )
-                self.assertEqual(
-                    error.exception.category, ErrorCategory.INVALID_PARAMETER
-                )
+                self.assertIs(type(error.exception), InvalidInputError)
         for field in ("spot_shift", "volatility_shift", "rate_shift"):
             for bad in (math.nan, math.inf):
-                with self.assertRaises(KiyosiError) as error:
+                with self.assertRaises(InvalidInputError) as error:
                     self.engine.price_with_greeks(
                         self.option, self.context, "delta", **{field: bad}
                     )
-                self.assertEqual(
-                    error.exception.category, ErrorCategory.INVALID_PARAMETER
-                )
+                self.assertIs(type(error.exception), InvalidInputError)
         for controls in (
             {"lower_bound": 0},
             {"lower_bound": 4},
@@ -273,34 +276,34 @@ class AnalyticsTests(unittest.TestCase):
             {"parameter_tolerance": math.nan},
             {"max_iterations": 0},
         ):
-            with self.assertRaises(KiyosiError) as error:
+            with self.assertRaises(InvalidInputError) as error:
                 solve(**controls)
-            self.assertEqual(error.exception.category, ErrorCategory.INVALID_PARAMETER)
-        for observed, category in (
-            (math.nan, ErrorCategory.INVALID_PARAMETER),
-            (math.inf, ErrorCategory.INVALID_PARAMETER),
-            (-1, ErrorCategory.UNBRACKETED_VOLATILITY),
-            (101, ErrorCategory.UNBRACKETED_VOLATILITY),
+            self.assertIs(type(error.exception), InvalidInputError)
+        for observed, expected_error in (
+            (math.nan, InvalidInputError),
+            (math.inf, InvalidInputError),
+            (-1, RootNotBracketedError),
+            (101, RootNotBracketedError),
         ):
-            with self.assertRaises(KiyosiError) as error:
+            with self.assertRaises(expected_error) as error:
                 solve(observed=observed)
-            self.assertEqual(error.exception.category, category)
-        with self.assertRaises(KiyosiError) as error:
+            self.assertIs(type(error.exception), expected_error)
+        with self.assertRaises(NonConvergenceError) as error:
             solve(max_iterations=1, price_tolerance=1e-15, parameter_tolerance=1e-15)
-        self.assertEqual(error.exception.category, ErrorCategory.SOLVER_NON_CONVERGENCE)
+        self.assertIs(type(error.exception), NonConvergenceError)
         expiry = self.context.replace(valuation_time=self.option.expiry_date)
-        with self.assertRaises(KiyosiError) as error:
+        with self.assertRaises(UnsupportedOperationError) as error:
             solve(expiry, 0)
-        self.assertEqual(error.exception.category, ErrorCategory.UNSUPPORTED_OPERATION)
+        self.assertIs(type(error.exception), UnsupportedOperationError)
         outside = self.context.replace(
             valuation_time=datetime(2026, 1, 1, 0, 0, 0, 1, tzinfo=UTC)
         )
-        with self.assertRaises(KiyosiError) as error:
+        with self.assertRaises(InvalidInputError) as error:
             solve(outside, 0)
-        self.assertEqual(error.exception.category, ErrorCategory.INVALID_TIME_RANGE)
-        with self.assertRaises(KiyosiError) as error:
+        self.assertIs(type(error.exception), InvalidInputError)
+        with self.assertRaises(InvalidInputError) as error:
             self.engine.price_with_greeks(self.option, outside, [])
-        self.assertEqual(error.exception.category, ErrorCategory.INVALID_PARAMETER)
+        self.assertIs(type(error.exception), InvalidInputError)
         self.assertEqual(self.context.model_parameters.volatility, 0.2)
         self.assertEqual(self.engine.price(self.option, self.context), quote)
 

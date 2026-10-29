@@ -1,7 +1,7 @@
 use crate::engines::analytic::asian::{checked, coverage, log_ratio, scaled_exp, settlement};
 use crate::instruments::asian::AverageTerms;
 use crate::{
-    ArithmeticAveragePriceOption, Error, ErrorCategory, GeometricAveragePriceOption, GreeksRequest,
+    ArithmeticAveragePriceOption, Error, GeometricAveragePriceOption, GreeksRequest,
     NumericalShiftSettings, PricingContext, PricingEngine, PricingResult, Result,
 };
 use crate::{Greek, MonteCarloSettings, MonteCarloVanillaEngine};
@@ -37,15 +37,15 @@ impl MonteCarloAsianEngine {
 
     /// Returns a discounted average-payoff estimate, or realized settlement at expiry.
     /// Calls finish synchronously without cancellation polling. Recoverable entropy
-    /// and thread failures preserve [`std::io::Error`] via [`Error::operational_error`].
+    /// and thread failures preserve [`std::io::Error`] via [`Error::Io`].
     ///
     /// # Errors
     /// Checks inclusive life then history consistency, returning
-    /// [`ErrorCategory::InvalidTimeRange`] or [`ErrorCategory::InvalidParameter`].
+    /// [`Error::InvalidInput`] for either rejection.
     /// Before expiry geometric contracts require flat curves
-    /// ([`ErrorCategory::UnsupportedOperation`]); both kinds require curve coverage
-    /// ([`ErrorCategory::InvalidTimeRange`]). Non-finite parameters, paying samples
-    /// or results return [`ErrorCategory::InvalidResult`]. Inputs remain unchanged.
+    /// ([`Error::UnsupportedOperation`]); both kinds require curve coverage
+    /// ([`Error::InvalidInput`]). Non-finite parameters, paying samples
+    /// or results return [`Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Panics
     /// Resumes worker panics after joining the call's workers.
@@ -88,9 +88,9 @@ impl MonteCarloAsianEngine {
     /// engines. Defaults remain [`NumericalShiftSettings`]'s. See [`Self::price`].
     ///
     /// # Errors
-    /// Rejects empty requests and invalid shifts with [`ErrorCategory::InvalidParameter`]
+    /// Rejects empty requests and invalid shifts with [`Error::InvalidInput`]
     /// before pricing, then propagates [`Self::price`] errors.
-    /// Non-finite requested Greeks return [`ErrorCategory::InvalidResult`].
+    /// Non-finite requested Greeks return [`Error::ComputationFailure`].
     /// Inputs remain unchanged on success and failure.
     pub fn price_with_greeks<I: OptionContract>(
         &self,
@@ -130,9 +130,8 @@ impl MonteCarloAsianEngine {
         }
         let model = context.model_parameters();
         if geometric && (!model.risk_free_curve().is_flat() || !model.dividend_curve().is_flat()) {
-            return Err(Error::new(
-                ErrorCategory::UnsupportedOperation,
-                "geometric Asian Monte Carlo requires flat rates",
+            return Err(Error::UnsupportedOperation(
+                "geometric Asian Monte Carlo requires flat rates".into(),
             ));
         }
         coverage(o, context)?;

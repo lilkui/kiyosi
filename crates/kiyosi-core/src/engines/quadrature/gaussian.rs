@@ -215,10 +215,7 @@ pub(super) fn integration_nodes(
     breaks: &[f64],
 ) -> crate::Result<Vec<f64>> {
     let invalid = || {
-        crate::Error::new(
-            crate::ErrorCategory::InvalidResult,
-            "quadrature integration grid is not representable",
-        )
+        crate::Error::ComputationFailure("quadrature integration grid is not representable".into())
     };
     if !lower.is_finite() || !upper.is_finite() || lower >= upper {
         return Err(invalid());

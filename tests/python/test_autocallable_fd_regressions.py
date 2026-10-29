@@ -4,8 +4,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
-import kiyosi
-from kiyosi import pricing
+from kiyosi import InvalidInputError, RootNotBracketedError, pricing
 from kiyosi.instruments import (
     BinarySnowballOption,
     CashOrNothingOption,
@@ -287,11 +286,11 @@ class AutocallableRegressionTests(unittest.TestCase):
                                 quote,
                                 delta=1e-10,
                             )
-                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                        with self.assertRaises(RootNotBracketedError) as error:
                             solve(1e10)
-                        self.assertEqual(
-                            error.exception.category,
-                            kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY,
+                        self.assertIs(
+                            type(error.exception),
+                            RootNotBracketedError,
                         )
                         with ThreadPoolExecutor(max_workers=2) as pool:
                             recovered = list(pool.map(solve, quotes))
@@ -450,7 +449,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                                 )
                             self.assertAlmostEqual(results[0], 0.073, delta=1e-9)
                             self.assertAlmostEqual(results[1], 0.12, delta=1e-9)
-                            with self.assertRaises(kiyosi.KiyosiError) as error:
+                            with self.assertRaises(InvalidInputError) as error:
                                 pricing.implied_coupon(
                                     engine,
                                     note,
@@ -460,9 +459,9 @@ class AutocallableRegressionTests(unittest.TestCase):
                                     upper_bound=0,
                                     **convention,
                                 )
-                            self.assertEqual(
-                                error.exception.category,
-                                kiyosi.ErrorCategory.INVALID_PARAMETER,
+                            self.assertIs(
+                                type(error.exception),
+                                InvalidInputError,
                             )
                             self.assertEqual(solve(quote), results[0])
 
@@ -558,17 +557,17 @@ class AutocallableRegressionTests(unittest.TestCase):
                         )
                         / (200 * rate_shift),
                     )
-                    for option, shifted, category in (
+                    for option, shifted, expected_error in (
                         (
                             note,
                             context(calendar=weekdays_calendar()),
-                            kiyosi.ErrorCategory.INVALID_DATE,
+                            InvalidInputError,
                         ),
-                        (missing_history, base, kiyosi.ErrorCategory.INVALID_PARAMETER),
+                        (missing_history, base, InvalidInputError),
                     ):
-                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                        with self.assertRaises(expected_error) as error:
                             engine.price_with_greeks(option, shifted, ["vega", "rho"])
-                        self.assertEqual(error.exception.category, category)
+                        self.assertIs(type(error.exception), expected_error)
                     with ThreadPoolExecutor(max_workers=2) as pool:
                         results = list(
                             pool.map(
@@ -822,13 +821,11 @@ class AutocallableRegressionTests(unittest.TestCase):
             asset_upper_boundary=400,
         ).price(SnowballOption(**terms, knock_in_observation_mode="at_expiry"), context)
         self.assertAlmostEqual(actual, reference, delta=0.0002)
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+        with self.assertRaises(InvalidInputError) as error:
             explicit.price(
                 SnowballOption(**terms, knock_in_observation_mode="at_expiry"), context
             )
-        self.assertEqual(
-            error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
-        )
+        self.assertIs(type(error.exception), InvalidInputError)
 
     def test_fixed_finite_difference_autocallables_retain_rate_sensitivity(self):
         import math
