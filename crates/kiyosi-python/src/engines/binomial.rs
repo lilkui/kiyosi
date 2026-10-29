@@ -17,7 +17,7 @@ pub(crate) enum VanillaInstrument<'py> {
 }
 
 macro_rules! binomial_engine {
-    ($name:ident, $instrument:ty, |$option:ident, $engine:ident, $context:ident, $request:ident, $shifts:ident| $price:expr, $analysis:expr) => {
+    ($name:ident, $instrument:ty, |$py:ident, $option:ident, $engine:ident, $context:ident, $request:ident, $shifts:ident| $price:expr, $analysis:expr) => {
         #[pyclass(frozen, module = "kiyosi._native")]
         pub(crate) struct $name(pub(crate) core::$name);
 
@@ -53,9 +53,10 @@ macro_rules! binomial_engine {
                 #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &PricingContext,
             ) -> PyResult<f64> {
+                let $py = py;
                 let $option = instrument;
-                let $engine = &self.0;
-                let $context = &context.0;
+                let $engine = self.0;
+                let $context = context.0.clone();
                 domain(py, $price)
             }
 
@@ -68,9 +69,10 @@ macro_rules! binomial_engine {
                 greeks: Option<&Bound<'_, PyAny>>,
                 settings: Option<&Bound<'_, PyDict>>,
             ) -> PyResult<risk::PricingResult> {
+                let $py = py;
                 let $option = instrument;
-                let $engine = &self.0;
-                let $context = &context.0;
+                let $engine = self.0;
+                let $context = context.0.clone();
                 let $request = risk::request(greeks, settings)?;
                 let $shifts = risk::shifts(settings)?;
                 Ok(risk::PricingResult(domain(py, $analysis)?))
@@ -82,19 +84,27 @@ macro_rules! binomial_engine {
 binomial_engine!(
     CoxRossRubinsteinVanillaEngine,
     VanillaInstrument<'_>,
-    |option, engine, context, request, shifts| {
+    |py, option, engine, context, request, shifts| {
         match option {
-            VanillaInstrument::European(option) => engine.price(&option.0, context),
-            VanillaInstrument::American(option) => engine.price(&option.0, context),
+            VanillaInstrument::European(option) => {
+                let option = option.0.clone();
+                py.detach(|| engine.price(&option, &context))
+            }
+            VanillaInstrument::American(option) => {
+                let option = option.0.clone();
+                py.detach(|| engine.price(&option, &context))
+            }
         }
     },
     {
         match option {
             VanillaInstrument::European(option) => {
-                engine.price_with_greeks(&option.0, context, request, shifts)
+                let option = option.0.clone();
+                py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
             }
             VanillaInstrument::American(option) => {
-                engine.price_with_greeks(&option.0, context, request, shifts)
+                let option = option.0.clone();
+                py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
             }
         }
     }
@@ -102,8 +112,14 @@ binomial_engine!(
 binomial_engine!(
     CoxRossRubinsteinDigitalEngine,
     digital::DigitalInstrument<'_>,
-    |option, engine, context, request, shifts| engine.price(option.contract(), context),
-    engine.price_with_greeks(option.contract(), context, request, shifts)
+    |py, option, engine, context, request, shifts| {
+        let option = option.contract().clone();
+        py.detach(|| engine.price(&option, &context))
+    },
+    {
+        let option = option.contract().clone();
+        py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+    }
 );
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct CoxRossRubinsteinBarrierEngine(pub(crate) core::CoxRossRubinsteinBarrierEngine);

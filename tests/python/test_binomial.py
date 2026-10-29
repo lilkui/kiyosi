@@ -4,6 +4,8 @@ import importlib
 import json
 import math
 import numbers
+import sys
+import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
@@ -137,6 +139,47 @@ def rollback(
 
 
 class BinomialTests(unittest.TestCase):
+    def test_price_and_greeks_release_the_gil(self):
+        context = market()
+        for kind in (*VANILLA, *DIGITAL):
+            factory = (
+                CoxRossRubinsteinVanillaEngine
+                if kind in VANILLA
+                else CoxRossRubinsteinDigitalEngine
+            )
+            engine = factory(step_count=20_000 if kind is AmericanOption else 1_000_000)
+            option = contract(kind, "put")
+            for method in ("price", "price_with_greeks"):
+                with self.subTest(instrument=kind.__name__, method=method):
+                    ready, start, observed = (
+                        threading.Event(),
+                        threading.Event(),
+                        threading.Event(),
+                    )
+
+                    def python_worker(ready=ready, start=start, observed=observed):
+                        ready.set()
+                        start.wait()
+                        observed.set()
+
+                    worker = threading.Thread(target=python_worker)
+                    worker.start()
+                    ready.wait()
+                    previous = sys.getswitchinterval()
+                    try:
+                        # Force the native call to provide the worker's scheduling opportunity.
+                        sys.setswitchinterval(100)
+                        start.set()
+                        if method == "price":
+                            engine.price(option, context)
+                        else:
+                            engine.price_with_greeks(option, context, "delta")
+                        self.assertTrue(observed.is_set(), "binomial call held the GIL")
+                    finally:
+                        sys.setswitchinterval(previous)
+                        start.set()
+                        worker.join()
+
     def test_one_step_speed_omits_infeasible_scalar_stencil(self):
         engine = engine_for(EuropeanOption, 1)
         option = contract(EuropeanOption, strike=0.015)
