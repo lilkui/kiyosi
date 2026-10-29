@@ -89,7 +89,10 @@ macro_rules! contract_tests {
                 assert_eq!(updated.averaging_start_date(), start);
                 assert_eq!(updated.expiry_date(), end);
                 assert_eq!(updated.realized_average(), 110.0);
-                assert!(original.replace(-1.0).is_err());
+                assert!(matches!(
+                    original.replace(-1.0).unwrap_err(),
+                    Error::InvalidInput(_)
+                ));
                 assert_eq!(original.realized_average(), DEFAULT_REALIZED_AVERAGE);
             }
             #[test]

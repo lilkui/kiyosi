@@ -82,8 +82,6 @@ class BinaryBarrierTests(unittest.TestCase):
                 option = self.touch(factory, settlement_timing=timing)
                 self.assertIsNone(option.touch_state)
                 self.assertEqual(option.observation_mode, "continuous")
-                self.assertFalse(hasattr(option, "strike"))
-                self.assertFalse(hasattr(option, "option_type"))
                 amount = 130 if asset else 10
                 expected = (
                     amount

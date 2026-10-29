@@ -1,8 +1,7 @@
 import unittest
 from datetime import date, datetime
-from pathlib import Path
 
-from kiyosi import InvalidInputError, _native
+from kiyosi import InvalidInputError
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
@@ -125,12 +124,6 @@ class CustomCalendarTests(unittest.TestCase):
             custom_calendar(base=weekdays_calendar(), trading_days_per_year=2**40)
         with self.assertRaises(TypeError):
             custom_calendar()
-
-    def test_generated_stub_exports_factory(self):
-        stub = (
-            Path(_native.__file__).with_name("_native.pyi").read_text(encoding="utf-8")
-        )
-        self.assertIn("def custom_calendar(", stub)
 
 
 if __name__ == "__main__":

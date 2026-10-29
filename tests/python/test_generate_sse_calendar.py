@@ -4,11 +4,14 @@ import importlib
 import io
 import sys
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
-generator = importlib.import_module("generate_sse_calendar")
+with patch.object(
+    sys, "path", [str(Path(__file__).resolve().parents[2] / "tools"), *sys.path]
+):
+    generator = importlib.import_module("generate_sse_calendar")
 
 
 class GenerateSseCalendarTests(unittest.TestCase):
@@ -22,14 +25,17 @@ class GenerateSseCalendarTests(unittest.TestCase):
     def test_live_list_sets_forecast_boundary(self):
         source = b'precomputed_shanghai_holidays = pd.to_datetime(["1991-01-01", "2027-01-01"])'
         with (
+            patch.object(generator, "LAST_YEAR", 2028),
             patch.object(
                 generator.urllib.request, "urlopen", return_value=io.BytesIO(source)
             ) as fetch,
-            patch.object(generator, "forecast", return_value=set()) as forecast,
+            patch.object(
+                generator, "forecast", return_value={date(2028, 1, 3)}
+            ) as forecast,
         ):
-            self.assertEqual(generator.holidays(), [19910101, 20270101])
+            self.assertEqual(generator.holidays(), [19910101, 20270101, 20280103])
         fetch.assert_called_once_with(generator.SOURCE, timeout=30)
-        self.assertEqual(forecast.call_args_list[0].args, (2028,))
+        forecast.assert_called_once_with(2028)
 
 
 if __name__ == "__main__":

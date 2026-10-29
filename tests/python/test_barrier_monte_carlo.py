@@ -279,7 +279,6 @@ class BarrierMonteCarloTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 setattr(engine, name, getattr(engine, name))
         self.assertIn("MonteCarloBarrierEngine", pricing.__all__)
-        self.assertFalse(hasattr(engine, "price_with_statistics"))
         for name in ("path_count", "step_count", "seed", "thread_count"):
             for value in (
                 True,

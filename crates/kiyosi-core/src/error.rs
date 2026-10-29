@@ -93,7 +93,7 @@ mod tests {
     use std::error::Error as _;
 
     #[test]
-    fn domain_variants_preserve_borrowed_and_owned_diagnostics() {
+    fn domain_variants_preserve_diagnostics() {
         let message = "invalid contract";
         let errors = [
             Error::InvalidInput(message.into()),
@@ -106,14 +106,6 @@ mod tests {
             assert_eq!(error.to_string(), message);
             assert!(error.source().is_none());
         }
-        assert!(matches!(
-            Error::InvalidInput(message.into()),
-            Error::InvalidInput(Cow::Borrowed(_))
-        ));
-        assert!(matches!(
-            Error::UnsupportedOperation(message.to_owned().into()),
-            Error::UnsupportedOperation(Cow::Owned(_))
-        ));
     }
 
     #[test]

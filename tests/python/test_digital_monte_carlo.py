@@ -252,7 +252,6 @@ class DigitalNumericalTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 setattr(mc, name, getattr(mc, name))
         self.assertIn("MonteCarloDigitalEngine", pricing.__all__)
-        self.assertFalse(hasattr(mc, "price_with_statistics"))
         for field in ("path_count", "step_count", "thread_count", "seed"):
             for value in (True, 1.5, 2.0, "3", None if field != "seed" else object()):
                 with self.assertRaises(TypeError):

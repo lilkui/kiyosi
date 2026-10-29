@@ -543,48 +543,51 @@ KINDS = {
 
 
 def reference(terms, spot=100, sigma=0.2, rate=0.05, dividend=0.02, days=0):
-    saved = ql.SavedSettings()
-    valuation = terms["effective_date"] + timedelta(days=days)
-    today = ql.Date(valuation.day, valuation.month, valuation.year)
-    end = terms["expiry_date"]
-    expiry = ql.Date(end.day, end.month, end.year)
-    ql.Settings.instance().evaluationDate = today
-    process = ql.BlackScholesMertonProcess(
-        ql.QuoteHandle(ql.SimpleQuote(spot)),
-        ql.YieldTermStructureHandle(
-            ql.FlatForward(today, dividend, ql.Actual365Fixed())
-        ),
-        ql.YieldTermStructureHandle(ql.FlatForward(today, rate, ql.Actual365Fixed())),
-        ql.BlackVolTermStructureHandle(
-            ql.BlackConstantVol(today, ql.NullCalendar(), sigma, ql.Actual365Fixed())
-        ),
-    )
-    payoff = ql.PlainVanillaPayoff(
-        ql.Option.Call if terms["option_type"] == "call" else ql.Option.Put,
-        terms["strike"],
-    )
-
-    def value(kind, rebate):
-        contract = ql.BarrierOption(
-            KINDS[kind],
-            terms["barrier_level"],
-            rebate,
-            payoff,
-            ql.EuropeanExercise(expiry),
+    with ql.SavedSettings():
+        valuation = terms["effective_date"] + timedelta(days=days)
+        today = ql.Date(valuation.day, valuation.month, valuation.year)
+        end = terms["expiry_date"]
+        expiry = ql.Date(end.day, end.month, end.year)
+        ql.Settings.instance().evaluationDate = today
+        process = ql.BlackScholesMertonProcess(
+            ql.QuoteHandle(ql.SimpleQuote(spot)),
+            ql.YieldTermStructureHandle(
+                ql.FlatForward(today, dividend, ql.Actual365Fixed())
+            ),
+            ql.YieldTermStructureHandle(
+                ql.FlatForward(today, rate, ql.Actual365Fixed())
+            ),
+            ql.BlackVolTermStructureHandle(
+                ql.BlackConstantVol(
+                    today, ql.NullCalendar(), sigma, ql.Actual365Fixed()
+                )
+            ),
         )
-        contract.setPricingEngine(ql.AnalyticBarrierEngine(process))
-        return contract.NPV()
-
-    kind = terms["barrier_type"]
-    rebate = terms.get("rebate", 0)
-    if kind.endswith("_in") or terms.get("rebate_timing", "at_expiry") == "at_hit":
-        result = value(kind, rebate)
-    else:
-        opposite = kind.replace("_out", "_in")
-        result = (
-            value(kind, 0)
-            + rebate * math.exp(-rate * (end - valuation).days / 365)
-            - (value(opposite, rebate) - value(opposite, 0))
+        payoff = ql.PlainVanillaPayoff(
+            ql.Option.Call if terms["option_type"] == "call" else ql.Option.Put,
+            terms["strike"],
         )
-    del saved
-    return result
+
+        def value(kind, rebate):
+            contract = ql.BarrierOption(
+                KINDS[kind],
+                terms["barrier_level"],
+                rebate,
+                payoff,
+                ql.EuropeanExercise(expiry),
+            )
+            contract.setPricingEngine(ql.AnalyticBarrierEngine(process))
+            return contract.NPV()
+
+        kind = terms["barrier_type"]
+        rebate = terms.get("rebate", 0)
+        if kind.endswith("_in") or terms.get("rebate_timing", "at_expiry") == "at_hit":
+            result = value(kind, rebate)
+        else:
+            opposite = kind.replace("_out", "_in")
+            result = (
+                value(kind, 0)
+                + rebate * math.exp(-rate * (end - valuation).days / 365)
+                - (value(opposite, rebate) - value(opposite, 0))
+            )
+        return result
