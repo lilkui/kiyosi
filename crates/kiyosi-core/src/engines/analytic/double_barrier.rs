@@ -1,5 +1,6 @@
 use crate::DoubleBarrierOption;
 use crate::engines::analytic::barrier::{checked, log_ratio, scaled_cash, scaled_cdf};
+use crate::engines::quadrature::gaussian::{Sum, log_interval_mass};
 use crate::{
     AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationMode,
     OptionType, PricingContext, PricingEngine, PricingResult, RebateTiming, Result,
@@ -144,59 +145,8 @@ pub(crate) fn resolved_price(
     Ok(None)
 }
 
-#[derive(Default)]
-struct Sum {
-    value: f64,
-    correction: f64,
-}
-impl Sum {
-    fn add(&mut self, term: f64) {
-        let next = self.value + term;
-        self.correction += if self.value.abs() >= term.abs() {
-            (self.value - next) + term
-        } else {
-            (term - next) + self.value
-        };
-        self.value = next;
-    }
-    fn total(&self) -> f64 {
-        self.value + self.correction
-    }
-}
 fn scaled(value: f64, exponent: f64) -> f64 {
     scaled_cash(value.abs(), exponent).copysign(value)
-}
-fn log_interval_mass(lower: f64, upper: f64) -> f64 {
-    use crate::engines::analytic::european::log_normal_cdf;
-    if lower >= upper {
-        return f64::NEG_INFINITY;
-    }
-    if lower == f64::NEG_INFINITY {
-        return log_normal_cdf(upper);
-    }
-    if upper == f64::INFINITY {
-        return log_normal_cdf(-lower);
-    }
-    let center = lower + (upper - lower) / 2.0;
-    let half = (upper - lower) / 2.0;
-    if center.abs() * half + 0.5 * half * half < 0.25 {
-        let (mut integral, mut previous, mut term) = (0.0, 0.0, 1.0);
-        for order in 0..24 {
-            if order % 2 == 0 {
-                integral += 2.0 * term / f64::from(order + 1);
-            }
-            let next = (-center * half * term - half * half * previous) / f64::from(order + 1);
-            previous = term;
-            term = next;
-        }
-        return -0.5 * center * center - 0.5 * (2.0 * PI).ln() + half.ln() + integral.ln();
-    }
-    let (high, low) = if lower >= 0.0 {
-        (log_normal_cdf(-lower), log_normal_cdf(-upper))
-    } else {
-        (log_normal_cdf(upper), log_normal_cdf(lower))
-    };
-    high + (-(low - high).exp_m1()).ln()
 }
 
 #[derive(Clone, Copy)]
