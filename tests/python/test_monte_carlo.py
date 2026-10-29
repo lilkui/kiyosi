@@ -812,18 +812,7 @@ class SamplingTests(unittest.TestCase):
                     error.exception.category, ErrorCategory.UNSUPPORTED_OPERATION
                 )
 
-    def test_sobol_migrated_greek_accuracy_and_multiseed_rmse(self):
-        # Preserve precision/statistics checks from the mixed timing tool, without speed gates.
-        root = Path(__file__).resolve().parents[2]
-        spec = importlib.util.spec_from_file_location(
-            "sobol_benchmark", root / "benchmarks/sobol.py"
-        )
-        benchmark = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(benchmark)
-        self.assertEqual(benchmark.summarize([9, 11], 10, [0])["rmse"], 1)
-        asymmetric = benchmark.summarize([12, 16], 10, [0])
-        self.assertEqual(asymmetric["rmse"], math.sqrt(20))
-        self.assertEqual(asymmetric["bias"], 4)
+    def test_sobol_greek_accuracy_and_multiseed_rmse(self):
         tolerances = {
             "delta": 2e-4,
             "gamma": 1e-5,
@@ -870,11 +859,13 @@ class SamplingTests(unittest.TestCase):
                         antithetic=antithetic,
                         thread_count=1,
                     ).price(contract(), market())
-                    for seed in benchmark.SEEDS
+                    for seed in range(16)
                 ]
-                stats = benchmark.summarize(prices, 9.227005508154036, [0])
-                self.assertLessEqual(stats["rmse"], 0.05)
-                self.assertLessEqual(abs(stats["bias"]), 0.05)
+                errors = [price - 9.227005508154036 for price in prices]
+                rmse = math.sqrt(sum(error**2 for error in errors) / len(errors))
+                bias = sum(errors) / len(errors)
+                self.assertLessEqual(rmse, 0.05)
+                self.assertLessEqual(abs(bias), 0.05)
 
     def test_companion_failure_and_domain_validation_preserve_sampling_state(self):
         from kiyosi.market import BlackScholesMertonParameters

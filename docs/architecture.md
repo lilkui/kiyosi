@@ -45,7 +45,6 @@ configuration and CI; Python distributions and Cargo packages share that version
 │   │   ├── quantlib_reference/  # Independent oracles and reference data
 │   │   └── support/             # Shared Python test support
 │   └── rust-consumer/           # Independent downstream Cargo consumer
-├── benchmarks/                  # Explicit performance measurements
 ├── tools/                       # Maintainer tools, including calendar generation
 └── docs/                        # Architecture, data provenance and agent guides
 ```
@@ -155,9 +154,7 @@ travel with the source distribution. CI's wheel tests copy only the inputs liste
 in `tool.cibuildwheel.test-sources`; update that list and maturin's sdist includes
 when adding a test dependency outside the suite.
 
-Benchmarks run explicitly rather than as correctness gates. The Sobol benchmark
-also supplies existing accuracy checks, so it is included in source distributions
-and wheel test inputs. Calendar tools update committed Rust data; see
+Calendar tools update committed Rust data; see
 [calendar provenance and regeneration](sse-calendar.md).
 
 The layout uses Cargo's [virtual workspace](https://doc.rust-lang.org/cargo/reference/workspaces.html)
