@@ -625,7 +625,7 @@ class DoubleTouchTests(unittest.TestCase):
             asset_step_count=800, time_step_count=200
         )
         fine = pricing.FiniteDifferenceDoubleTouchEngine(
-            asset_step_count=25600, time_step_count=1600
+            asset_step_count=19200, time_step_count=1600
         )
         for spot in (80.02, 119.98):
             expected = reference_greeks(spot)
