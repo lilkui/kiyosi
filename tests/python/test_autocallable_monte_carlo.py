@@ -25,38 +25,6 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             operation()
         self.assertEqual(error.exception.category, category)
 
-    def test_discount_scaling_preserves_representable_cashflows(self):
-        end = date(2026, 1, 1)
-        engine = MC(path_count=2, seed=1)
-        for principal, rate in ((1e308, 1000), (1e-308, -710)):
-            note = BinarySnowballOption(
-                maturity_coupon_rate=0,
-                principal_ratio=principal,
-                effective_date=START,
-                expiry_date=end,
-                observations=autocallable_observations(
-                    [end], [100], knock_out_coupon_rates=[0]
-                ),
-            )
-            actual = engine.price(
-                note, market(rate=rate, dividend=rate, volatility=0.2)
-            )
-            expected = math.exp(math.log(principal) - rate)
-            self.assertAlmostEqual(actual / expected, 1, delta=1e-12)
-        note = phoenix(
-            expiry_date=end,
-            principal_ratio=1e308,
-            coupon_rate=-1e308,
-            lower_strike=100,
-            upper_strike=100,
-            observations=autocallable_observations(
-                [end], [1], coupon_barrier_levels=[0]
-            ),
-        )
-        self.assertEqual(
-            engine.price(note, market(rate=-1, dividend=-1, volatility=0.2)), 0
-        )
-
     def test_terminal_price_matches_quadrature_with_sampling_error(self):
         note, context = contract(), market()
         engine = MC(path_count=32768, seed=42)

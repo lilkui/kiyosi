@@ -363,25 +363,6 @@ class MonteCarloTests(unittest.TestCase):
         self.assertIsNone(unseeded.seed)
         self.assertEqual(context.model_parameters.volatility, 0.2)
 
-    def test_scaled_statistics_and_discount_regressions(self):
-        engine = MonteCarloVanillaEngine(seed=42, thread_count=4)
-        for amount, rate, sigma in (
-            (1e304, -10, 0.5),
-            (1e300, 750, 0.2),
-            (1e-300, -750, 0.2),
-            (1e-310, 0, 0.2),
-        ):
-            option = contract(strike=amount)
-            context = market(spot=amount, rate=rate, dividend=rate, sigma=sigma)
-            expected = AnalyticVanillaEngine().price(option, context)
-            actual = engine.price_with_statistics(option, context)
-            self.assertGreater(actual.price, 0)
-            self.assertGreater(actual.standard_error, 0)
-            self.assertAlmostEqual(
-                actual.price, expected, delta=6 * actual.standard_error + 1e-320
-            )
-            self.assertEqual(engine.price(option, context), actual.price)
-
     def test_existing_quantlib_monte_carlo_profile(self):
         root = Path(__file__).resolve().parent
 

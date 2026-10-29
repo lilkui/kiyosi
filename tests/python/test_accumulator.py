@@ -425,45 +425,6 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             self.assertEqual(error.exception.category, category)
         self.assertEqual(engine.price(option, market(110, end)), 30)
 
-    def test_representative_contracts_converge_in_space_and_domain(self):
-        month, quarter, year = date(2025, 2, 3), date(2025, 4, 1), date(2026, 1, 1)
-        scenarios = (
-            (month, 80, 0.05, 105, 2, 0.04, False),
-            (month, 100, 0.2, 110, 2, 0.04, False),
-            (month, 120, 0.6, 150, 1, -0.02, True),
-            (month, 100, 0.05, 150, 0, 0.04, False),
-            (quarter, 80, 0.2, 110, 2, 0.04, True),
-            (quarter, 100, 0.05, 105, 2, -0.02, False),
-            (quarter, 120, 0.2, 150, 1, 0.04, False),
-            (quarter, 100, 0.6, 110, 2, 0.04, True),
-            (year, 80, 0.05, 105, 2, 0.04, False),
-            (year, 100, 0.2, 110, 2, 0.04, False),
-            (year, 120, 0.6, 150, 2, -0.02, True),
-            (year, 100, 0.05, 150, 1, 0.04, False),
-            (year, 80, 0.6, 110, 0, 0.04, False),
-            (quarter, 120, 0.05, 105, 2, 0.04, False),
-            (month, 80, 0.6, 150, 2, -0.02, True),
-            (quarter, 100, 0.2, 105, 1, 0.04, False),
-        )
-        normal = pricing.QuadratureAccumulatorEngine()
-        refined = pricing.QuadratureAccumulatorEngine(asset_step_count=1024)
-        expanded = pricing.QuadratureAccumulatorEngine(
-            asset_step_count=1024, integration_standard_deviations=10
-        )
-        for end, spot, sigma, knock_out, acceleration, rate, daily in scenarios:
-            with self.subTest(
-                end=end, spot=spot, sigma=sigma, knock_out=knock_out, daily=daily
-            ):
-                option = contract(end, knock_out, acceleration)
-                context = market(spot, volatility=sigma, rate=rate, daily=daily)
-                base, fine, wide = (
-                    engine.price(option, context)
-                    for engine in (normal, refined, expanded)
-                )
-                scale = exposure(option, context)
-                self.assertLessEqual(abs(base - fine) / scale, 1e-6)
-                self.assertLessEqual(abs(fine - wide) / scale, 1e-6)
-
     def test_quantity_affinity_exact_limits_and_shared_instance_threads(self):
         engine = pricing.QuadratureAccumulatorEngine()
         context = market(90)
@@ -499,18 +460,6 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=2) as pool:
             values = list(pool.map(lambda _: engine.price(option, context), range(2)))
         self.assertEqual(values, [engine.price(option, context)] * 2)
-
-    def test_discounted_low_tail_preserves_large_finite_quantities(self):
-        context = market(90, rate=1000, dividend=1000)
-        engine = pricing.QuadratureAccumulatorEngine()
-        actual = engine.price(
-            contract(date(2025, 1, 6), acceleration=1, daily=1e306, quantity=0), context
-        )
-        self.assertAlmostEqual(actual / -1.326800799078903e302, 1, delta=1e-12)
-        smaller = engine.price(
-            contract(date(2025, 1, 6), acceleration=1, daily=1e305, quantity=0), context
-        )
-        self.assertAlmostEqual(actual / smaller, 10, delta=1e-12)
 
     def test_current_observation_adjacent_thresholds_and_extreme_result(self):
         end = date(2025, 1, 6)

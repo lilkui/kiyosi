@@ -102,49 +102,6 @@ class AmericanMonteCarloTests(unittest.TestCase):
                 delta=1e-6,
             )
 
-    def test_sampling_prices_threads_seeds_and_odd_path_counts(self):
-        option, context = contract(), market()
-        reference = CoxRossRubinsteinVanillaEngine(step_count=2000).price(
-            option, context
-        )
-        for sampling in ("pseudo_random", "sobol"):
-            for antithetic in (False, True):
-                settings = {
-                    "path_count": 32768,
-                    "step_count": 50,
-                    "seed": 42,
-                    "sampling": sampling,
-                    "antithetic": antithetic,
-                }
-                engine = MonteCarloVanillaEngine(**settings, thread_count=1)
-                price = engine.price(option, context)
-                self.assertAlmostEqual(price, reference, delta=0.3)
-                for threads in (0, 2, 4):
-                    self.assertEqual(
-                        MonteCarloVanillaEngine(**settings, thread_count=threads).price(
-                            option, context
-                        ),
-                        price,
-                    )
-                self.assertNotEqual(
-                    MonteCarloVanillaEngine(**dict(settings, seed=2**64 - 1)).price(
-                        option, context
-                    ),
-                    price,
-                )
-        for steps in (3, 7, 50):
-            for paths in (1, 3, 511, 513, 19999):
-                engine = MonteCarloVanillaEngine(
-                    path_count=paths, step_count=steps, seed=42, antithetic=True
-                )
-                odd = engine.price(option, context)
-                even = MonteCarloVanillaEngine(
-                    path_count=paths + 1, step_count=steps, seed=42, antithetic=True
-                ).price(option, context)
-                self.assertTrue(math.isfinite(odd))
-                if paths >= 511:
-                    self.assertNotEqual(odd, even)
-
     def test_terminal_call_shortcut_and_rate_stencil_crossing_zero(self):
         call = contract("call")
         european = EuropeanOption(

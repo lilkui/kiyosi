@@ -43,37 +43,6 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 self.assertEqual(actual.price, engine.price(option, market()))
                 self.assertIsNone(actual.vega)
 
-    def test_pseudo_random_prices_and_greeks_across_seeds(self):
-        for direction, kind in product(("call", "put"), ("knock_in", "knock_out")):
-            option = contract(option_type=direction, barrier_type=kind)
-            expected = pricing.AnalyticDoubleBarrierEngine().price_with_greeks(
-                option, market(), ("delta", "gamma")
-            )
-            for seed in (17, 42, 103):
-                engine = pricing.MonteCarloDoubleBarrierEngine(
-                    path_count=131072, seed=seed, antithetic=True
-                )
-                result = engine.price_with_greeks(option, market(), all_greeks=True)
-                for name, budget in (
-                    ("price", 0.12),
-                    ("delta", 0.015),
-                    ("gamma", 0.003),
-                ):
-                    self.assertAlmostEqual(
-                        getattr(result, name), getattr(expected, name), delta=budget
-                    )
-                for name in (
-                    "speed",
-                    "theta",
-                    "charm",
-                    "color",
-                    "vega",
-                    "vanna",
-                    "zomma",
-                    "rho",
-                ):
-                    self.assertIsNone(getattr(result, name))
-
     def test_scheduled_prices_match_independent_integrals_and_greeks_match_fd(self):
         engine = pricing.MonteCarloDoubleBarrierEngine(
             path_count=262144, seed=42, sampling="sobol"

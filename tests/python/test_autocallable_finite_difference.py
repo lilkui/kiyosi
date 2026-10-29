@@ -65,27 +65,6 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         with self.assertRaises(OverflowError):
             implied_coupon(engine, note, market(), 1, max_iterations=2**40)
 
-    def test_binary_domain_and_price_preserve_small_price_units(self):
-        from kiyosi.pricing import QuadratureAutocallableEngine
-
-        end = date(2026, 1, 1)
-        for level in (100, 1e-6, 1e-9):
-            note = BinarySnowballOption(
-                maturity_coupon_rate=0,
-                effective_date=START,
-                expiry_date=end,
-                observations=autocallable_observations(
-                    [end], [level], knock_out_coupon_rates=[0.1]
-                ),
-            )
-            context = market(level, START, volatility=0.2)
-            expected = QuadratureAutocallableEngine().price(note, context)
-            for engine in (FD(), FD(asset_upper_boundary=4 * level)):
-                with self.subTest(level=level):
-                    self.assertAlmostEqual(
-                        engine.price(note, context), expected, delta=1e-5
-                    )
-
     def test_native_spot_greeks_survive_infeasible_scalar_bumps(self):
         for coupon in (0, 0.1):
             note = BinarySnowballOption(

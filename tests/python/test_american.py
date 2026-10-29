@@ -63,31 +63,6 @@ class AmericanTests(unittest.TestCase):
             call(*args, **kwargs)
         self.assertEqual(error.exception.category, expected)
 
-    def test_2002_price_regression(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
-        context = PricingContext(
-            model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0.05, dividend_yield=0.03, volatility=0.2
-            ),
-            spot_price=100,
-            valuation_time=start,
-        )
-        for direction, expected in (
-            ("call", 8.652695436032069),
-            ("put", 6.932464292493037),
-        ):
-            option = AmericanOption(
-                option_type=direction,
-                strike=100,
-                effective_date=start,
-                expiry_date=end,
-            )
-            self.assertAlmostEqual(
-                BjerksundStenslandVanillaEngine().price(option, context),
-                expected,
-                delta=1e-11,
-            )
-
     def test_maturity_regressions(self):
         for days, call, put in (
             (1, 0.4203293406666333, 0.41497263683106667),
@@ -430,48 +405,6 @@ class AmericanTests(unittest.TestCase):
             AnalyticVanillaEngine().price(self.option, self.context)
         with self.assertRaises(TypeError):
             implied_volatility(AnalyticVanillaEngine(), self.option, self.context, 10)
-
-    def test_small_volatility_and_extreme_monetary_regressions(self):
-        for direction in ("call", "put"):
-            call = direction == "call"
-            option = AmericanOption(
-                **dict(
-                    self.terms,
-                    option_type=direction,
-                    strike=100 if call else 150,
-                    expiry_date=date(2035, 1, 1),
-                )
-            )
-            for sigma in (1e-6, 1e-10, 1e-20, 1e-100, 1e-150):
-                context = self.market(
-                    150 if call else 100,
-                    0.1 if call else 0.05,
-                    0.05 if call else 0.1,
-                    sigma,
-                )
-                self.assertAlmostEqual(
-                    self.engine.price(option, context), 56.25, delta=1e-8
-                )
-            for spot in (80, 100, 120):
-                option = AmericanOption(**dict(self.terms, option_type=direction))
-                base = self.engine.price(option, self.market(spot=spot))
-                for scale in (1e155, 1e-170, 1e-200):
-                    scaled = AmericanOption(
-                        **dict(self.terms, option_type=direction, strike=100 * scale)
-                    )
-                    self.assertAlmostEqual(
-                        self.engine.price(scaled, self.market(spot=spot * scale))
-                        / scale,
-                        base,
-                        delta=1e-9,
-                    )
-            tail = AmericanOption(
-                **dict(
-                    self.terms, option_type=direction, strike=1e304 if call else 1e300
-                )
-            )
-            value = self.engine.price(tail, self.market(1e300 if call else 1e304, 0, 0))
-            self.assertAlmostEqual(value / 1.1367038364232515e-163, 1, delta=1e-8)
 
     def test_live_quantlib_refinement_and_existing_error_budgets(self):
         root = Path(__file__).resolve().parent

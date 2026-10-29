@@ -45,6 +45,38 @@ concurrency. `test_support_matrix.py` checks terminal prices and Greek availabil
 for every CPU engine, unidentifiable volatility at expiry, and native rejection
 of unsupported product/engine pairs.
 
+Keep shared public-contract scenarios in both languages: defaults, accepted inputs,
+event boundaries, validation order, error categories, failure state, ownership and
+concurrency exercise different API surfaces. Python tests also own native protocol
+and exception conversion, GIL release, installed exports and live QuantLib checks.
+Similar names or calls alone do not establish redundancy.
+
+Keep exhaustive numerical regressions in the Cargo-only core when Python repeats
+the same inputs and oracle without adding binding coverage. The following core
+tests own the numerical checks removed from Python; the corresponding Python
+modules retain API scenarios and independent price/Greek comparisons:
+
+| Core integration test | Numerical coverage |
+| --- | --- |
+| `accumulator.rs::spatial_and_domain_convergence_preserve_legacy_acceptance_targets` | The 16-scenario space/domain refinement matrix |
+| `accumulator.rs::discounted_low_tail_preserves_large_finite_quantities` | Large discounted tail quantities and linear scaling |
+| `american.rs::american_price_preserves_2002_regression` | Fixed call/put approximation prices |
+| `american.rs::american_numerical_stability_regressions` | Small volatility, currency scaling and extreme tails |
+| `american_monte_carlo.rs::sampling_combinations_preserve_threads_seeds_and_exact_odd_paths` | Sampling, seed, thread and odd-path matrix |
+| `autocallable_finite_difference.rs::binary_domains_use_actual_levels_in_small_price_units` | Automatic and explicit domains at small price scales |
+| `autocallable_monte_carlo.rs::discounted_cashflows_preserve_representable_values_beyond_discount_range` | Extreme discounts and cancelling cashflows |
+| `barrier_quadrature.rs::continuous_quadrature_matches_analytic_for_all_payoffs_and_rebates` | Analytic price matrix across directions, barriers, rebates and rates |
+| `double_barrier_monte_carlo.rs::pseudo_random_prices_and_likelihood_greeks_match_across_seeds` | Pseudo-random price/Greek matrix across seeds |
+| `monte_carlo.rs::scaled_statistics_preserve_finite_prices_when_sums_squares_or_discounts_overflow` | Price and standard-error scaling at extreme amounts and discounts |
+| `quadrature.rs::terminal_quadrature_matches_vanilla_cash_and_asset_references` | Fixed vanilla and digital call/put prices |
+| `quadrature.rs::high_variance_negative_rates_and_small_widths_match_analytic_limits` | High variance, negative carry and tiny integration widths |
+| `quadrature.rs::scaled_tails_and_underflowed_discounts_preserve_representable_payments` | Decimal tail references and extreme discounts |
+
+Retain numerical tests with additional evidence even when they overlap: Python's
+Monte Carlo statistical test also checks standardized errors and inverse-square-root
+error scaling, and its sparse American-path test checks an interior optimal exercise
+date. Independent references and distinct acceptance criteria are not duplicates.
+
 For packaging acceptance, build an sdist with `uv build --sdist`, rebuild its wheel
 using `uv build --wheel path/to/kiyosi-VERSION.tar.gz`, install it in a fresh
 environment with the test extra, and run the Python suite above. CI repeats this

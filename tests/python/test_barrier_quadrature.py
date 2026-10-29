@@ -25,24 +25,6 @@ class BarrierQuadratureTests(unittest.TestCase):
             operation(*args, **kwargs)
         self.assertEqual(error.exception.category, category)
 
-    def test_continuous_prices_match_analytic(self):
-        engine = pricing.QuadratureBarrierEngine(
-            asset_step_count=1024, integration_standard_deviations=10
-        )
-        for kind in KINDS:
-            for direction in ("call", "put"):
-                for timing in ("at_hit", "at_expiry"):
-                    if kind.endswith("in") and timing == "at_hit":
-                        continue
-                    contract = option(kind, direction, rebate=3, rebate_timing=timing)
-                    for rate in (-0.02, 0.04):
-                        context = market(rate=rate)
-                        self.assertAlmostEqual(
-                            engine.price(contract, context),
-                            pricing.AnalyticBarrierEngine().price(contract, context),
-                            delta=3e-8,
-                        )
-
     def test_early_observation_rebate_discount(self):
         engine = pricing.QuadratureBarrierEngine()
         observation = date(2025, 4, 1)
