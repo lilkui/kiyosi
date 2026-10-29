@@ -769,10 +769,11 @@ macro_rules! with_note {
             let $note = note.0.clone();
             $body
         } else {
-            let $note = $instrument
-                .extract::<PyRef<'_, $crate::instruments::autocallable::SnowballOption>>()?
-                .0
-                .clone();
+            let $note = $crate::conversions::instrument::<
+                PyRef<'_, $crate::instruments::autocallable::SnowballOption>,
+            >($instrument)?
+            .0
+            .clone();
             $body
         }
     }};

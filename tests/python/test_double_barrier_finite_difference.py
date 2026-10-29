@@ -740,7 +740,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         vanilla = EuropeanOption(
             option_type="call", strike=100, effective_date=START, expiry_date=END
         )
-        with self.assertRaises(TypeError):
+        with self.assertRaises(UnsupportedOperationError):
             engine.price(vanilla, context)
         self.assertEqual(engine.price(instrument, context), result.price)
         self.assertEqual(context.model_parameters.volatility, 0.2)

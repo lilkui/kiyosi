@@ -288,7 +288,7 @@ class DigitalNumericalTests(unittest.TestCase):
         from kiyosi.instruments import EuropeanOption
         from kiyosi.market import RateTermStructure
 
-        with self.assertRaises(TypeError):
+        with self.assertRaises(UnsupportedOperationError):
             mc.price(
                 EuropeanOption(
                     option_type="call",

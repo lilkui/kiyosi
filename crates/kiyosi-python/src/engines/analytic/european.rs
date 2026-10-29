@@ -19,7 +19,10 @@ impl AnalyticEuropeanEngine {
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: &EuropeanOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            EuropeanOption,
+        >,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,
@@ -40,7 +43,10 @@ impl AnalyticEuropeanEngine {
     fn price(
         &self,
         py: Python<'_>,
-        instrument: &EuropeanOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            EuropeanOption,
+        >,
         context: &PricingContext,
     ) -> PyResult<f64> {
         // Keep the GIL for this short scalar formula.

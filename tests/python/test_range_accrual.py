@@ -150,11 +150,11 @@ class RangeAccrualTests(unittest.TestCase):
                 option.replace(realized_hit_count=value)
         with self.assertRaises(TypeError):
             option.replace(notional=2000)
-        with self.assertRaises(TypeError):
+        with self.assertRaises(UnsupportedOperationError):
             engine.price(vanilla, context)
-        with self.assertRaises(TypeError):
+        with self.assertRaises(UnsupportedOperationError):
             implied_volatility(engine, vanilla, context, 1)
-        with self.assertRaises(TypeError):
+        with self.assertRaises(UnsupportedOperationError):
             AnalyticEuropeanEngine().price(option, context)
         with self.assertRaises(TypeError):
             engine.price_with_greeks(option, context, "delta", spot_shift=True)

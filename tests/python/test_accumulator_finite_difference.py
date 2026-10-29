@@ -76,9 +76,9 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             effective_date=START,
             expiry_date=date(2025, 2, 3),
         )
-        with self.assertRaises(TypeError):
+        with self.assertRaises(UnsupportedOperationError):
             engine.price(wrong, market())
-        with self.assertRaises(TypeError):
+        with self.assertRaises(UnsupportedOperationError):
             pricing.implied_volatility(engine, wrong, market(), 1)
 
     def test_settlement_history_boundaries_and_failure_reuse(self):

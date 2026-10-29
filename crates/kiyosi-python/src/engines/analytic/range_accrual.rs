@@ -18,7 +18,10 @@ impl AnalyticRangeAccrualEngine {
     fn price(
         &self,
         py: Python<'_>,
-        instrument: &RangeAccrualOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            RangeAccrualOption,
+        >,
         context: &PricingContext,
     ) -> PyResult<f64> {
         let option = instrument.0.clone();
@@ -33,7 +36,10 @@ impl AnalyticRangeAccrualEngine {
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: &RangeAccrualOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            RangeAccrualOption,
+        >,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,

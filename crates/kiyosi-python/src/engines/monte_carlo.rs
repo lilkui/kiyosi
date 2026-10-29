@@ -102,6 +102,7 @@ sampling_settings!(
     fn price(
         &self,
         py: Python<'_>,
+        #[pyo3(from_py_with = crate::conversions::instrument)]
         instrument: binomial::VanillaInstrument<'_>,
         context: &PricingContext,
     ) -> PyResult<f64> {
@@ -121,7 +122,10 @@ sampling_settings!(
     fn price_with_statistics(
         &self,
         py: Python<'_>,
-        instrument: &EuropeanOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            EuropeanOption,
+        >,
         context: &PricingContext,
     ) -> PyResult<MonteCarloEstimate> {
         let engine = self.0;
@@ -136,6 +140,7 @@ sampling_settings!(
     fn price_with_greeks(
         &self,
         py: Python<'_>,
+        #[pyo3(from_py_with = crate::conversions::instrument)]
         instrument: binomial::VanillaInstrument<'_>,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
@@ -209,6 +214,7 @@ sampling_settings!(
     fn price(
         &self,
         py: Python<'_>,
+        #[pyo3(from_py_with = crate::conversions::instrument)]
         instrument: digital::DigitalInstrument<'_>,
         context: &PricingContext,
     ) -> PyResult<f64> {
@@ -221,6 +227,7 @@ sampling_settings!(
     fn price_with_greeks(
         &self,
         py: Python<'_>,
+        #[pyo3(from_py_with = crate::conversions::instrument)]
         instrument: digital::DigitalInstrument<'_>,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
@@ -246,7 +253,9 @@ sampling_settings!(
     fn price(
         &self,
         py: Python<'_>,
-        instrument: asian::AsianInstrument<'_>,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: asian::AsianInstrument<
+            '_,
+        >,
         context: &PricingContext,
     ) -> PyResult<f64> {
         let engine = self.0;
@@ -266,7 +275,9 @@ sampling_settings!(
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: asian::AsianInstrument<'_>,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: asian::AsianInstrument<
+            '_,
+        >,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,
@@ -303,7 +314,10 @@ sampling_settings!(
     fn price(
         &self,
         py: Python<'_>,
-        instrument: &barrier::BarrierOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            barrier::BarrierOption,
+        >,
         context: &PricingContext,
     ) -> PyResult<f64> {
         let engine = self.0;
@@ -315,7 +329,10 @@ sampling_settings!(
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: &barrier::BarrierOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            barrier::BarrierOption,
+        >,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,
@@ -340,7 +357,10 @@ sampling_settings!(
     fn price(
         &self,
         py: Python<'_>,
-        instrument: &double_barrier::DoubleBarrierOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            double_barrier::DoubleBarrierOption,
+        >,
         context: &PricingContext,
     ) -> PyResult<f64> {
         let engine = self.0;
@@ -352,7 +372,10 @@ sampling_settings!(
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: &double_barrier::DoubleBarrierOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            double_barrier::DoubleBarrierOption,
+        >,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,
@@ -437,7 +460,10 @@ sampling_settings!(
     fn price(
         &self,
         py: Python<'_>,
-        instrument: &accumulator::Accumulator,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            accumulator::Accumulator,
+        >,
         context: &PricingContext,
     ) -> PyResult<f64> {
         let engine = self.0;
@@ -448,7 +474,10 @@ sampling_settings!(
     fn price_with_statistics(
         &self,
         py: Python<'_>,
-        instrument: &accumulator::Accumulator,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            accumulator::Accumulator,
+        >,
         context: &PricingContext,
     ) -> PyResult<MonteCarloEstimate> {
         let engine = self.0;
@@ -463,7 +492,10 @@ sampling_settings!(
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: &accumulator::Accumulator,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            accumulator::Accumulator,
+        >,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,

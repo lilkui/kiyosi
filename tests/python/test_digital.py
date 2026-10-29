@@ -368,9 +368,9 @@ class DigitalTests(unittest.TestCase):
                     )
             self.assertEqual(self.engine.price(option, self.context), quote)
             self.assertEqual(self.context.model_parameters.volatility, 0.2)
-            with self.assertRaises(TypeError):
+            with self.assertRaises(UnsupportedOperationError):
                 AnalyticEuropeanEngine().price(option, self.context)
-        with self.assertRaises(TypeError):
+        with self.assertRaises(UnsupportedOperationError):
             self.engine.price(EuropeanOption(**self.terms), self.context)
 
     def test_curves_coverage_time_knots_and_concurrency(self):

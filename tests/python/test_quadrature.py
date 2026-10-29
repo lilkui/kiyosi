@@ -235,9 +235,9 @@ class QuadratureTests(unittest.TestCase):
                     CashOrNothingOption if kind is EuropeanOption else EuropeanOption
                 ),
             ):
-                with self.assertRaises(TypeError):
+                with self.assertRaises(UnsupportedOperationError):
                     engine.price(bad, context)
-                with self.assertRaises(TypeError):
+                with self.assertRaises(UnsupportedOperationError):
                     implied_volatility(engine, bad, context, 1)
             with self.assertRaises(TypeError):
                 type(engine)(asset_step_count=512)

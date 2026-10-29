@@ -419,7 +419,7 @@ class BinomialTests(unittest.TestCase):
                 (engine.price_with_greeks, (mismatch, market(), "delta")),
                 (implied_volatility, (engine, mismatch, market(), 10)),
             ):
-                with self.assertRaises(TypeError):
+                with self.assertRaises(UnsupportedOperationError):
                     operation(*args)
 
     def test_digital_greek_availability_and_unused_shifts(self):

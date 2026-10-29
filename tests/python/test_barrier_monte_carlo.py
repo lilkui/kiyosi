@@ -335,7 +335,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
             (engine.price_with_greeks, (vanilla, market(), "delta")),
             (pricing.implied_volatility, (engine, vanilla, market(), 10)),
         ):
-            with self.assertRaises(TypeError):
+            with self.assertRaises(UnsupportedOperationError):
                 operation(*args)
 
     def test_applicability_errors_validation_order_and_failure_state(self):

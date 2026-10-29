@@ -18,7 +18,10 @@ macro_rules! asian_engine {
             fn price(
                 &self,
                 py: Python<'_>,
-                instrument: &$option,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+                    '_,
+                    $option,
+                >,
                 context: &PricingContext,
             ) -> PyResult<f64> {
                 let option = instrument.0.clone();
@@ -29,7 +32,10 @@ macro_rules! asian_engine {
             fn price_with_greeks(
                 &self,
                 py: Python<'_>,
-                instrument: &$option,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+                    '_,
+                    $option,
+                >,
                 context: &PricingContext,
                 greeks: Option<&Bound<'_, PyAny>>,
                 settings: Option<&Bound<'_, PyDict>>,

@@ -417,7 +417,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             (engine.price_with_greeks, (option, market(), "delta")),
             (pricing.implied_volatility, (engine, option, market(), 10)),
         ):
-            with self.assertRaises(TypeError):
+            with self.assertRaises(UnsupportedOperationError):
                 operation(*args)
         for fields in ({"lower_barrier": True}, {"upper_barrier": "120"}):
             with self.assertRaises(TypeError):

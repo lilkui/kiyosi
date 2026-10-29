@@ -50,7 +50,7 @@ macro_rules! binomial_engine {
             fn price(
                 &self,
                 py: Python<'_>,
-                instrument: $instrument,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &PricingContext,
             ) -> PyResult<f64> {
                 let $option = instrument;
@@ -63,7 +63,7 @@ macro_rules! binomial_engine {
             fn price_with_greeks(
                 &self,
                 py: Python<'_>,
-                instrument: $instrument,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &PricingContext,
                 greeks: Option<&Bound<'_, PyAny>>,
                 settings: Option<&Bound<'_, PyDict>>,
@@ -140,7 +140,7 @@ impl CoxRossRubinsteinBarrierEngine {
     fn price(
         &self,
         py: Python<'_>,
-        instrument: &BarrierOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, BarrierOption>,
         context: &PricingContext,
     ) -> PyResult<f64> {
         let engine = self.0;
@@ -152,7 +152,7 @@ impl CoxRossRubinsteinBarrierEngine {
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: &BarrierOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, BarrierOption>,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,

@@ -255,15 +255,97 @@ class SupportMatrixTests(unittest.TestCase):
                         )
                     self.assertIs(type(error.exception), UnsupportedOperationError)
 
-    def test_other_product_engine_pairs_are_rejected_by_native_conversion(self):
+    def test_other_product_engine_pairs_raise_domain_errors(self):
         for instrument, supported, _ in self.cases:
             for name, engine in self.engines.items():
                 if name in supported:
                     continue
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
+                    with self.assertRaises(UnsupportedOperationError):
+                        engine.price(instrument, self.context)
+                    with self.assertRaises(UnsupportedOperationError):
+                        engine.price_with_greeks(instrument, self.context, ["delta"])
+                    with self.assertRaises(UnsupportedOperationError):
+                        pricing.implied_volatility(engine, instrument, self.context, 1)
+
+    def test_invalid_instrument_representations_keep_native_errors(self):
+        for name, engine in self.engines.items():
+            for instrument in (
+                None,
+                True,
+                100,
+                "option",
+                object(),
+                self.context,
+                engine,
+            ):
+                with self.subTest(engine=name, instrument=instrument):
                     with self.assertRaises(TypeError):
                         engine.price(instrument, self.context)
                     with self.assertRaises(TypeError):
                         engine.price_with_greeks(instrument, self.context, ["delta"])
                     with self.assertRaises(TypeError):
                         pricing.implied_volatility(engine, instrument, self.context, 1)
+
+    def test_statistics_reject_unsupported_products_as_domain_errors(self):
+        products = {
+            "MonteCarloVanillaEngine": (ins.EuropeanOption,),
+            "MonteCarloAccumulatorEngine": (ins.Accumulator,),
+            "MonteCarloAutocallableEngine": (
+                ins.SnowballOption,
+                ins.BinarySnowballOption,
+                ins.TernarySnowballOption,
+                ins.PhoenixOption,
+            ),
+        }
+        for name, accepted in products.items():
+            engine = self.engines[name]
+            for instrument, _, _ in self.cases:
+                if isinstance(instrument, accepted):
+                    continue
+                with (
+                    self.subTest(engine=name, instrument=type(instrument).__name__),
+                    self.assertRaises(UnsupportedOperationError),
+                ):
+                    engine.price_with_statistics(instrument, self.context)
+            with self.assertRaises(TypeError):
+                engine.price_with_statistics(object(), self.context)
+
+    def test_coupon_solver_rejects_unsupported_products_and_engines(self):
+        accepted = (
+            ins.SnowballOption,
+            ins.BinarySnowballOption,
+            ins.TernarySnowballOption,
+            ins.PhoenixOption,
+        )
+        note = next(
+            product for product, _, _ in self.cases if isinstance(product, accepted)
+        )
+        for name, engine in self.engines.items():
+            if name.endswith("AutocallableEngine"):
+                for product, _, _ in self.cases:
+                    if isinstance(product, accepted):
+                        continue
+                    with (
+                        self.subTest(engine=name, instrument=type(product).__name__),
+                        self.assertRaises(UnsupportedOperationError),
+                    ):
+                        pricing.implied_coupon(
+                            engine,
+                            product,
+                            self.context,
+                            1,
+                            quote_convention="preserve_maturity_coupon",
+                        )
+            else:
+                with (
+                    self.subTest(engine=name),
+                    self.assertRaises(UnsupportedOperationError),
+                ):
+                    pricing.implied_coupon(
+                        engine,
+                        note,
+                        self.context,
+                        1,
+                        quote_convention="preserve_maturity_coupon",
+                    )

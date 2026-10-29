@@ -280,9 +280,9 @@ class AmericanMonteCarloTests(unittest.TestCase):
             expiry_date=END,
         )
         for operation in (engine.price, engine.price_with_greeks):
-            with self.assertRaises(TypeError):
+            with self.assertRaises(UnsupportedOperationError):
                 operation(digital, context)
-        with self.assertRaises(TypeError):
+        with self.assertRaises(UnsupportedOperationError):
             implied_volatility(engine, digital, context, 1)
         self.assertEqual(engine.price(option, context), price)
         self.assertEqual(context.model_parameters.volatility, 0.2)

@@ -28,8 +28,9 @@ pub(crate) fn implied_coupon(
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloAutocallableEngine>>() {
         return solve_coupon(py, engine.0, instrument, context, observed_price, settings);
     }
-    let engine =
-        engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceAutocallableEngine>>()?;
+    let engine = crate::conversions::engine::<
+        PyRef<'_, finite_difference::FiniteDifferenceAutocallableEngine>,
+    >(engine)?;
     solve_coupon(py, engine.0, instrument, context, observed_price, settings)
 }
 
@@ -115,6 +116,6 @@ where
     if let Ok(note) = instrument.extract::<PyRef<'_, TernarySnowballOption>>() {
         return solve!(note);
     }
-    let note = instrument.extract::<PyRef<'_, SnowballOption>>()?;
+    let note = crate::conversions::instrument::<PyRef<'_, SnowballOption>>(instrument)?;
     solve!(note)
 }

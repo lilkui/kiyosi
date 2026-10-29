@@ -97,7 +97,7 @@ macro_rules! fd_engine {
             fn price(
                 &self,
                 py: Python<'_>,
-                instrument: $instrument,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &PricingContext,
             ) -> PyResult<f64> {
                 let $py = py;
@@ -111,7 +111,7 @@ macro_rules! fd_engine {
             fn price_with_greeks(
                 &self,
                 py: Python<'_>,
-                instrument: $instrument,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &PricingContext,
                 greeks: Option<&Bound<'_, PyAny>>,
                 settings: Option<&Bound<'_, PyDict>>,
@@ -252,13 +252,13 @@ fd_engine!(
 
 fd_engine!(
     FiniteDifferenceAutocallableEngine,
-    &Bound<'_, PyAny>,
+    Bound<'_, PyAny>,
     |py, option, engine, context, request, shifts| {
-        autocallable::with_note!(option, note, py.detach(|| engine.price(&note, &context)))
+        autocallable::with_note!(&option, note, py.detach(|| engine.price(&note, &context)))
     },
     {
         autocallable::with_note!(
-            option,
+            &option,
             note,
             py.detach(|| engine.price_with_greeks(&note, &context, request, shifts))
         )

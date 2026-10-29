@@ -231,9 +231,9 @@ class FiniteDifferenceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 engine.price_with_greeks(option, context, "unknown")
             other = contract(CashOrNothingOption if kind in VANILLA else EuropeanOption)
-            with self.assertRaises(TypeError):
+            with self.assertRaises(UnsupportedOperationError):
                 engine.price(other, context)
-            with self.assertRaises(TypeError):
+            with self.assertRaises(UnsupportedOperationError):
                 implied_volatility(engine, other, context, baseline)
             for shift in (1e-300, 100):
                 self.assertIsNone(

@@ -28,7 +28,7 @@ macro_rules! quadrature_engine {
             fn price(
                 &self,
                 py: Python<'_>,
-                instrument: $instrument,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &PricingContext,
             ) -> PyResult<f64> {
                 let $option = instrument;
@@ -41,7 +41,7 @@ macro_rules! quadrature_engine {
             fn price_with_greeks(
                 &self,
                 py: Python<'_>,
-                instrument: $instrument,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &PricingContext,
                 greeks: Option<&Bound<'_, PyAny>>,
                 settings: Option<&Bound<'_, PyDict>>,
@@ -122,7 +122,7 @@ impl QuadratureBarrierEngine {
     fn price(
         &self,
         py: Python<'_>,
-        instrument: &BarrierOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, BarrierOption>,
         context: &PricingContext,
     ) -> PyResult<f64> {
         let engine = self.0;
@@ -134,7 +134,7 @@ impl QuadratureBarrierEngine {
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: &BarrierOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, BarrierOption>,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,
@@ -200,7 +200,7 @@ impl QuadratureAccumulatorEngine {
     fn price(
         &self,
         py: Python<'_>,
-        instrument: &Accumulator,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, Accumulator>,
         context: &PricingContext,
     ) -> PyResult<f64> {
         let engine = self.0;
@@ -212,7 +212,7 @@ impl QuadratureAccumulatorEngine {
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: &Accumulator,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, Accumulator>,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,
@@ -295,7 +295,9 @@ impl QuadratureAutocallableEngine {
             let option = note.0.clone();
             return domain(py, py.detach(|| engine.price(&option, &context)));
         }
-        let option = instrument.extract::<PyRef<'_, SnowballOption>>()?.0.clone();
+        let option = crate::conversions::instrument::<PyRef<'_, SnowballOption>>(instrument)?
+            .0
+            .clone();
         domain(py, py.detach(|| engine.price(&option, &context)))
     }
     #[pyo3(signature = (instrument, context, greeks=None, **settings))]
@@ -332,7 +334,9 @@ impl QuadratureAutocallableEngine {
                 py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
             )?));
         }
-        let option = instrument.extract::<PyRef<'_, SnowballOption>>()?.0.clone();
+        let option = crate::conversions::instrument::<PyRef<'_, SnowballOption>>(instrument)?
+            .0
+            .clone();
         Ok(risk::PricingResult(domain(
             py,
             py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),

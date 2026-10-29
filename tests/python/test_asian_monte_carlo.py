@@ -487,9 +487,9 @@ class AsianMonteCarloTests(unittest.TestCase):
         wrong = EuropeanOption(
             option_type="call", strike=100, effective_date=START, expiry_date=END
         )
-        with self.assertRaises(TypeError):
+        with self.assertRaises(UnsupportedOperationError):
             engine.price(wrong, market())
-        with self.assertRaises(TypeError):
+        with self.assertRaises(UnsupportedOperationError):
             pricing.implied_volatility(engine, wrong, market(), 5)
         for settings in ({"backend": "cpu"}, {"sampling": "Sobol"}, {"sampling": None}):
             with self.assertRaises((TypeError, ValueError)):

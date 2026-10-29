@@ -124,9 +124,9 @@ class AsianTests(unittest.TestCase):
                     expiry_date=END,
                 ),
             ):
-                with self.assertRaises(TypeError):
+                with self.assertRaises(UnsupportedOperationError):
                     engine.price(wrong, market())
-                with self.assertRaises(TypeError):
+                with self.assertRaises(UnsupportedOperationError):
                     implied_volatility(engine, wrong, market(), 5)
 
     def test_validation_schedule_history_life_and_single_fixing(self):

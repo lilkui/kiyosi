@@ -346,7 +346,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             effective_date=START,
             expiry_date=date(2025, 2, 3),
         )
-        with self.assertRaises(TypeError):
+        with self.assertRaises(UnsupportedOperationError):
             engine.price(vanilla, market())
 
     def test_single_observation_matches_independent_cash_asset_decomposition(self):

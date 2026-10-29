@@ -407,15 +407,15 @@ class AmericanTests(unittest.TestCase):
             EuropeanOption(**self.terms),
             CashOrNothingOption(**self.terms, payout=10),
         ):
-            with self.assertRaises(TypeError):
+            with self.assertRaises(UnsupportedOperationError):
                 self.engine.price(instrument, self.context)
-            with self.assertRaises(TypeError):
+            with self.assertRaises(UnsupportedOperationError):
                 self.engine.price_with_greeks(instrument, self.context, "delta")
-            with self.assertRaises(TypeError):
+            with self.assertRaises(UnsupportedOperationError):
                 implied_volatility(self.engine, instrument, self.context, 10)
-        with self.assertRaises(TypeError):
+        with self.assertRaises(UnsupportedOperationError):
             AnalyticEuropeanEngine().price(self.option, self.context)
-        with self.assertRaises(TypeError):
+        with self.assertRaises(UnsupportedOperationError):
             implied_volatility(AnalyticEuropeanEngine(), self.option, self.context, 10)
 
     def test_live_quantlib_refinement_and_existing_error_budgets(self):

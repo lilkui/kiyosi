@@ -438,7 +438,7 @@ class BarrierQuadratureTests(unittest.TestCase):
             (engine.price_with_greeks, (mismatch, market(), "delta")),
             (pricing.implied_volatility, (engine, mismatch, market(), 10)),
         ):
-            with self.assertRaises(TypeError):
+            with self.assertRaises(UnsupportedOperationError):
                 operation(*args)
 
     def test_applicability_precedes_request_solver_and_expiry_validation(self):

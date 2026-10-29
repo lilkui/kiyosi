@@ -3,8 +3,9 @@
 Domain rejections raise a specific KiyosiError subclass: InvalidInputError,
 UnsupportedOperationError, ComputationFailureError, RootNotBracketedError or
 NonConvergenceError. Catch a subclass to handle one failure kind, or KiyosiError
-for any domain rejection. Representation and signature errors use Python's native
-exceptions. Reported operational failures retain native OSError semantics. Rust
+for any domain rejection. Recognized contracts unsupported by a pricing operation
+raise UnsupportedOperationError. Representation and signature errors use Python's
+native exceptions. Reported operational failures retain native OSError semantics. Rust
 allocation exhaustion may terminate the process; internal panics are separate
 from domain errors.
 

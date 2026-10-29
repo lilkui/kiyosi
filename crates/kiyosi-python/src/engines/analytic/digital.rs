@@ -18,7 +18,7 @@ impl AnalyticDigitalEngine {
     fn price(
         &self,
         py: Python<'_>,
-        instrument: DigitalInstrument<'_>,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: DigitalInstrument<'_>,
         context: &PricingContext,
     ) -> PyResult<f64> {
         domain(
@@ -31,7 +31,7 @@ impl AnalyticDigitalEngine {
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: DigitalInstrument<'_>,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: DigitalInstrument<'_>,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,

@@ -17,7 +17,10 @@ impl AnalyticDoubleBarrierEngine {
     fn price(
         &self,
         py: Python<'_>,
-        instrument: &DoubleBarrierOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            DoubleBarrierOption,
+        >,
         context: &PricingContext,
     ) -> PyResult<f64> {
         let option = instrument.0.clone();
@@ -31,7 +34,10 @@ impl AnalyticDoubleBarrierEngine {
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: &DoubleBarrierOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            DoubleBarrierOption,
+        >,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,

@@ -18,7 +18,10 @@ impl BjerksundStenslandVanillaEngine {
     fn price(
         &self,
         py: Python<'_>,
-        instrument: &AmericanOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            AmericanOption,
+        >,
         context: &PricingContext,
     ) -> PyResult<f64> {
         domain(
@@ -31,7 +34,10 @@ impl BjerksundStenslandVanillaEngine {
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: &AmericanOption,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+            '_,
+            AmericanOption,
+        >,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,

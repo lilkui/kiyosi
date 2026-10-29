@@ -16,7 +16,7 @@ impl AnalyticBinaryBarrierEngine {
     fn price(
         &self,
         py: Python<'_>,
-        instrument: BinaryInstrument<'_>,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: BinaryInstrument<'_>,
         context: &PricingContext,
     ) -> PyResult<f64> {
         let context = context.0.clone();
@@ -41,7 +41,7 @@ impl AnalyticBinaryBarrierEngine {
     fn price_with_greeks(
         &self,
         py: Python<'_>,
-        instrument: BinaryInstrument<'_>,
+        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: BinaryInstrument<'_>,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
         settings: Option<&Bound<'_, PyDict>>,

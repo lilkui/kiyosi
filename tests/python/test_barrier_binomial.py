@@ -436,7 +436,7 @@ class BarrierBinomialTests(unittest.TestCase):
             (engine.price_with_greeks, (mismatch, market(), "delta")),
             (pricing.implied_volatility, (engine, mismatch, market(), 10)),
         ):
-            with self.assertRaises(TypeError):
+            with self.assertRaises(UnsupportedOperationError):
                 operation(*args)
 
     def test_solver_tree_domain_and_failures_preserve_inputs(self):
