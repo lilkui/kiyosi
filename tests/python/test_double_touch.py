@@ -68,10 +68,35 @@ def continuous_reference(
     dividend=0.01,
     count=1024,
 ):
-    """Integrate the absorbing Brownian density in log spot and its discounted exit.
+    """Integrate log-Brownian survival and discounted exit probabilities.
 
-    The sine expansion solves the absorbing heat equation on (log L, log U).
-    The exponential tilt restores log-price drift; no finite-difference code is used.
+    Parameters
+    ----------
+    spot : float, optional
+        Underlying spot price.
+    lower : float, optional
+        Lower boundary of the surviving interval.
+    upper : float, optional
+        Upper boundary of the surviving interval.
+    volatility : float, optional
+        Annual volatility in decimal units.
+    rate : float, optional
+        Annual continuously compounded risk-free rate.
+    dividend : float, optional
+        Annual continuously compounded dividend yield.
+    count : int, optional
+        Integration panel count or series truncation budget.
+
+    Returns
+    -------
+    tuple of float
+        Expiry one-touch, at-hit one-touch and no-touch values, in that
+        order.
+
+    Notes
+    -----
+    The sine expansion solves the absorbing heat equation between log
+    boundaries. An exponential tilt restores log-price drift.
     """
     width, x = math.log(upper / lower), math.log(spot / lower)
     drift = rate - dividend - volatility**2 / 2
@@ -102,7 +127,27 @@ def continuous_reference(
 
 
 def cash_reference(spot, *, volatility=0.2, rate=0.03, time=1, count=64):
-    """Analytic spot derivatives of the killed log-Brownian sine solution."""
+    """Compute analytic spot derivatives of the killed log-Brownian solution.
+
+    Parameters
+    ----------
+    spot : float
+        Underlying spot price.
+    volatility : float, optional
+        Annual volatility in decimal units.
+    rate : float, optional
+        Annual continuously compounded risk-free rate.
+    time : float, optional
+        Remaining Actual/365 Fixed years.
+    count : int, optional
+        Integration panel count or series truncation budget.
+
+    Returns
+    -------
+    list of types.SimpleNamespace
+        Expiry one-touch, at-hit one-touch and no-touch prices with spot
+        Greeks.
+    """
     width, x = math.log(120 / 80), math.log(spot / 80)
     alpha = (rate - 0.01 - volatility**2 / 2) / volatility**2
     beta = math.sqrt(alpha**2 + 2 * rate / volatility**2)
@@ -191,7 +236,21 @@ def survival_at_fixing(spot, time):
 
 
 def scheduled_reference(dates, count=1024):
-    """Integrate survival through one or two independent normal increments."""
+    """Integrate survival through one or two independent normal increments.
+
+    Parameters
+    ----------
+    dates : sequence of datetime.date
+        One or two monitoring dates.
+    count : int, optional
+        Integration panel count or series truncation budget.
+
+    Returns
+    -------
+    tuple of float
+        Expiry one-touch, at-hit one-touch and no-touch values, in that
+        order.
+    """
     time = (dates[0] - START).days / 365
     survived_first = survival_at_fixing(100.25, time)
     survival = survived_first

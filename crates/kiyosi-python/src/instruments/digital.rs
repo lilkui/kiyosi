@@ -33,7 +33,8 @@ fn changes(fields: Option<&Bound<'_, PyDict>>, cash: bool) -> PyResult<core::Dig
 }
 
 macro_rules! digital_option {
-    ($name:ident, $constructor:ident $(, $payout:ident)?) => {
+    ($name:ident, $constructor:ident $(, $payout:ident)?, $doc:literal) => {
+        #[doc = $doc]
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(Clone, PartialEq)]
         pub(crate) struct $name(pub core::DigitalOption);
@@ -49,27 +50,57 @@ macro_rules! digital_option {
                     real(strike)?, $(real($payout)?,)? date(effective_date)?, date(expiry_date)?) )?))
             }
 
+            /// Return a validated replacement without changing this value.
+            ///
+            /// Parameters
+            /// ----------
+            /// option_type : {'call', 'put'}, optional
+            ///     Call or put payoff direction.
+            /// strike : float, optional
+            ///     Positive finite exercise or purchase price.
+            /// payout : float, optional
+            ///     Positive finite cash payment.
+            /// effective_date : datetime.date, optional
+            ///     Inclusive first contract date.
+            /// expiry_date : datetime.date, optional
+            ///     Final contract date; expiry is at midnight UTC.
+            ///     The payout field is accepted only for CashOrNothingOption.
+            ///
+            /// Returns
+            /// -------
+            /// object
+            ///     New instance of the same class; omitted fields retain their values.
+            ///
+            /// Raises
+            /// ------
+            /// KiyosiError
+            ///     If replacement terms fail domain validation. The original is unchanged.
             #[pyo3(signature = (**fields))]
             fn replace(&self, py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
                 let changes = changes(fields, self.0.payout().is_some())?;
                 Ok(Self(domain(py, self.0.replace(changes))?))
             }
 
+            /// Return call or put payoff direction.
             #[getter]
             fn option_type(&self) -> &'static str {
                 if self.0.option_type() == core::OptionType::Call { "call" } else { "put" }
             }
+            /// Return the exercise or purchase price in underlying price units.
             #[getter]
             fn strike(&self) -> f64 { self.0.strike() }
+            /// Return inclusive first contract date.
             #[getter]
             fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
                 python_date(py, self.0.effective_date())
             }
+            /// Return final contract date; expiry is at midnight UTC.
             #[getter]
             fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
                 python_date(py, self.0.expiry_date())
             }
             $(
+                /// Return the fixed cash payout.
                 #[getter]
                 fn $payout(&self) -> Option<f64> { self.0.payout() }
             )?
@@ -77,8 +108,41 @@ macro_rules! digital_option {
     };
 }
 
-digital_option!(CashOrNothingOption, cash_or_nothing, payout);
-digital_option!(AssetOrNothingOption, asset_or_nothing);
+digital_option!(
+    CashOrNothingOption,
+    cash_or_nothing,
+    payout,
+    r"European digital paying cash strictly in the money.
+
+Parameters
+----------
+option_type : {'call', 'put'}
+    Call or put payoff direction.
+strike : float
+    Positive finite exercise or purchase price.
+payout : float
+    Positive finite cash payment.
+effective_date : datetime.date
+    Inclusive first contract date.
+expiry_date : datetime.date
+    Final contract date; expiry is at midnight UTC."
+);
+digital_option!(
+    AssetOrNothingOption,
+    asset_or_nothing,
+    r"European digital paying the asset strictly in the money.
+
+Parameters
+----------
+option_type : {'call', 'put'}
+    Call or put payoff direction.
+strike : float
+    Positive finite exercise or purchase price.
+effective_date : datetime.date
+    Inclusive first contract date.
+expiry_date : datetime.date
+    Final contract date; expiry is at midnight UTC."
+);
 
 #[derive(FromPyObject)]
 pub(crate) enum DigitalInstrument<'py> {

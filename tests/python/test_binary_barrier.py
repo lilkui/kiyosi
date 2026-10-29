@@ -1,4 +1,4 @@
-"""Binary/touch public contracts and the existing independent QuantLib scenarios."""
+"""Binary and touch contracts with independent QuantLib comparisons."""
 
 import importlib
 import math

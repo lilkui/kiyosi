@@ -12,6 +12,7 @@ use crate::{
 };
 
 /// Prices snowball variants and Phoenix notes by cubic Gaussian integration between exact event dates.
+///
 /// Retains separate intact and knocked-in continuation layers for daily monitoring.
 /// Owns immutable settings; shared and distinct instances support concurrent pricing.
 /// See [`Self::new`] for an example.
@@ -23,10 +24,12 @@ impl QuadratureAutocallableEngine {
     /// Creates an engine with validated spatial budget and integration extent.
     ///
     /// # Errors
+    ///
     /// Propagates [`QuadratureSettings::validate`] errors without changing inputs.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;
@@ -54,6 +57,7 @@ impl QuadratureAutocallableEngine {
         self.settings
     }
     /// Prices remaining cashflows, resolving current events before future integration.
+    ///
     /// Knock-in is strict below its level; knock-out and Phoenix coupon barriers
     /// are inclusive. Phoenix coupons accrue over contractual observation periods
     /// and are paid independently of knock-out, principal and downside loss.
@@ -61,6 +65,7 @@ impl QuadratureAutocallableEngine {
     /// See [`Self::new`] for an example.
     ///
     /// # Errors
+    ///
     /// Checks flat rates ([`Error::UnsupportedOperation`]), then inclusive life,
     /// observation trading dates, missing or impossible prior history, and trading
     /// expiry ([`Error::InvalidInput`]), in that order. Non-finite prices or
@@ -74,11 +79,13 @@ impl QuadratureAutocallableEngine {
         price(option, context, self.settings, &mut None)
     }
     /// Computes requested scalar sensitivities using shared core bump defaults.
+    ///
     /// Expiry Greeks are absent. Spot and time stencils crossing active events
     /// are unavailable; vega and rho remain defined at current thresholds.
     /// See [`Self::new`] for an example.
     ///
     /// # Errors
+    ///
     /// Checks flat-rate applicability before request/shift validation, then
     /// propagates [`crate::numerical_greeks`] errors. Inputs remain unchanged.
     pub fn price_with_greeks<T: AutocallableTerms>(

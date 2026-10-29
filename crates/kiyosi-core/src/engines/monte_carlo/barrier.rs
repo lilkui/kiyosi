@@ -31,9 +31,11 @@ pub struct MonteCarloBarrierEngine {
 
 impl MonteCarloBarrierEngine {
     /// Creates an engine with validated shared CPU sampling settings.
+    ///
     /// See [`MonteCarloVanillaEngine::new`] for configuration examples.
     ///
     /// # Errors
+    ///
     /// Reuses [`MonteCarloVanillaEngine::new`] validation and error categories.
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {
         MonteCarloVanillaEngine::new(settings)?;
@@ -52,6 +54,7 @@ impl MonteCarloBarrierEngine {
     /// synchronously without cancellation polling. See [`Self::price_with_greeks`].
     ///
     /// # Errors
+    ///
     /// Returns [`crate::Error::UnsupportedOperation`] for node curves,
     /// [`crate::Error::InvalidInput`] outside life,
     /// [`crate::Error::InvalidInput`] for non-trading fixings,
@@ -62,9 +65,11 @@ impl MonteCarloBarrierEngine {
     /// [`crate::Error::Io`]. Inputs remain unchanged.
     ///
     /// # Panics
+    ///
     /// Resumes worker panics after joining the call's workers.
     ///
     /// # Aborts
+    ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         Ok(self
@@ -85,13 +90,19 @@ impl MonteCarloBarrierEngine {
     /// Near-expiry likelihood estimates can have substantial sampling error.
     ///
     /// # Errors
+    ///
     /// Checks flat rates before requests and shifts, then propagates [`Self::price`]
     /// errors. Empty requests or invalid shifts return
     /// [`crate::Error::InvalidInput`]; non-finite requested Greek samples
     /// return [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
     ///
+    /// # Panics
+    ///
+    /// Resumes worker panics after joining the call's workers, as in [`Self::price`].
+    ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;

@@ -5,6 +5,11 @@ use crate::risk;
 use kiyosi_core as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+/// Flat-rate single-barrier analytics with BGK scheduled monitoring.
+///
+/// See Also
+/// --------
+/// BarrierOption : Supported contract.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct AnalyticBarrierEngine;
 
@@ -14,6 +19,24 @@ impl AnalyticBarrierEngine {
     fn new() -> Self {
         Self
     }
+    /// Return the price without changing the instrument or context.
+    ///
+    /// Parameters
+    /// ----------
+    /// instrument : object
+    ///     Supported contract; see the engine class for accepted types.
+    /// context : PricingContext
+    ///     Market snapshot and valuation instant.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Present value of remaining contractual payments.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If domain validation, engine applicability or numerical pricing fails.
     fn price(
         &self,
         py: Python<'_>,
@@ -27,6 +50,32 @@ impl AnalyticBarrierEngine {
             py.detach(|| core::AnalyticBarrierEngine.price(&option, &context)),
         )
     }
+    /// Return the price and selected sensitivities.
+    ///
+    /// Parameters
+    /// ----------
+    /// instrument : object
+    ///     Supported contract; see the engine class for accepted types.
+    /// context : PricingContext
+    ///     Market snapshot and valuation instant.
+    /// greeks : str or iterable of str, optional
+    ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
+    /// **settings
+    ///     `all_greeks` requests every measure and requires omitting `greeks`.
+    ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
+    ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
+    ///     defaults; analytic engines still validate them.
+    ///
+    /// Returns
+    /// -------
+    /// PricingResult
+    ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
+    ///     including every Greek at expiry. Units follow PricingResult.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If requests, shifts, pricing or a feasible bumped valuation fails.
     #[pyo3(signature = (instrument, context, greeks=None, **settings))]
     fn price_with_greeks(
         &self,

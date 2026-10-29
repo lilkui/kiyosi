@@ -1,21 +1,28 @@
-"""Rust-powered Python library for derivatives pricing.
+"""Price derivatives with validated Rust contracts and engines.
 
-Domain rejections raise a specific KiyosiError subclass: InvalidInputError,
-UnsupportedOperationError, ComputationFailureError, RootNotBracketedError or
-NonConvergenceError. Catch a subclass to handle one failure kind, or KiyosiError
-for any domain rejection. Recognized contracts unsupported by a pricing operation
-raise UnsupportedOperationError. Representation and signature errors use Python's
-native exceptions. Reported operational failures retain native OSError semantics. Rust
-allocation exhaustion may terminate the process; internal panics are separate
-from domain errors.
+Notes
+-----
+Domain failures raise a specific `KiyosiError` subclass:
+`InvalidInputError`, `UnsupportedOperationError`, `ComputationFailureError`,
+`RootNotBracketedError` or `NonConvergenceError`. Catch a subclass for one
+failure category or `KiyosiError` for any domain failure. Representation
+and signature errors use native Python exceptions; reported operational
+failures use `OSError`. Internal Rust panics are separate from domain
+exceptions; allocation exhaustion may terminate the process.
 
-Values own their data, expose read-only properties and support concurrent reads
-and pricing on shared or distinct instances. Replacement returns a new value.
-Long calculations release the GIL around owned Rust inputs. Short analytic calls
-may retain it; see the Rust core documentation for the concurrency contract.
+Contract and calendar dates require `datetime.date`, excluding datetime
+instances. Instant inputs accept dates at midnight UTC or timezone-aware
+datetimes normalized to UTC; naive datetimes are rejected. Numeric inputs
+reject booleans and unintended lossy conversions.
 
-Calls are synchronous, without cancellation or core signal polling. Python signal
-handling, including KeyboardInterrupt, resumes when control returns to Python.
+Values own their data and expose read-only properties. Shared and distinct
+instances support concurrent reads and pricing. Replacement creates a new
+value. Long calculations release the GIL around owned Rust inputs; short
+analytic calls may retain it.
+
+Calls are synchronous, without core cancellation or signal polling. Python
+signal handling, including `KeyboardInterrupt`, resumes when control
+returns to Python.
 """
 
 from ._native import (

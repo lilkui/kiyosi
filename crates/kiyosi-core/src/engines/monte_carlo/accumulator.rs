@@ -27,10 +27,12 @@ impl MonteCarloAccumulatorEngine {
     /// Creates an engine with validated CPU sampling settings.
     ///
     /// # Errors
+    ///
     /// Propagates [`MonteCarloVanillaEngine::new`] validation errors.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;
@@ -63,12 +65,15 @@ impl MonteCarloAccumulatorEngine {
     /// Returns the mean discounted outstanding settlement; see [`Self::new`].
     ///
     /// # Errors
+    ///
     /// Propagates [`Self::price_with_statistics`] errors without changing inputs.
     ///
     /// # Panics
+    ///
     /// Resumes worker panics after joining the call's workers.
     ///
     /// # Aborts
+    ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         Ok(self.price_with_statistics(option, context)?.price())
@@ -81,6 +86,7 @@ impl MonteCarloAccumulatorEngine {
     /// Calls finish synchronously without cancellation polling. See [`Self::new`].
     ///
     /// # Errors
+    ///
     /// Checks flat rates ([`Error::UnsupportedOperation`]), inclusive life
     /// ([`Error::InvalidInput`]), then trading expiry
     /// ([`Error::InvalidInput`]), including for fixed settlements.
@@ -90,9 +96,11 @@ impl MonteCarloAccumulatorEngine {
     /// I/O details through [`Error::Io`]. Inputs remain unchanged.
     ///
     /// # Panics
+    ///
     /// Resumes worker panics after joining the call's workers.
     ///
     /// # Aborts
+    ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price_with_statistics(
         &self,
@@ -185,14 +193,17 @@ impl MonteCarloAccumulatorEngine {
     /// See [`Self::new`] for an example.
     ///
     /// # Errors
+    ///
     /// Checks flat rates before requests and shifts, then propagates
     /// [`crate::numerical_greeks`] and [`Self::price_with_statistics`] errors.
     /// Inputs and engine settings remain unchanged on every outcome.
     ///
     /// # Panics
+    ///
     /// Resumes worker panics after joining the call's workers.
     ///
     /// # Aborts
+    ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price_with_greeks(
         &self,

@@ -43,6 +43,7 @@ pub struct DoubleBarrierOptionTerms {
 }
 impl DoubleBarrierOptionTerms {
     /// Supplies the shared single-barrier defaults without validation.
+    ///
     /// See [`DoubleBarrierOption::new`] for validation and an example.
     pub fn new(
         option_type: OptionType,
@@ -79,6 +80,7 @@ impl DoubleBarrierOptionTerms {
 }
 
 /// Owns two ordered boundaries sharing monitoring and strictly prior history.
+///
 /// Immutable shared pricing and replacement are safe under the crate concurrency contract.
 /// See [`Self::new`] and [`Self::replace`] for examples.
 #[derive(Clone, Debug, PartialEq)]
@@ -88,15 +90,18 @@ pub struct DoubleBarrierOption {
 }
 impl DoubleBarrierOption {
     /// Validates boundaries, life, schedule, strike and rebate before returning an owner.
+    ///
     /// Calendar compatibility and history relative to valuation are checked during pricing.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] unless finite `0 < lower < upper`,
     /// then reuses [`BarrierOption::new`] categories and validation order, including
     /// for at-hit knock-in rebates even if zero.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let option = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
@@ -139,13 +144,16 @@ impl DoubleBarrierOption {
         })
     }
     /// Returns an owning copy with replaced strictly prior history; `None` restores unknown.
+    ///
     /// Time consistency is checked during pricing. The original is preserved on every outcome.
     ///
     /// # Errors
+    ///
     /// Reuses [`BarrierOption::replace`] validation; typed history cannot invalidate construction.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let option = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
@@ -206,11 +214,11 @@ impl DoubleBarrierOption {
     pub fn observation_mode(&self) -> ObservationMode {
         self.lower.observation_mode()
     }
-    /// Borrows immutable schedule storage until this owner is moved or dropped; see [`Self::new`].
+    /// Borrows immutable schedule storage for the lifetime of the borrow; see [`Self::new`].
     pub fn observation_schedule(&self) -> &ObservationSchedule {
         self.lower.observation_schedule()
     }
-    /// Borrows immutable dates until this owner is moved or dropped; see [`Self::new`].
+    /// Borrows immutable dates for the lifetime of the borrow; see [`Self::new`].
     pub fn observation_dates(&self) -> &[Date] {
         self.lower.observation_dates()
     }

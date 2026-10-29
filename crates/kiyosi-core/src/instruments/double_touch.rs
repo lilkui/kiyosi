@@ -56,6 +56,7 @@ impl DoubleTouchOptionTerms {
 }
 
 /// Owns a cash payment activated by either inclusive boundary, or by neither being touched.
+///
 /// Both boundaries share a schedule and strictly prior history. Prior at-hit payments
 /// have no remaining value. Shared reads follow the crate concurrency contract.
 /// See [`Self::cash`] for construction and pricing.
@@ -67,16 +68,19 @@ pub struct DoubleTouchOption {
 }
 impl DoubleTouchOption {
     /// Validates a cash double one-touch or no-touch contract before returning an owner.
+    ///
     /// Calendar compatibility and valuation-relative history are checked during pricing.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for invalid positive finite payout,
     /// then for at-hit no-touch settlement, then reuses
     /// [`DoubleBarrierOption::new`] boundary, life and schedule validation categories.
     /// Failure preserves inputs; no-touch can settle only at expiry.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;
@@ -172,6 +176,7 @@ impl DoubleTouchOption {
     /// Returns an owning copy with replaced history; `None` restores unknown. See [`Self::cash`].
     ///
     /// # Errors
+    ///
     /// Reuses [`DoubleBarrierOption::replace`] validation; typed history cannot invalidate construction.
     /// The original value remains unchanged on every outcome.
     pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Result<Self> {

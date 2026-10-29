@@ -81,6 +81,7 @@ pub struct BarrierOptionTerms {
 }
 impl BarrierOptionTerms {
     /// Supplies zero rebate, expiry payment, continuous monitoring and unknown history.
+    ///
     /// Does not validate inputs; see [`BarrierOption::new`] for validation and an example.
     pub fn new(
         option_type: OptionType,
@@ -107,6 +108,7 @@ impl BarrierOptionTerms {
 }
 
 /// Owns validated single-barrier vanilla terms and strictly prior history.
+///
 /// Immutable shared reads and pricing are safe; replacement never mutates the original.
 /// See [`Self::new`] and [`Self::replace`] for examples.
 #[derive(Clone, Debug, PartialEq)]
@@ -122,15 +124,18 @@ pub struct BarrierOption {
 }
 impl BarrierOption {
     /// Validates barrier, life, schedule, then payoff terms before returning an owning contract.
+    ///
     /// Trading-day compatibility and history relative to valuation are checked during pricing.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for invalid level or rebate, reversed
     /// life, incompatible or invalid fixing dates, invalid strike, or an at-hit
     /// knock-in rebate, checked in that order.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{BarrierOption, BarrierOptionTerms, BarrierType, Date, OptionType};
     /// # fn main() -> kiyosi_core::Result<()> {
     /// let terms = BarrierOptionTerms::new(OptionType::Call, 100.0,
@@ -188,13 +193,16 @@ impl BarrierOption {
         })
     }
     /// Returns an owning copy with replaced history, preserving the original on failure.
+    ///
     /// Time consistency is checked during pricing. `None` restores unknown history.
     ///
     /// # Errors
+    ///
     /// Reuses [`Self::new`] validation; typed history cannot invalidate construction.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{BarrierOption, BarrierOptionTerms, BarrierType, BarrierTouchState, Date, OptionType};
     /// # fn main() -> kiyosi_core::Result<()> {
     /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
@@ -255,7 +263,7 @@ impl BarrierOption {
     pub fn observation_mode(&self) -> ObservationMode {
         self.observation_mode
     }
-    /// Borrows immutable schedule storage until this owner is moved or dropped; see [`Self::new`].
+    /// Borrows immutable schedule storage for the lifetime of the borrow; see [`Self::new`].
     pub fn observation_schedule(&self) -> &ObservationSchedule {
         &self.schedule
     }
@@ -268,6 +276,7 @@ impl BarrierOption {
         self.touch_state
     }
     /// Returns mean spacing in Actual/365 Fixed years, or zero for continuous monitoring.
+    ///
     /// Scheduled spacing includes effective date to first fixing; see [`Self::new`].
     pub fn mean_observation_year_fraction(&self) -> f64 {
         self.observation_dates().last().map_or(0.0, |&last| {

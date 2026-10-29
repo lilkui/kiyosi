@@ -95,7 +95,7 @@ class AnalyticsTests(unittest.TestCase):
                         expected,
                         delta=budget[name] + metadata[f"uncertainty_{name}"],
                     )
-            # Reuse the existing scalar oracle and unchanged numerical acceptance budgets.
+            # Reuse the scalar oracle and unchanged numerical acceptance budgets.
             numeric_budget = dict(
                 config["defaults"]["numerical_tolerances"],
                 **scenario.get("numerical_tolerances", {}),

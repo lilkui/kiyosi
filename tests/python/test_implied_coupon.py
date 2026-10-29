@@ -1,4 +1,4 @@
-"""Coupon quotes through the installed Rust extension public API."""
+"""Coupon quote validation and pricing through the Python API."""
 
 import math
 import sys

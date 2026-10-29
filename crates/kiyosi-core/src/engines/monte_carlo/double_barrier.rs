@@ -22,9 +22,11 @@ pub struct MonteCarloDoubleBarrierEngine {
 
 impl MonteCarloDoubleBarrierEngine {
     /// Creates an engine with validated shared CPU sampling settings.
+    ///
     /// See [`crate::MonteCarloVanillaEngine::new`] for configuration examples.
     ///
     /// # Errors
+    ///
     /// Reuses [`MonteCarloBarrierEngine::new`] validation and error categories.
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {
         Ok(Self {
@@ -40,11 +42,12 @@ impl MonteCarloDoubleBarrierEngine {
     /// Prices after validating flat rates, inclusive life, calendar and prior history.
     ///
     /// Current touches and resolved cashflows precede sampling. Resolved vanilla
-    /// payoffs and continuous at-hit rebates use the existing analytic formulas.
+    /// payoffs and continuous at-hit rebates use analytic formulas.
     /// Calls finish synchronously without cancellation polling.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
+    ///
     /// Returns [`crate::Error::UnsupportedOperation`] for node curves,
     /// [`crate::Error::InvalidInput`] outside life,
     /// [`crate::Error::InvalidInput`] for non-trading fixings,
@@ -56,9 +59,11 @@ impl MonteCarloDoubleBarrierEngine {
     /// Inputs remain unchanged on every outcome.
     ///
     /// # Panics
+    ///
     /// Resumes worker panics after joining the call's workers.
     ///
     /// # Aborts
+    ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
         Ok(self
@@ -81,19 +86,23 @@ impl MonteCarloDoubleBarrierEngine {
     /// Scalar numerical analysis is available through [`crate::numerical_greeks`].
     ///
     /// # Errors
+    ///
     /// Checks flat rates before requests and shifts, then propagates [`Self::price`]
     /// errors. Empty requests or invalid shifts return
     /// [`crate::Error::InvalidInput`]; non-finite requested Greek samples
     /// return [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Panics
+    ///
     /// Resumes worker panics after joining the call's workers, as in [`Self::price`].
     ///
     /// # Aborts
+    ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;

@@ -1,3 +1,5 @@
+"""Typed Python interfaces for the native contracts, market data, and pricing API."""
+
 from collections.abc import Iterable, Iterator
 from datetime import date, datetime
 from datetime import date as _Date

@@ -4,6 +4,30 @@ use kiyosi_core as core;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};
 
+/// Trading-date purchases settled at knock-out or expiry.
+///
+/// Parameters
+/// ----------
+/// strike : float
+///     Positive finite exercise or purchase price.
+/// knock_out_level : float
+///     Positive inclusive knock-out threshold.
+/// daily_quantity : float
+///     Nonnegative finite quantity purchased on each trading date.
+/// acceleration_factor : float
+///     Nonnegative quantity multiplier applied strictly below strike.
+/// effective_date : datetime.date
+///     Inclusive first contract date.
+/// expiry_date : datetime.date
+///     Final contract date; expiry is at midnight UTC.
+/// accumulated_quantity : float, optional
+///     Caller-asserted outstanding quantity strictly before valuation.
+///
+/// Notes
+/// -----
+/// A current midnight knock-out precedes purchases and purchases no units.
+/// Acceleration applies strictly below strike. History is caller asserted;
+/// do not value a contract whose settlement has already occurred.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct Accumulator(pub(crate) core::Accumulator);
@@ -41,6 +65,22 @@ impl Accumulator {
         }
         Ok(Self(domain(py, core::Accumulator::new(terms))?))
     }
+    /// Return a validated replacement without changing this value.
+    ///
+    /// Parameters
+    /// ----------
+    /// accumulated_quantity : float
+    ///     Caller-asserted outstanding quantity strictly before valuation.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     New instance of the same class; omitted fields retain their values.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (*, accumulated_quantity))]
     fn replace(&self, py: Python<'_>, accumulated_quantity: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self(domain(
@@ -48,30 +88,37 @@ impl Accumulator {
             self.0.replace(real(accumulated_quantity)?),
         )?))
     }
+    /// Return the exercise or purchase price in underlying price units.
     #[getter]
     fn strike(&self) -> f64 {
         self.0.strike()
     }
+    /// Return positive inclusive knock-out threshold.
     #[getter]
     fn knock_out_level(&self) -> f64 {
         self.0.knock_out_level()
     }
+    /// Return nonnegative finite quantity purchased on each trading date.
     #[getter]
     fn daily_quantity(&self) -> f64 {
         self.0.daily_quantity()
     }
+    /// Return nonnegative quantity multiplier applied strictly below strike.
     #[getter]
     fn acceleration_factor(&self) -> f64 {
         self.0.acceleration_factor()
     }
+    /// Return caller-asserted outstanding quantity strictly before valuation.
     #[getter]
     fn accumulated_quantity(&self) -> f64 {
         self.0.accumulated_quantity()
     }
+    /// Return inclusive first contract date.
     #[getter]
     fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.effective_date())
     }
+    /// Return final contract date; expiry is at midnight UTC.
     #[getter]
     fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.expiry_date())

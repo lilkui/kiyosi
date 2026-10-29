@@ -10,6 +10,7 @@ use crate::{
 };
 
 /// Prices trading-date accumulators using affine quantity layers and cubic Gaussian integration.
+///
 /// Owns immutable settings; shared and distinct instances support concurrent pricing.
 /// See [`Self::new`] for an example.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -20,10 +21,12 @@ impl QuadratureAccumulatorEngine {
     /// Creates an engine with validated settings.
     ///
     /// # Errors
+    ///
     /// Propagates [`QuadratureSettings::validate`] errors without changing inputs.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;
@@ -45,10 +48,12 @@ impl QuadratureAccumulatorEngine {
         self.settings
     }
     /// Prices outstanding cashflows, applying a current midnight trading event once.
+    ///
     /// Knock-out is inclusive and precedes purchases; acceleration is strict below strike.
     /// Settles accrued units at knock-out or expiry. See [`Self::new`].
     ///
     /// # Errors
+    ///
     /// Checks flat rates ([`Error::UnsupportedOperation`]), inclusive life
     /// ([`Error::InvalidInput`]), then trading expiry
     /// ([`Error::InvalidInput`]). Non-finite results or unrepresentable grids
@@ -57,11 +62,13 @@ impl QuadratureAccumulatorEngine {
         price(option, context, self.settings, &mut None)
     }
     /// Computes requested scalar Greeks with shared core bump defaults; see [`Self::new`].
+    ///
     /// Expiry Greeks and spot/time stencils crossing active events are unavailable.
     /// Vega and rho remain defined at current thresholds. Request-local curve reuse
     /// preserves the same prices as independent scalar repricing.
     ///
     /// # Errors
+    ///
     /// Checks flat-rate applicability before request/shift validation, then propagates
     /// [`crate::numerical_greeks`] errors. Inputs remain unchanged on every outcome.
     pub fn price_with_greeks(

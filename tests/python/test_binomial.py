@@ -88,7 +88,32 @@ def engine_for(kind, steps=256):
 def rollback(
     kind, direction, steps, spot=100, rate=0.05, dividend=0.02, sigma=0.2, strike=100
 ):
-    """Independent explicit rollback for the direct expectation branch."""
+    """Compute independent CRR prices and node Greeks by explicit rollback.
+
+    Parameters
+    ----------
+    kind : type or str
+        Contract class or barrier activation choice used by the test.
+    direction : {'call', 'put'} or None
+        Terminal payoff direction; touch contracts have no strike direction.
+    steps : int
+        Positive CRR time-step count.
+    spot : float, optional
+        Underlying spot price.
+    rate : float, optional
+        Annual continuously compounded risk-free rate.
+    dividend : float, optional
+        Annual continuously compounded dividend yield.
+    sigma : float, optional
+        Annual volatility in decimal units.
+    strike : float, optional
+        Exercise price.
+
+    Returns
+    -------
+    tuple of float or None
+        Price, node delta and node gamma; unavailable node Greeks are None.
+    """
     up = math.exp(sigma / math.sqrt(steps))
     down = 1 / up
     probability = (math.exp((rate - dividend) / steps) - down) / (up - down)
@@ -653,7 +678,7 @@ class BinomialTests(unittest.TestCase):
                         else american.reference(inputs)
                     )
                 if kind is EuropeanOption and oracle.exclusions(inputs):
-                    # The existing numerical profile excludes wide-bump near-expiry stencils.
+                    # The numerical profile excludes wide-bump near-expiry stencils.
                     reference = {
                         name: value
                         for name, value in reference.items()

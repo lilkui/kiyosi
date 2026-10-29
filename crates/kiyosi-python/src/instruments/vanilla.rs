@@ -4,6 +4,18 @@ use kiyosi_core as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
 
+/// European vanilla option with a positive strike.
+///
+/// Parameters
+/// ----------
+/// option_type : {'call', 'put'}
+///     Call or put payoff direction.
+/// strike : float
+///     Positive finite exercise or purchase price.
+/// effective_date : datetime.date
+///     Inclusive first contract date.
+/// expiry_date : datetime.date
+///     Final contract date; expiry is at midnight UTC.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct EuropeanOption(pub(crate) core::EuropeanOption);
@@ -31,6 +43,7 @@ impl EuropeanOption {
         )?))
     }
 
+    /// Return call or put payoff direction.
     #[getter]
     fn option_type(&self) -> &'static str {
         match self.0.option_type() {
@@ -38,14 +51,17 @@ impl EuropeanOption {
             core::OptionType::Put => "put",
         }
     }
+    /// Return the exercise or purchase price in underlying price units.
     #[getter]
     fn strike(&self) -> f64 {
         self.0.strike()
     }
+    /// Return inclusive first contract date.
     #[getter]
     fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.effective_date())
     }
+    /// Return final contract date; expiry is at midnight UTC.
     #[getter]
     fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.expiry_date())

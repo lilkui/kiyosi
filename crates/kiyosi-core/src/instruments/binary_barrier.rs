@@ -15,6 +15,7 @@ pub enum SettlementTiming {
 }
 
 /// Binary strike and monitoring inputs; validated by [`BinaryBarrierOption::cash`] or
+///
 /// [`BinaryBarrierOption::asset`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinaryBarrierTerms {
@@ -39,6 +40,7 @@ pub struct BinaryBarrierTerms {
 }
 impl BinaryBarrierTerms {
     /// Supplies continuous monitoring and unknown history without validation.
+    ///
     /// See [`BinaryBarrierOption::cash`] for validation and an example.
     pub fn new(
         option_type: OptionType,
@@ -77,6 +79,7 @@ impl BinaryBarrierTerms {
 }
 
 /// Owns a validated strike-based binary barrier paying cash or the asset at expiry.
+///
 /// Shared reads and pricing are safe; replacement returns an independent owner.
 /// See [`Self::cash`] and [`Self::asset`].
 #[derive(Clone, Debug, PartialEq)]
@@ -86,15 +89,18 @@ pub struct BinaryBarrierOption {
 }
 impl BinaryBarrierOption {
     /// Creates a positive-cash binary contract, paying strictly in the money if active.
+    ///
     /// Validates payout, strike and life before barrier and schedule terms.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for invalid payout, strike, life,
     /// barrier or fixing dates, checked in that order. History relative to valuation
     /// and calendar compatibility are checked during pricing.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let terms = BinaryBarrierTerms::new(OptionType::Call, 100.0,
@@ -119,10 +125,12 @@ impl BinaryBarrierOption {
     /// Creates an asset binary with the same monitoring and strict payoff as [`Self::cash`].
     ///
     /// # Errors
+    ///
     /// Reuses [`Self::cash`] validation without a cash payout.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let option = BinaryBarrierOption::asset(BinaryBarrierTerms::new(OptionType::Put, 100.0,
@@ -155,9 +163,11 @@ impl BinaryBarrierOption {
         self.digital.payout()
     }
     /// Returns an owning copy with replaced strictly prior history; `None` restores unknown.
+    ///
     /// See [`BarrierOption::replace`] for an example and time consistency rules.
     ///
     /// # Errors
+    ///
     /// Reuses validated monitoring construction; typed history cannot invalidate construction.
     pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Result<Self> {
         Ok(Self {
@@ -189,6 +199,7 @@ pub struct TouchOptionTerms {
 }
 impl TouchOptionTerms {
     /// Supplies expiry payment, continuous monitoring and unknown history without validation.
+    ///
     /// See [`TouchOption::cash`] for validation and an example.
     pub fn new(
         effective_date: Date,
@@ -230,6 +241,7 @@ impl TouchOptionTerms {
 }
 
 /// Owns a validated cash/asset one-touch or no-touch contract, with no strike.
+///
 /// Prior at-hit touches are already paid; shared reads and pricing are safe.
 /// See [`Self::cash`] and [`Self::asset`].
 #[derive(Clone, Debug, PartialEq)]
@@ -240,14 +252,17 @@ pub struct TouchOption {
 }
 impl TouchOption {
     /// Creates a cash touch contract; one-touch pays on a hit, no-touch on its absence.
+    ///
     /// Current at-hit cash pays the payout; prior at-hit settlement has zero remaining value.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for invalid positive payout or barrier,
     /// reversed life, invalid fixings, or at-hit no-touch settlement.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let option = TouchOption::cash(TouchOptionTerms::new(Date::new(2025, 1, 1)?,
@@ -270,13 +285,16 @@ impl TouchOption {
         })
     }
     /// Creates an asset touch contract with [`Self::cash`]'s monitoring rules.
+    ///
     /// A current at-hit touch pays spot; future continuous hits transfer the barrier amount.
     ///
     /// # Errors
+    ///
     /// Reuses [`Self::cash`] validation without a cash payout.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let option = TouchOption::asset(TouchOptionTerms::new(Date::new(2025, 1, 1)?,
@@ -310,9 +328,11 @@ impl TouchOption {
         self.barrier_type().is_up()
     }
     /// Returns an owning copy with replaced strictly prior history; `None` restores unknown.
+    ///
     /// See [`BarrierOption::replace`] for examples and time consistency rules.
     ///
     /// # Errors
+    ///
     /// Reuses validated monitoring construction; typed history cannot invalidate construction.
     pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Result<Self> {
         Ok(Self {

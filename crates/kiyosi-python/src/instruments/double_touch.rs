@@ -7,12 +7,35 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};
 
+/// Cash one-touch or no-touch contract with two inclusive boundaries.
+///
+/// Notes
+/// -----
+/// Construct with cash_double_touch or cash_double_no_touch. Prior at-hit
+/// payments have no remaining value.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct DoubleTouchOption(pub core::DoubleTouchOption);
 
 #[pymethods]
 impl DoubleTouchOption {
+    /// Return a validated replacement without changing this value.
+    ///
+    /// Parameters
+    /// ----------
+    /// touch_state : {'untouched', 'touched'} or None, optional
+    ///     Strictly prior history. None means unknown; untouched means known no
+    ///     hit.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     New instance of the same class; omitted fields retain their values.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (**fields))]
     fn replace(&self, py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
         check_changes(fields, &["touch_state"])?;
@@ -26,30 +49,37 @@ impl DoubleTouchOption {
         };
         Ok(Self(domain(py, self.0.replace(state))?))
     }
+    /// Return inclusive first contract date.
     #[getter]
     fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.effective_date())
     }
+    /// Return final contract date; expiry is at midnight UTC.
     #[getter]
     fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.expiry_date())
     }
+    /// Return positive finite lower trigger; equality counts as a touch.
     #[getter]
     fn lower_barrier(&self) -> f64 {
         self.0.lower_barrier()
     }
+    /// Return finite upper trigger, strictly above the lower trigger.
     #[getter]
     fn upper_barrier(&self) -> f64 {
         self.0.upper_barrier()
     }
+    /// Return the cash payout, or None for asset settlement.
     #[getter]
     fn payout(&self) -> f64 {
         self.0.payout()
     }
+    /// Return whether touching activates payment.
     #[getter]
     fn is_one_touch(&self) -> bool {
         self.0.is_one_touch()
     }
+    /// Return at-hit or expiry payment; no-touch contracts settle only at expiry.
     #[getter]
     fn settlement_timing(&self) -> &'static str {
         match self.0.settlement_timing() {
@@ -57,6 +87,7 @@ impl DoubleTouchOption {
             core::SettlementTiming::AtExpiry => "at_expiry",
         }
     }
+    /// Return continuous monitoring or observations on the supplied dates.
     #[getter]
     fn observation_mode(&self) -> &'static str {
         match self.0.observation_mode() {
@@ -64,10 +95,12 @@ impl DoubleTouchOption {
             core::ObservationMode::Scheduled => "scheduled",
         }
     }
+    /// Return an owned copy of the monitoring schedule.
     #[getter]
     fn observation_schedule(&self) -> ObservationSchedule {
         ObservationSchedule(self.0.observation_schedule().clone())
     }
+    /// Return a copy of the contractual observation dates.
     #[getter]
     fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
         self.0
@@ -76,6 +109,7 @@ impl DoubleTouchOption {
             .map(|&d| python_date(py, d))
             .collect()
     }
+    /// Return strictly prior touch history, or None if unknown.
     #[getter]
     fn touch_state(&self) -> Option<&'static str> {
         self.0.touch_state().map(|s| match s {
@@ -86,7 +120,8 @@ impl DoubleTouchOption {
 }
 
 macro_rules! double_touch_factory {
-    ($name:ident, $kind:ident) => {
+    ($name:ident, $kind:ident, $doc:literal) => {
+        #[doc = $doc]
         #[pyfunction]
         #[pyo3(signature = (*, effective_date, expiry_date, lower_barrier, upper_barrier, payout, **settings))]
         pub(crate) fn $name(
@@ -116,5 +151,89 @@ macro_rules! double_touch_factory {
         }
     };
 }
-double_touch_factory!(cash_double_touch, KnockIn);
-double_touch_factory!(cash_double_no_touch, KnockOut);
+double_touch_factory!(
+    cash_double_touch,
+    KnockIn,
+    r"Create a cash payment activated by either inclusive boundary.
+
+Parameters
+----------
+effective_date : datetime.date
+    Inclusive first contract date.
+expiry_date : datetime.date
+    Final contract date; expiry is at midnight UTC.
+lower_barrier : float
+    Positive finite lower trigger; equality counts as a touch.
+upper_barrier : float
+    Finite upper trigger, strictly above the lower trigger.
+payout : float
+    Positive finite cash payment.
+settlement_timing : {'at_hit', 'at_expiry'}, optional
+    At-hit or expiry payment; no-touch contracts settle only at expiry.
+observation_mode : {'continuous', 'scheduled'}, optional
+    Continuous monitoring or observations on the supplied dates.
+observation_dates : iterable of date, optional
+    Strictly increasing observation dates within the contract life.
+touch_state : {'untouched', 'touched'} or None, optional
+    Strictly prior history. None means unknown; untouched means known no
+    hit.
+
+Returns
+-------
+DoubleTouchOption
+    Validated owned contract.
+
+Raises
+------
+InvalidInputError
+    If contractual amounts, life dates or observation terms are invalid.
+
+Notes
+-----
+Barrier equality counts as a touch. Strictly prior history and trading
+calendar compatibility are checked during pricing. Prior at-hit
+payments have no remaining value. No-touch payments occur only at
+expiry."
+);
+double_touch_factory!(
+    cash_double_no_touch,
+    KnockOut,
+    r"Create an expiry cash payment requiring neither boundary to be touched.
+
+Parameters
+----------
+effective_date : datetime.date
+    Inclusive first contract date.
+expiry_date : datetime.date
+    Final contract date; expiry is at midnight UTC.
+lower_barrier : float
+    Positive finite lower trigger; equality counts as a touch.
+upper_barrier : float
+    Finite upper trigger, strictly above the lower trigger.
+payout : float
+    Positive finite cash payment.
+observation_mode : {'continuous', 'scheduled'}, optional
+    Continuous monitoring or observations on the supplied dates.
+observation_dates : iterable of date, optional
+    Strictly increasing observation dates within the contract life.
+touch_state : {'untouched', 'touched'} or None, optional
+    Strictly prior history. None means unknown; untouched means known no
+    hit.
+
+Returns
+-------
+DoubleTouchOption
+    Validated owned contract.
+
+Raises
+------
+InvalidInputError
+    If contractual amounts, life dates or observation terms are invalid.
+
+Notes
+-----
+Barrier equality counts as a touch. Strictly prior history and trading
+calendar compatibility are checked during pricing. Prior at-hit
+payments have no remaining value. No-touch payments occur only at
+expiry."
+);

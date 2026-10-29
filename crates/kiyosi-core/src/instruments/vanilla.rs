@@ -1,13 +1,17 @@
 use crate::{Date, Error, Result, error::finite};
 
-/// Direction of a vanilla option payoff.
+/// Selects the call or put payoff direction.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OptionType {
+    /// Pays the positive excess of spot over strike.
     Call,
+    /// Pays the positive excess of strike over spot.
     Put,
 }
 
-/// Owning, validated European vanilla contract. Expiry occurs at midnight UTC.
+/// Owns a validated European vanilla contract expiring at midnight UTC.
+///
+/// See [`Self::new`] for construction and [`crate::AnalyticEuropeanEngine`] for pricing.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EuropeanOption {
     option_type: OptionType,
@@ -18,6 +22,22 @@ pub struct EuropeanOption {
 
 impl EuropeanOption {
     /// Creates a positive-strike contract with inclusive, ordered life dates.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for a non-finite or nonpositive strike,
+    /// then for reversed life dates.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi_core::{Date, EuropeanOption, OptionType};
+    /// # fn main() -> kiyosi_core::Result<()> {
+    /// let option = EuropeanOption::new(OptionType::Call, 100.0,
+    ///     Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?)?;
+    /// assert_eq!(option.strike(), 100.0);
+    /// # Ok(()) }
+    /// ```
     pub fn new(
         option_type: OptionType,
         strike: f64,
@@ -36,21 +56,26 @@ impl EuropeanOption {
         })
     }
 
+    /// Returns the payoff direction; see [`Self::new`].
     pub fn option_type(&self) -> OptionType {
         self.option_type
     }
+    /// Returns the positive strike; see [`Self::new`].
     pub fn strike(&self) -> f64 {
         self.strike
     }
+    /// Returns the inclusive first date; see [`Self::new`].
     pub fn effective_date(&self) -> Date {
         self.effective_date
     }
+    /// Returns expiry at midnight UTC; see [`Self::new`].
     pub fn expiry_date(&self) -> Date {
         self.expiry_date
     }
 }
 
 /// Exposes contract dates and permitted valuation bounds for numerical analysis and solving.
+///
 /// Implementations retain their own payoff; engines select supported contract types.
 /// See [`DigitalOption::cash_or_nothing`] for an example contract.
 pub trait OptionContract {
@@ -60,12 +85,14 @@ pub trait OptionContract {
     fn expiry_date(&self) -> Date;
 
     /// Returns the earliest valuation date, or `None` when pre-effective valuation is valid.
+    ///
     /// Defaults to the effective date; see [`crate::AnalyticRangeAccrualEngine::price`].
     fn valuation_start(&self) -> Option<Date> {
         Some(self.effective_date())
     }
 
     /// Reports whether every Greek is undefined at the current spot discontinuity.
+    ///
     /// Defaults to [`Self::at_spot_discontinuity`] with zero radius. Range coupons retain
     /// vega and rho; see [`crate::AnalyticRangeAccrualEngine::price_with_greeks`].
     fn all_greeks_unavailable(&self, context: &crate::PricingContext) -> bool {
@@ -73,6 +100,7 @@ pub trait OptionContract {
     }
 
     /// Reports whether a spot interval crosses a current payoff discontinuity.
+    ///
     /// Defaults to `false`. Barrier contracts suppress undefined sensitivities at
     /// a current touch and stencils reaching it; see [`crate::AnalyticBarrierEngine::price_with_greeks`].
     fn at_spot_discontinuity(&self, _context: &crate::PricingContext, _radius: f64) -> bool {
@@ -80,6 +108,7 @@ pub trait OptionContract {
     }
 
     /// Reports whether a time stencil preserves the supplied history regime.
+    ///
     /// Defaults to `true`; Asian contracts prevent crossing their averaging start.
     /// See [`crate::AnalyticGeometricAveragePriceEngine::price_with_greeks`].
     fn time_stencil_available(
@@ -102,6 +131,7 @@ impl OptionContract for EuropeanOption {
 }
 
 /// Owns a validated European cash-or-nothing or asset-or-nothing contract.
+///
 /// Both pay only strictly in the money; equality at expiry pays zero.
 /// See [`Self::cash_or_nothing`] and [`Self::asset_or_nothing`] for examples.
 #[derive(Clone, Debug, PartialEq)]
@@ -111,6 +141,7 @@ pub struct DigitalOption {
 }
 
 /// Selects digital contract replacements; absent fields retain their values.
+///
 /// See [`DigitalOption::replace`] for an example.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct DigitalOptionChanges {
@@ -130,11 +161,13 @@ impl DigitalOption {
     /// Creates a European contract paying fixed cash strictly in the money.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for nonpositive or non-finite payout,
     /// invalid strike, or reversed dates, checked in that order.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{Date, DigitalOption, OptionType};
     /// # fn main() -> kiyosi_core::Result<()> {
     /// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
@@ -163,11 +196,13 @@ impl DigitalOption {
     /// Creates a European contract paying the terminal asset strictly in the money.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for nonpositive or non-finite strike,
     /// then for reversed dates.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{Date, DigitalOption, OptionType};
     /// # fn main() -> kiyosi_core::Result<()> {
     /// let option = DigitalOption::asset_or_nothing(OptionType::Put, 100.0,
@@ -190,11 +225,13 @@ impl DigitalOption {
     /// Returns an owning replacement, preserving the settlement kind and the original.
     ///
     /// # Errors
+    ///
     /// Reuses constructor validation. Setting cash payout on an asset contract returns
     /// [`Error::UnsupportedOperation`]. Failure leaves the original unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{Date, DigitalOption, DigitalOptionChanges, OptionType};
     /// # fn main() -> kiyosi_core::Result<()> {
     /// let original = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
@@ -260,6 +297,7 @@ impl OptionContract for DigitalOption {
 }
 
 /// Owns vanilla terms exercisable at any time during the inclusive contract life.
+///
 /// Expiry occurs at midnight UTC. See [`Self::new`] for an example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AmericanOption {
@@ -267,6 +305,7 @@ pub struct AmericanOption {
 }
 
 /// Selects American contract replacements; absent fields retain their values.
+///
 /// See [`AmericanOption::replace`] for an example.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AmericanOptionChanges {
@@ -284,11 +323,13 @@ impl AmericanOption {
     /// Creates an American vanilla contract with ordered, inclusive exercise dates.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for nonpositive or non-finite strike,
     /// then for reversed dates.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{AmericanOption, Date, OptionType};
     /// # fn main() -> kiyosi_core::Result<()> {
     /// let option = AmericanOption::new(OptionType::Put, 100.0,
@@ -313,10 +354,12 @@ impl AmericanOption {
     /// Returns a validated owning replacement, leaving the original unchanged.
     ///
     /// # Errors
+    ///
     /// Reuses [`Self::new`] validation. Failure leaves the original unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{AmericanOption, AmericanOptionChanges, Date, OptionType};
     /// # fn main() -> kiyosi_core::Result<()> {
     /// let original = AmericanOption::new(OptionType::Put, 100.0,

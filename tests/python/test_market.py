@@ -1,4 +1,4 @@
-"""Shared term-structure contracts, runnable against Rust implementation."""
+"""Term-structure validation and pricing through the Python API."""
 
 import math
 import numbers

@@ -271,7 +271,8 @@ fn bjerksund_call(
             ))
 }
 
-/// Prices American vanilla options using the existing Bjerksund–Stensland 2002 approximation.
+/// Prices American vanilla options using the Bjerksund–Stensland 2002 approximation.
+///
 /// This synchronous, stateless engine supports shared concurrent use. It accepts
 /// scalar or explicitly flat rates only; it never substitutes another American algorithm.
 /// See [`Self::price`] for an example and applicability limits.
@@ -286,9 +287,11 @@ impl BjerksundStenslandVanillaEngine {
     }
 
     /// Returns the approximation, bounded below by intrinsic and European values.
+    ///
     /// At expiry returns intrinsic value, including under negative rates.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::UnsupportedOperation`] for node curves (before life
     /// validation), negative transformed interest rates before expiry (call: rate;
     /// put: dividend), or exercise boundaries at/below strike. Returns
@@ -297,7 +300,8 @@ impl BjerksundStenslandVanillaEngine {
     /// European continuation pricing errors propagate. Inputs remain unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{AmericanOption, BjerksundStenslandVanillaEngine,
     ///     BlackScholesMertonParameters, Date, OptionType, PricingContext};
     /// # fn main() -> kiyosi_core::Result<()> {
@@ -366,14 +370,17 @@ impl BjerksundStenslandVanillaEngine {
     }
 
     /// Returns the price and requested finite-difference Greeks with core bump defaults.
+    ///
     /// At expiry all Greeks are absent. Feasible bumped domain failures propagate.
     ///
     /// # Errors
+    ///
     /// Checks flat-rate applicability before request/shift validation, then reuses
     /// [`Self::price`] and [`numerical_greeks`] errors. Inputs remain unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{AmericanOption, BjerksundStenslandVanillaEngine,
     ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
     /// # fn main() -> kiyosi_core::Result<()> {

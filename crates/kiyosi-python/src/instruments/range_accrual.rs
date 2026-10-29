@@ -12,6 +12,30 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
     }
 }
 
+/// Range coupon paid at expiry without principal repayment.
+///
+/// Parameters
+/// ----------
+/// notional : float
+///     Positive finite coupon notional, without principal repayment.
+/// annual_coupon_rate : float
+///     Nonnegative finite annual coupon rate in decimal units.
+/// lower_bound : float
+///     Inclusive nonnegative lower spot boundary.
+/// upper_bound : float
+///     Inclusive finite upper spot boundary, above the lower boundary.
+/// effective_date : datetime.date
+///     Inclusive first contract date.
+/// expiry_date : datetime.date
+///     Final contract date; expiry is at midnight UTC.
+/// realized_hit_count : int or None, optional
+///     Hits strictly before valuation, or None for unknown history.
+///
+/// Notes
+/// -----
+/// Observe trading dates in (effective_date, expiry_date]. Bounds are
+/// inclusive. Payment is notional times annual coupon times Actual/365 Fixed
+/// life times the fraction of observations inside the range.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct RangeAccrualOption(pub core::RangeAccrualOption);
@@ -45,6 +69,22 @@ impl RangeAccrualOption {
         Ok(Self(domain(py, core::RangeAccrualOption::new(terms))?))
     }
 
+    /// Return a validated replacement without changing this value.
+    ///
+    /// Parameters
+    /// ----------
+    /// realized_hit_count : int or None, optional
+    ///     Hits strictly before valuation, or None for unknown history.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     New instance of the same class; omitted fields retain their values.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (**fields))]
     fn replace(&self, py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
         check_changes(fields, &["realized_hit_count"])?;
@@ -58,30 +98,37 @@ impl RangeAccrualOption {
         };
         Ok(Self(domain(py, self.0.replace(count))?))
     }
+    /// Return positive finite coupon notional, without principal repayment.
     #[getter]
     fn notional(&self) -> f64 {
         self.0.notional()
     }
+    /// Return nonnegative finite annual coupon rate in decimal units.
     #[getter]
     fn annual_coupon_rate(&self) -> f64 {
         self.0.annual_coupon_rate()
     }
+    /// Return inclusive nonnegative lower spot boundary.
     #[getter]
     fn lower_bound(&self) -> f64 {
         self.0.lower_bound()
     }
+    /// Return inclusive finite upper spot boundary, above the lower boundary.
     #[getter]
     fn upper_bound(&self) -> f64 {
         self.0.upper_bound()
     }
+    /// Return inclusive first contract date.
     #[getter]
     fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.effective_date())
     }
+    /// Return final contract date; expiry is at midnight UTC.
     #[getter]
     fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.expiry_date())
     }
+    /// Return hits strictly before valuation, or None for unknown history.
     #[getter]
     fn realized_hit_count(&self) -> Option<i32> {
         self.0.realized_hit_count()

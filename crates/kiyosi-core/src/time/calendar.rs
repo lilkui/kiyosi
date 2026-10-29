@@ -2,10 +2,14 @@ use std::{fmt, sync::Arc};
 
 use crate::{Date, Error, Result};
 
-/// Direction of inclusive business-day adjustment.
+/// Selects the direction of inclusive business-day adjustment.
+///
+/// See [`TradingCalendar::adjust`] for usage.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BusinessDayConvention {
+    /// Keeps a trading date or advances to the next one.
     Following,
+    /// Keeps a trading date or retreats to the preceding one.
     Preceding,
 }
 
@@ -17,7 +21,9 @@ enum CalendarKind {
     Predicate(Arc<dyn Fn(Date) -> bool + Send + Sync>),
 }
 
-/// Owning calendar with a positive annualization basis. Defaults to weekdays / 252.
+/// Owns a trading-day predicate and positive annualization basis.
+///
+/// Defaults to [`Self::weekdays`] with a 252-day basis.
 /// All instances support shared concurrent reads. Custom predicates must be deterministic
 /// throughout each operation and safe for concurrent invocation; query order/count is unspecified.
 /// Clones retain predicate ownership. Predicate calendars compare by shared predicate identity,
@@ -63,7 +69,9 @@ impl PartialEq for TradingCalendar {
 impl Eq for TradingCalendar {}
 
 impl TradingCalendar {
-    /// Every supported Gregorian date is open; annualization basis 365.
+    /// Creates a calendar with every date open and a 365-day basis.
+    ///
+    /// See [`Self::adjust`] for calendar usage.
     pub fn all_days() -> Self {
         Self {
             kind: CalendarKind::AllDays,
@@ -71,7 +79,9 @@ impl TradingCalendar {
         }
     }
 
-    /// Monday through Friday, ignoring holidays; annualization basis 252.
+    /// Creates a Monday-through-Friday calendar with a 252-day basis.
+    ///
+    /// Ignores holidays; see [`Self::adjust`] for calendar usage.
     pub fn weekdays() -> Self {
         Self {
             kind: CalendarKind::Weekdays,
@@ -79,8 +89,12 @@ impl TradingCalendar {
         }
     }
 
-    /// SSE weekday closures for 1991–2099, weekdays outside that range; basis 243.
-    /// Future closures are estimates; see `docs/sse-calendar.md` for sources and maintenance.
+    /// Creates an SSE calendar with weekday closures for 1991–2099 and a 243-day basis.
+    ///
+    /// Uses weekdays outside that range. Closures beyond the recorded XSHG history
+    /// are forecasts that omit ad-hoc closures. Regenerate the bundled table with
+    /// `tools/generate_sse_calendar.py` as upstream history grows.
+    /// See [`Self::adjust`] for calendar usage.
     pub fn sse() -> Self {
         Self {
             kind: CalendarKind::Sse,
@@ -88,9 +102,15 @@ impl TradingCalendar {
         }
     }
 
-    /// Validates the positive annualization basis before retaining an owning predicate.
-    /// Nonpositive bases return [`Error::InvalidInput`]. The closure must satisfy the type's
-    /// determinism contract. A panic in user code remains a native Rust panic.
+    /// Creates a calendar from an owned predicate and positive annualization basis.
+    ///
+    /// The predicate must satisfy [`TradingCalendar`]'s determinism contract.
+    /// Predicate panics propagate when the calendar is queried.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for a nonpositive basis.
+    /// See [`Self::custom`] for date overrides without a custom predicate.
     pub fn new(
         predicate: impl Fn(Date) -> bool + Send + Sync + 'static,
         basis: i32,
@@ -106,9 +126,15 @@ impl TradingCalendar {
         })
     }
 
-    /// Owning open/closed overrides. Inputs may be unsorted and repeated; conflicts return
-    /// [`Error::InvalidInput`]. The optional positive basis defaults to the base's, never recalculated.
-    /// Validation completes before a calendar is returned; the base is never mutated.
+    /// Creates a calendar with owned open/closed overrides on a base calendar.
+    ///
+    /// Override dates may be unsorted or repeated. The basis defaults to the base's
+    /// value and is never recalculated from the overrides. The base is consumed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for dates present in both override lists,
+    /// then for a nonpositive basis. See [`Self::adjust`] for calendar usage.
     pub fn custom(
         base: Self,
         mut closed: Vec<Date>,
@@ -136,6 +162,7 @@ impl TradingCalendar {
         )
     }
 
+    /// Returns the positive annualization basis; see [`Self::weekdays`].
     pub fn trading_days_per_year(&self) -> i32 {
         self.basis
     }
@@ -153,7 +180,24 @@ impl TradingCalendar {
         }
     }
 
-    /// Adjusts inclusively; [`Error::InvalidInput`] if no trading date exists in the supported direction.
+    /// Returns the nearest trading date in the selected direction, including `nominal`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] if no trading date exists before reaching
+    /// the supported date-range boundary. Custom predicate panics propagate.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi_core::{BusinessDayConvention, Date, TradingCalendar};
+    /// # fn main() -> kiyosi_core::Result<()> {
+    /// let calendar = TradingCalendar::weekdays();
+    /// let saturday = Date::new(2025, 1, 4)?;
+    /// assert_eq!(calendar.adjust(saturday, BusinessDayConvention::Following)?,
+    ///     Date::new(2025, 1, 6)?);
+    /// # Ok(()) }
+    /// ```
     pub fn adjust(&self, nominal: Date, convention: BusinessDayConvention) -> Result<Date> {
         let direction = match convention {
             BusinessDayConvention::Following => 1,
@@ -168,7 +212,12 @@ impl TradingCalendar {
         }
     }
 
-    /// Counts trading dates in `[start, end)`. Reversed ranges return [`Error::InvalidInput`].
+    /// Counts trading dates in `[start, end)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for reversed ranges.
+    /// Custom predicate panics propagate. See [`Self::adjust`] for calendar setup.
     pub fn trading_days_between(&self, start: Date, end: Date) -> Result<i32> {
         validate_range(start, end)?;
         let mut date = start;
@@ -180,7 +229,12 @@ impl TradingCalendar {
         Ok(count)
     }
 
-    /// Trading-day count over `[start, end)` divided by the positive annualization basis.
+    /// Returns the trading-day count over `[start, end)` divided by the basis.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`Self::trading_days_between`] errors and predicate panics.
+    /// See [`Self::adjust`] for calendar setup.
     pub fn trading_year_fraction(&self, start: Date, end: Date) -> Result<f64> {
         Ok(f64::from(self.trading_days_between(start, end)?) / f64::from(self.basis))
     }

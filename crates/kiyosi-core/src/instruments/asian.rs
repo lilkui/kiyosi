@@ -79,22 +79,27 @@ impl AverageTerms {
 macro_rules! average_option {
     ($name:ident, $description:literal) => {
         #[doc = $description]
+        ///
         /// Owns validated continuous-average terms; a zero-length window fixes once at expiry.
+        ///
         /// See [`Self::new`] for construction and [`Self::replace`] for history updates.
         #[derive(Clone, Debug, PartialEq)]
         pub struct $name(pub(crate) AverageTerms);
         impl $name {
             /// Creates an average-price contract with explicit history.
+            ///
             /// Use [`DEFAULT_REALIZED_AVERAGE`] before averaging starts. Positive history
             /// is required strictly after the averaging start, checked during pricing.
             ///
             /// # Errors
+            ///
             /// Returns [`Error::InvalidInput`] for invalid strike, negative or non-finite
             /// history, reversed life dates, or averaging outside contract life, checked in
             /// that order.
             ///
             /// # Examples
-            /// ```
+            ///
+            /// ```rust
             /// use kiyosi_core::{Date, OptionType, GeometricAveragePriceOption,
             ///     ArithmeticAveragePriceOption, DEFAULT_REALIZED_AVERAGE};
             /// # fn main() -> kiyosi_core::Result<()> {
@@ -128,11 +133,13 @@ macro_rules! average_option {
             /// Returns an owning copy with replaced history, preserving all other terms.
             ///
             /// # Errors
+            ///
             /// Reuses [`Self::new`] validation; failures leave this contract unchanged.
             /// Zero denotes no elapsed history, with time consistency checked at pricing.
             ///
             /// # Examples
-            /// ```
+            ///
+            /// ```rust
             /// use kiyosi_core::{Date, OptionType, GeometricAveragePriceOption};
             /// # fn main() -> kiyosi_core::Result<()> {
             /// let start = Date::new(2025, 1, 1)?;

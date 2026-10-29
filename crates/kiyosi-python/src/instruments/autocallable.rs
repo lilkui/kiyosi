@@ -47,7 +47,23 @@ fn reals(values: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
     values.try_iter()?.map(|item| real(&item?)).collect()
 }
 
-/// Owns an input observation; note construction performs domain validation.
+/// Input observation validated when its note is constructed.
+///
+/// Parameters
+/// ----------
+/// date : datetime.date
+///     Observation date at midnight UTC.
+/// knock_out_level : float
+///     Positive inclusive knock-out threshold.
+/// coupon_rate : float, optional
+///     Finite annual coupon rate in decimal units.
+/// coupon_barrier_level : float, optional
+///     Inclusive Phoenix coupon threshold; must be zero for snowballs.
+///
+/// Notes
+/// -----
+/// This record checks Python representations only. Note construction
+/// validates contractual levels and coupons.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct AutocallableObservation(pub core::AutocallableObservation);
@@ -70,18 +86,22 @@ impl AutocallableObservation {
             risk::real_setting(fields, "coupon_barrier_level", record.coupon_barrier_level)?;
         Ok(Self(record))
     }
+    /// Return observation date at midnight UTC.
     #[getter]
     fn date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.date)
     }
+    /// Return positive inclusive knock-out threshold.
     #[getter]
     fn knock_out_level(&self) -> f64 {
         self.0.knock_out_level
     }
+    /// Return finite annual coupon rate in decimal units.
     #[getter]
     fn coupon_rate(&self) -> f64 {
         self.0.coupon_rate
     }
+    /// Return the inclusive Phoenix coupon threshold.
     #[getter]
     fn coupon_barrier_level(&self) -> f64 {
         self.0.coupon_barrier_level
@@ -97,6 +117,32 @@ impl AutocallableObservation {
     }
 }
 
+/// Associate parallel sequences into input observation records.
+///
+/// Parameters
+/// ----------
+/// observation_dates : iterable of date
+///     Strictly increasing observation dates within the contract life.
+/// knock_out_levels : iterable of float
+///     Positive inclusive knock-out levels, one per observation date.
+/// knock_out_coupon_rates : iterable of float or None, optional
+///     Annual snowball coupons; None uses zero for every observation.
+/// coupon_barrier_levels : iterable of float or None, optional
+///     Phoenix coupon thresholds; None uses zero for every observation.
+///
+/// Returns
+/// -------
+/// list of AutocallableObservation
+///     Owned result; no input is mutated.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If sequence lengths differ.
+///
+/// Notes
+/// -----
+/// The note constructor validates contractual values and ordering.
 #[pyfunction]
 #[pyo3(signature = (observation_dates, knock_out_levels, *, knock_out_coupon_rates=None, coupon_barrier_levels=None))]
 pub(crate) fn autocallable_observations(
@@ -120,7 +166,8 @@ pub(crate) fn autocallable_observations(
 }
 
 macro_rules! snowball_preset {
-    ($name:ident, $coupon:ident, $level:ident, [$($extra:ident),*], $preset:expr) => {
+    ($name:ident, $coupon:ident, $level:ident, [$($extra:ident),*], $preset:expr, $doc:literal) => {
+        #[doc = $doc]
         #[pyfunction]
         #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* observation_dates, effective_date, expiry_date, barrier_state=None, **fields))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
@@ -156,14 +203,94 @@ snowball_preset!(
     coupon_rate,
     knock_out_level,
     [],
-    core::SnowballPreset::Standard
+    core::SnowballPreset::Standard,
+    r"Create constant knock-out coupons and levels with daily knock-in
+monitoring.
+
+Parameters
+----------
+coupon_rate : float
+    Finite annual coupon rate in decimal units.
+initial_spot : float
+    Positive reference spot used to normalize downside losses.
+knock_in_level : float
+    Positive strict downside threshold.
+knock_out_level : float
+    Positive inclusive knock-out threshold.
+observation_dates : iterable of date
+    Strictly increasing observation dates within the contract life.
+effective_date : datetime.date
+    Inclusive first contract date.
+expiry_date : datetime.date
+    Final contract date; expiry is at midnight UTC.
+barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+    Strictly prior events. None is unknown; the string none means no
+    event.
+principal_ratio : float, optional
+    Nonnegative normalized principal, independent of coupons and losses.
+
+Returns
+-------
+SnowballOption
+    Validated owned contract.
+
+Raises
+------
+InvalidInputError
+    If contractual amounts, life dates or observation terms are invalid.
+
+Notes
+-----
+Daily knock-in monitoring, unit principal, zero lower strike and initial
+spot as upper strike are used unless the preset overrides them. History
+and trading-calendar consistency are checked during pricing."
 );
 snowball_preset!(
     european_snowball,
     coupon_rate,
     knock_out_level,
     [],
-    core::SnowballPreset::European
+    core::SnowballPreset::European,
+    r"Create a snowball with knock-in observed only at expiry.
+
+Parameters
+----------
+coupon_rate : float
+    Finite annual coupon rate in decimal units.
+initial_spot : float
+    Positive reference spot used to normalize downside losses.
+knock_in_level : float
+    Positive strict downside threshold.
+knock_out_level : float
+    Positive inclusive knock-out threshold.
+observation_dates : iterable of date
+    Strictly increasing observation dates within the contract life.
+effective_date : datetime.date
+    Inclusive first contract date.
+expiry_date : datetime.date
+    Final contract date; expiry is at midnight UTC.
+barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+    Strictly prior events. None is unknown; the string none means no
+    event.
+principal_ratio : float, optional
+    Nonnegative normalized principal, independent of coupons and losses.
+
+Returns
+-------
+SnowballOption
+    Validated owned contract.
+
+Raises
+------
+InvalidInputError
+    If contractual amounts, life dates or observation terms are invalid.
+
+Notes
+-----
+Daily knock-in monitoring, unit principal, zero lower strike and initial
+spot as upper strike are used unless the preset overrides them. History
+and trading-calendar consistency are checked during pricing. Knock-in is
+observed only at expiry."
 );
 snowball_preset!(
     step_down_snowball,
@@ -172,7 +299,51 @@ snowball_preset!(
     [knock_out_level_decrement],
     core::SnowballPreset::StepDown {
         knock_out_level_decrement
-    }
+    },
+    r"Create a snowball with decreasing knock-out levels.
+
+Parameters
+----------
+coupon_rate : float
+    Finite annual coupon rate in decimal units.
+initial_spot : float
+    Positive reference spot used to normalize downside losses.
+knock_in_level : float
+    Positive strict downside threshold.
+initial_knock_out_level : float
+    Positive knock-out threshold at the first observation.
+knock_out_level_decrement : float
+    Absolute price decrement after each observation; may be negative.
+observation_dates : iterable of date
+    Strictly increasing observation dates within the contract life.
+effective_date : datetime.date
+    Inclusive first contract date.
+expiry_date : datetime.date
+    Final contract date; expiry is at midnight UTC.
+barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+    Strictly prior events. None is unknown; the string none means no
+    event.
+principal_ratio : float, optional
+    Nonnegative normalized principal, independent of coupons and losses.
+
+Returns
+-------
+SnowballOption
+    Validated owned contract.
+
+Raises
+------
+InvalidInputError
+    If contractual amounts, life dates or observation terms are invalid.
+
+Notes
+-----
+Daily knock-in monitoring, unit principal, zero lower strike and initial
+spot as upper strike are used unless the preset overrides them. History
+and trading-calendar consistency are checked during pricing.
+Decrements apply after each observation; the first uses the initial
+value. Signed coupons and decrements are accepted if all expanded terms
+remain valid."
 );
 snowball_preset!(
     both_down_snowball,
@@ -182,7 +353,53 @@ snowball_preset!(
     core::SnowballPreset::BothDown {
         coupon_rate_decrement,
         knock_out_level_decrement
-    }
+    },
+    r"Create a snowball with decreasing coupons and knock-out levels.
+
+Parameters
+----------
+initial_coupon_rate : float
+    Annual coupon rate at the first observation.
+initial_spot : float
+    Positive reference spot used to normalize downside losses.
+knock_in_level : float
+    Positive strict downside threshold.
+initial_knock_out_level : float
+    Positive knock-out threshold at the first observation.
+coupon_rate_decrement : float
+    Absolute decimal-rate decrement after each observation.
+knock_out_level_decrement : float
+    Absolute price decrement after each observation; may be negative.
+observation_dates : iterable of date
+    Strictly increasing observation dates within the contract life.
+effective_date : datetime.date
+    Inclusive first contract date.
+expiry_date : datetime.date
+    Final contract date; expiry is at midnight UTC.
+barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+    Strictly prior events. None is unknown; the string none means no
+    event.
+principal_ratio : float, optional
+    Nonnegative normalized principal, independent of coupons and losses.
+
+Returns
+-------
+SnowballOption
+    Validated owned contract.
+
+Raises
+------
+InvalidInputError
+    If contractual amounts, life dates or observation terms are invalid.
+
+Notes
+-----
+Daily knock-in monitoring, unit principal, zero lower strike and initial
+spot as upper strike are used unless the preset overrides them. History
+and trading-calendar consistency are checked during pricing.
+Decrements apply after each observation; the first uses the initial
+value. Signed coupons and decrements are accepted if all expanded terms
+remain valid. Maturity uses the final observation coupon."
 );
 snowball_preset!(
     dual_coupon_snowball,
@@ -191,7 +408,48 @@ snowball_preset!(
     [maturity_coupon_rate],
     core::SnowballPreset::DualCoupon {
         maturity_coupon_rate
-    }
+    },
+    r"Create a snowball with separate knock-out and maturity coupons.
+
+Parameters
+----------
+knock_out_coupon_rate : float
+    Annual coupon rate for knock-out settlement.
+initial_spot : float
+    Positive reference spot used to normalize downside losses.
+knock_in_level : float
+    Positive strict downside threshold.
+knock_out_level : float
+    Positive inclusive knock-out threshold.
+maturity_coupon_rate : float
+    Finite annual maturity coupon rate in decimal units.
+observation_dates : iterable of date
+    Strictly increasing observation dates within the contract life.
+effective_date : datetime.date
+    Inclusive first contract date.
+expiry_date : datetime.date
+    Final contract date; expiry is at midnight UTC.
+barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+    Strictly prior events. None is unknown; the string none means no
+    event.
+principal_ratio : float, optional
+    Nonnegative normalized principal, independent of coupons and losses.
+
+Returns
+-------
+SnowballOption
+    Validated owned contract.
+
+Raises
+------
+InvalidInputError
+    If contractual amounts, life dates or observation terms are invalid.
+
+Notes
+-----
+Daily knock-in monitoring, unit principal, zero lower strike and initial
+spot as upper strike are used unless the preset overrides them. History
+and trading-calendar consistency are checked during pricing."
 );
 snowball_preset!(
     parachute_snowball,
@@ -200,24 +458,173 @@ snowball_preset!(
     [final_knock_out_level],
     core::SnowballPreset::Parachute {
         final_knock_out_level
-    }
+    },
+    r"Create a snowball with a distinct final knock-out level.
+
+Parameters
+----------
+coupon_rate : float
+    Finite annual coupon rate in decimal units.
+initial_spot : float
+    Positive reference spot used to normalize downside losses.
+knock_in_level : float
+    Positive strict downside threshold.
+knock_out_level : float
+    Positive inclusive knock-out threshold.
+final_knock_out_level : float
+    Positive threshold replacing only the final knock-out level.
+observation_dates : iterable of date
+    Strictly increasing observation dates within the contract life.
+effective_date : datetime.date
+    Inclusive first contract date.
+expiry_date : datetime.date
+    Final contract date; expiry is at midnight UTC.
+barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+    Strictly prior events. None is unknown; the string none means no
+    event.
+principal_ratio : float, optional
+    Nonnegative normalized principal, independent of coupons and losses.
+
+Returns
+-------
+SnowballOption
+    Validated owned contract.
+
+Raises
+------
+InvalidInputError
+    If contractual amounts, life dates or observation terms are invalid.
+
+Notes
+-----
+Daily knock-in monitoring, unit principal, zero lower strike and initial
+spot as upper strike are used unless the preset overrides them. History
+and trading-calendar consistency are checked during pricing."
 );
 snowball_preset!(
     otm_snowball,
     coupon_rate,
     knock_out_level,
     [upper_strike],
-    core::SnowballPreset::Otm { upper_strike }
+    core::SnowballPreset::Otm { upper_strike },
+    r"Create a snowball with a replaced upper terminal strike.
+
+Parameters
+----------
+coupon_rate : float
+    Finite annual coupon rate in decimal units.
+initial_spot : float
+    Positive reference spot used to normalize downside losses.
+knock_in_level : float
+    Positive strict downside threshold.
+knock_out_level : float
+    Positive inclusive knock-out threshold.
+upper_strike : float
+    Positive upper terminal settlement strike.
+observation_dates : iterable of date
+    Strictly increasing observation dates within the contract life.
+effective_date : datetime.date
+    Inclusive first contract date.
+expiry_date : datetime.date
+    Final contract date; expiry is at midnight UTC.
+barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+    Strictly prior events. None is unknown; the string none means no
+    event.
+principal_ratio : float, optional
+    Nonnegative normalized principal, independent of coupons and losses.
+
+Returns
+-------
+SnowballOption
+    Validated owned contract.
+
+Raises
+------
+InvalidInputError
+    If contractual amounts, life dates or observation terms are invalid.
+
+Notes
+-----
+Daily knock-in monitoring, unit principal, zero lower strike and initial
+spot as upper strike are used unless the preset overrides them. History
+and trading-calendar consistency are checked during pricing."
 );
 snowball_preset!(
     loss_capped_snowball,
     coupon_rate,
     knock_out_level,
     [lower_strike],
-    core::SnowballPreset::LossCapped { lower_strike }
+    core::SnowballPreset::LossCapped { lower_strike },
+    r"Create a snowball whose lower terminal strike caps downside loss.
+
+Parameters
+----------
+coupon_rate : float
+    Finite annual coupon rate in decimal units.
+initial_spot : float
+    Positive reference spot used to normalize downside losses.
+knock_in_level : float
+    Positive strict downside threshold.
+knock_out_level : float
+    Positive inclusive knock-out threshold.
+lower_strike : float
+    Nonnegative lower terminal strike, at most the upper strike.
+observation_dates : iterable of date
+    Strictly increasing observation dates within the contract life.
+effective_date : datetime.date
+    Inclusive first contract date.
+expiry_date : datetime.date
+    Final contract date; expiry is at midnight UTC.
+barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+    Strictly prior events. None is unknown; the string none means no
+    event.
+principal_ratio : float, optional
+    Nonnegative normalized principal, independent of coupons and losses.
+
+Returns
+-------
+SnowballOption
+    Validated owned contract.
+
+Raises
+------
+InvalidInputError
+    If contractual amounts, life dates or observation terms are invalid.
+
+Notes
+-----
+Daily knock-in monitoring, unit principal, zero lower strike and initial
+spot as upper strike are used unless the preset overrides them. History
+and trading-calendar consistency are checked during pricing."
 );
 
-/// Owns a validated snowball; replacement never mutates the original.
+/// Snowball with knock-out coupons and capped knock-in downside loss.
+///
+/// Parameters
+/// ----------
+/// maturity_coupon_rate : float
+///     Finite annual maturity coupon rate in decimal units.
+/// initial_spot : float
+///     Positive reference spot used to normalize downside losses.
+/// knock_in_level : float
+///     Positive strict downside threshold.
+/// upper_strike : float
+///     Positive upper terminal settlement strike.
+/// lower_strike : float
+///     Nonnegative lower terminal strike, at most the upper strike.
+/// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
+///     Observe knock-in on every trading day or only at expiry.
+/// effective_date : datetime.date
+///     Inclusive first contract date.
+/// expiry_date : datetime.date
+///     Final contract date; expiry is at midnight UTC.
+/// observations : iterable of AutocallableObservation
+///     Nonempty, strictly ordered contractual observations within life.
+/// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+///     Strictly prior events. None is unknown; the string none means no
+///     event.
+/// principal_ratio : float, optional
+///     Nonnegative normalized principal, independent of coupons and losses.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct SnowballOption(pub core::SnowballOption);
@@ -259,10 +666,28 @@ impl SnowballOption {
             risk::real_setting(fields, "principal_ratio", terms.principal_ratio)?;
         Ok(Self(domain(py, core::SnowballOption::new(terms))?))
     }
+    /// Return a validated replacement without changing this value.
+    ///
+    /// Parameters
+    /// ----------
+    /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None
+    ///     Strictly prior events. None is unknown; the string none means no
+    ///     event.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     New instance of the same class; omitted fields retain their values.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (*, barrier_state))]
     fn replace(&self, py: Python<'_>, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self(domain(py, self.0.replace(state(barrier_state)?))?))
     }
+    /// Return owned copies of the contractual observations.
     #[getter]
     fn observations(&self) -> Vec<AutocallableObservation> {
         self.0
@@ -272,6 +697,7 @@ impl SnowballOption {
             .map(AutocallableObservation)
             .collect()
     }
+    /// Return a copy of the contractual observation dates.
     #[getter]
     fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
         self.0
@@ -280,6 +706,7 @@ impl SnowballOption {
             .map(|r| python_date(py, r.date))
             .collect()
     }
+    /// Return copied knock-out thresholds in observation order.
     #[getter]
     fn knock_out_levels(&self) -> Vec<f64> {
         self.0
@@ -288,6 +715,7 @@ impl SnowballOption {
             .map(|r| r.knock_out_level)
             .collect()
     }
+    /// Return copied annual knock-out coupons in observation order.
     #[getter]
     fn knock_out_coupon_rates(&self) -> Vec<f64> {
         self.0
@@ -296,42 +724,52 @@ impl SnowballOption {
             .map(|r| r.coupon_rate)
             .collect()
     }
+    /// Return finite annual maturity coupon rate in decimal units.
     #[getter]
     fn maturity_coupon_rate(&self) -> f64 {
         self.0.terms().maturity_coupon_rate
     }
+    /// Return positive reference spot used to normalize downside losses.
     #[getter]
     fn initial_spot(&self) -> f64 {
         self.0.terms().initial_spot
     }
+    /// Return positive strict downside threshold.
     #[getter]
     fn knock_in_level(&self) -> f64 {
         self.0.terms().knock_in_level
     }
+    /// Return positive upper terminal settlement strike.
     #[getter]
     fn upper_strike(&self) -> f64 {
         self.0.terms().upper_strike
     }
+    /// Return nonnegative lower terminal strike, at most the upper strike.
     #[getter]
     fn lower_strike(&self) -> f64 {
         self.0.terms().lower_strike
     }
+    /// Return nonnegative normalized principal, independent of coupons and losses.
     #[getter]
     fn principal_ratio(&self) -> f64 {
         self.0.terms().principal_ratio
     }
+    /// Return the knock-in monitoring choice string.
     #[getter]
     fn knock_in_observation_mode(&self) -> &'static str {
         mode_name(self.0.terms().knock_in_observation_mode)
     }
+    /// Return strictly prior autocallable history, or None if unknown.
     #[getter]
     fn barrier_state(&self) -> Option<&'static str> {
         state_name(self.0.barrier_state())
     }
+    /// Return inclusive first contract date.
     #[getter]
     fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.effective_date())
     }
+    /// Return final contract date; expiry is at midnight UTC.
     #[getter]
     fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.expiry_date())
@@ -363,7 +801,23 @@ impl SnowballOption {
     }
 }
 
-/// Owns a validated snowball; replacement never mutates the original.
+/// Snowball with knock-out coupons and no knock-in or downside loss.
+///
+/// Parameters
+/// ----------
+/// maturity_coupon_rate : float
+///     Finite annual maturity coupon rate in decimal units.
+/// effective_date : datetime.date
+///     Inclusive first contract date.
+/// expiry_date : datetime.date
+///     Final contract date; expiry is at midnight UTC.
+/// observations : iterable of AutocallableObservation
+///     Nonempty, strictly ordered contractual observations within life.
+/// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+///     Strictly prior events. None is unknown; the string none means no
+///     event.
+/// principal_ratio : float, optional
+///     Nonnegative normalized principal, independent of coupons and losses.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct BinarySnowballOption(pub core::BinarySnowballOption);
@@ -394,10 +848,28 @@ impl BinarySnowballOption {
             risk::real_setting(fields, "principal_ratio", terms.principal_ratio)?;
         Ok(Self(domain(py, core::BinarySnowballOption::new(terms))?))
     }
+    /// Return a validated replacement without changing this value.
+    ///
+    /// Parameters
+    /// ----------
+    /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None
+    ///     Strictly prior events. None is unknown; the string none means no
+    ///     event.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     New instance of the same class; omitted fields retain their values.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (*, barrier_state))]
     fn replace(&self, py: Python<'_>, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self(domain(py, self.0.replace(state(barrier_state)?))?))
     }
+    /// Return owned copies of the contractual observations.
     #[getter]
     fn observations(&self) -> Vec<AutocallableObservation> {
         self.0
@@ -407,6 +879,7 @@ impl BinarySnowballOption {
             .map(AutocallableObservation)
             .collect()
     }
+    /// Return a copy of the contractual observation dates.
     #[getter]
     fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
         self.0
@@ -415,6 +888,7 @@ impl BinarySnowballOption {
             .map(|r| python_date(py, r.date))
             .collect()
     }
+    /// Return copied knock-out thresholds in observation order.
     #[getter]
     fn knock_out_levels(&self) -> Vec<f64> {
         self.0
@@ -423,6 +897,7 @@ impl BinarySnowballOption {
             .map(|r| r.knock_out_level)
             .collect()
     }
+    /// Return copied annual knock-out coupons in observation order.
     #[getter]
     fn knock_out_coupon_rates(&self) -> Vec<f64> {
         self.0
@@ -431,22 +906,27 @@ impl BinarySnowballOption {
             .map(|r| r.coupon_rate)
             .collect()
     }
+    /// Return finite annual maturity coupon rate in decimal units.
     #[getter]
     fn maturity_coupon_rate(&self) -> f64 {
         self.0.terms().maturity_coupon_rate
     }
+    /// Return nonnegative normalized principal, independent of coupons and losses.
     #[getter]
     fn principal_ratio(&self) -> f64 {
         self.0.terms().principal_ratio
     }
+    /// Return strictly prior autocallable history, or None if unknown.
     #[getter]
     fn barrier_state(&self) -> Option<&'static str> {
         state_name(self.0.barrier_state())
     }
+    /// Return inclusive first contract date.
     #[getter]
     fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.effective_date())
     }
+    /// Return final contract date; expiry is at midnight UTC.
     #[getter]
     fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.expiry_date())
@@ -473,7 +953,29 @@ impl BinarySnowballOption {
     }
 }
 
-/// Owns a validated snowball; replacement never mutates the original.
+/// Snowball with distinct intact and knocked-in maturity coupons.
+///
+/// Parameters
+/// ----------
+/// maturity_coupon_rate : float
+///     Finite annual maturity coupon rate in decimal units.
+/// minimum_coupon_rate : float
+///     Knocked-in maturity coupon, at most the intact maturity coupon.
+/// knock_in_level : float
+///     Positive strict downside threshold.
+/// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
+///     Observe knock-in on every trading day or only at expiry.
+/// effective_date : datetime.date
+///     Inclusive first contract date.
+/// expiry_date : datetime.date
+///     Final contract date; expiry is at midnight UTC.
+/// observations : iterable of AutocallableObservation
+///     Nonempty, strictly ordered contractual observations within life.
+/// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+///     Strictly prior events. None is unknown; the string none means no
+///     event.
+/// principal_ratio : float, optional
+///     Nonnegative normalized principal, independent of coupons and losses.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct TernarySnowballOption(pub core::TernarySnowballOption);
@@ -511,10 +1013,28 @@ impl TernarySnowballOption {
             risk::real_setting(fields, "principal_ratio", terms.principal_ratio)?;
         Ok(Self(domain(py, core::TernarySnowballOption::new(terms))?))
     }
+    /// Return a validated replacement without changing this value.
+    ///
+    /// Parameters
+    /// ----------
+    /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None
+    ///     Strictly prior events. None is unknown; the string none means no
+    ///     event.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     New instance of the same class; omitted fields retain their values.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (*, barrier_state))]
     fn replace(&self, py: Python<'_>, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self(domain(py, self.0.replace(state(barrier_state)?))?))
     }
+    /// Return owned copies of the contractual observations.
     #[getter]
     fn observations(&self) -> Vec<AutocallableObservation> {
         self.0
@@ -524,6 +1044,7 @@ impl TernarySnowballOption {
             .map(AutocallableObservation)
             .collect()
     }
+    /// Return a copy of the contractual observation dates.
     #[getter]
     fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
         self.0
@@ -532,6 +1053,7 @@ impl TernarySnowballOption {
             .map(|r| python_date(py, r.date))
             .collect()
     }
+    /// Return copied knock-out thresholds in observation order.
     #[getter]
     fn knock_out_levels(&self) -> Vec<f64> {
         self.0
@@ -540,6 +1062,7 @@ impl TernarySnowballOption {
             .map(|r| r.knock_out_level)
             .collect()
     }
+    /// Return copied annual knock-out coupons in observation order.
     #[getter]
     fn knock_out_coupon_rates(&self) -> Vec<f64> {
         self.0
@@ -548,34 +1071,42 @@ impl TernarySnowballOption {
             .map(|r| r.coupon_rate)
             .collect()
     }
+    /// Return finite annual maturity coupon rate in decimal units.
     #[getter]
     fn maturity_coupon_rate(&self) -> f64 {
         self.0.terms().maturity_coupon_rate
     }
+    /// Return positive strict downside threshold.
     #[getter]
     fn knock_in_level(&self) -> f64 {
         self.0.terms().knock_in_level
     }
+    /// Return the annual knocked-in maturity coupon.
     #[getter]
     fn minimum_coupon_rate(&self) -> f64 {
         self.0.terms().minimum_coupon_rate
     }
+    /// Return nonnegative normalized principal, independent of coupons and losses.
     #[getter]
     fn principal_ratio(&self) -> f64 {
         self.0.terms().principal_ratio
     }
+    /// Return the knock-in monitoring choice string.
     #[getter]
     fn knock_in_observation_mode(&self) -> &'static str {
         mode_name(self.0.terms().knock_in_observation_mode)
     }
+    /// Return strictly prior autocallable history, or None if unknown.
     #[getter]
     fn barrier_state(&self) -> Option<&'static str> {
         state_name(self.0.barrier_state())
     }
+    /// Return inclusive first contract date.
     #[getter]
     fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.effective_date())
     }
+    /// Return final contract date; expiry is at midnight UTC.
     #[getter]
     fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.expiry_date())
@@ -605,7 +1136,39 @@ impl TernarySnowballOption {
     }
 }
 
-/// Owns a validated Phoenix note; replacement never mutates the original.
+/// Autocallable with conditional period coupons and capped downside loss.
+///
+/// Parameters
+/// ----------
+/// coupon_rate : float
+///     Finite annual coupon rate in decimal units.
+/// initial_spot : float
+///     Positive reference spot used to normalize downside losses.
+/// knock_in_level : float
+///     Positive strict downside threshold.
+/// upper_strike : float
+///     Positive upper terminal settlement strike.
+/// lower_strike : float
+///     Nonnegative lower terminal strike, at most the upper strike.
+/// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
+///     Observe knock-in on every trading day or only at expiry.
+/// effective_date : datetime.date
+///     Inclusive first contract date.
+/// expiry_date : datetime.date
+///     Final contract date; expiry is at midnight UTC.
+/// observations : iterable of AutocallableObservation
+///     Nonempty, strictly ordered contractual observations within life.
+/// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+///     Strictly prior events. None is unknown; the string none means no
+///     event.
+/// principal_ratio : float, optional
+///     Nonnegative normalized principal, independent of coupons and losses.
+///
+/// Notes
+/// -----
+/// Coupons accrue over contractual observation periods on Actual/365 Fixed.
+/// Coupon and knock-out barriers are inclusive; knock-in is strict. Past
+/// coupons are settled. There is no coupon memory or maturity coupon.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PhoenixOption(pub core::PhoenixOption);
@@ -647,10 +1210,28 @@ impl PhoenixOption {
             risk::real_setting(fields, "principal_ratio", terms.principal_ratio)?;
         Ok(Self(domain(py, core::PhoenixOption::new(terms))?))
     }
+    /// Return a validated replacement without changing this value.
+    ///
+    /// Parameters
+    /// ----------
+    /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None
+    ///     Strictly prior events. None is unknown; the string none means no
+    ///     event.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     New instance of the same class; omitted fields retain their values.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (*, barrier_state))]
     fn replace(&self, py: Python<'_>, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self(domain(py, self.0.replace(state(barrier_state)?))?))
     }
+    /// Return owned copies of the contractual observations.
     #[getter]
     fn observations(&self) -> Vec<AutocallableObservation> {
         self.0
@@ -660,6 +1241,7 @@ impl PhoenixOption {
             .map(AutocallableObservation)
             .collect()
     }
+    /// Return a copy of the contractual observation dates.
     #[getter]
     fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
         self.0
@@ -668,6 +1250,7 @@ impl PhoenixOption {
             .map(|r| python_date(py, r.date))
             .collect()
     }
+    /// Return copied knock-out thresholds in observation order.
     #[getter]
     fn knock_out_levels(&self) -> Vec<f64> {
         self.0
@@ -676,6 +1259,7 @@ impl PhoenixOption {
             .map(|r| r.knock_out_level)
             .collect()
     }
+    /// Return copied Phoenix coupon thresholds in observation order.
     #[getter]
     fn coupon_barrier_levels(&self) -> Vec<f64> {
         self.0
@@ -684,42 +1268,52 @@ impl PhoenixOption {
             .map(|r| r.coupon_barrier_level)
             .collect()
     }
+    /// Return finite annual coupon rate in decimal units.
     #[getter]
     fn coupon_rate(&self) -> f64 {
         self.0.terms().coupon_rate
     }
+    /// Return positive reference spot used to normalize downside losses.
     #[getter]
     fn initial_spot(&self) -> f64 {
         self.0.terms().initial_spot
     }
+    /// Return positive strict downside threshold.
     #[getter]
     fn knock_in_level(&self) -> f64 {
         self.0.terms().knock_in_level
     }
+    /// Return positive upper terminal settlement strike.
     #[getter]
     fn upper_strike(&self) -> f64 {
         self.0.terms().upper_strike
     }
+    /// Return nonnegative lower terminal strike, at most the upper strike.
     #[getter]
     fn lower_strike(&self) -> f64 {
         self.0.terms().lower_strike
     }
+    /// Return nonnegative normalized principal, independent of coupons and losses.
     #[getter]
     fn principal_ratio(&self) -> f64 {
         self.0.terms().principal_ratio
     }
+    /// Return the knock-in monitoring choice string.
     #[getter]
     fn knock_in_observation_mode(&self) -> &'static str {
         mode_name(self.0.terms().knock_in_observation_mode)
     }
+    /// Return strictly prior autocallable history, or None if unknown.
     #[getter]
     fn barrier_state(&self) -> Option<&'static str> {
         state_name(self.0.barrier_state())
     }
+    /// Return inclusive first contract date.
     #[getter]
     fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.effective_date())
     }
+    /// Return final contract date; expiry is at midnight UTC.
     #[getter]
     fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.expiry_date())

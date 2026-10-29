@@ -20,6 +20,7 @@ pub(crate) fn symmetric_shift(value: f64, requested: f64) -> f64 {
 }
 
 /// Computes numerical price sensitivities for scalar engines. Uses rounded
+///
 /// symmetric absolute bumps; collapsed/asymmetric or nonpositive stencils are unavailable.
 /// Time rolls stay within permitted valuation dates, curve coverage and neighboring knots, with
 /// right-hand differences at knots. Feasible bumped pricing errors fail the request.
@@ -28,12 +29,14 @@ pub(crate) fn symmetric_shift(value: f64, requested: f64) -> f64 {
 /// life through [`OptionContract`]; engine/instrument support remains type checked.
 ///
 /// # Errors
+///
 /// Returns [`Error::InvalidInput`] for empty requests or invalid bumps,
 /// [`Error::ComputationFailure`] for non-finite prices or derivatives, and
 /// propagates engine and bumped-context errors. Inputs remain unchanged.
 ///
 /// # Examples
-/// ```
+///
+/// ```rust
 /// use kiyosi_core::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
 ///     DigitalOption, OptionType, PricingContext, Greek, GreeksRequest, numerical_greeks};
 /// # fn main() -> kiyosi_core::Result<()> {

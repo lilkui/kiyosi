@@ -116,7 +116,9 @@ fn arguments(
 macro_rules! terminal_engine {
     ($engine:ident, $instrument:ty, $description:literal) => {
         #[doc = $description]
+        ///
         /// Uses fixed 2,048-panel Simpson integration with a density cutoff of `exp(-72)`.
+        ///
         /// Owns no mutable state; shared instances support concurrent pricing.
         /// See [`Self::price`] for an example.
         #[derive(Clone, Copy, Debug, Default)]
@@ -124,14 +126,17 @@ macro_rules! terminal_engine {
 
         impl $engine {
             /// Returns requested Greeks through scalar finite differences.
+            ///
             /// All Greeks are absent at expiry. Uses [`NumericalShiftSettings`] defaults.
             ///
             /// # Errors
+            ///
             /// Rejects node curves with [`Error::UnsupportedOperation`] before
             /// request validation, then propagates [`crate::numerical_greeks`] errors.
             /// Inputs remain unchanged on success and failure.
             ///
             /// # Examples
+            ///
             /// See [`Self::price`] for a pricing example.
             pub fn price_with_greeks(
                 &self,
@@ -175,15 +180,18 @@ terminal_engine!(
 
 impl QuadratureVanillaEngine {
     /// Prices a European vanilla contract, returning intrinsic value at expiry.
+    ///
     /// Retains analytic stabilization below `sigma * sqrt(time) < 1e-5` when log discounts are finite.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::UnsupportedOperation`] for node curves before life
     /// validation, [`Error::InvalidInput`] outside contract life, or
     /// [`Error::ComputationFailure`] for non-finite parameters or prices.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{QuadratureVanillaEngine, EuropeanOption, OptionType,
     ///     BlackScholesMertonParameters, Date, PricingContext, Greek, GreeksRequest};
     /// # fn main() -> kiyosi_core::Result<()> {
@@ -227,14 +235,17 @@ impl QuadratureVanillaEngine {
 
 impl QuadratureDigitalEngine {
     /// Prices a digital contract, settling strictly in the money at expiry.
+    ///
     /// See [`QuadratureVanillaEngine::price`] for context construction.
     ///
     /// # Errors
+    ///
     /// Uses the same flat-rate, life and numerical error categories as
     /// [`QuadratureVanillaEngine::price`]. Inputs remain unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{QuadratureDigitalEngine, DigitalOption, OptionType,
     ///     BlackScholesMertonParameters, Date, PricingContext};
     /// # fn main() -> kiyosi_core::Result<()> {

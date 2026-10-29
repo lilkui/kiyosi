@@ -106,55 +106,89 @@ pub(crate) fn shifts_with_defaults(
     })
 }
 
+/// Finite price and optional finite price sensitivities.
+///
+/// Notes
+/// -----
+/// Unavailable or unrequested Greeks are None. Spot derivatives are per spot
+/// unit, volatility/rate derivatives per percentage point, and time
+/// derivatives per calendar day of forward valuation time.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct PricingResult(pub core::PricingResult);
 
 #[pymethods]
 impl PricingResult {
+    /// Return the finite price in contract payment units.
     #[getter]
     fn price(&self) -> f64 {
         self.0.price()
     }
+    /// Return delta, or None if unrequested or unavailable.
     #[getter]
     fn delta(&self) -> Option<f64> {
         self.0.get(core::Greek::Delta)
     }
+    /// Return gamma, or None if unrequested or unavailable.
     #[getter]
     fn gamma(&self) -> Option<f64> {
         self.0.get(core::Greek::Gamma)
     }
+    /// Return speed, or None if unrequested or unavailable.
     #[getter]
     fn speed(&self) -> Option<f64> {
         self.0.get(core::Greek::Speed)
     }
+    /// Return theta, or None if unrequested or unavailable.
     #[getter]
     fn theta(&self) -> Option<f64> {
         self.0.get(core::Greek::Theta)
     }
+    /// Return charm, or None if unrequested or unavailable.
     #[getter]
     fn charm(&self) -> Option<f64> {
         self.0.get(core::Greek::Charm)
     }
+    /// Return color, or None if unrequested or unavailable.
     #[getter]
     fn color(&self) -> Option<f64> {
         self.0.get(core::Greek::Color)
     }
+    /// Return vega, or None if unrequested or unavailable.
     #[getter]
     fn vega(&self) -> Option<f64> {
         self.0.get(core::Greek::Vega)
     }
+    /// Return vanna, or None if unrequested or unavailable.
     #[getter]
     fn vanna(&self) -> Option<f64> {
         self.0.get(core::Greek::Vanna)
     }
+    /// Return zomma, or None if unrequested or unavailable.
     #[getter]
     fn zomma(&self) -> Option<f64> {
         self.0.get(core::Greek::Zomma)
     }
+    /// Return rho, or None if unrequested or unavailable.
     #[getter]
     fn rho(&self) -> Option<f64> {
         self.0.get(core::Greek::Rho)
     }
+    /// Return a requested Greek or raise when it is unavailable.
+    ///
+    /// Parameters
+    /// ----------
+    /// measure : str
+    ///     Greek name, such as delta or vega.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Finite sensitivity in PricingResult reporting units.
+    ///
+    /// Raises
+    /// ------
+    /// UnsupportedOperationError
+    ///     If the measure was not requested or is undefined at this valuation.
     fn require(&self, py: Python<'_>, measure: &Bound<'_, PyAny>) -> PyResult<f64> {
         domain(py, self.0.require(greek(measure)?))
     }

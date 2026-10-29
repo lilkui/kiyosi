@@ -3,13 +3,20 @@ use crate::{
     PricingContextChanges, PricingEngine, Result,
 };
 
-/// Positive volatility bracket and convergence controls. Either tolerance stops iteration.
+/// Configures a positive volatility bracket and convergence tolerances.
+///
+/// Either tolerance stops iteration; see [`implied_volatility`] for usage.
 #[derive(Clone, Copy, Debug)]
 pub struct ImpliedVolatilitySettings {
+    /// Sets the positive lower volatility bound (default 0.0001 decimal units).
     pub lower_bound: f64,
+    /// Sets the upper volatility bound, above the lower bound (default 4).
     pub upper_bound: f64,
+    /// Sets the positive absolute price tolerance (default 1e-8).
     pub price_tolerance: f64,
+    /// Sets the positive absolute volatility tolerance (default 1e-8).
     pub parameter_tolerance: f64,
+    /// Sets the positive iteration limit (default 100).
     pub max_iterations: i32,
 }
 impl Default for ImpliedVolatilitySettings {
@@ -25,14 +32,15 @@ impl Default for ImpliedVolatilitySettings {
 }
 
 /// Solves implied volatility with safeguarded Brent iteration, retaining the caller's bracket.
-/// Endpoint pricing validates
-/// the contract before expiry identifiability checks. Inputs remain unchanged on failure.
+///
+/// Endpoint pricing validates the contract before expiry identifiability checks. Inputs remain unchanged on failure.
 /// Pricing errors propagate; non-finite scalar prices or residuals return [`Error::ComputationFailure`].
 /// Digital prices need not be monotone in volatility; the supplied bracket may select
 /// one of several roots or fail to bracket a quote attainable elsewhere.
 /// CRR engines intersect the supplied bracket with the tree's admissible volatility range.
 ///
 /// # Errors
+///
 /// Returns [`Error::InvalidInput`] for invalid settings or non-finite quotes,
 /// [`Error::UnsupportedOperation`] for volatility-independent payoffs, [`Error::RootNotBracketed`]
 /// for same-sign endpoint residuals or a bracket outside the tree domain,
@@ -40,7 +48,8 @@ impl Default for ImpliedVolatilitySettings {
 /// or [`Error::ComputationFailure`] for non-finite evaluations. Engine errors propagate.
 ///
 /// # Examples
-/// ```
+///
+/// ```rust
 /// use kiyosi_core::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
 ///     DigitalOption, OptionType, PricingContext, ImpliedVolatilitySettings, implied_volatility};
 /// # fn main() -> kiyosi_core::Result<()> {

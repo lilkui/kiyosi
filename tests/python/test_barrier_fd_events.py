@@ -49,7 +49,24 @@ def option(up, barrier, *, dates=(END,), timing="at_expiry", knock_in=False):
 
 
 def terminal_reference(spot, up, barrier, time):
-    """Independent cash/asset binary decomposition of the truncated payoff."""
+    """Price the truncated payoff through an independent binary decomposition.
+
+    Parameters
+    ----------
+    spot : float
+        Underlying spot price.
+    up : bool
+        Whether the barrier triggers upward.
+    barrier : float
+        Inclusive barrier level.
+    time : float
+        Remaining Actual/365 Fixed years.
+
+    Returns
+    -------
+    float
+        Independent discounted payoff value.
+    """
     sign = 1 if up else -1
     deviation = 0.2 * math.sqrt(time)
 
@@ -74,7 +91,26 @@ def terminal_reference(spot, up, barrier, time):
 
 
 def two_observation_reference(spot, up, barrier, timing, count=1024):
-    """Integrate analytic continuation over the surviving first fixing states."""
+    """Integrate analytic continuation over the surviving first fixing states.
+
+    Parameters
+    ----------
+    spot : float
+        Underlying spot price.
+    up : bool
+        Whether the barrier triggers upward.
+    barrier : float
+        Inclusive barrier level.
+    timing : {'at_hit', 'at_expiry'}
+        Rebate payment timing.
+    count : int, optional
+        Integration panel count or series truncation budget.
+
+    Returns
+    -------
+    float
+        Independent discounted payoff value.
+    """
     first = 180 / 365
     deviation = 0.2 * math.sqrt(first)
     drift = 0.01 * first

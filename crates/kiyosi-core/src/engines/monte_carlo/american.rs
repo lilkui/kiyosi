@@ -3,12 +3,14 @@ use crate::{AmericanOption, BlackScholesMertonParameterChanges, Greek, PricingCo
 
 impl MonteCarloVanillaEngine {
     /// Returns the American default absolute spot bump, 8% of spot.
+    ///
     /// Exercise decisions amplify small-bump noise; sampling error and bump bias
     /// still require convergence checks. Other shifts use [`NumericalShiftSettings`] defaults.
     /// Python uses this value when `spot_shift` is omitted or `None`.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// # use kiyosi_core::*;
     /// # fn main() -> kiyosi_core::Result<()> {
     /// let start = Date::new(2025, 1, 1)?;

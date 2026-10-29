@@ -4,11 +4,13 @@ use crate::{AutocallableNote, AutocallableObservation, AutocallableTerms, KnockI
 
 impl FiniteDifferenceAutocallableEngine {
     /// Prices remaining snowball or Phoenix cashflows on exact trading and observation dates.
+    ///
     /// Accepts flat or node curves, retains daily knock-in layers and projects future events.
     /// Current events use actual spot with strict knock-in and inclusive knock-out/coupon levels.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] outside life or curve coverage, for
     /// non-trading observations or expiry, missing or impossible history, clipped
     /// grids, or unstable explicit steps. Numerical failures return
@@ -29,16 +31,19 @@ impl FiniteDifferenceAutocallableEngine {
     }
 
     /// Computes spline spot Greeks and completes other sensitivities with core bump defaults.
+    ///
     /// Native delta/gamma do not require feasible spot bumps; speed requires a symmetric
     /// in-domain stencil. Fixes the central upper domain for bumps. Expiry Greeks and event-crossing stencils
     /// are absent; vega and rho remain available at current thresholds.
     ///
     /// # Errors
+    ///
     /// Validates requests and shifts, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors without changing inputs or settings.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;

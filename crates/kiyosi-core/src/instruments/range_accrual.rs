@@ -42,6 +42,7 @@ impl RangeAccrualTerms {
 }
 
 /// Owns a validated range coupon with no principal payment or early termination.
+///
 /// Observes the context calendar's trading dates in `(effective_date, expiry_date]`.
 /// Pays `notional * annual_coupon_rate * ACT/365 * hits / observations` at expiry.
 /// Calendar and history consistency are checked during pricing. Shared reads are safe.
@@ -55,12 +56,14 @@ impl RangeAccrualOption {
     /// Validates finite amounts, ordered bounds, nonnegative history and positive term.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for invalid amounts, bounds or negative
     /// history, then for nonpositive contract life.
     /// History relative to valuation is validated by [`crate::AnalyticRangeAccrualEngine::price`].
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{Date, RangeAccrualOption, RangeAccrualTerms};
     /// # fn main() -> kiyosi_core::Result<()> {
     /// let terms = RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
@@ -97,6 +100,7 @@ impl RangeAccrualOption {
     /// Returns an owning copy with replaced history; `None` restores unknown. See [`Self::new`].
     ///
     /// # Errors
+    ///
     /// Reuses [`Self::new`] validation. The original is unchanged on success and failure.
     pub fn replace(&self, realized_hit_count: Option<i32>) -> Result<Self> {
         Self::new(RangeAccrualTerms {

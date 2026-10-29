@@ -59,7 +59,28 @@ def normal(value):
 
 
 def terminal_reference(spot, direction, lower, upper, time, rebate=2):
-    """Closed-form lognormal cash/asset moments of the surviving interval."""
+    """Price the surviving interval with closed-form lognormal moments.
+
+    Parameters
+    ----------
+    spot : float
+        Underlying spot price.
+    direction : {'call', 'put'} or None
+        Terminal payoff direction; touch contracts have no strike direction.
+    lower : float
+        Lower boundary of the surviving interval.
+    upper : float
+        Upper boundary of the surviving interval.
+    time : float
+        Remaining Actual/365 Fixed years.
+    rebate : float, optional
+        Cash rebate on knock-out.
+
+    Returns
+    -------
+    float
+        Independent discounted payoff value.
+    """
     deviation = 0.2 * math.sqrt(time)
 
     def moments(left, right):
@@ -91,7 +112,26 @@ def vanilla_reference(spot, direction, time, *, strike=100):
 
 
 def first_fixing_reference(spot, direction, timing, *, final_fixing=True, count=1024):
-    """Integrate continuation over states surviving the first fixing."""
+    """Integrate continuation over states surviving the first fixing.
+
+    Parameters
+    ----------
+    spot : float
+        Underlying spot price.
+    direction : {'call', 'put'} or None
+        Terminal payoff direction; touch contracts have no strike direction.
+    timing : {'at_hit', 'at_expiry'}
+        Rebate payment timing.
+    final_fixing : bool, optional
+        Whether expiry is also a monitored fixing.
+    count : int, optional
+        Integration panel count or series truncation budget.
+
+    Returns
+    -------
+    float
+        Independent discounted payoff value.
+    """
     first = 180 / 365
     deviation = 0.2 * math.sqrt(first)
     lower = (math.log(80.125 / spot) - 0.01 * first) / deviation
@@ -118,7 +158,29 @@ def first_fixing_reference(spot, direction, timing, *, final_fixing=True, count=
 
 
 def continuous_reference(direction, kind, *, spot=100, series=10):
-    """Only zero-rebate cases: QuantLib's analytic double engine ignores rebate."""
+    """Price a zero-rebate double barrier with QuantLib analytics.
+
+    Parameters
+    ----------
+    direction : {'call', 'put'} or None
+        Terminal payoff direction; touch contracts have no strike direction.
+    kind : type or str
+        Contract class or barrier activation choice used by the test.
+    spot : float, optional
+        Underlying spot price.
+    series : int, optional
+        QuantLib image-series truncation budget.
+
+    Returns
+    -------
+    float
+        Independent discounted payoff value.
+
+    Notes
+    -----
+    Only zero rebates are supported: the QuantLib analytic engine ignores
+    the rebate argument.
+    """
     with ql.SavedSettings():
         beginning, expiry = ql.Date(1, 1, 2025), ql.Date(1, 1, 2026)
         ql.Settings.instance().evaluationDate = beginning

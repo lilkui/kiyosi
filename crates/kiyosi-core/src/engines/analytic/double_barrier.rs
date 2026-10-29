@@ -7,15 +7,19 @@ use crate::{
 };
 use std::f64::consts::PI;
 
-/// Stateless continuous double-barrier engine with flat rates; see [`Self::price`].
+/// Prices continuous double-barrier options analytically with flat rates.
+///
+/// See [`Self::price`] for usage and applicability limits.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticDoubleBarrierEngine;
 impl AnalyticDoubleBarrierEngine {
     /// Prices inclusive boundary touches, prior history and remaining cashflows.
+    ///
     /// Uses image/spectral absorbing-density series and first-exit rebate integration.
     /// Resolved contracts settle before the continuous-monitoring restriction.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::UnsupportedOperation`] for node curves or unresolved schedules,
     /// [`Error::InvalidInput`] outside life, for non-trading fixings, or for
     /// missing or impossible history, checked in that order. Unrepresentable
@@ -24,7 +28,8 @@ impl AnalyticDoubleBarrierEngine {
     /// Inputs remain unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;
@@ -65,11 +70,13 @@ impl AnalyticDoubleBarrierEngine {
         analytic_price(option, context)
     }
     /// Computes all requested numerical Greeks using the shared core bump defaults.
+    ///
     /// Greeks are absent at expiry or current boundary equality; stencils reaching
     /// boundaries or changing observation/history regimes omit affected measures.
     /// See [`Self::price`] for a construction example.
     ///
     /// # Errors
+    ///
     /// Reuses [`crate::numerical_greeks`] validation and propagates pricing failures.
     pub fn price_with_greeks(
         &self,

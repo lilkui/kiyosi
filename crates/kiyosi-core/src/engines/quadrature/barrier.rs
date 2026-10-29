@@ -8,6 +8,7 @@ use crate::{
 };
 
 /// Configures the spatial budget and integration extent for event-date quadrature.
+///
 /// Check spatial and domain convergence separately; see [`QuadratureBarrierEngine::new`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct QuadratureSettings {
@@ -28,6 +29,7 @@ impl QuadratureSettings {
     /// Validates the spatial budget and extent. See [`QuadratureBarrierEngine::new`].
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] below four steps or for a non-finite
     /// or nonpositive extent. Does not change the settings.
     pub fn validate(&self) -> Result<()> {
@@ -42,6 +44,7 @@ impl QuadratureSettings {
 }
 
 /// Prices single-barrier contracts by flat-rate quadrature with exact observation dates.
+///
 /// Uses Simpson integration for continuous monitoring and cubic Gaussian integration
 /// between scheduled observations, including schedules ending before expiry.
 /// Owns its settings; shared instances support concurrent pricing. See [`Self::new`].
@@ -53,10 +56,12 @@ impl QuadratureBarrierEngine {
     /// Creates an engine after validating the spatial budget and extent.
     ///
     /// # Errors
+    ///
     /// Propagates [`QuadratureSettings::validate`] errors without changing inputs.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;
@@ -84,10 +89,12 @@ impl QuadratureBarrierEngine {
     }
 
     /// Prices after validating flat rates, inclusive life, calendar and strictly prior history.
+    ///
     /// Current boundary hits settle before future monitoring; prior at-hit rebates are paid.
     /// Resolved vanilla payoffs use analytic pricing. See [`Self::new`] for an example.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::UnsupportedOperation`] for node curves. Returns
     /// [`Error::InvalidInput`] outside life, for non-trading fixings, or for
     /// missing or impossible history, checked in that order. Unrepresentable grids,
@@ -97,11 +104,13 @@ impl QuadratureBarrierEngine {
     }
 
     /// Computes requested scalar numerical Greeks with shared bump defaults.
+    ///
     /// At expiry or a current barrier equality without a prior touch, all Greeks are absent.
     /// Stencils crossing observations or spot barriers leave affected measures absent.
     /// See [`Self::new`] for an example.
     ///
     /// # Errors
+    ///
     /// Checks flat-rate applicability before request/shift validation and propagates
     /// [`crate::numerical_greeks`] and [`Self::price`] errors. Inputs remain unchanged.
     pub fn price_with_greeks(

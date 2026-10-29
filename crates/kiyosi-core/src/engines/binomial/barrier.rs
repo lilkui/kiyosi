@@ -14,9 +14,11 @@ pub struct CoxRossRubinsteinBarrierEngine {
 
 impl CoxRossRubinsteinBarrierEngine {
     /// Creates an engine after validating its step count.
+    ///
     /// See [`CoxRossRubinsteinVanillaEngine::new`] for a settings example.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] outside 1 through 1,000,000 steps.
     pub fn new(settings: BinomialSettings) -> Result<Self> {
         settings.validate()?;
@@ -34,6 +36,7 @@ impl CoxRossRubinsteinBarrierEngine {
     /// analytic pricing. Prior at-hit rebates are already paid. Inputs remain unchanged.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::UnsupportedOperation`] for node curves or unsupported
     /// fixings. Returns [`Error::InvalidInput`] outside life, for non-trading
     /// fixings, or for missing or impossible history, checked in that order.
@@ -41,7 +44,8 @@ impl CoxRossRubinsteinBarrierEngine {
     /// Inputs remain unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{BarrierOption, BarrierOptionTerms, BarrierType, BinomialSettings,
     ///     BlackScholesMertonParameters, CoxRossRubinsteinBarrierEngine, Date, OptionType,
     ///     PricingContext};
@@ -68,6 +72,7 @@ impl CoxRossRubinsteinBarrierEngine {
     /// See [`Self::price`] for a pricing example.
     ///
     /// # Errors
+    ///
     /// Checks flat-rate applicability before request/shift validation, then reuses
     /// [`Self::price`] errors. Empty requests and invalid shifts return
     /// [`Error::InvalidInput`]. Inputs remain unchanged.

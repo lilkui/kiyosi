@@ -24,6 +24,7 @@ pub use digital::MonteCarloDigitalEngine;
 pub use double_barrier::MonteCarloDoubleBarrierEngine;
 
 /// Selects terminal sampling independently of antithetic pairing.
+///
 /// See [`MonteCarloVanillaEngine::new`] for a Sobol example.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum MonteCarloSampling {
@@ -35,12 +36,14 @@ pub enum MonteCarloSampling {
 }
 
 /// Configures terminal, Asian, barrier, autocallable, accumulator or American CPU sampling.
+///
 /// See [`MonteCarloVanillaEngine::new`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MonteCarloSettings {
     /// Sets the exact path count, from 1 through 10,000,000; defaults to 100,000.
     pub path_count: i32,
     /// Sets 2..=10,000 grid points (default 50); American pricing before expiry needs 3.
+    ///
     /// Asian arithmetic integration uses this many intervals; exact distributions, barriers, autocallables and accumulators ignore it.
     pub step_count: i32,
     /// Selects a reproducible stream, or system entropy when absent (the default).
@@ -67,6 +70,7 @@ impl Default for MonteCarloSettings {
 }
 
 /// Prices European and American vanilla contracts with flat-rate CPU sampling.
+///
 /// European contracts sample the exact terminal distribution without stepping.
 /// American contracts use strike-scaled quadratic continuation regression on a
 /// uniform grid, reducing to linear or constant fits for rank-deficient samples.
@@ -84,6 +88,7 @@ pub struct MonteCarloVanillaEngine {
 }
 
 /// Owns a Monte Carlo price and its optional sampling uncertainty.
+///
 /// Uses unbiased sample variance and a two-sided asymptotic 95% normal interval
 /// for pseudorandom draws, or independent pair means with even antithetic counts;
 /// sparse samples and heavy tails can make the interval unreliable.
@@ -117,11 +122,13 @@ impl MonteCarloVanillaEngine {
     /// Creates an engine after validating paths, steps, threads and sampling, in that order.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for paths outside 1..=10,000,000,
     /// steps outside 2..=10,000, a negative thread cap, or a non-power-of-two Sobol count.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{MonteCarloSettings, MonteCarloVanillaEngine};
     /// # fn main() -> kiyosi_core::Result<()> {
     /// let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
@@ -158,6 +165,7 @@ impl MonteCarloVanillaEngine {
     }
 
     /// Returns finite-difference Greeks using shared normal samples.
+    ///
     /// Pins one request-local seed, including when the engine has no configured seed.
     /// Replays identical normal draws for every feasible bump; no samples or state
     /// survive the request. At expiry all Greeks are absent. Uses
@@ -166,10 +174,12 @@ impl MonteCarloVanillaEngine {
     /// rate legs. For American spot bumps, use [`Self::default_american_spot_shift`].
     ///
     /// # Errors
+    ///
     /// Rejects node curves before validating requests and shifts, then propagates
     /// [`crate::numerical_greeks`] and [`Self::price`] errors. Inputs remain unchanged.
     ///
     /// # Examples
+    ///
     /// See [`Self::price`] for a shared-sample delta example.
     pub fn price_with_greeks<I: OptionContract>(
         &self,
@@ -185,26 +195,31 @@ impl MonteCarloVanillaEngine {
     }
 
     /// Returns a discounted sample mean, or intrinsic value at expiry.
+    ///
     /// Calls complete synchronously without cancellation or signal polling.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::UnsupportedOperation`] for node curves before life
     /// validation, [`Error::InvalidInput`] outside the inclusive contract
     /// life, or [`Error::ComputationFailure`] for unstable parameters, nonpositive
     /// or non-finite terminal prices, or non-finite results. Inputs remain unchanged.
     /// Entropy and thread-creation failures retain their native [`std::io::Error`]
     /// in [`Error::Io`].
-    /// American pricing before expiry returns
+    /// American pricing before expiry returns [`Error::InvalidInput`]
     /// for fewer than three grid points, after life validation.
     ///
     /// # Panics
+    ///
     /// Resumes worker panics after joining the call's workers.
     ///
     /// # Aborts
+    ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{MonteCarloSettings, MonteCarloVanillaEngine, EuropeanOption,
     ///     OptionType, Date, BlackScholesMertonParameters, PricingContext};
     /// # fn main() -> kiyosi_core::Result<()> {
@@ -227,16 +242,23 @@ impl MonteCarloVanillaEngine {
     }
 
     /// Returns the price, standard error and asymptotic 95% confidence interval.
+    ///
     /// Uses the same samples and reduction order as [`Self::price`].
     /// Leaves uncertainty absent for Sobol and insufficient independent samples;
     /// see [`MonteCarloEstimate`] for antithetic and expiry rules.
     ///
     /// # Errors
+    ///
     /// Propagates [`Self::price`] errors and returns [`Error::ComputationFailure`]
     /// when uncertainty or interval endpoints are non-finite. Inputs remain unchanged.
     ///
+    /// # Panics
+    ///
+    /// Resumes worker panics after joining the call's workers, as in [`Self::price`].
+    ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// # use kiyosi_core::*;
     /// # fn main() -> kiyosi_core::Result<()> {
     /// # let start = Date::new(2025, 1, 1)?;

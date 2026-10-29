@@ -9,22 +9,27 @@ use crate::{
 use crate::{BinaryBarrierOption, SettlementTiming, TouchOption};
 
 use crate::instruments::binary_barrier::Contract;
-/// Stateless flat-rate binary-barrier and single-touch analytics; see [`Self::price`].
+/// Prices binary barriers and single-touch contracts analytically with flat rates.
+///
+/// See [`Self::price`] for usage and scheduled-monitoring restrictions.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticBinaryBarrierEngine;
 impl AnalyticBinaryBarrierEngine {
     /// Prices a binary barrier or touch contract with strictly prior history.
+    ///
     /// Equality touches before future monitoring; scheduled unresolved monitoring uses BGK
     /// and must end at expiry. Terminal binary equality at strike pays zero.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::UnsupportedOperation`] for node curves or unsupported
     /// schedules. Returns [`Error::InvalidInput`] outside life, for non-trading
     /// fixings, or for missing or impossible history, checked in that order.
     /// Non-finite results return [`Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;
@@ -42,10 +47,12 @@ impl AnalyticBinaryBarrierEngine {
         <Self as PricingEngine<I>>::price(self, option, context)
     }
     /// Computes requested numerical Greeks with shared bump defaults; see [`Self::price`].
+    ///
     /// Greeks at expiry or a current barrier equality are absent. Stencils crossing
     /// observations or barriers leave affected Greeks absent.
     ///
     /// # Errors
+    ///
     /// Reuses [`crate::numerical_greeks`] validation and propagates pricing errors.
     pub fn price_with_greeks<I: OptionContract>(
         &self,

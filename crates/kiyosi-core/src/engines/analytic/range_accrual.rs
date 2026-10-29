@@ -7,17 +7,20 @@ use crate::{
 };
 
 /// Prices range coupons by summing exact BSM marginal probabilities with deterministic curves.
+///
 /// Owns no mutable state and supports concurrent pricing; see [`Self::price`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticRangeAccrualEngine;
 
 impl AnalyticRangeAccrualEngine {
     /// Computes requested numerical Greeks from exact prices with core bump defaults.
+    ///
     /// All Greeks are absent at expiry. Spot stencils reaching current bounds and time
     /// stencils touching any observation are unavailable; vega/rho remain valid at bounds.
     /// See [`Self::price`] for contract construction and pricing.
     ///
     /// # Errors
+    ///
     /// Propagates [`crate::numerical_greeks`] validation and pricing errors.
     /// Inputs remain unchanged on success and failure.
     pub fn price_with_greeks(
@@ -30,10 +33,12 @@ impl AnalyticRangeAccrualEngine {
         crate::numerical_greeks(self, option, context, request, settings)
     }
     /// Prices the coupon, using spot for a current observation and explicit prior hit history.
+    ///
     /// Valuation before the effective date is valid. Zero coupons still validate calendar/history,
     /// then return zero without requiring curve coverage. Payment occurs only at expiry.
     ///
     /// # Errors
+    ///
     /// Checks valuation after expiry, non-trading expiry, missing or excessive
     /// prior hits, and required curve coverage, in that order
     /// ([`Error::InvalidInput`]). Unresolvable curve knots or non-finite
@@ -41,7 +46,8 @@ impl AnalyticRangeAccrualEngine {
     /// Inputs remain unchanged on every outcome.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let option = RangeAccrualOption::new(RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,

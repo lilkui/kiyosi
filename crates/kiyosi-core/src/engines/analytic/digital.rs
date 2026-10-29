@@ -7,6 +7,7 @@ use crate::{
 };
 
 /// Prices European cash-or-nothing and asset-or-nothing contracts under BSM.
+///
 /// Values are owned; shared instances support concurrent reads and pricing.
 /// See [`Self::price`] for an example.
 #[derive(Clone, Copy, Debug, Default)]
@@ -14,16 +15,19 @@ pub struct AnalyticDigitalEngine;
 
 impl AnalyticDigitalEngine {
     /// Returns analytic delta/gamma and completes other requested Greeks numerically.
+    ///
     /// At expiry all Greeks are unavailable. Bumps use [`NumericalShiftSettings`].
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for empty requests or invalid shifts
     /// before pricing. Propagates [`Self::price`] errors and returns
     /// [`Error::ComputationFailure`] for non-finite requested derivatives.
     /// Inputs remain unchanged on success and failure.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
     ///     DigitalOption, OptionType, PricingContext, Greek, GreeksRequest};
     /// # fn main() -> kiyosi_core::Result<()> {
@@ -58,11 +62,13 @@ impl AnalyticDigitalEngine {
     /// Prices a digital contract over its inclusive life, settling strictly in the money.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] outside contract life or curve coverage,
     /// and [`Error::ComputationFailure`] for non-finite numerical results.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
     ///     DigitalOption, OptionType, PricingContext};
     /// # fn main() -> kiyosi_core::Result<()> {

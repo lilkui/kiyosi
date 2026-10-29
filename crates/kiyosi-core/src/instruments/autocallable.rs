@@ -29,6 +29,7 @@ pub enum AutocallableBarrierState {
 }
 
 /// Associates one observation date with its contractual levels and coupon.
+///
 /// Values are validated by the note constructor, not by this input record.
 /// See [`autocallable_observations`] for sequence construction.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -44,6 +45,7 @@ pub struct AutocallableObservation {
 }
 impl AutocallableObservation {
     /// Creates an input record with zero coupon and coupon barrier.
+    ///
     /// See [`autocallable_observations`] for an example.
     pub fn new(date: Date, knock_out_level: f64) -> Self {
         Self {
@@ -56,13 +58,16 @@ impl AutocallableObservation {
 }
 
 /// Associates parallel sequences, using core record defaults for omitted coupons.
+///
 /// Contractual values and ordering are validated when constructing a note.
 ///
 /// # Errors
+///
 /// Returns [`Error::InvalidInput`] for unequal sequence lengths.
 ///
 /// # Examples
-/// ```
+///
+/// ```rust
 /// use kiyosi_core::{Date, autocallable_observations};
 /// # fn main() -> kiyosi_core::Result<()> {
 /// let dates = [Date::new(2026, 1, 1)?];
@@ -129,6 +134,7 @@ pub struct SnowballTerms {
 }
 impl SnowballTerms {
     /// Creates input terms with daily monitoring, unknown history and unit principal.
+    ///
     /// Validation occurs in [`SnowballOption::new`]; see its example.
     #[expect(
         clippy::too_many_arguments,
@@ -188,6 +194,7 @@ pub struct PhoenixTerms {
 }
 impl PhoenixTerms {
     /// Creates input terms with daily monitoring, unknown history and unit principal.
+    ///
     /// Validation occurs in [`PhoenixOption::new`]; see its example.
     #[expect(
         clippy::too_many_arguments,
@@ -220,6 +227,7 @@ impl PhoenixTerms {
 }
 
 /// Owns validated basic snowball terms; see [`Self::new`].
+///
 /// Pays principal plus accrued annual coupon on knock-out, otherwise principal
 /// plus maturity coupon if intact, or a capped downside loss after knock-in.
 pub type SnowballOption = AutocallableNote<SnowballTerms>;
@@ -242,6 +250,7 @@ pub struct BinarySnowballTerms {
 }
 impl BinarySnowballTerms {
     /// Creates input terms with unknown history and unit principal.
+    ///
     /// Validation occurs in [`BinarySnowballOption::new`]; see its example.
     pub fn new(
         maturity_coupon_rate: f64,
@@ -261,6 +270,7 @@ impl BinarySnowballTerms {
 }
 
 /// Owns a binary snowball with no knock-in monitoring or downside participation.
+///
 /// Pays principal plus the accrued observation coupon on knock-out, otherwise
 /// principal plus the accrued maturity coupon. See [`Self::new`] for construction.
 pub type BinarySnowballOption = AutocallableNote<BinarySnowballTerms>;
@@ -289,6 +299,7 @@ pub struct TernarySnowballTerms {
 }
 impl TernarySnowballTerms {
     /// Creates input terms with daily monitoring, unknown history and unit principal.
+    ///
     /// Validation occurs in [`TernarySnowballOption::new`]; see its example.
     pub fn new(
         maturity_coupon_rate: f64,
@@ -313,11 +324,13 @@ impl TernarySnowballTerms {
 }
 
 /// Owns a ternary snowball with fixed intact and knocked-in maturity coupons.
+///
 /// Pays principal plus the accrued observation coupon on knock-out, otherwise
 /// principal plus the accrued maturity or minimum coupon according to knock-in. See [`Self::new`] for construction.
 pub type TernarySnowballOption = AutocallableNote<TernarySnowballTerms>;
 
 /// Owns validated Phoenix terms; see [`Self::new`].
+///
 /// Pays a signed annual coupon times each observation period's Actual/365 Fixed
 /// length when spot is at or above its coupon barrier, including on knock-out.
 /// The first period starts at the effective date; later periods start at the
@@ -328,6 +341,7 @@ pub type TernarySnowballOption = AutocallableNote<TernarySnowballTerms>;
 pub type PhoenixOption = AutocallableNote<PhoenixTerms>;
 
 /// Selects the supported autocallable terms; see [`PhoenixOption::new`] for an example.
+///
 /// This trait is sealed: only the core defines product settlement rules.
 pub trait AutocallableTerms: sealed::Terms + Clone + PartialEq + Send + Sync + 'static {}
 impl AutocallableTerms for SnowballTerms {}
@@ -336,6 +350,7 @@ impl AutocallableTerms for BinarySnowballTerms {}
 impl AutocallableTerms for TernarySnowballTerms {}
 
 /// Selects snowball terms with a quoted observation coupon and explicit maturity convention.
+///
 /// This trait is sealed; see [`crate::implied_snowball_coupon`] for an example.
 pub trait SnowballCouponTerms: AutocallableTerms + sealed::SnowballCoupon {}
 
@@ -361,11 +376,13 @@ snowball_coupon!(SnowballTerms, BinarySnowballTerms, TernarySnowballTerms);
 
 impl<T: SnowballCouponTerms> AutocallableNote<T> {
     /// Returns an owning note with the observation coupon schedule shifted to `coupon`.
+    ///
     /// The first observation anchors the shift, including past observations.
     /// `convention` controls the maturity coupon; the ternary minimum stays fixed.
     /// See [`crate::implied_snowball_coupon`] for an example.
     ///
     /// # Errors
+    ///
     /// Propagates term validation errors, including a shifted maturity coupon below
     /// the ternary minimum. This note remains unchanged on success and failure.
     pub fn with_coupon(
@@ -379,9 +396,11 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
 
 impl PhoenixOption {
     /// Returns an owning note with its conditional annual coupon replaced.
+    ///
     /// See [`crate::implied_coupon`] for an example.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for a non-finite coupon.
     /// This note remains unchanged on success and failure.
     pub fn with_coupon(&self, coupon: f64) -> Result<Self> {
@@ -510,21 +529,25 @@ impl sealed::Terms for TernarySnowballTerms {
 }
 
 /// Owns validated terms and immutable observations for a supported autocallable.
+///
 /// Accessors borrow stable storage for this owner's lifetime. Shared reads and
 /// pricing are safe; mutation requires exclusive Rust access. See [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct AutocallableNote<T: AutocallableTerms>(T);
 impl<T: AutocallableTerms> AutocallableNote<T> {
     /// Validates all terms before creating an owning note.
+    ///
     /// Calendar and history time consistency are checked during pricing.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for invalid numeric terms or
     /// product-incompatible observation fields, reversed life, or empty, unordered
     /// or out-of-life observations. Inputs are consumed on failure.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;
@@ -550,10 +573,12 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         Ok(Self(terms))
     }
     /// Returns a validated owning copy with only history replaced; preserves the original.
+    ///
     /// `None` clears history; `Some(AutocallableBarrierState::None)` records no prior event.
     /// See [`Self::new`] for an example. Time consistency is checked during pricing.
     ///
     /// # Errors
+    ///
     /// Propagates [`Self::new`] validation errors without changing this note.
     pub fn replace(&self, barrier_state: Option<AutocallableBarrierState>) -> Result<Self> {
         let mut terms = self.0.clone();

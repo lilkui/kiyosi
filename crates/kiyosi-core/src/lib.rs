@@ -7,7 +7,7 @@
 //!
 //! # Concurrency and errors
 //!
-//! All public values own their data and are `Send + Sync`. Distinct and shared
+//! Built-in public types own their data and are `Send + Sync`. Distinct and shared
 //! instances support concurrent reads and pricing without synchronization.
 //! Mutation requires exclusive Rust access; Python exposes immutable values.
 //! Custom calendar predicates must also uphold [`TradingCalendar`]'s determinism
@@ -22,7 +22,7 @@
 //!
 //! # Examples
 //!
-//! ```
+//! ```rust
 //! use kiyosi_core::{AnalyticEuropeanEngine, BlackScholesMertonParameters, Date,
 //!                   EuropeanOption, OptionType, PricingContext};
 //! # fn main() -> kiyosi_core::Result<()> {

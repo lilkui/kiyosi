@@ -304,7 +304,7 @@ impl CubicInterpolation {
 }
 
 fn active_cells(nodes: &[f64], mean: f64, deviation: f64) -> std::ops::Range<usize> {
-    // Beyond 56 deviations the Gaussian tail is below the existing -1500 cutoff.
+    // Beyond 56 deviations the Gaussian tail is below the -1500 cutoff.
     let radius = 56.0 * deviation;
     let first = nodes
         .partition_point(|&x| x <= mean - radius)

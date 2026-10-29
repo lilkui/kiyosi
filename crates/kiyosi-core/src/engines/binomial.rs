@@ -30,6 +30,7 @@ impl BinomialSettings {
 }
 
 /// Prices European and American vanilla contracts with a flat-rate CRR tree.
+///
 /// Returns node delta/gamma and completes other requested Greeks numerically.
 /// Values own their settings; shared instances support concurrent pricing.
 /// See [`Self::price_with_greeks`] for an example.
@@ -42,10 +43,12 @@ impl CoxRossRubinsteinVanillaEngine {
     /// Creates an engine after validating its step count.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] outside 1 through 1,000,000 steps.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{BinomialSettings, CoxRossRubinsteinVanillaEngine};
     /// # fn main() -> kiyosi_core::Result<()> {
     /// let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1024 })?;
@@ -63,9 +66,11 @@ impl CoxRossRubinsteinVanillaEngine {
     }
 
     /// Prices a supported vanilla contract without changing inputs.
+    ///
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::UnsupportedOperation`] for node curves before life
     /// validation, [`Error::InvalidInput`] outside contract life, and
     /// [`Error::ComputationFailure`] for unstable probabilities, asset nodes or values.
@@ -77,15 +82,18 @@ impl CoxRossRubinsteinVanillaEngine {
     }
 
     /// Returns node delta/gamma and numerically completes missing requested Greeks.
+    ///
     /// At expiry every Greek is absent. One-step gamma uses scalar differences.
     /// Bumps use [`NumericalShiftSettings`]; feasible bumped failures propagate.
     ///
     /// # Errors
+    ///
     /// Checks flat-rate applicability before request/shift validation, then reuses
     /// [`Self::price`] and [`crate::numerical_greeks`] errors. Inputs remain unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{AmericanOption, CoxRossRubinsteinVanillaEngine,
     ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
     /// # fn main() -> kiyosi_core::Result<()> {
@@ -471,6 +479,7 @@ vanilla_pricing!(EuropeanOption, false);
 vanilla_pricing!(AmericanOption, true);
 
 /// Prices European cash-or-nothing and asset-or-nothing contracts with a CRR tree.
+///
 /// Supports only node delta/gamma; other requested Greeks remain absent.
 /// Values own their settings; shared instances support concurrent pricing.
 /// See [`Self::price_with_greeks`] for an example.
@@ -481,9 +490,11 @@ pub struct CoxRossRubinsteinDigitalEngine {
 
 impl CoxRossRubinsteinDigitalEngine {
     /// Creates an engine after validating the step count.
+    ///
     /// See [`CoxRossRubinsteinVanillaEngine::new`] for a settings example.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] outside 1 through 1,000,000 steps.
     pub fn new(settings: BinomialSettings) -> Result<Self> {
         settings.validate()?;
@@ -496,9 +507,11 @@ impl CoxRossRubinsteinDigitalEngine {
     }
 
     /// Prices a European digital, settling strictly in the money at expiry.
+    ///
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
+    ///
     /// Reuses [`CoxRossRubinsteinVanillaEngine::price`] errors and validation order.
     pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         Ok(self
@@ -507,15 +520,18 @@ impl CoxRossRubinsteinDigitalEngine {
     }
 
     /// Returns requested node delta/gamma; all other Greeks remain absent.
+    ///
     /// One-step gamma and all expiry Greeks are absent. Shifts are validated but unused.
     ///
     /// # Errors
+    ///
     /// Checks flat-rate applicability before request and shift validation, then reuses
     /// [`Self::price`] errors. Empty requests or invalid shifts return
     /// [`Error::InvalidInput`]. Inputs remain unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{CoxRossRubinsteinDigitalEngine, DigitalOption,
     ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
     /// # fn main() -> kiyosi_core::Result<()> {

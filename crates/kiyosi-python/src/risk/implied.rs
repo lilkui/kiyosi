@@ -22,6 +22,47 @@ use crate::market::PricingContext;
 use kiyosi_core as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+/// Solve the annual volatility that reproduces an observed price.
+///
+/// Parameters
+/// ----------
+/// engine : object
+///     Supported pricing engine for the instrument.
+/// instrument : object
+///     Contract to reprice; the original is unchanged.
+/// context : PricingContext
+///     Market snapshot; the original is unchanged.
+/// observed_price : float
+///     Finite target price in the engine's payment units.
+/// **settings
+///     `lower_bound` and `upper_bound` bracket the parameter. Positive
+///     `price_tolerance` or `parameter_tolerance` stops iteration;
+///     `max_iterations` limits iterations. Omitted controls use core defaults.
+///
+/// Returns
+/// -------
+/// float
+///     Annual parameter in decimal units.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If the quote, settings or repriced terms are invalid.
+/// UnsupportedOperationError
+///     If the combination is unsupported or the parameter is not identifiable.
+/// RootNotBracketedError
+///     If the supplied endpoints do not bracket the target.
+/// NonConvergenceError
+///     If the iteration budget is exhausted.
+/// ComputationFailureError
+///     If a price, residual or numerical evaluation is non-finite.
+///
+/// Notes
+/// -----
+/// Pricing failures propagate. Monte Carlo solves pin one seed per request;
+/// tolerances constrain the sampled price curve, not its sampling error.
+/// Digital prices can have several volatility roots. The supplied bracket
+/// selects a root; CRR engines restrict it to their admissible tree domain.
 #[pyfunction]
 #[pyo3(signature = (engine, instrument, context, observed_price, **settings))]
 pub(crate) fn implied_volatility(

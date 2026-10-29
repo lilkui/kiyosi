@@ -3,11 +3,13 @@ use crate::Accumulator;
 
 impl FiniteDifferenceAccumulatorEngine {
     /// Prices outstanding units and future trading-date purchases, settling at knock-out or expiry.
+    ///
     /// Applies a current midnight event exactly once, with inclusive knock-out and
     /// acceleration strictly below strike. Supports flat and node rate curves.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] outside contract life or curve coverage,
     /// for non-trading expiry, clipped domains or unstable explicit steps.
     /// Numerical failures return [`Error::ComputationFailure`]. Inputs remain unchanged.
@@ -23,15 +25,18 @@ impl FiniteDifferenceAccumulatorEngine {
     }
 
     /// Computes spline spot Greeks and completes other sensitivities with core bump defaults.
+    ///
     /// Fixes the central upper domain for bumped prices. Expiry Greeks and stencils
     /// crossing current thresholds or trading events are unavailable.
     ///
     /// # Errors
+    ///
     /// Validates requests and shifts, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors without changing inputs or settings.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;

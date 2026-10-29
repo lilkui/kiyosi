@@ -40,6 +40,33 @@ pub(crate) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<core::Barrier
     }
 }
 
+/// Single-barrier vanilla option with inclusive barrier touches.
+///
+/// Parameters
+/// ----------
+/// option_type : {'call', 'put'}
+///     Call or put payoff direction.
+/// strike : float
+///     Positive finite exercise or purchase price.
+/// effective_date : datetime.date
+///     Inclusive first contract date.
+/// expiry_date : datetime.date
+///     Final contract date; expiry is at midnight UTC.
+/// barrier_level : float
+///     Positive finite trigger level; equality counts as a touch.
+/// barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
+///     Trigger direction and knock-in or knock-out behavior.
+/// rebate : float, optional
+///     Nonnegative finite cash rebate; defaults to zero.
+/// rebate_timing : {'at_hit', 'at_expiry'}, optional
+///     Payment timing; at-hit rebates are valid only for knock-outs.
+/// observation_mode : {'continuous', 'scheduled'}, optional
+///     Continuous monitoring or observations on the supplied dates.
+/// observation_dates : iterable of date, optional
+///     Strictly increasing observation dates within the contract life.
+/// touch_state : {'untouched', 'touched'} or None, optional
+///     Strictly prior history. None means unknown; untouched means known no
+///     hit.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct BarrierOption(pub core::BarrierOption);
@@ -96,6 +123,23 @@ impl BarrierOption {
         }
         Ok(Self(domain(py, core::BarrierOption::new(terms))?))
     }
+    /// Return a validated replacement without changing this value.
+    ///
+    /// Parameters
+    /// ----------
+    /// touch_state : {'untouched', 'touched'} or None, optional
+    ///     Strictly prior history. None means unknown; untouched means known no
+    ///     hit.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     New instance of the same class; omitted fields retain their values.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (**fields))]
     fn replace(&self, py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
         check_changes(fields, &["touch_state"])?;
@@ -109,6 +153,7 @@ impl BarrierOption {
         };
         Ok(Self(domain(py, self.0.replace(state))?))
     }
+    /// Return call or put payoff direction.
     #[getter]
     fn option_type(&self) -> &'static str {
         if self.0.option_type() == core::OptionType::Call {
@@ -117,22 +162,27 @@ impl BarrierOption {
             "put"
         }
     }
+    /// Return the exercise or purchase price in underlying price units.
     #[getter]
     fn strike(&self) -> f64 {
         self.0.strike()
     }
+    /// Return inclusive first contract date.
     #[getter]
     fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.effective_date())
     }
+    /// Return final contract date; expiry is at midnight UTC.
     #[getter]
     fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.expiry_date())
     }
+    /// Return positive finite trigger level; equality counts as a touch.
     #[getter]
     fn barrier_level(&self) -> f64 {
         self.0.barrier_level()
     }
+    /// Return trigger direction and knock-in or knock-out behavior.
     #[getter]
     fn barrier_type(&self) -> &'static str {
         match self.0.barrier_type() {
@@ -142,10 +192,12 @@ impl BarrierOption {
             core::BarrierType::DownAndOut => "down_and_out",
         }
     }
+    /// Return nonnegative finite cash rebate; defaults to zero.
     #[getter]
     fn rebate(&self) -> f64 {
         self.0.rebate()
     }
+    /// Return payment timing; at-hit rebates are valid only for knock-outs.
     #[getter]
     fn rebate_timing(&self) -> &'static str {
         match self.0.rebate_timing() {
@@ -153,6 +205,7 @@ impl BarrierOption {
             core::RebateTiming::AtExpiry => "at_expiry",
         }
     }
+    /// Return continuous monitoring or observations on the supplied dates.
     #[getter]
     fn observation_mode(&self) -> &'static str {
         match self.0.observation_mode() {
@@ -160,10 +213,12 @@ impl BarrierOption {
             core::ObservationMode::Scheduled => "scheduled",
         }
     }
+    /// Return an owned copy of the monitoring schedule.
     #[getter]
     fn observation_schedule(&self) -> ObservationSchedule {
         ObservationSchedule(self.0.observation_schedule().clone())
     }
+    /// Return a copy of the contractual observation dates.
     #[getter]
     fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
         self.0
@@ -172,10 +227,12 @@ impl BarrierOption {
             .map(|&d| python_date(py, d))
             .collect()
     }
+    /// Return mean fixing spacing in Actual/365 Fixed years.
     #[getter]
     fn mean_observation_year_fraction(&self) -> f64 {
         self.0.mean_observation_year_fraction()
     }
+    /// Return strictly prior touch history, or None if unknown.
     #[getter]
     fn touch_state(&self) -> Option<&'static str> {
         self.0.touch_state().map(|s| match s {

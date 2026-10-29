@@ -266,7 +266,24 @@ def exclusions(inputs):
 
 
 def reference(inputs, stability=STABILITY, *, unavailable=None, measure_fn=None):
-    """Compute one contract reference, independent of tested engines and budgets."""
+    """Compute one contract reference, independent of tested engines and budgets.
+
+    Parameters
+    ----------
+    inputs : dict
+        Independent scenario inputs.
+    stability : dict of str to float, optional
+        Maximum allowed independent-reference uncertainty by measure.
+    unavailable : dict or None, optional
+        Excluded measures and reasons; None derives exclusions from inputs.
+    measure_fn : callable or None, optional
+        Independent measure calculator; None uses the default oracle.
+
+    Returns
+    -------
+    tuple of dict
+        Finite outputs and independent uncertainty metadata.
+    """
     measure_fn = measure if measure_fn is None else measure_fn
     unavailable = exclusions(inputs) if unavailable is None else unavailable
     outputs, metadata = {}, {}
@@ -304,7 +321,30 @@ def reference_row(
     instrument,
     engine,
 ):
-    """Attach product identity and comparison budgets without mutating inputs."""
+    """Attach product identity and comparison budgets without mutating inputs.
+
+    Parameters
+    ----------
+    identifier : str
+        Unique scenario identifier.
+    inputs : dict
+        Independent scenario inputs.
+    reference : tuple of dict
+        Independent outputs and metadata.
+    tolerances : dict of str to float
+        Acceptance budgets for native results.
+    numerical_tolerances : dict of str to float
+        Acceptance budgets for numerical Greeks.
+    instrument : str
+        Product identity used by the scenario.
+    engine : str
+        Engine identity used by the scenario.
+
+    Returns
+    -------
+    dict
+        Scenario identity, copied inputs, outputs and comparison budgets.
+    """
     outputs, metadata = reference
     attributes = dict(
         inputs,

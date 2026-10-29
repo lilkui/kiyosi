@@ -8,6 +8,7 @@ use crate::{Greek, MonteCarloSettings, MonteCarloVanillaEngine};
 use crate::{OptionContract, Timestamp, TurnbullWakemanArithmeticAveragePriceEngine};
 
 /// Prices geometric and arithmetic continuous averages using CPU Monte Carlo.
+///
 /// Geometric averages and single fixings sample their exact distribution in one
 /// dimension. Arithmetic averages retain trapezoidal integration with the first
 /// interval integrated conditionally; forward starts sample a separate lead interval.
@@ -21,9 +22,11 @@ pub struct MonteCarloAsianEngine {
 
 impl MonteCarloAsianEngine {
     /// Creates an engine with validated shared CPU sampling settings.
+    ///
     /// See [`MonteCarloVanillaEngine::new`] for configuration examples.
     ///
     /// # Errors
+    ///
     /// Reuses [`MonteCarloVanillaEngine::new`] validation and error categories.
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {
         MonteCarloVanillaEngine::new(settings)?;
@@ -36,10 +39,12 @@ impl MonteCarloAsianEngine {
     }
 
     /// Returns a discounted average-payoff estimate, or realized settlement at expiry.
+    ///
     /// Calls finish synchronously without cancellation polling. Recoverable entropy
     /// and thread failures preserve [`std::io::Error`] via [`Error::Io`].
     ///
     /// # Errors
+    ///
     /// Checks inclusive life then history consistency, returning
     /// [`Error::InvalidInput`] for either rejection.
     /// Before expiry geometric contracts require flat curves
@@ -48,13 +53,16 @@ impl MonteCarloAsianEngine {
     /// or results return [`Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Panics
+    ///
     /// Resumes worker panics after joining the call's workers.
     ///
     /// # Aborts
+    ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{MonteCarloAsianEngine, MonteCarloSettings,
     ///     GeometricAveragePriceOption, Date, OptionType,
     ///     BlackScholesMertonParameters, PricingContext};
@@ -82,16 +90,22 @@ impl MonteCarloAsianEngine {
     }
 
     /// Returns requested native delta/gamma from the price's shared normal draws.
+    ///
     /// Other Greeks and all expiry Greeks remain absent. Shifts are validated but
     /// unused. For scalar differences and history-boundary stencil rules, use
     /// [`crate::numerical_greeks`], which pins a request-local seed even for unseeded
     /// engines. Defaults remain [`NumericalShiftSettings`]'s. See [`Self::price`].
     ///
     /// # Errors
+    ///
     /// Rejects empty requests and invalid shifts with [`Error::InvalidInput`]
     /// before pricing, then propagates [`Self::price`] errors.
     /// Non-finite requested Greeks return [`Error::ComputationFailure`].
     /// Inputs remain unchanged on success and failure.
+    ///
+    /// # Panics
+    ///
+    /// Resumes worker panics after joining the call's workers, as in [`Self::price`].
     pub fn price_with_greeks<I: OptionContract>(
         &self,
         option: &I,

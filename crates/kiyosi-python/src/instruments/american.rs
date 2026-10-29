@@ -4,6 +4,18 @@ use kiyosi_core as core;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};
 
+/// Vanilla option exercisable throughout its inclusive contract life.
+///
+/// Parameters
+/// ----------
+/// option_type : {'call', 'put'}
+///     Call or put payoff direction.
+/// strike : float
+///     Positive finite exercise or purchase price.
+/// effective_date : datetime.date
+///     Inclusive first contract date.
+/// expiry_date : datetime.date
+///     Final contract date; expiry is at midnight UTC.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct AmericanOption(pub(crate) core::AmericanOption);
@@ -31,6 +43,28 @@ impl AmericanOption {
         )?))
     }
 
+    /// Return a validated replacement without changing this value.
+    ///
+    /// Parameters
+    /// ----------
+    /// option_type : {'call', 'put'}, optional
+    ///     Call or put payoff direction.
+    /// strike : float, optional
+    ///     Positive finite exercise or purchase price.
+    /// effective_date : datetime.date, optional
+    ///     Inclusive first contract date.
+    /// expiry_date : datetime.date, optional
+    ///     Final contract date; expiry is at midnight UTC.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     New instance of the same class; omitted fields retain their values.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (**fields))]
     fn replace(&self, py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
         check_changes(
@@ -52,6 +86,7 @@ impl AmericanOption {
         Ok(Self(domain(py, self.0.replace(changes))?))
     }
 
+    /// Return call or put payoff direction.
     #[getter]
     fn option_type(&self) -> &'static str {
         match self.0.option_type() {
@@ -59,14 +94,17 @@ impl AmericanOption {
             core::OptionType::Put => "put",
         }
     }
+    /// Return the exercise or purchase price in underlying price units.
     #[getter]
     fn strike(&self) -> f64 {
         self.0.strike()
     }
+    /// Return inclusive first contract date.
     #[getter]
     fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.effective_date())
     }
+    /// Return final contract date; expiry is at midnight UTC.
     #[getter]
     fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.expiry_date())

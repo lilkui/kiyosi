@@ -5,7 +5,9 @@ use crate::{
     PricingContext, PricingEngine, PricingResult, Result,
 };
 
-/// Stateless synchronous European BSM analytic pricing.
+/// Prices European vanilla options analytically under the BSM model.
+///
+/// Supports deterministic rate curves; see the [crate example](crate).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticEuropeanEngine;
 
@@ -17,7 +19,7 @@ pub(crate) fn log_normal_cdf(value: f64) -> f64 {
     if value >= -10.0 {
         return normal_cdf(value).ln();
     }
-    // Retain the existing erfc tail expansion when exponential weights offset underflow.
+    // Use the erfc tail expansion when exponential weights offset underflow.
     let inverse_square = (1.0 / value) / value;
     let mut term = 1.0;
     let mut sum = 1.0;
@@ -62,9 +64,17 @@ pub(crate) fn black_scholes_arguments(
 }
 
 impl AnalyticEuropeanEngine {
-    /// Price and selected analytic Greeks. At expiry every Greek is unavailable.
-    /// Time derivatives hold curve nodes fixed and use right-hand rates at knots.
-    /// Shift settings are validated but do not change analytic derivatives.
+    /// Returns the price and selected analytic Greeks.
+    ///
+    /// At expiry every Greek is unavailable. Time derivatives hold curve nodes
+    /// fixed and use right-hand rates at knots. Shift settings are validated
+    /// but do not change analytic derivatives. See the [crate example](crate).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for empty requests or invalid shifts,
+    /// then propagates [`Self::price`] errors. Non-finite requested derivatives
+    /// return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price_with_greeks(
         &self,
         option: &EuropeanOption,
@@ -180,8 +190,15 @@ impl AnalyticEuropeanEngine {
         }
         Ok(result)
     }
-    /// Prices within the inclusive contract life. At expiry returns intrinsic value.
-    /// Non-finite numerical results return [`Error::ComputationFailure`].
+    /// Prices within the inclusive contract life, returning intrinsic value at expiry.
+    ///
+    /// See the [crate example](crate) for construction and pricing.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] outside contract life or required curve
+    /// coverage, and [`Error::ComputationFailure`] for non-finite results.
+    /// Inputs remain unchanged.
     pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         let valuation = context.valuation_time();
         let expiry = option.expiry_date().start_of_day();

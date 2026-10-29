@@ -60,6 +60,28 @@ fn settings(
 
 macro_rules! fd_engine {
     ($name:ident, $instrument:ty, |$py:ident, $option:ident, $engine:ident, $context:ident, $request:ident, $shifts:ident| $price:expr, $analysis:expr) => {
+        /// Finite-difference pricing with immutable grid settings.
+        ///
+        /// Parameters
+        /// ----------
+        /// asset_step_count : int, optional
+        ///     Spatial grid budget. Uses the core default when omitted.
+        /// time_step_count : int, optional
+        ///     Positive time-step budget; event dates and curve knots are added.
+        /// scheme : FiniteDifferenceScheme, optional
+        ///     Time-marching scheme; defaults to damped Crank-Nicolson.
+        /// asset_upper_boundary : float or None, optional
+        ///     Positive upper spot boundary, or None for the automatic domain.
+        ///
+        /// Notes
+        /// -----
+        /// The engine name selects its product family. The vanilla engine accepts
+        /// EuropeanOption and AmericanOption. The digital engine accepts
+        /// CashOrNothingOption and AssetOrNothingOption. The binary-barrier engine
+        /// also accepts TouchOption. The autocallable engine accepts all snowball
+        /// variants and PhoenixOption. Other engines accept their named product.
+        /// Digital pricing requires explicitly flat rates; other families accept
+        /// deterministic rate curves.
         #[pyclass(frozen, module = "kiyosi._native")]
         pub(crate) struct $name(pub(crate) core::$name);
 
@@ -73,14 +95,17 @@ macro_rules! fd_engine {
                     core::$name::new(settings(fields, core::$name::default().settings())?),
                 )?))
             }
+            /// Return the configured spatial grid budget.
             #[getter]
             fn asset_step_count(&self) -> i32 {
                 self.0.settings().asset_step_count
             }
+            /// Return the configured time-step budget before event insertion.
             #[getter]
             fn time_step_count(&self) -> i32 {
                 self.0.settings().time_step_count
             }
+            /// Return the configured time-marching choice string.
             #[getter]
             fn scheme(&self) -> &'static str {
                 match self.0.settings().scheme {
@@ -89,11 +114,30 @@ macro_rules! fd_engine {
                     core::FiniteDifferenceScheme::CrankNicolson => "crank_nicolson",
                 }
             }
+            /// Return the explicit upper spot boundary, or None for automatic selection.
             #[getter]
             fn asset_upper_boundary(&self) -> Option<f64> {
                 self.0.settings().asset_upper_boundary
             }
 
+            /// Return the price without changing the instrument or context.
+            ///
+            /// Parameters
+            /// ----------
+            /// instrument : object
+            ///     Supported contract; see the engine class for accepted types.
+            /// context : PricingContext
+            ///     Market snapshot and valuation instant.
+            ///
+            /// Returns
+            /// -------
+            /// float
+            ///     Present value of remaining contractual payments.
+            ///
+            /// Raises
+            /// ------
+            /// KiyosiError
+            ///     If domain validation, engine applicability or numerical pricing fails.
             fn price(
                 &self,
                 py: Python<'_>,
@@ -107,6 +151,32 @@ macro_rules! fd_engine {
                 domain(py, $price)
             }
 
+            /// Return the price and selected sensitivities.
+            ///
+            /// Parameters
+            /// ----------
+            /// instrument : object
+            ///     Supported contract; see the engine class for accepted types.
+            /// context : PricingContext
+            ///     Market snapshot and valuation instant.
+            /// greeks : str or iterable of str, optional
+            ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
+            /// **settings
+            ///     `all_greeks` requests every measure and requires omitting `greeks`.
+            ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
+            ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
+            ///     defaults; analytic engines still validate them.
+            ///
+            /// Returns
+            /// -------
+            /// PricingResult
+            ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
+            ///     including every Greek at expiry. Units follow PricingResult.
+            ///
+            /// Raises
+            /// ------
+            /// KiyosiError
+            ///     If requests, shifts, pricing or a feasible bumped valuation fails.
             #[pyo3(signature = (instrument, context, greeks=None, **settings))]
             fn price_with_greeks(
                 &self,

@@ -6,12 +6,19 @@ use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
 
+/// Immutable ordered observation dates with sequence access.
+///
+/// Notes
+/// -----
+/// Use fixed_interval_schedule or monthly_schedule. The dates property
+/// returns a copy; iteration retains the schedule owner.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct ObservationSchedule(pub(crate) core::ObservationSchedule);
 
 #[pymethods]
 impl ObservationSchedule {
+    /// Return a copy of the strictly ordered observation dates.
     #[getter]
     fn dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
         self.0
@@ -64,6 +71,33 @@ impl ScheduleIterator {
     }
 }
 
+/// Create adjusted observations at positive fixed calendar-day intervals.
+///
+/// Parameters
+/// ----------
+/// start : datetime.date
+///     First date of the interval.
+/// end : datetime.date
+///     Last date of the interval.
+/// interval_days : int
+///     Positive calendar-day spacing of unadjusted observations.
+/// calendar : TradingCalendar, optional
+///     Trading calendar. Defaults to weekdays with a 252-day basis.
+///
+/// Returns
+/// -------
+/// ObservationSchedule
+///     Owned result; no input is mutated.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If life is reversed or the spacing/first offset is nonpositive.
+///
+/// Notes
+/// -----
+/// Exclude start and include candidates through end. Following adjustment
+/// merges collisions and stops before crossing end; end need not appear.
 #[pyfunction]
 #[pyo3(signature = (*, start, end, interval_days, calendar=TradingCalendar::default()))]
 pub(crate) fn fixed_interval_schedule(
@@ -84,6 +118,33 @@ pub(crate) fn fixed_interval_schedule(
     )?))
 }
 
+/// Create monthly observations anchored to the start day.
+///
+/// Parameters
+/// ----------
+/// start : datetime.date
+///     First date of the interval.
+/// end : datetime.date
+///     Last date of the interval.
+/// first_observation_month : int
+///     Positive month offset from start to the first observation.
+/// calendar : TradingCalendar, optional
+///     Trading calendar. Defaults to weekdays with a 252-day basis.
+///
+/// Returns
+/// -------
+/// ObservationSchedule
+///     Owned result; no input is mutated.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If life is reversed or the spacing/first offset is nonpositive.
+///
+/// Notes
+/// -----
+/// Exclude start and include candidates through end. Following adjustment
+/// merges collisions and stops before crossing end; end need not appear.
 #[pyfunction]
 #[pyo3(signature = (*, start, end, first_observation_month, calendar=TradingCalendar::default()))]
 pub(crate) fn monthly_schedule(

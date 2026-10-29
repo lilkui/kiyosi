@@ -4,6 +4,7 @@ use crate::{
 };
 
 /// Selects how a snowball maturity coupon follows its quoted observation coupon.
+///
 /// See [`implied_snowball_coupon`] for an example.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CouponQuoteConvention {
@@ -14,6 +15,7 @@ pub enum CouponQuoteConvention {
 }
 
 /// Sets finite signed coupon bounds and convergence controls.
+///
 /// Either tolerance stops bisection; endpoint and interpolation evaluations do
 /// not count toward the iteration limit. See [`implied_coupon`] for an example.
 #[derive(Clone, Copy, Debug)]
@@ -43,11 +45,13 @@ impl Default for ImpliedCouponSettings {
 }
 
 /// Solves a snowball family's price curve in its first observation coupon.
+///
 /// Shifts the whole coupon schedule, with maturity linkage selected explicitly.
 /// Tries affine interpolation, verifies its residual, then bisects if needed.
 /// Inputs remain unchanged; custom engines retain their own concurrency contract.
 ///
 /// # Errors
+///
 /// Checks settings and finite observed price ([`Error::InvalidInput`])
 /// before replacing and pricing both bounds. Replacement and engine errors propagate.
 /// Equal endpoint prices return [`Error::UnsupportedOperation`] before
@@ -56,7 +60,8 @@ impl Default for ImpliedCouponSettings {
 /// exhausted bisection returns [`Error::NonConvergence`].
 ///
 /// # Examples
-/// ```
+///
+/// ```rust
 /// use kiyosi_core::*;
 /// # fn main() -> Result<()> {
 /// let start = Date::new(2025, 1, 1)?;
@@ -96,14 +101,17 @@ pub fn implied_snowball_coupon<
 }
 
 /// Solves a Phoenix price curve in its conditional annual coupon.
+///
 /// Uses the validation, endpoint, convergence and failure-state contract of
 /// [`implied_snowball_coupon`], without a quote convention.
 ///
 /// # Errors
+///
 /// Returns the validation, pricing and solver errors of [`implied_snowball_coupon`].
 ///
 /// # Examples
-/// ```
+///
+/// ```rust
 /// use kiyosi_core::*;
 /// # fn main() -> Result<()> {
 /// let start = Date::new(2025, 1, 1)?;

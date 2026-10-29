@@ -41,6 +41,7 @@ impl AccumulatorTerms {
 }
 
 /// Owns outstanding purchases settled at knock-out or expiry as `quantity * (spot - strike)`.
+///
 /// Observes trading dates at midnight UTC, including both life endpoints. A knock-out
 /// observation purchases no units. Prices exclude previously settled cashflows;
 /// callers must not value already terminated contracts. History is caller asserted,
@@ -54,11 +55,13 @@ impl Accumulator {
     /// Creates a validated contract, allowing equal life dates and zero quantities.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for invalid strike, invalid level or
     /// quantities, or reversed life dates, checked in that order. Inputs are unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{Accumulator, AccumulatorTerms, Date};
     /// # fn main() -> kiyosi_core::Result<()> {
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
@@ -91,6 +94,7 @@ impl Accumulator {
     /// Returns an owning replacement of accrued quantity; see [`Self::new`].
     ///
     /// # Errors
+    ///
     /// Reuses [`Self::new`] validation, preserving the original on success and failure.
     pub fn replace(&self, accumulated_quantity: f64) -> Result<Self> {
         Self::new(AccumulatorTerms {

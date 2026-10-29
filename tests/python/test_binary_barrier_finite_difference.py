@@ -483,7 +483,34 @@ def two_fixing_price(
     dividend1=0.01,
     dividend2=0.01,
 ):
-    """Integrate conditional lognormal payoffs, splitting at the first trigger."""
+    """Integrate conditional lognormal payoffs, splitting at the first trigger.
+
+    Parameters
+    ----------
+    up : bool
+        Whether the barrier triggers upward.
+    knock_in : bool
+        Whether touching activates the terminal payoff.
+    asset : bool
+        Whether settlement pays the asset rather than fixed cash.
+    direction : {'call', 'put'} or None, optional
+        Terminal payoff direction; touch contracts have no strike direction.
+    at_hit : bool, optional
+        Whether a one-touch pays at the hitting time.
+    rate1 : float, optional
+        Continuously compounded rate before the first fixing.
+    rate2 : float, optional
+        Continuously compounded rate after the first fixing.
+    dividend1 : float, optional
+        Dividend yield before the first fixing.
+    dividend2 : float, optional
+        Dividend yield after the first fixing.
+
+    Returns
+    -------
+    float
+        Independent discounted payoff value.
+    """
     first = (date(2025, 6, 30) - START).days / 365
     remaining = 1 - first
     level = 120.125 if up else 79.875

@@ -18,6 +18,17 @@ pub(crate) enum VanillaInstrument<'py> {
 
 macro_rules! binomial_engine {
     ($name:ident, $instrument:ty, |$py:ident, $option:ident, $engine:ident, $context:ident, $request:ident, $shifts:ident| $price:expr, $analysis:expr) => {
+        /// Flat-rate Cox-Ross-Rubinstein tree pricing.
+        ///
+        /// Parameters
+        /// ----------
+        /// step_count : int, optional
+        ///     Grid size. Uses the core default when omitted.
+        ///
+        /// Notes
+        /// -----
+        /// The vanilla engine accepts EuropeanOption and AmericanOption; the
+        /// digital engine accepts CashOrNothingOption and AssetOrNothingOption.
         #[pyclass(frozen, module = "kiyosi._native")]
         pub(crate) struct $name(pub(crate) core::$name);
 
@@ -38,6 +49,7 @@ macro_rules! binomial_engine {
                 Ok(Self(domain(py, core::$name::new(settings))?))
             }
 
+            /// Return the configured grid size.
             #[getter]
             fn step_count(&self) -> i32 {
                 self.0.settings().step_count
@@ -47,6 +59,24 @@ macro_rules! binomial_engine {
                 format!("{}(step_count={})", stringify!($name), self.step_count())
             }
 
+            /// Return the price without changing the instrument or context.
+            ///
+            /// Parameters
+            /// ----------
+            /// instrument : object
+            ///     Supported contract; see the engine class for accepted types.
+            /// context : PricingContext
+            ///     Market snapshot and valuation instant.
+            ///
+            /// Returns
+            /// -------
+            /// float
+            ///     Present value of remaining contractual payments.
+            ///
+            /// Raises
+            /// ------
+            /// KiyosiError
+            ///     If domain validation, engine applicability or numerical pricing fails.
             fn price(
                 &self,
                 py: Python<'_>,
@@ -60,6 +90,32 @@ macro_rules! binomial_engine {
                 domain(py, $price)
             }
 
+            /// Return the price and selected sensitivities.
+            ///
+            /// Parameters
+            /// ----------
+            /// instrument : object
+            ///     Supported contract; see the engine class for accepted types.
+            /// context : PricingContext
+            ///     Market snapshot and valuation instant.
+            /// greeks : str or iterable of str, optional
+            ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
+            /// **settings
+            ///     `all_greeks` requests every measure and requires omitting `greeks`.
+            ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
+            ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
+            ///     defaults; analytic engines still validate them.
+            ///
+            /// Returns
+            /// -------
+            /// PricingResult
+            ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
+            ///     including every Greek at expiry. Units follow PricingResult.
+            ///
+            /// Raises
+            /// ------
+            /// KiyosiError
+            ///     If requests, shifts, pricing or a feasible bumped valuation fails.
             #[pyo3(signature = (instrument, context, greeks=None, **settings))]
             fn price_with_greeks(
                 &self,
@@ -121,6 +177,16 @@ binomial_engine!(
         py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
     }
 );
+/// Flat-rate Cox-Ross-Rubinstein tree pricing.
+///
+/// Parameters
+/// ----------
+/// step_count : int, optional
+///     Grid size. Uses the core default when omitted.
+///
+/// See Also
+/// --------
+/// BarrierOption : Supported contract.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct CoxRossRubinsteinBarrierEngine(pub(crate) core::CoxRossRubinsteinBarrierEngine);
 
@@ -143,6 +209,7 @@ impl CoxRossRubinsteinBarrierEngine {
             core::CoxRossRubinsteinBarrierEngine::new(settings),
         )?))
     }
+    /// Return the configured grid size.
     #[getter]
     fn step_count(&self) -> i32 {
         self.0.settings().step_count
@@ -153,6 +220,24 @@ impl CoxRossRubinsteinBarrierEngine {
             self.step_count()
         )
     }
+    /// Return the price without changing the instrument or context.
+    ///
+    /// Parameters
+    /// ----------
+    /// instrument : object
+    ///     Supported contract; see the engine class for accepted types.
+    /// context : PricingContext
+    ///     Market snapshot and valuation instant.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Present value of remaining contractual payments.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If domain validation, engine applicability or numerical pricing fails.
     fn price(
         &self,
         py: Python<'_>,
@@ -164,6 +249,32 @@ impl CoxRossRubinsteinBarrierEngine {
         let context = context.0.clone();
         domain(py, py.detach(|| engine.price(&option, &context)))
     }
+    /// Return the price and selected sensitivities.
+    ///
+    /// Parameters
+    /// ----------
+    /// instrument : object
+    ///     Supported contract; see the engine class for accepted types.
+    /// context : PricingContext
+    ///     Market snapshot and valuation instant.
+    /// greeks : str or iterable of str, optional
+    ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
+    /// **settings
+    ///     `all_greeks` requests every measure and requires omitting `greeks`.
+    ///     Positive absolute bumps are `spot_shift`, `volatility_shift`,
+    ///     `rate_shift` and integer `time_shift_days`. Omitted bumps use core
+    ///     defaults; analytic engines still validate them.
+    ///
+    /// Returns
+    /// -------
+    /// PricingResult
+    ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
+    ///     including every Greek at expiry. Units follow PricingResult.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If requests, shifts, pricing or a feasible bumped valuation fails.
     #[pyo3(signature = (instrument, context, greeks=None, **settings))]
     fn price_with_greeks(
         &self,

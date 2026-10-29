@@ -8,16 +8,17 @@ use crate::{
 
 impl FiniteDifferenceBinaryBarrierEngine {
     /// Prices a binary barrier or single touch with flat or node curves.
+    ///
     /// Continuous barriers are exact grid edges; scheduled observations project event cells.
     /// Prior at-hit payments have no remaining value; resolved cash flows use exact discounts.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] outside life or required curve coverage,
-    /// for non-trading observations,
-    /// for unknown required history, invalid grids or
-    /// unstable explicit steps, for impossible history,
-    /// and [`Error::ComputationFailure`] for numerical failures. Inputs remain unchanged.
+    /// for non-trading observations, missing or impossible history, invalid grids,
+    /// or unstable explicit steps. Returns [`Error::ComputationFailure`] for
+    /// numerical failures. Inputs remain unchanged.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
         Self: PricingEngine<I>,
@@ -26,15 +27,18 @@ impl FiniteDifferenceBinaryBarrierEngine {
     }
 
     /// Returns spline spot Greeks and completes other sensitivities on the central domain.
+    ///
     /// Stencils crossing observations or barriers leave affected measures absent.
     /// All Greeks are absent at expiry or a current barrier equality without a prior touch.
     ///
     /// # Errors
+    ///
     /// Validates requests and shifts before pricing, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors. Inputs and engine settings remain unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;
@@ -115,11 +119,13 @@ binary_pricing!(FiniteDifferenceDoubleTouchEngine, DoubleTouchOption);
 
 impl FiniteDifferenceDoubleTouchEngine {
     /// Prices cash double-touch contracts using both inclusive boundaries and shared history.
+    ///
     /// Fits continuous boundaries exactly and projects scheduled events simultaneously.
     /// Prior at-hit payments have zero remaining value; resolved cash uses exact discounts.
     /// See [`DoubleTouchOption::cash`] for construction and pricing.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] outside life or required curve coverage,
     /// for non-trading observations, unknown or impossible history, invalid grids,
     /// or unstable explicit steps. Numerical failures return
@@ -129,15 +135,18 @@ impl FiniteDifferenceDoubleTouchEngine {
     }
 
     /// Returns spline spot Greeks and completes other sensitivities on the central domain.
+    ///
     /// Stencils crossing either boundary or an observation omit affected measures.
     /// All Greeks are absent at expiry or current boundary equality without a prior touch.
     ///
     /// # Errors
+    ///
     /// Validates requests and shifts before pricing, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors. Inputs remain unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;

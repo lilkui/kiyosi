@@ -6,12 +6,14 @@ use crate::{
 
 impl FiniteDifferenceBarrierEngine {
     /// Prices a single barrier with continuous or scheduled monitoring and flat or node curves.
+    ///
     /// Resolves current observations against actual spot before building a grid.
     /// Prior at-hit rebates are already paid; resolved vanilla payoffs use analytic pricing.
     /// Continuous barriers are exact domain edges; scheduled dates are inserted unchanged.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] outside life or curve coverage, for
     /// non-trading observations, missing or impossible history, clipped or
     /// degenerate grids, or unstable explicit steps. Numerical failures return
@@ -28,17 +30,20 @@ impl FiniteDifferenceBarrierEngine {
     }
 
     /// Returns spline delta/gamma and fixed-grid speed, completing other Greeks numerically.
+    ///
     /// Uses [`NumericalShiftSettings`] for all bumps and fixes the central spatial domain.
     /// Stencils crossing observations or barriers leave affected Greeks absent; all are
     /// absent at expiry or a current barrier equality without a prior touch.
     ///
     /// # Errors
+    ///
     /// Validates requests and shifts before pricing. Propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors; feasible bumped failures fail the operation.
     /// Inputs and immutable engine settings remain unchanged on success and failure.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;
@@ -138,12 +143,14 @@ fn analysis(
 
 impl FiniteDifferenceDoubleBarrierEngine {
     /// Prices double barriers with continuous or scheduled monitoring and flat or node curves.
+    ///
     /// Fits both continuous edges exactly, using all configured asset steps between them.
     /// Projects scheduled boundary events simultaneously on the full spatial grid.
     /// Resolves current touches and known history before grid validation.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
+    ///
     /// Reuses [`FiniteDifferenceBarrierEngine::price`] categories and validation timing,
     /// including rejection of boundaries that do not exceed spot, strike and both barriers.
     /// Inputs and engine settings remain unchanged on every outcome.
@@ -159,16 +166,19 @@ impl FiniteDifferenceDoubleBarrierEngine {
     }
 
     /// Returns spline delta/gamma and fixed-grid speed, completing other Greeks numerically.
+    ///
     /// Fixes the central spatial domain for bumps. Stencils crossing either boundary or
     /// an observation omit affected measures; all are absent at expiry or current boundary
     /// equality without a prior touch.
     ///
     /// # Errors
+    ///
     /// Validates requests and shifts before pricing, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors. Inputs remain unchanged on success and failure.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;

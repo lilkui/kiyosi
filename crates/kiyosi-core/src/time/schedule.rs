@@ -1,7 +1,9 @@
 use crate::{Date, Error, Result, TradingCalendar, time::calendar::validate_range};
 
-/// Immutable, strictly ordered owning observation dates. Accessors borrow stable storage
-/// until the schedule is moved, assigned or dropped; shared concurrent reads are safe.
+/// Owns immutable, strictly ordered observation dates.
+///
+/// Accessors borrow storage for the lifetime of the borrow; shared reads are safe.
+/// See [`Self::fixed_interval`] for construction.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ObservationSchedule {
     dates: Vec<Date>,
@@ -9,9 +11,11 @@ pub struct ObservationSchedule {
 
 impl ObservationSchedule {
     /// Creates an owning schedule after validating life bounds, order and trading days.
+    ///
     /// Empty schedules are valid.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for reversed life, unordered or out-of-life
     /// dates, or non-trading observation dates, checked in that order.
     pub fn new(
@@ -37,12 +41,26 @@ impl ObservationSchedule {
     }
 
     /// Creates candidates at `start + n * interval_days` for positive `n`.
+    ///
     /// Start is excluded and end is inclusive. Following adjustment merges collisions
     /// and stops before crossing end; end need not appear.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] for reversed life or nonpositive intervals,
     /// checked in that order. Propagates date-range and schedule validation errors.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi_core::{Date, ObservationSchedule, TradingCalendar};
+    /// # fn main() -> kiyosi_core::Result<()> {
+    /// let schedule = ObservationSchedule::fixed_interval(
+    ///     Date::new(2025, 1, 1)?, Date::new(2025, 1, 10)?, 3,
+    ///     &TradingCalendar::all_days())?;
+    /// assert_eq!(schedule.len(), 3);
+    /// # Ok(()) }
+    /// ```
     pub fn fixed_interval(
         start: Date,
         end: Date,
@@ -64,9 +82,16 @@ impl ObservationSchedule {
         Self::new(dates, start, end, calendar)
     }
 
-    /// Monthly candidates anchored to start's day, clamped to each month's last day.
-    /// Positive first-month offset; subsequent observations are monthly. Uses the same
-    /// adjustment, collision and endpoint rules as `fixed_interval`.
+    /// Creates monthly candidates anchored to `start`'s day, clamped at month end.
+    ///
+    /// The first offset must be positive; subsequent observations are monthly.
+    /// Uses [`Self::fixed_interval`]'s adjustment, collision and endpoint rules.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for reversed life or a nonpositive first
+    /// offset. Propagates date-range and schedule validation errors.
+    /// See [`Self::fixed_interval`] for schedule construction.
     pub fn monthly(
         start: Date,
         end: Date,
@@ -102,9 +127,11 @@ impl ObservationSchedule {
     pub fn dates(&self) -> &[Date] {
         &self.dates
     }
+    /// Returns the number of observation dates; see [`Self::fixed_interval`].
     pub fn len(&self) -> usize {
         self.dates.len()
     }
+    /// Reports whether there are no observations; see [`Self::fixed_interval`].
     pub fn is_empty(&self) -> bool {
         self.dates.is_empty()
     }

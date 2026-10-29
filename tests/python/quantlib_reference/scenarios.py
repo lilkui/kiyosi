@@ -102,7 +102,13 @@ def load_scenarios(path):
 
 
 def rows():
-    """Compute each contract once and restore QuantLib settings before returning."""
+    """Compute each contract once and restore QuantLib settings before returning.
+
+    Returns
+    -------
+    list of dict
+        Independent references expanded over the numerical engine profiles.
+    """
     g.require_version()
     with g.ql.SavedSettings():
         scenarios = load_scenarios(g.DATA_DIR / "scenarios.json")

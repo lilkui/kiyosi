@@ -6,11 +6,13 @@ use crate::{
 
 use crate::instruments::asian::AverageTerms;
 /// Prices continuous geometric averages under BSM with deterministic rate curves.
+///
 /// Shared instances support concurrent pricing; see [`Self::price`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticGeometricAveragePriceEngine;
 
-/// Approximates continuous arithmetic averages with the existing moment matching.
+/// Approximates continuous arithmetic averages by moment matching.
+///
 /// Requires explicitly flat rates before expiry, including single-fixing contracts.
 /// This is the Levy-compatible approximation, not an exact arithmetic-average price.
 /// Shared instances support concurrent pricing; see [`Self::price`].
@@ -51,12 +53,14 @@ impl AnalyticGeometricAveragePriceEngine {
     /// Prices geometric averaging, preserving forward starts, history and expiry settlement.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] outside life or curve coverage,
     /// for inconsistent history, and
     /// [`Error::ComputationFailure`] for non-finite calculations. Inputs remain unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{AnalyticGeometricAveragePriceEngine, GeometricAveragePriceOption,
     ///     BlackScholesMertonParameters, PricingContext, Date, OptionType};
     /// # fn main() -> kiyosi_core::Result<()> {
@@ -179,10 +183,12 @@ fn divided_exprel_increment_ratio(x: f64, y: f64, h: f64) -> f64 {
 }
 
 impl TurnbullWakemanArithmeticAveragePriceEngine {
-    /// Prices the existing arithmetic approximation, settling realized history at expiry.
+    /// Prices the arithmetic approximation, settling realized history at expiry.
+    ///
     /// See [`AnalyticGeometricAveragePriceEngine::price`] for the market setup.
     ///
     /// # Errors
+    ///
     /// Reuses geometric life/history errors, then returns
     /// [`Error::UnsupportedOperation`] for node curves before expiry,
     /// [`Error::InvalidInput`] for curve coverage, or
@@ -190,7 +196,8 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     /// Inputs remain unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{TurnbullWakemanArithmeticAveragePriceEngine, ArithmeticAveragePriceOption,
     ///     BlackScholesMertonParameters, PricingContext, Date, OptionType, GreeksRequest, Greek};
     /// # fn main() -> kiyosi_core::Result<()> {
@@ -338,10 +345,12 @@ macro_rules! asian_analytics {
     ($engine:ident, $option:ident) => {
         impl $engine {
             /// Returns requested Greeks using shared scalar finite differences.
+            ///
             /// Time Greeks are unavailable when a stencil crosses the history boundary;
             /// all Greeks are unavailable at expiry. See [`Self::price`] for a setup example.
             ///
             /// # Errors
+            ///
             /// Returns [`Error::InvalidInput`] for empty requests or invalid shifts
             /// before pricing, [`Error::ComputationFailure`] for non-finite derivatives,
             /// and propagates pricing and feasible bumped-pricing errors.

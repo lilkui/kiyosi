@@ -5,6 +5,7 @@ use crate::{
 };
 
 /// Prices European cash-or-nothing and asset-or-nothing contracts by terminal sampling.
+///
 /// Uses flat BSM rates, standardized strict exercise tests and likelihood-ratio
 /// delta/gamma. Other engine Greeks remain absent; scalar numerical sensitivities
 /// are available through [`crate::numerical_greeks`]. Steps are validated but unused.
@@ -18,9 +19,11 @@ pub struct MonteCarloDigitalEngine {
 
 impl MonteCarloDigitalEngine {
     /// Creates an engine with validated shared CPU sampling settings.
+    ///
     /// See [`MonteCarloVanillaEngine::new`] for sampling configuration examples.
     ///
     /// # Errors
+    ///
     /// Reuses [`MonteCarloVanillaEngine::new`] validation and error categories.
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {
         MonteCarloVanillaEngine::new(settings)?;
@@ -33,20 +36,24 @@ impl MonteCarloDigitalEngine {
     }
 
     /// Returns the discounted terminal mean, settling strictly in the money at expiry.
+    ///
     /// See [`Self::price_with_greeks`] for an example. Calls finish synchronously
     /// without cancellation polling; operational failures preserve their native
     /// [`std::io::Error`] through [`Error::Io`].
     ///
     /// # Errors
+    ///
     /// Returns [`Error::UnsupportedOperation`] for node curves before life
     /// validation, [`Error::InvalidInput`] outside the inclusive life,
     /// and [`Error::ComputationFailure`] for non-finite parameters, samples or
     /// results. Inputs remain unchanged on success and failure.
     ///
     /// # Panics
+    ///
     /// Resumes worker panics after joining the call's workers.
     ///
     /// # Aborts
+    ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         Ok(self
@@ -55,17 +62,24 @@ impl MonteCarloDigitalEngine {
     }
 
     /// Returns requested likelihood-ratio delta/gamma from the price's normal draws.
+    ///
     /// All other Greeks, and all expiry Greeks, remain absent. Shifts are validated
     /// but unused. Near-expiry estimates can have substantial sampling error.
     ///
     /// # Errors
+    ///
     /// Checks flat-rate applicability before requests and shifts, then propagates
     /// [`Self::price`] errors. Empty requests or invalid shifts return
     /// [`Error::InvalidInput`]; non-finite requested Greek samples return
     /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     ///
+    /// # Panics
+    ///
+    /// Resumes worker panics after joining the call's workers, as in [`Self::price`].
+    ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{MonteCarloDigitalEngine, MonteCarloSettings, DigitalOption,
     ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
     /// # fn main() -> kiyosi_core::Result<()> {

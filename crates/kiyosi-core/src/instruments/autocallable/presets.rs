@@ -46,6 +46,7 @@ pub enum SnowballPreset {
 }
 
 /// Supplies common market terms for the named snowball presets.
+///
 /// See [`Self::expand`] for conventions, validation and an example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SnowballPresetTerms {
@@ -70,6 +71,7 @@ pub struct SnowballPresetTerms {
 }
 impl SnowballPresetTerms {
     /// Creates input terms with the core snowball history and principal defaults.
+    ///
     /// Validation occurs on [`Self::expand`]; see its example.
     pub fn new(
         coupon_rate: f64,
@@ -103,17 +105,20 @@ impl SnowballPresetTerms {
         }
     }
     /// Expands a named convention into an ordinary validated [`SnowballOption`].
+    ///
     /// All presets use zero lower strike, initial spot as upper strike and daily
     /// knock-in monitoring unless overridden by the selected convention.
     /// Signed coupons and decrements are accepted when every expanded term is valid.
     /// The returned note owns its terms and uses the usual history and replacement rules.
     ///
     /// # Errors
+    ///
     /// Propagates [`SnowballOption::new`] errors for invalid expanded terms,
     /// schedules or life dates. Inputs are consumed on failure.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{Date, SnowballPreset, SnowballPresetTerms};
     /// # fn main() -> kiyosi_core::Result<()> {
     /// let start = Date::new(2025, 1, 1)?;

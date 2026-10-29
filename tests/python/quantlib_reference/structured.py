@@ -92,7 +92,21 @@ def horizon(inputs, field="valuation"):
 
 
 def portfolio(instrument, inputs):
-    """Return constant cash, constant asset units, and (kind, direction, strike, weight) legs."""
+    """Decompose a terminal payoff into cash, asset units and binary legs.
+
+    Parameters
+    ----------
+    instrument : str
+        Product identity used by the scenario.
+    inputs : dict
+        Independent scenario inputs.
+
+    Returns
+    -------
+    tuple
+        Constant cash, asset units and (kind, direction, strike, weight)
+        legs.
+    """
     legs = []
 
     def leg(kind, direction, strike, weight):

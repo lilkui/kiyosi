@@ -15,6 +15,7 @@ use grid::{Curve, SpatialGrid, TimeGrid};
 use step::Stepper;
 
 /// Selects the finite-difference time-marching scheme.
+///
 /// See [`FiniteDifferenceVanillaEngine::new`] for a settings example.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum FiniteDifferenceScheme {
@@ -38,6 +39,7 @@ impl FiniteDifferenceScheme {
 }
 
 /// Configures the spatial domain and time grid, validated at engine construction.
+///
 /// Grid sizes have no additional cap; pricing is subject to memory and runtime.
 /// Allocation exhaustion follows the library-wide allocator contract.
 /// See [`FiniteDifferenceVanillaEngine::new`] for an example.
@@ -50,6 +52,7 @@ pub struct FiniteDifferenceSettings {
     /// Selects time marching; defaults to damped Crank-Nicolson.
     pub scheme: FiniteDifferenceScheme,
     /// Sets a finite positive upper spot boundary, or uses the contract's automatic domain.
+    ///
     /// Pricing requires the boundary to exceed spot, strike and any barrier level.
     /// Explicit domains need convergence checks.
     pub asset_upper_boundary: Option<f64>,
@@ -453,7 +456,9 @@ macro_rules! engine_settings {
     };
     ($engine:ident, $description:literal, $defaults:expr) => {
         #[doc = $description]
+        ///
         /// Owns immutable settings; distinct and shared instances support concurrent pricing.
+        ///
         /// See [`Self::price_with_greeks`] for usage.
         #[derive(Clone, Copy, Debug, PartialEq)]
         pub struct $engine {
@@ -470,13 +475,15 @@ macro_rules! engine_settings {
             /// Creates an engine after validating grid sizes and any explicit upper boundary.
             ///
             /// # Errors
+            ///
             /// Returns [`Error::InvalidInput`] for fewer than three asset steps,
             /// nonpositive time steps or a nonpositive/non-finite explicit upper boundary.
             /// Validation precedes storing settings; no grid is allocated here.
             /// See [`Self::price_with_greeks`] for engine-specific usage.
             ///
             /// # Examples
-            /// ```
+            ///
+            /// ```rust
             /// use kiyosi_core::{FiniteDifferenceVanillaEngine, FiniteDifferenceSettings, FiniteDifferenceScheme};
             /// # fn main() -> kiyosi_core::Result<()> {
             /// let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
@@ -542,11 +549,13 @@ engine_settings!(
 
 impl FiniteDifferenceVanillaEngine {
     /// Prices a supported vanilla contract, returning intrinsic value at expiry.
+    ///
     /// Accepts flat or node curves. American automatic domains expand with volatility
     /// and maturity and use sinh coordinates; European grids remain uniform in spot.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::InvalidInput`] outside contract life or curve coverage,
     /// for clipped/degenerate grids or unstable explicit steps,
     /// and [`Error::ComputationFailure`] for numerical failures. Inputs remain unchanged.
@@ -558,16 +567,19 @@ impl FiniteDifferenceVanillaEngine {
     }
 
     /// Returns spline delta/gamma and fixed-grid speed, completing other Greeks numerically.
+    ///
     /// Bumped contexts share the central spatial domain. All Greeks are absent at expiry.
     /// Uses [`NumericalShiftSettings`] for bumps; unavailable stencils leave Greeks absent.
     ///
     /// # Errors
+    ///
     /// Validates requests and shifts before pricing; reuses [`Self::price`] and
     /// [`crate::numerical_greeks`] errors. Feasible bumped failures propagate.
     /// Inputs and engine settings remain unchanged on success and failure.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{FiniteDifferenceVanillaEngine, EuropeanOption, OptionType,
     ///     BlackScholesMertonParameters, Date, PricingContext, Greek, GreeksRequest};
     /// # fn main() -> kiyosi_core::Result<()> {
@@ -652,16 +664,19 @@ vanilla_pricing!(AmericanOption, true);
 
 impl FiniteDifferenceDigitalEngine {
     /// Prices a digital using cell-averaged terminal payoffs, settling strictly in the money at expiry.
+    ///
     /// Rejects node curves before life validation, including at expiry.
     /// See [`FiniteDifferenceVanillaEngine::price_with_greeks`] for context construction.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::UnsupportedOperation`] for node curves, then reuses
     /// [`FiniteDifferenceVanillaEngine::price`] errors. Payoff-bound violations return
     /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::{FiniteDifferenceDigitalEngine, DigitalOption, OptionType,
     ///     BlackScholesMertonParameters, Date, PricingContext};
     /// # fn main() -> kiyosi_core::Result<()> {
@@ -686,9 +701,11 @@ impl FiniteDifferenceDigitalEngine {
     }
 
     /// Returns spline spot Greeks and numerical completion with the shared central domain.
+    ///
     /// All expiry Greeks are absent. See [`Self::price`] for a pricing example.
     ///
     /// # Errors
+    ///
     /// Checks flat-rate applicability before request and shift validation, then reuses
     /// [`Self::price`] and [`crate::numerical_greeks`] errors. Inputs remain unchanged.
     pub fn price_with_greeks(

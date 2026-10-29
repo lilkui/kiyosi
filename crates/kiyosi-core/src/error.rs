@@ -10,7 +10,7 @@ use std::{borrow::Cow, fmt, io};
 ///
 /// # Examples
 ///
-/// ```
+/// ```rust
 /// use kiyosi_core::{Date, Error};
 ///
 /// assert!(matches!(Date::new(2025, 2, 29), Err(Error::InvalidInput(_))));
@@ -18,21 +18,27 @@ use std::{borrow::Cow, fmt, io};
 #[derive(Debug)]
 pub enum Error {
     /// Rejects invalid parameters, dates, schedules or contract states.
+    ///
     /// See [`Error`] for an example.
     InvalidInput(Cow<'static, str>),
     /// Rejects an unsupported operation or an unavailable result measure.
+    ///
     /// See [`crate::PricingResult::require`].
     UnsupportedOperation(Cow<'static, str>),
     /// Reports invalid numerical results or unavailable computation state.
+    ///
     /// See [`crate::MonteCarloVanillaEngine::price`].
     ComputationFailure(Cow<'static, str>),
     /// Reports a supplied interval that does not bracket a root in the engine's domain.
+    ///
     /// See [`crate::implied_volatility`].
     RootNotBracketed(Cow<'static, str>),
     /// Reports an iteration or depth limit reached without numerical convergence.
+    ///
     /// See [`crate::implied_volatility`].
     NonConvergence(Cow<'static, str>),
     /// Preserves a native I/O failure, including entropy-source or thread-creation errors.
+    ///
     /// See [`crate::MonteCarloVanillaEngine::price`].
     Io(io::Error),
 }
@@ -65,7 +71,7 @@ impl From<io::Error> for Error {
     }
 }
 
-/// Returns a value, a domain rejection or a reported operational failure.
+/// Represents a value, a domain rejection or a reported operational failure.
 ///
 /// Native I/O details remain available through [`Error::Io`] and the standard
 /// error source. This alias does not guarantee recovery from allocator failures

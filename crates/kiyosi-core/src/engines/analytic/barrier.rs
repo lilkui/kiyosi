@@ -4,22 +4,27 @@ use crate::{
 };
 use crate::{BarrierOption, RebateTiming};
 
-/// Stateless single-barrier analytic engine with flat rates; see [`Self::price`].
+/// Prices single-barrier vanilla options analytically with flat rates.
+///
+/// See [`Self::price`] for usage and scheduled-monitoring restrictions.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticBarrierEngine;
 impl AnalyticBarrierEngine {
     /// Prices after validating flat rates, inclusive life, calendar and strictly prior history.
+    ///
     /// Current boundary hits settle before future monitoring. Prior at-hit rebates are paid.
     /// Scheduled unresolved monitoring uses the BGK approximation and must end at expiry.
     ///
     /// # Errors
+    ///
     /// Returns [`Error::UnsupportedOperation`] for node curves or unsupported
     /// schedules. Returns [`Error::InvalidInput`] outside life, for non-trading
     /// fixings, or for missing or impossible history, checked in that order.
     /// Non-finite prices return [`Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Examples
-    /// ```
+    ///
+    /// ```rust
     /// use kiyosi_core::*;
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?;
@@ -34,10 +39,12 @@ impl AnalyticBarrierEngine {
         price(option, context, &std::sync::OnceLock::new())
     }
     /// Computes requested scalar numerical Greeks with shared bump defaults.
+    ///
     /// At expiry or a current barrier equality all Greeks are absent. Stencils crossing
     /// observations or spot barriers leave affected measures absent; see [`Self::price`].
     ///
     /// # Errors
+    ///
     /// Reuses [`crate::numerical_greeks`] validation and propagates [`Self::price`] errors.
     pub fn price_with_greeks(
         &self,
