@@ -1,5 +1,5 @@
 use crate::calendar::TradingCalendar;
-use crate::conversions::{date, integer, python_date};
+use crate::conversions::{check_integer, date, integer, python_date};
 use crate::error::domain;
 use kiyosi_core as core;
 use pyo3::exceptions::PyIndexError;
@@ -73,7 +73,7 @@ impl ScheduleIterator {
     }
 }
 
-/// Create adjusted observations at positive fixed calendar-day intervals.
+/// Creates adjusted observations at positive fixed calendar-day intervals.
 ///
 /// Parameters
 /// ----------
@@ -82,7 +82,7 @@ impl ScheduleIterator {
 /// end : datetime.date
 ///     Last date of the interval.
 /// interval_days : int
-///     Positive calendar-day spacing of unadjusted observations.
+///     Positive calendar-day spacing of unadjusted observations, up to 2**63 - 1.
 /// calendar : TradingCalendar, optional
 ///     Trading calendar. Defaults to weekdays with a 252-day basis.
 ///
@@ -95,6 +95,10 @@ impl ScheduleIterator {
 /// ------
 /// InvalidInputError
 ///     If end precedes start or interval_days is nonpositive.
+/// TypeError
+///     If interval_days is not an integer or is bool.
+/// OverflowError
+///     If interval_days is outside the signed 64-bit range.
 ///
 /// Notes
 /// -----
@@ -109,14 +113,13 @@ pub(crate) fn fixed_interval_schedule(
     interval_days: &Bound<'_, PyAny>,
     calendar: TradingCalendar,
 ) -> PyResult<ObservationSchedule> {
+    let start = date(start)?;
+    let end = date(end)?;
+    check_integer(interval_days)?;
+    let interval_days = interval_days.extract::<i64>()?;
     Ok(ObservationSchedule(domain(
         py,
-        core::ObservationSchedule::fixed_interval(
-            date(start)?,
-            date(end)?,
-            i64::from(integer(interval_days)?),
-            &calendar.0,
-        ),
+        core::ObservationSchedule::fixed_interval(start, end, interval_days, &calendar.0),
     )?))
 }
 

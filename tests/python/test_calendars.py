@@ -110,12 +110,14 @@ class CalendarTests(unittest.TestCase):
             (date(2025, 1, 1), date(2026, 1, 1)),
             (date(9999, 11, 1), date.max),
         ):
-            self.assertEqual(
-                fixed_interval_schedule(
-                    start=start, end=end, interval_days=2**31 - 1
-                ).dates,
-                [],
-            )
+            for interval in (2**31 - 1, 2**31, 2**40, 2**63 - 1):
+                with self.subTest(start=start, end=end, interval=interval):
+                    self.assertEqual(
+                        fixed_interval_schedule(
+                            start=start, end=end, interval_days=interval
+                        ).dates,
+                        [],
+                    )
             self.assertEqual(
                 monthly_schedule(
                     start=start, end=end, first_observation_month=2**31 - 1
@@ -192,11 +194,11 @@ class CalendarTests(unittest.TestCase):
 
     def test_validation_errors_and_order(self):
         start, end = date(2025, 1, 1), date(2025, 2, 1)
-        for factory, field in (
-            (fixed_interval_schedule, "interval_days"),
-            (monthly_schedule, "first_observation_month"),
+        for factory, field, minimum in (
+            (fixed_interval_schedule, "interval_days", -(2**63)),
+            (monthly_schedule, "first_observation_month", -(2**31)),
         ):
-            for value in (0, -1, -(2**31)):
+            for value in (0, -1, minimum):
                 with self.assertRaises(InvalidInputError) as error:
                     factory(start=start, end=end, **{field: value})
                 self.assertIs(type(error.exception), InvalidInputError)
@@ -223,9 +225,9 @@ class CalendarTests(unittest.TestCase):
             def __index__(self):
                 return 1
 
-        for factory, field in (
-            (fixed_interval_schedule, "interval_days"),
-            (monthly_schedule, "first_observation_month"),
+        for factory, field, bits in (
+            (fixed_interval_schedule, "interval_days", 63),
+            (monthly_schedule, "first_observation_month", 31),
         ):
             self.assertEqual(
                 factory(start=start, end=end, **{field: Index()}).dates,
@@ -234,8 +236,9 @@ class CalendarTests(unittest.TestCase):
             for value in (True, 1.0, 1.5, "1", None, IndexOnly()):
                 with self.assertRaises(TypeError):
                     factory(start=start, end=end, **{field: value})
-            with self.assertRaises(OverflowError):
-                factory(start=start, end=end, **{field: 2**40})
+            for value in (-(2**bits) - 1, 2**bits):
+                with self.assertRaises(OverflowError):
+                    factory(start=start, end=end, **{field: value})
             for value in (datetime(2025, 1, 1), "2025-01-01", True):
                 with self.assertRaises(TypeError):
                     factory(start=value, end=end, **{field: 1})
