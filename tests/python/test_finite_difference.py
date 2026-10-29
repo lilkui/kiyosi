@@ -1,4 +1,4 @@
-"""Finite-difference public contracts and migrated independent reference profiles."""
+"""Finite-difference public contracts and independent reference profiles."""
 
 import importlib
 import json
@@ -537,7 +537,7 @@ class FiniteDifferenceTests(unittest.TestCase):
             settings = profile["settings"] | (
                 profile["boundary_settings"] if boundary else {}
             )
-            # Preserve the legacy native-only cases and wide-bump acceptance scenarios.
+            # Exercise boundary cases and wide-bump acceptance scenarios.
             wrapped = (
                 not boundary
                 and inputs["spot"] == 100

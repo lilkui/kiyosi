@@ -294,7 +294,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
     }
 }
 
-// Reduce the basis when paths cannot identify quadratic continuation, as in the legacy engine.
+// Reduce the basis when paths cannot identify quadratic continuation.
 fn solve_quadratic(samples: [[f64; 4]; 3]) -> Option<[f64; 3]> {
     for degree in (0..=2).rev() {
         let mut matrix = samples;

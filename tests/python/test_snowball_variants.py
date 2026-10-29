@@ -566,7 +566,7 @@ class SnowballVariantTests(unittest.TestCase):
             self.assertAlmostEqual(prices[0], prices[1], delta=1e-4)
             self.assertAlmostEqual(prices[1], prices[2], delta=1e-4)
 
-    def test_legacy_signed_coupon_and_one_second_digital_regressions(self):
+    def test_signed_coupon_and_one_second_digital_regressions(self):
         end = date(2026, 1, 1)
         engine = QuadratureAutocallableEngine()
         for coupon in (0.1, -4):

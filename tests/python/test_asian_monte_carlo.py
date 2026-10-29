@@ -1,4 +1,4 @@
-"""Asian CPU sampling contracts migrated from the existing implementation."""
+"""Asian Monte Carlo sampling contracts."""
 
 import math
 import sys

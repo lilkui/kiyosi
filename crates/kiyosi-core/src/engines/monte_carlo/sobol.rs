@@ -6,7 +6,6 @@ const MASK: u64 = (1 << BITS) - 1;
 
 include!("sobol_joe_kuo.rs");
 
-// Ported from the existing CPU Sobol generator.
 pub(super) struct SobolSequence {
     directions: Vec<u64>,
     shifts: Vec<u64>,

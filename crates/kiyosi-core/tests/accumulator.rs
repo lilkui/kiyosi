@@ -377,7 +377,7 @@ fn discounted_low_tail_preserves_large_finite_quantities() {
 }
 
 #[test]
-fn spatial_and_domain_convergence_preserve_legacy_acceptance_targets() {
+fn spatial_and_domain_convergence_meet_accuracy_targets() {
     let engines = [
         QuadratureAccumulatorEngine::default(),
         QuadratureAccumulatorEngine::new(QuadratureSettings {

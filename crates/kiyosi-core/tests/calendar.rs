@@ -54,7 +54,7 @@ fn custom_calendars_own_overrides_validate_and_retain_basis() {
 }
 
 #[test]
-fn sse_history_forecast_and_fallback_match_legacy() {
+fn sse_history_forecast_and_fallback_follow_calendar_rules() {
     let sse = TradingCalendar::sse();
     assert_eq!(sse.trading_days_per_year(), 243);
     for date in [

@@ -1,7 +1,11 @@
-//! Calendars, schedules, vanilla/digital BSM, geometric/arithmetic Asian analytics,
-//! single/double/binary-barrier, touch and range-accrual analytics, CRR, quadrature, finite-difference and CPU Monte Carlo pricing
-//! accumulator quadrature/finite differences/Monte Carlo and American approximation,
-//! independent of Python.
+//! Prices derivatives under the Black–Scholes–Merton model.
+//!
+//! Supports vanilla and exotic options, autocallable notes and accumulators with
+//! analytic, binomial, quadrature, finite-difference and Monte Carlo engines.
+//! Provides calendars, schedules, Greeks and implied-parameter solvers.
+//! The core builds with Cargo alone; Python bindings live in a separate crate.
+//!
+//! # Concurrency and errors
 //!
 //! All public values own their data and are `Send + Sync`. Distinct and shared
 //! instances support concurrent reads and pricing without synchronization.
@@ -15,6 +19,8 @@
 //! allocator behavior (normally process abort); internal panics are not domain errors.
 //! Monte Carlo entropy-source and thread-creation failures retain native I/O
 //! details through [`Error::Io`] and the standard error source.
+//!
+//! # Examples
 //!
 //! ```
 //! use kiyosi_core::{AnalyticEuropeanEngine, BlackScholesMertonParameters, Date,
@@ -113,5 +119,5 @@ pub use risk::implied::{ImpliedVolatilitySettings, implied_volatility};
 pub use risk::numerical::numerical_greeks;
 pub use time::{BusinessDayConvention, Date, ObservationSchedule, Timestamp, TradingCalendar};
 
-/// Package version, shared by the candidate Python extension.
+/// Package version, shared with the Python bindings.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

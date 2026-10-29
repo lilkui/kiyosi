@@ -1,4 +1,4 @@
-"""Double-barrier candidate contracts and independent analytic references."""
+"""Double-barrier contracts and independent analytic references."""
 
 import math
 import unittest

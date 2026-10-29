@@ -404,7 +404,7 @@ class MonteCarloTests(unittest.TestCase):
             with ql.SavedSettings():
                 reference, uncertainty = oracle.reference(inputs)
             engine = MonteCarloVanillaEngine(**profile["settings"], thread_count=4)
-            # Retain the legacy wrapper matrix; wide bumps are biased at one-day expiries.
+            # Wide bumps are biased at one-day expiries.
             wrapped = inputs["spot"] == 100 and inputs["expiry_date"] == "2026-01-06"
             names = sorted(reference.keys() - {"price"}) if wrapped else []
             result = (
@@ -579,7 +579,7 @@ class SamplingTests(unittest.TestCase):
                     sampling="sobol",
                     antithetic=antithetic,
                 )
-                # Independent SciPy ndtri reference from the legacy scenario.
+                # Independent SciPy ndtri reference.
                 first = -0.10364940758940244
                 positive = 100 * math.exp(0.01 + 0.2 * first) - 90
                 negative = 100 * math.exp(0.01 - 0.2 * first) - 90

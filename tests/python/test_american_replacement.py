@@ -1,4 +1,4 @@
-"""Candidate-only validated American owning replacements."""
+"""Validated American option replacements and ownership."""
 
 import unittest
 from datetime import date, datetime

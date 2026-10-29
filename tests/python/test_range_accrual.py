@@ -1,4 +1,4 @@
-"""Range coupon contracts and independent marginal/payoff references for the Rust candidate."""
+"""Range coupon contracts and independent marginal/payoff references."""
 
 import math
 import unittest

@@ -1,4 +1,4 @@
-"""Candidate digital owning replacements (the legacy API has no contract replacement)."""
+"""Validated digital option replacements and ownership."""
 
 import unittest
 from datetime import date

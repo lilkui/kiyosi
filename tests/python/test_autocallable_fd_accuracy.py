@@ -1,4 +1,4 @@
-"""Migrated FD contracts and numerical budgets from the legacy autocallable suite."""
+"""Autocallable finite-difference accuracy and convergence budgets."""
 
 import math
 import unittest

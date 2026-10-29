@@ -86,7 +86,7 @@ def engine_for(kind, steps=256):
 def rollback(
     kind, direction, steps, spot=100, rate=0.05, dividend=0.02, sigma=0.2, strike=100
 ):
-    """Independent explicit rollback; tests the candidate's direct expectation branch."""
+    """Independent explicit rollback for the direct expectation branch."""
     up = math.exp(sigma / math.sqrt(steps))
     down = 1 / up
     probability = (math.exp((rate - dividend) / steps) - down) / (up - down)

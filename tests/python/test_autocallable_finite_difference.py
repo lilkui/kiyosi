@@ -85,7 +85,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
                 )
                 self.assertIsNone(result.speed)
 
-    def test_explicit_uniform_stability_uses_the_legacy_top_node_bound(self):
+    def test_explicit_uniform_stability_uses_the_top_node_bound(self):
         end = date(2026, 1, 1)
         note = BinarySnowballOption(
             maturity_coupon_rate=0,

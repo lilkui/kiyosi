@@ -180,7 +180,7 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
         assert_eq!(result.require(greek).unwrap(), all.require(greek).unwrap());
         assert_eq!(result.values().iter().flatten().count(), 1);
     }
-    // Independent finite differences of the legacy 2002 approximation (spot h=0.01).
+    // Independent finite differences of the Bjerksund–Stensland 2002 approximation (spot h=0.01).
     assert!((all.require(Greek::Delta).unwrap() - 0.5621718020461197).abs() < 1e-7);
     assert!((all.require(Greek::Gamma).unwrap() - 0.018979671807509157).abs() < 1e-7);
     assert!((all.require(Greek::Vega).unwrap() - 0.37957057743800166).abs() < 1e-7);

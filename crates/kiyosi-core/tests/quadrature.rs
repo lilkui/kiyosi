@@ -109,7 +109,7 @@ fn scaled_tails_and_underflowed_discounts_preserve_representable_payments() {
             let cash =
                 DigitalOption::cash_or_nothing(direction, strike, 1e300, start, end).unwrap();
             let asset = DigitalOption::asset_or_nothing(direction, strike, start, end).unwrap();
-            // Independent 100-digit Decimal references from the legacy regression suite.
+            // Independent 100-digit Decimal references.
             for (actual, expected) in [
                 (
                     QuadratureVanillaEngine.price(&option, &context).unwrap(),

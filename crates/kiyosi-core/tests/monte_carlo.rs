@@ -656,7 +656,7 @@ fn sobol_path_validation_and_seeded_single_point_preserve_existing_contract() {
             contract(OptionType::Call).expiry_date(),
         )
         .unwrap();
-        // Independent SciPy ndtri reference retained from the legacy regression.
+        // Independent SciPy ndtri reference.
         let first = -0.10364940758940244_f64;
         let expected = (-0.05_f64).exp() * (100.0 * (0.01 + 0.2 * first).exp() - 90.0);
         assert!((engine.price(&option, &market()).unwrap() - expected).abs() < 1e-11);

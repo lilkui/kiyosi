@@ -504,7 +504,7 @@ fn tiny_variances_and_scaled_normal_tails_retain_representable_prices() {
             let arithmetic =
                 ArithmeticAveragePriceOption::new(direction, strike, start, start, end, 0.0)
                     .unwrap();
-            // Independent 90-digit normal-tail references retained from the legacy suite.
+            // Independent 90-digit normal-tail references.
             let expected_geo = if call {
                 3.016612743105038e-48
             } else {
@@ -541,7 +541,7 @@ fn tiny_variances_and_scaled_normal_tails_retain_representable_prices() {
 fn arithmetic_affine_cashflows_and_adjusted_strike_overflow_keep_original_payoff_units() {
     let (start, _) = dates();
     let engine = TurnbullWakemanArithmeticAveragePriceEngine;
-    // Independent high-precision discounted affine payoffs from legacy regressions.
+    // Independent high-precision discounted affine payoffs.
     for (elapsed, amount, rate, dividend, strike_fraction, expected) in [
         (2, 1e308, 0.0, 0.0, 0.25, 7.5e307),
         (2, 1e308, 0.05, 0.05, 0.25, 7.134220683755355e307),

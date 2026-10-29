@@ -1,4 +1,4 @@
-"""Digital CPU Monte Carlo: migrated terminal, likelihood and sampling contracts."""
+"""Digital Monte Carlo terminal, likelihood and sampling contracts."""
 
 import math
 import unittest

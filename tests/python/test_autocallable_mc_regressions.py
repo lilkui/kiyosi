@@ -1,4 +1,4 @@
-"""Migrated shared-path and event-grid regressions from the legacy CPU suite."""
+"""Autocallable Monte Carlo shared-path and event-grid regressions."""
 
 import math
 import unittest

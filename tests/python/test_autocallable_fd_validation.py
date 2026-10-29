@@ -1,4 +1,4 @@
-"""Migrated autocallable engine validation precedence from the legacy suite."""
+"""Autocallable finite-difference engine validation precedence."""
 
 import unittest
 from datetime import date

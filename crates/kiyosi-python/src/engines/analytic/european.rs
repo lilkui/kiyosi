@@ -43,7 +43,7 @@ impl AnalyticEuropeanEngine {
         instrument: &EuropeanOption,
         context: &PricingContext,
     ) -> PyResult<f64> {
-        // Keep the GIL for the short scalar formula, matching the legacy analytic contract.
+        // Keep the GIL for this short scalar formula.
         domain(
             py,
             core::AnalyticEuropeanEngine.price(&instrument.0, &context.0),

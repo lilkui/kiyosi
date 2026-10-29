@@ -455,7 +455,7 @@ fn native_spot_greeks_do_not_require_a_feasible_scalar_bump() {
 }
 
 #[test]
-fn explicit_uniform_grid_retains_the_legacy_top_node_stability_bound() {
+fn explicit_uniform_grid_uses_the_top_node_stability_bound() {
     let start = date(1, 1);
     let end = Date::new(2026, 1, 1).unwrap();
     let note = BinarySnowballOption::new(BinarySnowballTerms::new(

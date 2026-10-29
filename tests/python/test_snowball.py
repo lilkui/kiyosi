@@ -266,7 +266,7 @@ class SnowballTests(unittest.TestCase):
                 )
 
     def test_zero_lower_strike_affine_tail_and_negative_price(self):
-        # Migrates the legacy high-volatility affine-tail portfolio regression.
+        # High-volatility affine-tail portfolio regression.
         import QuantLib as ql
 
         end = date(2026, 1, 1)

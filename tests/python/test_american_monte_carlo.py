@@ -319,7 +319,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
             )
             with ql.SavedSettings():
                 reference, uncertainty = american.reference(inputs)
-            # Preserve the legacy wrapper matrix: wide bumps cross exercise boundaries near expiry.
+            # Wide bumps cross exercise boundaries near expiry.
             names = sorted(reference.keys() - {"price"}) if scenario["wrapper"] else []
             result = (
                 engine.price_with_greeks(option, context, names, **profile["shifts"])

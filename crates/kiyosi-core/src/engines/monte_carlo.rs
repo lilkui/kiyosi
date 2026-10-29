@@ -607,7 +607,7 @@ impl Moments {
     }
 }
 
-// PCG-XSH-RR, ported from the existing CPU generator.
+// PCG-XSH-RR pseudorandom number generator.
 struct Pcg32 {
     state: u64,
     increment: u64,

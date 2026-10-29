@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "kiyosi"
-description = "A Python library for pricing vanilla and exotic derivatives"
+description = "Python bindings for Kiyosi, a Rust derivatives pricing library"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE.txt"]
@@ -35,7 +35,6 @@ locked = true
 include = [
     { path = "tests/python/**/*.py", format = "sdist" },
     { path = "tests/python/quantlib_reference/*.json", format = "sdist" },
-    { path = "tests/README.md", format = "sdist" },
     { path = "tools/generate_sse_calendar.py", format = "sdist" },
     { path = "docs/**/*.md", format = "sdist" },
     { path = "README.en.md", format = "sdist" },

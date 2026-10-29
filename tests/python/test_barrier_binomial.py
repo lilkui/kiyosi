@@ -1,4 +1,4 @@
-"""Single-barrier CRR public contracts, migrated events and independent references."""
+"""Single-barrier CRR contracts, event handling and independent references."""
 
 import importlib
 import math

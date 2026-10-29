@@ -480,7 +480,7 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
     ));
     let mut ternary =
         TernarySnowballTerms::new(0.06, 0.02, 0.0, date(1, 1), date(4, 1), Vec::new());
-    // Schedule validation precedes knock-in validation, as in the legacy contract.
+    // Schedule validation precedes knock-in validation.
     assert!(matches!(
         TernarySnowballOption::new(ternary.clone()).unwrap_err(),
         Error::InvalidInput(_)
