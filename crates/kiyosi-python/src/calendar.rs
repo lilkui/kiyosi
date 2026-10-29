@@ -1,5 +1,6 @@
 use crate::conversions::{check_changes, date, dates, integer, python_date};
-use crate::{core, error::domain};
+use crate::error::domain;
+use kiyosi_core as core;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};

@@ -12,7 +12,7 @@ from pathlib import Path
 
 LAST_YEAR = 2099
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = ROOT / "crates/kiyosi-core/src/sse_holidays.rs"
+TARGET = ROOT / "crates/kiyosi-core/src/time/sse_holidays.rs"
 SOURCE = (
     "https://raw.githubusercontent.com/gerrymanoim/exchange_calendars/HEAD/"
     "exchange_calendars/exchange_calendar_xshg.py"

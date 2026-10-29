@@ -58,7 +58,7 @@ class CalendarTests(unittest.TestCase):
             )
 
     def test_committed_generator_data_matches_public_queries(self):
-        source = (ROOT / "crates/kiyosi-core/src/sse_holidays.rs").read_text()
+        source = (ROOT / "crates/kiyosi-core/src/time/sse_holidays.rs").read_text()
         closures = {int(value) for value in re.findall(r"\d{8}", source)}
         calendar = sse_calendar()
         value = date(1991, 1, 1)

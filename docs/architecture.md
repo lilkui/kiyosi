@@ -11,11 +11,33 @@ configuration and CI; Python distributions and Cargo packages share that version
 ├── crates/
 │   ├── kiyosi-core/
 │   │   ├── Cargo.toml
-│   │   ├── src/                 # Domain types, validation and pricing engines
+│   │   ├── src/
+│   │   │   ├── lib.rs           # Public Rust exports and concurrency contract
+│   │   │   ├── instruments/     # Contract terms, history, payoff and validation
+│   │   │   ├── engines/         # Implementations grouped by numerical method
+│   │   │   │   ├── analytic/    # Closed forms and analytic approximations
+│   │   │   │   ├── binomial/
+│   │   │   │   ├── finite_difference/
+│   │   │   │   ├── monte_carlo/
+│   │   │   │   └── quadrature/
+│   │   │   ├── risk/            # Pricing interface, Greeks and inverse solvers
+│   │   │   ├── market/          # BSM parameters, curves and pricing context
+│   │   │   ├── time/            # Dates, calendars, schedules and holiday data
+│   │   │   └── error.rs         # Structured errors shared by the core
 │   │   └── tests/               # Rust public API integration tests
 │   └── kiyosi-python/
 │       ├── Cargo.toml
-│       └── src/                 # PyO3 representation and calling adapters
+│       └── src/
+│           ├── lib.rs           # PyO3 extension entry point
+│           ├── registration.rs  # Extension exports
+│           ├── instruments/     # Python contract representations and factories
+│           ├── engines/         # Analytic and numerical engine adapters
+│           ├── risk/            # Python requests, results and solver dispatch
+│           ├── market.rs        # Python parameters, curves and pricing context
+│           ├── calendar.rs      # Python calendars and factories
+│           ├── schedule.rs      # Python schedules and owned iterators
+│           ├── conversions.rs   # Native Python representation checks
+│           └── error.rs         # Python exception mapping
 ├── python/
 │   └── kiyosi/                  # Python imports, choice aliases and typing
 ├── tests/
@@ -36,29 +58,58 @@ the core; the Python extension is selected explicitly or through maturin. Each
 Rust crate keeps its own license and third-party notices for Cargo packaging.
 
 The core owns domain defaults, validation, error categories, numerical algorithms
-and concurrency guarantees. Its private modules follow products and numerical
-methods, with the supported Rust API re-exported from `src/lib.rs`. Engine
-submodules hold method-specific implementations; public API integration tests
-remain beside the core crate so Cargo can test and package it independently.
+and concurrency guarantees. `lib.rs` re-exports the supported Rust interface;
+implementation modules remain private. Rust callers continue to import types such
+as `kiyosi_core::BarrierOption` and `kiyosi_core::MonteCarloAsianEngine`.
 
-The binding crate adapts Python representations and exceptions. Its `lib.rs`
-declares modules and registers the extension API. Shared boundary code lives in:
-
-| Module | Responsibility |
+| Core module | Responsibility and dependencies |
 | --- | --- |
-| `conversions.rs` | Numeric, date/time, choice and keyword representation checks |
-| `error.rs` | Map core domain and operational errors to Python exceptions |
-| `market.rs` | Term structures, BSM parameters and pricing contexts |
-| `calendar.rs` | Trading calendars and calendar factories |
-| `schedule.rs` | Observation schedules, factories and owned iterators |
-| `vanilla.rs` | European options and analytic vanilla pricing |
+| `instruments/` | Contract construction, replacement, history, monitoring and payoff rules; uses market/time values and the pricing interface, never concrete engines |
+| `engines/` | Prices validated contracts using a selected method; owns method settings, workspaces, sampling and numerical helpers |
+| `risk/` | Defines `PricingEngine`, requests/results, numerical Greeks and implied volatility/coupon solvers; works through the pricing interface |
+| `market/` | Owns deterministic curves, BSM parameters and pricing context |
+| `time/` | Owns dates, timestamps, calendars, schedules and generated SSE holiday data |
+| `error.rs` | Stable structured domain rejections and recoverable operational failures |
 
-Other binding modules adapt their named products or numerical engines. Binding
-helpers remain crate-private; moving code between modules does not change Python
-class identities or import paths. Python modules expose the public namespaces
-`kiyosi.instruments`, `kiyosi.market` and `kiyosi.pricing`. `_native.pyi` and
-`py.typed` ship alongside them. Keep business logic in the core rather than adding
-a second implementation in those Python modules.
+Product definitions and analytic engines live in separate files. Asian Monte Carlo
+belongs to `engines/monte_carlo/asian.rs`, alongside the other Monte Carlo engines.
+Autocallable presets and shared event-state rules stay with the contract in
+`instruments/autocallable/`: all pricing methods must apply those rules consistently.
+Engine families may reuse existing analytic and Gaussian numerical helpers;
+extract another module only when it clarifies an actual shared responsibility.
+
+The binding crate mirrors the contract/engine/risk split. It adapts Python
+representations and exceptions while domain validation remains in the core.
+`lib.rs` delegates export registration to `registration.rs`; adapters use explicit
+imports rather than inheriting a root prelude. Product adapters contain contract
+classes and factories, while engine adapters own pricing entry points and GIL
+release. Inverse-solver dispatch lives in `risk/`, rather than in product classes.
+`conversions.rs` handles numeric, date/time, choice and keyword representation
+checks; `error.rs` maps core errors to Python exceptions.
+
+Binding helpers remain crate-private. Moving adapters does not change Python class
+identities or import paths. Python modules expose `kiyosi.instruments`,
+`kiyosi.market` and `kiyosi.pricing`; `_native.pyi` and `py.typed` ship alongside
+them. Keep those modules as imports and typing, with business logic in Rust.
+
+## Layout assessment and refactoring decisions
+
+The workspace, two-crate dependency direction, separate `python/` source tree,
+installed-package tests and Cargo-only core delivery already fit this project.
+Keep those seams: more crates would add manifests and publication coordination
+without creating a needed independent delivery unit.
+
+The internal layout previously mixed contract definitions with analytic pricing,
+placed Asian Monte Carlo under the Asian product, scattered quadrature/binomial
+binding engines across product modules, and exposed common imports implicitly
+through the extension root. The layout above separates those responsibilities and
+makes imports show their dependencies. The registration module now owns extension
+assembly, and inverse solvers no longer share files with contract representations.
+
+Rust integration tests remain in the core crate for standalone Cargo packaging;
+Python tests and independent QuantLib references remain outside the importable
+package. Do not merge these suites merely to make their directories symmetrical.
+No new runtime dependencies or public namespaces are needed for this refactoring.
 
 ## Ownership and concurrency
 

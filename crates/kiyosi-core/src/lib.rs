@@ -35,100 +35,83 @@
 //! # Ok(()) }
 //! ```
 
-mod accumulator;
-mod american;
-mod analytics;
-mod asian;
-mod autocallable;
-mod barrier;
-mod binary_barrier;
-mod binomial;
-mod calendar;
-mod coupon;
-mod digital;
-mod double_barrier;
-mod double_touch;
+mod engines;
 mod error;
-mod finite_difference;
-mod implied;
 mod instruments;
 mod market;
-mod monte_carlo;
-mod numerical;
-mod pricing;
-mod quadrature;
-mod range_accrual;
-mod schedule;
-mod term_structure;
+mod risk;
 mod time;
 
-pub use accumulator::{Accumulator, AccumulatorTerms};
-pub use american::BjerksundStenslandVanillaEngine;
-pub use analytics::{Greek, GreeksRequest, NumericalShiftSettings, PricingEngine, PricingResult};
-pub use asian::{
-    AnalyticGeometricAveragePriceEngine, ArithmeticAveragePriceOption, DEFAULT_REALIZED_AVERAGE,
-    GeometricAveragePriceOption, MonteCarloAsianEngine,
-    TurnbullWakemanArithmeticAveragePriceEngine,
+pub use engines::analytic::american::BjerksundStenslandVanillaEngine;
+pub use engines::analytic::asian::{
+    AnalyticGeometricAveragePriceEngine, TurnbullWakemanArithmeticAveragePriceEngine,
 };
-pub use autocallable::{
-    AutocallableBarrierState, AutocallableNote, AutocallableObservation, AutocallableTerms,
-    BinarySnowballOption, BinarySnowballTerms, KnockInObservationMode, PhoenixOption, PhoenixTerms,
-    SnowballCouponTerms, SnowballOption, SnowballPreset, SnowballPresetTerms, SnowballTerms,
-    TernarySnowballOption, TernarySnowballTerms, autocallable_observations,
-};
-pub use barrier::{
-    AnalyticBarrierEngine, BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType,
-    ObservationMode, RebateTiming,
-};
-pub use binary_barrier::{
-    AnalyticBinaryBarrierEngine, BinaryBarrierOption, BinaryBarrierTerms, SettlementTiming,
-    TouchOption, TouchOptionTerms,
-};
-pub use binomial::{
+pub use engines::analytic::barrier::AnalyticBarrierEngine;
+pub use engines::analytic::binary_barrier::AnalyticBinaryBarrierEngine;
+pub use engines::analytic::digital::AnalyticDigitalEngine;
+pub use engines::analytic::double_barrier::AnalyticDoubleBarrierEngine;
+pub use engines::analytic::range_accrual::AnalyticRangeAccrualEngine;
+pub use engines::analytic::vanilla::AnalyticVanillaEngine;
+pub use engines::binomial::{
     BinomialSettings, CoxRossRubinsteinBarrierEngine, CoxRossRubinsteinDigitalEngine,
     CoxRossRubinsteinVanillaEngine,
 };
-pub use calendar::{BusinessDayConvention, TradingCalendar};
-pub use coupon::{
-    CouponQuoteConvention, ImpliedCouponSettings, implied_coupon, implied_snowball_coupon,
-};
-pub use digital::AnalyticDigitalEngine;
-pub use double_barrier::{
-    AnalyticDoubleBarrierEngine, DoubleBarrierOption, DoubleBarrierOptionTerms, DoubleBarrierType,
-};
-pub use double_touch::{DoubleTouchOption, DoubleTouchOptionTerms};
-pub use error::{Error, ErrorCategory, Result};
-pub use finite_difference::{
+pub use engines::finite_difference::{
     FiniteDifferenceAccumulatorEngine, FiniteDifferenceAutocallableEngine,
     FiniteDifferenceBarrierEngine, FiniteDifferenceBinaryBarrierEngine,
     FiniteDifferenceDigitalEngine, FiniteDifferenceDoubleBarrierEngine,
     FiniteDifferenceDoubleTouchEngine, FiniteDifferenceScheme, FiniteDifferenceSettings,
     FiniteDifferenceVanillaEngine,
 };
-pub use implied::{ImpliedVolatilitySettings, implied_volatility};
-pub use instruments::{
+pub use engines::monte_carlo::{
+    MonteCarloAccumulatorEngine, MonteCarloAsianEngine, MonteCarloAutocallableEngine,
+    MonteCarloBarrierEngine, MonteCarloDigitalEngine, MonteCarloDoubleBarrierEngine,
+    MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings, MonteCarloVanillaEngine,
+};
+pub use engines::quadrature::{
+    QuadratureAccumulatorEngine, QuadratureAutocallableEngine, QuadratureBarrierEngine,
+    QuadratureDigitalEngine, QuadratureSettings, QuadratureVanillaEngine,
+};
+pub use error::{Error, ErrorCategory, Result};
+pub use instruments::accumulator::{Accumulator, AccumulatorTerms};
+pub use instruments::asian::{
+    ArithmeticAveragePriceOption, DEFAULT_REALIZED_AVERAGE, GeometricAveragePriceOption,
+};
+pub use instruments::autocallable::{
+    AutocallableBarrierState, AutocallableNote, AutocallableObservation, AutocallableTerms,
+    BinarySnowballOption, BinarySnowballTerms, KnockInObservationMode, PhoenixOption, PhoenixTerms,
+    SnowballCouponTerms, SnowballOption, SnowballPreset, SnowballPresetTerms, SnowballTerms,
+    TernarySnowballOption, TernarySnowballTerms, autocallable_observations,
+};
+pub use instruments::barrier::{
+    BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType, ObservationMode,
+    RebateTiming,
+};
+pub use instruments::binary_barrier::{
+    BinaryBarrierOption, BinaryBarrierTerms, SettlementTiming, TouchOption, TouchOptionTerms,
+};
+pub use instruments::double_barrier::{
+    DoubleBarrierOption, DoubleBarrierOptionTerms, DoubleBarrierType,
+};
+pub use instruments::double_touch::{DoubleTouchOption, DoubleTouchOptionTerms};
+pub use instruments::range_accrual::{RangeAccrualOption, RangeAccrualTerms};
+pub use instruments::vanilla::{
     AmericanOption, AmericanOptionChanges, DigitalOption, DigitalOptionChanges, EuropeanOption,
     OptionContract, OptionType,
 };
 pub use market::{
     BlackScholesMertonParameterChanges, BlackScholesMertonParameters, PricingContext,
-    PricingContextChanges, Rate,
+    PricingContextChanges, Rate, RateTermStructure,
 };
-pub use monte_carlo::{
-    MonteCarloAccumulatorEngine, MonteCarloAutocallableEngine, MonteCarloBarrierEngine,
-    MonteCarloDigitalEngine, MonteCarloDoubleBarrierEngine, MonteCarloEstimate, MonteCarloSampling,
-    MonteCarloSettings, MonteCarloVanillaEngine,
+pub use risk::analytics::{
+    Greek, GreeksRequest, NumericalShiftSettings, PricingEngine, PricingResult,
 };
-pub use numerical::numerical_greeks;
-pub use pricing::AnalyticVanillaEngine;
-pub use quadrature::{
-    QuadratureAccumulatorEngine, QuadratureAutocallableEngine, QuadratureBarrierEngine,
-    QuadratureDigitalEngine, QuadratureSettings, QuadratureVanillaEngine,
+pub use risk::coupon::{
+    CouponQuoteConvention, ImpliedCouponSettings, implied_coupon, implied_snowball_coupon,
 };
-pub use range_accrual::{AnalyticRangeAccrualEngine, RangeAccrualOption, RangeAccrualTerms};
-pub use schedule::ObservationSchedule;
-pub use term_structure::RateTermStructure;
-pub use time::{Date, Timestamp};
+pub use risk::implied::{ImpliedVolatilitySettings, implied_volatility};
+pub use risk::numerical::numerical_greeks;
+pub use time::{BusinessDayConvention, Date, ObservationSchedule, Timestamp, TradingCalendar};
 
 /// Package version, shared by the candidate Python extension.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
