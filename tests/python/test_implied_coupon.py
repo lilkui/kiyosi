@@ -281,7 +281,7 @@ class ImpliedCouponTests(unittest.TestCase):
         for quote in (math.nan, math.inf):
             self.category(E.INVALID_PARAMETER, lambda quote=quote: solve(quote))
         self.category(E.UNBRACKETED_COUPON, lambda: solve(10))
-        self.assertEqual(int(E.UNBRACKETED_COUPON), 16)
+        self.assertEqual(E.UNBRACKETED_COUPON.value, "UNBRACKETED_COUPON")
         late = market(100, END)
         self.category(
             E.INVALID_PARAMETER,

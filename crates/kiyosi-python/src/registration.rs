@@ -11,14 +11,14 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     module.add("__version__", core::VERSION)?;
     let categories = PyDict::new(py);
     for category in core::ErrorCategory::ALL {
-        categories.set_item(category.name(), category as u8)?;
+        categories.set_item(category.name(), category.name())?;
     }
     let kwargs = PyDict::new(py);
     kwargs.set_item("module", "kiyosi._native")?;
     module.add(
         "ErrorCategory",
         py.import("enum")?
-            .getattr("IntEnum")?
+            .getattr("Enum")?
             .call(("ErrorCategory", categories), Some(&kwargs))?,
     )?;
     module.add("KiyosiError", py.get_type::<error::KiyosiError>())?;

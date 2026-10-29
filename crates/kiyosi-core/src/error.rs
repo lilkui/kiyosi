@@ -2,27 +2,26 @@ use std::fmt;
 
 /// Identifies stable domain rejection and reported operational failure categories.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[repr(u8)]
 pub enum ErrorCategory {
-    InvalidOption = 1,
-    InvalidStrike = 2,
-    InvalidVolatility = 3,
-    InvalidRiskFreeRate = 4,
-    InvalidDividendYield = 5,
-    InvalidSpotPrice = 6,
-    InvalidDate = 7,
-    InvalidTimeRange = 8,
-    InvalidResult = 9,
-    InvalidSchedule = 10,
-    InvalidCalendar = 11,
-    InvalidParameter = 12,
-    UnbracketedVolatility = 13,
-    SolverNonConvergence = 14,
-    SolverNonFinite = 15,
-    UnbracketedCoupon = 16,
+    InvalidOption,
+    InvalidStrike,
+    InvalidVolatility,
+    InvalidRiskFreeRate,
+    InvalidDividendYield,
+    InvalidSpotPrice,
+    InvalidDate,
+    InvalidTimeRange,
+    InvalidResult,
+    InvalidSchedule,
+    InvalidCalendar,
+    InvalidParameter,
+    UnbracketedVolatility,
+    SolverNonConvergence,
+    SolverNonFinite,
+    UnbracketedCoupon,
     /// Identifies an operational failure; inspect [`Error::operational_error`].
-    BackendFailure = 18,
-    UnsupportedOperation = 19,
+    BackendFailure,
+    UnsupportedOperation,
 }
 
 impl ErrorCategory {

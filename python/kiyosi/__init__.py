@@ -5,6 +5,10 @@ and signature errors use Python's native exceptions. Reported operational
 failures retain native OSError semantics. Rust allocation exhaustion may terminate
 the process; internal panics are separate from domain errors.
 
+ErrorCategory is an Enum with string values matching its member names. Compare
+error.category with a member such as ErrorCategory.INVALID_STRIKE; use
+error.category.value when a string identifier is needed.
+
 Values own their data, expose read-only properties and support concurrent reads
 and pricing on shared or distinct instances. Replacement returns a new value.
 Long calculations release the GIL around owned Rust inputs. Short analytic calls

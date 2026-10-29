@@ -4,6 +4,7 @@ import ast
 import importlib.metadata
 import tomllib
 import unittest
+from enum import Enum
 from pathlib import Path
 
 import kiyosi
@@ -11,6 +12,16 @@ from kiyosi import _native, instruments, market, pricing
 
 
 class PackageTests(unittest.TestCase):
+    def test_error_categories_are_named_enum_members(self):
+        for category in kiyosi.ErrorCategory:
+            with self.subTest(category=category.name):
+                self.assertIsInstance(category, Enum)
+                self.assertNotIsInstance(category, int)
+                self.assertEqual(category.value, category.name)
+                self.assertNotEqual(category, category.value)
+                self.assertTrue(category)
+                self.assertIs(kiyosi.ErrorCategory(category.name), category)
+
     def test_installed_version_and_typed_exports(self):
         workspace = Path(__file__).resolve().parents[2]
         version = tomllib.loads((workspace / "Cargo.toml").read_text())["workspace"][
@@ -50,10 +61,8 @@ class PackageTests(unittest.TestCase):
                         )
         categories = declarations["ErrorCategory"]
         expected = {
-            member.targets[0].id: ast.literal_eval(member.value)
+            member.targets[0].id
             for member in categories.body
             if isinstance(member, ast.Assign)
         }
-        self.assertEqual(
-            expected, {item.name: item.value for item in kiyosi.ErrorCategory}
-        )
+        self.assertEqual(expected, set(kiyosi.ErrorCategory.__members__))
