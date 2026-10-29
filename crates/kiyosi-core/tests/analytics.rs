@@ -623,6 +623,39 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
 }
 
 #[test]
+fn analytic_speed_preserves_subnormal_volatility_widths() {
+    let start = Date::new(2025, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap();
+    let near_expiry =
+        Timestamp::new(Date::new(2025, 12, 31).unwrap(), 23, 59, 59, 999_999).unwrap();
+    // Independent 80-digit references for ATM, zero-rate speed = -3 * gamma / (2 * spot).
+    for (volatility, valuation, expected) in [
+        (f64::from_bits(1), start.into(), -1_211.202_247_392_103_8),
+        (f64::from_bits(3), start.into(), -403.734_082_464_034_6),
+        (f64::from_bits(1), near_expiry, -6_801_739_133.529_686),
+    ] {
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(0.0, 0.0, volatility).unwrap(),
+            1e160,
+            valuation,
+        )
+        .unwrap();
+        for direction in [OptionType::Call, OptionType::Put] {
+            let option = EuropeanOption::new(direction, 1e160, start, end).unwrap();
+            let result = AnalyticEuropeanEngine
+                .price_with_greeks(
+                    &option,
+                    &context,
+                    GreeksRequest::new([Greek::Speed]),
+                    Default::default(),
+                )
+                .unwrap();
+            assert!((result.require(Greek::Speed).unwrap() / expected - 1.0).abs() < 1e-12);
+        }
+    }
+}
+
+#[test]
 fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
     let (option, context) = market();
     let huge = context

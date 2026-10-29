@@ -354,6 +354,37 @@ class AnalyticsTests(unittest.TestCase):
             for vol in pool.map(recover, range(16)):
                 self.assertAlmostEqual(vol, 0.2, delta=1e-8)
 
+    def test_analytic_speed_preserves_subnormal_volatility_widths(self):
+        # Independent 80-digit references for ATM, zero-rate speed = -3 * gamma / (2 * spot).
+        for volatility, valuation, expected in (
+            (math.ulp(0.0), date(2025, 1, 1), -1211.2022473921038),
+            (3 * math.ulp(0.0), date(2025, 1, 1), -403.7340824640346),
+            (
+                math.ulp(0.0),
+                datetime(2025, 12, 31, 23, 59, 59, 999999, tzinfo=UTC),
+                -6801739133.529686,
+            ),
+        ):
+            context = self.context.replace(
+                spot_price=1e160,
+                valuation_time=valuation,
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0, dividend_yield=0, volatility=volatility
+                ),
+            )
+            for direction in ("call", "put"):
+                with self.subTest(
+                    volatility=volatility, valuation=valuation, direction=direction
+                ):
+                    option = EuropeanOption(
+                        option_type=direction,
+                        strike=1e160,
+                        effective_date=self.option.effective_date,
+                        expiry_date=self.option.expiry_date,
+                    )
+                    result = self.engine.price_with_greeks(option, context, "speed")
+                    self.assertAlmostEqual(result.speed / expected, 1, delta=1e-12)
+
     def test_extreme_greeks_preserve_scaling_and_selected_results(self):
         for vol, spot, strike in (
             (1e-200, 100, 100),

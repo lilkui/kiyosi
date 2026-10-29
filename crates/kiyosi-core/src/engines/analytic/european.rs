@@ -159,7 +159,13 @@ impl AnalyticEuropeanEngine {
             let value = match greek {
                 Greek::Delta | Greek::Rho => continue,
                 Greek::Gamma => density(log_gamma, 1.0),
-                Greek::Speed => -density(log_gamma - spot.ln(), 1.0 + d1 / width),
+                Greek::Speed => {
+                    // Keep the half-width contribution exact when the width is subnormal or zero.
+                    -density(
+                        log_gamma - spot.ln(),
+                        1.5 + super::barrier::standardize(d1.midpoint(d2), sigma, root),
+                    )
+                }
                 Greek::Theta => {
                     (-density(
                         spot.ln() + dividend_log + sigma.ln() - 2.0_f64.ln() - root.ln(),
