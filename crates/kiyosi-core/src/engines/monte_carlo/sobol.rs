@@ -6,7 +6,7 @@ const MASK: u64 = (1 << BITS) - 1;
 
 include!("sobol_joe_kuo.rs");
 
-// Ported from the existing CPU Sobol generator; see THIRD_PARTY_NOTICES.txt.
+// Ported from the existing CPU Sobol generator.
 pub(super) struct SobolSequence {
     directions: Vec<u64>,
     shifts: Vec<u64>,
@@ -117,7 +117,7 @@ fn polynomial(value: f64, coefficients: &[f64], leading: f64) -> f64 {
 }
 
 // Cephes ndtri, Copyright 1984, 1987, 1989 Stephen L. Moshier;
-// C++ translation Copyright 2024 SciPy. BSD notices are in THIRD_PARTY_NOTICES.txt.
+// C++ translation Copyright 2024 SciPy.
 fn inverse_normal_cdf(probability: f64) -> f64 {
     const P0: &[f64] = &[
         -59.96335010141079,

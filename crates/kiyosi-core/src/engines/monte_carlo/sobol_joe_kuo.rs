@@ -1,5 +1,5 @@
 // Joe-Kuo new-joe-kuo-6.21201, search criterion 6.
-// Copyright (c) 2008 Frances Y. Kuo and Stephen Joe; BSD license in THIRD_PARTY_NOTICES.txt.
+// Copyright (c) 2008 Frances Y. Kuo and Stephen Joe.
 // https://web.maths.unsw.edu.au/~fkuo/sobol/
 // Records contain degree, polynomial coefficients, then initial direction integers.
 #[rustfmt::skip]

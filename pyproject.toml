@@ -7,7 +7,7 @@ name = "kiyosi"
 description = "A Python library for pricing vanilla and exotic derivatives"
 readme = "README.md"
 license = "MIT"
-license-files = ["LICENSE.txt", "THIRD_PARTY_NOTICES.txt"]
+license-files = ["LICENSE.txt"]
 authors = [{ name = "Jiangping Li" }]
 requires-python = ">=3.11"
 dynamic = ["version"]

@@ -613,7 +613,7 @@ impl Moments {
     }
 }
 
-// PCG-XSH-RR, ported from the existing CPU generator; see THIRD_PARTY_NOTICES.txt.
+// PCG-XSH-RR, ported from the existing CPU generator.
 struct Pcg32 {
     state: u64,
     increment: u64,
