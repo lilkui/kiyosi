@@ -14,5 +14,5 @@ name = "_native"
 crate-type = ["cdylib"]
 
 [dependencies]
-kiyosi-core = { path = "../kiyosi-core", version = "0.13.0" }
+kiyosi-core = { path = "../kiyosi-core" }
 pyo3 = { version = "0.30.1", features = ["extension-module"] }
