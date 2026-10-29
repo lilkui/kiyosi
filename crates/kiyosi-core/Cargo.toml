@@ -1,6 +1,6 @@
 [package]
 name = "kiyosi-core"
-description = "Vanilla and exotic derivatives pricing under the Black–Scholes–Merton model"
+description = "Rust core for the Kiyosi Python derivatives pricing library"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "kiyosi"
-description = "Python bindings for Kiyosi, a Rust derivatives pricing library"
+description = "Rust-powered Python library for derivatives pricing"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE.txt"]

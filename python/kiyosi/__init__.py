@@ -1,4 +1,4 @@
-"""Python API for the Rust derivatives pricing core.
+"""Rust-powered Python library for derivatives pricing.
 
 Domain rejections raise a specific KiyosiError subclass: InvalidInputError,
 UnsupportedOperationError, ComputationFailureError, RootNotBracketedError or
