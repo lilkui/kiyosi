@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Kiyosi is in alpha; there are no backward-compatibility commitments.
+Kiyosi is a Rust-powered Python library. It is in alpha; there are no backward-compatibility commitments.
 
 ## Read before working
 
@@ -9,14 +9,14 @@ Kiyosi is in alpha; there are no backward-compatibility commitments.
 - **Issue or PR operations:** read the [issue tracker guide](docs/agents/issue-tracker.md). For triage, also read the [triage labels](docs/agents/triage-labels.md).
 - **Rust doc comments:** before writing or editing them, read [RFC 1574](https://raw.githubusercontent.com/rust-lang/rfcs/refs/heads/main/text/1574-more-api-documentation-conventions.md) and the [Rust API Guidelines documentation chapter](https://rust-lang.github.io/api-guidelines/documentation.html). Follow every applicable rule and verify compliance before completing the change.
 
-## Rust core and language bindings
+## Python API and Rust implementation
 
-- Keep domain semantics and validation in the Rust core; bindings adapt language representations and calling conventions.
+- Keep domain semantics and validation in Rust; the Python bindings adapt Python representations and calling conventions.
 - Keep core dependencies and public APIs independent of Python and binding frameworks. The core must support building, testing, documentation and packaging with Cargo alone.
-- Provide idiomatic Rust and Python APIs; interfaces and API coverage may differ.
+- Treat the Python API as the primary user-facing interface. Keep Rust APIs idiomatic; interfaces and API coverage may differ.
 - Define domain defaults once in Rust and derive Python defaults from them.
 - Prefer Python `snake_case` choice strings mapped to core enums.
-- Keep equivalent operations consistent across languages: defaults, valid inputs, domain boundaries, validation timing, error categories and failure-state guarantees must agree. Test shared scenarios in both languages, with results agreeing within numerical acceptance criteria.
+- Keep equivalent operations consistent between the Python API and Rust implementation: defaults, valid inputs, domain boundaries, validation timing, error categories and failure-state guarantees must agree. Test shared scenarios in both languages, with results agreeing within numerical acceptance criteria.
 
 ## Validation and errors
 
