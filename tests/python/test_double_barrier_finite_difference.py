@@ -266,7 +266,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             expected = (
                 3 * math.exp(-0.04 * 184.5 / 365)
                 if kind == "knock_in"
-                else pricing.AnalyticVanillaEngine().price(
+                else pricing.AnalyticEuropeanEngine().price(
                     EuropeanOption(
                         option_type="call",
                         strike=100,
@@ -345,7 +345,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 )
                 for kind in ("knock_in", "knock_out")
             ]
-            vanilla = pricing.AnalyticVanillaEngine().price_with_greeks(
+            vanilla = pricing.AnalyticEuropeanEngine().price_with_greeks(
                 EuropeanOption(
                     option_type=direction,
                     strike=100,
@@ -439,7 +439,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             activated = contract(
                 option_type=direction, strike=strike, barrier_type="knock_in"
             )
-            expected = pricing.AnalyticVanillaEngine().price(
+            expected = pricing.AnalyticEuropeanEngine().price(
                 EuropeanOption(
                     option_type=direction,
                     strike=strike,

@@ -1,9 +1,9 @@
 use std::f64::consts::{PI, SQRT_2};
 use std::sync::LazyLock;
 
-use crate::engines::analytic::vanilla::log_normal_cdf;
+use crate::engines::analytic::european::log_normal_cdf;
 use crate::{
-    AmericanOption, AnalyticVanillaEngine, Error, EuropeanOption, GreeksRequest,
+    AmericanOption, AnalyticEuropeanEngine, Error, EuropeanOption, GreeksRequest,
     NumericalShiftSettings, OptionType, PricingContext, PricingEngine, PricingResult, Result,
     numerical_greeks,
 };
@@ -333,7 +333,7 @@ impl BjerksundStenslandVanillaEngine {
             option.effective_date(),
             option.expiry_date(),
         )?;
-        let continuation = AnalyticVanillaEngine.price(&european, context)?;
+        let continuation = AnalyticEuropeanEngine.price(&european, context)?;
         let (spot, strike) = (context.spot_price(), option.strike());
         let value = if call {
             bjerksund_call(

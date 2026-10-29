@@ -35,7 +35,7 @@ def terminal_cases():
         (
             ins.EuropeanOption(**vanilla),
             (
-                "AnalyticVanillaEngine",
+                "AnalyticEuropeanEngine",
                 "CoxRossRubinsteinVanillaEngine",
                 "QuadratureVanillaEngine",
                 "FiniteDifferenceVanillaEngine",

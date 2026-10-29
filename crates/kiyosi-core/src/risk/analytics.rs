@@ -92,7 +92,7 @@ impl PricingResult {
     /// # Errors
     /// Returns [`Error::UnsupportedOperation`] when the measure was not requested
     /// or cannot be provided at this valuation point. [`Self::get`] returns `None`
-    /// for these cases. See [`crate::AnalyticVanillaEngine::price_with_greeks`]
+    /// for these cases. See [`crate::AnalyticEuropeanEngine::price_with_greeks`]
     /// for an example of requesting measures.
     pub fn require(&self, greek: Greek) -> Result<f64> {
         self.get(greek).ok_or(Error::UnsupportedOperation(

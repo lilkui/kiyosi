@@ -1,7 +1,7 @@
 use super::{integer_setting, real_setting};
 use crate::conversions::{check_changes, real};
 use crate::engines::analytic;
-use crate::engines::analytic::vanilla::AnalyticVanillaEngine;
+use crate::engines::analytic::european::AnalyticEuropeanEngine;
 use crate::engines::binomial;
 use crate::engines::finite_difference;
 use crate::engines::monte_carlo;
@@ -557,13 +557,13 @@ pub(crate) fn implied_volatility(
             }),
         );
     }
-    engine.extract::<PyRef<'_, AnalyticVanillaEngine>>()?;
+    engine.extract::<PyRef<'_, AnalyticEuropeanEngine>>()?;
     let option = instrument.extract::<PyRef<'_, EuropeanOption>>()?.0.clone();
     domain(
         py,
         py.detach(|| {
             core::implied_volatility(
-                &core::AnalyticVanillaEngine,
+                &core::AnalyticEuropeanEngine,
                 &option,
                 &context,
                 observed,

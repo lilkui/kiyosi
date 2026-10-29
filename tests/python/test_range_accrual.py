@@ -128,7 +128,7 @@ class RangeAccrualTests(unittest.TestCase):
 
     def test_native_representation_errors_and_unsupported_pairs(self):
         from kiyosi.instruments import EuropeanOption
-        from kiyosi.pricing import AnalyticVanillaEngine
+        from kiyosi.pricing import AnalyticEuropeanEngine
 
         option, context = contract(), market()
         engine = AnalyticRangeAccrualEngine()
@@ -155,7 +155,7 @@ class RangeAccrualTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             implied_volatility(engine, vanilla, context, 1)
         with self.assertRaises(TypeError):
-            AnalyticVanillaEngine().price(option, context)
+            AnalyticEuropeanEngine().price(option, context)
         with self.assertRaises(TypeError):
             engine.price_with_greeks(option, context, "delta", spot_shift=True)
         with self.assertRaises(TypeError):

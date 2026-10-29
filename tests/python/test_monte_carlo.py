@@ -21,7 +21,7 @@ from kiyosi import (
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import (
-    AnalyticVanillaEngine,
+    AnalyticEuropeanEngine,
     MonteCarloVanillaEngine,
     implied_volatility,
 )
@@ -812,7 +812,7 @@ class SamplingTests(unittest.TestCase):
         for antithetic in (False, True):
             for direction in ("call", "put"):
                 option, context = contract(direction), market()
-                reference = AnalyticVanillaEngine().price_with_greeks(
+                reference = AnalyticEuropeanEngine().price_with_greeks(
                     option, context, all_greeks=True
                 )
                 engine = MonteCarloVanillaEngine(

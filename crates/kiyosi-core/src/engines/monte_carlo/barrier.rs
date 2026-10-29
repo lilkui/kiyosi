@@ -3,7 +3,7 @@ use crate::engines::analytic::barrier::{
     hit_value, log_ratio, resolved_price, validate_life, validate_schedule,
 };
 use crate::{
-    AnalyticDoubleBarrierEngine, AnalyticVanillaEngine, BarrierOption, DoubleBarrierOption,
+    AnalyticDoubleBarrierEngine, AnalyticEuropeanEngine, BarrierOption, DoubleBarrierOption,
     EuropeanOption, Greek, GreeksRequest, MonteCarloSettings, MonteCarloVanillaEngine,
     NumericalShiftSettings, ObservationMode, OptionContract, OptionType, PricingContext,
     PricingEngine, PricingResult, RebateTiming, Result,
@@ -173,7 +173,8 @@ impl MonteCarloBarrierEngine {
                     option.effective_date(),
                     option.expiry_date(),
                 )?;
-                return AnalyticVanillaEngine.price_with_greeks(&vanilla, context, request, shifts);
+                return AnalyticEuropeanEngine
+                    .price_with_greeks(&vanilla, context, request, shifts);
             }
             let mut result = PricingResult::new(value)?;
             result.set(request, Greek::Delta, 0.0)?;

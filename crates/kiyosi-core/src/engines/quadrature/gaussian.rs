@@ -19,7 +19,7 @@ impl Sum {
 }
 
 use crate::engines::analytic::barrier::scaled_cash;
-use crate::engines::analytic::vanilla::log_normal_cdf;
+use crate::engines::analytic::european::log_normal_cdf;
 const INF: f64 = f64::INFINITY;
 const LOG_DENSITY: f64 = -0.9189385332046727;
 

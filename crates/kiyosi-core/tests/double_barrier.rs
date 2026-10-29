@@ -66,7 +66,7 @@ fn continuous_prices_and_greeks_match_independent_quantlib_regressions() {
         .unwrap();
         assert!(
             (engine.price(&inside, &context).unwrap() + result.price()
-                - AnalyticVanillaEngine.price(&vanilla, &context).unwrap())
+                - AnalyticEuropeanEngine.price(&vanilla, &context).unwrap())
             .abs()
                 < 1e-9
         );
@@ -248,7 +248,7 @@ fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows(
         if kind == DoubleBarrierType::KnockIn {
             assert_eq!(
                 engine.price(&touched, &context).unwrap(),
-                AnalyticVanillaEngine
+                AnalyticEuropeanEngine
                     .price(
                         &EuropeanOption::new(
                             option.option_type(),
@@ -302,7 +302,7 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
     let known = option.replace(Some(BarrierTouchState::Untouched)).unwrap();
     assert_eq!(
         engine.price(&known, &intraday).unwrap(),
-        AnalyticVanillaEngine
+        AnalyticEuropeanEngine
             .price(
                 &EuropeanOption::new(OptionType::Call, 100.0, t.effective_date, t.expiry_date)
                     .unwrap(),
@@ -354,7 +354,7 @@ fn image_spectral_switch_and_band_limits_preserve_independent_values() {
         let expected = if lower > 99.0 {
             0.0
         } else {
-            AnalyticVanillaEngine
+            AnalyticEuropeanEngine
                 .price(
                     &EuropeanOption::new(
                         OptionType::Call,
@@ -380,7 +380,7 @@ fn image_spectral_switch_and_band_limits_preserve_independent_values() {
             engine
                 .price(&DoubleBarrierOption::new(t).unwrap(), &context)
                 .unwrap(),
-            AnalyticVanillaEngine
+            AnalyticEuropeanEngine
                 .price(
                     &EuropeanOption::new(
                         direction,

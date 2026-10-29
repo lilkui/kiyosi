@@ -29,7 +29,7 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import (
     AnalyticDigitalEngine,
-    AnalyticVanillaEngine,
+    AnalyticEuropeanEngine,
     CoxRossRubinsteinDigitalEngine,
     CoxRossRubinsteinVanillaEngine,
     implied_volatility,
@@ -239,7 +239,7 @@ class BinomialTests(unittest.TestCase):
                 context = market(spot, rate, dividend, sigma)
                 for kind in (EuropeanOption, *DIGITAL):
                     analytic = (
-                        AnalyticVanillaEngine()
+                        AnalyticEuropeanEngine()
                         if kind is EuropeanOption
                         else AnalyticDigitalEngine()
                     )

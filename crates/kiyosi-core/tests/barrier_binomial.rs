@@ -574,7 +574,7 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
     .unwrap();
     let vanilla =
         EuropeanOption::new(t.option_type, t.strike, t.effective_date, t.expiry_date).unwrap();
-    let expected = AnalyticVanillaEngine
+    let expected = AnalyticEuropeanEngine
         .price_with_greeks(&vanilla, &context, GreeksRequest::all(), Default::default())
         .unwrap();
     assert!(

@@ -79,7 +79,7 @@ impl AnalyticGeometricAveragePriceEngine {
         }
         coverage(o, context)?;
         if o.period() == 0.0 {
-            return crate::AnalyticVanillaEngine.price(&o.terms, context);
+            return crate::AnalyticEuropeanEngine.price(&o.terms, context);
         }
         let valuation = context.valuation_time();
         let start = o.averaging_start.start_of_day();
@@ -119,7 +119,7 @@ impl AnalyticGeometricAveragePriceEngine {
             log_forward += (1.0 - weight) * log_ratio(o.realized, context.spot_price());
         }
         let log_discount = model.risk_free_curve().log_factor(valuation, expiry)?;
-        checked(crate::engines::analytic::vanilla::lognormal_price(
+        checked(crate::engines::analytic::european::lognormal_price(
             context.spot_price(),
             o.terms.strike(),
             log_forward,
@@ -222,7 +222,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
         }
         coverage(o, context)?;
         if o.period() == 0.0 {
-            return crate::AnalyticVanillaEngine.price(&o.terms, context);
+            return crate::AnalyticEuropeanEngine.price(&o.terms, context);
         }
         let rate = model.risk_free_rate()?;
         let carry = rate - model.dividend_yield()?;
@@ -312,7 +312,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
         }
         checked(
             price_scale
-                * crate::engines::analytic::vanilla::lognormal_price(
+                * crate::engines::analytic::european::lognormal_price(
                     context.spot_price(),
                     cash_strike,
                     log_scale + m1.ln(),

@@ -6,10 +6,10 @@ use kiyosi_core as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 #[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct AnalyticVanillaEngine;
+pub(crate) struct AnalyticEuropeanEngine;
 
 #[pymethods]
-impl AnalyticVanillaEngine {
+impl AnalyticEuropeanEngine {
     #[new]
     fn new() -> Self {
         Self
@@ -28,7 +28,7 @@ impl AnalyticVanillaEngine {
         let shifts = risk::shifts(settings)?;
         Ok(risk::PricingResult(domain(
             py,
-            core::AnalyticVanillaEngine.price_with_greeks(
+            core::AnalyticEuropeanEngine.price_with_greeks(
                 &instrument.0,
                 &context.0,
                 request,
@@ -46,7 +46,7 @@ impl AnalyticVanillaEngine {
         // Keep the GIL for the short scalar formula, matching the legacy analytic contract.
         domain(
             py,
-            core::AnalyticVanillaEngine.price(&instrument.0, &context.0),
+            core::AnalyticEuropeanEngine.price(&instrument.0, &context.0),
         )
     }
 }

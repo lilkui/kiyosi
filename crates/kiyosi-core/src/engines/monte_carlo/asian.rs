@@ -622,10 +622,10 @@ impl Parameters {
         let d2 = center - 0.5 * self.width;
         let log_asset = log_q
             + self.log_discount
-            + crate::engines::analytic::vanilla::log_normal_cdf(self.sign * d1);
+            + crate::engines::analytic::european::log_normal_cdf(self.sign * d1);
         let log_cash = log_b
             + self.log_discount
-            + crate::engines::analytic::vanilla::log_normal_cdf(self.sign * d2);
+            + crate::engines::analytic::european::log_normal_cdf(self.sign * d2);
         let mut price = if self.sign > 0.0 {
             positive_difference(log_asset, log_cash)
         } else {
@@ -677,10 +677,10 @@ impl Parameters {
         let delta = if request.has(Greek::Delta) {
             self.sign
                 * ((log_c + self.log_discount - log_spot
-                    + crate::engines::analytic::vanilla::log_normal_cdf(self.sign * d2))
+                    + crate::engines::analytic::european::log_normal_cdf(self.sign * d2))
                 .exp()
                     + (log_q + self.log_discount - log_spot
-                        + crate::engines::analytic::vanilla::log_normal_cdf(self.sign * d1))
+                        + crate::engines::analytic::european::log_normal_cdf(self.sign * d1))
                     .exp())
         } else {
             0.0

@@ -64,7 +64,7 @@ fn high_variance_negative_rates_and_small_widths_match_analytic_limits() {
         let context = market(100.0, rate, dividend, sigma);
         for direction in [OptionType::Call, OptionType::Put] {
             let vanilla = EuropeanOption::new(direction, 100.0, start, end).unwrap();
-            let expected = AnalyticVanillaEngine.price(&vanilla, &context).unwrap();
+            let expected = AnalyticEuropeanEngine.price(&vanilla, &context).unwrap();
             let actual = QuadratureVanillaEngine.price(&vanilla, &context).unwrap();
             assert!((actual - expected).abs() <= 1e-9 * expected.abs().max(1e-300));
             for digital in [
@@ -311,7 +311,7 @@ fn numerical_greeks_refine_and_implied_volatility_preserves_inputs() {
     for direction in [OptionType::Call, OptionType::Put] {
         check(
             QuadratureVanillaEngine,
-            AnalyticVanillaEngine,
+            AnalyticEuropeanEngine,
             EuropeanOption::new(direction, 100.0, start, end).unwrap(),
             &context,
         );

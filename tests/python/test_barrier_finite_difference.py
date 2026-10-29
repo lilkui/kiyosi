@@ -70,10 +70,10 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                 current = (
                     5
                     if kind.endswith("out")
-                    else pricing.AnalyticVanillaEngine().price(vanilla, at_observation)
+                    else pricing.AnalyticEuropeanEngine().price(vanilla, at_observation)
                 )
                 later = (
-                    pricing.AnalyticVanillaEngine().price(vanilla, after_observation)
+                    pricing.AnalyticEuropeanEngine().price(vanilla, after_observation)
                     if kind.endswith("out")
                     else 5 * math.exp(-0.03 * 269.5 / 365)
                 )
@@ -91,7 +91,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         vanilla = EuropeanOption(
             option_type="call", strike=100, effective_date=START, expiry_date=END
         )
-        value = pricing.AnalyticVanillaEngine().price(vanilla, context)
+        value = pricing.AnalyticEuropeanEngine().price(vanilla, context)
         for engine in engines():
             for kind in KINDS:
                 contract = option(
@@ -459,10 +459,10 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         for spot in (111.94, 111.97, 112.01):
             context = market(spot=spot, rate=0.04)
             actual = engine.price_with_greeks(contract, context, ["delta", "gamma"])
-            first = pricing.AnalyticVanillaEngine().price_with_greeks(
+            first = pricing.AnalyticEuropeanEngine().price_with_greeks(
                 lower, context, ["delta", "gamma"]
             )
-            second = pricing.AnalyticVanillaEngine().price_with_greeks(
+            second = pricing.AnalyticEuropeanEngine().price_with_greeks(
                 upper, context, ["delta", "gamma"]
             )
             digital = pricing.AnalyticDigitalEngine().price_with_greeks(

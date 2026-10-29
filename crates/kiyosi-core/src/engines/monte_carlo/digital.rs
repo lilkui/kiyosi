@@ -132,7 +132,7 @@ impl MonteCarloDigitalEngine {
         let root = time.sqrt();
         let width = sigma * root;
         let carry = (rate - dividend) * time;
-        let (_, d2) = crate::engines::analytic::vanilla::black_scholes_arguments(
+        let (_, d2) = crate::engines::analytic::european::black_scholes_arguments(
             spot,
             option.strike(),
             carry,

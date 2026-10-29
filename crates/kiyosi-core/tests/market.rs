@@ -39,7 +39,7 @@ fn log_interpolation_and_right_hand_forwards() {
 #[test]
 fn pricing_consumes_both_curves_and_replacement_is_transactional() {
     use kiyosi_core::{
-        AnalyticVanillaEngine, BlackScholesMertonParameterChanges as ModelChanges,
+        AnalyticEuropeanEngine, BlackScholesMertonParameterChanges as ModelChanges,
         BlackScholesMertonParameters as Model, Error, EuropeanOption, OptionType, PricingContext,
         PricingContextChanges, Rate,
     };
@@ -84,8 +84,8 @@ fn pricing_consumes_both_curves_and_replacement_is_transactional() {
     )
     .unwrap();
     assert!(
-        (AnalyticVanillaEngine.price(&call, &context).unwrap()
-            - AnalyticVanillaEngine.price(&call, &equivalent).unwrap())
+        (AnalyticEuropeanEngine.price(&call, &context).unwrap()
+            - AnalyticEuropeanEngine.price(&call, &equivalent).unwrap())
         .abs()
             < 1e-11
     );
@@ -259,7 +259,7 @@ fn flat_and_parallel_shifted_curves_preserve_coverage_and_ownership() {
 #[test]
 fn distant_microsecond_nodes_remain_distinct_and_pricing_rejects_unresolved_horizons() {
     use kiyosi_core::{
-        AnalyticVanillaEngine, BlackScholesMertonParameters, Error, EuropeanOption, OptionType,
+        AnalyticEuropeanEngine, BlackScholesMertonParameters, Error, EuropeanOption, OptionType,
         PricingContext,
     };
     let origin = at(1, 1, 1);
@@ -283,7 +283,7 @@ fn distant_microsecond_nodes_remain_distinct_and_pricing_rejects_unresolved_hori
     .unwrap();
     let call = EuropeanOption::new(OptionType::Call, 100.0, first.date(), second.date()).unwrap();
     assert!(
-        (AnalyticVanillaEngine.price(&call, &context).unwrap() - 100.0 * (1.0 - (-1_f64).exp()))
+        (AnalyticEuropeanEngine.price(&call, &context).unwrap() - 100.0 * (1.0 - (-1_f64).exp()))
             .abs()
             < 1e-11
     );
@@ -301,7 +301,7 @@ fn distant_microsecond_nodes_remain_distinct_and_pricing_rejects_unresolved_hori
     )
     .unwrap();
     assert!(matches!(
-        AnalyticVanillaEngine.price(&call, &context).unwrap_err(),
+        AnalyticEuropeanEngine.price(&call, &context).unwrap_err(),
         Error::ComputationFailure(_)
     ));
 }
@@ -309,7 +309,7 @@ fn distant_microsecond_nodes_remain_distinct_and_pricing_rejects_unresolved_hori
 #[test]
 fn context_validation_timing_replacement_and_concurrent_owned_values() {
     use kiyosi_core::{
-        AnalyticVanillaEngine, BlackScholesMertonParameterChanges as Changes,
+        AnalyticEuropeanEngine, BlackScholesMertonParameterChanges as Changes,
         BlackScholesMertonParameters as Model, Error, EuropeanOption, OptionType, PricingContext,
         PricingContextChanges,
     };
@@ -371,7 +371,7 @@ fn context_validation_timing_replacement_and_concurrent_owned_values() {
         .unwrap();
     let call = EuropeanOption::new(OptionType::Call, 100.0, start.date(), end.date()).unwrap();
     assert!(matches!(
-        AnalyticVanillaEngine
+        AnalyticEuropeanEngine
             .price(&call, &short_context)
             .unwrap_err(),
         Error::InvalidInput(_)
@@ -387,11 +387,11 @@ fn context_validation_timing_replacement_and_concurrent_owned_values() {
     assert_eq!(changed.model_parameters(), &model);
     assert_eq!(context.spot_price(), 100.0);
     std::thread::scope(|scope| {
-        let first = scope.spawn(|| AnalyticVanillaEngine.price(&call, &context).unwrap());
+        let first = scope.spawn(|| AnalyticEuropeanEngine.price(&call, &context).unwrap());
         let owned_context = context.clone();
         let owned_call = call.clone();
         let second = scope.spawn(move || {
-            AnalyticVanillaEngine
+            AnalyticEuropeanEngine
                 .price(&owned_call, &owned_context)
                 .unwrap()
         });

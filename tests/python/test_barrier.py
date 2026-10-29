@@ -15,7 +15,7 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import (
     AnalyticBarrierEngine,
-    AnalyticVanillaEngine,
+    AnalyticEuropeanEngine,
     implied_volatility,
 )
 
@@ -222,7 +222,7 @@ class BarrierTests(unittest.TestCase):
         )
         self.assertEqual(
             engine.price(untouched, self.context(150, noon)),
-            AnalyticVanillaEngine().price(vanilla, self.context(150, noon)),
+            AnalyticEuropeanEngine().price(vanilla, self.context(150, noon)),
         )
         dates = untouched.observation_dates
         dates.clear()

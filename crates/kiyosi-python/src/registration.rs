@@ -189,7 +189,7 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     module.add_class::<TradingCalendar>()?;
     module.add_class::<schedule::ObservationSchedule>()?;
     module.add_class::<PricingContext>()?;
-    module.add_class::<analytic::vanilla::AnalyticVanillaEngine>()?;
+    module.add_class::<analytic::european::AnalyticEuropeanEngine>()?;
     module.add_class::<risk::PricingResult>()?;
     module.add_function(wrap_pyfunction!(risk::implied_volatility, module)?)?;
     module.add_function(wrap_pyfunction!(risk::implied_coupon, module)?)?;

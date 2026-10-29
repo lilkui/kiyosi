@@ -521,7 +521,7 @@ fn scaled_statistics_preserve_finite_prices_when_sums_squares_or_discounts_overf
             option.effective_date().into(),
         )
         .unwrap();
-        let reference = AnalyticVanillaEngine.price(&option, &context).unwrap();
+        let reference = AnalyticEuropeanEngine.price(&option, &context).unwrap();
         let estimate = engine.price_with_statistics(&option, &context).unwrap();
         assert!(estimate.price() > 0.0 && estimate.standard_error().unwrap() > 0.0);
         assert!(
@@ -547,7 +547,7 @@ fn sobol_prices_match_analytic_and_never_claim_sampling_uncertainty() {
         .unwrap();
         for direction in [OptionType::Call, OptionType::Put] {
             let option = contract(direction);
-            let reference = AnalyticVanillaEngine
+            let reference = AnalyticEuropeanEngine
                 .price_with_greeks(
                     &option,
                     &market(),

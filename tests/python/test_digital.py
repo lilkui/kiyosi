@@ -22,7 +22,7 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import (
     AnalyticDigitalEngine,
-    AnalyticVanillaEngine,
+    AnalyticEuropeanEngine,
     implied_volatility,
 )
 
@@ -369,7 +369,7 @@ class DigitalTests(unittest.TestCase):
             self.assertEqual(self.engine.price(option, self.context), quote)
             self.assertEqual(self.context.model_parameters.volatility, 0.2)
             with self.assertRaises(TypeError):
-                AnalyticVanillaEngine().price(option, self.context)
+                AnalyticEuropeanEngine().price(option, self.context)
         with self.assertRaises(TypeError):
             self.engine.price(EuropeanOption(**self.terms), self.context)
 

@@ -108,7 +108,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             "knock_in_observation_mode": "every_trading_day",
         }
         downside = {"initial_spot": 100, "upper_strike": 100, "lower_strike": 60}
-        put = lambda strike: pricing.AnalyticVanillaEngine().price(
+        put = lambda strike: pricing.AnalyticEuropeanEngine().price(
             EuropeanOption(
                 option_type="put", strike=strike, effective_date=start, expiry_date=end
             ),
@@ -714,7 +714,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             ),
         )
         put_prices = [
-            pricing.AnalyticVanillaEngine().price(
+            pricing.AnalyticEuropeanEngine().price(
                 EuropeanOption(
                     option_type="put",
                     strike=strike,

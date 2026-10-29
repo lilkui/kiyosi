@@ -24,8 +24,8 @@ from kiyosi.market import (
     RateTermStructure,
 )
 from kiyosi.pricing import (
+    AnalyticEuropeanEngine,
     AnalyticGeometricAveragePriceEngine,
-    AnalyticVanillaEngine,
     TurnbullWakemanArithmeticAveragePriceEngine,
     implied_volatility,
 )
@@ -201,7 +201,7 @@ class AsianTests(unittest.TestCase):
                 for at in (START, END - timedelta(days=1), END):
                     self.assertEqual(
                         engine.price(single, market(at)),
-                        AnalyticVanillaEngine().price(vanilla, market(at)),
+                        AnalyticEuropeanEngine().price(vanilla, market(at)),
                     )
                     self.assert_rejection(
                         InvalidInputError,
@@ -316,7 +316,7 @@ class AsianTests(unittest.TestCase):
             option_type="call", strike=100, effective_date=START, expiry_date=END
         )
         self.assertAlmostEqual(
-            AnalyticVanillaEngine().price(vanilla, context), expected, delta=1e-12
+            AnalyticEuropeanEngine().price(vanilla, context), expected, delta=1e-12
         )
         for kind, engine_type in PAIRS:
             option = kind(**terms(averaging_start_date=END))

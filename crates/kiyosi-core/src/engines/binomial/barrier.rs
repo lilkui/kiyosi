@@ -1,5 +1,5 @@
 use super::*;
-use crate::{AnalyticVanillaEngine, BarrierOption, RebateTiming};
+use crate::{AnalyticEuropeanEngine, BarrierOption, RebateTiming};
 
 /// Prices single-barrier vanilla contracts with a flat-rate CRR tree.
 ///
@@ -115,7 +115,7 @@ impl CoxRossRubinsteinBarrierEngine {
                     option.effective_date(),
                     option.expiry_date(),
                 )?;
-                return AnalyticVanillaEngine.price_with_greeks(
+                return AnalyticEuropeanEngine.price_with_greeks(
                     &vanilla,
                     context,
                     request,

@@ -1,7 +1,7 @@
 use crate::DoubleBarrierOption;
 use crate::engines::analytic::barrier::{checked, log_ratio, scaled_cash, scaled_cdf};
 use crate::{
-    AnalyticVanillaEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationMode,
+    AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationMode,
     OptionType, PricingContext, PricingEngine, PricingResult, RebateTiming, Result,
 };
 use std::f64::consts::PI;
@@ -137,7 +137,7 @@ pub(crate) fn resolved_price(
         return Ok(Some(0.0));
     }
     if touched || finished || fixed {
-        return AnalyticVanillaEngine
+        return AnalyticEuropeanEngine
             .price(&option.vanilla()?, context)
             .map(Some);
     }
@@ -167,7 +167,7 @@ fn scaled(value: f64, exponent: f64) -> f64 {
     scaled_cash(value.abs(), exponent).copysign(value)
 }
 fn log_interval_mass(lower: f64, upper: f64) -> f64 {
-    use crate::engines::analytic::vanilla::log_normal_cdf;
+    use crate::engines::analytic::european::log_normal_cdf;
     if lower >= upper {
         return f64::NEG_INFINITY;
     }
@@ -519,7 +519,7 @@ fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Res
     let asset = density.moment(1, lower, upper, discount, false)?;
     let mut value = (if call { 1.0 } else { -1.0 }) * (asset - option.strike() * cash);
     if option.knock_in() {
-        value = AnalyticVanillaEngine.price(&option.vanilla()?, context)? - value;
+        value = AnalyticEuropeanEngine.price(&option.vanilla()?, context)? - value;
     }
     if option.rebate() != 0.0 {
         let weight = if option.rebate_timing() == RebateTiming::AtHit && !option.knock_in() {

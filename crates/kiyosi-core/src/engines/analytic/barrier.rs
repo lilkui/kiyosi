@@ -1,5 +1,5 @@
 use crate::{
-    AnalyticVanillaEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationSchedule,
+    AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationSchedule,
     OptionType, PricingContext, PricingEngine, PricingResult, Result, TradingCalendar,
 };
 use crate::{BarrierOption, RebateTiming};
@@ -137,7 +137,7 @@ pub(crate) fn resolved_price(
         return Ok(Some(0.0));
     }
     if touched || finished || fixed {
-        return AnalyticVanillaEngine
+        return AnalyticEuropeanEngine
             .price(option.vanilla(), context)
             .map(Some);
     }
@@ -212,7 +212,8 @@ pub(crate) fn scaled_cdf(amount: f64, exponent: f64, argument: f64) -> f64 {
     if amount == 0.0 {
         0.0
     } else {
-        (amount.ln() + exponent + crate::engines::analytic::vanilla::log_normal_cdf(argument)).exp()
+        (amount.ln() + exponent + crate::engines::analytic::european::log_normal_cdf(argument))
+            .exp()
     }
 }
 pub(crate) fn scaled_cash(amount: f64, exponent: f64) -> f64 {
@@ -250,7 +251,7 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
         upper != strike_above
     };
     let a = if needs_vanilla {
-        AnalyticVanillaEngine.price(option.vanilla(), context)?
+        AnalyticEuropeanEngine.price(option.vanilla(), context)?
     } else {
         0.0
     };

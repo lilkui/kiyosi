@@ -80,7 +80,7 @@ fn live_barriers_preserve_in_out_parity_and_analytics() {
                     .price(&BarrierOption::new(t).unwrap(), &context)
                     .unwrap();
                 assert!(
-                    (a + b - AnalyticVanillaEngine.price(&vanilla, &context).unwrap()).abs()
+                    (a + b - AnalyticEuropeanEngine.price(&vanilla, &context).unwrap()).abs()
                         < 1e-10
                 );
             }
@@ -317,7 +317,7 @@ fn completed_schedules_resolve_before_analytic_applicability_and_do_not_repeat_f
         AnalyticBarrierEngine
             .price(&untouched, &market(150.0, noon))
             .unwrap(),
-        AnalyticVanillaEngine
+        AnalyticEuropeanEngine
             .price(&vanilla, &market(150.0, noon))
             .unwrap()
     );

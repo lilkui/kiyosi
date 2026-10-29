@@ -35,7 +35,7 @@ class FiniteDifferenceMixedGreekTests(unittest.TestCase):
                         joint = engine.price_with_greeks(
                             option, context, [greek, dependency]
                         )
-                        expected = pricing.AnalyticVanillaEngine().price_with_greeks(
+                        expected = pricing.AnalyticEuropeanEngine().price_with_greeks(
                             option, context, [greek]
                         )
                         self.assertEqual(single.price, joint.price)
@@ -61,7 +61,7 @@ class FiniteDifferenceMixedGreekTests(unittest.TestCase):
             spot_price=100,
             valuation_time=start,
         )
-        expected = pricing.AnalyticVanillaEngine().price_with_greeks(
+        expected = pricing.AnalyticEuropeanEngine().price_with_greeks(
             option, context, ["charm"]
         )
         actual = pricing.FiniteDifferenceVanillaEngine(
@@ -89,7 +89,7 @@ class FiniteDifferenceMixedGreekTests(unittest.TestCase):
             valuation_time=date(2025, 7, 1),
         )
         request = ["vanna", "zomma", "charm", "color"]
-        expected = pricing.AnalyticVanillaEngine().price_with_greeks(
+        expected = pricing.AnalyticEuropeanEngine().price_with_greeks(
             option, context, request
         )
         actual = pricing.FiniteDifferenceVanillaEngine(

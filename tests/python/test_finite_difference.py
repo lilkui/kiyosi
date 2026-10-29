@@ -26,7 +26,7 @@ from kiyosi.instruments import (
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import (
     AnalyticDigitalEngine,
-    AnalyticVanillaEngine,
+    AnalyticEuropeanEngine,
     FiniteDifferenceBarrierEngine,
     FiniteDifferenceDigitalEngine,
     FiniteDifferenceDoubleBarrierEngine,
@@ -359,7 +359,7 @@ class FiniteDifferenceTests(unittest.TestCase):
     def test_grid_refinement_schemes_interpolation_and_long_expiry(self):
         for kind in (EuropeanOption, *DIGITAL):
             analytic = (
-                AnalyticVanillaEngine() if kind in VANILLA else AnalyticDigitalEngine()
+                AnalyticEuropeanEngine() if kind in VANILLA else AnalyticDigitalEngine()
             )
             for direction in ("call", "put"):
                 option, context = contract(kind, direction), market(spot=100.25)
@@ -568,7 +568,7 @@ class FiniteDifferenceTests(unittest.TestCase):
                 option_type=direction, strike=100, effective_date=START, expiry_date=end
             )
             context = market(sigma=0.3)
-            expected = AnalyticVanillaEngine().price_with_greeks(
+            expected = AnalyticEuropeanEngine().price_with_greeks(
                 option, context, ["delta", "gamma"]
             )
             actual = engine.price_with_greeks(option, context, ["delta", "gamma"])

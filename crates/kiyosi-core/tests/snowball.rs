@@ -116,7 +116,7 @@ fn terminal_portfolios_preserve_signed_coupons_affine_tails_and_principal() {
                         .unwrap();
                 let ctx = market(100.0, date(1, 1));
                 let put = |strike| {
-                    AnalyticVanillaEngine
+                    AnalyticEuropeanEngine
                         .price(
                             &EuropeanOption::new(
                                 OptionType::Put,

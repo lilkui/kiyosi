@@ -448,7 +448,7 @@ fn event_layer(
                     valuation_time: Some(date.into()),
                     ..Default::default()
                 })?;
-                crate::AnalyticVanillaEngine.price(&vanilla, &shifted)
+                crate::AnalyticEuropeanEngine.price(&vanilla, &shifted)
             })
             .collect::<Result<Vec<_>>>()?;
         vanilla_curve = interpolation.interpolate(&values);

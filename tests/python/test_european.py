@@ -18,7 +18,7 @@ from kiyosi.market import (
     PricingContext,
     weekdays_calendar,
 )
-from kiyosi.pricing import AnalyticVanillaEngine
+from kiyosi.pricing import AnalyticEuropeanEngine
 
 
 class EuropeanTests(unittest.TestCase):
@@ -67,7 +67,7 @@ class EuropeanTests(unittest.TestCase):
                     expiry_date=date(2026, 1, 1),
                 )
                 self.assertAlmostEqual(
-                    AnalyticVanillaEngine().price(option, context),
+                    AnalyticEuropeanEngine().price(option, context),
                     expected,
                     delta=1e-12,
                 )
@@ -104,13 +104,13 @@ class EuropeanTests(unittest.TestCase):
                     "price", config["defaults"]["tolerances"]["price"]
                 )
                 self.assertAlmostEqual(
-                    AnalyticVanillaEngine().price(option, context),
+                    AnalyticEuropeanEngine().price(option, context),
                     expected,
                     delta=tolerance,
                 )
 
     def test_valuation_and_expiry_boundaries(self):
-        option, engine = self.option(), AnalyticVanillaEngine()
+        option, engine = self.option(), AnalyticEuropeanEngine()
         noon = self.context(valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC))
         self.assertLess(
             engine.price(option, noon), engine.price(option, self.context())
@@ -247,11 +247,15 @@ class EuropeanTests(unittest.TestCase):
             self.option(effective_date=date(2027, 1, 1))
         self.assertIs(type(error.exception), InvalidInputError)
         self.assertAlmostEqual(
-            AnalyticVanillaEngine().price(option, context), 9.227005508154036
+            AnalyticEuropeanEngine().price(option, context), 9.227005508154036
         )
 
     def test_owned_readonly_values_and_concurrent_pricing(self):
-        context, option, engine = self.context(), self.option(), AnalyticVanillaEngine()
+        context, option, engine = (
+            self.context(),
+            self.option(),
+            AnalyticEuropeanEngine(),
+        )
         self.assertEqual(
             context.calendar.trading_days_per_year,
             weekdays_calendar().trading_days_per_year,
@@ -270,7 +274,7 @@ class EuropeanTests(unittest.TestCase):
             prices = [future.result() for future in futures]
             distinct = list(
                 pool.map(
-                    lambda _: AnalyticVanillaEngine().price(
+                    lambda _: AnalyticEuropeanEngine().price(
                         self.option(), self.context()
                     ),
                     range(16),
@@ -297,7 +301,7 @@ class EuropeanTests(unittest.TestCase):
                 risk_free_rate=0, dividend_yield=0, volatility=sigma
             )
             with self.subTest(direction=direction, strike=strike, sigma=sigma):
-                actual = AnalyticVanillaEngine().price(
+                actual = AnalyticEuropeanEngine().price(
                     self.option(option_type=direction, strike=strike),
                     self.context(model_parameters=model, spot_price=spot),
                 )
@@ -306,7 +310,7 @@ class EuropeanTests(unittest.TestCase):
             risk_free_rate=-1000, dividend_yield=0, volatility=0.3
         )
         with self.assertRaises(ComputationFailureError) as error:
-            AnalyticVanillaEngine().price(
+            AnalyticEuropeanEngine().price(
                 self.option(option_type="put"), self.context(model_parameters=model)
             )
         self.assertIs(type(error.exception), ComputationFailureError)

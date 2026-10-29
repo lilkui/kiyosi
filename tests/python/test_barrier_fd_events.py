@@ -110,7 +110,7 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
                 "effective_date": START,
                 "expiry_date": END,
             }
-            vanilla = pricing.AnalyticVanillaEngine().price_with_greeks(
+            vanilla = pricing.AnalyticEuropeanEngine().price_with_greeks(
                 EuropeanOption(strike=100, **common), market, ["delta", "gamma"]
             )
             previous = [1.0] * 3
@@ -309,7 +309,7 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
                 with self.subTest(up=up, knock_in=knock_in, spot=spot):
                     if touched:
                         expected = (
-                            pricing.AnalyticVanillaEngine().price(
+                            pricing.AnalyticEuropeanEngine().price(
                                 EuropeanOption(
                                     option_type="call" if up else "put",
                                     strike=100,

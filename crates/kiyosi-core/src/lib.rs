@@ -17,7 +17,7 @@
 //! details through [`Error::Io`] and the standard error source.
 //!
 //! ```
-//! use kiyosi_core::{AnalyticVanillaEngine, BlackScholesMertonParameters, Date,
+//! use kiyosi_core::{AnalyticEuropeanEngine, BlackScholesMertonParameters, Date,
 //!                   EuropeanOption, OptionType, PricingContext};
 //! # fn main() -> kiyosi_core::Result<()> {
 //! let start = Date::new(2025, 1, 1)?;
@@ -25,11 +25,11 @@
 //! let option = EuropeanOption::new(OptionType::Call, 100.0, start, expiry)?;
 //! let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
 //! let context = PricingContext::new(model, 100.0, start.into())?;
-//! assert!((AnalyticVanillaEngine.price(&option, &context)? - 9.227005508154036).abs() < 1e-12);
-//! let result = AnalyticVanillaEngine.price_with_greeks(&option, &context,
+//! assert!((AnalyticEuropeanEngine.price(&option, &context)? - 9.227005508154036).abs() < 1e-12);
+//! let result = AnalyticEuropeanEngine.price_with_greeks(&option, &context,
 //!     kiyosi_core::GreeksRequest::all(), Default::default())?;
 //! assert!(result.require(kiyosi_core::Greek::Delta)? > 0.0);
-//! let sigma = kiyosi_core::implied_volatility(&AnalyticVanillaEngine, &option,
+//! let sigma = kiyosi_core::implied_volatility(&AnalyticEuropeanEngine, &option,
 //!     &context, result.price(), Default::default())?;
 //! assert!((sigma - 0.2).abs() < 1e-8);
 //! # Ok(()) }
@@ -50,8 +50,8 @@ pub use engines::analytic::barrier::AnalyticBarrierEngine;
 pub use engines::analytic::binary_barrier::AnalyticBinaryBarrierEngine;
 pub use engines::analytic::digital::AnalyticDigitalEngine;
 pub use engines::analytic::double_barrier::AnalyticDoubleBarrierEngine;
+pub use engines::analytic::european::AnalyticEuropeanEngine;
 pub use engines::analytic::range_accrual::AnalyticRangeAccrualEngine;
-pub use engines::analytic::vanilla::AnalyticVanillaEngine;
 pub use engines::binomial::{
     BinomialSettings, CoxRossRubinsteinBarrierEngine, CoxRossRubinsteinDigitalEngine,
     CoxRossRubinsteinVanillaEngine,

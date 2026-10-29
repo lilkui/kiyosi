@@ -274,7 +274,7 @@ class PricingContext:
     @property
     def calendar(self) -> TradingCalendar: ...
 
-class AnalyticVanillaEngine:
+class AnalyticEuropeanEngine:
     def __init__(self) -> None: ...
     def price(self, instrument: EuropeanOption, context: PricingContext) -> float: ...
     def price_with_greeks(
@@ -1205,7 +1205,7 @@ def implied_volatility(
 ) -> float: ...
 @overload
 def implied_volatility(
-    engine: AnalyticVanillaEngine | QuadratureVanillaEngine | MonteCarloVanillaEngine,
+    engine: AnalyticEuropeanEngine | QuadratureVanillaEngine | MonteCarloVanillaEngine,
     instrument: EuropeanOption,
     context: PricingContext,
     observed_price: float,

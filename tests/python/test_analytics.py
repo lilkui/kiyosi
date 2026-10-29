@@ -22,7 +22,7 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
 )
-from kiyosi.pricing import AnalyticVanillaEngine, implied_volatility
+from kiyosi.pricing import AnalyticEuropeanEngine, implied_volatility
 
 
 class AnalyticsTests(unittest.TestCase):
@@ -40,7 +40,7 @@ class AnalyticsTests(unittest.TestCase):
             spot_price=100,
             valuation_time=date(2025, 1, 1),
         )
-        self.engine = AnalyticVanillaEngine()
+        self.engine = AnalyticEuropeanEngine()
 
     def test_greeks_and_volatility_recovery(self):
         result = self.engine.price_with_greeks(

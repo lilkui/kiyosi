@@ -76,7 +76,7 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
             t.observations =
                 autocallable_observations(&[end], &[100.0], None, Some(&[100.0])).unwrap();
             let put = |strike| {
-                AnalyticVanillaEngine
+                AnalyticEuropeanEngine
                     .price(
                         &EuropeanOption::new(OptionType::Put, strike, t.effective_date, end)
                             .unwrap(),

@@ -1,5 +1,5 @@
 use kiyosi_core::{
-    AnalyticVanillaEngine, BlackScholesMertonParameters, Date, Error, EuropeanOption, OptionType,
+    AnalyticEuropeanEngine, BlackScholesMertonParameters, Date, Error, EuropeanOption, OptionType,
     PricingContext, Timestamp, TradingCalendar,
 };
 
@@ -14,7 +14,7 @@ fn european_call_and_put_match_independent_bsm_prices() {
         (OptionType::Put, 6.330080627549918),
     ] {
         let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
-        let price = AnalyticVanillaEngine.price(&option, &context).unwrap();
+        let price = AnalyticEuropeanEngine.price(&option, &context).unwrap();
         assert!((price - expected).abs() < 1e-12, "{price} != {expected}");
     }
 }
@@ -33,12 +33,12 @@ fn valuation_uses_microseconds_and_expiry_is_midnight() {
     assert_eq!(context.calendar().trading_days_per_year(), 252);
     let earlier = PricingContext::new(model.clone(), 110.0, start.into()).unwrap();
     assert!(
-        AnalyticVanillaEngine.price(&option, &context).unwrap()
-            < AnalyticVanillaEngine.price(&option, &earlier).unwrap()
+        AnalyticEuropeanEngine.price(&option, &context).unwrap()
+            < AnalyticEuropeanEngine.price(&option, &earlier).unwrap()
     );
     let expired = PricingContext::new(model.clone(), 110.0, end.into()).unwrap();
     assert_eq!(
-        AnalyticVanillaEngine.price(&option, &expired).unwrap(),
+        AnalyticEuropeanEngine.price(&option, &expired).unwrap(),
         10.0
     );
     for at in [
@@ -47,13 +47,13 @@ fn valuation_uses_microseconds_and_expiry_is_midnight() {
     ] {
         let outside = PricingContext::new(model.clone(), 110.0, at).unwrap();
         assert!(matches!(
-            AnalyticVanillaEngine.price(&option, &outside).unwrap_err(),
+            AnalyticEuropeanEngine.price(&option, &outside).unwrap_err(),
             Error::InvalidInput(_)
         ));
     }
     let same_day = EuropeanOption::new(OptionType::Put, 120.0, end, end).unwrap();
     assert_eq!(
-        AnalyticVanillaEngine.price(&same_day, &expired).unwrap(),
+        AnalyticEuropeanEngine.price(&same_day, &expired).unwrap(),
         10.0
     );
 }
@@ -190,7 +190,7 @@ fn analytic_regressions_retain_tail_prices_and_extreme_scales() {
         let model = BlackScholesMertonParameters::new(0.0, 0.0, sigma).unwrap();
         let context = PricingContext::new(model, spot, start.into()).unwrap();
         let option = EuropeanOption::new(direction, strike, start, end).unwrap();
-        let price = AnalyticVanillaEngine.price(&option, &context).unwrap();
+        let price = AnalyticEuropeanEngine.price(&option, &context).unwrap();
         assert!(
             (price / expected - 1.0).abs() < tolerance,
             "{price} != {expected}"
@@ -203,13 +203,15 @@ fn analytic_regressions_retain_tail_prices_and_extreme_scales() {
         let model = BlackScholesMertonParameters::new(0.05, 0.02, 1e308).unwrap();
         let context = PricingContext::new(model, 100.0, start.into()).unwrap();
         let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
-        assert!((AnalyticVanillaEngine.price(&option, &context).unwrap() - expected).abs() < 1e-12);
+        assert!(
+            (AnalyticEuropeanEngine.price(&option, &context).unwrap() - expected).abs() < 1e-12
+        );
     }
     let model = BlackScholesMertonParameters::new(-1000.0, 0.0, 0.3).unwrap();
     let context = PricingContext::new(model, 100.0, start.into()).unwrap();
     let option = EuropeanOption::new(OptionType::Put, 100.0, start, end).unwrap();
     assert!(matches!(
-        AnalyticVanillaEngine.price(&option, &context).unwrap_err(),
+        AnalyticEuropeanEngine.price(&option, &context).unwrap_err(),
         Error::ComputationFailure(_)
     ));
 }
@@ -219,7 +221,7 @@ fn owned_values_allow_shared_and_distinct_instance_concurrent_pricing() {
     fn assert_send_sync<T: Send + Sync>() {}
     assert_send_sync::<EuropeanOption>();
     assert_send_sync::<PricingContext>();
-    assert_send_sync::<AnalyticVanillaEngine>();
+    assert_send_sync::<AnalyticEuropeanEngine>();
     let start = Date::new(2025, 1, 1).unwrap();
     let end = Date::new(2026, 1, 1).unwrap();
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
@@ -229,13 +231,13 @@ fn owned_values_allow_shared_and_distinct_instance_concurrent_pricing() {
         start.into(),
     )
     .unwrap();
-    let engine = AnalyticVanillaEngine;
+    let engine = AnalyticEuropeanEngine;
     std::thread::scope(|scope| {
         let shared = scope.spawn(|| engine.price(&option, &context).unwrap());
         let owned = context.clone();
         let owned_option = option.clone();
         let distinct =
-            scope.spawn(move || AnalyticVanillaEngine.price(&owned_option, &owned).unwrap());
+            scope.spawn(move || AnalyticEuropeanEngine.price(&owned_option, &owned).unwrap());
         assert_eq!(shared.join().unwrap(), distinct.join().unwrap());
     });
     assert_eq!(context.spot_price(), 100.0);
@@ -251,7 +253,7 @@ fn time_scaled_subnormal_volatility_preserves_positive_value() {
         let option = EuropeanOption::new(direction, 1e308, start, end).unwrap();
         // Existing small-width reference: S * sigma * sqrt(1/365) / sqrt(2*pi).
         let expected = 1.031_687_789_452_394_2e-17;
-        let actual = AnalyticVanillaEngine.price(&option, &context).unwrap();
+        let actual = AnalyticEuropeanEngine.price(&option, &context).unwrap();
         assert!((actual / expected - 1.0).abs() < 2e-12, "{actual}");
     }
 }

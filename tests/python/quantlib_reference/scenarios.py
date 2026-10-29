@@ -118,7 +118,7 @@ def rows():
                     item["tolerances"],
                     item["numerical_tolerances"],
                     instrument="EuropeanOption",
-                    engine="AnalyticVanillaEngine",
+                    engine="AnalyticEuropeanEngine",
                 )
             )
             if not g.exclusions(item["inputs"]):

@@ -8,9 +8,9 @@ pub use barrier::{QuadratureBarrierEngine, QuadratureSettings};
 
 use std::f64::consts::PI;
 
-use crate::engines::analytic::vanilla::{black_scholes_arguments, weighted_cdf};
+use crate::engines::analytic::european::{black_scholes_arguments, weighted_cdf};
 use crate::{
-    AnalyticVanillaEngine, DigitalOption, Error, EuropeanOption, GreeksRequest,
+    AnalyticEuropeanEngine, DigitalOption, Error, EuropeanOption, GreeksRequest,
     NumericalShiftSettings, OptionContract, OptionType, PricingContext, PricingEngine,
     PricingResult, Result,
 };
@@ -216,7 +216,7 @@ impl QuadratureVanillaEngine {
             && (dividend * time).is_finite()
         {
             // Separate tail legs cancel the time value at tiny positive volatility.
-            return AnalyticVanillaEngine.price(option, context);
+            return AnalyticEuropeanEngine.price(option, context);
         }
         let (d1, d2) = arguments(option.strike(), context, rate, dividend, time)?;
         let asset = normal_tail_integral(-sign * d1, spot, -dividend * time);

@@ -153,7 +153,7 @@ macro_rules! contract_tests {
                     for at in [start, Date::new(2025, 12, 31).unwrap(), end] {
                         assert_eq!(
                             $engine.price(&single, &market(at)).unwrap(),
-                            AnalyticVanillaEngine.price(&vanilla, &market(at)).unwrap()
+                            AnalyticEuropeanEngine.price(&vanilla, &market(at)).unwrap()
                         );
                     }
                     assert!(matches!(
@@ -629,7 +629,7 @@ fn single_fixing_preserves_independent_asset_discount_at_extreme_rates() {
         ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, 0.0).unwrap();
     let expected = 100.0 * (-0.02_f64).exp();
     for price in [
-        AnalyticVanillaEngine.price(&vanilla, &context).unwrap(),
+        AnalyticEuropeanEngine.price(&vanilla, &context).unwrap(),
         AnalyticGeometricAveragePriceEngine
             .price(&geometric, &context)
             .unwrap(),

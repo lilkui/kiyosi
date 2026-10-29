@@ -24,7 +24,7 @@ from kiyosi.market import (
     RateTermStructure,
 )
 from kiyosi.pricing import (
-    AnalyticVanillaEngine,
+    AnalyticEuropeanEngine,
     BjerksundStenslandVanillaEngine,
     implied_volatility,
 )
@@ -111,7 +111,7 @@ class AmericanTests(unittest.TestCase):
             context = self.market(rate=rate, dividend=dividend)
             self.assertEqual(
                 self.engine.price(AmericanOption(**terms), context),
-                AnalyticVanillaEngine().price(EuropeanOption(**terms), context),
+                AnalyticEuropeanEngine().price(EuropeanOption(**terms), context),
             )
 
     def test_expiry_and_microsecond_exercise_boundaries(self):
@@ -414,9 +414,9 @@ class AmericanTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 implied_volatility(self.engine, instrument, self.context, 10)
         with self.assertRaises(TypeError):
-            AnalyticVanillaEngine().price(self.option, self.context)
+            AnalyticEuropeanEngine().price(self.option, self.context)
         with self.assertRaises(TypeError):
-            implied_volatility(AnalyticVanillaEngine(), self.option, self.context, 10)
+            implied_volatility(AnalyticEuropeanEngine(), self.option, self.context, 10)
 
     def test_live_quantlib_refinement_and_existing_error_budgets(self):
         root = Path(__file__).resolve().parent

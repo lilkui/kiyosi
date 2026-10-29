@@ -87,7 +87,7 @@ fn american_early_exercise_and_european_limits() {
         let context = market(100.0, rate, dividend, 0.2);
         assert_eq!(
             engine.price(&american, &context).unwrap(),
-            AnalyticVanillaEngine.price(&european, &context).unwrap()
+            AnalyticEuropeanEngine.price(&european, &context).unwrap()
         );
     }
 }

@@ -17,7 +17,7 @@ fn market() -> (EuropeanOption, PricingContext) {
 #[test]
 fn analytic_greeks_and_volatility_recovery_use_public_api() {
     let (option, context) = market();
-    let result = AnalyticVanillaEngine
+    let result = AnalyticEuropeanEngine
         .price_with_greeks(
             &option,
             &context,
@@ -29,7 +29,7 @@ fn analytic_greeks_and_volatility_recovery_use_public_api() {
     assert!((result.require(Greek::Gamma).unwrap() - 0.0189505787550087).abs() < 1e-12);
     assert!((result.require(Greek::Vega).unwrap() - 0.379011575100175).abs() < 1e-12);
     let recovered = implied_volatility(
-        &AnalyticVanillaEngine,
+        &AnalyticEuropeanEngine,
         &option,
         &context,
         result.price(),
@@ -42,7 +42,7 @@ fn analytic_greeks_and_volatility_recovery_use_public_api() {
 #[test]
 fn numerical_greeks_are_stable_across_absolute_bumps() {
     let (option, context) = market();
-    let exact = AnalyticVanillaEngine
+    let exact = AnalyticEuropeanEngine
         .price_with_greeks(
             &option,
             &context,
@@ -56,7 +56,7 @@ fn numerical_greeks_are_stable_across_absolute_bumps() {
             ..Default::default()
         };
         let actual = numerical_greeks(
-            &AnalyticVanillaEngine,
+            &AnalyticEuropeanEngine,
             &option,
             &context,
             GreeksRequest::all(),
@@ -82,7 +82,7 @@ fn numerical_greeks_are_stable_across_absolute_bumps() {
 fn selections_expiry_and_validation_timing_preserve_availability() {
     let (option, context) = market();
     let request = GreeksRequest::new([Greek::Delta, Greek::Vega, Greek::Delta]);
-    let result = AnalyticVanillaEngine
+    let result = AnalyticEuropeanEngine
         .price_with_greeks(&option, &context, request, Default::default())
         .unwrap();
     assert!(result.has(Greek::Delta) && result.has(Greek::Vega));
@@ -99,11 +99,11 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
         })
         .unwrap();
     for result in [
-        AnalyticVanillaEngine
+        AnalyticEuropeanEngine
             .price_with_greeks(&option, &expiry, GreeksRequest::all(), Default::default())
             .unwrap(),
         numerical_greeks(
-            &AnalyticVanillaEngine,
+            &AnalyticEuropeanEngine,
             &option,
             &expiry,
             GreeksRequest::all(),
@@ -125,7 +125,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
         })
         .unwrap();
     assert!(matches!(
-        AnalyticVanillaEngine
+        AnalyticEuropeanEngine
             .price_with_greeks(
                 &option,
                 &outside,
@@ -136,7 +136,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
         Error::InvalidInput(_)
     ));
     assert!(matches!(
-        AnalyticVanillaEngine
+        AnalyticEuropeanEngine
             .price_with_greeks(&option, &outside, request, Default::default())
             .unwrap_err(),
         Error::InvalidInput(_)
@@ -157,21 +157,27 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
             },
         ] {
             assert!(matches!(
-                AnalyticVanillaEngine
+                AnalyticEuropeanEngine
                     .price_with_greeks(&option, &context, request, settings)
                     .unwrap_err(),
                 Error::InvalidInput(_)
             ));
             assert!(matches!(
-                numerical_greeks(&AnalyticVanillaEngine, &option, &context, request, settings)
-                    .unwrap_err(),
+                numerical_greeks(
+                    &AnalyticEuropeanEngine,
+                    &option,
+                    &context,
+                    request,
+                    settings
+                )
+                .unwrap_err(),
                 Error::InvalidInput(_)
             ));
         }
     }
     for days in [0, -1] {
         assert!(matches!(
-            AnalyticVanillaEngine
+            AnalyticEuropeanEngine
                 .price_with_greeks(
                     &option,
                     &context,
@@ -191,7 +197,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
 fn solver_categories_bounds_and_failure_state_are_stable() {
     let (option, context) = market();
     let saved = context.clone();
-    let engine = AnalyticVanillaEngine;
+    let engine = AnalyticEuropeanEngine;
     let defaults = ImpliedVolatilitySettings::default();
     assert_eq!(
         (
@@ -353,7 +359,7 @@ fn non_finite_solver_values_and_pricing_errors_report_computation_failure() {
     .unwrap();
     assert!(matches!(
         implied_volatility(
-            &AnalyticVanillaEngine,
+            &AnalyticEuropeanEngine,
             &put,
             &market,
             1.0,
@@ -408,7 +414,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
         ..Default::default()
     };
     let result = numerical_greeks(
-        &AnalyticVanillaEngine,
+        &AnalyticEuropeanEngine,
         &option,
         &context,
         GreeksRequest::all(),
@@ -429,7 +435,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
     }
     assert!(result.has(Greek::Theta) && result.has(Greek::Rho));
     let collapsed = numerical_greeks(
-        &AnalyticVanillaEngine,
+        &AnalyticEuropeanEngine,
         &option,
         &context,
         GreeksRequest::new([Greek::Delta, Greek::Vega]),
@@ -442,7 +448,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
     assert!(!collapsed.has(Greek::Delta));
     assert!(collapsed.has(Greek::Vega));
     let huge_time = numerical_greeks(
-        &AnalyticVanillaEngine,
+        &AnalyticEuropeanEngine,
         &option,
         &context,
         GreeksRequest::new([Greek::Theta]),
@@ -466,7 +472,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
                 )
                 .map(|_| 0.0);
             }
-            AnalyticVanillaEngine.price(option, context)
+            AnalyticEuropeanEngine.price(option, context)
         }
     }
     assert!(matches!(
@@ -489,7 +495,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
         })
         .unwrap();
     let speed = numerical_greeks(
-        &AnalyticVanillaEngine,
+        &AnalyticEuropeanEngine,
         &option,
         &extreme,
         GreeksRequest::new([Greek::Speed]),
@@ -531,7 +537,7 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
             ..Default::default()
         })
         .unwrap();
-    let exact = AnalyticVanillaEngine
+    let exact = AnalyticEuropeanEngine
         .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
         .unwrap();
     let after = context
@@ -540,7 +546,7 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
             ..Default::default()
         })
         .unwrap();
-    let next = AnalyticVanillaEngine
+    let next = AnalyticEuropeanEngine
         .price_with_greeks(
             &option,
             &after,
@@ -565,7 +571,7 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
             < 1e-10
     );
     let numeric = numerical_greeks(
-        &AnalyticVanillaEngine,
+        &AnalyticEuropeanEngine,
         &option,
         &context,
         GreeksRequest::all(),
@@ -577,7 +583,7 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
     );
     assert!(
         (implied_volatility(
-            &AnalyticVanillaEngine,
+            &AnalyticEuropeanEngine,
             &option,
             &context,
             exact.price(),
@@ -604,7 +610,7 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
         })
         .unwrap();
     assert!(matches!(
-        AnalyticVanillaEngine
+        AnalyticEuropeanEngine
             .price_with_greeks(
                 &option,
                 &invalid,
@@ -633,7 +639,7 @@ fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
         option.expiry_date(),
     )
     .unwrap();
-    let result = AnalyticVanillaEngine
+    let result = AnalyticEuropeanEngine
         .price_with_greeks(
             &far,
             &huge,
@@ -658,7 +664,7 @@ fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
         option.expiry_date(),
     )
     .unwrap();
-    let delta = AnalyticVanillaEngine
+    let delta = AnalyticEuropeanEngine
         .price_with_greeks(
             &tiny_option,
             &tiny,
@@ -668,7 +674,7 @@ fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
         .unwrap();
     assert!((delta.require(Greek::Delta).unwrap() - 0.539827837277029).abs() < 1e-12);
     assert!(matches!(
-        AnalyticVanillaEngine
+        AnalyticEuropeanEngine
             .price_with_greeks(
                 &tiny_option,
                 &tiny,

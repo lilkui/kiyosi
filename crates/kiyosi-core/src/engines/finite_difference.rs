@@ -2,7 +2,7 @@ use crate::{
     AmericanOption, DigitalOption, Error, EuropeanOption, Greek, GreeksRequest,
     NumericalShiftSettings, OptionContract, OptionType, PricingContext, PricingEngine,
     PricingResult, Result,
-    engines::analytic::vanilla::{black_scholes_arguments, weighted_cdf},
+    engines::analytic::european::{black_scholes_arguments, weighted_cdf},
 };
 
 mod accumulator;

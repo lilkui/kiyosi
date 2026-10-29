@@ -211,7 +211,7 @@ fn schemes_track_prices_and_stability_includes_drift() {
             let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
             assert!(
                 (v.price(&option, &context).unwrap()
-                    - AnalyticVanillaEngine.price(&option, &context).unwrap())
+                    - AnalyticEuropeanEngine.price(&option, &context).unwrap())
                 .abs()
                     < 0.03
             );
@@ -258,7 +258,7 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
     let actual = engine
         .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
         .unwrap();
-    let expected = AnalyticVanillaEngine
+    let expected = AnalyticEuropeanEngine
         .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
         .unwrap();
     for greek in Greek::ALL {
@@ -364,7 +364,7 @@ fn american_exercise_and_continuation_boundaries_survive_negative_rates() {
         let expected = if exercise {
             (spot - 100.0).abs()
         } else {
-            AnalyticVanillaEngine
+            AnalyticEuropeanEngine
                 .price(
                     &EuropeanOption::new(direction, 100.0, start, end).unwrap(),
                     &context,
@@ -414,7 +414,7 @@ fn node_curves_align_time_steps_and_keep_optimal_intermediate_exercise() {
         let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
         assert!(
             (engine.price(&option, &context).unwrap()
-                - AnalyticVanillaEngine.price(&option, &context).unwrap())
+                - AnalyticEuropeanEngine.price(&option, &context).unwrap())
             .abs()
                 < 0.004
         );
@@ -665,7 +665,7 @@ fn low_volatility_drift_stabilization_converges_and_large_grids_are_supported() 
                 if call { 0.1 } else { 0.0 },
                 sigma,
             );
-            let expected = AnalyticVanillaEngine.price(&option, &context).unwrap();
+            let expected = AnalyticEuropeanEngine.price(&option, &context).unwrap();
             for scheme in [
                 FiniteDifferenceScheme::ExplicitEuler,
                 FiniteDifferenceScheme::ImplicitEuler,

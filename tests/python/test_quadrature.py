@@ -25,7 +25,7 @@ from kiyosi.instruments import (
 from kiyosi.market import BlackScholesMertonParameters, RateTermStructure
 from kiyosi.pricing import (
     AnalyticDigitalEngine,
-    AnalyticVanillaEngine,
+    AnalyticEuropeanEngine,
     QuadratureDigitalEngine,
     QuadratureVanillaEngine,
     implied_volatility,
@@ -118,7 +118,7 @@ class QuadratureTests(unittest.TestCase):
             engine, option = engine_for(kind), contract(kind)
             context = market(valuation=date(2025, 6, 1))
             analytic = (
-                AnalyticVanillaEngine()
+                AnalyticEuropeanEngine()
                 if kind is EuropeanOption
                 else AnalyticDigitalEngine()
             )

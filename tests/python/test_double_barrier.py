@@ -13,7 +13,7 @@ from kiyosi.market import (
     PricingContext,
     all_days_calendar,
 )
-from kiyosi.pricing import AnalyticDoubleBarrierEngine, AnalyticVanillaEngine
+from kiyosi.pricing import AnalyticDoubleBarrierEngine, AnalyticEuropeanEngine
 
 START, END = date(2025, 1, 1), date(2026, 1, 1)
 
@@ -104,7 +104,7 @@ class DoubleBarrierTests(unittest.TestCase):
             )
             self.assertAlmostEqual(
                 result.price + engine.price(other, market()),
-                AnalyticVanillaEngine().price(vanilla, market()),
+                AnalyticEuropeanEngine().price(vanilla, market()),
                 delta=1e-9,
             )
 
@@ -290,7 +290,7 @@ class DoubleBarrierTests(unittest.TestCase):
             option_type="call", strike=100, effective_date=START, expiry_date=END
         )
         self.assertEqual(
-            engine.price(inside, later), AnalyticVanillaEngine().price(vanilla, later)
+            engine.price(inside, later), AnalyticEuropeanEngine().price(vanilla, later)
         )
 
     def test_schedules_validate_then_resolve_before_analytic_restrictions(self):
@@ -320,7 +320,7 @@ class DoubleBarrierTests(unittest.TestCase):
             )
             self.assertAlmostEqual(
                 engine.price(option, market(120, time=first)),
-                AnalyticVanillaEngine().price(
+                AnalyticEuropeanEngine().price(
                     EuropeanOption(
                         option_type="call",
                         strike=100,
@@ -342,7 +342,7 @@ class DoubleBarrierTests(unittest.TestCase):
             expected = (
                 3 * math.exp(-0.04 * 184.5 / 365)
                 if kind == "knock_in"
-                else AnalyticVanillaEngine().price(
+                else AnalyticEuropeanEngine().price(
                     EuropeanOption(
                         option_type="call",
                         strike=100,
@@ -385,7 +385,7 @@ class DoubleBarrierTests(unittest.TestCase):
         )
         self.assertAlmostEqual(
             engine.price(contract(lower_barrier=0.01, upper_barrier=10000), market()),
-            AnalyticVanillaEngine().price(vanilla, market()),
+            AnalyticEuropeanEngine().price(vanilla, market()),
             delta=1e-9,
         )
         self.assertEqual(

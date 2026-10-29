@@ -158,7 +158,7 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
                     (
                         EuropeanOption(**terms),
                         pricing.FiniteDifferenceVanillaEngine,
-                        pricing.AnalyticVanillaEngine,
+                        pricing.AnalyticEuropeanEngine,
                         (0.02, 0.001, 0.0005),
                     ),
                     (

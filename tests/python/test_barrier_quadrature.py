@@ -98,10 +98,10 @@ class BarrierQuadratureTests(unittest.TestCase):
                 current = (
                     5
                     if kind.endswith("out")
-                    else pricing.AnalyticVanillaEngine().price(vanilla, at_observation)
+                    else pricing.AnalyticEuropeanEngine().price(vanilla, at_observation)
                 )
                 later = (
-                    pricing.AnalyticVanillaEngine().price(vanilla, after_observation)
+                    pricing.AnalyticEuropeanEngine().price(vanilla, after_observation)
                     if kind.endswith("out")
                     else 5 * math.exp(-0.03 * 269.5 / 365)
                 )
@@ -119,7 +119,7 @@ class BarrierQuadratureTests(unittest.TestCase):
         vanilla = EuropeanOption(
             option_type="call", strike=100, effective_date=START, expiry_date=END
         )
-        value = pricing.AnalyticVanillaEngine().price(vanilla, context)
+        value = pricing.AnalyticEuropeanEngine().price(vanilla, context)
         for engine in engines():
             for kind in KINDS:
                 contract = option(

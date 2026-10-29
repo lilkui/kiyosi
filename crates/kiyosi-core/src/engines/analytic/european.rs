@@ -7,7 +7,7 @@ use crate::{
 
 /// Stateless synchronous European BSM analytic pricing.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct AnalyticVanillaEngine;
+pub struct AnalyticEuropeanEngine;
 
 fn normal_cdf(value: f64) -> f64 {
     0.5 * libm::erfc(-value * FRAC_1_SQRT_2)
@@ -61,7 +61,7 @@ pub(crate) fn black_scholes_arguments(
     (standardized + 0.5 * width, standardized - 0.5 * width)
 }
 
-impl AnalyticVanillaEngine {
+impl AnalyticEuropeanEngine {
     /// Price and selected analytic Greeks. At expiry every Greek is unavailable.
     /// Time derivatives hold curve nodes fixed and use right-hand rates at knots.
     /// Shift settings are validated but do not change analytic derivatives.
@@ -219,9 +219,9 @@ impl AnalyticVanillaEngine {
     }
 }
 
-impl PricingEngine for AnalyticVanillaEngine {
+impl PricingEngine for AnalyticEuropeanEngine {
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-        AnalyticVanillaEngine::price(self, option, context)
+        AnalyticEuropeanEngine::price(self, option, context)
     }
     fn price_with_greeks(
         &self,

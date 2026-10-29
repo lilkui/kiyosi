@@ -22,7 +22,7 @@ fn european_tree_refines_to_analytic_price_and_node_greeks() {
     let context = market(100.0, 0.05, 0.02, 0.2);
     for direction in [OptionType::Call, OptionType::Put] {
         let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
-        let expected = AnalyticVanillaEngine
+        let expected = AnalyticEuropeanEngine
             .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
             .unwrap();
         for steps in [255, 256, 4095, 4096] {
@@ -535,7 +535,7 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
         let actual = engine
             .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
             .unwrap();
-        let expected = AnalyticVanillaEngine
+        let expected = AnalyticEuropeanEngine
             .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
             .unwrap();
         for greek in [

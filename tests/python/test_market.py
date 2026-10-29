@@ -156,7 +156,7 @@ class RateTermStructureTests(unittest.TestCase):
             effective_date=first.date(),
             expiry_date=second.date(),
         )
-        engine = pricing.AnalyticVanillaEngine()
+        engine = pricing.AnalyticEuropeanEngine()
         self.assertAlmostEqual(
             engine.price(option, context), 100 * (1 - math.exp(-1)), delta=1e-11
         )
@@ -345,7 +345,7 @@ class RateTermStructureTests(unittest.TestCase):
                     )
                 ),
             )
-            engine = pricing.AnalyticVanillaEngine()
+            engine = pricing.AnalyticEuropeanEngine()
             prices = []
             for direction, ql_direction in (
                 ("call", ql.Option.Call),
@@ -444,7 +444,7 @@ class RateTermStructureTests(unittest.TestCase):
         shorter = context.replace(model_parameters=model.replace(risk_free_rate=short))
         self.assert_rejection(
             InvalidInputError,
-            pricing.AnalyticVanillaEngine().price,
+            pricing.AnalyticEuropeanEngine().price,
             vanilla(),
             shorter,
         )
@@ -558,7 +558,7 @@ class RateTermStructureTests(unittest.TestCase):
         del context, model
         self.assertEqual(owned_curve, example_curve())
         self.assertEqual(replaced.model_parameters.risk_free_curve, example_curve())
-        engine = pricing.AnalyticVanillaEngine()
+        engine = pricing.AnalyticEuropeanEngine()
         option = vanilla()
         expected = engine.price(option, replaced)
         with ThreadPoolExecutor(max_workers=4) as pool:
