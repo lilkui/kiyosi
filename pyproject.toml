@@ -35,8 +35,6 @@ locked = true
 include = [
     { path = "tests/python/**/*.py", format = "sdist" },
     { path = "tests/python/quantlib_reference/*.json", format = "sdist" },
-    { path = "tests/rust-consumer/Cargo.*", format = "sdist" },
-    { path = "tests/rust-consumer/src/*.rs", format = "sdist" },
     { path = "tests/README.md", format = "sdist" },
     { path = "tools/generate_sse_calendar.py", format = "sdist" },
     { path = "docs/**/*.md", format = "sdist" },

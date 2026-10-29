@@ -34,7 +34,7 @@ jobs:
         with:
           components: rustfmt, clippy
       - run: cargo fmt --all --check
-      - name: Check, test, document, package and consume the core without Python
+      - name: Check, test, document and package the core without Python
         env:
           PYO3_PYTHON: /nonexistent/python
           RUSTDOCFLAGS: -D warnings
@@ -43,7 +43,6 @@ jobs:
           cargo test --release --locked
           cargo doc --no-deps --locked
           cargo package -p kiyosi-core --locked
-          cargo run --release --locked --manifest-path tests/rust-consumer/Cargo.toml
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
   python-style:

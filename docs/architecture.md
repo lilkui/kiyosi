@@ -41,10 +41,9 @@ configuration and CI; Python distributions and Cargo packages share that version
 ├── python/
 │   └── kiyosi/                  # Python imports, choice aliases and typing
 ├── tests/
-│   ├── python/                  # Installed Python package and tool tests
-│   │   ├── quantlib_reference/  # Independent oracles and reference data
-│   │   └── support/             # Shared Python test support
-│   └── rust-consumer/           # Independent downstream Cargo consumer
+│   └── python/                  # Installed Python package and tool tests
+│       ├── quantlib_reference/  # Independent oracles and reference data
+│       └── support/             # Shared Python test support
 ├── tools/                       # Maintainer tools, including calendar generation
 └── docs/                        # Architecture, data provenance and agent guides
 ```
@@ -134,7 +133,6 @@ cargo clippy -p kiyosi-core --all-targets --locked -- -D warnings
 cargo test --release --locked
 cargo doc --no-deps --locked
 cargo package -p kiyosi-core --locked
-cargo run --release --locked --manifest-path tests/rust-consumer/Cargo.toml
 ```
 
 With a supported Python interpreter available, also check the binding crate and
