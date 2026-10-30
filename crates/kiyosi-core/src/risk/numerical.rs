@@ -109,7 +109,11 @@ pub(crate) fn complete_greeks(
     let shifted = |spot, volatility, rate_shift, valuation_time| -> Result<PricingContext> {
         let parameters = model.replace(BlackScholesMertonParameterChanges {
             volatility: Some(volatility),
-            risk_free_rate: Some(model.risk_free_curve().shifted(rate_shift)?.into()),
+            risk_free_rate: if rate_shift == 0.0 {
+                None
+            } else {
+                Some(model.risk_free_curve().shifted(rate_shift)?.into())
+            },
             ..Default::default()
         })?;
         context.replace(PricingContextChanges {

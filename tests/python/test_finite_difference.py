@@ -290,6 +290,32 @@ class FiniteDifferenceTests(unittest.TestCase):
             market(rate=short),
         )
 
+    def test_curve_greek_bumps_preserve_existing_parallel_spread(self):
+        risk = RateTermStructure(
+            reference_time=START,
+            times=[date(2025, 6, 30), END],
+            factors=[
+                math.exp(-0.02 * 180 / 365),
+                math.exp(-(0.02 * 180 + 0.08 * 185) / 365),
+            ],
+        ).shifted(0.01)
+        context = market(rate=risk)
+        original = context.model_parameters
+        option = contract(EuropeanOption)
+        greeks = ("delta", "vega", "rho")
+        expected = AnalyticEuropeanEngine().price_with_greeks(option, context, greeks)
+        actual = FiniteDifferenceVanillaEngine().price_with_greeks(
+            option, context, greeks
+        )
+        self.assertAlmostEqual(actual.price, expected.price, delta=1e-3)
+        for greek in greeks:
+            with self.subTest(greek=greek):
+                self.assertAlmostEqual(
+                    actual.require(greek), expected.require(greek), delta=1e-3
+                )
+        self.assertEqual(context.model_parameters, original)
+        self.assertEqual(context.model_parameters.risk_free_curve, risk)
+
     def test_implied_volatility_and_solver_failures(self):
         for kind in KINDS:
             for direction in ("call", "put"):

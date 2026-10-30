@@ -602,6 +602,8 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
             (-0.02_f64 * 180.0 / 365.0 - 0.08 * 185.0 / 365.0).exp(),
         ],
     )
+    .unwrap()
+    .shifted(0.01)
     .unwrap();
     let model = original
         .model_parameters()
@@ -650,6 +652,7 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
         .abs()
             < 1e-10
     );
+    let saved = context.clone();
     let numeric = numerical_greeks(
         &AnalyticEuropeanEngine,
         &option,
@@ -658,9 +661,20 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
         Default::default(),
     )
     .unwrap();
-    assert!(
-        (numeric.require(Greek::Rho).unwrap() - exact.require(Greek::Rho).unwrap()).abs() < 1e-8
-    );
+    assert_eq!(context, saved);
+    for greek in Greek::ALL {
+        let tolerance = match greek {
+            Greek::Rho => 1e-8,
+            Greek::Theta | Greek::Charm | Greek::Color => 1e-4,
+            _ => 1e-5,
+        };
+        assert!(
+            (numeric.require(greek).unwrap() - exact.require(greek).unwrap()).abs() < tolerance,
+            "{greek:?}: {:?} != {:?}",
+            numeric.get(greek),
+            exact.get(greek)
+        );
+    }
     assert!(
         (implied_volatility(
             &AnalyticEuropeanEngine,
