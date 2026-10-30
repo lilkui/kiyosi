@@ -1,8 +1,8 @@
 # Kiyosi
 
-[简体中文（主版本）](README.md) | **English**
+[简体中文](README.md) | **English**
 
-Kiyosi is a Rust-powered Python library for pricing vanilla and exotic derivatives, computing Greeks and solving implied parameters under the Black–Scholes–Merton model.
+Kiyosi is a Rust derivatives pricing library with a Python API. It supports pricing vanilla and exotic options, computing Greeks and solving implied parameters under the Black–Scholes–Merton model.
 
 > [!WARNING]
 > The project is in Alpha; API backward compatibility is not guaranteed.

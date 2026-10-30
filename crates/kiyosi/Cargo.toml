@@ -1,6 +1,6 @@
 [package]
 name = "kiyosi"
-description = "Rust core for the Kiyosi Python derivatives pricing library"
+description = "A Rust library for derivatives pricing"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

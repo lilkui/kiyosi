@@ -2,7 +2,7 @@
 
 **简体中文** | [English](README.en.md)
 
-Kiyosi 是以 Rust 为核心的 Python 衍生品定价库，支持 Black–Scholes–Merton 模型下的香草及奇异期权定价、希腊值计算和隐含参数求解。
+Kiyosi 是一个用 Rust 编写的衍生品定价库，提供 Python API。它支持 Black–Scholes–Merton 模型下的香草及奇异期权定价、希腊值计算和隐含参数求解。
 
 > [!WARNING]
 > 项目目前处于 Alpha 阶段，API 尚不承诺向后兼容。
