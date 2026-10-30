@@ -1,4 +1,4 @@
-use crate::conversions::{check_changes, integer, real};
+use crate::conversions::{integer, real};
 use crate::error::domain;
 use crate::instruments::digital;
 use crate::instruments::vanilla::EuropeanOption;
@@ -153,30 +153,18 @@ pub(crate) struct QuadratureBarrierEngine(pub(crate) core::QuadratureBarrierEngi
 #[pymethods]
 impl QuadratureBarrierEngine {
     #[new]
-    #[pyo3(signature = (**fields))]
-    fn new(py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        check_changes(
-            fields,
-            &["asset_step_count", "integration_standard_deviations"],
-        )?;
-        let mut settings = core::QuadratureSettings::default();
-        if let Some(value) = fields
-            .map(|f| f.get_item("asset_step_count"))
-            .transpose()?
-            .flatten()
-        {
-            settings.asset_step_count = integer(&value)?;
-        }
-        if let Some(value) = fields
-            .map(|f| f.get_item("integration_standard_deviations"))
-            .transpose()?
-            .flatten()
-        {
-            settings.integration_standard_deviations = real(&value)?;
-        }
+    #[pyo3(signature = (*, asset_step_count=core::QuadratureSettings::default().asset_step_count, integration_standard_deviations=core::QuadratureSettings::default().integration_standard_deviations))]
+    fn new(
+        py: Python<'_>,
+        #[pyo3(from_py_with = integer)] asset_step_count: i32,
+        #[pyo3(from_py_with = real)] integration_standard_deviations: f64,
+    ) -> PyResult<Self> {
         Ok(Self(domain(
             py,
-            core::QuadratureBarrierEngine::new(settings),
+            core::QuadratureBarrierEngine::new(core::QuadratureSettings {
+                asset_step_count,
+                integration_standard_deviations,
+            }),
         )?))
     }
     /// Return the configured spatial grid budget.
@@ -302,30 +290,18 @@ pub(crate) struct QuadratureAccumulatorEngine(pub(crate) core::QuadratureAccumul
 #[pymethods]
 impl QuadratureAccumulatorEngine {
     #[new]
-    #[pyo3(signature = (**fields))]
-    fn new(py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        check_changes(
-            fields,
-            &["asset_step_count", "integration_standard_deviations"],
-        )?;
-        let mut settings = core::QuadratureSettings::default();
-        if let Some(value) = fields
-            .map(|f| f.get_item("asset_step_count"))
-            .transpose()?
-            .flatten()
-        {
-            settings.asset_step_count = integer(&value)?;
-        }
-        if let Some(value) = fields
-            .map(|f| f.get_item("integration_standard_deviations"))
-            .transpose()?
-            .flatten()
-        {
-            settings.integration_standard_deviations = real(&value)?;
-        }
+    #[pyo3(signature = (*, asset_step_count=core::QuadratureSettings::default().asset_step_count, integration_standard_deviations=core::QuadratureSettings::default().integration_standard_deviations))]
+    fn new(
+        py: Python<'_>,
+        #[pyo3(from_py_with = integer)] asset_step_count: i32,
+        #[pyo3(from_py_with = real)] integration_standard_deviations: f64,
+    ) -> PyResult<Self> {
         Ok(Self(domain(
             py,
-            core::QuadratureAccumulatorEngine::new(settings),
+            core::QuadratureAccumulatorEngine::new(core::QuadratureSettings {
+                asset_step_count,
+                integration_standard_deviations,
+            }),
         )?))
     }
     /// Return the configured spatial grid budget.
@@ -454,30 +430,18 @@ pub(crate) struct QuadratureAutocallableEngine(pub(crate) core::QuadratureAutoca
 #[pymethods]
 impl QuadratureAutocallableEngine {
     #[new]
-    #[pyo3(signature = (**fields))]
-    fn new(py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        check_changes(
-            fields,
-            &["asset_step_count", "integration_standard_deviations"],
-        )?;
-        let mut settings = core::QuadratureSettings::default();
-        if let Some(value) = fields
-            .map(|f| f.get_item("asset_step_count"))
-            .transpose()?
-            .flatten()
-        {
-            settings.asset_step_count = integer(&value)?;
-        }
-        if let Some(value) = fields
-            .map(|f| f.get_item("integration_standard_deviations"))
-            .transpose()?
-            .flatten()
-        {
-            settings.integration_standard_deviations = real(&value)?;
-        }
+    #[pyo3(signature = (*, asset_step_count=core::QuadratureSettings::default().asset_step_count, integration_standard_deviations=core::QuadratureSettings::default().integration_standard_deviations))]
+    fn new(
+        py: Python<'_>,
+        #[pyo3(from_py_with = integer)] asset_step_count: i32,
+        #[pyo3(from_py_with = real)] integration_standard_deviations: f64,
+    ) -> PyResult<Self> {
         Ok(Self(domain(
             py,
-            core::QuadratureAutocallableEngine::new(settings),
+            core::QuadratureAutocallableEngine::new(core::QuadratureSettings {
+                asset_step_count,
+                integration_standard_deviations,
+            }),
         )?))
     }
     /// Return the configured spatial grid budget.

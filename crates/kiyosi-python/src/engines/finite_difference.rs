@@ -1,4 +1,4 @@
-use crate::conversions::{check_changes, integer, real};
+use crate::conversions::{integer, real};
 use crate::engines::binomial;
 use crate::error::domain;
 use crate::instruments::accumulator;
@@ -22,40 +22,6 @@ fn scheme(value: &Bound<'_, PyAny>) -> PyResult<core::FiniteDifferenceScheme> {
         "crank_nicolson" => Ok(core::FiniteDifferenceScheme::CrankNicolson),
         _ => Err(PyValueError::new_err("unknown finite-difference scheme")),
     }
-}
-
-fn settings(
-    fields: Option<&Bound<'_, PyDict>>,
-    mut settings: core::FiniteDifferenceSettings,
-) -> PyResult<core::FiniteDifferenceSettings> {
-    check_changes(
-        fields,
-        &[
-            "asset_step_count",
-            "time_step_count",
-            "scheme",
-            "asset_upper_boundary",
-        ],
-    )?;
-    if let Some(fields) = fields {
-        if let Some(value) = fields.get_item("asset_step_count")? {
-            settings.asset_step_count = integer(&value)?;
-        }
-        if let Some(value) = fields.get_item("time_step_count")? {
-            settings.time_step_count = integer(&value)?;
-        }
-        if let Some(value) = fields.get_item("scheme")? {
-            settings.scheme = scheme(&value)?;
-        }
-        if let Some(value) = fields.get_item("asset_upper_boundary")? {
-            settings.asset_upper_boundary = if value.is_none() {
-                None
-            } else {
-                Some(real(&value)?)
-            };
-        }
-    }
-    Ok(settings)
 }
 
 macro_rules! fd_engine {
@@ -97,11 +63,22 @@ macro_rules! fd_engine {
         #[pymethods]
         impl $name {
             #[new]
-            #[pyo3(signature = (**fields))]
-            fn new(py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
+            #[pyo3(signature = (*, asset_step_count=core::$name::default().settings().asset_step_count, time_step_count=core::$name::default().settings().time_step_count, scheme=core::$name::default().settings().scheme, asset_upper_boundary=None))]
+            fn new(
+                py: Python<'_>,
+                #[pyo3(from_py_with = integer)] asset_step_count: i32,
+                #[pyo3(from_py_with = integer)] time_step_count: i32,
+                #[pyo3(from_py_with = scheme)] scheme: core::FiniteDifferenceScheme,
+                asset_upper_boundary: Option<&Bound<'_, PyAny>>,
+            ) -> PyResult<Self> {
                 Ok(Self(domain(
                     py,
-                    core::$name::new(settings(fields, core::$name::default().settings())?),
+                    core::$name::new(core::FiniteDifferenceSettings {
+                        asset_step_count,
+                        time_step_count,
+                        scheme,
+                        asset_upper_boundary: asset_upper_boundary.map(real).transpose()?,
+                    }),
                 )?))
             }
             /// Return the configured spatial grid budget.

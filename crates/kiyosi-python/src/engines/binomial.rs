@@ -1,4 +1,4 @@
-use crate::conversions::{check_changes, integer};
+use crate::conversions::integer;
 use crate::error::domain;
 use crate::instruments::american;
 use crate::instruments::barrier::BarrierOption;
@@ -40,18 +40,15 @@ macro_rules! binomial_engine {
         #[pymethods]
         impl $name {
             #[new]
-            #[pyo3(signature = (**fields))]
-            fn new(py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-                check_changes(fields, &["step_count"])?;
-                let mut settings = core::BinomialSettings::default();
-                if let Some(count) = fields
-                    .map(|f| f.get_item("step_count"))
-                    .transpose()?
-                    .flatten()
-                {
-                    settings.step_count = integer(&count)?;
-                }
-                Ok(Self(domain(py, core::$name::new(settings))?))
+            #[pyo3(signature = (*, step_count=core::BinomialSettings::default().step_count))]
+            fn new(
+                py: Python<'_>,
+                #[pyo3(from_py_with = integer)] step_count: i32,
+            ) -> PyResult<Self> {
+                Ok(Self(domain(
+                    py,
+                    core::$name::new(core::BinomialSettings { step_count }),
+                )?))
             }
 
             /// Return the configured grid size.
@@ -210,20 +207,11 @@ pub(crate) struct CoxRossRubinsteinBarrierEngine(pub(crate) core::CoxRossRubinst
 #[pymethods]
 impl CoxRossRubinsteinBarrierEngine {
     #[new]
-    #[pyo3(signature = (**fields))]
-    fn new(py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        check_changes(fields, &["step_count"])?;
-        let mut settings = core::BinomialSettings::default();
-        if let Some(value) = fields
-            .map(|f| f.get_item("step_count"))
-            .transpose()?
-            .flatten()
-        {
-            settings.step_count = integer(&value)?;
-        }
+    #[pyo3(signature = (*, step_count=core::BinomialSettings::default().step_count))]
+    fn new(py: Python<'_>, #[pyo3(from_py_with = integer)] step_count: i32) -> PyResult<Self> {
         Ok(Self(domain(
             py,
-            core::CoxRossRubinsteinBarrierEngine::new(settings),
+            core::CoxRossRubinsteinBarrierEngine::new(core::BinomialSettings { step_count }),
         )?))
     }
     /// Return the configured grid size.

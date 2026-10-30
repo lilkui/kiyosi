@@ -2,6 +2,7 @@
 
 import ast
 import importlib.metadata
+import inspect
 import pickle
 import tomllib
 import unittest
@@ -12,6 +13,32 @@ from kiyosi import _native, instruments, market, pricing
 
 
 class PackageTests(unittest.TestCase):
+    def test_engine_constructors_expose_keyword_only_signatures(self):
+        package = Path(kiyosi.__file__).parent
+        stub = ast.parse((package / "_native.pyi").read_text())
+        for node in stub.body:
+            if not isinstance(node, ast.ClassDef) or not node.name.endswith("Engine"):
+                continue
+            constructor = next(
+                member
+                for member in node.body
+                if isinstance(member, ast.FunctionDef) and member.name == "__init__"
+            )
+            expected = tuple(arg.arg for arg in constructor.args.kwonlyargs)
+            if not expected:
+                continue
+            factory = getattr(pricing, node.name)
+            with self.subTest(engine=node.name):
+                signature = inspect.signature(factory)
+                self.assertEqual(tuple(signature.parameters), expected)
+                for parameter in signature.parameters.values():
+                    self.assertIs(parameter.kind, inspect.Parameter.KEYWORD_ONLY)
+                    self.assertIsNot(parameter.default, inspect.Parameter.empty)
+                with self.assertRaises(TypeError):
+                    factory(1)
+                with self.assertRaises(TypeError):
+                    factory(unknown=1)
+
     def test_domain_exception_hierarchy_and_diagnostics(self):
         self.assertEqual(kiyosi.KiyosiError.__bases__, (Exception,))
         for name in (
@@ -32,6 +59,20 @@ class PackageTests(unittest.TestCase):
                 restored = pickle.loads(pickle.dumps(error))
                 self.assertIs(type(restored), exception_type)
                 self.assertEqual(restored.args, error.args)
+
+    def test_monte_carlo_flags_require_builtin_bools(self):
+        bool_like = type(
+            "bool_", (), {"__module__": "numpy", "__bool__": lambda self: True}
+        )()
+        for name in pricing.__all__:
+            if name.startswith("MonteCarlo") and name.endswith("Engine"):
+                factory = getattr(pricing, name)
+                with self.subTest(engine=name):
+                    self.assertTrue(factory(antithetic=True).antithetic)
+                    self.assertFalse(factory(antithetic=False).antithetic)
+                    for value in (1, None, bool_like):
+                        with self.assertRaises(TypeError):
+                            factory(antithetic=value)
 
     def test_domain_rejections_preserve_native_conversion_exceptions(self):
         from datetime import date

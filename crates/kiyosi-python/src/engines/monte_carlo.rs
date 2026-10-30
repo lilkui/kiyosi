@@ -1,4 +1,4 @@
-use crate::conversions::{check_changes, check_integer, integer};
+use crate::conversions::{check_integer, integer};
 use crate::engines::binomial;
 use crate::error::domain;
 use crate::instruments::accumulator;
@@ -15,50 +15,45 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict};
 
+fn boolean(value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    value.cast::<PyBool>()?.extract()
+}
+
+fn sampling(value: &Bound<'_, PyAny>) -> PyResult<core::MonteCarloSampling> {
+    match value.extract::<&str>()? {
+        "pseudo_random" => Ok(core::MonteCarloSampling::PseudoRandom),
+        "sobol" => Ok(core::MonteCarloSampling::Sobol),
+        _ => Err(PyValueError::new_err("unknown Monte Carlo sampling")),
+    }
+}
+
 macro_rules! sampling_settings {
     ($engine:ident, [$($step:ident)?], $($methods:item),* $(,)?) => {
         #[pymethods]
         impl $engine {
             #[new]
-            #[pyo3(signature = (**fields))]
-            fn new(py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-                check_changes(
-                    fields,
-                    &[
-                        "path_count",
-                        $(stringify!($step),)?
-                        "seed",
-                        "thread_count",
-                        "sampling",
-                        "antithetic",
-                    ],
-                )?;
-                let mut settings = core::MonteCarloSettings::default();
-                if let Some(fields) = fields {
-                    if let Some(value) = fields.get_item("path_count")? {
-                        settings.path_count = integer(&value)?;
-                    }
-                    $(if let Some(value) = fields.get_item(stringify!($step))? {
-                        settings.$step = integer(&value)?;
-                    })?
-                    if let Some(value) = fields.get_item("thread_count")? {
-                        settings.thread_count = integer(&value)?;
-                    }
-                    if let Some(value) = fields.get_item("seed")?.filter(|value| !value.is_none()) {
-                        check_integer(&value)?;
-                        settings.seed = Some(value.extract::<u64>()?);
-                    }
-                    if let Some(value) = fields.get_item("sampling")? {
-                        settings.sampling = match value.extract::<&str>()? {
-                            "pseudo_random" => core::MonteCarloSampling::PseudoRandom,
-                            "sobol" => core::MonteCarloSampling::Sobol,
-                            _ => return Err(PyValueError::new_err("unknown Monte Carlo sampling")),
-                        };
-                    }
-                    if let Some(value) = fields.get_item("antithetic")? {
-                        settings.antithetic = value.cast::<PyBool>()?.extract()?;
-                    }
-                }
+            #[pyo3(signature = (*, path_count=core::MonteCarloSettings::default().path_count, $($step=core::MonteCarloSettings::default().$step,)? seed=None, thread_count=core::MonteCarloSettings::default().thread_count, sampling=core::MonteCarloSettings::default().sampling, antithetic=core::MonteCarloSettings::default().antithetic))]
+            fn new(
+                py: Python<'_>,
+                #[pyo3(from_py_with = integer)] path_count: i32,
+                $(#[pyo3(from_py_with = integer)] $step: i32,)?
+                seed: Option<&Bound<'_, PyAny>>,
+                #[pyo3(from_py_with = integer)] thread_count: i32,
+                #[pyo3(from_py_with = sampling)] sampling: core::MonteCarloSampling,
+                #[pyo3(from_py_with = boolean)] antithetic: bool,
+            ) -> PyResult<Self> {
+                let settings = core::MonteCarloSettings {
+                    path_count,
+                    seed: seed.map(|value| {
+                        check_integer(value)?;
+                        value.extract::<u64>()
+                    }).transpose()?,
+                    thread_count,
+                    sampling,
+                    antithetic,
+                    ..Default::default()
+                };
+                $(let settings = core::MonteCarloSettings { $step, ..settings };)?
                 Ok(Self(domain(py, core::$engine::new(settings))?))
             }
 
