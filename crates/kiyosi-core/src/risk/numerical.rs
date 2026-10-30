@@ -100,6 +100,10 @@ pub(crate) fn complete_greeks(
     if time == option.expiry_date().start_of_day() || option.all_greeks_unavailable(context) {
         return Ok(result);
     }
+    let want = |g| request.has(g) && !available.has(g);
+    if !Greek::ALL.into_iter().any(want) {
+        return Ok(result);
+    }
     let model = context.model_parameters();
     let spot = context.spot_price();
     let vol = model.volatility();
@@ -107,14 +111,28 @@ pub(crate) fn complete_greeks(
     let h = symmetric_shift(spot, settings.spot_shift);
     let v = symmetric_shift(vol, settings.volatility_shift);
     let r = symmetric_shift(rate, settings.rate_shift);
-    let spot_ok = h > 0.0 && spot > h && !option.at_spot_discontinuity(context, h);
+    let spot_ok = [
+        Greek::Delta,
+        Greek::Gamma,
+        Greek::Speed,
+        Greek::Vanna,
+        Greek::Zomma,
+        Greek::Charm,
+        Greek::Color,
+    ]
+    .into_iter()
+    .any(want)
+        && h > 0.0
+        && spot > h
+        && !option.at_spot_discontinuity(context, h);
     let two_h = 2.0 * h;
-    let scalar_speed_ok = two_h.is_finite()
+    let scalar_speed_ok = want(Greek::Speed)
+        && spot_ok
+        && two_h.is_finite()
         && spot > two_h
         && symmetric_shift(spot, two_h) == two_h
         && !option.at_spot_discontinuity(context, two_h);
     let speed_ok = spot_ok && (native_spot_greeks || scalar_speed_ok);
-    let want = |g| request.has(g) && !available.has(g);
     let shifted = |spot, volatility, rate_shift, valuation_time| -> Result<PricingContext> {
         let parameters = model.replace(BlackScholesMertonParameterChanges {
             volatility: Some(volatility),
@@ -311,4 +329,127 @@ pub(crate) fn complete_greeks(
         }
     }
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{BlackScholesMertonParameters, Date, EuropeanOption, OptionType};
+    use std::cell::{Cell, RefCell};
+
+    struct CountedOption {
+        option: EuropeanOption,
+        radii: RefCell<Vec<f64>>,
+    }
+
+    impl OptionContract for CountedOption {
+        fn effective_date(&self) -> Date {
+            self.option.effective_date()
+        }
+        fn expiry_date(&self) -> Date {
+            self.option.expiry_date()
+        }
+        fn at_spot_discontinuity(&self, _: &PricingContext, radius: f64) -> bool {
+            self.radii.borrow_mut().push(radius);
+            false
+        }
+    }
+
+    fn inputs() -> (CountedOption, PricingContext) {
+        let start = Date::new(2025, 1, 1).unwrap();
+        let end = Date::new(2026, 1, 1).unwrap();
+        (
+            CountedOption {
+                option: EuropeanOption::new(OptionType::Call, 2.0, start, end).unwrap(),
+                radii: RefCell::new(Vec::new()),
+            },
+            PricingContext::new(
+                BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap(),
+                2.0,
+                start.into(),
+            )
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn native_greeks_skip_unused_stencil_checks() {
+        let (option, context) = inputs();
+        let request = GreeksRequest::new([Greek::Delta]);
+        let mut central = PricingResult::new(4.0).unwrap();
+        central.set(request, Greek::Delta, 1.0).unwrap();
+        let result = complete_greeks(
+            &option,
+            &context,
+            request,
+            Default::default(),
+            true,
+            central,
+            |_, _| panic!("native result already satisfies the request"),
+        )
+        .unwrap();
+        assert_eq!(result.price(), 4.0);
+        assert_eq!(result.require(Greek::Delta).unwrap(), 1.0);
+        assert_eq!(*option.radii.borrow(), [0.0]);
+    }
+
+    #[test]
+    fn vega_completion_skips_spot_stencils() {
+        let (option, context) = inputs();
+        let request = GreeksRequest::new([Greek::Delta, Greek::Vega]);
+        let mut central = PricingResult::new(4.0).unwrap();
+        central.set(request, Greek::Delta, 1.0).unwrap();
+        let calls = Cell::new(0);
+        let result = complete_greeks(
+            &option,
+            &context,
+            request,
+            Default::default(),
+            true,
+            central,
+            |context, _| {
+                calls.set(calls.get() + 1);
+                PricingResult::new(
+                    context.spot_price() + 10.0 * context.model_parameters().volatility(),
+                )
+            },
+        )
+        .unwrap();
+        assert_eq!(result.price(), 4.0);
+        assert_eq!(result.require(Greek::Delta).unwrap(), 1.0);
+        assert!((result.require(Greek::Vega).unwrap() - 0.1).abs() < 1e-10);
+        assert_eq!(result.get(Greek::Gamma), None);
+        assert_eq!(calls.get(), 2);
+        assert_eq!(*option.radii.borrow(), [0.0]);
+    }
+
+    #[test]
+    fn scalar_speed_keeps_the_wider_stencil() {
+        let (option, context) = inputs();
+        let request = GreeksRequest::new([Greek::Speed]);
+        let shifts = NumericalShiftSettings {
+            spot_shift: 0.25,
+            ..Default::default()
+        };
+        let calls = Cell::new(0);
+        let result = complete_greeks(
+            &option,
+            &context,
+            request,
+            shifts,
+            false,
+            PricingResult::new(8.0).unwrap(),
+            |context, _| {
+                calls.set(calls.get() + 1);
+                PricingResult::new(context.spot_price().powi(3))
+            },
+        )
+        .unwrap();
+        assert_eq!(result.price(), 8.0);
+        assert_eq!(result.require(Greek::Speed).unwrap(), 6.0);
+        assert_eq!(result.get(Greek::Delta), None);
+        assert_eq!(result.get(Greek::Gamma), None);
+        assert_eq!(calls.get(), 4);
+        assert_eq!(*option.radii.borrow(), [0.0, 0.25, 0.5]);
+    }
 }
