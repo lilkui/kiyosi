@@ -95,6 +95,10 @@ fn construction_validates_boundaries_schedules_and_rebates_in_core() {
         (120.0, 80.0),
         (80.0, 80.0),
         (f64::NAN, 120.0),
+        (f64::NEG_INFINITY, 120.0),
+        (f64::INFINITY, 120.0),
+        (80.0, f64::NAN),
+        (80.0, f64::NEG_INFINITY),
         (80.0, f64::INFINITY),
     ] {
         let mut t = base.clone();

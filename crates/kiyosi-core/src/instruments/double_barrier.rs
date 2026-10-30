@@ -112,11 +112,7 @@ impl DoubleBarrierOption {
     /// # Ok(()) }
     /// ```
     pub fn new(terms: DoubleBarrierOptionTerms) -> Result<Self> {
-        if !terms.lower_barrier.is_finite()
-            || !terms.upper_barrier.is_finite()
-            || terms.lower_barrier <= 0.0
-            || terms.upper_barrier <= terms.lower_barrier
-        {
+        if !terms.upper_barrier.is_finite() || terms.upper_barrier <= terms.lower_barrier {
             return Err(Error::InvalidInput(
                 "double barriers require finite 0 < lower < upper".into(),
             ));
