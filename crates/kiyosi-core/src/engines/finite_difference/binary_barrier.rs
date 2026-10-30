@@ -467,12 +467,22 @@ fn native(
     let mut values = march(true)?;
     if contract.digital.is_some() && knock_in {
         for (value, vanilla) in values.iter_mut().zip(march(false)?) {
-            *value = (vanilla - *value).max(0.0);
+            *value = vanilla - *value;
         }
     }
     let curvature = space.curvature(&values);
     let sample = space.sample(&values, &curvature, spot);
-    let mut result = PricingResult::new(checked(sample[0])?)?;
+    let scale = scaled(
+        contract.payout.unwrap_or(spot),
+        if contract.payout.is_some() {
+            risk.log_factor(0.0, time)
+        } else {
+            dividend.log_factor(0.0, time)
+        },
+    );
+    let mut result = PricingResult::new(crate::engines::analytic::barrier::checked_with_scale(
+        sample[0], scale,
+    )?)?;
     let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift);
     if !contract.double.map_or_else(
         || option.at_spot_discontinuity(context, h),

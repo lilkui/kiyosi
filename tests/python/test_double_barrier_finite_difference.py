@@ -9,6 +9,7 @@ from itertools import product
 
 import QuantLib as ql
 from kiyosi import (
+    ComputationFailureError,
     InvalidInputError,
     RootNotBracketedError,
     UnsupportedOperationError,
@@ -534,7 +535,6 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             engine = pricing.FiniteDifferenceDoubleBarrierEngine(
                 asset_step_count=count, time_step_count=5 * count
             )
-            self.assertLess(engine.price(option, market()), 1e-8)
             errors.append(
                 abs(
                     engine.price(option, market(volatility=1e-12, dividend=0.04))
@@ -543,6 +543,22 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             )
         self.assertLess(errors[-1], errors[0])
         self.assertLess(errors[-1], 1e-6)
+
+    def test_negative_narrow_band_price_requires_a_stable_scheme(self):
+        option = contract(lower_barrier=99.5, upper_barrier=100.5, strike=90)
+        engine = pricing.FiniteDifferenceDoubleBarrierEngine(
+            asset_step_count=80,
+            time_step_count=400,
+        )
+        with self.assertRaises(ComputationFailureError):
+            engine.price(option, market())
+        stable = pricing.FiniteDifferenceDoubleBarrierEngine(
+            asset_step_count=80,
+            time_step_count=400,
+            scheme="implicit_euler",
+        )
+        self.assertGreaterEqual(stable.price(option, market()), 0)
+        self.assertLess(stable.price(option, market()), 1e-8)
 
     def test_grid_validation_calendar_and_shared_instance_concurrency(self):
         unstable = pricing.FiniteDifferenceDoubleBarrierEngine(

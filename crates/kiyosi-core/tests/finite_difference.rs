@@ -17,6 +17,39 @@ fn market(spot: f64, rate: f64, dividend: f64, sigma: f64) -> PricingContext {
 }
 
 #[test]
+fn materially_negative_prices_fail_instead_of_being_clipped() {
+    let (start, end) = dates();
+    for scale in [1e-100, 1.0, 1e100] {
+        let option = EuropeanOption::new(OptionType::Call, 100.0 * scale, start, end).unwrap();
+        let context = market(150.0 * scale, 0.05, 2.0, 0.5);
+        let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+            asset_step_count: 20,
+            time_step_count: 3,
+            ..Default::default()
+        })
+        .unwrap();
+        assert!(matches!(
+            engine.price(&option, &context),
+            Err(Error::ComputationFailure(_))
+        ));
+        assert!(matches!(
+            engine.price_with_greeks(
+                &option,
+                &context,
+                GreeksRequest::new([Greek::Delta]),
+                Default::default()
+            ),
+            Err(Error::ComputationFailure(_))
+        ));
+        let refined = FiniteDifferenceVanillaEngine::default()
+            .price(&option, &context)
+            .unwrap();
+        let expected = AnalyticEuropeanEngine.price(&option, &context).unwrap();
+        assert!((refined - expected).abs() / scale < 0.0001);
+    }
+}
+
+#[test]
 fn terminal_prices_converge_to_independent_references() {
     let (start, end) = dates();
     let context = market(100.0, 0.05, 0.02, 0.2);

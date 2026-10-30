@@ -336,6 +336,9 @@ fn native(
             return Err(unstable());
         }
         if !payoff.digital {
+            let scale = scaled(s, dividend.log_factor(0.0, time))
+                .max(scaled(payoff.strike, risk.log_factor(0.0, time)));
+            let value = crate::engines::analytic::barrier::checked_with_scale(value, scale)?;
             return Ok(value.max(if payoff.american {
                 payoff.value(s)
             } else {
@@ -521,7 +524,9 @@ impl FiniteDifferenceVanillaEngine {
     ///
     /// Returns [`Error::InvalidInput`] outside contract life or curve coverage,
     /// for clipped/degenerate grids or unstable explicit steps,
-    /// and [`Error::ComputationFailure`] for numerical failures. Inputs remain unchanged.
+    /// and [`Error::ComputationFailure`] for numerical failures, including materially
+    /// negative prices. Only rounding-sized negative prices are clipped to zero.
+    /// Inputs remain unchanged.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
         Self: PricingEngine<I>,

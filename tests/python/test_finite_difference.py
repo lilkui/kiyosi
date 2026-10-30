@@ -12,6 +12,7 @@ from typing import get_args
 
 import QuantLib as ql
 from kiyosi import (
+    ComputationFailureError,
     InvalidInputError,
     NonConvergenceError,
     RootNotBracketedError,
@@ -55,6 +56,34 @@ def engine_for(kind, **settings):
 
 
 class FiniteDifferenceTests(unittest.TestCase):
+    def test_materially_negative_prices_fail_instead_of_being_clipped(self):
+        for scale in (1e-100, 1.0, 1e100):
+            with self.subTest(scale=scale):
+                option = EuropeanOption(
+                    option_type="call",
+                    strike=100 * scale,
+                    effective_date=START,
+                    expiry_date=END,
+                )
+                context = market(spot=150 * scale, rate=0.05, dividend=2, sigma=0.5)
+                engine = FiniteDifferenceVanillaEngine(
+                    asset_step_count=20,
+                    time_step_count=3,
+                )
+                self.assert_rejection(
+                    ComputationFailureError, engine.price, option, context
+                )
+                self.assert_rejection(
+                    ComputationFailureError,
+                    engine.price_with_greeks,
+                    option,
+                    context,
+                    ["delta"],
+                )
+                refined = FiniteDifferenceVanillaEngine().price(option, context)
+                expected = AnalyticEuropeanEngine().price(option, context)
+                self.assertAlmostEqual(refined / scale, expected / scale, delta=0.0001)
+
     def assert_rejection(self, expected_error, operation, *args, **kwargs):
         with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)

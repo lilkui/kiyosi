@@ -454,13 +454,19 @@ fn native_barrier(
         let vanilla = march(initial, false)?;
         let cash = scaled(terms.rebate(), risk.log_factor(0.0, time));
         for (value, vanilla) in values.iter_mut().zip(vanilla) {
-            *value = (vanilla - *value + cash).max(0.0);
+            *value = vanilla - *value + cash;
         }
     }
     let curvature = space.curvature(&values);
     let spot = context.spot_price();
     let sample = space.sample(&values, &curvature, spot);
-    let mut result = PricingResult::new(crate::engines::analytic::barrier::checked(sample[0])?)?;
+    let scale = scaled(spot, dividend.log_factor(0.0, time)).max(scaled(
+        terms.strike().max(terms.rebate()),
+        risk.log_factor(0.0, time),
+    ));
+    let mut result = PricingResult::new(crate::engines::analytic::barrier::checked_with_scale(
+        sample[0], scale,
+    )?)?;
     let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift);
     if !option.at_spot_discontinuity(context, h) {
         result.set(request, Greek::Delta, sample[1])?;

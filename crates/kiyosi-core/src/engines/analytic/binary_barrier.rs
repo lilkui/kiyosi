@@ -249,7 +249,7 @@ impl Contract<'_> {
                 (true, false, false, false) | (false, false, true, true) => f2() - f4(),
             }
         };
-        checked(value)
+        super::barrier::checked_with_scale(value, scaled_cash(amount, discount))
     }
 }
 

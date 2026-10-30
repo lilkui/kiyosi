@@ -20,7 +20,8 @@ impl AnalyticBarrierEngine {
     /// Returns [`Error::UnsupportedOperation`] for node curves or unsupported
     /// schedules. Returns [`Error::InvalidInput`] outside life, for non-trading
     /// fixings, or for missing or impossible history, checked in that order.
-    /// Non-finite prices return [`Error::ComputationFailure`]. Inputs remain unchanged.
+    /// Non-finite or materially negative prices return [`Error::ComputationFailure`].
+    /// Only rounding-sized negative prices are clipped to zero. Inputs remain unchanged.
     ///
     /// # Examples
     ///
@@ -57,12 +58,21 @@ impl AnalyticBarrierEngine {
     }
 }
 pub(crate) fn checked(value: f64) -> Result<f64> {
-    if value.is_finite() {
+    checked_with_scale(value, 0.0)
+}
+
+pub(crate) fn checked_with_scale(value: f64, scale: f64) -> Result<f64> {
+    if value.is_finite()
+        && (value >= 0.0 || scale.is_finite() && value >= -(64.0 * f64::EPSILON * scale))
+    {
         Ok(value.max(0.0))
     } else {
-        Err(Error::ComputationFailure("non-finite barrier price".into()))
+        Err(Error::ComputationFailure(
+            "negative or non-finite price".into(),
+        ))
     }
 }
+
 fn price(
     option: &BarrierOption,
     context: &PricingContext,
@@ -370,7 +380,10 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
             (true, false, false, false) | (false, false, true, true) => b() - d() + rebate(),
         }
     };
-    checked(value)
+    let scale = scaled_cash(spot, -dividend * t)
+        .max(scaled_cash(x, -rate * t))
+        .max(scaled_cash(option.rebate(), -rate * t));
+    checked_with_scale(value, scale)
 }
 
 #[expect(
@@ -611,5 +624,33 @@ pub(crate) fn analytic_log_shift(option: &BarrierOption, spot: f64, sigma: f64) 
             ));
         }
         Ok(shift)
+    }
+}
+
+#[cfg(test)]
+mod price_validation_tests {
+    use super::*;
+
+    #[test]
+    fn nonnegative_prices_only_clip_roundoff_at_the_monetary_scale() {
+        for scale in [1e-100, 1.0, 1e100] {
+            assert_eq!(
+                checked_with_scale(-32.0 * f64::EPSILON * scale, scale).unwrap(),
+                0.0
+            );
+            assert!(matches!(
+                checked_with_scale(-128.0 * f64::EPSILON * scale, scale),
+                Err(Error::ComputationFailure(_))
+            ));
+            assert_eq!(checked_with_scale(scale, scale).unwrap(), scale);
+        }
+    }
+
+    #[test]
+    fn nonnegative_price_validation_rejects_nonfinite_and_unscaled_negative_values() {
+        for value in [-1.0, f64::NAN, f64::NEG_INFINITY, f64::INFINITY] {
+            assert!(matches!(checked(value), Err(Error::ComputationFailure(_))));
+        }
+        assert_eq!(checked(0.0).unwrap(), 0.0);
     }
 }

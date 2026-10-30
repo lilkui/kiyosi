@@ -22,6 +22,34 @@ fn market(spot: f64) -> PricingContext {
 }
 
 #[test]
+fn negative_narrow_band_price_requires_a_stable_scheme() {
+    let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
+    t.lower_barrier = 99.5;
+    t.upper_barrier = 100.5;
+    t.strike = 90.0;
+    let option = DoubleBarrierOption::new(t).unwrap();
+    let settings = FiniteDifferenceSettings {
+        asset_step_count: 80,
+        time_step_count: 400,
+        ..Default::default()
+    };
+    assert!(matches!(
+        FiniteDifferenceDoubleBarrierEngine::new(settings)
+            .unwrap()
+            .price(&option, &market(100.0)),
+        Err(Error::ComputationFailure(_))
+    ));
+    let stable = FiniteDifferenceDoubleBarrierEngine::new(FiniteDifferenceSettings {
+        scheme: FiniteDifferenceScheme::ImplicitEuler,
+        ..settings
+    })
+    .unwrap()
+    .price(&option, &market(100.0))
+    .unwrap();
+    assert!((0.0..1e-8).contains(&stable));
+}
+
+#[test]
 fn continuous_prices_match_analytic_at_both_edges_with_all_rebates() {
     let engine = FiniteDifferenceDoubleBarrierEngine::default();
     for kind in [DoubleBarrierType::KnockIn, DoubleBarrierType::KnockOut] {

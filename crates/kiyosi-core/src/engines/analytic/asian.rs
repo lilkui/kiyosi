@@ -1,4 +1,5 @@
-use super::barrier::log_ratio;
+pub(crate) use super::barrier::checked;
+use super::barrier::{checked_with_scale, log_ratio};
 use crate::{ArithmeticAveragePriceOption, GeometricAveragePriceOption};
 use crate::{
     Error, GreeksRequest, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
@@ -20,14 +21,6 @@ pub struct AnalyticGeometricAveragePriceEngine;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TurnbullWakemanArithmeticAveragePriceEngine;
 
-pub(crate) fn checked(value: f64) -> Result<f64> {
-    if !value.is_finite() {
-        return Err(Error::ComputationFailure(
-            "Asian pricing produced a non-finite result".into(),
-        ));
-    }
-    Ok(value.max(0.0))
-}
 pub(crate) fn coverage(option: &AverageTerms, context: &PricingContext) -> Result<()> {
     let expiry = option.terms.expiry_date().start_of_day();
     context
@@ -41,12 +34,13 @@ pub(crate) fn coverage(option: &AverageTerms, context: &PricingContext) -> Resul
 }
 pub(crate) fn settlement(option: &AverageTerms, context: &PricingContext) -> Result<f64> {
     checked(
-        option.sign()
+        (option.sign()
             * (if option.realized > 0.0 {
                 option.realized
             } else {
                 context.spot_price()
-            } - option.terms.strike()),
+            } - option.terms.strike()))
+        .max(0.0),
     )
 }
 
@@ -302,12 +296,11 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
             {
                 return Ok(0.0);
             }
-            return checked(
-                price_scale
-                    * (o.sign()
-                        * (scaled_exp(context.spot_price(), log_scale + m1.ln() - rate * tau)
-                            - scaled_exp(cash_strike, -rate * tau)))
-                    .max(0.0),
+            let asset = scaled_exp(context.spot_price(), log_scale + m1.ln() - rate * tau);
+            let cash = scaled_exp(cash_strike, -rate * tau);
+            return checked_with_scale(
+                price_scale * o.sign() * (asset - cash),
+                price_scale * asset.max(cash),
             );
         }
         checked(

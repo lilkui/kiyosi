@@ -7,6 +7,10 @@ across thread counts in the same build. Sobol estimates omit sampling error.
 Autocallable and accumulator ``price`` calls return the sample mean;
 ``price_with_statistics`` also computes and validates sampling uncertainty.
 
+Pricing raises ``ComputationFailureError`` for materially negative option
+prices; only rounding-sized negative results may be clipped to zero.
+Coarse numerical grids may require refinement before pricing succeeds.
+
 ``AnalyticEuropeanEngine``, ``MonteCarloDigitalEngine`` and
 ``MonteCarloAsianEngine`` compute native Greeks without numerical bumps;
 their ``price_with_greeks`` methods accept only ``greeks`` and ``all_greeks``
