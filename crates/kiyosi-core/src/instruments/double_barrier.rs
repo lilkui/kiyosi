@@ -228,13 +228,8 @@ impl DoubleBarrierOption {
     pub(crate) fn knock_in(&self) -> bool {
         self.lower.barrier_type().is_knock_in()
     }
-    pub(crate) fn vanilla(&self) -> Result<EuropeanOption> {
-        EuropeanOption::new(
-            self.option_type(),
-            self.strike(),
-            self.effective_date(),
-            self.expiry_date(),
-        )
+    pub(crate) fn vanilla(&self) -> &EuropeanOption {
+        self.lower.vanilla()
     }
     pub(crate) fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
         let (prior, touched, finished) = self.lower.state(context)?;

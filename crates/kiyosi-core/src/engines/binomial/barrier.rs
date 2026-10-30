@@ -114,14 +114,8 @@ impl CoxRossRubinsteinBarrierEngine {
             if crate::engines::analytic::barrier::volatility_affects_price(option, context)
                 && (request.has(Greek::Delta) || request.has(Greek::Gamma))
             {
-                let vanilla = EuropeanOption::new(
-                    option.option_type(),
-                    option.strike(),
-                    option.effective_date(),
-                    option.expiry_date(),
-                )?;
                 return AnalyticEuropeanEngine.price_with_greeks(
-                    &vanilla,
+                    option.vanilla(),
                     context,
                     request,
                     Default::default(),

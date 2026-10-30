@@ -3,10 +3,10 @@ use crate::engines::analytic::barrier::{
     hit_value, log_ratio, resolved_price, validate_life, validate_schedule,
 };
 use crate::{
-    AnalyticDoubleBarrierEngine, AnalyticEuropeanEngine, BarrierOption, DoubleBarrierOption,
-    EuropeanOption, Greek, GreeksRequest, MonteCarloSettings, MonteCarloVanillaEngine,
-    NumericalShiftSettings, ObservationMode, OptionContract, OptionType, PricingContext,
-    PricingEngine, PricingResult, RebateTiming, Result,
+    AnalyticDoubleBarrierEngine, AnalyticEuropeanEngine, BarrierOption, DoubleBarrierOption, Greek,
+    GreeksRequest, MonteCarloSettings, MonteCarloVanillaEngine, NumericalShiftSettings,
+    ObservationMode, OptionContract, OptionType, PricingContext, PricingEngine, PricingResult,
+    RebateTiming, Result,
 };
 
 #[derive(Clone, Copy)]
@@ -178,14 +178,12 @@ impl MonteCarloBarrierEngine {
         if let Some(value) = resolved {
             if volatility_affects_price && (request.has(Greek::Delta) || request.has(Greek::Gamma))
             {
-                let vanilla = EuropeanOption::new(
-                    option.option_type(),
-                    option.strike(),
-                    option.effective_date(),
-                    option.expiry_date(),
-                )?;
-                return AnalyticEuropeanEngine
-                    .price_with_greeks(&vanilla, context, request, shifts);
+                return AnalyticEuropeanEngine.price_with_greeks(
+                    option.vanilla(),
+                    context,
+                    request,
+                    shifts,
+                );
             }
             let mut result = PricingResult::new(value)?;
             result.set(request, Greek::Delta, 0.0)?;

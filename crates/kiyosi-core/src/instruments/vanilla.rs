@@ -320,6 +320,10 @@ pub struct AmericanOptionChanges {
 }
 
 impl AmericanOption {
+    pub(crate) fn vanilla(&self) -> &EuropeanOption {
+        &self.terms
+    }
+
     /// Creates an American vanilla contract with ordered, inclusive exercise dates.
     ///
     /// # Errors

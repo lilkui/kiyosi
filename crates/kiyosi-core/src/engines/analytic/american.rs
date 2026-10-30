@@ -3,9 +3,8 @@ use std::sync::LazyLock;
 
 use crate::engines::analytic::european::log_normal_cdf;
 use crate::{
-    AmericanOption, AnalyticEuropeanEngine, Error, EuropeanOption, GreeksRequest,
-    NumericalShiftSettings, OptionType, PricingContext, PricingEngine, PricingResult, Result,
-    numerical_greeks,
+    AmericanOption, AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings,
+    OptionType, PricingContext, PricingEngine, PricingResult, Result, numerical_greeks,
 };
 
 fn exponential_cdf(weight: f64, argument: f64) -> f64 {
@@ -331,13 +330,8 @@ impl BjerksundStenslandVanillaEngine {
                 "Bjerksund-Stensland requires a non-negative transformed interest rate".into(),
             ));
         }
-        let european = EuropeanOption::new(
-            option.option_type(),
-            option.strike(),
-            option.effective_date(),
-            option.expiry_date(),
-        )?;
-        let continuation = AnalyticEuropeanEngine.price(&european, context)?;
+
+        let continuation = AnalyticEuropeanEngine.price(option.vanilla(), context)?;
         let (spot, strike) = (context.spot_price(), option.strike());
         let value = if call {
             bjerksund_call(

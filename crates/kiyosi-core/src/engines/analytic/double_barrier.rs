@@ -146,7 +146,7 @@ pub(crate) fn resolved_price(
     }
     if touched || finished || fixed {
         return AnalyticEuropeanEngine
-            .price(&option.vanilla()?, context)
+            .price(option.vanilla(), context)
             .map(Some);
     }
     Ok(None)
@@ -476,7 +476,7 @@ fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Res
     let asset = density.moment(1, lower, upper, discount, false)?;
     let mut value = (if call { 1.0 } else { -1.0 }) * (asset - option.strike() * cash);
     if option.knock_in() {
-        value = AnalyticEuropeanEngine.price(&option.vanilla()?, context)? - value;
+        value = AnalyticEuropeanEngine.price(option.vanilla(), context)? - value;
     }
     if option.rebate() != 0.0 {
         let weight = if option.rebate_timing() == RebateTiming::AtHit && !option.knock_in() {

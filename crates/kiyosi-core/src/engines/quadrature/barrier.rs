@@ -437,12 +437,7 @@ fn event_layer(
     );
     let mut vanilla_curve = Vec::new();
     if knock_in || continuation.is_empty() {
-        let vanilla = crate::EuropeanOption::new(
-            option.option_type(),
-            option.strike(),
-            option.effective_date(),
-            option.expiry_date(),
-        )?;
+        let vanilla = option.vanilla();
         let values = nodes
             .iter()
             .map(|&node| {
@@ -457,7 +452,7 @@ fn event_layer(
                     valuation_time: Some(date.into()),
                     ..Default::default()
                 })?;
-                crate::AnalyticEuropeanEngine.price(&vanilla, &shifted)
+                crate::AnalyticEuropeanEngine.price(vanilla, &shifted)
             })
             .collect::<Result<Vec<_>>>()?;
         vanilla_curve = interpolation.interpolate(&values);

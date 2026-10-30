@@ -67,13 +67,7 @@ impl MonteCarloVanillaEngine {
             && dividend <= 0.0
             && rate >= 0.0
         {
-            let european = EuropeanOption::new(
-                option.option_type(),
-                option.strike(),
-                option.effective_date(),
-                option.expiry_date(),
-            )?;
-            return Ok(self.price(&european, context)?.max(immediate));
+            return Ok(self.price(option.vanilla(), context)?.max(immediate));
         }
         let intervals = self.settings.step_count as usize - 1;
         let dt = time / intervals as f64;
