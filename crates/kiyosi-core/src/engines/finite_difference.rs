@@ -352,8 +352,7 @@ fn native(
         );
         let tolerance = 64.0 * f64::EPSILON * bound;
         let carry_error = bound * relative_carry_error;
-        if !value.is_finite()
-            || value < -tolerance
+        if value < -tolerance
             || value - bound
                 > tolerance
                     + if carry_error.is_finite() {
