@@ -178,12 +178,13 @@ impl MonteCarloVanillaEngine {
             if matrix[0][0] == 0.0 {
                 continue;
             }
+            if matrix.iter().flatten().any(|value| !value.is_finite()) {
+                return Err(unstable());
+            }
             matrix[1][0] = matrix[0][1];
             matrix[2][0] = matrix[0][2];
             matrix[2][1] = matrix[1][2];
-            let Some(coefficients) = solve_quadratic(matrix) else {
-                continue;
-            };
+            let coefficients = solve_quadratic(matrix).ok_or_else(unstable)?;
             for (path, cash) in rows().zip(&mut cash_flows) {
                 let intrinsic = payoff(path[step]);
                 if intrinsic <= 0.0 {
@@ -191,7 +192,10 @@ impl MonteCarloVanillaEngine {
                 }
                 let x = path[step] / option.strike();
                 let continuation = coefficients[0] + x * (coefficients[1] + x * coefficients[2]);
-                if continuation.is_finite() && intrinsic / option.strike() > continuation {
+                if !continuation.is_finite() {
+                    return Err(unstable());
+                }
+                if intrinsic / option.strike() > continuation {
                     *cash = intrinsic;
                 }
             }

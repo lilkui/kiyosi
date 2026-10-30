@@ -10,6 +10,8 @@ Autocallable and accumulator ``price`` calls return the sample mean;
 Pricing raises ``ComputationFailureError`` for materially negative option
 prices; only rounding-sized negative results may be clipped to zero.
 Coarse numerical grids may require refinement before pricing succeeds.
+American Monte Carlo also rejects non-finite continuation regressions;
+finite fits with insufficient independent samples use a lower polynomial degree.
 
 ``AnalyticEuropeanEngine``, ``MonteCarloDigitalEngine`` and
 ``MonteCarloAsianEngine`` compute native Greeks without numerical bumps;

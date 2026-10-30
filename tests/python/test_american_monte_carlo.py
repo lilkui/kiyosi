@@ -33,6 +33,27 @@ def contract(direction="put", strike=100):
 
 
 class AmericanMonteCarloTests(unittest.TestCase):
+    def test_nonfinite_continuation_regressions_preserve_engine_reuse(self):
+        context = market(rate=-0.1, dividend=0, sigma=0.2, spot=100)
+        engine = MonteCarloVanillaEngine(path_count=128, step_count=5, seed=42)
+        ordinary = contract("call")
+        before = engine.price(ordinary, context)
+        for strike in (1e-100, 1e-300):
+            with self.subTest(strike=strike):
+                extreme = contract("call", strike)
+                self.assert_rejection(
+                    ComputationFailureError, engine.price, extreme, context
+                )
+                self.assert_rejection(
+                    ComputationFailureError,
+                    engine.price_with_greeks,
+                    extreme,
+                    context,
+                    ["delta"],
+                )
+        self.assertEqual(engine.price(ordinary, context), before)
+        self.assertEqual(engine.seed, 42)
+
     def assert_rejection(self, expected, operation, *args, **kwargs):
         with self.assertRaises(expected) as error:
             operation(*args, **kwargs)

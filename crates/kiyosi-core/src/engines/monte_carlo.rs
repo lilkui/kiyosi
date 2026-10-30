@@ -217,6 +217,8 @@ impl MonteCarloVanillaEngine {
     /// in [`Error::Io`].
     /// American pricing before expiry returns [`Error::InvalidInput`]
     /// for fewer than three grid points, after life validation.
+    /// Non-finite American regression matrices, coefficients or continuation values
+    /// return [`Error::ComputationFailure`]; finite rank-deficient fits reduce their degree.
     ///
     /// # Panics
     ///

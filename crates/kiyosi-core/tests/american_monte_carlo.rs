@@ -20,6 +20,38 @@ fn market(rate: f64, dividend: f64, volatility: f64, spot: f64) -> PricingContex
 }
 
 #[test]
+fn nonfinite_continuation_regressions_fail_without_changing_the_engine() {
+    let context = market(-0.1, 0.0, 0.2, 100.0);
+    let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
+        path_count: 128,
+        step_count: 5,
+        seed: Some(42),
+        ..Default::default()
+    })
+    .unwrap();
+    let ordinary = option(OptionType::Call, 100.0);
+    let before = engine.price(&ordinary, &context).unwrap();
+    for strike in [1e-100, 1e-300] {
+        let extreme = option(OptionType::Call, strike);
+        assert!(matches!(
+            engine.price(&extreme, &context),
+            Err(Error::ComputationFailure(_))
+        ));
+        assert!(matches!(
+            engine.price_with_greeks(
+                &extreme,
+                &context,
+                GreeksRequest::new([Greek::Delta]),
+                Default::default()
+            ),
+            Err(Error::ComputationFailure(_))
+        ));
+    }
+    assert_eq!(engine.price(&ordinary, &context).unwrap(), before);
+    assert_eq!(engine.settings().seed, Some(42));
+}
+
+#[test]
 fn american_put_includes_immediate_exercise_and_validates_steps_after_expiry() {
     let put = option(OptionType::Put, 100.0);
     let context = market(0.1, 0.0, 0.1, 50.0);
