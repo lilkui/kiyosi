@@ -168,7 +168,7 @@ class DigitalNumericalTests(unittest.TestCase):
                     )
                     for threads in (0, 1, 4):
                         other = pricing.MonteCarloDigitalEngine(
-                            **settings, step_count=10000, thread_count=threads
+                            **settings, thread_count=threads
                         )
                         for name in ("delta", "gamma", "rho"):
                             actual = other.price_with_greeks(option, market(), name)
@@ -242,7 +242,6 @@ class DigitalNumericalTests(unittest.TestCase):
         vanilla = pricing.MonteCarloVanillaEngine()
         for name in (
             "path_count",
-            "step_count",
             "seed",
             "thread_count",
             "sampling",
@@ -252,7 +251,7 @@ class DigitalNumericalTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 setattr(mc, name, getattr(mc, name))
         self.assertIn("MonteCarloDigitalEngine", pricing.__all__)
-        for field in ("path_count", "step_count", "thread_count", "seed"):
+        for field in ("path_count", "thread_count", "seed"):
             for value in (True, 1.5, 2.0, "3", None if field != "seed" else object()):
                 with self.assertRaises(TypeError):
                     pricing.MonteCarloDigitalEngine(**{field: value})
@@ -269,8 +268,6 @@ class DigitalNumericalTests(unittest.TestCase):
         for fields in (
             {"path_count": 0},
             {"path_count": 10000001},
-            {"step_count": 1},
-            {"step_count": 10001},
             {"thread_count": -1},
             {"path_count": 3, "sampling": "sobol"},
         ):

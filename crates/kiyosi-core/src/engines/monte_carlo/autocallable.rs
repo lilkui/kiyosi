@@ -1,4 +1,4 @@
-use super::{Moments, MonteCarloEstimate, MonteCarloSettings, MonteCarloVanillaEngine};
+use super::{Moments, MonteCarloEstimate, MonteCarloSettings};
 use super::{estimate, path_samples, random_seed, scaled_value, unstable};
 use crate::instruments::autocallable::pricing::{fixed_value, initial, validate};
 use crate::{
@@ -10,10 +10,10 @@ use crate::{
 ///
 /// Uses exact lognormal transitions on trading days when knock-in matters, or
 /// remaining observation dates and expiry otherwise. Time is Actual/365 Fixed;
-/// `step_count` is validated but unused. Current events precede simulation.
+/// `step_count` is ignored. Current events precede simulation.
 /// Complete normal vectors are drawn before evaluating each path, so early
 /// knock-out cannot shift later paths. Sampling, antithetic counts and thread
-/// reproducibility follow [`MonteCarloVanillaEngine`]. Shared and distinct
+/// reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
 /// instances permit concurrent calls with request-owned workers and buffers.
 /// Greeks and implied-parameter solves pin one request-local seed. Solvers
 /// constrain the sampled price curve, not its statistical error. Coupon trials
@@ -27,9 +27,11 @@ pub struct MonteCarloAutocallableEngine {
 impl MonteCarloAutocallableEngine {
     /// Creates an engine with validated CPU sampling settings.
     ///
+    /// Ignores `step_count`; see [`MonteCarloSettings`].
+    ///
     /// # Errors
     ///
-    /// Propagates [`MonteCarloVanillaEngine::new`] validation errors.
+    /// Returns [`crate::Error::InvalidInput`] for invalid paths, threads or sampling.
     ///
     /// # Examples
     ///
@@ -55,7 +57,7 @@ impl MonteCarloAutocallableEngine {
     /// # Ok(()) }
     /// ```
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {
-        MonteCarloVanillaEngine::new(settings)?;
+        settings.validate()?;
         Ok(Self { settings })
     }
 

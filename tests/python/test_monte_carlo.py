@@ -22,6 +22,12 @@ from kiyosi.instruments import AmericanOption, EuropeanOption
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import (
     AnalyticEuropeanEngine,
+    MonteCarloAccumulatorEngine,
+    MonteCarloAsianEngine,
+    MonteCarloAutocallableEngine,
+    MonteCarloBarrierEngine,
+    MonteCarloDigitalEngine,
+    MonteCarloDoubleBarrierEngine,
     MonteCarloVanillaEngine,
     implied_volatility,
 )
@@ -35,6 +41,24 @@ def contract(direction="call", strike=100):
 
 
 class MonteCarloTests(unittest.TestCase):
+    def test_only_grid_engines_expose_step_count(self):
+        for factory in (
+            MonteCarloDigitalEngine,
+            MonteCarloBarrierEngine,
+            MonteCarloDoubleBarrierEngine,
+            MonteCarloAutocallableEngine,
+            MonteCarloAccumulatorEngine,
+        ):
+            with self.subTest(engine=factory.__name__):
+                with self.assertRaises(TypeError):
+                    factory(step_count=50)
+                with self.assertRaises(AttributeError):
+                    _ = factory().step_count
+        for factory in (MonteCarloVanillaEngine, MonteCarloAsianEngine):
+            with self.subTest(engine=factory.__name__):
+                self.assertEqual(factory(step_count=2).step_count, 2)
+                self.assert_rejection(InvalidInputError, factory, step_count=1)
+
     def assert_rejection(self, expected, operation, *args, **kwargs):
         with self.assertRaises(expected) as error:
             operation(*args, **kwargs)

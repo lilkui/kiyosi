@@ -253,9 +253,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 "antithetic": paired,
             }
             serial = pricing.MonteCarloDoubleBarrierEngine(thread_count=1, **settings)
-            parallel = pricing.MonteCarloDoubleBarrierEngine(
-                thread_count=4, step_count=10000, **settings
-            )
+            parallel = pricing.MonteCarloDoubleBarrierEngine(thread_count=4, **settings)
             expected = serial.price_with_greeks(option, context, all_greeks=True)
 
             def evaluate(index, parallel=parallel, serial=serial, option=option):
@@ -349,7 +347,6 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         engine, vanilla = factory(), pricing.MonteCarloVanillaEngine()
         for name in (
             "path_count",
-            "step_count",
             "seed",
             "thread_count",
             "sampling",
@@ -359,7 +356,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 setattr(engine, name, getattr(engine, name))
         self.assertIn("MonteCarloDoubleBarrierEngine", pricing.__all__)
-        for name in ("path_count", "step_count", "seed", "thread_count"):
+        for name in ("path_count", "seed", "thread_count"):
             for value in (
                 True,
                 False,
@@ -385,8 +382,6 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         for fields in (
             {"path_count": 0},
             {"path_count": 10000001},
-            {"step_count": 1},
-            {"step_count": 10001},
             {"thread_count": -1},
             {"path_count": 3, "sampling": "sobol"},
         ):

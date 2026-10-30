@@ -159,7 +159,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     }
                     serial = pricing.MonteCarloBarrierEngine(thread_count=1, **settings)
                     parallel = pricing.MonteCarloBarrierEngine(
-                        thread_count=4, step_count=10000, **settings
+                        thread_count=4, **settings
                     )
                     expected = serial.price_with_greeks(
                         contract, context, all_greeks=True
@@ -269,7 +269,6 @@ class BarrierMonteCarloTests(unittest.TestCase):
         engine, vanilla = factory(), pricing.MonteCarloVanillaEngine()
         for name in (
             "path_count",
-            "step_count",
             "seed",
             "thread_count",
             "sampling",
@@ -279,7 +278,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 setattr(engine, name, getattr(engine, name))
         self.assertIn("MonteCarloBarrierEngine", pricing.__all__)
-        for name in ("path_count", "step_count", "seed", "thread_count"):
+        for name in ("path_count", "seed", "thread_count"):
             for value in (
                 True,
                 False,
@@ -305,8 +304,6 @@ class BarrierMonteCarloTests(unittest.TestCase):
         for fields in (
             {"path_count": 0},
             {"path_count": 10000001},
-            {"step_count": 1},
-            {"step_count": 10001},
             {"thread_count": -1},
             {"path_count": 3, "sampling": "sobol"},
         ):

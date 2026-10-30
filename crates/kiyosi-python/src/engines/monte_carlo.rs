@@ -16,7 +16,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict};
 
 macro_rules! sampling_settings {
-    ($engine:ident, $($methods:item),* $(,)?) => {
+    ($engine:ident, [$($step:ident)?], $($methods:item),* $(,)?) => {
         #[pymethods]
         impl $engine {
             #[new]
@@ -26,7 +26,7 @@ macro_rules! sampling_settings {
                     fields,
                     &[
                         "path_count",
-                        "step_count",
+                        $(stringify!($step),)?
                         "seed",
                         "thread_count",
                         "sampling",
@@ -38,9 +38,9 @@ macro_rules! sampling_settings {
                     if let Some(value) = fields.get_item("path_count")? {
                         settings.path_count = integer(&value)?;
                     }
-                    if let Some(value) = fields.get_item("step_count")? {
-                        settings.step_count = integer(&value)?;
-                    }
+                    $(if let Some(value) = fields.get_item(stringify!($step))? {
+                        settings.$step = integer(&value)?;
+                    })?
                     if let Some(value) = fields.get_item("thread_count")? {
                         settings.thread_count = integer(&value)?;
                     }
@@ -67,11 +67,13 @@ macro_rules! sampling_settings {
             fn path_count(&self) -> i32 {
                 self.0.settings().path_count
             }
-            /// Return the configured grid size.
-            #[getter]
-            fn step_count(&self) -> i32 {
-                self.0.settings().step_count
-            }
+            $(
+                /// Return the configured grid size.
+                #[getter]
+                fn $step(&self) -> i32 {
+                    self.0.settings().$step
+                }
+            )?
             /// Return the unsigned 64-bit seed, or None for system entropy.
             #[getter]
             fn seed(&self) -> Option<u64> {
@@ -146,6 +148,7 @@ pub(crate) struct MonteCarloVanillaEngine(pub(crate) core::MonteCarloVanillaEngi
 
 sampling_settings!(
     MonteCarloVanillaEngine,
+    [step_count],
     /// Return the price without changing the instrument or context.
     ///
     /// Parameters
@@ -353,9 +356,6 @@ impl MonteCarloEstimate {
 /// path_count : int, optional
 ///     Exact path count, 1 through 10,000,000; defaults to 100,000.
 ///     Sobol sampling requires a power of two.
-/// step_count : int, optional
-///     Grid size, 2 through 10,000; defaults to 50. Validated even when
-///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// thread_count : int, optional
@@ -369,8 +369,8 @@ impl MonteCarloEstimate {
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, steps outside 2 through
-///     10,000, thread_count is negative, or Sobol paths are not a power of two.
+///     If paths are outside 1 through 10,000,000, thread_count is negative,
+///     or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -382,13 +382,13 @@ impl MonteCarloEstimate {
 /// Fixed seeds reproduce results across thread counts in the same build.
 /// Each call owns its workers and samples. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
-/// Terminal sampling ignores step_count. Only native delta and gamma are
-/// returned; other requested Greeks remain absent.
+/// Only native delta and gamma are returned; other requested Greeks remain absent.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloDigitalEngine(pub(crate) core::MonteCarloDigitalEngine);
 
 sampling_settings!(
     MonteCarloDigitalEngine,
+    [],
     /// Return the price without changing the instrument or context.
     ///
     /// Parameters
@@ -526,6 +526,7 @@ pub(crate) struct MonteCarloAsianEngine(pub(crate) core::MonteCarloAsianEngine);
 
 sampling_settings!(
     MonteCarloAsianEngine,
+    [step_count],
     /// Return the price without changing the instrument or context.
     ///
     /// Parameters
@@ -648,9 +649,6 @@ sampling_settings!(
 /// path_count : int, optional
 ///     Exact path count, 1 through 10,000,000; defaults to 100,000.
 ///     Sobol sampling requires a power of two.
-/// step_count : int, optional
-///     Grid size, 2 through 10,000; defaults to 50. Validated even when
-///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// thread_count : int, optional
@@ -664,8 +662,8 @@ sampling_settings!(
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, steps outside 2 through
-///     10,000, thread_count is negative, or Sobol paths are not a power of two.
+///     If paths are outside 1 through 10,000,000, thread_count is negative,
+///     or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -676,13 +674,14 @@ sampling_settings!(
 /// Fixed seeds reproduce results across thread counts in the same build.
 /// Each call owns its workers and samples. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
-/// Monitoring uses continuous survival or the original fixing dates;
-/// step_count is validated but unused. Only delta and gamma are returned.
+/// Monitoring uses continuous survival or the original fixing dates.
+/// Only delta and gamma are returned.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloBarrierEngine(pub(crate) core::MonteCarloBarrierEngine);
 
 sampling_settings!(
     MonteCarloBarrierEngine,
+    [],
     /// Return the price without changing the instrument or context.
     ///
     /// Parameters
@@ -787,9 +786,6 @@ sampling_settings!(
 /// path_count : int, optional
 ///     Exact path count, 1 through 10,000,000; defaults to 100,000.
 ///     Sobol sampling requires a power of two.
-/// step_count : int, optional
-///     Grid size, 2 through 10,000; defaults to 50. Validated even when
-///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// thread_count : int, optional
@@ -803,8 +799,8 @@ sampling_settings!(
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, steps outside 2 through
-///     10,000, thread_count is negative, or Sobol paths are not a power of two.
+///     If paths are outside 1 through 10,000,000, thread_count is negative,
+///     or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -815,13 +811,14 @@ sampling_settings!(
 /// Fixed seeds reproduce results across thread counts in the same build.
 /// Each call owns its workers and samples. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
-/// Monitoring uses continuous survival or the original fixing dates;
-/// step_count is validated but unused. Only delta and gamma are returned.
+/// Monitoring uses continuous survival or the original fixing dates.
+/// Only delta and gamma are returned.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloDoubleBarrierEngine(pub(crate) core::MonteCarloDoubleBarrierEngine);
 
 sampling_settings!(
     MonteCarloDoubleBarrierEngine,
+    [],
     /// Return the price without changing the instrument or context.
     ///
     /// Parameters
@@ -926,9 +923,6 @@ sampling_settings!(
 /// path_count : int, optional
 ///     Exact path count, 1 through 10,000,000; defaults to 100,000.
 ///     Sobol sampling requires a power of two.
-/// step_count : int, optional
-///     Grid size, 2 through 10,000; defaults to 50. Validated even when
-///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// thread_count : int, optional
@@ -942,8 +936,8 @@ sampling_settings!(
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, steps outside 2 through
-///     10,000, thread_count is negative, or Sobol paths are not a power of two.
+///     If paths are outside 1 through 10,000,000, thread_count is negative,
+///     or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -958,12 +952,13 @@ sampling_settings!(
 /// Each call owns its workers and samples. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
 /// Simulation uses trading days when knock-in matters, or observation
-/// dates and expiry otherwise. step_count is validated but unused.
+/// dates and expiry otherwise.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloAutocallableEngine(pub(crate) core::MonteCarloAutocallableEngine);
 
 sampling_settings!(
     MonteCarloAutocallableEngine,
+    [],
     /// Return the price without changing the instrument or context.
     ///
     /// Parameters
@@ -1105,9 +1100,6 @@ sampling_settings!(
 /// path_count : int, optional
 ///     Exact path count, 1 through 10,000,000; defaults to 100,000.
 ///     Sobol sampling requires a power of two.
-/// step_count : int, optional
-///     Grid size, 2 through 10,000; defaults to 50. Validated even when
-///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
 /// thread_count : int, optional
@@ -1121,8 +1113,8 @@ sampling_settings!(
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, steps outside 2 through
-///     10,000, thread_count is negative, or Sobol paths are not a power of two.
+///     If paths are outside 1 through 10,000,000, thread_count is negative,
+///     or Sobol paths are not a power of two.
 ///
 /// See Also
 /// --------
@@ -1133,13 +1125,14 @@ sampling_settings!(
 /// Fixed seeds reproduce results across thread counts in the same build.
 /// Each call owns its workers and samples. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
-/// Simulation uses the future trading dates; step_count is validated but
-/// unused. A current knock-out settles before any purchase.
+/// Simulation uses the future trading dates. A current knock-out settles
+/// before any purchase.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloAccumulatorEngine(pub(crate) core::MonteCarloAccumulatorEngine);
 
 sampling_settings!(
     MonteCarloAccumulatorEngine,
+    [],
     /// Return the price without changing the instrument or context.
     ///
     /// Parameters

@@ -11,7 +11,7 @@ use std::f64::consts::PI;
 ///
 /// Continuous monitoring uses one terminal draw and an image/spectral
 /// Brownian-bridge survival series. Scheduled monitoring uses original fixing
-/// dates and an unobserved expiry leg when needed. Steps are validated but unused.
+/// dates and an unobserved expiry leg when needed. Ignores `step_count`.
 /// Sampling, exact path counts and thread reproducibility follow
 /// [`MonteCarloBarrierEngine`]. Shared and distinct instances permit concurrent
 /// calls with request-owned workers and samples. See [`Self::price_with_greeks`].

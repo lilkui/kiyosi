@@ -4,9 +4,8 @@ use crate::engines::analytic::barrier::{
 };
 use crate::{
     AnalyticDoubleBarrierEngine, AnalyticEuropeanEngine, BarrierOption, DoubleBarrierOption, Greek,
-    GreeksRequest, MonteCarloSettings, MonteCarloVanillaEngine, NumericalShiftSettings,
-    ObservationMode, OptionContract, OptionType, PricingContext, PricingEngine, PricingResult,
-    RebateTiming, Result,
+    GreeksRequest, MonteCarloSettings, NumericalShiftSettings, ObservationMode, OptionContract,
+    OptionType, PricingContext, PricingEngine, PricingResult, RebateTiming, Result,
 };
 
 #[derive(Clone, Copy)]
@@ -19,8 +18,8 @@ pub(super) enum Contract<'a> {
 ///
 /// Continuous monitoring uses one terminal draw and Brownian-bridge survival;
 /// scheduled monitoring uses original fixing dates and an unobserved expiry leg
-/// when needed. Steps are validated but unused. Sampling, exact path counts and
-/// thread reproducibility follow [`MonteCarloVanillaEngine`]. Shared and distinct
+/// when needed. Ignores `step_count`. Sampling, exact path counts and
+/// thread reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
 /// instances support concurrent calls with request-owned workers and samples.
 /// Returns likelihood-ratio delta/gamma; scalar numerical analysis is available
 /// through [`crate::numerical_greeks`]. See [`Self::price_with_greeks`].
@@ -32,13 +31,15 @@ pub struct MonteCarloBarrierEngine {
 impl MonteCarloBarrierEngine {
     /// Creates an engine with validated shared CPU sampling settings.
     ///
-    /// See [`MonteCarloVanillaEngine::new`] for configuration examples.
+    /// See [`crate::MonteCarloVanillaEngine::new`] for configuration examples.
+    ///
+    /// Ignores `step_count`; see [`MonteCarloSettings`].
     ///
     /// # Errors
     ///
-    /// Reuses [`MonteCarloVanillaEngine::new`] validation and error categories.
+    /// Returns [`crate::Error::InvalidInput`] for invalid paths, threads or sampling.
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {
-        MonteCarloVanillaEngine::new(settings)?;
+        settings.validate()?;
         Ok(Self { settings })
     }
 

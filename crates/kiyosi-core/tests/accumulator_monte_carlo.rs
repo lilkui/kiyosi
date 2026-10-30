@@ -141,7 +141,7 @@ fn counts_pair_uncertainty_sobol_and_threads_preserve_the_same_samples() {
                 for threads in [0, 3] {
                     let parallel = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
                         thread_count: threads,
-                        step_count: 2,
+                        step_count: i32::MAX,
                         ..settings
                     })
                     .unwrap()
@@ -398,10 +398,6 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
         },
         MonteCarloSettings {
             path_count: 10_000_001,
-            ..Default::default()
-        },
-        MonteCarloSettings {
-            step_count: 1,
             ..Default::default()
         },
         MonteCarloSettings {

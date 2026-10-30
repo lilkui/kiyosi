@@ -167,6 +167,7 @@ fn sampling_settings_counts_and_threads_preserve_prices_and_uncertainty() {
                     .unwrap();
                 let parallel = MonteCarloAutocallableEngine::new(MonteCarloSettings {
                     thread_count: 3,
+                    step_count: i32::MIN,
                     ..settings
                 })
                 .unwrap()
@@ -197,10 +198,6 @@ fn sampling_settings_counts_and_threads_preserve_prices_and_uncertainty() {
     for settings in [
         MonteCarloSettings {
             path_count: 0,
-            ..Default::default()
-        },
-        MonteCarloSettings {
-            step_count: 1,
             ..Default::default()
         },
         MonteCarloSettings {

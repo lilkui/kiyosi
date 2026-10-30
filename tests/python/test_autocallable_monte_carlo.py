@@ -47,15 +47,14 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         self.assertEqual(
             (
                 engine.path_count,
-                engine.step_count,
                 engine.seed,
                 engine.thread_count,
                 engine.sampling,
                 engine.antithetic,
             ),
-            (100000, 50, None, 0, "pseudo_random", False),
+            (100000, None, 0, "pseudo_random", False),
         )
-        for field in ("path_count", "step_count", "thread_count", "seed"):
+        for field in ("path_count", "thread_count", "seed"):
             for value, error in (
                 (True, TypeError),
                 (2.5, TypeError),
@@ -70,7 +69,6 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             MC(sampling="invalid")
         for fields in (
             {"path_count": 0},
-            {"step_count": 1},
             {"thread_count": -1},
             {"path_count": 31, "sampling": "sobol"},
         ):

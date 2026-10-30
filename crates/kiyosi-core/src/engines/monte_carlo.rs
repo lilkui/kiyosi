@@ -45,7 +45,8 @@ pub struct MonteCarloSettings {
     pub path_count: i32,
     /// Sets 2..=10,000 grid points (default 50); American pricing before expiry needs 3.
     ///
-    /// Asian arithmetic integration uses this many intervals; exact distributions, barriers, autocallables and accumulators ignore it.
+    /// Vanilla and Asian engines validate this field. Arithmetic Asian integration uses
+    /// this many intervals; digital, barrier, autocallable and accumulator engines ignore it.
     pub step_count: i32,
     /// Selects a reproducible stream, or system entropy when absent (the default).
     pub seed: Option<u64>,
@@ -67,6 +68,21 @@ impl Default for MonteCarloSettings {
             sampling: MonteCarloSampling::PseudoRandom,
             antithetic: false,
         }
+    }
+}
+
+impl MonteCarloSettings {
+    fn validate(self) -> Result<()> {
+        if !(1..=10_000_000).contains(&self.path_count) || self.thread_count < 0 {
+            return Err(Error::InvalidInput("invalid Monte Carlo settings".into()));
+        }
+        if self.sampling == MonteCarloSampling::Sobol && !(self.path_count as u32).is_power_of_two()
+        {
+            return Err(Error::InvalidInput(
+                "Sobol path count must be a power of two".into(),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -120,7 +136,7 @@ impl MonteCarloEstimate {
 }
 
 impl MonteCarloVanillaEngine {
-    /// Creates an engine after validating paths, steps, threads and sampling, in that order.
+    /// Creates an engine after validating grid and sampling settings.
     ///
     /// # Errors
     ///
@@ -144,19 +160,10 @@ impl MonteCarloVanillaEngine {
     /// # Ok(()) }
     /// ```
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {
-        if !(1..=10_000_000).contains(&settings.path_count)
-            || !(2..=10_000).contains(&settings.step_count)
-            || settings.thread_count < 0
-        {
+        if !(2..=10_000).contains(&settings.step_count) {
             return Err(Error::InvalidInput("invalid Monte Carlo settings".into()));
         }
-        if settings.sampling == MonteCarloSampling::Sobol
-            && !(settings.path_count as u32).is_power_of_two()
-        {
-            return Err(Error::InvalidInput(
-                "Sobol path count must be a power of two".into(),
-            ));
-        }
+        settings.validate()?;
         Ok(Self { settings })
     }
 

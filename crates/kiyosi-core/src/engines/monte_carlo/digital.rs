@@ -1,16 +1,16 @@
 use super::{random_seed, scaled_value, terminal_samples, unstable};
 use crate::{
-    DigitalOption, Error, Greek, GreeksRequest, MonteCarloSettings, MonteCarloVanillaEngine,
-    NumericalShiftSettings, OptionType, PricingContext, PricingEngine, PricingResult, Result,
+    DigitalOption, Error, Greek, GreeksRequest, MonteCarloSettings, NumericalShiftSettings,
+    OptionType, PricingContext, PricingEngine, PricingResult, Result,
 };
 
 /// Prices European cash-or-nothing and asset-or-nothing contracts by terminal sampling.
 ///
 /// Uses flat BSM rates, standardized strict exercise tests and likelihood-ratio
 /// delta/gamma. Other engine Greeks remain absent; scalar numerical sensitivities
-/// are available through [`crate::numerical_greeks`]. Steps are validated but unused.
+/// are available through [`crate::numerical_greeks`]. Ignores `step_count`.
 /// Sampling, exact path counts, thread caps and reproducibility follow
-/// [`MonteCarloVanillaEngine`]. Shared and distinct instances permit concurrent
+/// [`crate::MonteCarloVanillaEngine`]. Shared and distinct instances permit concurrent
 /// calls; every call owns its samples and workers. See [`Self::price_with_greeks`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MonteCarloDigitalEngine {
@@ -20,13 +20,15 @@ pub struct MonteCarloDigitalEngine {
 impl MonteCarloDigitalEngine {
     /// Creates an engine with validated shared CPU sampling settings.
     ///
-    /// See [`MonteCarloVanillaEngine::new`] for sampling configuration examples.
+    /// See [`crate::MonteCarloVanillaEngine::new`] for sampling configuration examples.
+    ///
+    /// Ignores `step_count`; see [`MonteCarloSettings`].
     ///
     /// # Errors
     ///
-    /// Reuses [`MonteCarloVanillaEngine::new`] validation and error categories.
+    /// Returns [`crate::Error::InvalidInput`] for invalid paths, threads or sampling.
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {
-        MonteCarloVanillaEngine::new(settings)?;
+        settings.validate()?;
         Ok(Self { settings })
     }
 

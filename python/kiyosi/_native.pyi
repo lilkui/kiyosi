@@ -775,7 +775,6 @@ class MonteCarloDigitalEngine:
         self,
         *,
         path_count: int = ...,
-        step_count: int = ...,
         seed: int | None = None,
         thread_count: int = ...,
         sampling: MonteCarloSampling = ...,
@@ -783,8 +782,6 @@ class MonteCarloDigitalEngine:
     ) -> None: ...
     @property
     def path_count(self) -> int: ...
-    @property
-    def step_count(self) -> int: ...
     @property
     def seed(self) -> int | None: ...
     @property
@@ -816,7 +813,6 @@ class MonteCarloBarrierEngine:
         self,
         *,
         path_count: int = ...,
-        step_count: int = ...,
         seed: int | None = None,
         thread_count: int = ...,
         sampling: MonteCarloSampling = ...,
@@ -824,8 +820,6 @@ class MonteCarloBarrierEngine:
     ) -> None: ...
     @property
     def path_count(self) -> int: ...
-    @property
-    def step_count(self) -> int: ...
     @property
     def seed(self) -> int | None: ...
     @property
@@ -857,7 +851,6 @@ class MonteCarloDoubleBarrierEngine:
         self,
         *,
         path_count: int = ...,
-        step_count: int = ...,
         seed: int | None = None,
         thread_count: int = ...,
         sampling: MonteCarloSampling = ...,
@@ -865,8 +858,6 @@ class MonteCarloDoubleBarrierEngine:
     ) -> None: ...
     @property
     def path_count(self) -> int: ...
-    @property
-    def step_count(self) -> int: ...
     @property
     def seed(self) -> int | None: ...
     @property
@@ -898,7 +889,6 @@ class MonteCarloAutocallableEngine:
         self,
         *,
         path_count: int = ...,
-        step_count: int = ...,
         seed: int | None = None,
         thread_count: int = ...,
         sampling: MonteCarloSampling = ...,
@@ -906,8 +896,6 @@ class MonteCarloAutocallableEngine:
     ) -> None: ...
     @property
     def path_count(self) -> int: ...
-    @property
-    def step_count(self) -> int: ...
     @property
     def seed(self) -> int | None: ...
     @property
@@ -953,7 +941,6 @@ class MonteCarloAccumulatorEngine:
         self,
         *,
         path_count: int = ...,
-        step_count: int = ...,
         seed: int | None = None,
         thread_count: int = ...,
         sampling: MonteCarloSampling = ...,
@@ -961,8 +948,6 @@ class MonteCarloAccumulatorEngine:
     ) -> None: ...
     @property
     def path_count(self) -> int: ...
-    @property
-    def step_count(self) -> int: ...
     @property
     def seed(self) -> int | None: ...
     @property

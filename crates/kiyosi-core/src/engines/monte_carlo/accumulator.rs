@@ -1,8 +1,7 @@
 use super::{Moments, estimate, path_samples, random_seed, scaled_value, unstable};
 use crate::{
     Accumulator, Error, GreeksRequest, MonteCarloEstimate, MonteCarloSettings,
-    MonteCarloVanillaEngine, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
-    Result,
+    NumericalShiftSettings, PricingContext, PricingEngine, PricingResult, Result,
 };
 
 /// Prices accumulators with exact lognormal transitions between trading dates.
@@ -11,9 +10,9 @@ use crate::{
 /// before purchases and acceleration strictly below strike. Accrued units settle
 /// at knock-out or expiry. History follows [`Accumulator`]; zero prior quantity
 /// means none. Uses flat BSM rates and Actual/365 Fixed time; `step_count` is
-/// validated but unused. Draws complete normal vectors before evaluating paths,
+/// ignored. Draws complete normal vectors before evaluating paths,
 /// so early termination never shifts later draws. Sampling and thread
-/// reproducibility follow [`MonteCarloVanillaEngine`]. Shared and distinct
+/// reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
 /// instances permit concurrent calls with request-owned workers and buffers.
 /// Greeks and implied-volatility solves pin one request-local seed; solver
 /// tolerances constrain the sampled curve, not its statistical error.
@@ -26,9 +25,11 @@ pub struct MonteCarloAccumulatorEngine {
 impl MonteCarloAccumulatorEngine {
     /// Creates an engine with validated CPU sampling settings.
     ///
+    /// Ignores `step_count`; see [`MonteCarloSettings`].
+    ///
     /// # Errors
     ///
-    /// Propagates [`MonteCarloVanillaEngine::new`] validation errors.
+    /// Returns [`crate::Error::InvalidInput`] for invalid paths, threads or sampling.
     ///
     /// # Examples
     ///
@@ -53,7 +54,7 @@ impl MonteCarloAccumulatorEngine {
     /// # Ok(()) }
     /// ```
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {
-        MonteCarloVanillaEngine::new(settings)?;
+        settings.validate()?;
         Ok(Self { settings })
     }
 

@@ -329,7 +329,7 @@ fn thread_step_and_sampling_contracts_preserve_exact_samples_and_pairing() {
                 };
                 let serial = MonteCarloDoubleBarrierEngine::new(settings).unwrap();
                 let parallel = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
-                    step_count: 10000,
+                    step_count: i32::MIN,
                     thread_count: 4,
                     ..settings
                 })
@@ -616,10 +616,6 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
     for settings in [
         MonteCarloSettings {
             path_count: 0,
-            ..Default::default()
-        },
-        MonteCarloSettings {
-            step_count: 1,
             ..Default::default()
         },
         MonteCarloSettings {
