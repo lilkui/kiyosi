@@ -36,7 +36,7 @@ impl AnalyticBarrierEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        price(option, context, &std::sync::OnceLock::new())
+        price(option, context, None)
     }
     /// Computes requested scalar numerical Greeks with shared bump defaults.
     ///
@@ -66,20 +66,25 @@ pub(crate) fn checked(value: f64) -> Result<f64> {
 fn price(
     option: &BarrierOption,
     context: &PricingContext,
-    schedule: &std::sync::OnceLock<ScheduleValidation>,
+    schedule: Option<&std::sync::OnceLock<ScheduleValidation>>,
 ) -> Result<f64> {
     context.model_parameters().risk_free_rate()?;
     context.model_parameters().dividend_yield()?;
     validate_life(option, context)?;
-    let cached = schedule.get().filter(|cached| {
-        &cached.schedule == option.observation_schedule() && cached.calendar == *context.calendar()
-    });
+    let cached = schedule
+        .and_then(|schedule| schedule.get())
+        .filter(|cached| {
+            &cached.schedule == option.observation_schedule()
+                && cached.calendar == *context.calendar()
+        });
     if cached.is_none() {
         validate_schedule(option, context)?;
-        let _ = schedule.set(ScheduleValidation {
-            schedule: option.observation_schedule().clone(),
-            calendar: context.calendar().clone(),
-        });
+        if let Some(schedule) = schedule {
+            let _ = schedule.set(ScheduleValidation {
+                schedule: option.observation_schedule().clone(),
+                calendar: context.calendar().clone(),
+            });
+        }
     }
     match resolved_price(option, context)? {
         Some(value) => Ok(value),
@@ -178,7 +183,7 @@ impl PricingEngine<BarrierOption> for BarrierPricer {
         AnalyticBarrierEngine.validate_applicability(context)
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        price(option, context, &self.0)
+        price(option, context, Some(&self.0))
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
         volatility_affects_price(option, context)
