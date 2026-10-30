@@ -1,3 +1,4 @@
+use super::barrier::log_ratio;
 use crate::{ArithmeticAveragePriceOption, GeometricAveragePriceOption};
 use crate::{
     Error, GreeksRequest, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
@@ -135,14 +136,6 @@ impl AnalyticGeometricAveragePriceEngine {
     }
 }
 
-pub(crate) fn log_ratio(value: f64, other: f64) -> f64 {
-    let relative = (value - other) / other;
-    if relative.abs() < 0.5 {
-        relative.ln_1p()
-    } else {
-        value.ln() - other.ln()
-    }
-}
 fn exprel(x: f64) -> f64 {
     if x == 0.0 { 1.0 } else { x.exp_m1() / x }
 }

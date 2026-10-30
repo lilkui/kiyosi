@@ -1,5 +1,6 @@
 use std::f64::consts::{FRAC_1_SQRT_2, PI};
 
+use super::barrier::{log_ratio, standardize};
 use crate::{
     Error, EuropeanOption, Greek, GreeksRequest, NumericalShiftSettings, OptionType,
     PricingContext, PricingEngine, PricingResult, Result,
@@ -47,19 +48,9 @@ pub(crate) fn black_scholes_arguments(
     volatility: f64,
     root_time: f64,
 ) -> (f64, f64) {
-    let relative = (spot - strike) / strike;
-    let log_moneyness = if relative.abs() < 0.5 {
-        relative.ln_1p()
-    } else {
-        spot.ln() - strike.ln()
-    };
-    let forward = log_moneyness + log_carry;
+    let forward = log_ratio(spot, strike) + log_carry;
     let width = volatility * root_time;
-    let standardized = if width == 0.0 {
-        (forward / volatility) / root_time
-    } else {
-        forward / width
-    };
+    let standardized = standardize(forward, volatility, root_time);
     (standardized + 0.5 * width, standardized - 0.5 * width)
 }
 
@@ -313,4 +304,37 @@ pub(crate) fn lognormal_price(
         ));
     }
     Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::black_scholes_arguments;
+
+    #[test]
+    fn arguments_preserve_scaled_moneyness_and_underflowing_width() {
+        for (spot, strike, expected) in [
+            (1e300, 5e299, std::f64::consts::LN_2),
+            (1e-300, 5e-301, std::f64::consts::LN_2),
+            (1.0 + f64::EPSILON, 1.0, f64::EPSILON.ln_1p()),
+            (
+                f64::MAX,
+                f64::MIN_POSITIVE,
+                f64::MAX.ln() - f64::MIN_POSITIVE.ln(),
+            ),
+            (
+                f64::MIN_POSITIVE,
+                f64::MAX,
+                f64::MIN_POSITIVE.ln() - f64::MAX.ln(),
+            ),
+        ] {
+            let (d1, d2) = black_scholes_arguments(spot, strike, 0.0, 1.0, 1.0);
+            assert!((d1 - (expected + 0.5)).abs() <= f64::EPSILON);
+            assert!((d2 - (expected - 0.5)).abs() <= f64::EPSILON);
+        }
+        let tiny = f64::from_bits(1);
+        assert_eq!(
+            black_scholes_arguments(1.0, 1.0, tiny, tiny, 0.5),
+            (2.0, 2.0)
+        );
+    }
 }

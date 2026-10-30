@@ -1,4 +1,5 @@
-use crate::engines::analytic::asian::{checked, coverage, log_ratio, scaled_exp, settlement};
+use crate::engines::analytic::asian::{checked, coverage, scaled_exp, settlement};
+use crate::engines::analytic::barrier::log_ratio;
 use crate::instruments::asian::AverageTerms;
 use crate::{
     ArithmeticAveragePriceOption, Error, GeometricAveragePriceOption, GreeksRequest,
