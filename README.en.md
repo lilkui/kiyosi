@@ -22,7 +22,7 @@ Kiyosi is a Rust-powered Python library for pricing vanilla and exotic derivativ
 | Double-touch and double-no-touch options | FD |
 | Snowballs, binary and ternary snowballs | Quadrature, FD, MC |
 | Phoenix notes | Quadrature, FD, MC |
-| Accumulators / decumulators | Quadrature, FD, MC |
+| Accumulators | Quadrature, FD, MC |
 | Range accruals | Sum of analytic BSM range probabilities |
 
 ## Installation
