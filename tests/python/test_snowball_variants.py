@@ -27,6 +27,23 @@ from test_snowball import END, START, autocallable_observations, market, structu
 
 
 class SnowballVariantTests(unittest.TestCase):
+    def test_history_replacement_preserves_terms_and_rejects_binary_knock_in(self):
+        for kind in (BinarySnowballOption, TernarySnowballOption):
+            note = self.fixed(kind)
+            states = (None, "none", "knocked_out")
+            if kind is TernarySnowballOption:
+                states += ("knocked_in",)
+            for state in states:
+                with self.subTest(kind=kind.__name__, state=state):
+                    replaced = note.replace(barrier_state=state)
+                    self.assertEqual(replaced, self.fixed(kind, barrier_state=state))
+                    self.assertEqual(replaced.replace(barrier_state=None), note)
+            self.assertEqual(note, self.fixed(kind))
+        binary = self.fixed(BinarySnowballOption)
+        with self.assertRaises(InvalidInputError):
+            binary.replace(barrier_state="knocked_in")
+        self.assertEqual(binary, self.fixed(BinarySnowballOption))
+
     def test_fixed_terminal_regions_and_no_binary_monitoring(self):
         common = {
             "maturity_coupon_rate": 0.06,

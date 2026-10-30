@@ -579,11 +579,13 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     ///
     /// # Errors
     ///
-    /// Propagates [`Self::new`] validation errors without changing this note.
+    /// Returns [`Error::InvalidInput`] for a knock-in state on a binary snowball.
+    /// Other terms retain their validated values; this note remains unchanged.
     pub fn replace(&self, barrier_state: Option<AutocallableBarrierState>) -> Result<Self> {
+        self.view().validate_history(barrier_state)?;
         let mut terms = self.0.clone();
         terms.set_history(barrier_state);
-        Self::new(terms)
+        Ok(Self(terms))
     }
     /// Borrows the complete validated terms; see [`Self::new`].
     pub fn terms(&self) -> &T {
@@ -783,6 +785,15 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
 }
 
 impl sealed::View<'_> {
+    fn validate_history(&self, barrier_state: Option<AutocallableBarrierState>) -> Result<()> {
+        if !self.has_knock_in && barrier_state == Some(AutocallableBarrierState::KnockedIn) {
+            return Err(Error::InvalidInput(
+                "knock-in state requires a knock-in barrier".into(),
+            ));
+        }
+        Ok(())
+    }
+
     fn validate(&self) -> Result<()> {
         let terms = self;
         if terms.fixed_knocked_in_coupon.is_none() {
@@ -819,11 +830,7 @@ impl sealed::View<'_> {
         for r in terms.observations {
             finite(r.knock_out_level, true)?;
         }
-        if !terms.has_knock_in && terms.barrier_state == Some(AutocallableBarrierState::KnockedIn) {
-            return Err(Error::InvalidInput(
-                "knock-in state requires a knock-in barrier".into(),
-            ));
-        }
+        terms.validate_history(terms.barrier_state)?;
         finite(terms.knock_in_level, true)?;
         if let Some(coupon) = terms.fixed_knocked_in_coupon {
             finite(coupon, false)?;

@@ -16,6 +16,28 @@ fn observations() -> Vec<AutocallableObservation> {
 }
 
 #[test]
+fn binary_history_replacement_preserves_terms_and_rejects_knock_in() {
+    let terms = BinarySnowballTerms::new(-0.02, date(1, 1), date(4, 1), observations());
+    let note = BinarySnowballOption::new(terms.clone()).unwrap();
+    for state in [
+        None,
+        Some(AutocallableBarrierState::None),
+        Some(AutocallableBarrierState::KnockedOut),
+    ] {
+        let mut expected = terms.clone();
+        expected.barrier_state = state;
+        let replaced = note.replace(state).unwrap();
+        assert_eq!(replaced, BinarySnowballOption::new(expected).unwrap());
+        assert_eq!(replaced.replace(None).unwrap(), note);
+    }
+    assert!(matches!(
+        note.replace(Some(AutocallableBarrierState::KnockedIn)),
+        Err(Error::InvalidInput(_))
+    ));
+    assert_eq!(note, BinarySnowballOption::new(terms).unwrap());
+}
+
+#[test]
 fn binary_has_no_knock_in_and_pays_signed_flat_maturity_coupon() {
     let mut terms = BinarySnowballTerms::new(-0.02, date(1, 1), date(4, 1), observations());
     terms.principal_ratio = 0.5;
