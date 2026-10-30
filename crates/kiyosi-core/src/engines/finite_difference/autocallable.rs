@@ -387,7 +387,7 @@ fn native<T: AutocallableTerms>(
         concentrate(&mut space, levels, scale)?;
     }
     let theta = settings.scheme.theta();
-    grid.validate_barrier_stability(
+    grid.validate_stability(
         &space,
         sigma,
         theta,

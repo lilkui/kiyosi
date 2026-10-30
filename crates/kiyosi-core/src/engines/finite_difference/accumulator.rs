@@ -174,7 +174,7 @@ fn native(
     }
     let grid = TimeGrid::with_events(time, settings.time_step_count, &risk, &dividend, &trading);
     let theta = settings.scheme.theta();
-    grid.validate_barrier_stability(&space, sigma, theta, true, &risk, &dividend)?;
+    grid.validate_stability(&space, sigma, theta, true, &risk, &dividend)?;
     let count = if option.accrues() { 2 } else { 1 };
     let mut layers = [vec![0.0; space.count + 1], vec![0.0; space.count + 1]];
     let mut next = layers.clone();

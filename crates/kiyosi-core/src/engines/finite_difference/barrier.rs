@@ -291,7 +291,7 @@ fn native_barrier(
     );
     let sigma = model.volatility();
     let theta = settings.scheme.theta();
-    grid.validate_barrier_stability(&space, sigma, theta, scheduled, &risk, &dividend)?;
+    grid.validate_stability(&space, sigma, theta, scheduled, &risk, &dividend)?;
     let sign = if terms.option_type() == OptionType::Call {
         1.0
     } else {

@@ -210,25 +210,7 @@ fn native(
     )?;
     let time_grid = TimeGrid::new(time, settings.time_step_count, &risk, &dividend);
     let theta = settings.scheme.theta();
-    if theta == 0.0 {
-        for (index, &dt) in time_grid.widths.iter().enumerate() {
-            let middle = time_grid.times[index]
-                + 0.5 * (time_grid.times[index + 1] - time_grid.times[index]);
-            let rate = risk.rate(middle);
-            let q = dividend.rate(middle);
-            let decay = if payoff.american {
-                (1..space.count)
-                    .map(|i| -space.coefficients(i, rate, q, sigma)[1])
-                    .fold(0.0, f64::max)
-            } else {
-                let n = space.count as f64;
-                (sigma * sigma * n * n).max((rate - q).abs() * n) + rate
-            };
-            if dt * decay > 1.0 {
-                return Err(invalid_grid("explicit finite-difference grid is unstable"));
-            }
-        }
-    }
+    time_grid.validate_stability(&space, sigma, theta, !payoff.american, &risk, &dividend)?;
     let terminal = |asset| {
         if !payoff.digital {
             return payoff.value(asset);

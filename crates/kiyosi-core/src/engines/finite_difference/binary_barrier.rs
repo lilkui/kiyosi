@@ -294,7 +294,7 @@ fn native(
     );
     let sigma = model.volatility();
     let theta = settings.scheme.theta();
-    grid.validate_barrier_stability(&space, sigma, theta, scheduled, &risk, &dividend)?;
+    grid.validate_stability(&space, sigma, theta, scheduled, &risk, &dividend)?;
     let knocked = |asset| {
         upper_barrier.is_some_and(|upper| asset >= upper)
             || if up {

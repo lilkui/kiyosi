@@ -322,12 +322,12 @@ pub(super) struct TimeGrid {
 }
 
 impl TimeGrid {
-    pub fn validate_barrier_stability(
+    pub fn validate_stability(
         &self,
         space: &SpatialGrid,
         sigma: f64,
         theta: f64,
-        scheduled: bool,
+        uniform: bool,
         risk: &Curve,
         dividend: &Curve,
     ) -> Result<()> {
@@ -336,7 +336,7 @@ impl TimeGrid {
                 let middle = self.times[index].midpoint(self.times[index + 1]);
                 let rate = risk.rate(middle);
                 let q = dividend.rate(middle);
-                let decay = if scheduled {
+                let decay = if uniform {
                     let n = space.count as f64;
                     (sigma * sigma * n * n).max((rate - q).abs() * n) + rate
                 } else {
