@@ -123,8 +123,10 @@ impl DoubleBarrierOption {
     ///
     /// Raises
     /// ------
-    /// KiyosiError
-    ///     If replacement terms fail domain validation. The original is unchanged.
+    /// TypeError
+    ///     If a field is unknown or touch_state is neither a string nor None.
+    /// ValueError
+    ///     If touch_state is an unknown choice.
     #[pyo3(signature = (**fields))]
     fn replace(&self, py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
         check_changes(fields, &["touch_state"])?;

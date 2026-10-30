@@ -192,13 +192,11 @@ impl BarrierOption {
             touch_state: terms.touch_state,
         })
     }
-    /// Returns an owning copy with replaced history, preserving the original on failure.
+    /// Returns an owning copy with replaced history, leaving the original unchanged.
     ///
     /// Time consistency is checked during pricing. `None` restores unknown history.
     ///
-    /// # Errors
-    ///
-    /// Reuses [`Self::new`] validation; typed history cannot invalidate construction.
+    /// Preserves the validated terms; typed history cannot invalidate construction.
     ///
     /// # Examples
     ///
@@ -213,18 +211,9 @@ impl BarrierOption {
     /// # Ok(()) }
     /// ```
     pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Result<Self> {
-        Self::new(BarrierOptionTerms {
-            option_type: self.option_type(),
-            strike: self.strike(),
-            effective_date: self.effective_date(),
-            expiry_date: self.expiry_date(),
-            barrier_level: self.barrier_level,
-            barrier_type: self.barrier_type,
-            rebate: self.rebate,
-            rebate_timing: self.rebate_timing,
-            observation_mode: self.observation_mode,
-            observation_dates: self.observation_dates().to_vec(),
+        Ok(Self {
             touch_state,
+            ..self.clone()
         })
     }
     /// Returns the call-or-put direction; see [`Self::new`].

@@ -175,10 +175,8 @@ impl DoubleTouchOption {
     }
     /// Returns an owning copy with replaced history; `None` restores unknown. See [`Self::cash`].
     ///
-    /// # Errors
-    ///
-    /// Reuses [`DoubleBarrierOption::replace`] validation; typed history cannot invalidate construction.
-    /// The original value remains unchanged on every outcome.
+    /// Preserves validated monitoring terms through [`DoubleBarrierOption::replace`].
+    /// The original value remains unchanged.
     pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Result<Self> {
         Ok(Self {
             monitoring: self.monitoring.replace(touch_state)?,

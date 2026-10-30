@@ -147,9 +147,7 @@ impl DoubleBarrierOption {
     ///
     /// Time consistency is checked during pricing. The original is preserved on every outcome.
     ///
-    /// # Errors
-    ///
-    /// Reuses [`BarrierOption::replace`] validation; typed history cannot invalidate construction.
+    /// Preserves validated monitoring terms through [`BarrierOption::replace`].
     ///
     /// # Examples
     ///
