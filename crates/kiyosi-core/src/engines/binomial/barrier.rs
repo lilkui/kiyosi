@@ -118,7 +118,6 @@ impl CoxRossRubinsteinBarrierEngine {
                     option.vanilla(),
                     context,
                     request,
-                    Default::default(),
                 );
             }
             let mut result = PricingResult::new(value)?;

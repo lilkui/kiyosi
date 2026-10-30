@@ -186,14 +186,14 @@ class AnalyticsTests(unittest.TestCase):
         del self.context
         self.assertEqual(full.delta, 0.586851146134764)
 
-    def test_strict_shift_and_solver_representations(self):
+    def test_native_greeks_reject_bump_controls_and_solver_representations(self):
         for field in (
             "spot_shift",
             "volatility_shift",
             "rate_shift",
             "time_shift_days",
         ):
-            for bad in (True, "1", None, complex(1)):
+            for bad in (0.01, 0, -1, math.nan, math.inf, True, "1", None, complex(1)):
                 with self.subTest(field=field, bad=bad), self.assertRaises(TypeError):
                     self.engine.price_with_greeks(
                         self.option, self.context, "delta", **{field: bad}
@@ -210,25 +210,15 @@ class AnalyticsTests(unittest.TestCase):
                     implied_volatility(
                         self.engine, self.option, self.context, 9.227, **{field: bad}
                     )
-        for field, call in (
-            (
-                "time_shift_days",
-                lambda **kw: self.engine.price_with_greeks(
-                    self.option, self.context, "delta", **kw
-                ),
-            ),
-            (
-                "max_iterations",
-                lambda **kw: implied_volatility(
-                    self.engine, self.option, self.context, 9.227, **kw
-                ),
-            ),
-        ):
-            for value in (1.5, 1.0, Fraction(3, 2)):
-                with self.assertRaises(TypeError):
-                    call(**{field: value})
-            with self.assertRaises(OverflowError):
-                call(**{field: 2**40})
+        for value in (1.5, 1.0, Fraction(3, 2)):
+            with self.assertRaises(TypeError):
+                implied_volatility(
+                    self.engine, self.option, self.context, 9.227, max_iterations=value
+                )
+        with self.assertRaises(OverflowError):
+            implied_volatility(
+                self.engine, self.option, self.context, 9.227, max_iterations=2**40
+            )
         for quote in (True, "1", None):
             with self.assertRaises(TypeError):
                 implied_volatility(self.engine, self.option, self.context, quote)
@@ -240,9 +230,7 @@ class AnalyticsTests(unittest.TestCase):
             implied_volatility(self.engine, self.option, self.context, 9.227, 0.1)
         with self.assertRaises(TypeError):
             self.engine.price_with_greeks(self.option, self.context, "delta", unknown=1)
-        result = self.engine.price_with_greeks(
-            self.option, self.context, "delta", spot_shift=Fraction(1, 100)
-        )
+        result = self.engine.price_with_greeks(self.option, self.context, "delta")
         self.assertAlmostEqual(result.delta, 0.586851146134764, delta=1e-12)
 
     def test_domain_errors_validation_order_and_failure_state(self):
@@ -253,25 +241,6 @@ class AnalyticsTests(unittest.TestCase):
                 self.engine, self.option, context or self.context, observed, **kw
             )
 
-        for field in (
-            "spot_shift",
-            "volatility_shift",
-            "rate_shift",
-            "time_shift_days",
-        ):
-            for bad in (0, -1):
-                with self.assertRaises(InvalidInputError) as error:
-                    self.engine.price_with_greeks(
-                        self.option, self.context, "delta", **{field: bad}
-                    )
-                self.assertIs(type(error.exception), InvalidInputError)
-        for field in ("spot_shift", "volatility_shift", "rate_shift"):
-            for bad in (math.nan, math.inf):
-                with self.assertRaises(InvalidInputError) as error:
-                    self.engine.price_with_greeks(
-                        self.option, self.context, "delta", **{field: bad}
-                    )
-                self.assertIs(type(error.exception), InvalidInputError)
         for controls in (
             {"lower_bound": 0},
             {"lower_bound": 4},

@@ -41,7 +41,7 @@
 //! let context = PricingContext::new(model, 100.0, start.into())?;
 //! assert!((AnalyticEuropeanEngine.price(&option, &context)? - 9.227005508154036).abs() < 1e-12);
 //! let result = AnalyticEuropeanEngine.price_with_greeks(&option, &context,
-//!     kiyosi_core::GreeksRequest::all(), Default::default())?;
+//!     kiyosi_core::GreeksRequest::all())?;
 //! assert!(result.require(kiyosi_core::Greek::Delta)? > 0.0);
 //! let sigma = kiyosi_core::implied_volatility(&AnalyticEuropeanEngine, &option,
 //!     &context, result.price(), Default::default())?;

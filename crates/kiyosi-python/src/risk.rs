@@ -1,9 +1,9 @@
-use crate::conversions::{check_changes, integer, real};
+use crate::conversions::{boolean, check_changes, integer, real};
 use crate::error::domain;
 use kiyosi_core as core;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict};
+use pyo3::types::PyDict;
 
 pub(crate) fn greek(value: &Bound<'_, PyAny>) -> PyResult<core::Greek> {
     let name = value.extract::<&str>()?;
@@ -21,14 +21,16 @@ pub(crate) fn request(
         .map(|s| s.get_item("all_greeks"))
         .transpose()?
         .flatten();
-    let all = if let Some(all) = all {
-        if !all.is_instance_of::<PyBool>() {
-            return Err(PyTypeError::new_err("all_greeks must be bool"));
-        }
-        all.extract::<bool>()?
-    } else {
-        false
-    };
+    greeks_request(
+        greeks,
+        all.as_ref().map(boolean).transpose()?.unwrap_or(false),
+    )
+}
+
+pub(crate) fn greeks_request(
+    greeks: Option<&Bound<'_, PyAny>>,
+    all: bool,
+) -> PyResult<core::GreeksRequest> {
     let greeks = greeks.filter(|g| !g.is_none());
     if all {
         if greeks.is_some() {

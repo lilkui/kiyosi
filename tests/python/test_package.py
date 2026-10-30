@@ -6,6 +6,7 @@ import inspect
 import pickle
 import tomllib
 import unittest
+from datetime import date
 from pathlib import Path
 
 import kiyosi
@@ -13,6 +14,57 @@ from kiyosi import _native, instruments, market, pricing
 
 
 class PackageTests(unittest.TestCase):
+    def test_native_greek_methods_expose_only_request_controls(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        terms = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_date": start,
+            "expiry_date": end,
+        }
+        for engine, option in (
+            (pricing.AnalyticEuropeanEngine(), instruments.EuropeanOption(**terms)),
+            (
+                pricing.MonteCarloDigitalEngine(path_count=32, seed=42),
+                instruments.CashOrNothingOption(**terms, payout=10),
+            ),
+            *(
+                (
+                    pricing.MonteCarloAsianEngine(path_count=32, seed=42),
+                    kind(**terms, averaging_start_date=start),
+                )
+                for kind in (
+                    instruments.GeometricAveragePriceOption,
+                    instruments.ArithmeticAveragePriceOption,
+                )
+            ),
+        ):
+            with self.subTest(
+                engine=type(engine).__name__, instrument=type(option).__name__
+            ):
+                self.assertEqual(
+                    tuple(inspect.signature(engine.price_with_greeks).parameters),
+                    ("instrument", "context", "greeks", "all_greeks"),
+                )
+                for field in (
+                    "spot_shift",
+                    "volatility_shift",
+                    "rate_shift",
+                    "time_shift_days",
+                ):
+                    with self.assertRaises(TypeError):
+                        engine.price_with_greeks(option, context, "delta", **{field: 1})
+                for invalid in (1, None, "true"):
+                    with self.assertRaises(TypeError):
+                        engine.price_with_greeks(option, context, all_greeks=invalid)
+
     def test_constructors_and_factories_match_declared_keywords(self):
         stub = ast.parse((Path(kiyosi.__file__).parent / "_native.pyi").read_text())
         factories = [pricing.implied_volatility]

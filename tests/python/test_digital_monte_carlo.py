@@ -200,7 +200,7 @@ class DigitalNumericalTests(unittest.TestCase):
                     [],
                 )
                 self.assert_rejection(
-                    InvalidInputError,
+                    TypeError,
                     engine.price_with_greeks,
                     option,
                     market(),

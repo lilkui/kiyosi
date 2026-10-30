@@ -286,10 +286,6 @@ class AnalyticEuropeanEngine:
         greeks: Greek | Iterable[Greek] | None = None,
         *,
         all_greeks: bool = False,
-        spot_shift: float = ...,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
     ) -> PricingResult: ...
 
 class BjerksundStenslandVanillaEngine:
@@ -802,10 +798,6 @@ class MonteCarloDigitalEngine:
         greeks: Greek | Iterable[Greek] | None = None,
         *,
         all_greeks: bool = False,
-        spot_shift: float = ...,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
     ) -> PricingResult: ...
 
 class MonteCarloBarrierEngine:
@@ -1008,10 +1000,6 @@ class MonteCarloAsianEngine:
         greeks: Greek | Iterable[Greek] | None = None,
         *,
         all_greeks: bool = False,
-        spot_shift: float = ...,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
     ) -> PricingResult: ...
 
 class QuadratureDigitalEngine:

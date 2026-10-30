@@ -102,6 +102,10 @@ pub(crate) fn real(value: &Bound<'_, PyAny>) -> PyResult<f64> {
     value.extract()
 }
 
+pub(crate) fn boolean(value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    value.cast::<PyBool>()?.extract()
+}
+
 pub(crate) fn direction(value: &Bound<'_, PyAny>) -> PyResult<core::OptionType> {
     match value.extract::<&str>()? {
         "call" => Ok(core::OptionType::Call),

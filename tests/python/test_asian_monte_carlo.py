@@ -233,7 +233,7 @@ class AsianMonteCarloTests(unittest.TestCase):
                     self.assertEqual(selected.gamma, result.gamma)
                     self.assertIsNone(selected.delta)
                     self.assert_rejection(
-                        InvalidInputError,
+                        TypeError,
                         engine.price_with_greeks,
                         instrument,
                         context,
@@ -416,7 +416,6 @@ class AsianMonteCarloTests(unittest.TestCase):
             option(GeometricAveragePriceOption),
             context,
             [],
-            spot_shift=0,
         )
         settled = context.replace(valuation_time=END)
         self.assertEqual(
@@ -435,7 +434,7 @@ class AsianMonteCarloTests(unittest.TestCase):
                 ({"greeks": "delta", "all_greeks": True}, TypeError),
                 ({"greeks": "delta", "spot_shift": True}, TypeError),
                 ({"greeks": "delta", "time_shift_days": 1.5}, TypeError),
-                ({"greeks": "delta", "time_shift_days": 2**40}, OverflowError),
+                ({"greeks": "delta", "time_shift_days": 2**40}, TypeError),
             ):
                 with self.assertRaises(exception):
                     engine.price_with_greeks(instrument, context, **settings)

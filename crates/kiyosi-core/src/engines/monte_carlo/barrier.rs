@@ -183,7 +183,6 @@ impl MonteCarloBarrierEngine {
                     option.vanilla(),
                     context,
                     request,
-                    shifts,
                 );
             }
             let mut result = PricingResult::new(value)?;

@@ -58,12 +58,12 @@ impl AnalyticEuropeanEngine {
     /// Returns the price and selected analytic Greeks.
     ///
     /// At expiry every Greek is unavailable. Time derivatives hold curve nodes
-    /// fixed and use right-hand rates at knots. Shift settings are validated
-    /// but do not change analytic derivatives. See the [crate example](crate).
+    /// fixed and use right-hand rates at knots. Native derivatives require no
+    /// numerical bumps. See the [crate example](crate).
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for empty requests or invalid shifts,
+    /// Returns [`Error::InvalidInput`] for empty requests,
     /// then propagates [`Self::price`] errors. Non-finite requested derivatives
     /// return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price_with_greeks(
@@ -71,10 +71,8 @@ impl AnalyticEuropeanEngine {
         option: &EuropeanOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         request.validate()?;
-        settings.validate()?;
         let mut result = PricingResult::new(self.price(option, context)?)?;
         let valuation = context.valuation_time();
         let expiry = option.expiry_date().start_of_day();
@@ -242,9 +240,9 @@ impl PricingEngine for AnalyticEuropeanEngine {
         option: &EuropeanOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
+        _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        Self::price_with_greeks(self, option, context, request, settings)
+        Self::price_with_greeks(self, option, context, request)
     }
 }
 

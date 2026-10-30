@@ -7,6 +7,12 @@ across thread counts in the same build. Sobol estimates omit sampling error.
 Autocallable and accumulator ``price`` calls return the sample mean;
 ``price_with_statistics`` also computes and validates sampling uncertainty.
 
+``AnalyticEuropeanEngine``, ``MonteCarloDigitalEngine`` and
+``MonteCarloAsianEngine`` compute native Greeks without numerical bumps;
+their ``price_with_greeks`` methods accept only ``greeks`` and ``all_greeks``
+as request controls. Engines that use numerical differences also accept bump
+settings.
+
 ``CouponQuoteConvention`` controls whether a snowball's maturity coupon
 shifts with observation coupons (``"shift_maturity_coupon"``) or stays fixed
 (``"preserve_maturity_coupon"``). Phoenix coupon solves omit this choice.

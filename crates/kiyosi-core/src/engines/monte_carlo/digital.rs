@@ -65,13 +65,13 @@ impl MonteCarloDigitalEngine {
 
     /// Returns requested likelihood-ratio delta/gamma from the price's normal draws.
     ///
-    /// All other Greeks, and all expiry Greeks, remain absent. Shifts are validated
-    /// but unused. Near-expiry estimates can have substantial sampling error.
+    /// All other Greeks, and all expiry Greeks, remain absent. No numerical bumps
+    /// are required. Near-expiry estimates can have substantial sampling error.
     ///
     /// # Errors
     ///
-    /// Checks flat-rate applicability before requests and shifts, then propagates
-    /// [`Self::price`] errors. Empty requests or invalid shifts return
+    /// Checks flat-rate applicability before requests, then propagates
+    /// [`Self::price`] errors. Empty requests return
     /// [`Error::InvalidInput`]; non-finite requested Greek samples return
     /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     ///
@@ -94,7 +94,7 @@ impl MonteCarloDigitalEngine {
     ///     seed: Some(42), ..Default::default()
     /// })?;
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::all(), Default::default())?;
+    ///     GreeksRequest::all())?;
     /// assert!(result.require(Greek::Delta)? > 0.0);
     /// assert!(!result.has(Greek::Vega));
     /// # Ok(()) }
@@ -104,11 +104,9 @@ impl MonteCarloDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         self.validate_applicability(context)?;
         request.validate()?;
-        settings.validate()?;
         self.native(option, context, request)
     }
 
@@ -235,8 +233,8 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
+        _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        Self::price_with_greeks(self, option, context, request, settings)
+        Self::price_with_greeks(self, option, context, request)
     }
 }

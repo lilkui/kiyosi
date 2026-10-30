@@ -259,7 +259,7 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
         .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
         .unwrap();
     let expected = AnalyticEuropeanEngine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     for greek in Greek::ALL {
         let tolerance = expected.require(greek).unwrap().abs() * 0.02 + 1e-6;

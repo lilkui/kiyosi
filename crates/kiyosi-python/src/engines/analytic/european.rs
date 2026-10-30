@@ -1,10 +1,10 @@
+use crate::conversions::boolean;
 use crate::error::domain;
 use crate::instruments::vanilla::EuropeanOption;
 use crate::market::PricingContext;
 use crate::risk;
 use kiyosi_core as core;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 /// Analytic European vanilla pricing with deterministic rate curves.
 ///
 /// See Also
@@ -32,16 +32,6 @@ impl AnalyticEuropeanEngine {
     ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
     /// all_greeks : bool, optional
     ///     Request every measure; omit `greeks` when True. Defaults to False.
-    /// spot_shift : float, optional
-    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
-    /// volatility_shift : float, optional
-    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
-    /// rate_shift : float, optional
-    ///     Positive finite parallel risk-free-rate bump in decimal units;
-    ///     defaults to 0.0001.
-    /// time_shift_days : int, optional
-    ///     Positive forward/backward time bump in calendar days; defaults to 1.
-    ///     All bumps are validated even when analytic Greeks are available.
     ///
     /// Returns
     /// -------
@@ -52,8 +42,8 @@ impl AnalyticEuropeanEngine {
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If requests, shifts, pricing or a feasible bumped valuation fails.
-    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    ///     If requests, pricing or requested derivatives fail.
+    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false))]
     fn price_with_greeks(
         &self,
         py: Python<'_>,
@@ -63,18 +53,12 @@ impl AnalyticEuropeanEngine {
         >,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
-        settings: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = boolean)] all_greeks: bool,
     ) -> PyResult<risk::PricingResult> {
-        let request = risk::request(greeks, settings)?;
-        let shifts = risk::shifts(settings)?;
+        let request = risk::greeks_request(greeks, all_greeks)?;
         Ok(risk::PricingResult(domain(
             py,
-            core::AnalyticEuropeanEngine.price_with_greeks(
-                &instrument.0,
-                &context.0,
-                request,
-                shifts,
-            ),
+            core::AnalyticEuropeanEngine.price_with_greeks(&instrument.0, &context.0, request),
         )?))
     }
 

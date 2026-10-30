@@ -78,7 +78,7 @@ impl MonteCarloAsianEngine {
     /// })?;
     /// assert!((engine.price(&option, &context)? - 5.0359).abs() < 0.2);
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     kiyosi_core::GreeksRequest::all(), Default::default())?;
+    ///     kiyosi_core::GreeksRequest::all())?;
     /// assert!(result.has(kiyosi_core::Greek::Delta));
     /// assert!(!result.has(kiyosi_core::Greek::Vega));
     /// # Ok(()) }
@@ -92,14 +92,14 @@ impl MonteCarloAsianEngine {
 
     /// Returns requested native delta/gamma from the price's shared normal draws.
     ///
-    /// Other Greeks and all expiry Greeks remain absent. Shifts are validated but
-    /// unused. For scalar differences and history-boundary stencil rules, use
+    /// Other Greeks and all expiry Greeks remain absent. No numerical bumps are
+    /// required. For scalar differences and history-boundary stencil rules, use
     /// [`crate::numerical_greeks`], which pins a request-local seed even for unseeded
-    /// engines. Defaults remain [`NumericalShiftSettings`]'s. See [`Self::price`].
+    /// engines. See [`Self::price`].
     ///
     /// # Errors
     ///
-    /// Rejects empty requests and invalid shifts with [`Error::InvalidInput`]
+    /// Rejects empty requests with [`Error::InvalidInput`]
     /// before pricing, then propagates [`Self::price`] errors.
     /// Non-finite requested Greeks return [`Error::ComputationFailure`].
     /// Inputs remain unchanged on success and failure.
@@ -112,12 +112,17 @@ impl MonteCarloAsianEngine {
         option: &I,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult>
     where
         Self: PricingEngine<I>,
     {
-        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request, shifts)
+        <Self as PricingEngine<I>>::price_with_greeks(
+            self,
+            option,
+            context,
+            request,
+            Default::default(),
+        )
     }
 
     fn seeded(&self) -> Result<Self> {
@@ -389,10 +394,9 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         option: &GeometricAveragePriceOption,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
+        _shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         request.validate()?;
-        shifts.validate()?;
         self.native(&option.0, context, true, request)
     }
 }
@@ -422,10 +426,9 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         option: &ArithmeticAveragePriceOption,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
+        _shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         request.validate()?;
-        shifts.validate()?;
         self.native(&option.0, context, false, request)
     }
     fn volatility_affects_price(

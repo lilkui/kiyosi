@@ -1,4 +1,4 @@
-use crate::conversions::{check_integer, integer};
+use crate::conversions::{boolean, check_integer, integer};
 use crate::engines::binomial;
 use crate::error::domain;
 use crate::instruments::accumulator;
@@ -13,11 +13,7 @@ use crate::risk;
 use kiyosi_core as core;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict};
-
-fn boolean(value: &Bound<'_, PyAny>) -> PyResult<bool> {
-    value.cast::<PyBool>()?.extract()
-}
+use pyo3::types::PyDict;
 
 fn sampling(value: &Bound<'_, PyAny>) -> PyResult<core::MonteCarloSampling> {
     match value.extract::<&str>()? {
@@ -430,16 +426,6 @@ sampling_settings!(
     ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
     /// all_greeks : bool, optional
     ///     Request every measure; omit `greeks` when True. Defaults to False.
-    /// spot_shift : float, optional
-    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
-    /// volatility_shift : float, optional
-    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
-    /// rate_shift : float, optional
-    ///     Positive finite parallel risk-free-rate bump in decimal units;
-    ///     defaults to 0.0001.
-    /// time_shift_days : int, optional
-    ///     Positive forward/backward time bump in calendar days; defaults to 1.
-    ///     All bumps are validated even when analytic Greeks are available.
     ///
     /// Returns
     /// -------
@@ -450,12 +436,12 @@ sampling_settings!(
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If requests, shifts, pricing or a feasible bumped valuation fails.
+    ///     If requests, pricing or requested derivatives fail.
     ///
     /// Notes
     /// -----
     /// System entropy and worker-creation failures raise OSError.
-    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false))]
     fn price_with_greeks(
         &self,
         py: Python<'_>,
@@ -463,16 +449,15 @@ sampling_settings!(
         instrument: digital::DigitalInstrument<'_>,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
-        settings: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = boolean)] all_greeks: bool,
     ) -> PyResult<risk::PricingResult> {
-        let request = risk::request(greeks, settings)?;
-        let shifts = risk::shifts(settings)?;
+        let request = risk::greeks_request(greeks, all_greeks)?;
         let engine = self.0;
         let option = instrument.contract().clone();
         let context = context.0.clone();
         Ok(risk::PricingResult(domain(
             py,
-            py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+            py.detach(|| engine.price_with_greeks(&option, &context, request)),
         )?))
     }
 );
@@ -577,16 +562,6 @@ sampling_settings!(
     ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
     /// all_greeks : bool, optional
     ///     Request every measure; omit `greeks` when True. Defaults to False.
-    /// spot_shift : float, optional
-    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
-    /// volatility_shift : float, optional
-    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
-    /// rate_shift : float, optional
-    ///     Positive finite parallel risk-free-rate bump in decimal units;
-    ///     defaults to 0.0001.
-    /// time_shift_days : int, optional
-    ///     Positive forward/backward time bump in calendar days; defaults to 1.
-    ///     All bumps are validated even when analytic Greeks are available.
     ///
     /// Returns
     /// -------
@@ -597,12 +572,12 @@ sampling_settings!(
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If requests, shifts, pricing or a feasible bumped valuation fails.
+    ///     If requests, pricing or requested derivatives fail.
     ///
     /// Notes
     /// -----
     /// System entropy and worker-creation failures raise OSError.
-    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false))]
     fn price_with_greeks(
         &self,
         py: Python<'_>,
@@ -611,10 +586,9 @@ sampling_settings!(
         >,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
-        settings: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = boolean)] all_greeks: bool,
     ) -> PyResult<risk::PricingResult> {
-        let request = risk::request(greeks, settings)?;
-        let shifts = risk::shifts(settings)?;
+        let request = risk::greeks_request(greeks, all_greeks)?;
         let engine = self.0;
         let context = context.0.clone();
         let result = match instrument {
@@ -622,14 +596,14 @@ sampling_settings!(
                 let option = option.0.clone();
                 domain(
                     py,
-                    py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+                    py.detach(|| engine.price_with_greeks(&option, &context, request)),
                 )
             }
             asian::AsianInstrument::Arithmetic(option) => {
                 let option = option.0.clone();
                 domain(
                     py,
-                    py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+                    py.detach(|| engine.price_with_greeks(&option, &context, request)),
                 )
             }
         }?;

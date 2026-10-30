@@ -161,7 +161,7 @@ impl PricingResult {
 
 /// Configures absolute finite-difference bumps.
 ///
-/// Positive values are validated even for analytic requests.
+/// Numerical pricing requests validate all bump settings before calculation.
 /// See [`crate::numerical_greeks`] for usage.
 #[derive(Clone, Copy, Debug)]
 pub struct NumericalShiftSettings {
@@ -240,6 +240,8 @@ pub trait PricingEngine<I = EuropeanOption> {
     fn price(&self, option: &I, context: &PricingContext) -> Result<f64>;
 
     /// Returns requested sensitivities, using scalar differences unless overridden.
+    ///
+    /// Settings configure numerical differences; native-only overrides ignore them.
     ///
     /// See [`crate::CoxRossRubinsteinVanillaEngine::price_with_greeks`] for an example.
     ///
