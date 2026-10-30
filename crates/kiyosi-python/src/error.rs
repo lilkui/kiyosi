@@ -1,4 +1,3 @@
-use kiyosi as core;
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 
@@ -39,19 +38,21 @@ pyo3::create_exception!(
     "Iteration or integration limit reached without convergence."
 );
 
-pub(crate) fn domain<T>(_py: Python<'_>, result: core::Result<T>) -> PyResult<T> {
+pub(crate) fn domain<T>(_py: Python<'_>, result: kiyosi::Result<T>) -> PyResult<T> {
     result.map_err(|error| match error {
-        core::Error::InvalidInput(message) => InvalidInputError::new_err(message.into_owned()),
-        core::Error::UnsupportedOperation(message) => {
+        kiyosi::Error::InvalidInput(message) => InvalidInputError::new_err(message.into_owned()),
+        kiyosi::Error::UnsupportedOperation(message) => {
             UnsupportedOperationError::new_err(message.into_owned())
         }
-        core::Error::ComputationFailure(message) => {
+        kiyosi::Error::ComputationFailure(message) => {
             ComputationFailureError::new_err(message.into_owned())
         }
-        core::Error::RootNotBracketed(message) => {
+        kiyosi::Error::RootNotBracketed(message) => {
             RootNotBracketedError::new_err(message.into_owned())
         }
-        core::Error::NonConvergence(message) => NonConvergenceError::new_err(message.into_owned()),
-        core::Error::Io(error) => error.into(),
+        kiyosi::Error::NonConvergence(message) => {
+            NonConvergenceError::new_err(message.into_owned())
+        }
+        kiyosi::Error::Io(error) => error.into(),
     })
 }

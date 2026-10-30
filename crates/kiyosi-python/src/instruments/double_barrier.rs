@@ -2,15 +2,14 @@ use crate::conversions::{check_changes, date, dates, direction, python_date, rea
 use crate::error::domain;
 use crate::instruments::barrier::{history, mode, timing};
 use crate::schedule::ObservationSchedule;
-use kiyosi as core;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};
 
-fn kind(value: &Bound<'_, PyAny>) -> PyResult<core::DoubleBarrierType> {
+fn kind(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::DoubleBarrierType> {
     match value.extract::<&str>()? {
-        "knock_in" => Ok(core::DoubleBarrierType::KnockIn),
-        "knock_out" => Ok(core::DoubleBarrierType::KnockOut),
+        "knock_in" => Ok(kiyosi::DoubleBarrierType::KnockIn),
+        "knock_out" => Ok(kiyosi::DoubleBarrierType::KnockOut),
         _ => Err(PyValueError::new_err("unknown barrier_type")),
     }
 }
@@ -52,12 +51,12 @@ fn kind(value: &Bound<'_, PyAny>) -> PyResult<core::DoubleBarrierType> {
 ///     rebate timing are invalid. Calendar and history checks occur at pricing.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct DoubleBarrierOption(pub core::DoubleBarrierOption);
+pub(crate) struct DoubleBarrierOption(pub kiyosi::DoubleBarrierOption);
 
 #[pymethods]
 impl DoubleBarrierOption {
     #[new]
-    #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, lower_barrier, upper_barrier, barrier_type, rebate=core::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=core::RebateTiming::default(), observation_mode=core::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+    #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, lower_barrier, upper_barrier, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         py: Python<'_>,
@@ -69,12 +68,12 @@ impl DoubleBarrierOption {
         upper_barrier: &Bound<'_, PyAny>,
         barrier_type: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = real)] rebate: f64,
-        #[pyo3(from_py_with = timing)] rebate_timing: core::RebateTiming,
-        #[pyo3(from_py_with = mode)] observation_mode: core::ObservationMode,
-        #[pyo3(from_py_with = dates)] observation_dates: Vec<core::Date>,
-        #[pyo3(from_py_with = history)] touch_state: Option<core::BarrierTouchState>,
+        #[pyo3(from_py_with = timing)] rebate_timing: kiyosi::RebateTiming,
+        #[pyo3(from_py_with = mode)] observation_mode: kiyosi::ObservationMode,
+        #[pyo3(from_py_with = dates)] observation_dates: Vec<kiyosi::Date>,
+        #[pyo3(from_py_with = history)] touch_state: Option<kiyosi::BarrierTouchState>,
     ) -> PyResult<Self> {
-        let mut terms = core::DoubleBarrierOptionTerms::new(
+        let mut terms = kiyosi::DoubleBarrierOptionTerms::new(
             direction(option_type)?,
             real(strike)?,
             date(effective_date)?,
@@ -88,7 +87,7 @@ impl DoubleBarrierOption {
         terms.observation_mode = observation_mode;
         terms.observation_dates = observation_dates;
         terms.touch_state = touch_state;
-        Ok(Self(domain(py, core::DoubleBarrierOption::new(terms))?))
+        Ok(Self(domain(py, kiyosi::DoubleBarrierOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -125,7 +124,7 @@ impl DoubleBarrierOption {
     /// Return call or put payoff direction.
     #[getter]
     fn option_type(&self) -> &'static str {
-        if self.0.option_type() == core::OptionType::Call {
+        if self.0.option_type() == kiyosi::OptionType::Call {
             "call"
         } else {
             "put"
@@ -160,8 +159,8 @@ impl DoubleBarrierOption {
     #[getter]
     fn barrier_type(&self) -> &'static str {
         match self.0.barrier_type() {
-            core::DoubleBarrierType::KnockIn => "knock_in",
-            core::DoubleBarrierType::KnockOut => "knock_out",
+            kiyosi::DoubleBarrierType::KnockIn => "knock_in",
+            kiyosi::DoubleBarrierType::KnockOut => "knock_out",
         }
     }
     /// Return nonnegative finite cash rebate; defaults to zero.
@@ -173,16 +172,16 @@ impl DoubleBarrierOption {
     #[getter]
     fn rebate_timing(&self) -> &'static str {
         match self.0.rebate_timing() {
-            core::RebateTiming::AtHit => "at_hit",
-            core::RebateTiming::AtExpiry => "at_expiry",
+            kiyosi::RebateTiming::AtHit => "at_hit",
+            kiyosi::RebateTiming::AtExpiry => "at_expiry",
         }
     }
     /// Return continuous monitoring or observations on the supplied dates.
     #[getter]
     fn observation_mode(&self) -> &'static str {
         match self.0.observation_mode() {
-            core::ObservationMode::Continuous => "continuous",
-            core::ObservationMode::Scheduled => "scheduled",
+            kiyosi::ObservationMode::Continuous => "continuous",
+            kiyosi::ObservationMode::Scheduled => "scheduled",
         }
     }
     /// Return an owned copy of the monitoring schedule.
@@ -203,8 +202,8 @@ impl DoubleBarrierOption {
     #[getter]
     fn touch_state(&self) -> Option<&'static str> {
         self.0.touch_state().map(|s| match s {
-            core::BarrierTouchState::Untouched => "untouched",
-            core::BarrierTouchState::Touched => "touched",
+            kiyosi::BarrierTouchState::Untouched => "untouched",
+            kiyosi::BarrierTouchState::Touched => "touched",
         })
     }
 }

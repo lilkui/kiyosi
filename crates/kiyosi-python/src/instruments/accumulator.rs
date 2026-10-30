@@ -1,6 +1,5 @@
 use crate::conversions::{date, python_date, real};
 use crate::error::domain;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
 
@@ -36,12 +35,12 @@ use pyo3::types::PyDate;
 /// do not value a contract whose settlement has already occurred.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct Accumulator(pub(crate) core::Accumulator);
+pub(crate) struct Accumulator(pub(crate) kiyosi::Accumulator);
 
 #[pymethods]
 impl Accumulator {
     #[new]
-    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_date, expiry_date, accumulated_quantity=core::AccumulatorTerms::DEFAULT_ACCUMULATED_QUANTITY))]
+    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_date, expiry_date, accumulated_quantity=kiyosi::AccumulatorTerms::DEFAULT_ACCUMULATED_QUANTITY))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         py: Python<'_>,
@@ -53,7 +52,7 @@ impl Accumulator {
         expiry_date: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = real)] accumulated_quantity: f64,
     ) -> PyResult<Self> {
-        let mut terms = core::AccumulatorTerms::new(
+        let mut terms = kiyosi::AccumulatorTerms::new(
             real(strike)?,
             real(knock_out_level)?,
             real(daily_quantity)?,
@@ -62,7 +61,7 @@ impl Accumulator {
             date(expiry_date)?,
         );
         terms.accumulated_quantity = accumulated_quantity;
-        Ok(Self(domain(py, core::Accumulator::new(terms))?))
+        Ok(Self(domain(py, kiyosi::Accumulator::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
     ///

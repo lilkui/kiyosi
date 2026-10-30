@@ -1,7 +1,6 @@
 use crate::calendar::TradingCalendar;
 use crate::conversions::{check_changes, python_date, python_timestamp, real, timestamp};
 use crate::error::domain;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};
 
@@ -30,7 +29,7 @@ use pyo3::types::{PyDate, PyDict};
 /// times after the last node. Negative rates are allowed.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct RateTermStructure(pub(crate) core::RateTermStructure);
+pub(crate) struct RateTermStructure(pub(crate) kiyosi::RateTermStructure);
 
 #[pymethods]
 impl RateTermStructure {
@@ -53,7 +52,7 @@ impl RateTermStructure {
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self(domain(
             py,
-            core::RateTermStructure::new(reference, nodes, factors),
+            kiyosi::RateTermStructure::new(reference, nodes, factors),
         )?))
     }
     /// Create a continuously compounded flat rate curve.
@@ -83,7 +82,10 @@ impl RateTermStructure {
     ) -> PyResult<Self> {
         Ok(Self(domain(
             py,
-            core::RateTermStructure::flat(real(rate)?, reference_time.map(timestamp).transpose()?),
+            kiyosi::RateTermStructure::flat(
+                real(rate)?,
+                reference_time.map(timestamp).transpose()?,
+            ),
         )?))
     }
     /// Return whether the rate curve is explicitly flat.
@@ -213,7 +215,7 @@ impl RateTermStructure {
     }
 }
 
-fn rate(value: &Bound<'_, PyAny>) -> PyResult<core::Rate> {
+fn rate(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Rate> {
     if let Ok(curve) = value.extract::<PyRef<'_, RateTermStructure>>() {
         Ok(curve.0.clone().into())
     } else {
@@ -238,7 +240,7 @@ fn rate(value: &Bound<'_, PyAny>) -> PyResult<core::Rate> {
 ///     If scalar rates are non-finite or volatility is nonpositive/non-finite.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct BlackScholesMertonParameters(pub(crate) core::BlackScholesMertonParameters);
+pub(crate) struct BlackScholesMertonParameters(pub(crate) kiyosi::BlackScholesMertonParameters);
 
 #[pymethods]
 impl BlackScholesMertonParameters {
@@ -252,7 +254,7 @@ impl BlackScholesMertonParameters {
     ) -> PyResult<Self> {
         Ok(Self(domain(
             py,
-            core::BlackScholesMertonParameters::new(
+            kiyosi::BlackScholesMertonParameters::new(
                 rate(risk_free_rate)?,
                 rate(dividend_yield)?,
                 real(volatility)?,
@@ -282,7 +284,7 @@ impl BlackScholesMertonParameters {
     #[pyo3(signature = (**changes))]
     fn replace(&self, py: Python<'_>, changes: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
         check_changes(changes, &["risk_free_rate", "dividend_yield", "volatility"])?;
-        let mut update = core::BlackScholesMertonParameterChanges::default();
+        let mut update = kiyosi::BlackScholesMertonParameterChanges::default();
         if let Some(changes) = changes {
             update.risk_free_rate = changes
                 .get_item("risk_free_rate")?
@@ -360,7 +362,7 @@ impl BlackScholesMertonParameters {
 ///     either rate curve. Contract-life checks occur at pricing.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct PricingContext(pub(crate) core::PricingContext);
+pub(crate) struct PricingContext(pub(crate) kiyosi::PricingContext);
 
 #[pymethods]
 impl PricingContext {
@@ -375,7 +377,7 @@ impl PricingContext {
     ) -> PyResult<Self> {
         Ok(Self(domain(
             py,
-            core::PricingContext::with_calendar(
+            kiyosi::PricingContext::with_calendar(
                 model_parameters.0.clone(),
                 real(spot_price)?,
                 timestamp(valuation_time)?,
@@ -417,7 +419,7 @@ impl PricingContext {
                 "calendar",
             ],
         )?;
-        let mut update = core::PricingContextChanges::default();
+        let mut update = kiyosi::PricingContextChanges::default();
         if let Some(changes) = changes {
             update.model_parameters = changes
                 .get_item("model_parameters")?

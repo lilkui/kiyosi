@@ -1,10 +1,12 @@
 use crate::conversions::{check_changes, date, direction, python_date, real};
 use crate::error::domain;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};
 
-fn changes(fields: Option<&Bound<'_, PyDict>>, cash: bool) -> PyResult<core::DigitalOptionChanges> {
+fn changes(
+    fields: Option<&Bound<'_, PyDict>>,
+    cash: bool,
+) -> PyResult<kiyosi::DigitalOptionChanges> {
     let allowed = if cash {
         &[
             "option_type",
@@ -23,7 +25,7 @@ fn changes(fields: Option<&Bound<'_, PyDict>>, cash: bool) -> PyResult<core::Dig
             .transpose()
             .map(Option::flatten)
     };
-    Ok(core::DigitalOptionChanges {
+    Ok(kiyosi::DigitalOptionChanges {
         option_type: item("option_type")?.as_ref().map(direction).transpose()?,
         strike: item("strike")?.as_ref().map(real).transpose()?,
         payout: item("payout")?.as_ref().map(real).transpose()?,
@@ -37,7 +39,7 @@ macro_rules! digital_option {
         #[doc = $doc]
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(Clone, PartialEq)]
-        pub(crate) struct $name(pub core::DigitalOption);
+        pub(crate) struct $name(pub kiyosi::DigitalOption);
 
         #[pymethods]
         impl $name {
@@ -46,7 +48,7 @@ macro_rules! digital_option {
             fn new(py: Python<'_>, option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
                 $($payout: &Bound<'_, PyAny>,)? effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
             ) -> PyResult<Self> {
-                Ok(Self(domain(py, core::DigitalOption::$constructor(direction(option_type)?,
+                Ok(Self(domain(py, kiyosi::DigitalOption::$constructor(direction(option_type)?,
                     real(strike)?, $(real($payout)?,)? date(effective_date)?, date(expiry_date)?) )?))
             }
 
@@ -83,7 +85,7 @@ macro_rules! digital_option {
             /// Return call or put payoff direction.
             #[getter]
             fn option_type(&self) -> &'static str {
-                if self.0.option_type() == core::OptionType::Call { "call" } else { "put" }
+                if self.0.option_type() == kiyosi::OptionType::Call { "call" } else { "put" }
             }
             /// Return the exercise or purchase price in underlying price units.
             #[getter]
@@ -159,7 +161,7 @@ pub(crate) enum DigitalInstrument<'py> {
     Asset(PyRef<'py, AssetOrNothingOption>),
 }
 impl DigitalInstrument<'_> {
-    pub(crate) fn contract(&self) -> &core::DigitalOption {
+    pub(crate) fn contract(&self) -> &kiyosi::DigitalOption {
         match self {
             Self::Cash(option) => &option.0,
             Self::Asset(option) => &option.0,

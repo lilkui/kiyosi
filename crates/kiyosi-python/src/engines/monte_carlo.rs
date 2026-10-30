@@ -10,15 +10,14 @@ use crate::instruments::double_barrier;
 use crate::instruments::vanilla::EuropeanOption;
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi as core;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-fn sampling(value: &Bound<'_, PyAny>) -> PyResult<core::MonteCarloSampling> {
+fn sampling(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::MonteCarloSampling> {
     match value.extract::<&str>()? {
-        "pseudo_random" => Ok(core::MonteCarloSampling::PseudoRandom),
-        "sobol" => Ok(core::MonteCarloSampling::Sobol),
+        "pseudo_random" => Ok(kiyosi::MonteCarloSampling::PseudoRandom),
+        "sobol" => Ok(kiyosi::MonteCarloSampling::Sobol),
         _ => Err(PyValueError::new_err("unknown Monte Carlo sampling")),
     }
 }
@@ -28,17 +27,17 @@ macro_rules! sampling_settings {
         #[pymethods]
         impl $engine {
             #[new]
-            #[pyo3(signature = (*, path_count=core::MonteCarloSettings::default().path_count, $($step=core::MonteCarloSettings::default().$step,)? seed=None, thread_count=core::MonteCarloSettings::default().thread_count, sampling=core::MonteCarloSettings::default().sampling, antithetic=core::MonteCarloSettings::default().antithetic))]
+            #[pyo3(signature = (*, path_count=kiyosi::MonteCarloSettings::default().path_count, $($step=kiyosi::MonteCarloSettings::default().$step,)? seed=None, thread_count=kiyosi::MonteCarloSettings::default().thread_count, sampling=kiyosi::MonteCarloSettings::default().sampling, antithetic=kiyosi::MonteCarloSettings::default().antithetic))]
             fn new(
                 py: Python<'_>,
                 #[pyo3(from_py_with = integer)] path_count: i32,
                 $(#[pyo3(from_py_with = integer)] $step: i32,)?
                 seed: Option<&Bound<'_, PyAny>>,
                 #[pyo3(from_py_with = integer)] thread_count: i32,
-                #[pyo3(from_py_with = sampling)] sampling: core::MonteCarloSampling,
+                #[pyo3(from_py_with = sampling)] sampling: kiyosi::MonteCarloSampling,
                 #[pyo3(from_py_with = boolean)] antithetic: bool,
             ) -> PyResult<Self> {
-                let settings = core::MonteCarloSettings {
+                let settings = kiyosi::MonteCarloSettings {
                     path_count,
                     seed: seed.map(|value| {
                         check_integer(value)?;
@@ -49,8 +48,8 @@ macro_rules! sampling_settings {
                     antithetic,
                     ..Default::default()
                 };
-                $(let settings = core::MonteCarloSettings { $step, ..settings };)?
-                Ok(Self(domain(py, core::$engine::new(settings))?))
+                $(let settings = kiyosi::MonteCarloSettings { $step, ..settings };)?
+                Ok(Self(domain(py, kiyosi::$engine::new(settings))?))
             }
 
             /// Return the exact number of sampled paths.
@@ -79,8 +78,8 @@ macro_rules! sampling_settings {
             #[getter]
             fn sampling(&self) -> &'static str {
                 match self.0.settings().sampling {
-                    core::MonteCarloSampling::PseudoRandom => "pseudo_random",
-                    core::MonteCarloSampling::Sobol => "sobol",
+                    kiyosi::MonteCarloSampling::PseudoRandom => "pseudo_random",
+                    kiyosi::MonteCarloSampling::Sobol => "sobol",
                 }
             }
             /// Return whether opposite normal draws are paired.
@@ -135,7 +134,7 @@ macro_rules! sampling_settings {
 /// terminal spot rounds to the strike. American exercise grids use step_count
 /// points and require at least three before expiry.
 #[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct MonteCarloVanillaEngine(pub(crate) core::MonteCarloVanillaEngine);
+pub(crate) struct MonteCarloVanillaEngine(pub(crate) kiyosi::MonteCarloVanillaEngine);
 
 sampling_settings!(
     MonteCarloVanillaEngine,
@@ -282,8 +281,10 @@ sampling_settings!(
                 )
             }
             binomial::VanillaInstrument::American(option) => {
-                let default = core::NumericalShiftSettings {
-                    spot_shift: core::MonteCarloVanillaEngine::default_american_spot_shift(context),
+                let default = kiyosi::NumericalShiftSettings {
+                    spot_shift: kiyosi::MonteCarloVanillaEngine::default_american_spot_shift(
+                        context,
+                    ),
                     ..Default::default()
                 };
                 let fields = settings
@@ -317,7 +318,7 @@ sampling_settings!(
 /// Uncertainty is absent for Sobol, insufficient independent samples and odd
 /// antithetic counts; known pseudorandom settlements have zero uncertainty.
 #[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct MonteCarloEstimate(core::MonteCarloEstimate);
+pub(crate) struct MonteCarloEstimate(kiyosi::MonteCarloEstimate);
 
 #[pymethods]
 impl MonteCarloEstimate {
@@ -373,7 +374,7 @@ impl MonteCarloEstimate {
 /// request; solver tolerances do not measure sampling error.
 /// Only native delta and gamma are returned; other requested Greeks remain absent.
 #[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct MonteCarloDigitalEngine(pub(crate) core::MonteCarloDigitalEngine);
+pub(crate) struct MonteCarloDigitalEngine(pub(crate) kiyosi::MonteCarloDigitalEngine);
 
 sampling_settings!(
     MonteCarloDigitalEngine,
@@ -500,7 +501,7 @@ sampling_settings!(
 /// Arithmetic averages use step_count trapezoidal intervals with the first
 /// interval integrated conditionally.
 #[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct MonteCarloAsianEngine(pub(crate) core::MonteCarloAsianEngine);
+pub(crate) struct MonteCarloAsianEngine(pub(crate) kiyosi::MonteCarloAsianEngine);
 
 sampling_settings!(
     MonteCarloAsianEngine,
@@ -644,7 +645,7 @@ sampling_settings!(
 /// Monitoring uses continuous survival or the original fixing dates.
 /// Only delta and gamma are returned.
 #[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct MonteCarloBarrierEngine(pub(crate) core::MonteCarloBarrierEngine);
+pub(crate) struct MonteCarloBarrierEngine(pub(crate) kiyosi::MonteCarloBarrierEngine);
 
 sampling_settings!(
     MonteCarloBarrierEngine,
@@ -781,7 +782,7 @@ sampling_settings!(
 /// Monitoring uses continuous survival or the original fixing dates.
 /// Only delta and gamma are returned.
 #[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct MonteCarloDoubleBarrierEngine(pub(crate) core::MonteCarloDoubleBarrierEngine);
+pub(crate) struct MonteCarloDoubleBarrierEngine(pub(crate) kiyosi::MonteCarloDoubleBarrierEngine);
 
 sampling_settings!(
     MonteCarloDoubleBarrierEngine,
@@ -921,7 +922,7 @@ sampling_settings!(
 /// Simulation uses trading days when knock-in matters, or observation
 /// dates and expiry otherwise.
 #[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct MonteCarloAutocallableEngine(pub(crate) core::MonteCarloAutocallableEngine);
+pub(crate) struct MonteCarloAutocallableEngine(pub(crate) kiyosi::MonteCarloAutocallableEngine);
 
 sampling_settings!(
     MonteCarloAutocallableEngine,
@@ -1095,7 +1096,7 @@ sampling_settings!(
 /// Simulation uses the future trading dates. A current knock-out settles
 /// before any purchase.
 #[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct MonteCarloAccumulatorEngine(pub(crate) core::MonteCarloAccumulatorEngine);
+pub(crate) struct MonteCarloAccumulatorEngine(pub(crate) kiyosi::MonteCarloAccumulatorEngine);
 
 sampling_settings!(
     MonteCarloAccumulatorEngine,

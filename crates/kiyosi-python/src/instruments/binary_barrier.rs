@@ -2,7 +2,6 @@ use crate::conversions::{check_changes, date, dates, direction, python_date, rea
 use crate::error::domain;
 use crate::instruments::barrier;
 use crate::schedule::ObservationSchedule;
-use kiyosi as core;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};
@@ -15,7 +14,7 @@ use pyo3::types::{PyDate, PyDict};
 /// Barrier equality touches; terminal strike equality pays zero.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct BinaryBarrierOption(pub core::BinaryBarrierOption);
+pub(crate) struct BinaryBarrierOption(pub kiyosi::BinaryBarrierOption);
 
 /// Strike-free cash or asset one-touch or no-touch contract.
 ///
@@ -25,7 +24,7 @@ pub(crate) struct BinaryBarrierOption(pub core::BinaryBarrierOption);
 /// Prior at-hit payments are settled.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct TouchOption(pub core::TouchOption);
+pub(crate) struct TouchOption(pub kiyosi::TouchOption);
 
 macro_rules! monitoring_properties {
     ($name:ident, $($extra:item),* $(,)?) => {
@@ -77,10 +76,10 @@ macro_rules! monitoring_properties {
             #[getter]
             fn barrier_type(&self) -> &'static str {
                 match self.0.barrier_type() {
-                    core::BarrierType::UpAndIn => "up_and_in",
-                    core::BarrierType::UpAndOut => "up_and_out",
-                    core::BarrierType::DownAndIn => "down_and_in",
-                    core::BarrierType::DownAndOut => "down_and_out",
+                    kiyosi::BarrierType::UpAndIn => "up_and_in",
+                    kiyosi::BarrierType::UpAndOut => "up_and_out",
+                    kiyosi::BarrierType::DownAndIn => "down_and_in",
+                    kiyosi::BarrierType::DownAndOut => "down_and_out",
                 }
             }
             /// Return cash or asset settlement as a choice string.
@@ -93,8 +92,8 @@ macro_rules! monitoring_properties {
             #[getter]
             fn observation_mode(&self) -> &'static str {
                 match self.0.observation_mode() {
-                    core::ObservationMode::Continuous => "continuous",
-                    core::ObservationMode::Scheduled => "scheduled",
+                    kiyosi::ObservationMode::Continuous => "continuous",
+                    kiyosi::ObservationMode::Scheduled => "scheduled",
                 }
             }
             /// Return an owned copy of the monitoring schedule.
@@ -114,8 +113,8 @@ macro_rules! monitoring_properties {
             #[getter]
             fn touch_state(&self) -> Option<&'static str> {
                 self.0.touch_state().map(|s| match s {
-                    core::BarrierTouchState::Untouched => "untouched",
-                    core::BarrierTouchState::Touched => "touched",
+                    kiyosi::BarrierTouchState::Untouched => "untouched",
+                    kiyosi::BarrierTouchState::Touched => "touched",
                 })
             }
         }
@@ -126,7 +125,7 @@ monitoring_properties!(
     /// Return call or put payoff direction.
     #[getter]
     fn option_type(&self) -> &'static str {
-        if self.0.option_type() == core::OptionType::Call {
+        if self.0.option_type() == kiyosi::OptionType::Call {
             "call"
         } else {
             "put"
@@ -154,8 +153,8 @@ monitoring_properties!(
     #[getter]
     fn settlement_timing(&self) -> &'static str {
         match self.0.settlement_timing() {
-            core::SettlementTiming::AtHit => "at_hit",
-            core::SettlementTiming::AtExpiry => "at_expiry",
+            kiyosi::SettlementTiming::AtHit => "at_hit",
+            kiyosi::SettlementTiming::AtExpiry => "at_expiry",
         }
     }
 );
@@ -164,23 +163,23 @@ macro_rules! binary_factory {
     ($name:ident, $constructor:ident $(, $payout:ident)?, $doc:literal) => {
         #[doc = $doc]
         #[pyfunction]
-        #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, barrier_level, barrier_type, $($payout,)? observation_mode=core::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+        #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, barrier_level, barrier_type, $($payout,)? observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
         pub(crate) fn $name(py: Python<'_>, option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
             effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
             barrier_level: &Bound<'_, PyAny>, barrier_type: &Bound<'_, PyAny>,
             $($payout: &Bound<'_, PyAny>,)?
-            #[pyo3(from_py_with = barrier::mode)] observation_mode: core::ObservationMode,
-            #[pyo3(from_py_with = dates)] observation_dates: Vec<core::Date>,
-            #[pyo3(from_py_with = barrier::history)] touch_state: Option<core::BarrierTouchState>,
+            #[pyo3(from_py_with = barrier::mode)] observation_mode: kiyosi::ObservationMode,
+            #[pyo3(from_py_with = dates)] observation_dates: Vec<kiyosi::Date>,
+            #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
         ) -> PyResult<BinaryBarrierOption> {
-            let mut terms = core::BinaryBarrierTerms::new(direction(option_type)?, real(strike)?,
+            let mut terms = kiyosi::BinaryBarrierTerms::new(direction(option_type)?, real(strike)?,
                 date(effective_date)?, date(expiry_date)?, real(barrier_level)?, barrier::kind(barrier_type)?);
             $(let $payout = real($payout)?;)?
             terms.observation_mode = observation_mode;
             terms.observation_dates = observation_dates;
             terms.touch_state = touch_state;
-            Ok(BinaryBarrierOption(domain(py, core::BinaryBarrierOption::$constructor(terms $(, $payout)?))?))
+            Ok(BinaryBarrierOption(domain(py, kiyosi::BinaryBarrierOption::$constructor(terms $(, $payout)?))?))
         }
     };
 }
@@ -276,10 +275,10 @@ calendar compatibility are checked during pricing. Terminal strike
 equality pays zero."
 );
 
-pub(crate) fn settlement(value: &Bound<'_, PyAny>) -> PyResult<core::SettlementTiming> {
+pub(crate) fn settlement(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::SettlementTiming> {
     match value.extract::<&str>()? {
-        "at_hit" => Ok(core::SettlementTiming::AtHit),
-        "at_expiry" => Ok(core::SettlementTiming::AtExpiry),
+        "at_hit" => Ok(kiyosi::SettlementTiming::AtHit),
+        "at_expiry" => Ok(kiyosi::SettlementTiming::AtExpiry),
         _ => Err(PyValueError::new_err("unknown settlement_timing")),
     }
 }
@@ -288,22 +287,22 @@ macro_rules! touch_factory {
     ($(#[$attribute:meta])* $name:ident, $constructor:ident, $kind:ident, [$($settlement:ident)?] $(, $payout:ident)?, $doc:literal) => {
         #[doc = $doc]
         #[pyfunction]
-        #[pyo3(signature = (*, effective_date, expiry_date, barrier_level, $($payout,)? $($settlement=core::SettlementTiming::default(),)? observation_mode=core::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+        #[pyo3(signature = (*, effective_date, expiry_date, barrier_level, $($payout,)? $($settlement=kiyosi::SettlementTiming::default(),)? observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
         $(#[$attribute])*
         pub(crate) fn $name(py: Python<'_>, effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
             barrier_level: &Bound<'_, PyAny>, $($payout: &Bound<'_, PyAny>,)?
-            $(#[pyo3(from_py_with = settlement)] $settlement: core::SettlementTiming,)?
-            #[pyo3(from_py_with = barrier::mode)] observation_mode: core::ObservationMode,
-            #[pyo3(from_py_with = dates)] observation_dates: Vec<core::Date>,
-            #[pyo3(from_py_with = barrier::history)] touch_state: Option<core::BarrierTouchState>,
+            $(#[pyo3(from_py_with = settlement)] $settlement: kiyosi::SettlementTiming,)?
+            #[pyo3(from_py_with = barrier::mode)] observation_mode: kiyosi::ObservationMode,
+            #[pyo3(from_py_with = dates)] observation_dates: Vec<kiyosi::Date>,
+            #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
         ) -> PyResult<TouchOption> {
-            let mut terms = core::TouchOptionTerms::new(date(effective_date)?, date(expiry_date)?, real(barrier_level)?, core::BarrierType::$kind);
+            let mut terms = kiyosi::TouchOptionTerms::new(date(effective_date)?, date(expiry_date)?, real(barrier_level)?, kiyosi::BarrierType::$kind);
             $(let $payout = real($payout)?;)?
             $(terms.settlement_timing = $settlement;)?
             terms.observation_mode = observation_mode;
             terms.observation_dates = observation_dates;
             terms.touch_state = touch_state;
-            Ok(TouchOption(domain(py, core::TouchOption::$constructor(terms $(, $payout)?))?))
+            Ok(TouchOption(domain(py, kiyosi::TouchOption::$constructor(terms $(, $payout)?))?))
         }
     };
 }

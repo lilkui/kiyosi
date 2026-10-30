@@ -2,7 +2,6 @@ use crate::error::domain;
 use crate::instruments::digital::DigitalInstrument;
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 /// Analytic European digital pricing with deterministic rate curves.
@@ -47,7 +46,7 @@ impl AnalyticDigitalEngine {
     ) -> PyResult<f64> {
         domain(
             py,
-            core::AnalyticDigitalEngine.price(instrument.contract(), &context.0),
+            kiyosi::AnalyticDigitalEngine.price(instrument.contract(), &context.0),
         )
     }
 
@@ -97,7 +96,7 @@ impl AnalyticDigitalEngine {
         let shifts = risk::shifts(settings)?;
         Ok(risk::PricingResult(domain(
             py,
-            core::AnalyticDigitalEngine.price_with_greeks(
+            kiyosi::AnalyticDigitalEngine.price_with_greeks(
                 instrument.contract(),
                 &context.0,
                 request,

@@ -3,7 +3,6 @@ use crate::error::domain;
 use crate::instruments::vanilla::EuropeanOption;
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi as core;
 use pyo3::prelude::*;
 /// Analytic European vanilla pricing with deterministic rate curves.
 ///
@@ -58,7 +57,7 @@ impl AnalyticEuropeanEngine {
         let request = risk::greeks_request(greeks, all_greeks)?;
         Ok(risk::PricingResult(domain(
             py,
-            core::AnalyticEuropeanEngine.price_with_greeks(&instrument.0, &context.0, request),
+            kiyosi::AnalyticEuropeanEngine.price_with_greeks(&instrument.0, &context.0, request),
         )?))
     }
 
@@ -92,7 +91,7 @@ impl AnalyticEuropeanEngine {
         // Keep the GIL for this short scalar formula.
         domain(
             py,
-            core::AnalyticEuropeanEngine.price(&instrument.0, &context.0),
+            kiyosi::AnalyticEuropeanEngine.price(&instrument.0, &context.0),
         )
     }
 }

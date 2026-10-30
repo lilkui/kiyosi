@@ -1,41 +1,40 @@
 use crate::conversions::{check_changes, date, dates, direction, python_date, real};
 use crate::error::domain;
 use crate::schedule::ObservationSchedule;
-use kiyosi as core;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};
 
-pub(crate) fn kind(value: &Bound<'_, PyAny>) -> PyResult<core::BarrierType> {
+pub(crate) fn kind(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::BarrierType> {
     match value.extract::<&str>()? {
-        "up_and_in" => Ok(core::BarrierType::UpAndIn),
-        "up_and_out" => Ok(core::BarrierType::UpAndOut),
-        "down_and_in" => Ok(core::BarrierType::DownAndIn),
-        "down_and_out" => Ok(core::BarrierType::DownAndOut),
+        "up_and_in" => Ok(kiyosi::BarrierType::UpAndIn),
+        "up_and_out" => Ok(kiyosi::BarrierType::UpAndOut),
+        "down_and_in" => Ok(kiyosi::BarrierType::DownAndIn),
+        "down_and_out" => Ok(kiyosi::BarrierType::DownAndOut),
         _ => Err(PyValueError::new_err("unknown barrier_type")),
     }
 }
-pub(crate) fn mode(value: &Bound<'_, PyAny>) -> PyResult<core::ObservationMode> {
+pub(crate) fn mode(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::ObservationMode> {
     match value.extract::<&str>()? {
-        "continuous" => Ok(core::ObservationMode::Continuous),
-        "scheduled" => Ok(core::ObservationMode::Scheduled),
+        "continuous" => Ok(kiyosi::ObservationMode::Continuous),
+        "scheduled" => Ok(kiyosi::ObservationMode::Scheduled),
         _ => Err(PyValueError::new_err("unknown observation_mode")),
     }
 }
-pub(crate) fn timing(value: &Bound<'_, PyAny>) -> PyResult<core::RebateTiming> {
+pub(crate) fn timing(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::RebateTiming> {
     match value.extract::<&str>()? {
-        "at_hit" => Ok(core::RebateTiming::AtHit),
-        "at_expiry" => Ok(core::RebateTiming::AtExpiry),
+        "at_hit" => Ok(kiyosi::RebateTiming::AtHit),
+        "at_expiry" => Ok(kiyosi::RebateTiming::AtExpiry),
         _ => Err(PyValueError::new_err("unknown rebate_timing")),
     }
 }
-pub(crate) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<core::BarrierTouchState>> {
+pub(crate) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::BarrierTouchState>> {
     if value.is_none() {
         return Ok(None);
     }
     match value.extract::<&str>()? {
-        "untouched" => Ok(Some(core::BarrierTouchState::Untouched)),
-        "touched" => Ok(Some(core::BarrierTouchState::Touched)),
+        "untouched" => Ok(Some(kiyosi::BarrierTouchState::Untouched)),
+        "touched" => Ok(Some(kiyosi::BarrierTouchState::Touched)),
         _ => Err(PyValueError::new_err("unknown touch_state")),
     }
 }
@@ -75,12 +74,12 @@ pub(crate) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<core::Barrier
 ///     are invalid. Trading-day and valuation-history checks occur at pricing.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct BarrierOption(pub core::BarrierOption);
+pub(crate) struct BarrierOption(pub kiyosi::BarrierOption);
 
 #[pymethods]
 impl BarrierOption {
     #[new]
-    #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, barrier_level, barrier_type, rebate=core::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=core::RebateTiming::default(), observation_mode=core::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+    #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, barrier_level, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         py: Python<'_>,
@@ -91,12 +90,12 @@ impl BarrierOption {
         barrier_level: &Bound<'_, PyAny>,
         barrier_type: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = real)] rebate: f64,
-        #[pyo3(from_py_with = timing)] rebate_timing: core::RebateTiming,
-        #[pyo3(from_py_with = mode)] observation_mode: core::ObservationMode,
-        #[pyo3(from_py_with = dates)] observation_dates: Vec<core::Date>,
-        #[pyo3(from_py_with = history)] touch_state: Option<core::BarrierTouchState>,
+        #[pyo3(from_py_with = timing)] rebate_timing: kiyosi::RebateTiming,
+        #[pyo3(from_py_with = mode)] observation_mode: kiyosi::ObservationMode,
+        #[pyo3(from_py_with = dates)] observation_dates: Vec<kiyosi::Date>,
+        #[pyo3(from_py_with = history)] touch_state: Option<kiyosi::BarrierTouchState>,
     ) -> PyResult<Self> {
-        let mut terms = core::BarrierOptionTerms::new(
+        let mut terms = kiyosi::BarrierOptionTerms::new(
             direction(option_type)?,
             real(strike)?,
             date(effective_date)?,
@@ -109,7 +108,7 @@ impl BarrierOption {
         terms.observation_mode = observation_mode;
         terms.observation_dates = observation_dates;
         terms.touch_state = touch_state;
-        Ok(Self(domain(py, core::BarrierOption::new(terms))?))
+        Ok(Self(domain(py, kiyosi::BarrierOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -146,7 +145,7 @@ impl BarrierOption {
     /// Return call or put payoff direction.
     #[getter]
     fn option_type(&self) -> &'static str {
-        if self.0.option_type() == core::OptionType::Call {
+        if self.0.option_type() == kiyosi::OptionType::Call {
             "call"
         } else {
             "put"
@@ -176,10 +175,10 @@ impl BarrierOption {
     #[getter]
     fn barrier_type(&self) -> &'static str {
         match self.0.barrier_type() {
-            core::BarrierType::UpAndIn => "up_and_in",
-            core::BarrierType::UpAndOut => "up_and_out",
-            core::BarrierType::DownAndIn => "down_and_in",
-            core::BarrierType::DownAndOut => "down_and_out",
+            kiyosi::BarrierType::UpAndIn => "up_and_in",
+            kiyosi::BarrierType::UpAndOut => "up_and_out",
+            kiyosi::BarrierType::DownAndIn => "down_and_in",
+            kiyosi::BarrierType::DownAndOut => "down_and_out",
         }
     }
     /// Return nonnegative finite cash rebate; defaults to zero.
@@ -191,16 +190,16 @@ impl BarrierOption {
     #[getter]
     fn rebate_timing(&self) -> &'static str {
         match self.0.rebate_timing() {
-            core::RebateTiming::AtHit => "at_hit",
-            core::RebateTiming::AtExpiry => "at_expiry",
+            kiyosi::RebateTiming::AtHit => "at_hit",
+            kiyosi::RebateTiming::AtExpiry => "at_expiry",
         }
     }
     /// Return continuous monitoring or observations on the supplied dates.
     #[getter]
     fn observation_mode(&self) -> &'static str {
         match self.0.observation_mode() {
-            core::ObservationMode::Continuous => "continuous",
-            core::ObservationMode::Scheduled => "scheduled",
+            kiyosi::ObservationMode::Continuous => "continuous",
+            kiyosi::ObservationMode::Scheduled => "scheduled",
         }
     }
     /// Return an owned copy of the monitoring schedule.
@@ -226,8 +225,8 @@ impl BarrierOption {
     #[getter]
     fn touch_state(&self) -> Option<&'static str> {
         self.0.touch_state().map(|s| match s {
-            core::BarrierTouchState::Untouched => "untouched",
-            core::BarrierTouchState::Touched => "touched",
+            kiyosi::BarrierTouchState::Untouched => "untouched",
+            kiyosi::BarrierTouchState::Touched => "touched",
         })
     }
 }

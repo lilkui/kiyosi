@@ -8,7 +8,6 @@ use crate::instruments::autocallable::{
 };
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi as core;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -101,10 +100,10 @@ fn solve_coupon<E>(
     settings: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<f64>
 where
-    E: core::PricingEngine<core::SnowballOption>
-        + core::PricingEngine<core::BinarySnowballOption>
-        + core::PricingEngine<core::TernarySnowballOption>
-        + core::PricingEngine<core::PhoenixOption>
+    E: kiyosi::PricingEngine<kiyosi::SnowballOption>
+        + kiyosi::PricingEngine<kiyosi::BinarySnowballOption>
+        + kiyosi::PricingEngine<kiyosi::TernarySnowballOption>
+        + kiyosi::PricingEngine<kiyosi::PhoenixOption>
         + Sync,
 {
     check_changes(
@@ -119,8 +118,8 @@ where
         ],
     )?;
     let observed = real(observed_price)?;
-    let d = core::ImpliedCouponSettings::default();
-    let controls = core::ImpliedCouponSettings {
+    let d = kiyosi::ImpliedCouponSettings::default();
+    let controls = kiyosi::ImpliedCouponSettings {
         lower_bound: risk::real_setting(settings, "lower_bound", d.lower_bound)?,
         upper_bound: risk::real_setting(settings, "upper_bound", d.upper_bound)?,
         price_tolerance: risk::real_setting(settings, "price_tolerance", d.price_tolerance)?,
@@ -145,14 +144,14 @@ where
         let note = &note.0;
         return domain(
             py,
-            py.detach(|| core::implied_coupon(&engine, note, context, observed, controls)),
+            py.detach(|| kiyosi::implied_coupon(&engine, note, context, observed, controls)),
         );
     }
     let convention =
         convention.ok_or_else(|| PyTypeError::new_err("snowballs require quote_convention"))?;
     let convention = match convention.extract::<&str>()? {
-        "shift_maturity_coupon" => core::CouponQuoteConvention::ShiftMaturityCoupon,
-        "preserve_maturity_coupon" => core::CouponQuoteConvention::PreserveMaturityCoupon,
+        "shift_maturity_coupon" => kiyosi::CouponQuoteConvention::ShiftMaturityCoupon,
+        "preserve_maturity_coupon" => kiyosi::CouponQuoteConvention::PreserveMaturityCoupon,
         _ => return Err(PyValueError::new_err("unknown coupon quote convention")),
     };
     macro_rules! solve {
@@ -161,7 +160,7 @@ where
             domain(
                 py,
                 py.detach(|| {
-                    core::implied_snowball_coupon(
+                    kiyosi::implied_snowball_coupon(
                         &engine, note, context, observed, convention, controls,
                     )
                 }),

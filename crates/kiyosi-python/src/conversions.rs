@@ -1,5 +1,4 @@
 use crate::error::domain;
-use kiyosi as core;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDate, PyDateAccess, PyDateTime, PyDict, PyTimeAccess};
@@ -106,10 +105,10 @@ pub(crate) fn boolean(value: &Bound<'_, PyAny>) -> PyResult<bool> {
     value.cast::<PyBool>()?.extract()
 }
 
-pub(crate) fn direction(value: &Bound<'_, PyAny>) -> PyResult<core::OptionType> {
+pub(crate) fn direction(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::OptionType> {
     match value.extract::<&str>()? {
-        "call" => Ok(core::OptionType::Call),
-        "put" => Ok(core::OptionType::Put),
+        "call" => Ok(kiyosi::OptionType::Call),
+        "put" => Ok(kiyosi::OptionType::Put),
         _ => Err(PyValueError::new_err("option_type must be call or put")),
     }
 }
@@ -128,11 +127,11 @@ pub(crate) fn check_integer(value: &Bound<'_, PyAny>) -> PyResult<()> {
     Ok(())
 }
 
-pub(crate) fn dates(value: &Bound<'_, PyAny>) -> PyResult<Vec<core::Date>> {
+pub(crate) fn dates(value: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::Date>> {
     value.try_iter()?.map(|item| date(&item?)).collect()
 }
 
-pub(crate) fn date(value: &Bound<'_, PyAny>) -> PyResult<core::Date> {
+pub(crate) fn date(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Date> {
     if value.is_instance_of::<PyDateTime>() {
         return Err(PyTypeError::new_err(
             "expected datetime.date, excluding datetime",
@@ -141,7 +140,7 @@ pub(crate) fn date(value: &Bound<'_, PyAny>) -> PyResult<core::Date> {
     let date = value.cast::<PyDate>()?;
     domain(
         value.py(),
-        core::Date::new(
+        kiyosi::Date::new(
             date.get_year(),
             date.get_month().into(),
             date.get_day().into(),
@@ -149,7 +148,7 @@ pub(crate) fn date(value: &Bound<'_, PyAny>) -> PyResult<core::Date> {
     )
 }
 
-pub(crate) fn timestamp(value: &Bound<'_, PyAny>) -> PyResult<core::Timestamp> {
+pub(crate) fn timestamp(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Timestamp> {
     if !value.is_instance_of::<PyDateTime>() {
         return Ok(date(value)?.into());
     }
@@ -169,11 +168,11 @@ pub(crate) fn timestamp(value: &Bound<'_, PyAny>) -> PyResult<core::Timestamp> {
     let utc = utc.cast::<PyDateTime>()?;
     let day = domain(
         py,
-        core::Date::new(utc.get_year(), utc.get_month().into(), utc.get_day().into()),
+        kiyosi::Date::new(utc.get_year(), utc.get_month().into(), utc.get_day().into()),
     )?;
     domain(
         py,
-        core::Timestamp::new(
+        kiyosi::Timestamp::new(
             day,
             utc.get_hour().into(),
             utc.get_minute().into(),
@@ -183,11 +182,14 @@ pub(crate) fn timestamp(value: &Bound<'_, PyAny>) -> PyResult<core::Timestamp> {
     )
 }
 
-pub(crate) fn python_date(py: Python<'_>, date: core::Date) -> PyResult<Bound<'_, PyDate>> {
+pub(crate) fn python_date(py: Python<'_>, date: kiyosi::Date) -> PyResult<Bound<'_, PyDate>> {
     PyDate::new(py, date.year(), date.month() as u8, date.day() as u8)
 }
 
-pub(crate) fn python_timestamp(py: Python<'_>, at: core::Timestamp) -> PyResult<Bound<'_, PyAny>> {
+pub(crate) fn python_timestamp(
+    py: Python<'_>,
+    at: kiyosi::Timestamp,
+) -> PyResult<Bound<'_, PyAny>> {
     let module = py.import("datetime")?;
     let date = at.date();
     let micros = at.micros_since_midnight();

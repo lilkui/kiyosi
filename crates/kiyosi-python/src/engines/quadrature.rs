@@ -9,7 +9,6 @@ use crate::instruments::{
 };
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -58,7 +57,7 @@ macro_rules! quadrature_engine {
                 let $option = instrument;
                 let option = $contract;
                 let context = &context.0;
-                domain(py, py.detach(|| core::$engine.price(option, context)))
+                domain(py, py.detach(|| kiyosi::$engine.price(option, context)))
             }
 
             /// Return the price and selected sensitivities.
@@ -110,7 +109,9 @@ macro_rules! quadrature_engine {
                 let context = &context.0;
                 Ok(risk::PricingResult(domain(
                     py,
-                    py.detach(|| core::$engine.price_with_greeks(option, context, request, shifts)),
+                    py.detach(|| {
+                        kiyosi::$engine.price_with_greeks(option, context, request, shifts)
+                    }),
                 )?))
             }
         }
@@ -146,12 +147,12 @@ quadrature_engine!(
 /// --------
 /// BarrierOption : Supported contract.
 #[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct QuadratureBarrierEngine(pub(crate) core::QuadratureBarrierEngine);
+pub(crate) struct QuadratureBarrierEngine(pub(crate) kiyosi::QuadratureBarrierEngine);
 
 #[pymethods]
 impl QuadratureBarrierEngine {
     #[new]
-    #[pyo3(signature = (*, asset_step_count=core::QuadratureSettings::default().asset_step_count, integration_standard_deviations=core::QuadratureSettings::default().integration_standard_deviations))]
+    #[pyo3(signature = (*, asset_step_count=kiyosi::QuadratureSettings::default().asset_step_count, integration_standard_deviations=kiyosi::QuadratureSettings::default().integration_standard_deviations))]
     fn new(
         py: Python<'_>,
         #[pyo3(from_py_with = integer)] asset_step_count: i32,
@@ -159,7 +160,7 @@ impl QuadratureBarrierEngine {
     ) -> PyResult<Self> {
         Ok(Self(domain(
             py,
-            core::QuadratureBarrierEngine::new(core::QuadratureSettings {
+            kiyosi::QuadratureBarrierEngine::new(kiyosi::QuadratureSettings {
                 asset_step_count,
                 integration_standard_deviations,
             }),
@@ -283,12 +284,12 @@ impl QuadratureBarrierEngine {
 /// --------
 /// Accumulator : Supported contract.
 #[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct QuadratureAccumulatorEngine(pub(crate) core::QuadratureAccumulatorEngine);
+pub(crate) struct QuadratureAccumulatorEngine(pub(crate) kiyosi::QuadratureAccumulatorEngine);
 
 #[pymethods]
 impl QuadratureAccumulatorEngine {
     #[new]
-    #[pyo3(signature = (*, asset_step_count=core::QuadratureSettings::default().asset_step_count, integration_standard_deviations=core::QuadratureSettings::default().integration_standard_deviations))]
+    #[pyo3(signature = (*, asset_step_count=kiyosi::QuadratureSettings::default().asset_step_count, integration_standard_deviations=kiyosi::QuadratureSettings::default().integration_standard_deviations))]
     fn new(
         py: Python<'_>,
         #[pyo3(from_py_with = integer)] asset_step_count: i32,
@@ -296,7 +297,7 @@ impl QuadratureAccumulatorEngine {
     ) -> PyResult<Self> {
         Ok(Self(domain(
             py,
-            core::QuadratureAccumulatorEngine::new(core::QuadratureSettings {
+            kiyosi::QuadratureAccumulatorEngine::new(kiyosi::QuadratureSettings {
                 asset_step_count,
                 integration_standard_deviations,
             }),
@@ -428,12 +429,12 @@ impl QuadratureAccumulatorEngine {
 /// Preserves cash and asset payments below the spatial grid, including
 /// zero-lower-strike losses after large spot declines.
 #[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct QuadratureAutocallableEngine(pub(crate) core::QuadratureAutocallableEngine);
+pub(crate) struct QuadratureAutocallableEngine(pub(crate) kiyosi::QuadratureAutocallableEngine);
 
 #[pymethods]
 impl QuadratureAutocallableEngine {
     #[new]
-    #[pyo3(signature = (*, asset_step_count=core::QuadratureSettings::default().asset_step_count, integration_standard_deviations=core::QuadratureSettings::default().integration_standard_deviations))]
+    #[pyo3(signature = (*, asset_step_count=kiyosi::QuadratureSettings::default().asset_step_count, integration_standard_deviations=kiyosi::QuadratureSettings::default().integration_standard_deviations))]
     fn new(
         py: Python<'_>,
         #[pyo3(from_py_with = integer)] asset_step_count: i32,
@@ -441,7 +442,7 @@ impl QuadratureAutocallableEngine {
     ) -> PyResult<Self> {
         Ok(Self(domain(
             py,
-            core::QuadratureAutocallableEngine::new(core::QuadratureSettings {
+            kiyosi::QuadratureAutocallableEngine::new(kiyosi::QuadratureSettings {
                 asset_step_count,
                 integration_standard_deviations,
             }),

@@ -2,7 +2,6 @@ use crate::error::domain;
 use crate::instruments::barrier::BarrierOption;
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 /// Flat-rate single-barrier analytics with BGK scheduled monitoring.
@@ -47,7 +46,7 @@ impl AnalyticBarrierEngine {
         let context = &context.0;
         domain(
             py,
-            py.detach(|| core::AnalyticBarrierEngine.price(option, context)),
+            py.detach(|| kiyosi::AnalyticBarrierEngine.price(option, context)),
         )
     }
     /// Return the price and selected sensitivities.
@@ -99,7 +98,7 @@ impl AnalyticBarrierEngine {
         Ok(risk::PricingResult(domain(
             py,
             py.detach(|| {
-                core::AnalyticBarrierEngine.price_with_greeks(option, context, request, shifts)
+                kiyosi::AnalyticBarrierEngine.price_with_greeks(option, context, request, shifts)
             }),
         )?))
     }

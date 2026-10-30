@@ -1,6 +1,5 @@
 use crate::conversions::{check_changes, date, integer, python_date, real};
 use crate::error::domain;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};
 
@@ -44,7 +43,7 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 /// life times the fraction of observations inside the range.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct RangeAccrualOption(pub core::RangeAccrualOption);
+pub(crate) struct RangeAccrualOption(pub kiyosi::RangeAccrualOption);
 
 #[pymethods]
 impl RangeAccrualOption {
@@ -61,7 +60,7 @@ impl RangeAccrualOption {
         expiry_date: &Bound<'_, PyAny>,
         realized_hit_count: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        let mut terms = core::RangeAccrualTerms::new(
+        let mut terms = kiyosi::RangeAccrualTerms::new(
             real(notional)?,
             real(annual_coupon_rate)?,
             real(lower_bound)?,
@@ -72,7 +71,7 @@ impl RangeAccrualOption {
         if let Some(value) = realized_hit_count {
             terms.realized_hit_count = history(value)?;
         }
-        Ok(Self(domain(py, core::RangeAccrualOption::new(terms))?))
+        Ok(Self(domain(py, kiyosi::RangeAccrualOption::new(terms))?))
     }
 
     /// Return a validated replacement without changing this value.

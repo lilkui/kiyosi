@@ -1,6 +1,5 @@
 use crate::conversions::{date, direction, python_date, real};
 use crate::error::domain;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
 
@@ -23,7 +22,7 @@ use pyo3::types::PyDate;
 ///     If strike is nonpositive or non-finite, or expiry precedes effective_date.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct EuropeanOption(pub(crate) core::EuropeanOption);
+pub(crate) struct EuropeanOption(pub(crate) kiyosi::EuropeanOption);
 
 #[pymethods]
 impl EuropeanOption {
@@ -39,7 +38,7 @@ impl EuropeanOption {
         let direction = direction(option_type)?;
         Ok(Self(domain(
             py,
-            core::EuropeanOption::new(
+            kiyosi::EuropeanOption::new(
                 direction,
                 real(strike)?,
                 date(effective_date)?,
@@ -52,8 +51,8 @@ impl EuropeanOption {
     #[getter]
     fn option_type(&self) -> &'static str {
         match self.0.option_type() {
-            core::OptionType::Call => "call",
-            core::OptionType::Put => "put",
+            kiyosi::OptionType::Call => "call",
+            kiyosi::OptionType::Put => "put",
         }
     }
     /// Return the exercise or purchase price in underlying price units.

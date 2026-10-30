@@ -2,7 +2,6 @@ use crate::conversions::{check_changes, date, dates, python_date, real};
 use crate::error::domain;
 use crate::instruments::barrier;
 use crate::schedule::ObservationSchedule;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};
 
@@ -14,7 +13,7 @@ use pyo3::types::{PyDate, PyDict};
 /// payments have no remaining value.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct DoubleTouchOption(pub core::DoubleTouchOption);
+pub(crate) struct DoubleTouchOption(pub kiyosi::DoubleTouchOption);
 
 #[pymethods]
 impl DoubleTouchOption {
@@ -84,16 +83,16 @@ impl DoubleTouchOption {
     #[getter]
     fn settlement_timing(&self) -> &'static str {
         match self.0.settlement_timing() {
-            core::SettlementTiming::AtHit => "at_hit",
-            core::SettlementTiming::AtExpiry => "at_expiry",
+            kiyosi::SettlementTiming::AtHit => "at_hit",
+            kiyosi::SettlementTiming::AtExpiry => "at_expiry",
         }
     }
     /// Return continuous monitoring or observations on the supplied dates.
     #[getter]
     fn observation_mode(&self) -> &'static str {
         match self.0.observation_mode() {
-            core::ObservationMode::Continuous => "continuous",
-            core::ObservationMode::Scheduled => "scheduled",
+            kiyosi::ObservationMode::Continuous => "continuous",
+            kiyosi::ObservationMode::Scheduled => "scheduled",
         }
     }
     /// Return an owned copy of the monitoring schedule.
@@ -114,8 +113,8 @@ impl DoubleTouchOption {
     #[getter]
     fn touch_state(&self) -> Option<&'static str> {
         self.0.touch_state().map(|s| match s {
-            core::BarrierTouchState::Untouched => "untouched",
-            core::BarrierTouchState::Touched => "touched",
+            kiyosi::BarrierTouchState::Untouched => "untouched",
+            kiyosi::BarrierTouchState::Touched => "touched",
         })
     }
 }
@@ -124,23 +123,23 @@ macro_rules! double_touch_factory {
     ($name:ident, $kind:ident, [$($settlement:ident)?], $doc:literal) => {
         #[doc = $doc]
         #[pyfunction]
-        #[pyo3(signature = (*, effective_date, expiry_date, lower_barrier, upper_barrier, payout, $($settlement=core::SettlementTiming::default(),)? observation_mode=core::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+        #[pyo3(signature = (*, effective_date, expiry_date, lower_barrier, upper_barrier, payout, $($settlement=kiyosi::SettlementTiming::default(),)? observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
         pub(crate) fn $name(
             py: Python<'_>, effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
             lower_barrier: &Bound<'_, PyAny>, upper_barrier: &Bound<'_, PyAny>, payout: &Bound<'_, PyAny>,
-            $(#[pyo3(from_py_with = super::binary_barrier::settlement)] $settlement: core::SettlementTiming,)?
-            #[pyo3(from_py_with = barrier::mode)] observation_mode: core::ObservationMode,
-            #[pyo3(from_py_with = dates)] observation_dates: Vec<core::Date>,
-            #[pyo3(from_py_with = barrier::history)] touch_state: Option<core::BarrierTouchState>,
+            $(#[pyo3(from_py_with = super::binary_barrier::settlement)] $settlement: kiyosi::SettlementTiming,)?
+            #[pyo3(from_py_with = barrier::mode)] observation_mode: kiyosi::ObservationMode,
+            #[pyo3(from_py_with = dates)] observation_dates: Vec<kiyosi::Date>,
+            #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
         ) -> PyResult<DoubleTouchOption> {
-            let mut terms = core::DoubleTouchOptionTerms::new(date(effective_date)?, date(expiry_date)?, real(lower_barrier)?, real(upper_barrier)?, core::DoubleBarrierType::$kind);
+            let mut terms = kiyosi::DoubleTouchOptionTerms::new(date(effective_date)?, date(expiry_date)?, real(lower_barrier)?, real(upper_barrier)?, kiyosi::DoubleBarrierType::$kind);
             let payout = real(payout)?;
             $(terms.settlement_timing = $settlement;)?
             terms.observation_mode = observation_mode;
             terms.observation_dates = observation_dates;
             terms.touch_state = touch_state;
-            Ok(DoubleTouchOption(domain(py, core::DoubleTouchOption::cash(terms, payout))?))
+            Ok(DoubleTouchOption(domain(py, kiyosi::DoubleTouchOption::cash(terms, payout))?))
         }
     };
 }

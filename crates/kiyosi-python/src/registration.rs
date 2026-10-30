@@ -3,11 +3,10 @@ use crate::engines::analytic;
 use crate::instruments::vanilla::EuropeanOption;
 use crate::market::{BlackScholesMertonParameters, PricingContext};
 use crate::{calendar, engines, error, instruments, market, risk, schedule};
-use kiyosi as core;
 use pyo3::prelude::*;
 
 pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add("__version__", core::VERSION)?;
+    module.add("__version__", kiyosi::VERSION)?;
     module.add("KiyosiError", py.get_type::<error::KiyosiError>())?;
     module.add(
         "InvalidInputError",
@@ -29,7 +28,7 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         "NonConvergenceError",
         py.get_type::<error::NonConvergenceError>(),
     )?;
-    let names = core::Greek::ALL.map(|g| g.name());
+    let names = kiyosi::Greek::ALL.map(|g| g.name());
     module.add(
         "Greek",
         py.import("typing")?

@@ -2,7 +2,6 @@ use crate::error::domain;
 use crate::instruments::double_barrier::DoubleBarrierOption;
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 /// Flat-rate continuous double-barrier analytics.
@@ -50,7 +49,7 @@ impl AnalyticDoubleBarrierEngine {
         let context = &context.0;
         domain(
             py,
-            py.detach(|| core::AnalyticDoubleBarrierEngine.price(option, context)),
+            py.detach(|| kiyosi::AnalyticDoubleBarrierEngine.price(option, context)),
         )
     }
     /// Return the price and selected sensitivities.
@@ -105,7 +104,7 @@ impl AnalyticDoubleBarrierEngine {
         Ok(risk::PricingResult(domain(
             py,
             py.detach(|| {
-                core::AnalyticDoubleBarrierEngine
+                kiyosi::AnalyticDoubleBarrierEngine
                     .price_with_greeks(option, context, request, shifts)
             }),
         )?))

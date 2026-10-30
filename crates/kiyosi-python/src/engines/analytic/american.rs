@@ -2,7 +2,6 @@ use crate::error::domain;
 use crate::instruments::american::AmericanOption;
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 /// Bjerksund-Stensland 2002 American approximation with flat rates.
@@ -49,7 +48,7 @@ impl BjerksundStenslandVanillaEngine {
     ) -> PyResult<f64> {
         domain(
             py,
-            core::BjerksundStenslandVanillaEngine.price(&instrument.0, &context.0),
+            kiyosi::BjerksundStenslandVanillaEngine.price(&instrument.0, &context.0),
         )
     }
 
@@ -102,7 +101,7 @@ impl BjerksundStenslandVanillaEngine {
         let shifts = risk::shifts(settings)?;
         Ok(risk::PricingResult(domain(
             py,
-            core::BjerksundStenslandVanillaEngine.price_with_greeks(
+            kiyosi::BjerksundStenslandVanillaEngine.price_with_greeks(
                 &instrument.0,
                 &context.0,
                 request,

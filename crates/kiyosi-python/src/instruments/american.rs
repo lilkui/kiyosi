@@ -1,6 +1,5 @@
 use crate::conversions::{check_changes, date, direction, python_date, real};
 use crate::error::domain;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};
 
@@ -23,7 +22,7 @@ use pyo3::types::{PyDate, PyDict};
 ///     If strike is nonpositive or non-finite, or expiry precedes effective_date.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct AmericanOption(pub(crate) core::AmericanOption);
+pub(crate) struct AmericanOption(pub(crate) kiyosi::AmericanOption);
 
 #[pymethods]
 impl AmericanOption {
@@ -39,7 +38,7 @@ impl AmericanOption {
         let direction = direction(option_type)?;
         Ok(Self(domain(
             py,
-            core::AmericanOption::new(
+            kiyosi::AmericanOption::new(
                 direction,
                 real(strike)?,
                 date(effective_date)?,
@@ -82,7 +81,7 @@ impl AmericanOption {
                 .transpose()
                 .map(Option::flatten)
         };
-        let changes = core::AmericanOptionChanges {
+        let changes = kiyosi::AmericanOptionChanges {
             option_type: item("option_type")?.as_ref().map(direction).transpose()?,
             strike: item("strike")?.as_ref().map(real).transpose()?,
             effective_date: item("effective_date")?.as_ref().map(date).transpose()?,
@@ -95,8 +94,8 @@ impl AmericanOption {
     #[getter]
     fn option_type(&self) -> &'static str {
         match self.0.option_type() {
-            core::OptionType::Call => "call",
-            core::OptionType::Put => "put",
+            kiyosi::OptionType::Call => "call",
+            kiyosi::OptionType::Put => "put",
         }
     }
     /// Return the exercise or purchase price in underlying price units.

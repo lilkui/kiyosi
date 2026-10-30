@@ -2,7 +2,6 @@ use crate::error::domain;
 use crate::instruments::asian::{ArithmeticAveragePriceOption, GeometricAveragePriceOption};
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 macro_rules! asian_engine {
@@ -52,7 +51,7 @@ macro_rules! asian_engine {
             ) -> PyResult<f64> {
                 let option = &instrument.0;
                 let context = &context.0;
-                domain(py, py.detach(|| core::$engine.price(option, context)))
+                domain(py, py.detach(|| kiyosi::$engine.price(option, context)))
             }
             /// Return the price and selected sensitivities.
             ///
@@ -105,7 +104,9 @@ macro_rules! asian_engine {
                 let context = &context.0;
                 Ok(risk::PricingResult(domain(
                     py,
-                    py.detach(|| core::$engine.price_with_greeks(option, context, request, shifts)),
+                    py.detach(|| {
+                        kiyosi::$engine.price_with_greeks(option, context, request, shifts)
+                    }),
                 )?))
             }
         }

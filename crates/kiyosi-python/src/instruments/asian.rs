@@ -1,6 +1,5 @@
 use crate::conversions::{check_changes, date, direction, python_date, real};
 use crate::error::domain;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};
 
@@ -31,16 +30,16 @@ macro_rules! average_option {
         ///     If strike, realized_average, life dates or the averaging window are invalid.
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(Clone, PartialEq)]
-        pub(crate) struct $name(pub core::$name);
+        pub(crate) struct $name(pub kiyosi::$name);
 
         #[pymethods]
         impl $name {
             #[new]
-            #[pyo3(signature = (*, option_type, strike, effective_date, averaging_start_date, expiry_date, realized_average=core::DEFAULT_REALIZED_AVERAGE))]
+            #[pyo3(signature = (*, option_type, strike, effective_date, averaging_start_date, expiry_date, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE))]
             fn new(py: Python<'_>, option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
                 effective_date: &Bound<'_, PyAny>, averaging_start_date: &Bound<'_, PyAny>,
                 expiry_date: &Bound<'_, PyAny>, #[pyo3(from_py_with = real)] realized_average: f64) -> PyResult<Self> {
-                Ok(Self(domain(py, core::$name::new(direction(option_type)?, real(strike)?,
+                Ok(Self(domain(py, kiyosi::$name::new(direction(option_type)?, real(strike)?,
                     date(effective_date)?, date(averaging_start_date)?, date(expiry_date)?, realized_average))?))
             }
             /// Return a validated replacement without changing this value.
@@ -70,7 +69,7 @@ macro_rules! average_option {
             /// Return call or put payoff direction.
             #[getter]
             fn option_type(&self) -> &'static str {
-                if self.0.option_type() == core::OptionType::Call { "call" } else { "put" }
+                if self.0.option_type() == kiyosi::OptionType::Call { "call" } else { "put" }
             }
             /// Return the exercise or purchase price in underlying price units.
             #[getter]

@@ -6,7 +6,6 @@ use crate::instruments::digital;
 use crate::instruments::vanilla::EuropeanOption;
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -35,19 +34,19 @@ macro_rules! binomial_engine {
         /// The vanilla engine accepts EuropeanOption and AmericanOption; the
         /// digital engine accepts CashOrNothingOption and AssetOrNothingOption.
         #[pyclass(frozen, module = "kiyosi._native")]
-        pub(crate) struct $name(pub(crate) core::$name);
+        pub(crate) struct $name(pub(crate) kiyosi::$name);
 
         #[pymethods]
         impl $name {
             #[new]
-            #[pyo3(signature = (*, step_count=core::BinomialSettings::default().step_count))]
+            #[pyo3(signature = (*, step_count=kiyosi::BinomialSettings::default().step_count))]
             fn new(
                 py: Python<'_>,
                 #[pyo3(from_py_with = integer)] step_count: i32,
             ) -> PyResult<Self> {
                 Ok(Self(domain(
                     py,
-                    core::$name::new(core::BinomialSettings { step_count }),
+                    kiyosi::$name::new(kiyosi::BinomialSettings { step_count }),
                 )?))
             }
 
@@ -202,16 +201,16 @@ binomial_engine!(
 /// --------
 /// BarrierOption : Supported contract.
 #[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct CoxRossRubinsteinBarrierEngine(pub(crate) core::CoxRossRubinsteinBarrierEngine);
+pub(crate) struct CoxRossRubinsteinBarrierEngine(pub(crate) kiyosi::CoxRossRubinsteinBarrierEngine);
 
 #[pymethods]
 impl CoxRossRubinsteinBarrierEngine {
     #[new]
-    #[pyo3(signature = (*, step_count=core::BinomialSettings::default().step_count))]
+    #[pyo3(signature = (*, step_count=kiyosi::BinomialSettings::default().step_count))]
     fn new(py: Python<'_>, #[pyo3(from_py_with = integer)] step_count: i32) -> PyResult<Self> {
         Ok(Self(domain(
             py,
-            core::CoxRossRubinsteinBarrierEngine::new(core::BinomialSettings { step_count }),
+            kiyosi::CoxRossRubinsteinBarrierEngine::new(kiyosi::BinomialSettings { step_count }),
         )?))
     }
     /// Return the configured grid size.

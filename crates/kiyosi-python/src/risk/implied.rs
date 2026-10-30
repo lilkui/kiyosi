@@ -18,7 +18,6 @@ use crate::instruments::double_touch;
 use crate::instruments::range_accrual;
 use crate::instruments::vanilla::EuropeanOption;
 use crate::market::PricingContext;
-use kiyosi as core;
 use pyo3::prelude::*;
 /// Solve the annual volatility that reproduces an observed price.
 ///
@@ -69,7 +68,7 @@ use pyo3::prelude::*;
 /// Digital prices can have several volatility roots. The supplied bracket
 /// selects a root; CRR engines restrict it to their admissible tree domain.
 #[pyfunction]
-#[pyo3(signature = (engine, instrument, context, observed_price, *, lower_bound=core::ImpliedVolatilitySettings::default().lower_bound, upper_bound=core::ImpliedVolatilitySettings::default().upper_bound, price_tolerance=core::ImpliedVolatilitySettings::default().price_tolerance, parameter_tolerance=core::ImpliedVolatilitySettings::default().parameter_tolerance, max_iterations=core::ImpliedVolatilitySettings::default().max_iterations))]
+#[pyo3(signature = (engine, instrument, context, observed_price, *, lower_bound=kiyosi::ImpliedVolatilitySettings::default().lower_bound, upper_bound=kiyosi::ImpliedVolatilitySettings::default().upper_bound, price_tolerance=kiyosi::ImpliedVolatilitySettings::default().price_tolerance, parameter_tolerance=kiyosi::ImpliedVolatilitySettings::default().parameter_tolerance, max_iterations=kiyosi::ImpliedVolatilitySettings::default().max_iterations))]
 #[expect(clippy::too_many_arguments, reason = "explicit solver controls")]
 pub(crate) fn implied_volatility(
     py: Python<'_>,
@@ -84,7 +83,7 @@ pub(crate) fn implied_volatility(
     #[pyo3(from_py_with = integer)] max_iterations: i32,
 ) -> PyResult<f64> {
     let observed = observed_price;
-    let controls = core::ImpliedVolatilitySettings {
+    let controls = kiyosi::ImpliedVolatilitySettings {
         lower_bound,
         upper_bound,
         price_tolerance,
@@ -97,7 +96,7 @@ pub(crate) fn implied_volatility(
             domain(
                 py,
                 py.detach(|| {
-                    core::implied_volatility(&$engine, $option, context, observed, controls)
+                    kiyosi::implied_volatility(&$engine, $option, context, observed, controls)
                 }),
             )
         };
@@ -105,17 +104,17 @@ pub(crate) fn implied_volatility(
     if engine.is_instance_of::<analytic::range_accrual::AnalyticRangeAccrualEngine>() {
         let option =
             &extract_instrument::<PyRef<'_, range_accrual::RangeAccrualOption>>(instrument)?.0;
-        return solve!(core::AnalyticRangeAccrualEngine, option);
+        return solve!(kiyosi::AnalyticRangeAccrualEngine, option);
     }
     if engine.is_instance_of::<analytic::asian::TurnbullWakemanArithmeticAveragePriceEngine>() {
         let option =
             &extract_instrument::<PyRef<'_, asian::ArithmeticAveragePriceOption>>(instrument)?.0;
-        return solve!(core::TurnbullWakemanArithmeticAveragePriceEngine, option);
+        return solve!(kiyosi::TurnbullWakemanArithmeticAveragePriceEngine, option);
     }
     if engine.is_instance_of::<analytic::asian::AnalyticGeometricAveragePriceEngine>() {
         let option =
             &extract_instrument::<PyRef<'_, asian::GeometricAveragePriceOption>>(instrument)?.0;
-        return solve!(core::AnalyticGeometricAveragePriceEngine, option);
+        return solve!(kiyosi::AnalyticGeometricAveragePriceEngine, option);
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloAsianEngine>>() {
         let engine = engine.0;
@@ -197,12 +196,12 @@ pub(crate) fn implied_volatility(
     }
     if engine.is_instance_of::<quadrature::QuadratureVanillaEngine>() {
         let option = &extract_instrument::<PyRef<'_, EuropeanOption>>(instrument)?.0;
-        return solve!(core::QuadratureVanillaEngine, option);
+        return solve!(kiyosi::QuadratureVanillaEngine, option);
     }
     if engine.is_instance_of::<quadrature::QuadratureDigitalEngine>() {
         let instrument = extract_instrument::<digital::DigitalInstrument<'_>>(instrument)?;
         let option = instrument.contract();
-        return solve!(core::QuadratureDigitalEngine, option);
+        return solve!(kiyosi::QuadratureDigitalEngine, option);
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, binomial::CoxRossRubinsteinVanillaEngine>>() {
         let engine = engine.0;
@@ -243,18 +242,18 @@ pub(crate) fn implied_volatility(
         return match extract_instrument::<binary_barrier::BinaryInstrument<'_>>(instrument)? {
             binary_barrier::BinaryInstrument::Binary(option) => {
                 let option = &option.0;
-                solve!(core::AnalyticBinaryBarrierEngine, option)
+                solve!(kiyosi::AnalyticBinaryBarrierEngine, option)
             }
             binary_barrier::BinaryInstrument::Touch(option) => {
                 let option = &option.0;
-                solve!(core::AnalyticBinaryBarrierEngine, option)
+                solve!(kiyosi::AnalyticBinaryBarrierEngine, option)
             }
         };
     }
     if engine.is_instance_of::<analytic::double_barrier::AnalyticDoubleBarrierEngine>() {
         let option =
             &extract_instrument::<PyRef<'_, double_barrier::DoubleBarrierOption>>(instrument)?.0;
-        return solve!(core::AnalyticDoubleBarrierEngine, option);
+        return solve!(kiyosi::AnalyticDoubleBarrierEngine, option);
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloBarrierEngine>>() {
         let engine = engine.0;
@@ -310,18 +309,18 @@ pub(crate) fn implied_volatility(
     }
     if engine.is_instance_of::<analytic::barrier::AnalyticBarrierEngine>() {
         let option = &extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?.0;
-        return solve!(core::AnalyticBarrierEngine, option);
+        return solve!(kiyosi::AnalyticBarrierEngine, option);
     }
     if engine.is_instance_of::<analytic::digital::AnalyticDigitalEngine>() {
         let instrument = extract_instrument::<digital::DigitalInstrument<'_>>(instrument)?;
         let option = instrument.contract();
-        return solve!(core::AnalyticDigitalEngine, option);
+        return solve!(kiyosi::AnalyticDigitalEngine, option);
     }
     if engine.is_instance_of::<analytic::american::BjerksundStenslandVanillaEngine>() {
         let option = &extract_instrument::<PyRef<'_, american::AmericanOption>>(instrument)?.0;
-        return solve!(core::BjerksundStenslandVanillaEngine, option);
+        return solve!(kiyosi::BjerksundStenslandVanillaEngine, option);
     }
     engine.extract::<PyRef<'_, AnalyticEuropeanEngine>>()?;
     let option = &extract_instrument::<PyRef<'_, EuropeanOption>>(instrument)?.0;
-    solve!(core::AnalyticEuropeanEngine, option)
+    solve!(kiyosi::AnalyticEuropeanEngine, option)
 }

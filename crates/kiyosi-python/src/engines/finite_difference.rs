@@ -10,16 +10,15 @@ use crate::instruments::double_barrier;
 use crate::instruments::double_touch;
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi as core;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-fn scheme(value: &Bound<'_, PyAny>) -> PyResult<core::FiniteDifferenceScheme> {
+fn scheme(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::FiniteDifferenceScheme> {
     match value.extract::<&str>()? {
-        "explicit_euler" => Ok(core::FiniteDifferenceScheme::ExplicitEuler),
-        "implicit_euler" => Ok(core::FiniteDifferenceScheme::ImplicitEuler),
-        "crank_nicolson" => Ok(core::FiniteDifferenceScheme::CrankNicolson),
+        "explicit_euler" => Ok(kiyosi::FiniteDifferenceScheme::ExplicitEuler),
+        "implicit_euler" => Ok(kiyosi::FiniteDifferenceScheme::ImplicitEuler),
+        "crank_nicolson" => Ok(kiyosi::FiniteDifferenceScheme::CrankNicolson),
         _ => Err(PyValueError::new_err("unknown finite-difference scheme")),
     }
 }
@@ -58,22 +57,22 @@ macro_rules! fd_engine {
         /// Digital pricing requires explicitly flat rates; other families accept
         /// deterministic rate curves.
         #[pyclass(frozen, module = "kiyosi._native")]
-        pub(crate) struct $name(pub(crate) core::$name);
+        pub(crate) struct $name(pub(crate) kiyosi::$name);
 
         #[pymethods]
         impl $name {
             #[new]
-            #[pyo3(signature = (*, asset_step_count=core::$name::default().settings().asset_step_count, time_step_count=core::$name::default().settings().time_step_count, scheme=core::$name::default().settings().scheme, asset_upper_boundary=None))]
+            #[pyo3(signature = (*, asset_step_count=kiyosi::$name::default().settings().asset_step_count, time_step_count=kiyosi::$name::default().settings().time_step_count, scheme=kiyosi::$name::default().settings().scheme, asset_upper_boundary=None))]
             fn new(
                 py: Python<'_>,
                 #[pyo3(from_py_with = integer)] asset_step_count: i32,
                 #[pyo3(from_py_with = integer)] time_step_count: i32,
-                #[pyo3(from_py_with = scheme)] scheme: core::FiniteDifferenceScheme,
+                #[pyo3(from_py_with = scheme)] scheme: kiyosi::FiniteDifferenceScheme,
                 asset_upper_boundary: Option<&Bound<'_, PyAny>>,
             ) -> PyResult<Self> {
                 Ok(Self(domain(
                     py,
-                    core::$name::new(core::FiniteDifferenceSettings {
+                    kiyosi::$name::new(kiyosi::FiniteDifferenceSettings {
                         asset_step_count,
                         time_step_count,
                         scheme,
@@ -95,9 +94,9 @@ macro_rules! fd_engine {
             #[getter]
             fn scheme(&self) -> &'static str {
                 match self.0.settings().scheme {
-                    core::FiniteDifferenceScheme::ExplicitEuler => "explicit_euler",
-                    core::FiniteDifferenceScheme::ImplicitEuler => "implicit_euler",
-                    core::FiniteDifferenceScheme::CrankNicolson => "crank_nicolson",
+                    kiyosi::FiniteDifferenceScheme::ExplicitEuler => "explicit_euler",
+                    kiyosi::FiniteDifferenceScheme::ImplicitEuler => "implicit_euler",
+                    kiyosi::FiniteDifferenceScheme::CrankNicolson => "crank_nicolson",
                 }
             }
             /// Return the explicit upper spot boundary, or None for automatic selection.

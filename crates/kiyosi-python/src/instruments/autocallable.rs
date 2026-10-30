@@ -1,42 +1,41 @@
 use crate::conversions::{date, dates, python_date, real};
 use crate::error::domain;
-use kiyosi as core;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
 
-fn state(value: &Bound<'_, PyAny>) -> PyResult<Option<core::AutocallableBarrierState>> {
+fn state(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::AutocallableBarrierState>> {
     if value.is_none() {
         return Ok(None);
     }
     Ok(Some(match value.extract::<&str>()? {
-        "none" => core::AutocallableBarrierState::None,
-        "knocked_in" => core::AutocallableBarrierState::KnockedIn,
-        "knocked_out" => core::AutocallableBarrierState::KnockedOut,
+        "none" => kiyosi::AutocallableBarrierState::None,
+        "knocked_in" => kiyosi::AutocallableBarrierState::KnockedIn,
+        "knocked_out" => kiyosi::AutocallableBarrierState::KnockedOut,
         _ => return Err(PyValueError::new_err("unknown autocallable barrier_state")),
     }))
 }
-fn state_name(value: Option<core::AutocallableBarrierState>) -> Option<&'static str> {
+fn state_name(value: Option<kiyosi::AutocallableBarrierState>) -> Option<&'static str> {
     value.map(|s| match s {
-        core::AutocallableBarrierState::None => "none",
-        core::AutocallableBarrierState::KnockedIn => "knocked_in",
-        core::AutocallableBarrierState::KnockedOut => "knocked_out",
+        kiyosi::AutocallableBarrierState::None => "none",
+        kiyosi::AutocallableBarrierState::KnockedIn => "knocked_in",
+        kiyosi::AutocallableBarrierState::KnockedOut => "knocked_out",
     })
 }
-fn mode(value: &Bound<'_, PyAny>) -> PyResult<core::KnockInObservationMode> {
+fn mode(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::KnockInObservationMode> {
     match value.extract::<&str>()? {
-        "every_trading_day" => Ok(core::KnockInObservationMode::EveryTradingDay),
-        "at_expiry" => Ok(core::KnockInObservationMode::AtExpiry),
+        "every_trading_day" => Ok(kiyosi::KnockInObservationMode::EveryTradingDay),
+        "at_expiry" => Ok(kiyosi::KnockInObservationMode::AtExpiry),
         _ => Err(PyValueError::new_err("unknown knock_in_observation_mode")),
     }
 }
-fn mode_name(value: core::KnockInObservationMode) -> &'static str {
+fn mode_name(value: kiyosi::KnockInObservationMode) -> &'static str {
     match value {
-        core::KnockInObservationMode::EveryTradingDay => "every_trading_day",
-        core::KnockInObservationMode::AtExpiry => "at_expiry",
+        kiyosi::KnockInObservationMode::EveryTradingDay => "every_trading_day",
+        kiyosi::KnockInObservationMode::AtExpiry => "at_expiry",
     }
 }
-fn records(values: &Bound<'_, PyAny>) -> PyResult<Vec<core::AutocallableObservation>> {
+fn records(values: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::AutocallableObservation>> {
     values
         .try_iter()?
         .map(|item| Ok(item?.extract::<PyRef<'_, AutocallableObservation>>()?.0))
@@ -65,18 +64,18 @@ fn reals(values: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
 /// validates contractual levels and coupons.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct AutocallableObservation(pub core::AutocallableObservation);
+pub(crate) struct AutocallableObservation(pub kiyosi::AutocallableObservation);
 #[pymethods]
 impl AutocallableObservation {
     #[new]
-    #[pyo3(signature = (date, knock_out_level, *, coupon_rate=core::AutocallableObservation::DEFAULT_COUPON_RATE, coupon_barrier_level=core::AutocallableObservation::DEFAULT_COUPON_BARRIER_LEVEL))]
+    #[pyo3(signature = (date, knock_out_level, *, coupon_rate=kiyosi::AutocallableObservation::DEFAULT_COUPON_RATE, coupon_barrier_level=kiyosi::AutocallableObservation::DEFAULT_COUPON_BARRIER_LEVEL))]
     fn new(
         date: &Bound<'_, PyAny>,
         knock_out_level: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = real)] coupon_rate: f64,
         #[pyo3(from_py_with = real)] coupon_barrier_level: f64,
     ) -> PyResult<Self> {
-        let mut record = core::AutocallableObservation::new(
+        let mut record = kiyosi::AutocallableObservation::new(
             crate::conversions::date(date)?,
             real(knock_out_level)?,
         );
@@ -156,7 +155,7 @@ pub(crate) fn autocallable_observations(
     let barriers = coupon_barrier_levels.map(reals).transpose()?;
     Ok(domain(
         py,
-        core::autocallable_observations(&dates, &levels, coupons.as_deref(), barriers.as_deref()),
+        kiyosi::autocallable_observations(&dates, &levels, coupons.as_deref(), barriers.as_deref()),
     )?
     .into_iter()
     .map(AutocallableObservation)
@@ -167,7 +166,7 @@ macro_rules! snowball_preset {
     ($name:ident, $coupon:ident, $level:ident, [$($extra:ident),*], $preset:expr, $doc:literal) => {
         #[doc = $doc]
         #[pyfunction]
-        #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* observation_dates, effective_date, expiry_date, barrier_state=None, principal_ratio=core::DEFAULT_PRINCIPAL_RATIO))]
+        #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* observation_dates, effective_date, expiry_date, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
         pub(crate) fn $name(
             py: Python<'_>,
@@ -182,7 +181,7 @@ macro_rules! snowball_preset {
             barrier_state: Option<&Bound<'_, PyAny>>,
             #[pyo3(from_py_with = real)] principal_ratio: f64,
         ) -> PyResult<SnowballOption> {
-            let mut terms = core::SnowballPresetTerms::new(
+            let mut terms = kiyosi::SnowballPresetTerms::new(
                 real($coupon)?, real(initial_spot)?, real(knock_in_level)?, real($level)?,
                 date(effective_date)?, date(expiry_date)?, dates(observation_dates)?,
             );
@@ -200,7 +199,7 @@ snowball_preset!(
     coupon_rate,
     knock_out_level,
     [],
-    core::SnowballPreset::Standard,
+    kiyosi::SnowballPreset::Standard,
     r"Create constant knock-out coupons and levels with daily knock-in
 monitoring.
 
@@ -247,7 +246,7 @@ snowball_preset!(
     coupon_rate,
     knock_out_level,
     [],
-    core::SnowballPreset::European,
+    kiyosi::SnowballPreset::European,
     r"Create a snowball with knock-in observed only at expiry.
 
 Parameters
@@ -294,7 +293,7 @@ snowball_preset!(
     coupon_rate,
     initial_knock_out_level,
     [knock_out_level_decrement],
-    core::SnowballPreset::StepDown {
+    kiyosi::SnowballPreset::StepDown {
         knock_out_level_decrement
     },
     r"Create a snowball with decreasing knock-out levels.
@@ -347,7 +346,7 @@ snowball_preset!(
     initial_coupon_rate,
     initial_knock_out_level,
     [coupon_rate_decrement, knock_out_level_decrement],
-    core::SnowballPreset::BothDown {
+    kiyosi::SnowballPreset::BothDown {
         coupon_rate_decrement,
         knock_out_level_decrement
     },
@@ -403,7 +402,7 @@ snowball_preset!(
     knock_out_coupon_rate,
     knock_out_level,
     [maturity_coupon_rate],
-    core::SnowballPreset::DualCoupon {
+    kiyosi::SnowballPreset::DualCoupon {
         maturity_coupon_rate
     },
     r"Create a snowball with separate knock-out and maturity coupons.
@@ -453,7 +452,7 @@ snowball_preset!(
     coupon_rate,
     knock_out_level,
     [final_knock_out_level],
-    core::SnowballPreset::Parachute {
+    kiyosi::SnowballPreset::Parachute {
         final_knock_out_level
     },
     r"Create a snowball with a distinct final knock-out level.
@@ -503,7 +502,7 @@ snowball_preset!(
     coupon_rate,
     knock_out_level,
     [upper_strike],
-    core::SnowballPreset::Otm { upper_strike },
+    kiyosi::SnowballPreset::Otm { upper_strike },
     r"Create a snowball with a replaced upper terminal strike.
 
 Parameters
@@ -551,7 +550,7 @@ snowball_preset!(
     coupon_rate,
     knock_out_level,
     [lower_strike],
-    core::SnowballPreset::LossCapped { lower_strike },
+    kiyosi::SnowballPreset::LossCapped { lower_strike },
     r"Create a snowball whose lower terminal strike caps downside loss.
 
 Parameters
@@ -630,11 +629,11 @@ and trading-calendar consistency are checked during pricing."
 ///     Pricing checks the calendar and prior barrier history.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct SnowballOption(pub core::SnowballOption);
+pub(crate) struct SnowballOption(pub kiyosi::SnowballOption);
 #[pymethods]
 impl SnowballOption {
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=core::DEFAULT_PRINCIPAL_RATIO))]
+    #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         py: Python<'_>,
@@ -650,7 +649,7 @@ impl SnowballOption {
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_ratio: f64,
     ) -> PyResult<Self> {
-        let mut terms = core::SnowballTerms::new(
+        let mut terms = kiyosi::SnowballTerms::new(
             real(maturity_coupon_rate)?,
             real(initial_spot)?,
             real(knock_in_level)?,
@@ -665,7 +664,7 @@ impl SnowballOption {
             terms.barrier_state = state(value)?;
         }
         terms.principal_ratio = principal_ratio;
-        Ok(Self(domain(py, core::SnowballOption::new(terms))?))
+        Ok(Self(domain(py, kiyosi::SnowballOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -827,11 +826,11 @@ impl SnowballOption {
 ///     barrier_state is knocked_in; this contract has no knock-in barrier.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct BinarySnowballOption(pub core::BinarySnowballOption);
+pub(crate) struct BinarySnowballOption(pub kiyosi::BinarySnowballOption);
 #[pymethods]
 impl BinarySnowballOption {
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=core::DEFAULT_PRINCIPAL_RATIO))]
+    #[pyo3(signature = (*, maturity_coupon_rate, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     fn new(
         py: Python<'_>,
         maturity_coupon_rate: &Bound<'_, PyAny>,
@@ -841,7 +840,7 @@ impl BinarySnowballOption {
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_ratio: f64,
     ) -> PyResult<Self> {
-        let mut terms = core::BinarySnowballTerms::new(
+        let mut terms = kiyosi::BinarySnowballTerms::new(
             real(maturity_coupon_rate)?,
             date(effective_date)?,
             date(expiry_date)?,
@@ -851,7 +850,7 @@ impl BinarySnowballOption {
             terms.barrier_state = state(value)?;
         }
         terms.principal_ratio = principal_ratio;
-        Ok(Self(domain(py, core::BinarySnowballOption::new(terms))?))
+        Ok(Self(domain(py, kiyosi::BinarySnowballOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -989,11 +988,11 @@ impl BinarySnowballOption {
 ///     minimum_coupon_rate must not exceed maturity_coupon_rate.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct TernarySnowballOption(pub core::TernarySnowballOption);
+pub(crate) struct TernarySnowballOption(pub kiyosi::TernarySnowballOption);
 #[pymethods]
 impl TernarySnowballOption {
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=core::DEFAULT_PRINCIPAL_RATIO))]
+    #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         py: Python<'_>,
@@ -1007,7 +1006,7 @@ impl TernarySnowballOption {
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_ratio: f64,
     ) -> PyResult<Self> {
-        let mut terms = core::TernarySnowballTerms::new(
+        let mut terms = kiyosi::TernarySnowballTerms::new(
             real(maturity_coupon_rate)?,
             real(minimum_coupon_rate)?,
             real(knock_in_level)?,
@@ -1020,7 +1019,7 @@ impl TernarySnowballOption {
             terms.barrier_state = state(value)?;
         }
         terms.principal_ratio = principal_ratio;
-        Ok(Self(domain(py, core::TernarySnowballOption::new(terms))?))
+        Ok(Self(domain(py, kiyosi::TernarySnowballOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -1186,11 +1185,11 @@ impl TernarySnowballOption {
 /// coupons are settled. There is no coupon memory or maturity coupon.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct PhoenixOption(pub core::PhoenixOption);
+pub(crate) struct PhoenixOption(pub kiyosi::PhoenixOption);
 #[pymethods]
 impl PhoenixOption {
     #[new]
-    #[pyo3(signature = (*, coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=core::DEFAULT_PRINCIPAL_RATIO))]
+    #[pyo3(signature = (*, coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         py: Python<'_>,
@@ -1206,7 +1205,7 @@ impl PhoenixOption {
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_ratio: f64,
     ) -> PyResult<Self> {
-        let mut terms = core::PhoenixTerms::new(
+        let mut terms = kiyosi::PhoenixTerms::new(
             real(coupon_rate)?,
             real(initial_spot)?,
             real(knock_in_level)?,
@@ -1221,7 +1220,7 @@ impl PhoenixOption {
             terms.barrier_state = state(value)?;
         }
         terms.principal_ratio = principal_ratio;
-        Ok(Self(domain(py, core::PhoenixOption::new(terms))?))
+        Ok(Self(domain(py, kiyosi::PhoenixOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
     ///

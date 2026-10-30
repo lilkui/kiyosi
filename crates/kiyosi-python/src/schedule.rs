@@ -1,7 +1,6 @@
 use crate::calendar::TradingCalendar;
 use crate::conversions::{check_integer, date, integer, python_date};
 use crate::error::domain;
-use kiyosi as core;
 use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
@@ -16,7 +15,7 @@ use pyo3::types::PyDate;
 /// Slices are not supported. len(schedule) counts observations.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
-pub(crate) struct ObservationSchedule(pub(crate) core::ObservationSchedule);
+pub(crate) struct ObservationSchedule(pub(crate) kiyosi::ObservationSchedule);
 
 #[pymethods]
 impl ObservationSchedule {
@@ -119,7 +118,7 @@ pub(crate) fn fixed_interval_schedule(
     let interval_days = interval_days.extract::<i64>()?;
     Ok(ObservationSchedule(domain(
         py,
-        core::ObservationSchedule::fixed_interval(start, end, interval_days, &calendar.0),
+        kiyosi::ObservationSchedule::fixed_interval(start, end, interval_days, &calendar.0),
     )?))
 }
 
@@ -163,7 +162,7 @@ pub(crate) fn monthly_schedule(
 ) -> PyResult<ObservationSchedule> {
     Ok(ObservationSchedule(domain(
         py,
-        core::ObservationSchedule::monthly(
+        kiyosi::ObservationSchedule::monthly(
             date(start)?,
             date(end)?,
             integer(first_observation_month)?,

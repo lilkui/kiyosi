@@ -1,6 +1,5 @@
 use crate::conversions::{date, dates, integer, python_date};
 use crate::error::domain;
-use kiyosi as core;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
@@ -12,7 +11,7 @@ use pyo3::types::PyDate;
 /// Use the calendar factory functions to construct instances.
 #[pyclass(frozen, eq, from_py_object, module = "kiyosi._native")]
 #[derive(Clone, Default, PartialEq)]
-pub(crate) struct TradingCalendar(pub(crate) core::TradingCalendar);
+pub(crate) struct TradingCalendar(pub(crate) kiyosi::TradingCalendar);
 
 #[pymethods]
 impl TradingCalendar {
@@ -70,8 +69,8 @@ impl TradingCalendar {
     ) -> PyResult<Bound<'py, PyDate>> {
         let nominal = date(nominal)?;
         let convention = match convention.extract::<&str>()? {
-            "following" => core::BusinessDayConvention::Following,
-            "preceding" => core::BusinessDayConvention::Preceding,
+            "following" => kiyosi::BusinessDayConvention::Following,
+            "preceding" => kiyosi::BusinessDayConvention::Preceding,
             _ => {
                 return Err(PyValueError::new_err(
                     "convention must be following or preceding",
@@ -151,7 +150,7 @@ pub(crate) fn weekdays_calendar() -> TradingCalendar {
 ///     Calendar with the stated annualization basis.
 #[pyfunction]
 pub(crate) fn all_days_calendar() -> TradingCalendar {
-    TradingCalendar(core::TradingCalendar::all_days())
+    TradingCalendar(kiyosi::TradingCalendar::all_days())
 }
 
 /// Create an SSE weekday-closure calendar with a 243-day basis.
@@ -167,7 +166,7 @@ pub(crate) fn all_days_calendar() -> TradingCalendar {
 /// outside that range. Forecasts omit ad-hoc closures.
 #[pyfunction]
 pub(crate) fn sse_calendar() -> TradingCalendar {
-    TradingCalendar(core::TradingCalendar::sse())
+    TradingCalendar(kiyosi::TradingCalendar::sse())
 }
 
 /// Create open and closed overrides without changing the base calendar.
@@ -197,13 +196,13 @@ pub(crate) fn sse_calendar() -> TradingCalendar {
 pub(crate) fn custom_calendar(
     py: Python<'_>,
     base: &TradingCalendar,
-    #[pyo3(from_py_with = dates)] closed_dates: Vec<core::Date>,
-    #[pyo3(from_py_with = dates)] open_dates: Vec<core::Date>,
+    #[pyo3(from_py_with = dates)] closed_dates: Vec<kiyosi::Date>,
+    #[pyo3(from_py_with = dates)] open_dates: Vec<kiyosi::Date>,
     trading_days_per_year: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<TradingCalendar> {
     let basis = trading_days_per_year.map(integer).transpose()?;
     Ok(TradingCalendar(domain(
         py,
-        core::TradingCalendar::custom(base.0.clone(), closed_dates, open_dates, basis),
+        kiyosi::TradingCalendar::custom(base.0.clone(), closed_dates, open_dates, basis),
     )?))
 }

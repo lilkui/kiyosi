@@ -2,7 +2,6 @@ use crate::error::domain;
 use crate::instruments::range_accrual::RangeAccrualOption;
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 /// Exact BSM range-coupon marginals with deterministic rate curves.
@@ -51,7 +50,7 @@ impl AnalyticRangeAccrualEngine {
         let context = &context.0;
         domain(
             py,
-            py.detach(|| core::AnalyticRangeAccrualEngine.price(option, context)),
+            py.detach(|| kiyosi::AnalyticRangeAccrualEngine.price(option, context)),
         )
     }
 
@@ -107,7 +106,8 @@ impl AnalyticRangeAccrualEngine {
         Ok(risk::PricingResult(domain(
             py,
             py.detach(|| {
-                core::AnalyticRangeAccrualEngine.price_with_greeks(option, context, request, shifts)
+                kiyosi::AnalyticRangeAccrualEngine
+                    .price_with_greeks(option, context, request, shifts)
             }),
         )?))
     }
