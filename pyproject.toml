@@ -7,7 +7,7 @@ name = "kiyosi"
 description = "Rust-powered Python library for derivatives pricing"
 readme = "README.md"
 license = "MIT"
-license-files = ["LICENSE.txt"]
+license-files = ["LICENSE.txt", "THIRD_PARTY_NOTICES.txt"]
 authors = [{ name = "Jiangping Li" }]
 requires-python = ">=3.11"
 dynamic = ["version"]

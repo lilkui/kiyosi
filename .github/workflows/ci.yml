@@ -24,6 +24,8 @@ jobs:
       run:
         shell: bash
     steps:
+      - if: runner.os == 'Windows'
+        run: git config --global core.symlinks true
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
@@ -42,6 +44,7 @@ jobs:
           cargo check --locked
           cargo test --release --locked
           cargo doc --no-deps --locked
+          test -L crates/kiyosi-core/THIRD_PARTY_NOTICES.txt
           cargo package -p kiyosi-core --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
@@ -66,6 +69,8 @@ jobs:
       run:
         shell: bash
     steps:
+      - if: runner.os == 'Windows'
+        run: git config --global core.symlinks true
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
