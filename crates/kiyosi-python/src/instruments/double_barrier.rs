@@ -57,7 +57,7 @@ pub(crate) struct DoubleBarrierOption(pub core::DoubleBarrierOption);
 #[pymethods]
 impl DoubleBarrierOption {
     #[new]
-    #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, lower_barrier, upper_barrier, barrier_type, **settings))]
+    #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, lower_barrier, upper_barrier, barrier_type, rebate=core::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=core::RebateTiming::default(), observation_mode=core::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         py: Python<'_>,
@@ -68,18 +68,12 @@ impl DoubleBarrierOption {
         lower_barrier: &Bound<'_, PyAny>,
         upper_barrier: &Bound<'_, PyAny>,
         barrier_type: &Bound<'_, PyAny>,
-        settings: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = real)] rebate: f64,
+        #[pyo3(from_py_with = timing)] rebate_timing: core::RebateTiming,
+        #[pyo3(from_py_with = mode)] observation_mode: core::ObservationMode,
+        #[pyo3(from_py_with = dates)] observation_dates: Vec<core::Date>,
+        #[pyo3(from_py_with = history)] touch_state: Option<core::BarrierTouchState>,
     ) -> PyResult<Self> {
-        check_changes(
-            settings,
-            &[
-                "rebate",
-                "rebate_timing",
-                "observation_mode",
-                "observation_dates",
-                "touch_state",
-            ],
-        )?;
         let mut terms = core::DoubleBarrierOptionTerms::new(
             direction(option_type)?,
             real(strike)?,
@@ -89,23 +83,11 @@ impl DoubleBarrierOption {
             real(upper_barrier)?,
             kind(barrier_type)?,
         );
-        if let Some(settings) = settings {
-            if let Some(v) = settings.get_item("rebate")? {
-                terms.rebate = real(&v)?;
-            }
-            if let Some(v) = settings.get_item("rebate_timing")? {
-                terms.rebate_timing = timing(&v)?;
-            }
-            if let Some(v) = settings.get_item("observation_mode")? {
-                terms.observation_mode = mode(&v)?;
-            }
-            if let Some(v) = settings.get_item("observation_dates")? {
-                terms.observation_dates = dates(&v)?;
-            }
-            if let Some(v) = settings.get_item("touch_state")? {
-                terms.touch_state = history(&v)?;
-            }
-        }
+        terms.rebate = rebate;
+        terms.rebate_timing = rebate_timing;
+        terms.observation_mode = observation_mode;
+        terms.observation_dates = observation_dates;
+        terms.touch_state = touch_state;
         Ok(Self(domain(py, core::DoubleBarrierOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.

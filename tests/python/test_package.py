@@ -13,9 +13,24 @@ from kiyosi import _native, instruments, market, pricing
 
 
 class PackageTests(unittest.TestCase):
-    def test_barrier_and_solver_signatures_match_declared_keywords(self):
+    def test_constructors_and_factories_match_declared_keywords(self):
         stub = ast.parse((Path(kiyosi.__file__).parent / "_native.pyi").read_text())
-        for factory in (instruments.BarrierOption, pricing.implied_volatility):
+        factories = [pricing.implied_volatility]
+        for module in (instruments, market):
+            for node in stub.body:
+                if getattr(node, "name", None) not in module.__all__:
+                    continue
+                if isinstance(node, ast.FunctionDef) or (
+                    isinstance(node, ast.ClassDef)
+                    and any(
+                        isinstance(member, ast.FunctionDef)
+                        and member.name == "__init__"
+                        for member in node.body
+                    )
+                ):
+                    factories.append(getattr(module, node.name))
+        self.assertGreater(len(factories), 30)
+        for factory in factories:
             declaration = next(
                 node
                 for node in stub.body

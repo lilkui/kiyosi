@@ -1,10 +1,9 @@
-use crate::conversions::{check_changes, date, dates, python_date, real};
+use crate::conversions::{date, dates, python_date, real};
 use crate::error::domain;
-use crate::risk;
 use kiyosi_core as core;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyDate, PyDict};
+use pyo3::types::PyDate;
 
 fn state(value: &Bound<'_, PyAny>) -> PyResult<Option<core::AutocallableBarrierState>> {
     if value.is_none() {
@@ -70,20 +69,19 @@ pub(crate) struct AutocallableObservation(pub core::AutocallableObservation);
 #[pymethods]
 impl AutocallableObservation {
     #[new]
-    #[pyo3(signature = (date, knock_out_level, **fields))]
+    #[pyo3(signature = (date, knock_out_level, *, coupon_rate=core::AutocallableObservation::DEFAULT_COUPON_RATE, coupon_barrier_level=core::AutocallableObservation::DEFAULT_COUPON_BARRIER_LEVEL))]
     fn new(
         date: &Bound<'_, PyAny>,
         knock_out_level: &Bound<'_, PyAny>,
-        fields: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = real)] coupon_rate: f64,
+        #[pyo3(from_py_with = real)] coupon_barrier_level: f64,
     ) -> PyResult<Self> {
-        check_changes(fields, &["coupon_rate", "coupon_barrier_level"])?;
         let mut record = core::AutocallableObservation::new(
             crate::conversions::date(date)?,
             real(knock_out_level)?,
         );
-        record.coupon_rate = risk::real_setting(fields, "coupon_rate", record.coupon_rate)?;
-        record.coupon_barrier_level =
-            risk::real_setting(fields, "coupon_barrier_level", record.coupon_barrier_level)?;
+        record.coupon_rate = coupon_rate;
+        record.coupon_barrier_level = coupon_barrier_level;
         Ok(Self(record))
     }
     /// Return observation date at midnight UTC.
@@ -169,7 +167,7 @@ macro_rules! snowball_preset {
     ($name:ident, $coupon:ident, $level:ident, [$($extra:ident),*], $preset:expr, $doc:literal) => {
         #[doc = $doc]
         #[pyfunction]
-        #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* observation_dates, effective_date, expiry_date, barrier_state=None, **fields))]
+        #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* observation_dates, effective_date, expiry_date, barrier_state=None, principal_ratio=core::DEFAULT_PRINCIPAL_RATIO))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
         pub(crate) fn $name(
             py: Python<'_>,
@@ -182,9 +180,8 @@ macro_rules! snowball_preset {
             effective_date: &Bound<'_, PyAny>,
             expiry_date: &Bound<'_, PyAny>,
             barrier_state: Option<&Bound<'_, PyAny>>,
-            fields: Option<&Bound<'_, PyDict>>,
+            #[pyo3(from_py_with = real)] principal_ratio: f64,
         ) -> PyResult<SnowballOption> {
-            check_changes(fields, &["principal_ratio"])?;
             let mut terms = core::SnowballPresetTerms::new(
                 real($coupon)?, real(initial_spot)?, real(knock_in_level)?, real($level)?,
                 date(effective_date)?, date(expiry_date)?, dates(observation_dates)?,
@@ -193,7 +190,7 @@ macro_rules! snowball_preset {
             if let Some(value) = barrier_state {
                 terms.barrier_state = state(value)?;
             }
-            terms.principal_ratio = risk::real_setting(fields, "principal_ratio", terms.principal_ratio)?;
+            terms.principal_ratio = principal_ratio;
             Ok(SnowballOption(domain(py, terms.expand($preset))?))
         }
     };
@@ -637,7 +634,7 @@ pub(crate) struct SnowballOption(pub core::SnowballOption);
 #[pymethods]
 impl SnowballOption {
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, **fields))]
+    #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=core::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         py: Python<'_>,
@@ -651,9 +648,8 @@ impl SnowballOption {
         expiry_date: &Bound<'_, PyAny>,
         observations: &Bound<'_, PyAny>,
         barrier_state: Option<&Bound<'_, PyAny>>,
-        fields: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = real)] principal_ratio: f64,
     ) -> PyResult<Self> {
-        check_changes(fields, &["principal_ratio"])?;
         let mut terms = core::SnowballTerms::new(
             real(maturity_coupon_rate)?,
             real(initial_spot)?,
@@ -668,8 +664,7 @@ impl SnowballOption {
         if let Some(value) = barrier_state {
             terms.barrier_state = state(value)?;
         }
-        terms.principal_ratio =
-            risk::real_setting(fields, "principal_ratio", terms.principal_ratio)?;
+        terms.principal_ratio = principal_ratio;
         Ok(Self(domain(py, core::SnowballOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
@@ -836,7 +831,7 @@ pub(crate) struct BinarySnowballOption(pub core::BinarySnowballOption);
 #[pymethods]
 impl BinarySnowballOption {
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, effective_date, expiry_date, observations, barrier_state=None, **fields))]
+    #[pyo3(signature = (*, maturity_coupon_rate, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=core::DEFAULT_PRINCIPAL_RATIO))]
     fn new(
         py: Python<'_>,
         maturity_coupon_rate: &Bound<'_, PyAny>,
@@ -844,9 +839,8 @@ impl BinarySnowballOption {
         expiry_date: &Bound<'_, PyAny>,
         observations: &Bound<'_, PyAny>,
         barrier_state: Option<&Bound<'_, PyAny>>,
-        fields: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = real)] principal_ratio: f64,
     ) -> PyResult<Self> {
-        check_changes(fields, &["principal_ratio"])?;
         let mut terms = core::BinarySnowballTerms::new(
             real(maturity_coupon_rate)?,
             date(effective_date)?,
@@ -856,8 +850,7 @@ impl BinarySnowballOption {
         if let Some(value) = barrier_state {
             terms.barrier_state = state(value)?;
         }
-        terms.principal_ratio =
-            risk::real_setting(fields, "principal_ratio", terms.principal_ratio)?;
+        terms.principal_ratio = principal_ratio;
         Ok(Self(domain(py, core::BinarySnowballOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
@@ -1000,7 +993,7 @@ pub(crate) struct TernarySnowballOption(pub core::TernarySnowballOption);
 #[pymethods]
 impl TernarySnowballOption {
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, **fields))]
+    #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=core::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         py: Python<'_>,
@@ -1012,9 +1005,8 @@ impl TernarySnowballOption {
         expiry_date: &Bound<'_, PyAny>,
         observations: &Bound<'_, PyAny>,
         barrier_state: Option<&Bound<'_, PyAny>>,
-        fields: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = real)] principal_ratio: f64,
     ) -> PyResult<Self> {
-        check_changes(fields, &["principal_ratio"])?;
         let mut terms = core::TernarySnowballTerms::new(
             real(maturity_coupon_rate)?,
             real(minimum_coupon_rate)?,
@@ -1027,8 +1019,7 @@ impl TernarySnowballOption {
         if let Some(value) = barrier_state {
             terms.barrier_state = state(value)?;
         }
-        terms.principal_ratio =
-            risk::real_setting(fields, "principal_ratio", terms.principal_ratio)?;
+        terms.principal_ratio = principal_ratio;
         Ok(Self(domain(py, core::TernarySnowballOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
@@ -1199,7 +1190,7 @@ pub(crate) struct PhoenixOption(pub core::PhoenixOption);
 #[pymethods]
 impl PhoenixOption {
     #[new]
-    #[pyo3(signature = (*, coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, **fields))]
+    #[pyo3(signature = (*, coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=core::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         py: Python<'_>,
@@ -1213,9 +1204,8 @@ impl PhoenixOption {
         expiry_date: &Bound<'_, PyAny>,
         observations: &Bound<'_, PyAny>,
         barrier_state: Option<&Bound<'_, PyAny>>,
-        fields: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = real)] principal_ratio: f64,
     ) -> PyResult<Self> {
-        check_changes(fields, &["principal_ratio"])?;
         let mut terms = core::PhoenixTerms::new(
             real(coupon_rate)?,
             real(initial_spot)?,
@@ -1230,8 +1220,7 @@ impl PhoenixOption {
         if let Some(value) = barrier_state {
             terms.barrier_state = state(value)?;
         }
-        terms.principal_ratio =
-            risk::real_setting(fields, "principal_ratio", terms.principal_ratio)?;
+        terms.principal_ratio = principal_ratio;
         Ok(Self(domain(py, core::PhoenixOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.

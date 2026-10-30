@@ -1,8 +1,8 @@
-use crate::conversions::{check_changes, date, python_date, real};
+use crate::conversions::{date, python_date, real};
 use crate::error::domain;
 use kiyosi_core as core;
 use pyo3::prelude::*;
-use pyo3::types::{PyDate, PyDict};
+use pyo3::types::PyDate;
 
 /// Trading-date purchases settled at knock-out or expiry.
 ///
@@ -41,7 +41,7 @@ pub(crate) struct Accumulator(pub(crate) core::Accumulator);
 #[pymethods]
 impl Accumulator {
     #[new]
-    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_date, expiry_date, **history))]
+    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_date, expiry_date, accumulated_quantity=core::AccumulatorTerms::DEFAULT_ACCUMULATED_QUANTITY))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         py: Python<'_>,
@@ -51,9 +51,8 @@ impl Accumulator {
         acceleration_factor: &Bound<'_, PyAny>,
         effective_date: &Bound<'_, PyAny>,
         expiry_date: &Bound<'_, PyAny>,
-        history: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = real)] accumulated_quantity: f64,
     ) -> PyResult<Self> {
-        check_changes(history, &["accumulated_quantity"])?;
         let mut terms = core::AccumulatorTerms::new(
             real(strike)?,
             real(knock_out_level)?,
@@ -62,13 +61,7 @@ impl Accumulator {
             date(effective_date)?,
             date(expiry_date)?,
         );
-        if let Some(value) = history
-            .map(|f| f.get_item("accumulated_quantity"))
-            .transpose()?
-            .flatten()
-        {
-            terms.accumulated_quantity = real(&value)?;
-        }
+        terms.accumulated_quantity = accumulated_quantity;
         Ok(Self(domain(py, core::Accumulator::new(terms))?))
     }
     /// Return a validated replacement without changing this value.

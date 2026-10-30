@@ -19,6 +19,9 @@ pub struct AccumulatorTerms {
     pub expiry_date: Date,
 }
 impl AccumulatorTerms {
+    /// Supplies zero accrued quantity; see [`Self::new`].
+    pub const DEFAULT_ACCUMULATED_QUANTITY: f64 = 0.0;
+
     /// Creates terms with zero accrued quantity; see [`Accumulator::new`].
     pub fn new(
         strike: f64,
@@ -33,7 +36,7 @@ impl AccumulatorTerms {
             knock_out_level,
             daily_quantity,
             acceleration_factor,
-            accumulated_quantity: 0.0,
+            accumulated_quantity: Self::DEFAULT_ACCUMULATED_QUANTITY,
             effective_date,
             expiry_date,
         }

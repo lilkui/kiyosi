@@ -164,21 +164,22 @@ macro_rules! binary_factory {
     ($name:ident, $constructor:ident $(, $payout:ident)?, $doc:literal) => {
         #[doc = $doc]
         #[pyfunction]
-        #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, barrier_level, barrier_type, $($payout,)? **settings))]
+        #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, barrier_level, barrier_type, $($payout,)? observation_mode=core::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
         pub(crate) fn $name(py: Python<'_>, option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
             effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
             barrier_level: &Bound<'_, PyAny>, barrier_type: &Bound<'_, PyAny>,
-            $($payout: &Bound<'_, PyAny>,)? settings: Option<&Bound<'_, PyDict>>) -> PyResult<BinaryBarrierOption> {
-            check_changes(settings, &["observation_mode", "observation_dates", "touch_state"])?;
+            $($payout: &Bound<'_, PyAny>,)?
+            #[pyo3(from_py_with = barrier::mode)] observation_mode: core::ObservationMode,
+            #[pyo3(from_py_with = dates)] observation_dates: Vec<core::Date>,
+            #[pyo3(from_py_with = barrier::history)] touch_state: Option<core::BarrierTouchState>,
+        ) -> PyResult<BinaryBarrierOption> {
             let mut terms = core::BinaryBarrierTerms::new(direction(option_type)?, real(strike)?,
                 date(effective_date)?, date(expiry_date)?, real(barrier_level)?, barrier::kind(barrier_type)?);
             $(let $payout = real($payout)?;)?
-            if let Some(settings) = settings {
-                if let Some(v) = settings.get_item("observation_mode")? { terms.observation_mode = barrier::mode(&v)?; }
-                if let Some(v) = settings.get_item("observation_dates")? { terms.observation_dates = dates(&v)?; }
-                if let Some(v) = settings.get_item("touch_state")? { terms.touch_state = barrier::history(&v)?; }
-            }
+            terms.observation_mode = observation_mode;
+            terms.observation_dates = observation_dates;
+            terms.touch_state = touch_state;
             Ok(BinaryBarrierOption(domain(py, core::BinaryBarrierOption::$constructor(terms $(, $payout)?))?))
         }
     };
@@ -275,41 +276,43 @@ calendar compatibility are checked during pricing. Terminal strike
 equality pays zero."
 );
 
+pub(crate) fn settlement(value: &Bound<'_, PyAny>) -> PyResult<core::SettlementTiming> {
+    match value.extract::<&str>()? {
+        "at_hit" => Ok(core::SettlementTiming::AtHit),
+        "at_expiry" => Ok(core::SettlementTiming::AtExpiry),
+        _ => Err(PyValueError::new_err("unknown settlement_timing")),
+    }
+}
+
 macro_rules! touch_factory {
-    ($name:ident, $constructor:ident, $kind:ident $(, $payout:ident)?, $doc:literal) => {
+    ($(#[$attribute:meta])* $name:ident, $constructor:ident, $kind:ident, [$($settlement:ident)?] $(, $payout:ident)?, $doc:literal) => {
         #[doc = $doc]
         #[pyfunction]
-        #[pyo3(signature = (*, effective_date, expiry_date, barrier_level, $($payout,)? **settings))]
+        #[pyo3(signature = (*, effective_date, expiry_date, barrier_level, $($payout,)? $($settlement=core::SettlementTiming::default(),)? observation_mode=core::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+        $(#[$attribute])*
         pub(crate) fn $name(py: Python<'_>, effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
             barrier_level: &Bound<'_, PyAny>, $($payout: &Bound<'_, PyAny>,)?
-            settings: Option<&Bound<'_, PyDict>>) -> PyResult<TouchOption> {
-            let kind = core::BarrierType::$kind;
-            let one_touch = matches!(kind, core::BarrierType::UpAndIn | core::BarrierType::DownAndIn);
-            check_changes(settings, if one_touch {
-                &["settlement_timing", "observation_mode", "observation_dates", "touch_state"]
-            } else { &["observation_mode", "observation_dates", "touch_state"] })?;
-            let mut terms = core::TouchOptionTerms::new(date(effective_date)?, date(expiry_date)?, real(barrier_level)?, kind);
+            $(#[pyo3(from_py_with = settlement)] $settlement: core::SettlementTiming,)?
+            #[pyo3(from_py_with = barrier::mode)] observation_mode: core::ObservationMode,
+            #[pyo3(from_py_with = dates)] observation_dates: Vec<core::Date>,
+            #[pyo3(from_py_with = barrier::history)] touch_state: Option<core::BarrierTouchState>,
+        ) -> PyResult<TouchOption> {
+            let mut terms = core::TouchOptionTerms::new(date(effective_date)?, date(expiry_date)?, real(barrier_level)?, core::BarrierType::$kind);
             $(let $payout = real($payout)?;)?
-            if let Some(settings) = settings {
-                if let Some(v) = settings.get_item("settlement_timing")? {
-                    terms.settlement_timing = match v.extract::<&str>()? {
-                        "at_hit" => core::SettlementTiming::AtHit,
-                        "at_expiry" => core::SettlementTiming::AtExpiry,
-                        _ => return Err(PyValueError::new_err("unknown settlement_timing")),
-                    };
-                }
-                if let Some(v) = settings.get_item("observation_mode")? { terms.observation_mode = barrier::mode(&v)?; }
-                if let Some(v) = settings.get_item("observation_dates")? { terms.observation_dates = dates(&v)?; }
-                if let Some(v) = settings.get_item("touch_state")? { terms.touch_state = barrier::history(&v)?; }
-            }
+            $(terms.settlement_timing = $settlement;)?
+            terms.observation_mode = observation_mode;
+            terms.observation_dates = observation_dates;
+            terms.touch_state = touch_state;
             Ok(TouchOption(domain(py, core::TouchOption::$constructor(terms $(, $payout)?))?))
         }
     };
 }
 touch_factory!(
+    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     cash_one_touch_up,
     cash,
     UpAndIn,
+    [settlement_timing],
     payout,
     r"Create a cash payment activated by upward barrier touch.
 
@@ -351,9 +354,11 @@ payments have no remaining value. No-touch payments occur only at
 expiry."
 );
 touch_factory!(
+    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     cash_one_touch_down,
     cash,
     DownAndIn,
+    [settlement_timing],
     payout,
     r"Create a cash payment activated by downward barrier touch.
 
@@ -395,9 +400,11 @@ payments have no remaining value. No-touch payments occur only at
 expiry."
 );
 touch_factory!(
+    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     cash_no_touch_up,
     cash,
     UpAndOut,
+    [],
     payout,
     r"Create a cash payment requiring no upward barrier touch.
 
@@ -437,9 +444,11 @@ payments have no remaining value. No-touch payments occur only at
 expiry."
 );
 touch_factory!(
+    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     cash_no_touch_down,
     cash,
     DownAndOut,
+    [],
     payout,
     r"Create a cash payment requiring no downward barrier touch.
 
@@ -479,9 +488,11 @@ payments have no remaining value. No-touch payments occur only at
 expiry."
 );
 touch_factory!(
+    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     asset_one_touch_up,
     asset,
     UpAndIn,
+    [settlement_timing],
     r"Create an asset payment activated by upward barrier touch.
 
 Parameters
@@ -520,9 +531,11 @@ payment transfers spot; future continuous hits transfer the barrier
 amount. No-touch payments occur only at expiry."
 );
 touch_factory!(
+    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     asset_one_touch_down,
     asset,
     DownAndIn,
+    [settlement_timing],
     r"Create an asset payment activated by downward barrier touch.
 
 Parameters
@@ -564,6 +577,7 @@ touch_factory!(
     asset_no_touch_up,
     asset,
     UpAndOut,
+    [],
     r"Create an asset payment requiring no upward barrier touch.
 
 Parameters
@@ -603,6 +617,7 @@ touch_factory!(
     asset_no_touch_down,
     asset,
     DownAndOut,
+    [],
     r"Create an asset payment requiring no downward barrier touch.
 
 Parameters

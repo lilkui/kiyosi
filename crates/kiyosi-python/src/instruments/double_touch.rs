@@ -3,7 +3,6 @@ use crate::error::domain;
 use crate::instruments::barrier;
 use crate::schedule::ObservationSchedule;
 use kiyosi_core as core;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};
 
@@ -122,33 +121,25 @@ impl DoubleTouchOption {
 }
 
 macro_rules! double_touch_factory {
-    ($name:ident, $kind:ident, $doc:literal) => {
+    ($name:ident, $kind:ident, [$($settlement:ident)?], $doc:literal) => {
         #[doc = $doc]
         #[pyfunction]
-        #[pyo3(signature = (*, effective_date, expiry_date, lower_barrier, upper_barrier, payout, **settings))]
+        #[pyo3(signature = (*, effective_date, expiry_date, lower_barrier, upper_barrier, payout, $($settlement=core::SettlementTiming::default(),)? observation_mode=core::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+        #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
         pub(crate) fn $name(
             py: Python<'_>, effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
             lower_barrier: &Bound<'_, PyAny>, upper_barrier: &Bound<'_, PyAny>, payout: &Bound<'_, PyAny>,
-            settings: Option<&Bound<'_, PyDict>>,
+            $(#[pyo3(from_py_with = super::binary_barrier::settlement)] $settlement: core::SettlementTiming,)?
+            #[pyo3(from_py_with = barrier::mode)] observation_mode: core::ObservationMode,
+            #[pyo3(from_py_with = dates)] observation_dates: Vec<core::Date>,
+            #[pyo3(from_py_with = barrier::history)] touch_state: Option<core::BarrierTouchState>,
         ) -> PyResult<DoubleTouchOption> {
-            let kind = core::DoubleBarrierType::$kind;
-            check_changes(settings, if kind == core::DoubleBarrierType::KnockIn {
-                &["settlement_timing", "observation_mode", "observation_dates", "touch_state"]
-            } else { &["observation_mode", "observation_dates", "touch_state"] })?;
-            let mut terms = core::DoubleTouchOptionTerms::new(date(effective_date)?, date(expiry_date)?, real(lower_barrier)?, real(upper_barrier)?, kind);
+            let mut terms = core::DoubleTouchOptionTerms::new(date(effective_date)?, date(expiry_date)?, real(lower_barrier)?, real(upper_barrier)?, core::DoubleBarrierType::$kind);
             let payout = real(payout)?;
-            if let Some(settings) = settings {
-                if let Some(v) = settings.get_item("settlement_timing")? {
-                    terms.settlement_timing = match v.extract::<&str>()? {
-                        "at_hit" => core::SettlementTiming::AtHit,
-                        "at_expiry" => core::SettlementTiming::AtExpiry,
-                        _ => return Err(PyValueError::new_err("unknown settlement_timing")),
-                    };
-                }
-                if let Some(v) = settings.get_item("observation_mode")? { terms.observation_mode = barrier::mode(&v)?; }
-                if let Some(v) = settings.get_item("observation_dates")? { terms.observation_dates = dates(&v)?; }
-                if let Some(v) = settings.get_item("touch_state")? { terms.touch_state = barrier::history(&v)?; }
-            }
+            $(terms.settlement_timing = $settlement;)?
+            terms.observation_mode = observation_mode;
+            terms.observation_dates = observation_dates;
+            terms.touch_state = touch_state;
             Ok(DoubleTouchOption(domain(py, core::DoubleTouchOption::cash(terms, payout))?))
         }
     };
@@ -156,6 +147,7 @@ macro_rules! double_touch_factory {
 double_touch_factory!(
     cash_double_touch,
     KnockIn,
+    [settlement_timing],
     r"Create a cash payment activated by either inclusive boundary.
 
 Parameters
@@ -200,6 +192,7 @@ expiry."
 double_touch_factory!(
     cash_double_no_touch,
     KnockOut,
+    [],
     r"Create an expiry cash payment requiring neither boundary to be touched.
 
 Parameters

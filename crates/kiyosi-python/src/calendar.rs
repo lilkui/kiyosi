@@ -1,9 +1,9 @@
-use crate::conversions::{check_changes, date, dates, integer, python_date};
+use crate::conversions::{date, dates, integer, python_date};
 use crate::error::domain;
 use kiyosi_core as core;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyDate, PyDict};
+use pyo3::types::PyDate;
 
 /// Immutable trading calendar with a fixed annualization basis.
 ///
@@ -193,41 +193,17 @@ pub(crate) fn sse_calendar() -> TradingCalendar {
 /// InvalidInputError
 ///     If a date is both open and closed, or the annualization basis is nonpositive.
 #[pyfunction]
-#[pyo3(signature = (*, base, **overrides))]
+#[pyo3(signature = (*, base, closed_dates=Vec::new(), open_dates=Vec::new(), trading_days_per_year=None))]
 pub(crate) fn custom_calendar(
     py: Python<'_>,
     base: &TradingCalendar,
-    overrides: Option<&Bound<'_, PyDict>>,
+    #[pyo3(from_py_with = dates)] closed_dates: Vec<core::Date>,
+    #[pyo3(from_py_with = dates)] open_dates: Vec<core::Date>,
+    trading_days_per_year: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<TradingCalendar> {
-    check_changes(
-        overrides,
-        &["closed_dates", "open_dates", "trading_days_per_year"],
-    )?;
-    let mut closed = Vec::new();
-    let mut open = Vec::new();
-    let mut basis = None;
-    if let Some(overrides) = overrides {
-        closed = overrides
-            .get_item("closed_dates")?
-            .as_ref()
-            .map(dates)
-            .transpose()?
-            .unwrap_or_default();
-        open = overrides
-            .get_item("open_dates")?
-            .as_ref()
-            .map(dates)
-            .transpose()?
-            .unwrap_or_default();
-        basis = overrides
-            .get_item("trading_days_per_year")?
-            .filter(|value| !value.is_none())
-            .as_ref()
-            .map(integer)
-            .transpose()?;
-    }
+    let basis = trading_days_per_year.map(integer).transpose()?;
     Ok(TradingCalendar(domain(
         py,
-        core::TradingCalendar::custom(base.0.clone(), closed, open, basis),
+        core::TradingCalendar::custom(base.0.clone(), closed_dates, open_dates, basis),
     )?))
 }

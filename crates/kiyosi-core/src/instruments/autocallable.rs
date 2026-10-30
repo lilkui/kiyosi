@@ -5,7 +5,8 @@ pub use presets::{SnowballPreset, SnowballPresetTerms};
 use crate::error::finite;
 use crate::{Date, Error, OptionContract, PricingContext, Result, Timestamp, TradingCalendar};
 
-const DEFAULT_PRINCIPAL_RATIO: f64 = 1.0;
+/// Supplies unit principal for autocallable terms; see [`SnowballTerms::new`].
+pub const DEFAULT_PRINCIPAL_RATIO: f64 = 1.0;
 
 /// Selects strict downside monitoring; see [`SnowballTerms::new`] for construction.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -44,6 +45,11 @@ pub struct AutocallableObservation {
     pub coupon_barrier_level: f64,
 }
 impl AutocallableObservation {
+    /// Supplies a zero observation coupon; see [`Self::new`].
+    pub const DEFAULT_COUPON_RATE: f64 = 0.0;
+    /// Supplies a zero coupon barrier; see [`Self::new`].
+    pub const DEFAULT_COUPON_BARRIER_LEVEL: f64 = 0.0;
+
     /// Creates an input record with zero coupon and coupon barrier.
     ///
     /// See [`autocallable_observations`] for an example.
@@ -51,8 +57,8 @@ impl AutocallableObservation {
         Self {
             date,
             knock_out_level,
-            coupon_rate: 0.0,
-            coupon_barrier_level: 0.0,
+            coupon_rate: Self::DEFAULT_COUPON_RATE,
+            coupon_barrier_level: Self::DEFAULT_COUPON_BARRIER_LEVEL,
         }
     }
 }
