@@ -18,7 +18,7 @@ use crate::instruments::double_touch;
 use crate::instruments::range_accrual;
 use crate::instruments::vanilla::EuropeanOption;
 use crate::market::PricingContext;
-use kiyosi_core as core;
+use kiyosi as core;
 use pyo3::prelude::*;
 /// Solve the annual volatility that reproduces an observed price.
 ///

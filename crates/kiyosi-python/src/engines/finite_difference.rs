@@ -10,7 +10,7 @@ use crate::instruments::double_barrier;
 use crate::instruments::double_touch;
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi_core as core;
+use kiyosi as core;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;

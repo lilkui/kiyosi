@@ -1,6 +1,6 @@
 use crate::conversions::{date, direction, python_date, real};
 use crate::error::domain;
-use kiyosi_core as core;
+use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
 

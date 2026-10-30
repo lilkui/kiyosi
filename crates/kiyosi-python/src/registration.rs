@@ -3,7 +3,7 @@ use crate::engines::analytic;
 use crate::instruments::vanilla::EuropeanOption;
 use crate::market::{BlackScholesMertonParameters, PricingContext};
 use crate::{calendar, engines, error, instruments, market, risk, schedule};
-use kiyosi_core as core;
+use kiyosi as core;
 use pyo3::prelude::*;
 
 pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {

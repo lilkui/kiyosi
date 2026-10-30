@@ -1,4 +1,4 @@
-//! Python representation adapters; all domain validation lives in kiyosi-core.
+//! Python representation adapters; all domain validation lives in kiyosi.
 
 mod calendar;
 mod conversions;

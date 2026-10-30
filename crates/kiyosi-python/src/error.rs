@@ -1,4 +1,4 @@
-use kiyosi_core as core;
+use kiyosi as core;
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 

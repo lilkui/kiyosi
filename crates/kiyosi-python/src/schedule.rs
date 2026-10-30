@@ -1,7 +1,7 @@
 use crate::calendar::TradingCalendar;
 use crate::conversions::{check_integer, date, integer, python_date};
 use crate::error::domain;
-use kiyosi_core as core;
+use kiyosi as core;
 use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;

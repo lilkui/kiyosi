@@ -44,8 +44,8 @@ jobs:
           cargo check --locked
           cargo test --release --locked
           cargo doc --no-deps --locked
-          test -L crates/kiyosi-core/THIRD_PARTY_NOTICES.txt
-          cargo package -p kiyosi-core --locked
+          test -L crates/kiyosi/THIRD_PARTY_NOTICES.txt
+          cargo package -p kiyosi --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
   python-style:
@@ -55,9 +55,9 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v7
-      - run: uv run --no-project --with ruff -- ruff check python tests/python tools/generate_sse_calendar.py
-      - run: uv run --no-project --with ruff -- ruff format --check python tests/python tools/generate_sse_calendar.py
-      - run: uv run --no-project --with ty -- ty check python
+      - run: uv run --no-project --with ruff -- ruff check python tools/generate_sse_calendar.py
+      - run: uv run --no-project --with ruff -- ruff format --check python tools/generate_sse_calendar.py
+      - run: uv run --no-project --with ty -- ty check python/src
 
   distributions:
     strategy:

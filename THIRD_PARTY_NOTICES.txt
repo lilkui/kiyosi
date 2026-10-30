@@ -6,7 +6,7 @@ SciPy / xsf
 -----------
 
 The inverse normal CDF routine in
-crates/kiyosi-core/src/engines/monte_carlo/sobol.rs is adapted from SciPy's
+crates/kiyosi/src/engines/monte_carlo/sobol.rs is adapted from SciPy's
 C++ translation of Cephes ndtri.
 Source: https://github.com/scipy/xsf/blob/main/include/xsf/cephes/ndtri.h
 License: https://github.com/scipy/xsf/blob/main/LICENSE
@@ -83,7 +83,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Joe-Kuo Sobol direction numbers
 ------------------------------
 
-crates/kiyosi-core/src/engines/monte_carlo/sobol_joe_kuo.rs contains the
+crates/kiyosi/src/engines/monte_carlo/sobol_joe_kuo.rs contains the
 new-joe-kuo-6.21201 direction numbers, search criterion 6.
 Source: https://web.maths.unsw.edu.au/~fkuo/sobol/
 License: https://web.maths.unsw.edu.au/~fkuo/sobol/licence

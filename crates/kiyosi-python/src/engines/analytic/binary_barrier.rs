@@ -2,7 +2,7 @@ use crate::error::domain;
 use crate::instruments::binary_barrier::BinaryInstrument;
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi_core as core;
+use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 /// Flat-rate binary-barrier and single-touch analytics.

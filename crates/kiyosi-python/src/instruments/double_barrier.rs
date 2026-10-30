@@ -2,7 +2,7 @@ use crate::conversions::{check_changes, date, dates, direction, python_date, rea
 use crate::error::domain;
 use crate::instruments::barrier::{history, mode, timing};
 use crate::schedule::ObservationSchedule;
-use kiyosi_core as core;
+use kiyosi as core;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyDict};

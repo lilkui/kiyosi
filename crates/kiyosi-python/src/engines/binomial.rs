@@ -6,7 +6,7 @@ use crate::instruments::digital;
 use crate::instruments::vanilla::EuropeanOption;
 use crate::market::PricingContext;
 use crate::risk;
-use kiyosi_core as core;
+use kiyosi as core;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 

@@ -1,5 +1,5 @@
 use crate::error::domain;
-use kiyosi_core as core;
+use kiyosi as core;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDate, PyDateAccess, PyDateTime, PyDict, PyTimeAccess};
