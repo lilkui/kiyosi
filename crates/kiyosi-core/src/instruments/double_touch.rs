@@ -92,7 +92,7 @@ impl DoubleTouchOption {
     ///     120.0, start.into())?;
     /// let engine = FiniteDifferenceDoubleTouchEngine::default();
     /// assert!((engine.price(&option, &context)? - 10.0 * (-0.03_f64).exp()).abs() < 1e-12);
-    /// let known = option.replace(Some(BarrierTouchState::Untouched))?;
+    /// let known = option.replace(Some(BarrierTouchState::Untouched));
     /// assert_eq!(option.touch_state(), None);
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
     /// # Ok(()) }
@@ -177,12 +177,12 @@ impl DoubleTouchOption {
     ///
     /// Preserves validated monitoring terms through [`DoubleBarrierOption::replace`].
     /// The original value remains unchanged.
-    pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Result<Self> {
-        Ok(Self {
-            monitoring: self.monitoring.replace(touch_state)?,
+    pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
+        Self {
+            monitoring: self.monitoring.replace(touch_state),
             payout: self.payout,
             settlement_timing: self.settlement_timing,
-        })
+        }
     }
     pub(crate) fn contract(&self) -> crate::instruments::binary_barrier::Contract<'_> {
         crate::instruments::binary_barrier::Contract {

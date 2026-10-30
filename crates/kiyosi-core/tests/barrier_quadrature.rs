@@ -196,9 +196,9 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
         engine.price(&option, &past).unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let paid = option.replace(Some(BarrierTouchState::Touched)).unwrap();
+    let paid = option.replace(Some(BarrierTouchState::Touched));
     assert_eq!(engine.price(&paid, &past).unwrap(), 0.0);
-    let untouched = option.replace(Some(BarrierTouchState::Untouched)).unwrap();
+    let untouched = option.replace(Some(BarrierTouchState::Untouched));
     assert!(engine.price(&untouched, &past).unwrap() > 0.0);
     assert!(matches!(
         engine.price(&paid, &context).unwrap_err(),
@@ -379,8 +379,7 @@ fn greeks_sensitivities_and_solving_share_scalar_semantics() {
     .unwrap();
     let option = BarrierOption::new(terms(BarrierType::DownAndOut, OptionType::Call))
         .unwrap()
-        .replace(Some(BarrierTouchState::Untouched))
-        .unwrap();
+        .replace(Some(BarrierTouchState::Untouched));
     let context = market(0.04);
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega, Greek::Rho]);
     let actual = engine
@@ -421,7 +420,7 @@ fn greeks_sensitivities_and_solving_share_scalar_semantics() {
         )
     };
     assert!((solve(&option, &context, actual.price()).unwrap() - 0.2).abs() < 1e-8);
-    let fixed = option.replace(Some(BarrierTouchState::Touched)).unwrap();
+    let fixed = option.replace(Some(BarrierTouchState::Touched));
     let later = context
         .replace(PricingContextChanges {
             valuation_time: Some(day(2, 3).into()),

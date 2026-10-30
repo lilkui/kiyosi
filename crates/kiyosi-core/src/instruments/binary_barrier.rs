@@ -167,11 +167,11 @@ impl BinaryBarrierOption {
     /// See [`BarrierOption::replace`] for an example and time consistency rules.
     ///
     /// Preserves the validated monitoring and payoff terms.
-    pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Result<Self> {
-        Ok(Self {
-            monitoring: self.monitoring.replace(touch_state)?,
+    pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
+        Self {
+            monitoring: self.monitoring.replace(touch_state),
             digital: self.digital.clone(),
-        })
+        }
     }
 }
 
@@ -330,12 +330,12 @@ impl TouchOption {
     /// See [`BarrierOption::replace`] for examples and time consistency rules.
     ///
     /// Preserves the validated monitoring and payoff terms.
-    pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Result<Self> {
-        Ok(Self {
-            monitoring: self.monitoring.replace(touch_state)?,
+    pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
+        Self {
+            monitoring: self.monitoring.replace(touch_state),
             payout: self.payout,
             settlement_timing: self.settlement_timing,
-        })
+        }
     }
 }
 

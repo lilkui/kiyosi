@@ -128,7 +128,7 @@ impl DoubleBarrierOption {
     /// ValueError
     ///     If touch_state is an unknown choice.
     #[pyo3(signature = (**fields))]
-    fn replace(&self, py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
+    fn replace(&self, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
         check_changes(fields, &["touch_state"])?;
         let state = match fields
             .map(|f| f.get_item("touch_state"))
@@ -138,7 +138,7 @@ impl DoubleBarrierOption {
             Some(value) => history(&value)?,
             None => self.0.touch_state(),
         };
-        Ok(Self(domain(py, self.0.replace(state))?))
+        Ok(Self(self.0.replace(state)))
     }
     /// Return call or put payoff direction.
     #[getter]

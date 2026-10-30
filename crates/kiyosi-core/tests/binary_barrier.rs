@@ -109,7 +109,7 @@ fn strict_prior_history_and_current_settlement_are_distinct() {
                     .unwrap_err(),
                 Error::InvalidInput(_)
             ));
-            let known = option.replace(Some(BarrierTouchState::Touched)).unwrap();
+            let known = option.replace(Some(BarrierTouchState::Touched));
             assert!(matches!(
                 engine
                     .price(&known, &market(130.0, day(2025, 1, 1)))
@@ -124,7 +124,7 @@ fn strict_prior_history_and_current_settlement_are_distinct() {
                     * (-if asset { 0.01_f64 } else { 0.04_f64 } * 184.0 / 365.0).exp()
             };
             assert!((engine.price(&known, &later).unwrap() - expected).abs() < 1e-12);
-            assert_eq!(known.replace(None).unwrap(), option);
+            assert_eq!(known.replace(None), option);
             let quote = engine.price(&known, &later).unwrap();
             assert!(matches!(
                 implied_volatility(&engine, &known, &later, quote, Default::default()).unwrap_err(),
@@ -151,7 +151,7 @@ fn strict_prior_history_and_current_settlement_are_distinct() {
                 .unwrap_err(),
             Error::InvalidInput(_)
         ));
-        let paid = option.replace(Some(BarrierTouchState::Touched)).unwrap();
+        let paid = option.replace(Some(BarrierTouchState::Touched));
         let quote = engine
             .price(&paid, &market(100.0, day(2025, 7, 1)))
             .unwrap();
@@ -292,8 +292,7 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
     ));
     let option = BinaryBarrierOption::cash(t, 10.0)
         .unwrap()
-        .replace(Some(BarrierTouchState::Untouched))
-        .unwrap();
+        .replace(Some(BarrierTouchState::Untouched));
     let context = market(100.0, day(2025, 1, 1));
     let result = engine
         .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())

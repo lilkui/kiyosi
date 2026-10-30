@@ -157,16 +157,16 @@ impl DoubleBarrierOption {
     /// let option = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
     ///     100.0, Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?, 80.0, 120.0,
     ///     DoubleBarrierType::KnockOut))?;
-    /// let known = option.replace(Some(BarrierTouchState::Untouched))?;
+    /// let known = option.replace(Some(BarrierTouchState::Untouched));
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
     /// assert_eq!(option.touch_state(), None);
     /// # Ok(()) }
     /// ```
-    pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Result<Self> {
-        Ok(Self {
-            lower: self.lower.replace(touch_state)?,
+    pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
+        Self {
+            lower: self.lower.replace(touch_state),
             upper: self.upper,
-        })
+        }
     }
     /// Returns the payoff direction; see [`Self::new`].
     pub fn option_type(&self) -> OptionType {

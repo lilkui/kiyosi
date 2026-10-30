@@ -175,7 +175,7 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
         engine.price(&option, &later).unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let paid = option.replace(Some(BarrierTouchState::Touched)).unwrap();
+    let paid = option.replace(Some(BarrierTouchState::Touched));
     assert_eq!(engine.price(&paid, &later).unwrap(), 0.0);
     assert!(matches!(
         engine.price(&paid, &market(100.0)).unwrap_err(),
@@ -191,7 +191,7 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
             ..Default::default()
         })
         .unwrap();
-    let untouched = option.replace(Some(BarrierTouchState::Untouched)).unwrap();
+    let untouched = option.replace(Some(BarrierTouchState::Untouched));
     let result = engine
         .price_with_greeks(
             &untouched,

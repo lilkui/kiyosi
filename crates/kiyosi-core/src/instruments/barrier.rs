@@ -205,16 +205,16 @@ impl BarrierOption {
     /// # fn main() -> kiyosi_core::Result<()> {
     /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
     ///     Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?, 120.0, BarrierType::UpAndOut))?;
-    /// let known = option.replace(Some(BarrierTouchState::Untouched))?;
+    /// let known = option.replace(Some(BarrierTouchState::Untouched));
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
     /// assert_eq!(option.touch_state(), None);
     /// # Ok(()) }
     /// ```
-    pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Result<Self> {
-        Ok(Self {
+    pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
+        Self {
             touch_state,
             ..self.clone()
-        })
+        }
     }
     /// Returns the call-or-put direction; see [`Self::new`].
     pub fn option_type(&self) -> OptionType {

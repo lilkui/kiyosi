@@ -310,7 +310,7 @@ fn solver_replays_request_samples_and_rejects_fixed_cashflows() {
             ..Default::default()
         })
         .unwrap();
-    let fixed = option.replace(Some(BarrierTouchState::Touched)).unwrap();
+    let fixed = option.replace(Some(BarrierTouchState::Touched));
     assert!(matches!(
         implied_volatility(&engine, &fixed, &later, 0.0, Default::default()).unwrap_err(),
         Error::UnsupportedOperation(_)
@@ -360,7 +360,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                 engine.price(&option, &later).unwrap_err(),
                 Error::InvalidInput(_)
             ));
-            let touched = option.replace(Some(BarrierTouchState::Touched)).unwrap();
+            let touched = option.replace(Some(BarrierTouchState::Touched));
             assert!(matches!(
                 engine.price(&touched, &context).unwrap_err(),
                 Error::InvalidInput(_)
@@ -376,7 +376,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                 })
                 .unwrap();
             for history in [BarrierTouchState::Touched, BarrierTouchState::Untouched] {
-                let known = option.replace(Some(history)).unwrap();
+                let known = option.replace(Some(history));
                 let result = engine
                     .price_with_greeks(&known, &expired, GreeksRequest::all(), Default::default())
                     .unwrap();
@@ -405,9 +405,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                     ..Default::default()
                 })
                 .unwrap();
-            let untouched = scheduled
-                .replace(Some(BarrierTouchState::Untouched))
-                .unwrap();
+            let untouched = scheduled.replace(Some(BarrierTouchState::Untouched));
             assert_eq!(
                 engine.price(&untouched, &after).unwrap(),
                 AnalyticBarrierEngine.price(&untouched, &after).unwrap()

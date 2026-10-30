@@ -368,12 +368,12 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
         engine.price(&unknown, &context).unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let untouched = unknown.replace(Some(BarrierTouchState::Untouched)).unwrap();
+    let untouched = unknown.replace(Some(BarrierTouchState::Untouched));
     assert!(matches!(
         engine.price(&untouched, &context).unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    let touched = unknown.replace(Some(BarrierTouchState::Touched)).unwrap();
+    let touched = unknown.replace(Some(BarrierTouchState::Touched));
     assert_eq!(engine.price(&touched, &context).unwrap(), 0.0);
     assert!(matches!(
         engine
@@ -475,7 +475,7 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
             t.expiry_date.into(),
         ] {
             let option = if time > t.observation_dates[0].start_of_day() {
-                option.replace(Some(BarrierTouchState::Untouched)).unwrap()
+                option.replace(Some(BarrierTouchState::Untouched))
             } else {
                 option.clone()
             };
