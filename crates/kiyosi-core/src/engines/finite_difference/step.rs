@@ -57,9 +57,6 @@ impl Stepper {
                     factors.diagonal[i] = 1.0 - theta * dt * b;
                     if i > 0 {
                         let pivot = factors.diagonal[i - 1];
-                        if !pivot.is_finite() || pivot == 0.0 {
-                            return Err(unstable());
-                        }
                         factors.multipliers[i] = -theta * dt * a / pivot;
                         factors.diagonal[i] -= factors.multipliers[i] * factors.upper[i - 1];
                     }
