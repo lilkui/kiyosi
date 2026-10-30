@@ -260,13 +260,14 @@ fn shared_sample_greeks_and_volatility_solves_preserve_inputs() {
         ..Default::default()
     })
     .unwrap();
+    let original_settings = unseeded.settings();
     let prepared = unseeded.prepare_request().unwrap().unwrap();
     assert!(prepared.prepare_request().unwrap().is_none());
     assert_eq!(
         prepared.price(&option, &context).unwrap(),
         prepared.price(&option, &context).unwrap()
     );
-    assert_eq!(unseeded.settings().seed, None);
+    assert_eq!(unseeded.settings(), original_settings);
     assert_eq!(option, original);
     assert_eq!(engine.settings().seed, Some(42));
 }

@@ -240,10 +240,9 @@ impl PricingEngine<Accumulator> for MonteCarloAccumulatorEngine {
         if self.settings.seed.is_some() {
             return Ok(None);
         }
-        Ok(Some(Box::new(Self::new(MonteCarloSettings {
-            seed: Some(random_seed()?),
-            ..self.settings
-        })?)))
+        let mut engine = *self;
+        engine.settings.seed = Some(random_seed()?);
+        Ok(Some(Box::new(engine)))
     }
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         self.price(option, context)

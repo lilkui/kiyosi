@@ -303,6 +303,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         ..Default::default()
     })
     .unwrap();
+    let original_settings = unseeded.settings();
     let prepared =
         <MonteCarloAutocallableEngine as PricingEngine<SnowballOption>>::prepare_request(&unseeded)
             .unwrap()
@@ -336,7 +337,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
     )
     .unwrap();
     assert!((sigma - 0.3).abs() < 1e-6);
-    assert!(unseeded.settings().seed.is_none());
+    assert_eq!(unseeded.settings(), original_settings);
     assert_eq!(note, original);
     assert_eq!(engine.settings().seed, Some(42));
 }
