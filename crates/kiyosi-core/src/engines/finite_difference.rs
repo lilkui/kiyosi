@@ -178,11 +178,11 @@ fn native(
     settings: FiniteDifferenceSettings,
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
-) -> Result<PricingResult> {
+) -> Result<(PricingResult, Option<f64>)> {
     let time = time_to_expiry(option, context)?;
     let spot = context.spot_price();
     if time == 0.0 {
-        return PricingResult::new(payoff.value(spot));
+        return Ok((PricingResult::new(payoff.value(spot))?, None));
     }
     let model = context.model_parameters();
     let sigma = model.volatility();
@@ -387,7 +387,7 @@ fn native(
             )?;
         }
     }
-    Ok(result)
+    Ok((result, Some(upper)))
 }
 
 fn analysis(
@@ -400,24 +400,16 @@ fn analysis(
 ) -> Result<PricingResult> {
     request.validate()?;
     shifts.validate()?;
-    let time = time_to_expiry(option, context)?;
-    if settings.asset_upper_boundary.is_none() && time > 0.0 {
-        let expiry = option.expiry_date().start_of_day();
-        let model = context.model_parameters();
-        let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
-        let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
-        let upper = automatic_upper(payoff, context, time, &risk, &dividend);
-        if upper.is_finite() {
-            settings.asset_upper_boundary = Some(upper);
-        }
-    }
+    let (result, upper) = native(option, payoff, context, settings, request, shifts)?;
+    settings.asset_upper_boundary = upper.or(settings.asset_upper_boundary);
     crate::risk::numerical::complete_greeks(
         option,
         context,
         request,
         shifts,
         true,
-        |context, request| native(option, payoff, context, settings, request, shifts),
+        result,
+        |context, request| Ok(native(option, payoff, context, settings, request, shifts)?.0),
     )
 }
 
@@ -599,6 +591,7 @@ macro_rules! vanilla_pricing {
                     GreeksRequest::default(),
                     Default::default(),
                 )?
+                .0
                 .price())
             }
             fn price_with_greeks(
@@ -668,6 +661,7 @@ impl FiniteDifferenceDigitalEngine {
             GreeksRequest::default(),
             Default::default(),
         )?
+        .0
         .price())
     }
 

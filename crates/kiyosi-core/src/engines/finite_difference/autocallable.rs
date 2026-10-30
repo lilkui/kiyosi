@@ -27,6 +27,7 @@ impl FiniteDifferenceAutocallableEngine {
             GreeksRequest::default(),
             Default::default(),
         )?
+        .0
         .price())
     }
 
@@ -69,28 +70,16 @@ impl FiniteDifferenceAutocallableEngine {
         request.validate()?;
         shifts.validate()?;
         let mut settings = self.settings;
-        validate(option, context)?;
-        let state = initial(option, context);
-        if settings.asset_upper_boundary.is_none()
-            && state.settlement.is_none()
-            && fixed_value(option, context, state.knocked_in).is_none()
-        {
-            let expiry = option.expiry_date().start_of_day();
-            let model = context.model_parameters();
-            let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
-            let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
-            let upper = default_upper(option, context, &risk, &dividend);
-            if upper.is_finite() {
-                settings.asset_upper_boundary = Some(upper);
-            }
-        }
+        let (result, upper) = native(option, context, settings, request, shifts)?;
+        settings.asset_upper_boundary = upper.or(settings.asset_upper_boundary);
         crate::risk::numerical::complete_greeks(
             option,
             context,
             request,
             shifts,
             true,
-            |context, request| native(option, context, settings, request, shifts),
+            result,
+            |context, request| Ok(native(option, context, settings, request, shifts)?.0),
         )
     }
 }
@@ -278,13 +267,13 @@ fn native<T: AutocallableTerms>(
     settings: FiniteDifferenceSettings,
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
-) -> Result<PricingResult> {
+) -> Result<(PricingResult, Option<f64>)> {
     validate(note, context)?;
     let state = initial(note, context);
     let h = crate::risk::numerical::symmetric_shift(context.spot_price(), shifts.spot_shift);
     let spot_greeks = !note.at_spot_discontinuity(context, h);
     if let Some(value) = state.settlement {
-        return PricingResult::new(value);
+        return Ok((PricingResult::new(value)?, None));
     }
     if let Some(value) = fixed_value(note, context, state.knocked_in) {
         let mut result = PricingResult::new(value + state.coupon)?;
@@ -293,7 +282,7 @@ fn native<T: AutocallableTerms>(
                 result.set(request, greek, 0.0)?;
             }
         }
-        return Ok(result);
+        return Ok((result, None));
     }
     let t = note.view();
     let daily = t.knock_in_observation_mode == KnockInObservationMode::EveryTradingDay;
@@ -531,5 +520,5 @@ fn native<T: AutocallableTerms>(
             result.set(request, Greek::Speed, (up - down) / (2.0 * h))?;
         }
     }
-    Ok(result)
+    Ok((result, Some(upper)))
 }

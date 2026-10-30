@@ -102,6 +102,7 @@ macro_rules! binary_pricing {
                     request,
                     shifts,
                     true,
+                    native(option.contract(), context, settings, request, shifts)?,
                     |context, request| {
                         native(option.contract(), context, settings, request, shifts)
                     },

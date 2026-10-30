@@ -246,46 +246,49 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
                 ..self.settings
             },
         };
+        let native = |context: &PricingContext, requested: GreeksRequest| {
+            let mut result = PricingResult::new(engine.price(option, context)?)?;
+            let rate = context.model_parameters().risk_free_rate()?;
+            let shift = crate::risk::numerical::symmetric_shift(rate, settings.rate_shift);
+            if requested.has(Greek::Rho)
+                && shift > 0.0
+                && context.valuation_time() != option.expiry_date().start_of_day()
+                && option.option_type() == OptionType::Call
+                && context.model_parameters().dividend_yield()? <= 0.0
+                && rate - shift < 0.0
+                && rate + shift >= 0.0
+            {
+                // Keep the exercise-grid estimator on both sides of the terminal shortcut boundary.
+                let evaluate = |rate: f64| {
+                    let model =
+                        context
+                            .model_parameters()
+                            .replace(BlackScholesMertonParameterChanges {
+                                risk_free_rate: Some(rate.into()),
+                                ..Default::default()
+                            })?;
+                    let shifted = context.replace(PricingContextChanges {
+                        model_parameters: Some(model),
+                        ..Default::default()
+                    })?;
+                    engine.american_price(option, &shifted, false)
+                };
+                result.set(
+                    requested,
+                    Greek::Rho,
+                    (evaluate(rate + shift)? - evaluate(rate - shift)?) / (200.0 * shift),
+                )?;
+            }
+            Ok(result)
+        };
         crate::risk::numerical::complete_greeks(
             option,
             context,
             request,
             settings,
             false,
-            |context, requested| {
-                let mut result = PricingResult::new(engine.price(option, context)?)?;
-                let rate = context.model_parameters().risk_free_rate()?;
-                let shift = crate::risk::numerical::symmetric_shift(rate, settings.rate_shift);
-                if requested.has(Greek::Rho)
-                    && shift > 0.0
-                    && context.valuation_time() != option.expiry_date().start_of_day()
-                    && option.option_type() == OptionType::Call
-                    && context.model_parameters().dividend_yield()? <= 0.0
-                    && rate - shift < 0.0
-                    && rate + shift >= 0.0
-                {
-                    // Keep the exercise-grid estimator on both sides of the terminal shortcut boundary.
-                    let evaluate = |rate: f64| {
-                        let model = context.model_parameters().replace(
-                            BlackScholesMertonParameterChanges {
-                                risk_free_rate: Some(rate.into()),
-                                ..Default::default()
-                            },
-                        )?;
-                        let shifted = context.replace(PricingContextChanges {
-                            model_parameters: Some(model),
-                            ..Default::default()
-                        })?;
-                        engine.american_price(option, &shifted, false)
-                    };
-                    result.set(
-                        requested,
-                        Greek::Rho,
-                        (evaluate(rate + shift)? - evaluate(rate - shift)?) / (200.0 * shift),
-                    )?;
-                }
-                Ok(result)
-            },
+            native(context, request)?,
+            native,
         )
     }
 }

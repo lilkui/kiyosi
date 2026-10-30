@@ -439,31 +439,33 @@ macro_rules! vanilla_pricing {
                 flat_rates(context)?;
                 request.validate()?;
                 settings.validate()?;
+                let evaluate = |context: &PricingContext, request| {
+                    native(
+                        option,
+                        Payoff {
+                            strike: option.strike(),
+                            sign: if option.option_type() == OptionType::Call {
+                                1.0
+                            } else {
+                                -1.0
+                            },
+                            american: $american,
+                            digital: false,
+                            payout: None,
+                        },
+                        context,
+                        self.settings,
+                        request,
+                    )
+                };
                 crate::risk::numerical::complete_greeks(
                     option,
                     context,
                     request,
                     settings,
                     true,
-                    |context, request| {
-                        native(
-                            option,
-                            Payoff {
-                                strike: option.strike(),
-                                sign: if option.option_type() == OptionType::Call {
-                                    1.0
-                                } else {
-                                    -1.0
-                                },
-                                american: $american,
-                                digital: false,
-                                payout: None,
-                            },
-                            context,
-                            self.settings,
-                            request,
-                        )
-                    },
+                    evaluate(context, request)?,
+                    evaluate,
                 )
             }
             fn prepare_implied_volatility(

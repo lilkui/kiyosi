@@ -417,10 +417,22 @@ impl MonteCarloBarrierEngine {
                 let evaluate = |context: &PricingContext, _| PricingResult::new(hit(context)?);
                 let derivatives = match contract {
                     Contract::Single(option) => crate::risk::numerical::complete_greeks(
-                        option, context, request, shifts, false, evaluate,
+                        option,
+                        context,
+                        request,
+                        shifts,
+                        false,
+                        evaluate(context, request)?,
+                        evaluate,
                     )?,
                     Contract::Double(option) => crate::risk::numerical::complete_greeks(
-                        option, context, request, shifts, false, evaluate,
+                        option,
+                        context,
+                        request,
+                        shifts,
+                        false,
+                        evaluate(context, request)?,
+                        evaluate,
                     )?,
                 };
                 if let Some(value) = derivatives.get(Greek::Delta) {

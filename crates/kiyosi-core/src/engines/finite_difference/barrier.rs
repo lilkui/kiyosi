@@ -137,6 +137,7 @@ fn analysis(
         request,
         shifts,
         true,
+        native_barrier(option, context, settings, request, shifts)?,
         |context, request| native_barrier(option, context, settings, request, shifts),
     )
 }

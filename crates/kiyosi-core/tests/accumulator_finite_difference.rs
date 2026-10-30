@@ -625,3 +625,54 @@ fn implied_volatility_recovers_quotes_and_preserves_solver_failures_and_identifi
     }
     assert_eq!(engine.price(&option, &context).unwrap(), quote);
 }
+
+#[test]
+fn native_greeks_reuse_central_calendar_validation() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    let start = Date::new(2025, 1, 1).unwrap();
+    let end = Date::new(2025, 1, 3).unwrap();
+    let validations = Arc::new(AtomicUsize::new(0));
+    let counted = validations.clone();
+    let calendar = TradingCalendar::new(
+        move |day| {
+            if day == end {
+                counted.fetch_add(1, Ordering::Relaxed);
+            }
+            true
+        },
+        365,
+    )
+    .unwrap();
+    let context = PricingContext::with_calendar(
+        BlackScholesMertonParameters::new(0.04, 0.01, 0.2).unwrap(),
+        101.0,
+        start.into(),
+        calendar,
+    )
+    .unwrap();
+    let option =
+        Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, end)).unwrap();
+    let engine = FiniteDifferenceAccumulatorEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 32,
+        time_step_count: 10,
+        ..Default::default()
+    })
+    .unwrap();
+    let scalar = engine.price(&option, &context).unwrap();
+    let expected_validations = validations.swap(0, Ordering::Relaxed);
+    assert!(expected_validations > 0);
+    let result = engine
+        .price_with_greeks(
+            &option,
+            &context,
+            GreeksRequest::new([Greek::Delta]),
+            Default::default(),
+        )
+        .unwrap();
+    assert_eq!(result.price(), scalar);
+    assert!(result.require(Greek::Delta).unwrap().is_finite());
+    assert_eq!(validations.load(Ordering::Relaxed), expected_validations);
+}

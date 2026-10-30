@@ -57,6 +57,7 @@ impl AnalyticDigitalEngine {
             request,
             settings,
             true,
+            self.native(option, context, request)?,
             |context, request| self.native(option, context, request),
         )
     }

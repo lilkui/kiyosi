@@ -21,6 +21,7 @@ impl FiniteDifferenceAccumulatorEngine {
             GreeksRequest::default(),
             Default::default(),
         )?
+        .0
         .price())
     }
 
@@ -61,24 +62,16 @@ impl FiniteDifferenceAccumulatorEngine {
         request.validate()?;
         shifts.validate()?;
         let mut settings = self.settings;
-        validate(option, context)?;
-        if settings.asset_upper_boundary.is_none() && option.initial(context).1.is_none() {
-            let expiry = option.expiry_date().start_of_day();
-            let model = context.model_parameters();
-            let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
-            let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
-            let upper = default_upper(option, context, &risk, &dividend);
-            if upper.is_finite() {
-                settings.asset_upper_boundary = Some(upper);
-            }
-        }
+        let (result, upper) = native(option, context, settings, request, shifts)?;
+        settings.asset_upper_boundary = upper.or(settings.asset_upper_boundary);
         crate::risk::numerical::complete_greeks(
             option,
             context,
             request,
             shifts,
             true,
-            |context, request| native(option, context, settings, request, shifts),
+            result,
+            |context, request| Ok(native(option, context, settings, request, shifts)?.0),
         )
     }
 }
@@ -135,11 +128,11 @@ fn native(
     settings: FiniteDifferenceSettings,
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
-) -> Result<PricingResult> {
+) -> Result<(PricingResult, Option<f64>)> {
     validate(option, context)?;
     let (quantity, settlement) = option.initial(context);
     if let Some(value) = settlement {
-        return PricingResult::new(value);
+        return Ok((PricingResult::new(value)?, None));
     }
     let expiry = option.expiry_date().start_of_day();
     let time = context.valuation_time().years_until(expiry);
@@ -274,5 +267,5 @@ fn native(
             result.set(request, Greek::Speed, (up[2] - down[2]) / (2.0 * h))?;
         }
     }
-    Ok(result)
+    Ok((result, Some(upper)))
 }

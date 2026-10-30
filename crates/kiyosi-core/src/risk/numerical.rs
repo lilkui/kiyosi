@@ -67,12 +67,21 @@ pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     if let Some(prepared) = &prepared {
         prepared.validate_applicability(context)?;
     }
-    complete_greeks(option, context, request, settings, false, |context, _| {
+    let native = |context: &PricingContext, _| {
         PricingResult::new(match &prepared {
             Some(prepared) => prepared.price(option, context)?,
             None => engine.price(option, context)?,
         })
-    })
+    };
+    complete_greeks(
+        option,
+        context,
+        request,
+        settings,
+        false,
+        native(context, request)?,
+        native,
+    )
 }
 
 pub(crate) fn complete_greeks(
@@ -81,10 +90,10 @@ pub(crate) fn complete_greeks(
     request: GreeksRequest,
     settings: NumericalShiftSettings,
     native_spot_greeks: bool,
+    mut result: PricingResult,
     native: impl Fn(&PricingContext, GreeksRequest) -> Result<PricingResult>,
 ) -> Result<PricingResult> {
     // Entry points validate requests and shifts before any fallible preparation.
-    let mut result = native(context, request)?;
     let p0 = result.price();
     let available = GreeksRequest::new(Greek::ALL.into_iter().filter(|&g| result.has(g)));
     let time = context.valuation_time();

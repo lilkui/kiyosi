@@ -483,3 +483,59 @@ fn explicit_uniform_grid_uses_the_top_node_stability_bound() {
         Error::InvalidInput(_)
     ));
 }
+
+#[test]
+fn native_greeks_reuse_central_calendar_validation() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    let start = Date::new(2025, 1, 1).unwrap();
+    let end = Date::new(2025, 1, 3).unwrap();
+    let validations = Arc::new(AtomicUsize::new(0));
+    let counted = validations.clone();
+    let calendar = TradingCalendar::new(
+        move |day| {
+            if day == end {
+                counted.fetch_add(1, Ordering::Relaxed);
+            }
+            true
+        },
+        365,
+    )
+    .unwrap();
+    let context = PricingContext::with_calendar(
+        BlackScholesMertonParameters::new(0.04, 0.01, 0.2).unwrap(),
+        101.0,
+        start.into(),
+        calendar,
+    )
+    .unwrap();
+    let option = BinarySnowballOption::new(BinarySnowballTerms::new(
+        0.02,
+        start,
+        end,
+        autocallable_observations(&[end], &[110.0], Some(&[0.08]), None).unwrap(),
+    ))
+    .unwrap();
+    let engine = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 32,
+        time_step_count: 10,
+        ..Default::default()
+    })
+    .unwrap();
+    let scalar = engine.price(&option, &context).unwrap();
+    let expected_validations = validations.swap(0, Ordering::Relaxed);
+    assert!(expected_validations > 0);
+    let result = engine
+        .price_with_greeks(
+            &option,
+            &context,
+            GreeksRequest::new([Greek::Delta]),
+            Default::default(),
+        )
+        .unwrap();
+    assert_eq!(result.price(), scalar);
+    assert!(result.require(Greek::Delta).unwrap().is_finite());
+    assert_eq!(validations.load(Ordering::Relaxed), expected_validations);
+}
