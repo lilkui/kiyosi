@@ -21,6 +21,32 @@ from kiyosi.market import (
 
 
 class AutocallableMonteCarloRegressionTests(unittest.TestCase):
+    def test_scalar_price_survives_confidence_interval_overflow(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        note = BinarySnowballOption(
+            maturity_coupon_rate=0,
+            principal_ratio=0,
+            effective_date=start,
+            expiry_date=end,
+            observations=autocallable_observations(
+                [end], [100], knock_out_coupon_rates=[1.5e308]
+            ),
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+            calendar=all_days_calendar(),
+        )
+        engine = pricing.MonteCarloAutocallableEngine(
+            path_count=2, seed=0, thread_count=1
+        )
+        self.assertAlmostEqual(engine.price(note, context) / 7.5e307, 1, delta=1e-12)
+        with self.assertRaises(ComputationFailureError):
+            engine.price_with_statistics(note, context)
+
     def test_shared_spot_simulations_match_separate_seeded_prices(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         observation_dates = [date(2025, 1, 3), date(2025, 1, 8), end]

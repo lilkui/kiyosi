@@ -4,6 +4,8 @@
 or ``"crank_nicolson"`` (with initial damping). ``MonteCarloSampling`` selects
 ``"pseudo_random"`` or scrambled ``"sobol"``; a fixed seed reproduces draws
 across thread counts in the same build. Sobol estimates omit sampling error.
+Autocallable and accumulator ``price`` calls return the sample mean;
+``price_with_statistics`` also computes and validates sampling uncertainty.
 
 ``CouponQuoteConvention`` controls whether a snowball's maturity coupon
 shifts with observation coupons (``"shift_maturity_coupon"``) or stays fixed

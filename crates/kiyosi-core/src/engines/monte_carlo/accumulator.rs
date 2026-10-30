@@ -66,7 +66,8 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// # Errors
     ///
-    /// Propagates [`Self::price_with_statistics`] errors without changing inputs.
+    /// Propagates [`Self::price_with_statistics`] sampling and pricing errors,
+    /// without computing or validating uncertainty. Inputs remain unchanged.
     ///
     /// # Panics
     ///
@@ -76,7 +77,8 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        Ok(self.price_with_statistics(option, context)?.price())
+        let (sample, _, _) = self.sample(option, context)?;
+        scaled_value(sample.scale, sample.mean, 0.0)
     }
 
     /// Returns a price with optional standard error and asymptotic 95% interval.
@@ -107,6 +109,15 @@ impl MonteCarloAccumulatorEngine {
         option: &Accumulator,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
+        let (sample, pairs, known) = self.sample(option, context)?;
+        estimate(self.settings, sample, pairs, 0.0, known)
+    }
+
+    fn sample(
+        &self,
+        option: &Accumulator,
+        context: &PricingContext,
+    ) -> Result<(Moments, Moments, bool)> {
         let model = context.model_parameters();
         let rate = model.risk_free_rate()?;
         let dividend = model.dividend_yield()?;
@@ -127,7 +138,7 @@ impl MonteCarloAccumulatorEngine {
             }
             let mut moments = Moments::default();
             moments.add(value);
-            return estimate(self.settings, moments, moments, 0.0, true);
+            return Ok((moments, moments, true));
         }
         if !quantity.is_finite() {
             return Err(unstable());
@@ -181,7 +192,7 @@ impl MonteCarloAccumulatorEngine {
                 terminal_log_discount,
             )?])
         })?;
-        estimate(self.settings, moments, pairs, 0.0, false)
+        Ok((moments, pairs, false))
     }
 
     /// Computes requested finite-difference Greeks with shared normal draws.

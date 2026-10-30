@@ -42,6 +42,46 @@ fn binary_price_and_uncertainty_match_an_independent_terminal_portfolio() {
 }
 
 #[test]
+fn scalar_price_survives_confidence_interval_overflow() {
+    let start = date(1, 1);
+    let end = Date::new(2026, 1, 1).unwrap();
+    let mut terms = BinarySnowballTerms::new(
+        0.0,
+        start,
+        end,
+        autocallable_observations(&[end], &[100.0], Some(&[1.5e308]), None).unwrap(),
+    );
+    terms.principal_ratio = 0.0;
+    let note = BinarySnowballOption::new(terms).unwrap();
+    let context = PricingContext::with_calendar(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.2).unwrap(),
+        100.0,
+        start.into(),
+        TradingCalendar::all_days(),
+    )
+    .unwrap();
+    let settings = MonteCarloSettings {
+        path_count: 2,
+        seed: Some(0),
+        thread_count: 1,
+        ..Default::default()
+    };
+    let engine = MonteCarloAutocallableEngine::new(settings).unwrap();
+    let digital =
+        DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 1.5e308, start, end).unwrap();
+    let expected = MonteCarloDigitalEngine::new(settings)
+        .unwrap()
+        .price(&digital, &context)
+        .unwrap();
+    assert!((expected / 7.5e307 - 1.0).abs() < 1e-12);
+    assert!((engine.price(&note, &context).unwrap() / expected - 1.0).abs() < 1e-12);
+    assert!(matches!(
+        engine.price_with_statistics(&note, &context),
+        Err(Error::ComputationFailure(_))
+    ));
+}
+
+#[test]
 fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
     let start = date(1, 1);
     let end = Date::new(2026, 1, 1).unwrap();

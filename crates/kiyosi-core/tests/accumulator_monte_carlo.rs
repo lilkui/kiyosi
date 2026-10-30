@@ -41,6 +41,44 @@ fn current_events_settle_before_sampling_with_strict_acceleration() {
 }
 
 #[test]
+fn scalar_price_survives_confidence_interval_overflow() {
+    let start = day(1, 1);
+    let end = day(1, 2);
+    let option = Accumulator::new(AccumulatorTerms {
+        accumulated_quantity: 1.0,
+        ..AccumulatorTerms::new(100.0, 200.0, 0.0, 1.0, start, end)
+    })
+    .unwrap();
+    let context = PricingContext::with_calendar(
+        BlackScholesMertonParameters::new(0.01, 0.0, 1.0).unwrap(),
+        100.0,
+        start.into(),
+        TradingCalendar::all_days(),
+    )
+    .unwrap();
+    let engine = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
+        path_count: 2,
+        seed: Some(0),
+        thread_count: 1,
+        ..Default::default()
+    })
+    .unwrap();
+    let quantity = 6e307;
+    let expected = engine
+        .price_with_statistics(&option, &context)
+        .unwrap()
+        .price()
+        * quantity;
+    let scaled = option.replace(quantity).unwrap();
+    assert!(expected.is_finite() && expected > 0.0);
+    assert!((engine.price(&scaled, &context).unwrap() / expected - 1.0).abs() < 1e-12);
+    assert!(matches!(
+        engine.price_with_statistics(&scaled, &context),
+        Err(Error::ComputationFailure(_))
+    ));
+}
+
+#[test]
 fn simulated_cashflows_match_quadrature_with_sampling_error() {
     let settings = MonteCarloSettings {
         path_count: 32768,

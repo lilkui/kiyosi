@@ -25,6 +25,23 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             operation()
         self.assertIs(type(error.exception), expected_error)
 
+    def test_scalar_price_survives_confidence_interval_overflow(self):
+        note = contract(
+            date(2025, 1, 2), knock_out=200, acceleration=1, daily=0, quantity=1
+        )
+        context = market(
+            spot=100, valuation=START, volatility=1, rate=0.01, dividend=0, daily=True
+        )
+        engine = MC(path_count=2, seed=0, thread_count=1)
+        quantity = 6e307
+        expected = engine.price_with_statistics(note, context).price * quantity
+        scaled = note.replace(accumulated_quantity=quantity)
+        self.assertTrue(math.isfinite(expected))
+        self.assertGreater(expected, 0)
+        self.assertAlmostEqual(engine.price(scaled, context) / expected, 1, delta=1e-12)
+        with self.assertRaises(ComputationFailureError):
+            engine.price_with_statistics(scaled, context)
+
     def test_current_events_settle_before_sampling(self):
         end = date(2025, 1, 6)
         engine = MC()
