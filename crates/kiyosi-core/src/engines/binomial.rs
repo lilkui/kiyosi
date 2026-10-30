@@ -437,6 +437,8 @@ macro_rules! vanilla_pricing {
                 settings: NumericalShiftSettings,
             ) -> Result<PricingResult> {
                 flat_rates(context)?;
+                request.validate()?;
+                settings.validate()?;
                 crate::risk::numerical::complete_greeks(
                     option,
                     context,

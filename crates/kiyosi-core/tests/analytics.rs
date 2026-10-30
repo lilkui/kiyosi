@@ -15,6 +15,86 @@ fn market() -> (EuropeanOption, PricingContext) {
 }
 
 #[test]
+fn numerical_greeks_validate_before_preparation_and_prepare_only_once() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    #[derive(Clone)]
+    struct Engine {
+        preparations: Arc<AtomicUsize>,
+        ready: bool,
+        reject_prepared: bool,
+    }
+    impl PricingEngine for Engine {
+        fn validate_applicability(&self, _: &PricingContext) -> Result<()> {
+            if self.ready && self.reject_prepared {
+                return Err(Error::UnsupportedOperation(
+                    "prepared engine is unavailable".into(),
+                ));
+            }
+            Ok(())
+        }
+        fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine + Send + Sync + '_>>> {
+            self.preparations.fetch_add(1, Ordering::Relaxed);
+            Ok((!self.ready).then(|| {
+                Box::new(Self {
+                    ready: true,
+                    ..self.clone()
+                }) as Box<dyn PricingEngine + Send + Sync>
+            }))
+        }
+        fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
+            assert!(self.ready, "pricing must use the prepared engine");
+            AnalyticEuropeanEngine.price(option, context)
+        }
+    }
+    let (option, context) = market();
+    let engine = Engine {
+        preparations: Arc::new(AtomicUsize::new(0)),
+        ready: false,
+        reject_prepared: false,
+    };
+    let request = GreeksRequest::new([Greek::Delta]);
+    for (request, settings) in [
+        (GreeksRequest::default(), NumericalShiftSettings::default()),
+        (
+            request,
+            NumericalShiftSettings {
+                spot_shift: 0.0,
+                ..Default::default()
+            },
+        ),
+    ] {
+        assert!(matches!(
+            numerical_greeks(&engine, &option, &context, request, settings).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert_eq!(engine.preparations.load(Ordering::Relaxed), 0);
+    }
+    let expected = numerical_greeks(
+        &AnalyticEuropeanEngine,
+        &option,
+        &context,
+        request,
+        Default::default(),
+    )
+    .unwrap();
+    let actual = numerical_greeks(&engine, &option, &context, request, Default::default()).unwrap();
+    assert_eq!(actual, expected);
+    assert_eq!(engine.preparations.load(Ordering::Relaxed), 1);
+    let unavailable = Engine {
+        reject_prepared: true,
+        ..engine
+    };
+    assert!(matches!(
+        numerical_greeks(&unavailable, &option, &context, request, Default::default()).unwrap_err(),
+        Error::UnsupportedOperation(_)
+    ));
+}
+
+#[test]
 fn analytic_greeks_and_volatility_recovery_use_public_api() {
     let (option, context) = market();
     let result = AnalyticEuropeanEngine

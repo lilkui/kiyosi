@@ -49,6 +49,8 @@ impl AnalyticDigitalEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        request.validate()?;
+        settings.validate()?;
         crate::risk::numerical::complete_greeks(
             option,
             context,
