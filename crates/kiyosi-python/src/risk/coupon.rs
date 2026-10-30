@@ -135,17 +135,17 @@ where
         .map(|s| s.get_item("quote_convention"))
         .transpose()?
         .flatten();
-    let context = context.0.clone();
+    let context = &context.0;
     if let Ok(note) = instrument.extract::<PyRef<'_, PhoenixOption>>() {
         if convention.is_some() {
             return Err(PyTypeError::new_err(
                 "Phoenix has no quote_convention argument",
             ));
         }
-        let note = note.0.clone();
+        let note = &note.0;
         return domain(
             py,
-            py.detach(|| core::implied_coupon(&engine, &note, &context, observed, controls)),
+            py.detach(|| core::implied_coupon(&engine, note, context, observed, controls)),
         );
     }
     let convention =
@@ -157,12 +157,12 @@ where
     };
     macro_rules! solve {
         ($note:expr) => {{
-            let note = $note.0.clone();
+            let note = &$note.0;
             domain(
                 py,
                 py.detach(|| {
                     core::implied_snowball_coupon(
-                        &engine, &note, &context, observed, convention, controls,
+                        &engine, note, context, observed, convention, controls,
                     )
                 }),
             )

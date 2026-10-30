@@ -17,8 +17,8 @@ reject booleans and unintended lossy conversions.
 
 Values own their data and expose read-only properties. Shared and distinct
 instances support concurrent reads and pricing. Replacement creates a new
-value. Long calculations release the GIL around owned Rust inputs; short
-analytic calls may retain it.
+value. Long calculations release the GIL while borrowing immutable Rust
+inputs for the duration of the call; short analytic calls may retain it.
 
 `Greek` accepts delta, gamma, speed, theta, charm, color, vega, vanna,
 zomma and rho. Spot derivatives use spot units, volatility and rate

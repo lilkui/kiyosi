@@ -43,20 +43,20 @@ impl AnalyticBinaryBarrierEngine {
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: BinaryInstrument<'_>,
         context: &PricingContext,
     ) -> PyResult<f64> {
-        let context = context.0.clone();
+        let context = &context.0;
         match instrument {
             BinaryInstrument::Binary(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 domain(
                     py,
-                    py.detach(|| core::AnalyticBinaryBarrierEngine.price(&option, &context)),
+                    py.detach(|| core::AnalyticBinaryBarrierEngine.price(option, context)),
                 )
             }
             BinaryInstrument::Touch(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 domain(
                     py,
-                    py.detach(|| core::AnalyticBinaryBarrierEngine.price(&option, &context)),
+                    py.detach(|| core::AnalyticBinaryBarrierEngine.price(option, context)),
                 )
             }
         }
@@ -105,20 +105,20 @@ impl AnalyticBinaryBarrierEngine {
     ) -> PyResult<risk::PricingResult> {
         let request = risk::request(greeks, settings)?;
         let shifts = risk::shifts(settings)?;
-        let context = context.0.clone();
+        let context = &context.0;
         let result = match instrument {
             BinaryInstrument::Binary(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 py.detach(|| {
                     core::AnalyticBinaryBarrierEngine
-                        .price_with_greeks(&option, &context, request, shifts)
+                        .price_with_greeks(option, context, request, shifts)
                 })
             }
             BinaryInstrument::Touch(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 py.detach(|| {
                     core::AnalyticBinaryBarrierEngine
-                        .price_with_greeks(&option, &context, request, shifts)
+                        .price_with_greeks(option, context, request, shifts)
                 })
             }
         };

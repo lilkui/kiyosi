@@ -133,7 +133,7 @@ macro_rules! fd_engine {
                 let $py = py;
                 let $option = instrument;
                 let $engine = self.0;
-                let $context = context.0.clone();
+                let $context = &context.0;
                 domain(py, $price)
             }
 
@@ -184,7 +184,7 @@ macro_rules! fd_engine {
                 let $shifts = risk::shifts(settings)?;
                 let $option = instrument;
                 let $engine = self.0;
-                let $context = context.0.clone();
+                let $context = &context.0;
                 Ok(risk::PricingResult(domain(py, $analysis)?))
             }
         }
@@ -195,12 +195,12 @@ fd_engine!(
     FiniteDifferenceAccumulatorEngine,
     PyRef<'_, accumulator::Accumulator>,
     |py, option, engine, context, request, shifts| {
-        let option = option.0.clone();
-        py.detach(|| engine.price(&option, &context))
+        let option = &option.0;
+        py.detach(|| engine.price(option, context))
     },
     {
-        let option = option.0.clone();
-        py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+        let option = &option.0;
+        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
     }
 );
 
@@ -210,24 +210,24 @@ fd_engine!(
     |py, option, engine, context, request, shifts| {
         match option {
             binomial::VanillaInstrument::European(option) => {
-                let option = option.0.clone();
-                py.detach(|| engine.price(&option, &context))
+                let option = &option.0;
+                py.detach(|| engine.price(option, context))
             }
             binomial::VanillaInstrument::American(option) => {
-                let option = option.0.clone();
-                py.detach(|| engine.price(&option, &context))
+                let option = &option.0;
+                py.detach(|| engine.price(option, context))
             }
         }
     },
     {
         match option {
             binomial::VanillaInstrument::European(option) => {
-                let option = option.0.clone();
-                py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+                let option = &option.0;
+                py.detach(|| engine.price_with_greeks(option, context, request, shifts))
             }
             binomial::VanillaInstrument::American(option) => {
-                let option = option.0.clone();
-                py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+                let option = &option.0;
+                py.detach(|| engine.price_with_greeks(option, context, request, shifts))
             }
         }
     }
@@ -236,12 +236,12 @@ fd_engine!(
     FiniteDifferenceDigitalEngine,
     digital::DigitalInstrument<'_>,
     |py, option, engine, context, request, shifts| {
-        let option = option.contract().clone();
-        py.detach(|| engine.price(&option, &context))
+        let option = option.contract();
+        py.detach(|| engine.price(option, context))
     },
     {
-        let option = option.contract().clone();
-        py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+        let option = option.contract();
+        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
     }
 );
 
@@ -249,12 +249,12 @@ fd_engine!(
     FiniteDifferenceBarrierEngine,
     PyRef<'_, barrier::BarrierOption>,
     |py, option, engine, context, request, shifts| {
-        let option = option.0.clone();
-        py.detach(|| engine.price(&option, &context))
+        let option = &option.0;
+        py.detach(|| engine.price(option, context))
     },
     {
-        let option = option.0.clone();
-        py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+        let option = &option.0;
+        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
     }
 );
 
@@ -264,24 +264,24 @@ fd_engine!(
     |py, option, engine, context, request, shifts| {
         match option {
             binary_barrier::BinaryInstrument::Binary(option) => {
-                let option = option.0.clone();
-                py.detach(|| engine.price(&option, &context))
+                let option = &option.0;
+                py.detach(|| engine.price(option, context))
             }
             binary_barrier::BinaryInstrument::Touch(option) => {
-                let option = option.0.clone();
-                py.detach(|| engine.price(&option, &context))
+                let option = &option.0;
+                py.detach(|| engine.price(option, context))
             }
         }
     },
     {
         match option {
             binary_barrier::BinaryInstrument::Binary(option) => {
-                let option = option.0.clone();
-                py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+                let option = &option.0;
+                py.detach(|| engine.price_with_greeks(option, context, request, shifts))
             }
             binary_barrier::BinaryInstrument::Touch(option) => {
-                let option = option.0.clone();
-                py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+                let option = &option.0;
+                py.detach(|| engine.price_with_greeks(option, context, request, shifts))
             }
         }
     }
@@ -291,12 +291,12 @@ fd_engine!(
     FiniteDifferenceDoubleBarrierEngine,
     PyRef<'_, double_barrier::DoubleBarrierOption>,
     |py, option, engine, context, request, shifts| {
-        let option = option.0.clone();
-        py.detach(|| engine.price(&option, &context))
+        let option = &option.0;
+        py.detach(|| engine.price(option, context))
     },
     {
-        let option = option.0.clone();
-        py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+        let option = &option.0;
+        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
     }
 );
 
@@ -304,12 +304,12 @@ fd_engine!(
     FiniteDifferenceDoubleTouchEngine,
     PyRef<'_, double_touch::DoubleTouchOption>,
     |py, option, engine, context, request, shifts| {
-        let option = option.0.clone();
-        py.detach(|| engine.price(&option, &context))
+        let option = &option.0;
+        py.detach(|| engine.price(option, context))
     },
     {
-        let option = option.0.clone();
-        py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+        let option = &option.0;
+        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
     }
 );
 
@@ -317,13 +317,13 @@ fd_engine!(
     FiniteDifferenceAutocallableEngine,
     Bound<'_, PyAny>,
     |py, option, engine, context, request, shifts| {
-        autocallable::with_note!(&option, note, py.detach(|| engine.price(&note, &context)))
+        autocallable::with_note!(&option, note, py.detach(|| engine.price(note, context)))
     },
     {
         autocallable::with_note!(
             &option,
             note,
-            py.detach(|| engine.price_with_greeks(&note, &context, request, shifts))
+            py.detach(|| engine.price_with_greeks(note, context, request, shifts))
         )
     }
 );

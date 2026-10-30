@@ -50,9 +50,9 @@ macro_rules! asian_engine {
                 >,
                 context: &PricingContext,
             ) -> PyResult<f64> {
-                let option = instrument.0.clone();
-                let context = context.0.clone();
-                domain(py, py.detach(|| core::$engine.price(&option, &context)))
+                let option = &instrument.0;
+                let context = &context.0;
+                domain(py, py.detach(|| core::$engine.price(option, context)))
             }
             /// Return the price and selected sensitivities.
             ///
@@ -101,13 +101,11 @@ macro_rules! asian_engine {
             ) -> PyResult<risk::PricingResult> {
                 let request = risk::request(greeks, settings)?;
                 let shifts = risk::shifts(settings)?;
-                let option = instrument.0.clone();
-                let context = context.0.clone();
+                let option = &instrument.0;
+                let context = &context.0;
                 Ok(risk::PricingResult(domain(
                     py,
-                    py.detach(|| {
-                        core::$engine.price_with_greeks(&option, &context, request, shifts)
-                    }),
+                    py.detach(|| core::$engine.price_with_greeks(option, context, request, shifts)),
                 )?))
             }
         }

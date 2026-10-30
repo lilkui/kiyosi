@@ -91,67 +91,60 @@ pub(crate) fn implied_volatility(
         parameter_tolerance,
         max_iterations,
     };
-    let context = context.0.clone();
+    let context = &context.0;
     macro_rules! solve {
         ($engine:expr, $option:expr) => {
             domain(
                 py,
                 py.detach(|| {
-                    core::implied_volatility(&$engine, &$option, &context, observed, controls)
+                    core::implied_volatility(&$engine, $option, context, observed, controls)
                 }),
             )
         };
     }
     if engine.is_instance_of::<analytic::range_accrual::AnalyticRangeAccrualEngine>() {
         let option =
-            extract_instrument::<PyRef<'_, range_accrual::RangeAccrualOption>>(instrument)?
-                .0
-                .clone();
+            &extract_instrument::<PyRef<'_, range_accrual::RangeAccrualOption>>(instrument)?.0;
         return solve!(core::AnalyticRangeAccrualEngine, option);
     }
     if engine.is_instance_of::<analytic::asian::TurnbullWakemanArithmeticAveragePriceEngine>() {
         let option =
-            extract_instrument::<PyRef<'_, asian::ArithmeticAveragePriceOption>>(instrument)?
-                .0
-                .clone();
+            &extract_instrument::<PyRef<'_, asian::ArithmeticAveragePriceOption>>(instrument)?.0;
         return solve!(core::TurnbullWakemanArithmeticAveragePriceEngine, option);
     }
     if engine.is_instance_of::<analytic::asian::AnalyticGeometricAveragePriceEngine>() {
         let option =
-            extract_instrument::<PyRef<'_, asian::GeometricAveragePriceOption>>(instrument)?
-                .0
-                .clone();
+            &extract_instrument::<PyRef<'_, asian::GeometricAveragePriceOption>>(instrument)?.0;
         return solve!(core::AnalyticGeometricAveragePriceEngine, option);
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloAsianEngine>>() {
         let engine = engine.0;
         return match extract_instrument::<asian::AsianInstrument<'_>>(instrument)? {
             asian::AsianInstrument::Geometric(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 solve!(engine, option)
             }
             asian::AsianInstrument::Arithmetic(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 solve!(engine, option)
             }
         };
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloDigitalEngine>>() {
         let engine = engine.0;
-        let option = extract_instrument::<digital::DigitalInstrument<'_>>(instrument)?
-            .contract()
-            .clone();
+        let instrument = extract_instrument::<digital::DigitalInstrument<'_>>(instrument)?;
+        let option = instrument.contract();
         return solve!(engine, option);
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloVanillaEngine>>() {
         let engine = engine.0;
         return match extract_instrument::<binomial::VanillaInstrument<'_>>(instrument)? {
             binomial::VanillaInstrument::European(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 solve!(engine, option)
             }
             binomial::VanillaInstrument::American(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 solve!(engine, option)
             }
         };
@@ -162,11 +155,11 @@ pub(crate) fn implied_volatility(
         let engine = engine.0;
         return match extract_instrument::<binomial::VanillaInstrument<'_>>(instrument)? {
             binomial::VanillaInstrument::European(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 solve!(engine, option)
             }
             binomial::VanillaInstrument::American(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 solve!(engine, option)
             }
         };
@@ -175,18 +168,15 @@ pub(crate) fn implied_volatility(
         engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceDigitalEngine>>()
     {
         let engine = engine.0;
-        let option = extract_instrument::<digital::DigitalInstrument<'_>>(instrument)?
-            .contract()
-            .clone();
+        let instrument = extract_instrument::<digital::DigitalInstrument<'_>>(instrument)?;
+        let option = instrument.contract();
         return solve!(engine, option);
     }
     if let Ok(engine) =
         engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceBarrierEngine>>()
     {
         let engine = engine.0;
-        let option = extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?
-            .0
-            .clone();
+        let option = &extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?.0;
         return solve!(engine, option);
     }
     if let Ok(engine) =
@@ -194,30 +184,24 @@ pub(crate) fn implied_volatility(
     {
         let engine = engine.0;
         let option =
-            extract_instrument::<PyRef<'_, double_barrier::DoubleBarrierOption>>(instrument)?
-                .0
-                .clone();
+            &extract_instrument::<PyRef<'_, double_barrier::DoubleBarrierOption>>(instrument)?.0;
         return solve!(engine, option);
     }
     if let Ok(engine) =
         engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceDoubleTouchEngine>>()
     {
         let engine = engine.0;
-        let option = extract_instrument::<PyRef<'_, double_touch::DoubleTouchOption>>(instrument)?
-            .0
-            .clone();
+        let option =
+            &extract_instrument::<PyRef<'_, double_touch::DoubleTouchOption>>(instrument)?.0;
         return solve!(engine, option);
     }
     if engine.is_instance_of::<quadrature::QuadratureVanillaEngine>() {
-        let option = extract_instrument::<PyRef<'_, EuropeanOption>>(instrument)?
-            .0
-            .clone();
+        let option = &extract_instrument::<PyRef<'_, EuropeanOption>>(instrument)?.0;
         return solve!(core::QuadratureVanillaEngine, option);
     }
     if engine.is_instance_of::<quadrature::QuadratureDigitalEngine>() {
-        let option = extract_instrument::<digital::DigitalInstrument<'_>>(instrument)?
-            .contract()
-            .clone();
+        let instrument = extract_instrument::<digital::DigitalInstrument<'_>>(instrument)?;
+        let option = instrument.contract();
         return solve!(core::QuadratureDigitalEngine, option);
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, binomial::CoxRossRubinsteinVanillaEngine>>() {
@@ -225,20 +209,19 @@ pub(crate) fn implied_volatility(
         let option = extract_instrument::<binomial::VanillaInstrument<'_>>(instrument)?;
         return match option {
             binomial::VanillaInstrument::European(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 solve!(engine, option)
             }
             binomial::VanillaInstrument::American(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 solve!(engine, option)
             }
         };
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, binomial::CoxRossRubinsteinDigitalEngine>>() {
         let engine = engine.0;
-        let option = extract_instrument::<digital::DigitalInstrument<'_>>(instrument)?
-            .contract()
-            .clone();
+        let instrument = extract_instrument::<digital::DigitalInstrument<'_>>(instrument)?;
+        let option = instrument.contract();
         return solve!(engine, option);
     }
     if let Ok(engine) =
@@ -247,11 +230,11 @@ pub(crate) fn implied_volatility(
         let engine = engine.0;
         return match extract_instrument::<binary_barrier::BinaryInstrument<'_>>(instrument)? {
             binary_barrier::BinaryInstrument::Binary(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 solve!(engine, option)
             }
             binary_barrier::BinaryInstrument::Touch(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 solve!(engine, option)
             }
         };
@@ -259,42 +242,34 @@ pub(crate) fn implied_volatility(
     if engine.is_instance_of::<analytic::binary_barrier::AnalyticBinaryBarrierEngine>() {
         return match extract_instrument::<binary_barrier::BinaryInstrument<'_>>(instrument)? {
             binary_barrier::BinaryInstrument::Binary(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 solve!(core::AnalyticBinaryBarrierEngine, option)
             }
             binary_barrier::BinaryInstrument::Touch(option) => {
-                let option = option.0.clone();
+                let option = &option.0;
                 solve!(core::AnalyticBinaryBarrierEngine, option)
             }
         };
     }
     if engine.is_instance_of::<analytic::double_barrier::AnalyticDoubleBarrierEngine>() {
         let option =
-            extract_instrument::<PyRef<'_, double_barrier::DoubleBarrierOption>>(instrument)?
-                .0
-                .clone();
+            &extract_instrument::<PyRef<'_, double_barrier::DoubleBarrierOption>>(instrument)?.0;
         return solve!(core::AnalyticDoubleBarrierEngine, option);
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloBarrierEngine>>() {
         let engine = engine.0;
-        let option = extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?
-            .0
-            .clone();
+        let option = &extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?.0;
         return solve!(engine, option);
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloDoubleBarrierEngine>>() {
         let engine = engine.0;
         let option =
-            extract_instrument::<PyRef<'_, double_barrier::DoubleBarrierOption>>(instrument)?
-                .0
-                .clone();
+            &extract_instrument::<PyRef<'_, double_barrier::DoubleBarrierOption>>(instrument)?.0;
         return solve!(engine, option);
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, binomial::CoxRossRubinsteinBarrierEngine>>() {
         let engine = engine.0;
-        let option = extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?
-            .0
-            .clone();
+        let option = &extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?.0;
         return solve!(engine, option);
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, quadrature::QuadratureAutocallableEngine>>() {
@@ -315,52 +290,38 @@ pub(crate) fn implied_volatility(
         engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceAccumulatorEngine>>()
     {
         let engine = engine.0;
-        let option = extract_instrument::<PyRef<'_, accumulator::Accumulator>>(instrument)?
-            .0
-            .clone();
+        let option = &extract_instrument::<PyRef<'_, accumulator::Accumulator>>(instrument)?.0;
         return solve!(engine, option);
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloAccumulatorEngine>>() {
         let engine = engine.0;
-        let option = extract_instrument::<PyRef<'_, accumulator::Accumulator>>(instrument)?
-            .0
-            .clone();
+        let option = &extract_instrument::<PyRef<'_, accumulator::Accumulator>>(instrument)?.0;
         return solve!(engine, option);
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, quadrature::QuadratureAccumulatorEngine>>() {
         let engine = engine.0;
-        let option = extract_instrument::<PyRef<'_, accumulator::Accumulator>>(instrument)?
-            .0
-            .clone();
+        let option = &extract_instrument::<PyRef<'_, accumulator::Accumulator>>(instrument)?.0;
         return solve!(engine, option);
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, quadrature::QuadratureBarrierEngine>>() {
         let engine = engine.0;
-        let option = extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?
-            .0
-            .clone();
+        let option = &extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?.0;
         return solve!(engine, option);
     }
     if engine.is_instance_of::<analytic::barrier::AnalyticBarrierEngine>() {
-        let option = extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?
-            .0
-            .clone();
+        let option = &extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?.0;
         return solve!(core::AnalyticBarrierEngine, option);
     }
     if engine.is_instance_of::<analytic::digital::AnalyticDigitalEngine>() {
         let instrument = extract_instrument::<digital::DigitalInstrument<'_>>(instrument)?;
-        let option = instrument.contract().clone();
+        let option = instrument.contract();
         return solve!(core::AnalyticDigitalEngine, option);
     }
     if engine.is_instance_of::<analytic::american::BjerksundStenslandVanillaEngine>() {
-        let option = extract_instrument::<PyRef<'_, american::AmericanOption>>(instrument)?
-            .0
-            .clone();
+        let option = &extract_instrument::<PyRef<'_, american::AmericanOption>>(instrument)?.0;
         return solve!(core::BjerksundStenslandVanillaEngine, option);
     }
     engine.extract::<PyRef<'_, AnalyticEuropeanEngine>>()?;
-    let option = extract_instrument::<PyRef<'_, EuropeanOption>>(instrument)?
-        .0
-        .clone();
+    let option = &extract_instrument::<PyRef<'_, EuropeanOption>>(instrument)?.0;
     solve!(core::AnalyticEuropeanEngine, option)
 }

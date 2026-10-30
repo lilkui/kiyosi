@@ -1363,24 +1363,23 @@ macro_rules! with_note {
         if let Ok(note) =
             $instrument.extract::<PyRef<'_, $crate::instruments::autocallable::PhoenixOption>>()
         {
-            let $note = note.0.clone();
+            let $note = &note.0;
             $body
         } else if let Ok(note) = $instrument
             .extract::<PyRef<'_, $crate::instruments::autocallable::BinarySnowballOption>>()
         {
-            let $note = note.0.clone();
+            let $note = &note.0;
             $body
         } else if let Ok(note) = $instrument
             .extract::<PyRef<'_, $crate::instruments::autocallable::TernarySnowballOption>>()
         {
-            let $note = note.0.clone();
+            let $note = &note.0;
             $body
         } else {
-            let $note = $crate::conversions::instrument::<
+            let $note = &$crate::conversions::instrument::<
                 PyRef<'_, $crate::instruments::autocallable::SnowballOption>,
             >($instrument)?
-            .0
-            .clone();
+            .0;
             $body
         }
     }};

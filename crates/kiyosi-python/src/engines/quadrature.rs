@@ -56,9 +56,9 @@ macro_rules! quadrature_engine {
                 context: &PricingContext,
             ) -> PyResult<f64> {
                 let $option = instrument;
-                let option = $contract.clone();
-                let context = context.0.clone();
-                domain(py, py.detach(|| core::$engine.price(&option, &context)))
+                let option = $contract;
+                let context = &context.0;
+                domain(py, py.detach(|| core::$engine.price(option, context)))
             }
 
             /// Return the price and selected sensitivities.
@@ -106,13 +106,11 @@ macro_rules! quadrature_engine {
                 let request = risk::request(greeks, settings)?;
                 let shifts = risk::shifts(settings)?;
                 let $option = instrument;
-                let option = $contract.clone();
-                let context = context.0.clone();
+                let option = $contract;
+                let context = &context.0;
                 Ok(risk::PricingResult(domain(
                     py,
-                    py.detach(|| {
-                        core::$engine.price_with_greeks(&option, &context, request, shifts)
-                    }),
+                    py.detach(|| core::$engine.price_with_greeks(option, context, request, shifts)),
                 )?))
             }
         }
@@ -122,7 +120,7 @@ macro_rules! quadrature_engine {
 quadrature_engine!(
     QuadratureVanillaEngine,
     PyRef<'_, EuropeanOption>,
-    |option| option.0
+    |option| &option.0
 );
 quadrature_engine!(
     QuadratureDigitalEngine,
@@ -209,9 +207,9 @@ impl QuadratureBarrierEngine {
         context: &PricingContext,
     ) -> PyResult<f64> {
         let engine = self.0;
-        let option = instrument.0.clone();
-        let context = context.0.clone();
-        domain(py, py.detach(|| engine.price(&option, &context)))
+        let option = &instrument.0;
+        let context = &context.0;
+        domain(py, py.detach(|| engine.price(option, context)))
     }
     /// Return the price and selected sensitivities.
     ///
@@ -258,11 +256,11 @@ impl QuadratureBarrierEngine {
         let request = risk::request(greeks, settings)?;
         let shifts = risk::shifts(settings)?;
         let engine = self.0;
-        let option = instrument.0.clone();
-        let context = context.0.clone();
+        let option = &instrument.0;
+        let context = &context.0;
         Ok(risk::PricingResult(domain(
             py,
-            py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+            py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
         )?))
     }
 }
@@ -346,9 +344,9 @@ impl QuadratureAccumulatorEngine {
         context: &PricingContext,
     ) -> PyResult<f64> {
         let engine = self.0;
-        let option = instrument.0.clone();
-        let context = context.0.clone();
-        domain(py, py.detach(|| engine.price(&option, &context)))
+        let option = &instrument.0;
+        let context = &context.0;
+        domain(py, py.detach(|| engine.price(option, context)))
     }
     /// Return the price and selected sensitivities.
     ///
@@ -395,11 +393,11 @@ impl QuadratureAccumulatorEngine {
         let request = risk::request(greeks, settings)?;
         let shifts = risk::shifts(settings)?;
         let engine = self.0;
-        let option = instrument.0.clone();
-        let context = context.0.clone();
+        let option = &instrument.0;
+        let context = &context.0;
         Ok(risk::PricingResult(domain(
             py,
-            py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+            py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
         )?))
     }
 }
@@ -486,23 +484,21 @@ impl QuadratureAutocallableEngine {
         context: &PricingContext,
     ) -> PyResult<f64> {
         let engine = self.0;
-        let context = context.0.clone();
+        let context = &context.0;
         if let Ok(note) = instrument.extract::<PyRef<'_, PhoenixOption>>() {
-            let option = note.0.clone();
-            return domain(py, py.detach(|| engine.price(&option, &context)));
+            let option = &note.0;
+            return domain(py, py.detach(|| engine.price(option, context)));
         }
         if let Ok(note) = instrument.extract::<PyRef<'_, BinarySnowballOption>>() {
-            let option = note.0.clone();
-            return domain(py, py.detach(|| engine.price(&option, &context)));
+            let option = &note.0;
+            return domain(py, py.detach(|| engine.price(option, context)));
         }
         if let Ok(note) = instrument.extract::<PyRef<'_, TernarySnowballOption>>() {
-            let option = note.0.clone();
-            return domain(py, py.detach(|| engine.price(&option, &context)));
+            let option = &note.0;
+            return domain(py, py.detach(|| engine.price(option, context)));
         }
-        let option = crate::conversions::instrument::<PyRef<'_, SnowballOption>>(instrument)?
-            .0
-            .clone();
-        domain(py, py.detach(|| engine.price(&option, &context)))
+        let option = &crate::conversions::instrument::<PyRef<'_, SnowballOption>>(instrument)?.0;
+        domain(py, py.detach(|| engine.price(option, context)))
     }
     /// Return the price and selected sensitivities.
     ///
@@ -549,34 +545,32 @@ impl QuadratureAutocallableEngine {
         let request = risk::request(greeks, settings)?;
         let shifts = risk::shifts(settings)?;
         let engine = self.0;
-        let context = context.0.clone();
+        let context = &context.0;
         if let Ok(note) = instrument.extract::<PyRef<'_, PhoenixOption>>() {
-            let option = note.0.clone();
+            let option = &note.0;
             return Ok(risk::PricingResult(domain(
                 py,
-                py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+                py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
             )?));
         }
         if let Ok(note) = instrument.extract::<PyRef<'_, BinarySnowballOption>>() {
-            let option = note.0.clone();
+            let option = &note.0;
             return Ok(risk::PricingResult(domain(
                 py,
-                py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+                py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
             )?));
         }
         if let Ok(note) = instrument.extract::<PyRef<'_, TernarySnowballOption>>() {
-            let option = note.0.clone();
+            let option = &note.0;
             return Ok(risk::PricingResult(domain(
                 py,
-                py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+                py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
             )?));
         }
-        let option = crate::conversions::instrument::<PyRef<'_, SnowballOption>>(instrument)?
-            .0
-            .clone();
+        let option = &crate::conversions::instrument::<PyRef<'_, SnowballOption>>(instrument)?.0;
         Ok(risk::PricingResult(domain(
             py,
-            py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+            py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
         )?))
     }
 }

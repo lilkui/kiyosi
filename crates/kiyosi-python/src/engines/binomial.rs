@@ -88,7 +88,7 @@ macro_rules! binomial_engine {
                 let $py = py;
                 let $option = instrument;
                 let $engine = self.0;
-                let $context = context.0.clone();
+                let $context = &context.0;
                 domain(py, $price)
             }
 
@@ -137,7 +137,7 @@ macro_rules! binomial_engine {
                 let $py = py;
                 let $option = instrument;
                 let $engine = self.0;
-                let $context = context.0.clone();
+                let $context = &context.0;
                 let $request = risk::request(greeks, settings)?;
                 let $shifts = risk::shifts(settings)?;
                 Ok(risk::PricingResult(domain(py, $analysis)?))
@@ -152,24 +152,24 @@ binomial_engine!(
     |py, option, engine, context, request, shifts| {
         match option {
             VanillaInstrument::European(option) => {
-                let option = option.0.clone();
-                py.detach(|| engine.price(&option, &context))
+                let option = &option.0;
+                py.detach(|| engine.price(option, context))
             }
             VanillaInstrument::American(option) => {
-                let option = option.0.clone();
-                py.detach(|| engine.price(&option, &context))
+                let option = &option.0;
+                py.detach(|| engine.price(option, context))
             }
         }
     },
     {
         match option {
             VanillaInstrument::European(option) => {
-                let option = option.0.clone();
-                py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+                let option = &option.0;
+                py.detach(|| engine.price_with_greeks(option, context, request, shifts))
             }
             VanillaInstrument::American(option) => {
-                let option = option.0.clone();
-                py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+                let option = &option.0;
+                py.detach(|| engine.price_with_greeks(option, context, request, shifts))
             }
         }
     }
@@ -178,12 +178,12 @@ binomial_engine!(
     CoxRossRubinsteinDigitalEngine,
     digital::DigitalInstrument<'_>,
     |py, option, engine, context, request, shifts| {
-        let option = option.contract().clone();
-        py.detach(|| engine.price(&option, &context))
+        let option = option.contract();
+        py.detach(|| engine.price(option, context))
     },
     {
-        let option = option.contract().clone();
-        py.detach(|| engine.price_with_greeks(&option, &context, request, shifts))
+        let option = option.contract();
+        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
     }
 );
 /// Flat-rate Cox-Ross-Rubinstein tree pricing.
@@ -250,9 +250,9 @@ impl CoxRossRubinsteinBarrierEngine {
         context: &PricingContext,
     ) -> PyResult<f64> {
         let engine = self.0;
-        let option = instrument.0.clone();
-        let context = context.0.clone();
-        domain(py, py.detach(|| engine.price(&option, &context)))
+        let option = &instrument.0;
+        let context = &context.0;
+        domain(py, py.detach(|| engine.price(option, context)))
     }
     /// Return the price and selected sensitivities.
     ///
@@ -299,11 +299,11 @@ impl CoxRossRubinsteinBarrierEngine {
         let request = risk::request(greeks, settings)?;
         let shifts = risk::shifts(settings)?;
         let engine = self.0;
-        let option = instrument.0.clone();
-        let context = context.0.clone();
+        let option = &instrument.0;
+        let context = &context.0;
         Ok(risk::PricingResult(domain(
             py,
-            py.detach(|| engine.price_with_greeks(&option, &context, request, shifts)),
+            py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
         )?))
     }
 }
