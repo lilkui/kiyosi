@@ -63,7 +63,11 @@ impl FiniteDifferenceAccumulatorEngine {
         let mut settings = self.settings;
         validate(option, context)?;
         if settings.asset_upper_boundary.is_none() && option.initial(context).1.is_none() {
-            let upper = default_upper(option, context)?;
+            let expiry = option.expiry_date().start_of_day();
+            let model = context.model_parameters();
+            let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
+            let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
+            let upper = default_upper(option, context, &risk, &dividend);
             if upper.is_finite() {
                 settings.asset_upper_boundary = Some(upper);
             }
@@ -105,21 +109,24 @@ fn validate(option: &Accumulator, context: &PricingContext) -> Result<()> {
     Ok(())
 }
 
-fn default_upper(option: &Accumulator, context: &PricingContext) -> Result<f64> {
-    let expiry = option.expiry_date().start_of_day();
-    let model = context.model_parameters();
-    let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
-    let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
-    Ok(diffusion_upper(
+fn default_upper(
+    option: &Accumulator,
+    context: &PricingContext,
+    risk: &Curve,
+    dividend: &Curve,
+) -> f64 {
+    diffusion_upper(
         option
             .strike()
             .max(option.knock_out_level())
             .max(context.spot_price()),
         context,
-        context.valuation_time().years_until(expiry),
-        &risk,
-        &dividend,
-    ))
+        context
+            .valuation_time()
+            .years_until(option.expiry_date().into()),
+        risk,
+        dividend,
+    )
 }
 
 fn native(
@@ -142,7 +149,7 @@ fn native(
     let sigma = model.volatility();
     let upper = match settings.asset_upper_boundary {
         Some(value) => value,
-        None => default_upper(option, context)?,
+        None => default_upper(option, context, &risk, &dividend),
     };
     let space = SpatialGrid::new(
         settings,

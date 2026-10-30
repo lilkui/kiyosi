@@ -75,7 +75,11 @@ impl FiniteDifferenceAutocallableEngine {
             && state.settlement.is_none()
             && fixed_value(option, context, state.knocked_in).is_none()
         {
-            let upper = default_upper(option, context)?;
+            let expiry = option.expiry_date().start_of_day();
+            let model = context.model_parameters();
+            let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
+            let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
+            let upper = default_upper(option, context, &risk, &dividend);
             if upper.is_finite() {
                 settings.asset_upper_boundary = Some(upper);
             }
@@ -131,38 +135,18 @@ fn highest<T: AutocallableTerms>(note: &AutocallableNote<T>) -> f64 {
 fn default_upper<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     context: &PricingContext,
-) -> Result<f64> {
-    let time = time_to_expiry(note, context)?;
-    if time == 0.0 {
-        return Ok(4.0 * highest(note).max(context.spot_price()));
-    }
-    let model = context.model_parameters();
-    let risk = Curve::new(
-        model.risk_free_curve(),
-        context.valuation_time(),
-        note.expiry_date().into(),
-    )?;
-    let dividend = Curve::new(
-        model.dividend_curve(),
-        context.valuation_time(),
-        note.expiry_date().into(),
-    )?;
-    let sigma = model.volatility();
-    let maximum_drift = risk
-        .ends()
-        .chain(dividend.ends())
-        .map(|end| {
-            (dividend.log_factor(0.0, end) - risk.log_factor(0.0, end) - 0.5 * sigma * sigma * end)
-                .abs()
-        })
-        .fold(0.0, f64::max);
-    let width = 4.0 * sigma * time.sqrt() + maximum_drift;
-    let relevant = highest(note).max(context.spot_price());
-    Ok(if width <= 4.0_f64.ln() {
-        4.0 * relevant
-    } else {
-        (relevant.ln() + width).exp()
-    })
+    risk: &Curve,
+    dividend: &Curve,
+) -> f64 {
+    diffusion_upper(
+        highest(note).max(context.spot_price()),
+        context,
+        context
+            .valuation_time()
+            .years_until(note.expiry_date().into()),
+        risk,
+        dividend,
+    )
 }
 
 fn concentrate(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: f64) -> Result<()> {
@@ -368,7 +352,7 @@ fn native<T: AutocallableTerms>(
     }
     let upper = match settings.asset_upper_boundary {
         Some(upper) => upper,
-        None => default_upper(note, context)?,
+        None => default_upper(note, context, &risk, &dividend),
     };
     let mut space = SpatialGrid::new(
         settings,
