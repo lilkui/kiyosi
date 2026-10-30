@@ -126,7 +126,7 @@ pub struct BarrierOption {
     touch_state: Option<BarrierTouchState>,
 }
 impl BarrierOption {
-    /// Validates barrier, life, schedule, then payoff terms before returning an owning contract.
+    /// Creates an owning contract after validating monitoring and payoff terms.
     ///
     /// Trading-day compatibility and history relative to valuation are checked during pricing.
     ///
@@ -134,7 +134,7 @@ impl BarrierOption {
     ///
     /// Returns [`Error::InvalidInput`] for invalid level or rebate, reversed
     /// life, incompatible or invalid fixing dates, invalid strike, or an at-hit
-    /// knock-in rebate, checked in that order.
+    /// knock-in rebate. Diagnostic order is unspecified when several inputs are invalid.
     ///
     /// # Examples
     ///
@@ -154,7 +154,6 @@ impl BarrierOption {
                 "barrier level must be finite and positive".into(),
             ));
         }
-        crate::time::calendar::validate_range(terms.effective_date, terms.expiry_date)?;
         if (terms.observation_mode == ObservationMode::Continuous)
             != terms.observation_dates.is_empty()
         {

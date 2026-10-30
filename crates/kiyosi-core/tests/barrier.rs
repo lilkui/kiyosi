@@ -158,7 +158,7 @@ fn greeks_do_not_cross_touch_discontinuities_or_history_regimes() {
 }
 
 #[test]
-fn construction_defaults_validation_order_and_calendar_are_core_semantics() {
+fn construction_defaults_validation_and_calendar_are_core_semantics() {
     let t = terms(BarrierType::UpAndOut);
     let option = BarrierOption::new(t.clone()).unwrap();
     assert_eq!(option.rebate(), 0.0);

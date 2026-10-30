@@ -45,8 +45,14 @@ macro_rules! contract_tests {
         mod $module {
             use super::*;
             #[test]
-            fn construction_replacement_and_validation_precedence() {
+            fn construction_replacement_and_validation() {
                 let (start, end) = dates();
+                for strike in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+                    assert!(matches!(
+                        $option::new(OptionType::Call, strike, start, start, end, 0.0).unwrap_err(),
+                        Error::InvalidInput(_)
+                    ));
+                }
                 for (strike, average) in [(0.0, -1.0), (100.0, -1.0), (100.0, 0.0)] {
                     assert!(matches!(
                         $option::new(OptionType::Call, strike, end, start, start, average)

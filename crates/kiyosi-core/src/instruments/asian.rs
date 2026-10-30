@@ -21,7 +21,6 @@ impl AverageTerms {
         end: Date,
         realized: f64,
     ) -> Result<Self> {
-        crate::error::finite(strike, true)?;
         if !realized.is_finite() || realized < 0.0 {
             return Err(Error::InvalidInput(
                 "realized average must be finite and non-negative".into(),
@@ -94,8 +93,8 @@ macro_rules! average_option {
             /// # Errors
             ///
             /// Returns [`Error::InvalidInput`] for invalid strike, negative or non-finite
-            /// history, reversed life dates, or averaging outside contract life, checked in
-            /// that order.
+            /// history, reversed life dates, or averaging outside contract life.
+            /// Diagnostic order is unspecified when several inputs are invalid.
             ///
             /// # Examples
             ///

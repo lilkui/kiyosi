@@ -132,6 +132,8 @@ class AsianTests(unittest.TestCase):
     def test_validation_schedule_history_life_and_single_fixing(self):
         averaging = date(2025, 2, 1)
         for kind, engine_type in PAIRS:
+            for strike in (0, -1, math.nan, math.inf):
+                self.assert_rejection(InvalidInputError, kind, **terms(strike=strike))
             for strike, average, expected in (
                 (0, -1, InvalidInputError),
                 (100, -1, InvalidInputError),
