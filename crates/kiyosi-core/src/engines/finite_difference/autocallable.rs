@@ -171,7 +171,7 @@ fn concentrate(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: f64) -> Res
         segments.push((pair[0], middle, true, 1, 0.0));
         segments.push((middle, pair[1], false, 1, 0.0));
     }
-    segments.push((*levels.last().unwrap_or(&0.0), space.upper, true, 1, 0.0));
+    segments.push((levels[levels.len() - 1], space.upper, true, 1, 0.0));
     if segments.len() > space.count {
         return Ok(());
     }
