@@ -48,7 +48,7 @@ impl ObservationSchedule {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for reversed life or nonpositive intervals,
-    /// checked in that order. Propagates date-range and schedule validation errors.
+    /// checked in that order. Propagates date-range errors.
     ///
     /// # Examples
     ///
@@ -79,7 +79,7 @@ impl ObservationSchedule {
                 break;
             }
         }
-        Self::new(dates, start, end, calendar)
+        Ok(Self { dates })
     }
 
     /// Creates monthly candidates anchored to `start`'s day, clamped at month end.
@@ -90,7 +90,7 @@ impl ObservationSchedule {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for reversed life or a nonpositive first
-    /// offset. Propagates date-range and schedule validation errors.
+    /// offset. Propagates date-range errors.
     /// See [`Self::fixed_interval`] for schedule construction.
     pub fn monthly(
         start: Date,
@@ -121,7 +121,7 @@ impl ObservationSchedule {
                 break;
             }
         }
-        Self::new(dates, start, end, calendar)
+        Ok(Self { dates })
     }
 
     /// Borrows the strictly ordered date storage for this schedule's lifetime.
