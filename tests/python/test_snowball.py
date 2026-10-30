@@ -288,6 +288,39 @@ class SnowballTests(unittest.TestCase):
         self.assertLess(price, 0)
         self.assertAlmostEqual(price, 0.25 * discount - put / 100, delta=1e-10)
 
+    def test_multi_observation_affine_tails_preserve_cash_asset_and_greeks(self):
+        engine = QuadratureAutocallableEngine()
+        valuation = datetime(2025, 1, 2, 12, tzinfo=UTC)
+        time = 4.5 / 365
+        for principal, rate, dividend in ((1, 0, 0), (0.25, 0.04, 0.03)):
+            for mode, history in (
+                ("at_expiry", None),
+                ("every_trading_day", "knocked_in"),
+                ("every_trading_day", "none"),
+            ):
+                with self.subTest(principal=principal, mode=mode, history=history):
+                    note = contract(
+                        expiry_date=date(2025, 1, 7),
+                        lower_strike=0,
+                        principal_ratio=principal,
+                        maturity_coupon_rate=0,
+                        knock_in_observation_mode=mode,
+                        barrier_state=history,
+                        observations=autocallable_observations(
+                            [date(2025, 1, 3), date(2025, 1, 6), date(2025, 1, 7)],
+                            [110] * 3,
+                        ),
+                    )
+                    context = market(15, valuation, 0.2, rate, dividend)
+                    # Recovery to the knock-in, cap or knock-out levels is negligible over 4.5 days.
+                    delta = math.exp(-dividend * time) / 100
+                    expected = 15 * delta + (principal - 1) * math.exp(-rate * time)
+                    price = engine.price(note, context)
+                    self.assertAlmostEqual(price, expected, delta=1e-9)
+                    result = engine.price_with_greeks(note, context, "delta")
+                    self.assertEqual(result.price, price)
+                    self.assertAlmostEqual(result.delta, delta, delta=1e-8)
+
     def test_daily_layers_and_domain_convergence(self):
         dates = [date(2025, 2, 1), date(2025, 3, 1), END]
         context = market(volatility=0.3, calendar=all_days_calendar())

@@ -14,6 +14,7 @@ use crate::{
 /// Prices snowball variants and Phoenix notes by cubic Gaussian integration between exact event dates.
 ///
 /// Retains separate intact and knocked-in continuation layers for daily monitoring.
+/// Preserves cash and asset payments below the spatial grid, including zero-lower-strike losses.
 /// Owns immutable settings; shared and distinct instances support concurrent pricing.
 /// See [`Self::new`] for an example.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -151,21 +152,28 @@ fn checked(value: f64) -> Result<f64> {
 
 struct Curve {
     cells: Vec<Polynomial>,
-    low: f64,
+    low: [f64; 2],
     high: f64,
 }
 impl Curve {
-    fn evaluate(&self, nodes: &[f64], mean: f64, deviation: f64, discount: f64) -> f64 {
+    fn evaluate(
+        &self,
+        nodes: &[f64],
+        mean: f64,
+        anchor: f64,
+        deviation: f64,
+        discount: f64,
+    ) -> f64 {
         integrate_curve(&self.cells, nodes, mean, deviation, discount)
-            + integrate_terminal(&self.tails(nodes), mean, 1.0, 0.0, deviation, discount)
+            + integrate_terminal(&self.tails(nodes), mean, anchor, 0.0, deviation, discount)
     }
     fn tails(&self, nodes: &[f64]) -> [TerminalPiece; 2] {
         [
             TerminalPiece {
                 lower: f64::NEG_INFINITY,
                 upper: nodes[0],
-                cash: self.low,
-                asset: 0.0,
+                cash: self.low[0],
+                asset: self.low[1],
             },
             TerminalPiece {
                 lower: nodes[nodes.len() - 1],
@@ -193,6 +201,7 @@ impl<T: AutocallableTerms> PreparedCurve<T> {
         checked(self.curve.evaluate(
             &self.nodes,
             log_ratio(spot, self.option.view().initial_spot) + self.drift,
+            self.option.view().initial_spot,
             self.deviation,
             self.discount,
         ))
@@ -289,7 +298,7 @@ fn apply_event<T: AutocallableTerms>(
     if let Some(knocked) = knocked {
         alive.low = knocked.low;
     }
-    alive.low += coupon(f64::NEG_INFINITY);
+    alive.low[0] += coupon(f64::NEG_INFINITY);
     for (i, cell) in alive.cells.iter_mut().enumerate() {
         let point = nodes[i].midpoint(nodes[i + 1]);
         if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level, t.initial_spot)) {
@@ -431,12 +440,12 @@ fn price<T: AutocallableTerms>(
     };
     let mut alive = Curve {
         cells: Vec::new(),
-        low: terminal[0].cash,
+        low: [terminal[0].cash, terminal[0].asset],
         high: terminal[terminal.len() - 1].cash,
     };
     let mut knocked = Curve {
         cells: Vec::new(),
-        low: terminal_in.first().map_or(0.0, |p| p.cash),
+        low: terminal_in.first().map_or([0.0; 2], |p| [p.cash, p.asset]),
         high: terminal_in.last().map_or(0.0, |p| p.cash),
     };
     let mut transitions: Vec<(f64, Transition)> = Vec::new();
@@ -521,13 +530,19 @@ fn price<T: AutocallableTerms>(
         }
         alive = Curve {
             cells: interpolation.interpolate(&values),
-            low: scaled(alive.low, discount),
+            low: [
+                scaled(alive.low[0], discount),
+                scaled(alive.low[1], -dividend * time),
+            ],
             high: scaled(alive.high, discount),
         };
         if layers {
             knocked = Curve {
                 cells: interpolation.interpolate(&values_in),
-                low: scaled(knocked.low, discount),
+                low: [
+                    scaled(knocked.low[0], discount),
+                    scaled(knocked.low[1], -dividend * time),
+                ],
                 high: scaled(knocked.high, discount),
             };
         }

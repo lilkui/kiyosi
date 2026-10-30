@@ -422,6 +422,11 @@ impl QuadratureAccumulatorEngine {
 /// BinarySnowballOption : Supported contract.
 /// TernarySnowballOption : Supported contract.
 /// PhoenixOption : Supported contract.
+///
+/// Notes
+/// -----
+/// Preserves cash and asset payments below the spatial grid, including
+/// zero-lower-strike losses after large spot declines.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct QuadratureAutocallableEngine(pub(crate) core::QuadratureAutocallableEngine);
 

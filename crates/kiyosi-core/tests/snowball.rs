@@ -152,6 +152,66 @@ fn terminal_portfolios_preserve_signed_coupons_affine_tails_and_principal() {
 }
 
 #[test]
+fn multi_observation_affine_tails_preserve_cash_asset_and_greeks() {
+    let engine = QuadratureAutocallableEngine::default();
+    let valuation = Timestamp::new(date(1, 2), 12, 0, 0, 0).unwrap();
+    let time = 4.5 / 365.0;
+    for (principal, rate, dividend) in [(1.0, 0.0, 0.0), (0.25, 0.04, 0.03)] {
+        for (mode, history) in [
+            (KnockInObservationMode::AtExpiry, None),
+            (
+                KnockInObservationMode::EveryTradingDay,
+                Some(AutocallableBarrierState::KnockedIn),
+            ),
+            (
+                KnockInObservationMode::EveryTradingDay,
+                Some(AutocallableBarrierState::None),
+            ),
+        ] {
+            let mut t = terms();
+            t.expiry_date = date(1, 7);
+            t.lower_strike = 0.0;
+            t.principal_ratio = principal;
+            t.maturity_coupon_rate = 0.0;
+            t.knock_in_observation_mode = mode;
+            t.barrier_state = history;
+            t.observations = autocallable_observations(
+                &[date(1, 3), date(1, 6), date(1, 7)],
+                &[110.0; 3],
+                None,
+                None,
+            )
+            .unwrap();
+            let note = SnowballOption::new(t).unwrap();
+            let context = PricingContext::new(
+                BlackScholesMertonParameters::new(rate, dividend, 0.2).unwrap(),
+                15.0,
+                valuation,
+            )
+            .unwrap();
+            // Recovery to the knock-in, cap or knock-out levels is negligible over 4.5 days.
+            let delta = (-dividend * time).exp() / 100.0;
+            let expected = 15.0 * delta + (principal - 1.0) * (-rate * time).exp();
+            let price = engine.price(&note, &context).unwrap();
+            assert!(
+                (price - expected).abs() < 1e-9,
+                "{mode:?}, {history:?}: {price} != {expected}"
+            );
+            let result = engine
+                .price_with_greeks(
+                    &note,
+                    &context,
+                    GreeksRequest::new([Greek::Delta]),
+                    Default::default(),
+                )
+                .unwrap();
+            assert_eq!(result.price(), price);
+            assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-8);
+        }
+    }
+}
+
+#[test]
 fn daily_monitoring_converges_and_prices_recovery_risk() {
     let ctx = market(100.0, date(1, 1));
     let mut prices = Vec::new();
