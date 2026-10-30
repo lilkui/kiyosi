@@ -2,7 +2,10 @@ use crate::{
     AmericanOption, DigitalOption, Error, EuropeanOption, Greek, GreeksRequest,
     NumericalShiftSettings, OptionContract, OptionType, PricingContext, PricingEngine,
     PricingResult, Result,
-    engines::analytic::european::{black_scholes_arguments, weighted_cdf},
+    engines::analytic::{
+        barrier::scaled_cash as scaled,
+        european::{black_scholes_arguments, weighted_cdf},
+    },
 };
 
 mod accumulator;
@@ -110,19 +113,6 @@ impl Payoff {
         } else {
             (self.sign * (spot - self.strike)).max(0.0)
         }
-    }
-}
-
-fn scaled(amount: f64, exponent: f64) -> f64 {
-    if amount == 0.0 {
-        return 0.0;
-    }
-    let weight = exponent.exp();
-    let value = amount * weight;
-    if weight.is_normal() && value.is_finite() {
-        value
-    } else {
-        (amount.ln() + exponent).exp()
     }
 }
 
