@@ -57,6 +57,70 @@ fn terminal_prices_match_analytic_references_and_ignore_validated_steps() {
 }
 
 #[test]
+fn terminal_prices_preserve_tiny_positive_volatility() {
+    for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+        for antithetic in [false, true] {
+            let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
+                path_count: 65_536,
+                seed: Some(42),
+                thread_count: 1,
+                sampling,
+                antithetic,
+                ..Default::default()
+            })
+            .unwrap();
+            for amount in [100.0, 1e18] {
+                for sigma in [1e-17, 1e-200] {
+                    let context = PricingContext::new(
+                        BlackScholesMertonParameters::new(0.0, 0.0, sigma).unwrap(),
+                        amount,
+                        market().valuation_time(),
+                    )
+                    .unwrap();
+                    for direction in [OptionType::Call, OptionType::Put] {
+                        let option = EuropeanOption::new(
+                            direction,
+                            amount,
+                            contract(direction).effective_date(),
+                            contract(direction).expiry_date(),
+                        )
+                        .unwrap();
+                        // At the money, the small-volatility price is S * sigma / sqrt(2*pi).
+                        let expected = amount * sigma / std::f64::consts::TAU.sqrt();
+                        let estimate = engine.price_with_statistics(&option, &context).unwrap();
+                        assert_eq!(estimate.price(), engine.price(&option, &context).unwrap());
+                        assert!((estimate.price() / expected - 1.0).abs() < 0.02);
+                        if sampling == MonteCarloSampling::PseudoRandom {
+                            let error = estimate.standard_error().unwrap();
+                            assert!(error > 0.0 && error < 0.02 * expected);
+                            assert!((estimate.price() - expected).abs() < 6.0 * error);
+                            let (lower, upper) = estimate.confidence_interval().unwrap();
+                            assert!(lower < estimate.price() && estimate.price() < upper);
+                        } else {
+                            assert_eq!(estimate.standard_error(), None);
+                            assert_eq!(estimate.confidence_interval(), None);
+                        }
+                        if direction == OptionType::Call {
+                            let american = AmericanOption::new(
+                                direction,
+                                amount,
+                                option.effective_date(),
+                                option.expiry_date(),
+                            )
+                            .unwrap();
+                            assert_eq!(
+                                engine.price(&american, &context).unwrap(),
+                                estimate.price()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn sampling_statistics_report_uncertainty_and_single_path_unavailability() {
     let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
         seed: Some(42),

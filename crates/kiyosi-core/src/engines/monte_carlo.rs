@@ -1,5 +1,6 @@
 use std::{f64::consts::TAU, thread};
 
+use crate::engines::analytic::barrier::log_ratio;
 use crate::{
     Error, EuropeanOption, GreeksRequest, NumericalShiftSettings, OptionContract, OptionType,
     PricingContext, PricingEngine, PricingResult, Result,
@@ -196,6 +197,7 @@ impl MonteCarloVanillaEngine {
 
     /// Returns a discounted sample mean, or intrinsic value at expiry.
     ///
+    /// Near-strike payoffs retain small movements even when terminal spot rounds to strike.
     /// Calls complete synchronously without cancellation or signal polling.
     ///
     /// # Errors
@@ -317,12 +319,20 @@ impl MonteCarloVanillaEngine {
         if !drift.is_finite() || !diffusion.is_finite() {
             return Err(unstable());
         }
+        let moneyness = log_ratio(context.spot_price(), option.strike());
         let (total, pairs) = terminal_samples(self.settings, |normal| {
-            let terminal = context.spot_price() * diffusion.mul_add(normal, drift).exp();
+            let increment = diffusion.mul_add(normal, drift);
+            let terminal = context.spot_price() * increment.exp();
             if !terminal.is_finite() || terminal <= 0.0 {
                 return Err(unstable());
             }
-            Ok([(sign * (terminal - option.strike())).max(0.0)])
+            let distance = moneyness + increment;
+            let payoff = if distance.abs() < 0.5 {
+                option.strike() * distance.exp_m1()
+            } else {
+                terminal - option.strike()
+            };
+            Ok([(sign * payoff).max(0.0)])
         })?;
         let [total] = total;
         let [pairs] = pairs;

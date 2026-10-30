@@ -138,8 +138,9 @@ macro_rules! sampling_settings {
 /// Each call owns its workers and samples. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
 /// European pricing samples the exact terminal distribution and ignores
-/// step_count. American exercise grids use step_count points and require at
-/// least three before expiry.
+/// step_count. Near-strike payoffs preserve small movements even when the
+/// terminal spot rounds to the strike. American exercise grids use step_count
+/// points and require at least three before expiry.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloVanillaEngine(pub(crate) core::MonteCarloVanillaEngine);
 

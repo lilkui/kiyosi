@@ -18,7 +18,7 @@ from kiyosi import (
     RootNotBracketedError,
     UnsupportedOperationError,
 )
-from kiyosi.instruments import EuropeanOption
+from kiyosi.instruments import AmericanOption, EuropeanOption
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import (
     AnalyticEuropeanEngine,
@@ -72,6 +72,62 @@ class MonteCarloTests(unittest.TestCase):
             estimate = one.price_with_statistics(option, market())
             self.assertIsNone(estimate.standard_error)
             self.assertIsNone(estimate.confidence_interval)
+
+    def test_terminal_prices_preserve_tiny_positive_volatility(self):
+        for sampling in ("pseudo_random", "sobol"):
+            for antithetic in (False, True):
+                engine = MonteCarloVanillaEngine(
+                    path_count=65_536,
+                    seed=42,
+                    thread_count=1,
+                    sampling=sampling,
+                    antithetic=antithetic,
+                )
+                for amount in (100, 1e18):
+                    for sigma in (1e-17, 1e-200):
+                        context = market(spot=amount, rate=0, dividend=0, sigma=sigma)
+                        for direction in ("call", "put"):
+                            with self.subTest(
+                                sampling=sampling,
+                                antithetic=antithetic,
+                                amount=amount,
+                                sigma=sigma,
+                                direction=direction,
+                            ):
+                                option = contract(direction, strike=amount)
+                                expected = amount * sigma / math.sqrt(math.tau)
+                                estimate = engine.price_with_statistics(option, context)
+                                self.assertEqual(
+                                    estimate.price, engine.price(option, context)
+                                )
+                                self.assertAlmostEqual(
+                                    estimate.price / expected, 1, delta=0.02
+                                )
+                                if sampling == "pseudo_random":
+                                    self.assertGreater(estimate.standard_error, 0)
+                                    self.assertLess(
+                                        estimate.standard_error, 0.02 * expected
+                                    )
+                                    self.assertLess(
+                                        abs(estimate.price - expected),
+                                        6 * estimate.standard_error,
+                                    )
+                                    lower, upper = estimate.confidence_interval
+                                    self.assertLess(lower, estimate.price)
+                                    self.assertGreater(upper, estimate.price)
+                                else:
+                                    self.assertIsNone(estimate.standard_error)
+                                    self.assertIsNone(estimate.confidence_interval)
+                                if direction == "call":
+                                    american = AmericanOption(
+                                        option_type=direction,
+                                        strike=amount,
+                                        effective_date=START,
+                                        expiry_date=END,
+                                    )
+                                    self.assertEqual(
+                                        engine.price(american, context), estimate.price
+                                    )
 
     def test_strict_representations_and_domain_boundaries(self):
         for field in ("path_count", "step_count", "thread_count", "seed"):
