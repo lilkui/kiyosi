@@ -621,7 +621,6 @@ fn parameters(context: &PricingContext, dt: f64) -> Result<(f64, f64, f64, f64, 
         || !down.is_finite()
         || up == down
         || !discount.is_finite()
-        || !p.is_finite()
         || !(0.0..=1.0).contains(&p)
     {
         return Err(unstable());
