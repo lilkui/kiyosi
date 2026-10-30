@@ -399,10 +399,7 @@ fn estimate(
         let half_width = 1.959963984540054 * error;
         (price - half_width, price + half_width)
     });
-    if standard_error.is_some_and(|value| !value.is_finite())
-        || confidence_interval
-            .is_some_and(|(lower, upper)| !lower.is_finite() || !upper.is_finite())
-    {
+    if confidence_interval.is_some_and(|(lower, upper)| !lower.is_finite() || !upper.is_finite()) {
         return Err(unstable());
     }
     Ok(MonteCarloEstimate {
