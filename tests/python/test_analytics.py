@@ -235,6 +235,10 @@ class AnalyticsTests(unittest.TestCase):
         with self.assertRaises(OverflowError):
             implied_volatility(self.engine, self.option, self.context, 10**1000)
         with self.assertRaises(TypeError):
+            implied_volatility(self.engine, self.option, self.context, 9.227, unknown=1)
+        with self.assertRaises(TypeError):
+            implied_volatility(self.engine, self.option, self.context, 9.227, 0.1)
+        with self.assertRaises(TypeError):
             self.engine.price_with_greeks(self.option, self.context, "delta", unknown=1)
         result = self.engine.price_with_greeks(
             self.option, self.context, "delta", spot_shift=Fraction(1, 100)

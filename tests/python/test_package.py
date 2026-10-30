@@ -13,6 +13,41 @@ from kiyosi import _native, instruments, market, pricing
 
 
 class PackageTests(unittest.TestCase):
+    def test_barrier_and_solver_signatures_match_declared_keywords(self):
+        stub = ast.parse((Path(kiyosi.__file__).parent / "_native.pyi").read_text())
+        for factory in (instruments.BarrierOption, pricing.implied_volatility):
+            declaration = next(
+                node
+                for node in stub.body
+                if isinstance(node, (ast.ClassDef, ast.FunctionDef))
+                and node.name == factory.__name__
+            )
+            arguments = (
+                next(
+                    member
+                    for member in declaration.body
+                    if isinstance(member, ast.FunctionDef) and member.name == "__init__"
+                ).args
+                if isinstance(declaration, ast.ClassDef)
+                else declaration.args
+            )
+            positional = tuple(arg.arg for arg in arguments.args if arg.arg != "self")
+            keywords = tuple(arg.arg for arg in arguments.kwonlyargs)
+            signature = inspect.signature(factory)
+            with self.subTest(api=factory.__name__):
+                self.assertEqual(tuple(signature.parameters), positional + keywords)
+                for name in positional:
+                    self.assertIs(
+                        signature.parameters[name].kind,
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    )
+                for name, default in zip(keywords, arguments.kw_defaults):
+                    parameter = signature.parameters[name]
+                    self.assertIs(parameter.kind, inspect.Parameter.KEYWORD_ONLY)
+                    self.assertEqual(
+                        parameter.default is inspect.Parameter.empty, default is None
+                    )
+
     def test_engine_constructors_expose_keyword_only_signatures(self):
         package = Path(kiyosi.__file__).parent
         stub = ast.parse((package / "_native.pyi").read_text())

@@ -80,6 +80,9 @@ pub struct BarrierOptionTerms {
     pub touch_state: Option<BarrierTouchState>,
 }
 impl BarrierOptionTerms {
+    /// Supplies the default zero cash rebate; see [`Self::new`].
+    pub const DEFAULT_REBATE: f64 = 0.0;
+
     /// Supplies zero rebate, expiry payment, continuous monitoring and unknown history.
     ///
     /// Does not validate inputs; see [`BarrierOption::new`] for validation and an example.
@@ -98,7 +101,7 @@ impl BarrierOptionTerms {
             expiry_date,
             barrier_level,
             barrier_type,
-            rebate: 0.0,
+            rebate: Self::DEFAULT_REBATE,
             rebate_timing: RebateTiming::default(),
             observation_mode: ObservationMode::default(),
             observation_dates: Vec::new(),

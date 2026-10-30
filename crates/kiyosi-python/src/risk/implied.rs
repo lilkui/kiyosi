@@ -1,5 +1,4 @@
-use super::{integer_setting, real_setting};
-use crate::conversions::{check_changes, instrument as extract_instrument, real};
+use crate::conversions::{instrument as extract_instrument, integer, real};
 use crate::engines::analytic;
 use crate::engines::analytic::european::AnalyticEuropeanEngine;
 use crate::engines::binomial;
@@ -21,7 +20,6 @@ use crate::instruments::vanilla::EuropeanOption;
 use crate::market::PricingContext;
 use kiyosi_core as core;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 /// Solve the annual volatility that reproduces an observed price.
 ///
 /// Parameters
@@ -71,33 +69,27 @@ use pyo3::types::PyDict;
 /// Digital prices can have several volatility roots. The supplied bracket
 /// selects a root; CRR engines restrict it to their admissible tree domain.
 #[pyfunction]
-#[pyo3(signature = (engine, instrument, context, observed_price, **settings))]
+#[pyo3(signature = (engine, instrument, context, observed_price, *, lower_bound=core::ImpliedVolatilitySettings::default().lower_bound, upper_bound=core::ImpliedVolatilitySettings::default().upper_bound, price_tolerance=core::ImpliedVolatilitySettings::default().price_tolerance, parameter_tolerance=core::ImpliedVolatilitySettings::default().parameter_tolerance, max_iterations=core::ImpliedVolatilitySettings::default().max_iterations))]
+#[expect(clippy::too_many_arguments, reason = "explicit solver controls")]
 pub(crate) fn implied_volatility(
     py: Python<'_>,
     engine: &Bound<'_, PyAny>,
     instrument: &Bound<'_, PyAny>,
     context: &PricingContext,
-    observed_price: &Bound<'_, PyAny>,
-    settings: Option<&Bound<'_, PyDict>>,
+    #[pyo3(from_py_with = real)] observed_price: f64,
+    #[pyo3(from_py_with = real)] lower_bound: f64,
+    #[pyo3(from_py_with = real)] upper_bound: f64,
+    #[pyo3(from_py_with = real)] price_tolerance: f64,
+    #[pyo3(from_py_with = real)] parameter_tolerance: f64,
+    #[pyo3(from_py_with = integer)] max_iterations: i32,
 ) -> PyResult<f64> {
-    check_changes(
-        settings,
-        &[
-            "lower_bound",
-            "upper_bound",
-            "price_tolerance",
-            "parameter_tolerance",
-            "max_iterations",
-        ],
-    )?;
-    let observed = real(observed_price)?;
-    let d = core::ImpliedVolatilitySettings::default();
+    let observed = observed_price;
     let controls = core::ImpliedVolatilitySettings {
-        lower_bound: real_setting(settings, "lower_bound", d.lower_bound)?,
-        upper_bound: real_setting(settings, "upper_bound", d.upper_bound)?,
-        price_tolerance: real_setting(settings, "price_tolerance", d.price_tolerance)?,
-        parameter_tolerance: real_setting(settings, "parameter_tolerance", d.parameter_tolerance)?,
-        max_iterations: integer_setting(settings, "max_iterations", d.max_iterations)?,
+        lower_bound,
+        upper_bound,
+        price_tolerance,
+        parameter_tolerance,
+        max_iterations,
     };
     let context = context.0.clone();
     if engine.is_instance_of::<analytic::range_accrual::AnalyticRangeAccrualEngine>() {
