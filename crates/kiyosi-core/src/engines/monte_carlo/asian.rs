@@ -544,8 +544,12 @@ impl Parameters {
         let (mut growth, mut relative_sum, mut log_sum) = (0.0, 0.0, f64::NEG_INFINITY);
         let (mut normal_sum, mut weighted_normals) = (0.0, 0.0);
         for (index, &normal) in normals[usize::from(lead)..].iter().enumerate() {
-            growth +=
-                interval_drifts.get(index).copied().unwrap_or(self.drift) + self.width * normal;
+            let drift = if interval_drifts.is_empty() {
+                self.drift
+            } else {
+                interval_drifts[index]
+            };
+            growth += drift + self.width * normal;
             let fraction = if index + 2 == self.step_count as usize {
                 0.5
             } else {
@@ -716,5 +720,34 @@ impl Parameters {
             0.0
         };
         checked_sample([price, delta, gamma])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "index out of bounds")]
+    fn nonempty_curve_drifts_must_cover_every_sampled_interval() {
+        let parameters = Parameters {
+            spot: 100.0,
+            strike: 100.0,
+            realized: 0.0,
+            weight: 1.0,
+            log_discount: 0.0,
+            drift: 0.0,
+            width: 0.1,
+            log_width: 0.1_f64.ln(),
+            log_base_width: 0.1_f64.ln(),
+            initial_moneyness: 0.0,
+            sign: 1.0,
+            step_count: 3,
+            lead_drift: 0.0,
+            lead_width: 0.0,
+            lead_width_ratio: 0.0,
+            interval_forward: 0.0,
+        };
+        let _ = parameters.arithmetic(&[0.0, 0.0], false, &[0.0], GreeksRequest::default());
     }
 }
