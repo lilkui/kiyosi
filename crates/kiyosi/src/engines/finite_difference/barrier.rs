@@ -420,13 +420,7 @@ fn native_barrier(
         let mut stepper = Stepper::new(space.count);
         let mut damping: u32 = 2;
         for step in (0..grid.widths.len()).rev() {
-            let damp = theta == 0.5 && damping > 0;
-            let count = if damp { 2 } else { 1 };
-            let weight = if damp { 1.0 } else { theta };
-            damping = damping.saturating_sub(1);
-            let dt = grid.widths[step] / f64::from(count);
-            for substep in 0..count {
-                let current = grid.times[step] + dt * f64::from(count - substep - 1);
+            for (current, dt, weight) in grid.substeps(step, theta, &mut damping) {
                 let middle = current + 0.5 * dt;
                 stepper.advance(
                     &values,

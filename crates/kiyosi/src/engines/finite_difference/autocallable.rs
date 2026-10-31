@@ -424,18 +424,13 @@ fn native<T: AutocallableTerms>(
         knocked[i] = value[1];
     }
     let mut stepper = Stepper::new(space.count);
-    let mut damping: usize = 2;
+    let mut damping: u32 = 2;
     for step in (0..grid.widths.len()).rev() {
-        let damp = theta == 0.5 && damping > 0;
-        damping = damping.saturating_sub(1);
-        let count = if damp { 2 } else { 1 };
-        let dt = grid.widths[step] / f64::from(count);
-        for substep in 0..count {
-            let current = grid.times[step] + dt * f64::from(count - substep - 1);
+        for (current, dt, weight) in grid.substeps(step, theta, &mut damping) {
             let middle = current + 0.5 * dt;
             let rate = risk.rate(middle);
             let q = dividend.rate(middle);
-            let key = [dt, if damp { 1.0 } else { theta }, rate, q];
+            let key = [dt, weight, rate, q];
             let discount = (-rate * dt).exp();
             stepper.advance(
                 &alive,

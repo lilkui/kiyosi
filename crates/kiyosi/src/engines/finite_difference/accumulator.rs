@@ -190,14 +190,9 @@ fn native(
         *intercept = value[1];
     }
     let mut stepper = Stepper::new(space.count);
-    let mut damping: usize = 2;
+    let mut damping: u32 = 2;
     for step in (0..grid.widths.len()).rev() {
-        let damp = theta == 0.5 && damping > 0;
-        damping = damping.saturating_sub(1);
-        let substeps = if damp { 2 } else { 1 };
-        let dt = grid.widths[step] / f64::from(substeps);
-        for substep in 0..substeps {
-            let current = grid.times[step] + dt * f64::from(substeps - substep - 1);
+        for (current, dt, weight) in grid.substeps(step, theta, &mut damping) {
             let middle = current + 0.5 * dt;
             let rate = risk.rate(middle);
             let q = dividend.rate(middle);
@@ -214,7 +209,7 @@ fn native(
                     &mut next[layer],
                     &space,
                     sigma,
-                    [dt, if damp { 1.0 } else { theta }, rate, q],
+                    [dt, weight, rate, q],
                     boundaries,
                 )?;
                 std::mem::swap(&mut layers[layer], &mut next[layer]);
