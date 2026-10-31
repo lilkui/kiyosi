@@ -32,6 +32,7 @@ Pricing controls are explicit keyword-only parameters, available through
 ``CouponQuoteConvention`` controls whether a snowball's maturity coupon
 shifts with observation coupons (``"shift_maturity_coupon"``) or stays fixed
 (``"preserve_maturity_coupon"``). Phoenix coupon solves omit this choice.
+Unsupported coupon-solver instruments are rejected before checking this choice.
 
 Examples
 --------

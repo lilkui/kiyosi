@@ -351,17 +351,22 @@ class SupportMatrixTests(unittest.TestCase):
                 for product, _, _ in self.cases:
                     if isinstance(product, accepted):
                         continue
-                    with (
-                        self.subTest(engine=name, instrument=type(product).__name__),
-                        self.assertRaises(UnsupportedOperationError),
+                    for convention in (
+                        {},
+                        {"quote_convention": None},
+                        {"quote_convention": "preserve_maturity_coupon"},
                     ):
-                        pricing.implied_coupon(
-                            engine,
-                            product,
-                            self.context,
-                            1,
-                            quote_convention="preserve_maturity_coupon",
-                        )
+                        with (
+                            self.subTest(
+                                engine=name,
+                                instrument=type(product).__name__,
+                                convention=convention,
+                            ),
+                            self.assertRaises(UnsupportedOperationError),
+                        ):
+                            pricing.implied_coupon(
+                                engine, product, self.context, 1, **convention
+                            )
             else:
                 with (
                     self.subTest(engine=name),

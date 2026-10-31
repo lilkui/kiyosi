@@ -1353,29 +1353,34 @@ impl PhoenixOption {
     }
 }
 
+#[derive(FromPyObject)]
+pub(crate) enum AutocallableInstrument<'py> {
+    Phoenix(PyRef<'py, PhoenixOption>),
+    Binary(PyRef<'py, BinarySnowballOption>),
+    Ternary(PyRef<'py, TernarySnowballOption>),
+    Snowball(PyRef<'py, SnowballOption>),
+}
+
 macro_rules! with_note {
     ($instrument:expr, $note:ident, $body:expr) => {{
-        if let Ok(note) =
-            $instrument.extract::<PyRef<'_, $crate::instruments::autocallable::PhoenixOption>>()
-        {
-            let $note = &note.0;
-            $body
-        } else if let Ok(note) = $instrument
-            .extract::<PyRef<'_, $crate::instruments::autocallable::BinarySnowballOption>>()
-        {
-            let $note = &note.0;
-            $body
-        } else if let Ok(note) = $instrument
-            .extract::<PyRef<'_, $crate::instruments::autocallable::TernarySnowballOption>>()
-        {
-            let $note = &note.0;
-            $body
-        } else {
-            let $note = &$crate::conversions::instrument::<
-                PyRef<'_, $crate::instruments::autocallable::SnowballOption>,
-            >($instrument)?
-            .0;
-            $body
+        use $crate::instruments::autocallable::AutocallableInstrument;
+        match $crate::conversions::instrument::<AutocallableInstrument<'_>>($instrument)? {
+            AutocallableInstrument::Phoenix(note) => {
+                let $note = &note.0;
+                $body
+            }
+            AutocallableInstrument::Binary(note) => {
+                let $note = &note.0;
+                $body
+            }
+            AutocallableInstrument::Ternary(note) => {
+                let $note = &note.0;
+                $body
+            }
+            AutocallableInstrument::Snowball(note) => {
+                let $note = &note.0;
+                $body
+            }
         }
     }};
 }

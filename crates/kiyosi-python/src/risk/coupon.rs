@@ -3,9 +3,7 @@ use crate::engines::finite_difference;
 use crate::engines::monte_carlo;
 use crate::engines::quadrature::QuadratureAutocallableEngine;
 use crate::error::domain;
-use crate::instruments::autocallable::{
-    BinarySnowballOption, PhoenixOption, SnowballOption, TernarySnowballOption,
-};
+use crate::instruments::autocallable::AutocallableInstrument;
 use crate::market::PricingContext;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -143,26 +141,16 @@ where
         + Sync,
 {
     let context = &context.0;
-    if let Ok(note) = instrument.extract::<PyRef<'_, PhoenixOption>>() {
-        if convention.is_some() {
-            return Err(PyTypeError::new_err(
-                "Phoenix has no quote_convention argument",
-            ));
-        }
-        let note = &note.0;
-        return domain(
-            py.detach(|| kiyosi::implied_coupon(&engine, note, context, observed, controls)),
-        );
-    }
-    let convention =
-        convention.ok_or_else(|| PyTypeError::new_err("snowballs require quote_convention"))?;
-    let convention = match convention.extract::<&str>()? {
-        "shift_maturity_coupon" => kiyosi::CouponQuoteConvention::ShiftMaturityCoupon,
-        "preserve_maturity_coupon" => kiyosi::CouponQuoteConvention::PreserveMaturityCoupon,
-        _ => return Err(PyValueError::new_err("unknown coupon quote convention")),
-    };
+    let instrument = crate::conversions::instrument::<AutocallableInstrument<'_>>(instrument)?;
     macro_rules! solve {
         ($note:expr) => {{
+            let convention = convention
+                .ok_or_else(|| PyTypeError::new_err("snowballs require quote_convention"))?;
+            let convention = match convention.extract::<&str>()? {
+                "shift_maturity_coupon" => kiyosi::CouponQuoteConvention::ShiftMaturityCoupon,
+                "preserve_maturity_coupon" => kiyosi::CouponQuoteConvention::PreserveMaturityCoupon,
+                _ => return Err(PyValueError::new_err("unknown coupon quote convention")),
+            };
             let note = &$note.0;
             domain(py.detach(|| {
                 kiyosi::implied_snowball_coupon(
@@ -171,12 +159,18 @@ where
             }))
         }};
     }
-    if let Ok(note) = instrument.extract::<PyRef<'_, BinarySnowballOption>>() {
-        return solve!(note);
+    match instrument {
+        AutocallableInstrument::Phoenix(note) => {
+            if convention.is_some() {
+                return Err(PyTypeError::new_err(
+                    "Phoenix has no quote_convention argument",
+                ));
+            }
+            let note = &note.0;
+            domain(py.detach(|| kiyosi::implied_coupon(&engine, note, context, observed, controls)))
+        }
+        AutocallableInstrument::Binary(note) => solve!(note),
+        AutocallableInstrument::Ternary(note) => solve!(note),
+        AutocallableInstrument::Snowball(note) => solve!(note),
     }
-    if let Ok(note) = instrument.extract::<PyRef<'_, TernarySnowballOption>>() {
-        return solve!(note);
-    }
-    let note = crate::conversions::instrument::<PyRef<'_, SnowballOption>>(instrument)?;
-    solve!(note)
 }
