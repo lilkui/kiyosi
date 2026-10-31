@@ -1,69 +1,8 @@
-#[derive(Default)]
-pub(crate) struct Sum {
-    value: f64,
-    correction: f64,
-}
-impl Sum {
-    pub(crate) fn add(&mut self, term: f64) {
-        let next = self.value + term;
-        self.correction += if self.value.abs() >= term.abs() {
-            (self.value - next) + term
-        } else {
-            (term - next) + self.value
-        };
-        self.value = next;
-    }
-    pub(crate) fn total(&self) -> f64 {
-        self.value + self.correction
-    }
-}
-
-use crate::engines::analytic::barrier::scaled_cash;
-use crate::engines::analytic::european::log_normal_cdf;
-const INF: f64 = f64::INFINITY;
+use crate::numerics::{Sum, log_interval_mass, scaled_cash};
 const LOG_DENSITY: f64 = -0.9189385332046727;
 
 pub(super) fn scaled(amount: f64, exponent: f64) -> f64 {
     amount.signum() * scaled_cash(amount.abs(), exponent)
-}
-
-pub(crate) fn log_interval_mass(lower: f64, upper: f64) -> f64 {
-    if lower >= upper {
-        return -INF;
-    }
-    if lower == -INF {
-        return log_normal_cdf(upper);
-    }
-    if upper == INF {
-        return log_normal_cdf(-lower);
-    }
-    let center = lower.midpoint(upper);
-    let half = 0.5 * (upper - lower);
-    if center.abs() * half + 0.5 * half * half < 0.25 {
-        let mut integral = 0.0;
-        let mut previous = 0.0;
-        let mut term = 1.0;
-        for order in 0..24 {
-            if order % 2 == 0 {
-                integral += 2.0 * term / f64::from(order + 1);
-            }
-            let next = (-center * half * term - half * half * previous) / f64::from(order + 1);
-            previous = term;
-            term = next;
-        }
-        return -0.5 * center * center + LOG_DENSITY + half.ln() + integral.ln();
-    }
-    let high = if lower >= 0.0 {
-        log_normal_cdf(-lower)
-    } else {
-        log_normal_cdf(upper)
-    };
-    let low = if lower >= 0.0 {
-        log_normal_cdf(-upper)
-    } else {
-        log_normal_cdf(lower)
-    };
-    high + (-(low - high).exp_m1()).ln()
 }
 
 pub(super) struct TerminalPiece {

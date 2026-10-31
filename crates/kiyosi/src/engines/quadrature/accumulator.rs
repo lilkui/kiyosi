@@ -1,9 +1,9 @@
 use super::gaussian::{
-    CubicInterpolation, Polynomial, Sum, TerminalPiece, TransitionCache, integrate_curve,
+    CubicInterpolation, Polynomial, TerminalPiece, TransitionCache, integrate_curve,
     integrate_terminal, integration_nodes, scaled,
 };
 use super::{QuadratureSettings, flat_rates};
-use crate::engines::analytic::barrier::log_ratio;
+use crate::numerics::{Sum, log_ratio};
 use crate::{
     Accumulator, BlackScholesMertonParameters, Date, Error, GreeksRequest, NumericalShiftSettings,
     PricingContext, PricingEngine, PricingResult, Result, Timestamp,

@@ -1,6 +1,7 @@
 use std::f64::consts::PI;
 
-use crate::engines::analytic::european::{black_scholes_arguments, weighted_cdf};
+use crate::engines::analytic::european::black_scholes_arguments;
+use crate::numerics::weighted_cdf;
 use crate::{
     DigitalOption, Error, Greek, GreeksRequest, NumericalShiftSettings, OptionType, PricingContext,
     PricingEngine, PricingResult, Result,

@@ -57,6 +57,7 @@ mod engines;
 mod error;
 mod instruments;
 mod market;
+mod numerics;
 mod risk;
 mod time;
 

@@ -1,4 +1,7 @@
-use crate::instruments::monitoring::Monitoring;
+use crate::instruments::monitoring::{Monitoring, validate_life, validate_schedule};
+use crate::numerics::{
+    checked, checked_with_scale, log_ratio, scaled_cash, scaled_cdf, standardize,
+};
 use crate::{
     AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationSchedule,
     OptionType, PricingContext, PricingEngine, PricingResult, Result, TradingCalendar,
@@ -58,22 +61,6 @@ impl AnalyticBarrierEngine {
         crate::numerical_greeks(self, option, context, request, settings)
     }
 }
-pub(crate) fn checked(value: f64) -> Result<f64> {
-    checked_with_scale(value, 0.0)
-}
-
-pub(crate) fn checked_with_scale(value: f64, scale: f64) -> Result<f64> {
-    if value.is_finite()
-        && (value >= 0.0 || scale.is_finite() && value >= -(64.0 * f64::EPSILON * scale))
-    {
-        Ok(value.max(0.0))
-    } else {
-        Err(Error::ComputationFailure(
-            "negative or non-finite price".into(),
-        ))
-    }
-}
-
 fn price(
     option: &BarrierOption,
     context: &PricingContext,
@@ -101,35 +88,6 @@ fn price(
         Some(value) => Ok(value),
         None => analytic_price(option, context),
     }
-}
-
-pub(crate) fn validate_life(
-    option: &impl crate::OptionContract,
-    context: &PricingContext,
-) -> Result<()> {
-    let time = context.valuation_time();
-    if time < option.effective_date().start_of_day() || time > option.expiry_date().start_of_day() {
-        return Err(Error::InvalidInput(
-            "valuation outside contract life".into(),
-        ));
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_schedule(
-    schedule: &ObservationSchedule,
-    context: &PricingContext,
-) -> Result<()> {
-    if schedule
-        .dates()
-        .iter()
-        .any(|&d| !context.calendar().is_trading_day(d))
-    {
-        return Err(Error::InvalidInput(
-            "observation is not a trading day".into(),
-        ));
-    }
-    Ok(())
 }
 
 pub(crate) fn resolved_price(
@@ -198,7 +156,7 @@ impl PricingEngine<BarrierOption> for AnalyticBarrierEngine {
         Ok(Some(Box::new(BarrierPricer(std::cell::OnceCell::new()))))
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        volatility_affects_price(option, context)
+        option.volatility_affects_price(context)
     }
 }
 struct ScheduleValidation {
@@ -214,58 +172,7 @@ impl PricingEngine<BarrierOption> for BarrierPricer {
         price(option, context, Some(&self.0))
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        volatility_affects_price(option, context)
-    }
-}
-pub(crate) fn volatility_affects_price(option: &BarrierOption, context: &PricingContext) -> bool {
-    let Ok((_, touched, finished)) = option.state(context) else {
-        return false;
-    };
-    let knock_in = option.barrier_type().is_knock_in();
-    !(touched && !knock_in
-        || !touched && finished && knock_in
-        || !knock_in && option.payoff_requires_touch() && option.rebate() == 0.0)
-}
-
-pub(crate) fn log_ratio(numerator: f64, denominator: f64) -> f64 {
-    let relative = (numerator - denominator) / denominator;
-    if relative.abs() < 0.5 {
-        relative.ln_1p()
-    } else {
-        let ratio = numerator / denominator;
-        if ratio.is_normal() {
-            ratio.ln()
-        } else {
-            numerator.ln() - denominator.ln()
-        }
-    }
-}
-pub(crate) fn standardize(value: f64, volatility: f64, root: f64) -> f64 {
-    let width = volatility * root;
-    if width == 0.0 {
-        (value / volatility) / root
-    } else {
-        value / width
-    }
-}
-pub(crate) fn scaled_cdf(amount: f64, exponent: f64, argument: f64) -> f64 {
-    if amount == 0.0 {
-        0.0
-    } else {
-        (amount.ln() + exponent + crate::engines::analytic::european::log_normal_cdf(argument))
-            .exp()
-    }
-}
-pub(crate) fn scaled_cash(amount: f64, exponent: f64) -> f64 {
-    if amount == 0.0 {
-        return 0.0;
-    }
-    let discount = exponent.exp();
-    let value = amount * discount;
-    if discount.is_normal() && value.is_finite() {
-        value
-    } else {
-        (amount.ln() + exponent).exp()
+        option.volatility_affects_price(context)
     }
 }
 
@@ -642,33 +549,5 @@ pub(crate) fn analytic_log_shift(option: &Monitoring, spot: f64, sigma: f64) -> 
             ));
         }
         Ok(shift)
-    }
-}
-
-#[cfg(test)]
-mod price_validation_tests {
-    use super::*;
-
-    #[test]
-    fn nonnegative_prices_only_clip_roundoff_at_the_monetary_scale() {
-        for scale in [1e-100, 1.0, 1e100] {
-            assert_eq!(
-                checked_with_scale(-32.0 * f64::EPSILON * scale, scale).unwrap(),
-                0.0
-            );
-            assert!(matches!(
-                checked_with_scale(-128.0 * f64::EPSILON * scale, scale),
-                Err(Error::ComputationFailure(_))
-            ));
-            assert_eq!(checked_with_scale(scale, scale).unwrap(), scale);
-        }
-    }
-
-    #[test]
-    fn nonnegative_price_validation_rejects_nonfinite_and_unscaled_negative_values() {
-        for value in [-1.0, f64::NAN, f64::NEG_INFINITY, f64::INFINITY] {
-            assert!(matches!(checked(value), Err(Error::ComputationFailure(_))));
-        }
-        assert_eq!(checked(0.0).unwrap(), 0.0);
     }
 }

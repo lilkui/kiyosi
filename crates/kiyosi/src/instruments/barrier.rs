@@ -264,6 +264,15 @@ impl BarrierOption {
     pub(crate) fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
         self.monitoring.state(context, None)
     }
+    pub(crate) fn volatility_affects_price(&self, context: &PricingContext) -> bool {
+        let Ok((_, touched, finished)) = self.state(context) else {
+            return false;
+        };
+        let knock_in = self.barrier_type().is_knock_in();
+        !(touched && !knock_in
+            || !touched && finished && knock_in
+            || !knock_in && self.payoff_requires_touch() && self.rebate() == 0.0)
+    }
     pub(crate) fn payoff_requires_touch(&self) -> bool {
         self.monitoring
             .payoff_requires_touch(self.option_type(), self.strike())

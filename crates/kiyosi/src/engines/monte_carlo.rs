@@ -1,6 +1,6 @@
 use std::{f64::consts::TAU, thread};
 
-use crate::engines::analytic::barrier::log_ratio;
+use crate::numerics::log_ratio;
 use crate::{
     Error, EuropeanOption, GreeksRequest, NumericalShiftSettings, OptionContract, OptionType,
     PricingContext, PricingEngine, PricingResult, Result,

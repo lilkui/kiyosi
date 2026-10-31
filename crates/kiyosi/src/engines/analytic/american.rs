@@ -1,7 +1,7 @@
 use std::f64::consts::{PI, SQRT_2};
 use std::sync::LazyLock;
 
-use crate::engines::analytic::european::log_normal_cdf;
+use crate::numerics::log_normal_cdf;
 use crate::{
     AmericanOption, AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings,
     OptionType, PricingContext, PricingEngine, PricingResult, Result, numerical_greeks,

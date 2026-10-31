@@ -94,11 +94,8 @@ impl CoxRossRubinsteinBarrierEngine {
         request: GreeksRequest,
     ) -> Result<PricingResult> {
         let (rate, _) = flat_rates(context)?;
-        crate::engines::analytic::barrier::validate_life(option, context)?;
-        crate::engines::analytic::barrier::validate_schedule(
-            option.observation_schedule(),
-            context,
-        )?;
+        crate::instruments::monitoring::validate_life(option, context)?;
+        crate::instruments::monitoring::validate_schedule(option.observation_schedule(), context)?;
         let steps = self.settings.step_count as usize;
         let request = if context.valuation_time() == option.expiry_date().start_of_day()
             || option.at_spot_discontinuity(context, 0.0)
@@ -112,7 +109,7 @@ impl CoxRossRubinsteinBarrierEngine {
             )
         };
         if let Some(value) = crate::engines::analytic::barrier::resolved_price(option, context)? {
-            if crate::engines::analytic::barrier::volatility_affects_price(option, context)
+            if option.volatility_affects_price(context)
                 && (request.has(Greek::Delta) || request.has(Greek::Gamma))
             {
                 return AnalyticEuropeanEngine.price_with_greeks(
@@ -150,8 +147,7 @@ impl CoxRossRubinsteinBarrierEngine {
         let dt = time_step(option, context, self.settings)?;
         let (width, up, down, discount, p) = parameters(context, dt)?;
         let spot = context.spot_price();
-        let log_barrier =
-            crate::engines::analytic::barrier::log_ratio(spot, option.barrier_level());
+        let log_barrier = crate::numerics::log_ratio(spot, option.barrier_level());
         let upper = option.barrier_type().is_up();
         let knock_in = option.barrier_type().is_knock_in();
         let breached = |level: usize, node: usize| {
@@ -283,6 +279,6 @@ impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
         prepare_implied(option, context, self.settings, settings)
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        crate::engines::analytic::barrier::volatility_affects_price(option, context)
+        option.volatility_affects_price(context)
     }
 }

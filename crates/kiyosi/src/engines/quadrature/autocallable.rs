@@ -3,11 +3,11 @@ use super::gaussian::{
     integrate_terminal, integration_nodes, scaled,
 };
 use super::{QuadratureSettings, flat_rates};
-use crate::engines::analytic::barrier::log_ratio;
 use crate::instruments::autocallable::Coupon;
 use crate::instruments::autocallable::pricing::{
     fixed_value, future_event_dates, initial, validate, volatility_affects_price,
 };
+use crate::numerics::log_ratio;
 use crate::{
     AutocallableNote, AutocallableObservation, AutocallableTerms, BlackScholesMertonParameters,
     Date, Error, GreeksRequest, NumericalShiftSettings, PricingContext, PricingEngine,

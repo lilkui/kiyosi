@@ -1,9 +1,8 @@
 use super::barrier::Contract;
 use super::unstable;
 use crate::{
-    AnalyticDoubleBarrierEngine, DoubleBarrierOption, GreeksRequest, MonteCarloBarrierEngine,
-    MonteCarloSettings, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
-    Result,
+    DoubleBarrierOption, GreeksRequest, MonteCarloBarrierEngine, MonteCarloSettings,
+    NumericalShiftSettings, PricingContext, PricingEngine, PricingResult, Result,
 };
 use std::f64::consts::PI;
 
@@ -171,7 +170,7 @@ impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
         option: &DoubleBarrierOption,
         context: &PricingContext,
     ) -> bool {
-        AnalyticDoubleBarrierEngine.volatility_affects_price(option, context)
+        option.volatility_affects_price(context)
     }
 }
 

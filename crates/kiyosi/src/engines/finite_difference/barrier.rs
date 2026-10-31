@@ -1,8 +1,7 @@
 use super::*;
-use crate::engines::analytic::barrier::{resolved_price, validate_life, validate_schedule};
-use crate::{
-    AnalyticDoubleBarrierEngine, BarrierOption, DoubleBarrierOption, ObservationMode, RebateTiming,
-};
+use crate::engines::analytic::barrier::resolved_price;
+use crate::instruments::monitoring::{validate_life, validate_schedule};
+use crate::{BarrierOption, DoubleBarrierOption, ObservationMode, RebateTiming};
 
 impl FiniteDifferenceBarrierEngine {
     /// Prices a single barrier with continuous or scheduled monitoring and flat or node curves.
@@ -84,7 +83,7 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
         self.price_with_greeks(option, context, request, shifts)
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        crate::engines::analytic::barrier::volatility_affects_price(option, context)
+        option.volatility_affects_price(context)
     }
 }
 
@@ -222,7 +221,7 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
         option: &DoubleBarrierOption,
         context: &PricingContext,
     ) -> bool {
-        AnalyticDoubleBarrierEngine.volatility_affects_price(option, context)
+        option.volatility_affects_price(context)
     }
 }
 
@@ -453,9 +452,7 @@ fn native_barrier(
         terms.strike().max(terms.rebate()),
         risk.log_factor(0.0, time),
     ));
-    let mut result = PricingResult::new(crate::engines::analytic::barrier::checked_with_scale(
-        sample[0], scale,
-    )?)?;
+    let mut result = PricingResult::new(crate::numerics::checked_with_scale(sample[0], scale)?)?;
     let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift);
     if !option.at_spot_discontinuity(context, h) {
         result.set(request, Greek::Delta, sample[1])?;

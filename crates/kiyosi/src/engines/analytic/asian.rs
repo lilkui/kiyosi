@@ -1,12 +1,10 @@
-pub(crate) use super::barrier::checked;
-use super::barrier::{checked_with_scale, log_ratio, scaled_cash};
+use crate::numerics::{checked, checked_with_scale, log_ratio, scaled_cash};
 use crate::{ArithmeticAveragePriceOption, GeometricAveragePriceOption};
 use crate::{
     Error, GreeksRequest, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
     Result,
 };
 
-use crate::instruments::asian::AverageTerms;
 /// Prices continuous geometric averages under BSM with deterministic rate curves.
 ///
 /// Shared instances support concurrent pricing; see [`Self::price`].
@@ -20,29 +18,6 @@ pub struct AnalyticGeometricAveragePriceEngine;
 /// Shared instances support concurrent pricing; see [`Self::price`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TurnbullWakemanArithmeticAveragePriceEngine;
-
-pub(crate) fn coverage(option: &AverageTerms, context: &PricingContext) -> Result<()> {
-    let expiry = option.terms.expiry_date().start_of_day();
-    context
-        .model_parameters()
-        .risk_free_curve()
-        .validate_horizon(context.valuation_time(), expiry)?;
-    context
-        .model_parameters()
-        .dividend_curve()
-        .validate_horizon(context.valuation_time(), expiry)
-}
-pub(crate) fn settlement(option: &AverageTerms, context: &PricingContext) -> Result<f64> {
-    checked(
-        (option.sign()
-            * (if option.realized > 0.0 {
-                option.realized
-            } else {
-                context.spot_price()
-            } - option.terms.strike()))
-        .max(0.0),
-    )
-}
 
 impl AnalyticGeometricAveragePriceEngine {
     /// Prices geometric averaging, preserving forward starts, history and expiry settlement.
@@ -74,9 +49,9 @@ impl AnalyticGeometricAveragePriceEngine {
         let o = &option.0;
         let tau = o.validate(context)?;
         if tau == 0.0 {
-            return settlement(o, context);
+            return o.settlement(context);
         }
-        coverage(o, context)?;
+        o.coverage(context)?;
         if o.period() == 0.0 {
             return crate::AnalyticEuropeanEngine.price(&o.terms, context);
         }
@@ -206,7 +181,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
         let o = &option.0;
         let tau = o.validate(context)?;
         if tau == 0.0 {
-            return settlement(o, context);
+            return o.settlement(context);
         }
         let model = context.model_parameters();
         if !model.risk_free_curve().is_flat() || !model.dividend_curve().is_flat() {
@@ -214,7 +189,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
                 "Turnbull-Wakeman requires flat rates".into(),
             ));
         }
-        coverage(o, context)?;
+        o.coverage(context)?;
         if o.period() == 0.0 {
             return crate::AnalyticEuropeanEngine.price(&o.terms, context);
         }

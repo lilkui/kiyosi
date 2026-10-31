@@ -1,6 +1,6 @@
-use std::f64::consts::{FRAC_1_SQRT_2, PI};
+use crate::numerics::{log_ratio, standardize, weighted_cdf};
+use std::f64::consts::PI;
 
-use super::barrier::{log_ratio, standardize};
 use crate::{
     Error, EuropeanOption, Greek, GreeksRequest, NumericalShiftSettings, OptionType,
     PricingContext, PricingEngine, PricingResult, Result,
@@ -11,35 +11,6 @@ use crate::{
 /// Supports deterministic rate curves; see the [crate example](crate).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticEuropeanEngine;
-
-fn normal_cdf(value: f64) -> f64 {
-    0.5 * libm::erfc(-value * FRAC_1_SQRT_2)
-}
-
-pub(crate) fn log_normal_cdf(value: f64) -> f64 {
-    if value >= -10.0 {
-        return normal_cdf(value).ln();
-    }
-    // Use the erfc tail expansion when exponential weights offset underflow.
-    let inverse_square = (1.0 / value) / value;
-    let mut term = 1.0;
-    let mut sum = 1.0;
-    for index in 1..=20 {
-        term *= -f64::from(2 * index - 1) * inverse_square;
-        sum += term;
-    }
-    -0.5 * value * value - (-value).ln() + (sum / (2.0 * PI).sqrt()).ln()
-}
-
-pub(crate) fn weighted_cdf(amount: f64, exponent: f64, argument: f64) -> f64 {
-    let discount = exponent.exp();
-    let discounted = amount * discount;
-    if argument < -10.0 || !discount.is_normal() || !discounted.is_finite() {
-        (amount.ln() + exponent + log_normal_cdf(argument)).exp()
-    } else {
-        discounted * normal_cdf(argument)
-    }
-}
 
 pub(crate) fn black_scholes_arguments(
     spot: f64,
@@ -152,7 +123,7 @@ impl AnalyticEuropeanEngine {
                     // Keep the half-width contribution exact when the width is subnormal or zero.
                     -density(
                         log_gamma - spot.ln(),
-                        1.5 + super::barrier::standardize(d1.midpoint(d2), sigma, root),
+                        1.5 + crate::numerics::standardize(d1.midpoint(d2), sigma, root),
                     )
                 }
                 Greek::Theta => {

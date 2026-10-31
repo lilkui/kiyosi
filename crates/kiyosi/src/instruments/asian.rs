@@ -1,3 +1,4 @@
+use crate::numerics::checked;
 use crate::{
     Date, Error, EuropeanOption, OptionContract, OptionType, PricingContext, Result, Timestamp,
 };
@@ -13,6 +14,28 @@ pub(crate) struct AverageTerms {
 }
 
 impl AverageTerms {
+    pub(crate) fn coverage(&self, context: &PricingContext) -> Result<()> {
+        let expiry = self.terms.expiry_date().start_of_day();
+        context
+            .model_parameters()
+            .risk_free_curve()
+            .validate_horizon(context.valuation_time(), expiry)?;
+        context
+            .model_parameters()
+            .dividend_curve()
+            .validate_horizon(context.valuation_time(), expiry)
+    }
+    pub(crate) fn settlement(&self, context: &PricingContext) -> Result<f64> {
+        checked(
+            (self.sign()
+                * (if self.realized > 0.0 {
+                    self.realized
+                } else {
+                    context.spot_price()
+                } - self.terms.strike()))
+            .max(0.0),
+        )
+    }
     fn new(
         direction: OptionType,
         strike: f64,

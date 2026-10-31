@@ -405,6 +405,16 @@ pub(crate) struct Contract<'a> {
     pub(crate) timing: SettlementTiming,
 }
 impl Contract<'_> {
+    pub(crate) fn volatility_affects_price(&self, context: &PricingContext) -> bool {
+        let Ok((_, touched, finished)) = self.state(context) else {
+            return false;
+        };
+        let knock_in = self.monitoring.barrier_type().is_knock_in();
+        if touched || finished {
+            return self.digital.is_some() && knock_in == touched;
+        }
+        !(!knock_in && self.payoff_requires_touch())
+    }
     pub(crate) fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
         self.monitoring.state(context, self.upper_barrier)
     }

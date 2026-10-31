@@ -193,3 +193,32 @@ impl OptionContract for Monitoring {
                     .any(|d| before <= d.start_of_day() && d.start_of_day() <= after))
     }
 }
+
+pub(crate) fn validate_life(
+    option: &impl crate::OptionContract,
+    context: &PricingContext,
+) -> Result<()> {
+    let time = context.valuation_time();
+    if time < option.effective_date().start_of_day() || time > option.expiry_date().start_of_day() {
+        return Err(Error::InvalidInput(
+            "valuation outside contract life".into(),
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_schedule(
+    schedule: &ObservationSchedule,
+    context: &PricingContext,
+) -> Result<()> {
+    if schedule
+        .dates()
+        .iter()
+        .any(|&d| !context.calendar().is_trading_day(d))
+    {
+        return Err(Error::InvalidInput(
+            "observation is not a trading day".into(),
+        ));
+    }
+    Ok(())
+}

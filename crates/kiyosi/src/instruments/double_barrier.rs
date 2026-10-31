@@ -218,6 +218,14 @@ impl DoubleBarrierOption {
     pub(crate) fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
         self.lower.monitoring.state(context, Some(self.upper))
     }
+    pub(crate) fn volatility_affects_price(&self, context: &PricingContext) -> bool {
+        let Ok((_, touched, finished)) = self.state(context) else {
+            return false;
+        };
+        !(touched && !self.knock_in()
+            || !touched && finished && self.knock_in()
+            || !self.knock_in() && self.payoff_requires_touch() && self.rebate() == 0.0)
+    }
     pub(crate) fn payoff_requires_touch(&self) -> bool {
         (self.observation_mode() == ObservationMode::Continuous
             || self.observation_dates().last() == Some(&self.expiry_date()))

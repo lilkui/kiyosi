@@ -1,11 +1,11 @@
 use super::{path_means, scaled_value, unstable};
-use crate::engines::analytic::barrier::{
-    hit_value, log_ratio, resolved_price, validate_life, validate_schedule,
-};
+use crate::engines::analytic::barrier::{hit_value, resolved_price};
+use crate::instruments::monitoring::{validate_life, validate_schedule};
+use crate::numerics::log_ratio;
 use crate::{
-    AnalyticDoubleBarrierEngine, AnalyticEuropeanEngine, BarrierOption, DoubleBarrierOption, Greek,
-    GreeksRequest, MonteCarloSettings, NumericalShiftSettings, ObservationMode, OptionContract,
-    OptionType, PricingContext, PricingEngine, PricingResult, RebateTiming, Result,
+    AnalyticEuropeanEngine, BarrierOption, DoubleBarrierOption, Greek, GreeksRequest,
+    MonteCarloSettings, NumericalShiftSettings, ObservationMode, OptionContract, OptionType,
+    PricingContext, PricingEngine, PricingResult, RebateTiming, Result,
 };
 
 #[derive(Clone, Copy)]
@@ -176,11 +176,11 @@ impl MonteCarloBarrierEngine {
         let (resolved, volatility_affects_price) = match contract {
             Contract::Single(option) => (
                 resolved_price(option, context)?,
-                crate::engines::analytic::barrier::volatility_affects_price(option, context),
+                option.volatility_affects_price(context),
             ),
             Contract::Double(option) => (
                 crate::engines::analytic::double_barrier::resolved_price(option, context)?,
-                AnalyticDoubleBarrierEngine.volatility_affects_price(option, context),
+                option.volatility_affects_price(context),
             ),
         };
         if let Some(value) = resolved {
@@ -484,6 +484,6 @@ impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
         Self::price_with_greeks(self, option, context, request, settings.spot_shift)
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        crate::engines::analytic::barrier::volatility_affects_price(option, context)
+        option.volatility_affects_price(context)
     }
 }

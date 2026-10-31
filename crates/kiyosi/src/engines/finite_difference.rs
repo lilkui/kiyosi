@@ -1,12 +1,9 @@
 use super::Payoff;
+use crate::numerics::{scaled_cash as scaled, weighted_cdf};
 use crate::{
     AmericanOption, DigitalOption, Error, EuropeanOption, Greek, GreeksRequest,
     NumericalShiftSettings, OptionContract, OptionType, PricingContext, PricingEngine,
-    PricingResult, Result,
-    engines::analytic::{
-        barrier::scaled_cash as scaled,
-        european::{black_scholes_arguments, weighted_cdf},
-    },
+    PricingResult, Result, engines::analytic::european::black_scholes_arguments,
 };
 
 mod accumulator;
@@ -316,7 +313,7 @@ fn native(
         if !payoff.digital {
             let scale = scaled(s, dividend.log_factor(0.0, time))
                 .max(scaled(payoff.strike, risk.log_factor(0.0, time)));
-            let value = crate::engines::analytic::barrier::checked_with_scale(value, scale)?;
+            let value = crate::numerics::checked_with_scale(value, scale)?;
             return Ok(value.max(if payoff.american {
                 payoff.value(s)
             } else {

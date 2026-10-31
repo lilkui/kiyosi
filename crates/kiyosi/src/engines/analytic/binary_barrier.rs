@@ -1,7 +1,6 @@
-use crate::engines::analytic::barrier::{
-    analytic_log_shift, checked, hit_value, log_ratio, reflection_tail, scaled_cash, scaled_cdf,
-    standardize, validate_life, validate_schedule,
-};
+use crate::engines::analytic::barrier::{analytic_log_shift, hit_value, reflection_tail};
+use crate::instruments::monitoring::{validate_life, validate_schedule};
+use crate::numerics::{checked, log_ratio, scaled_cash, scaled_cdf, standardize};
 use crate::{
     AnalyticDigitalEngine, GreeksRequest, NumericalShiftSettings, OptionContract, OptionType,
     PricingContext, PricingEngine, PricingResult, Result,
@@ -83,16 +82,6 @@ impl Contract<'_> {
                 } * time,
             ))
         }
-    }
-    pub(crate) fn volatility_affects_price(&self, context: &PricingContext) -> bool {
-        let Ok((_, touched, finished)) = self.state(context) else {
-            return false;
-        };
-        let knock_in = self.monitoring.barrier_type().is_knock_in();
-        if touched || finished {
-            return self.digital.is_some() && knock_in == touched;
-        }
-        !(!knock_in && self.payoff_requires_touch())
     }
     fn price(&self, context: &PricingContext) -> Result<f64> {
         let option = self.monitoring;
@@ -235,7 +224,7 @@ impl Contract<'_> {
                 (true, false, false, false) | (false, false, true, true) => f2() - f4(),
             }
         };
-        super::barrier::checked_with_scale(value, scaled_cash(amount, discount))
+        crate::numerics::checked_with_scale(value, scaled_cash(amount, discount))
     }
 }
 

@@ -1,7 +1,7 @@
 use super::flat_rates;
-use crate::engines::analytic::barrier::{
-    checked, hit_value, log_ratio, resolved_price, scaled_cash, validate_life, validate_schedule,
-};
+use crate::engines::analytic::barrier::{hit_value, resolved_price};
+use crate::instruments::monitoring::{validate_life, validate_schedule};
+use crate::numerics::{Sum, checked, log_ratio, scaled_cash};
 use crate::{
     BarrierOption, Error, GreeksRequest, NumericalShiftSettings, OptionType, PricingContext,
     PricingEngine, PricingResult, RebateTiming, Result,
@@ -137,7 +137,7 @@ impl PricingEngine<BarrierOption> for QuadratureBarrierEngine {
         self.price(option, context)
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        crate::engines::analytic::barrier::volatility_affects_price(option, context)
+        option.volatility_affects_price(context)
     }
 }
 
@@ -173,7 +173,7 @@ impl PricingEngine<BarrierOption> for BarrierPricer {
         price(option, context, self.settings, &mut prepared)
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
-        crate::engines::analytic::barrier::volatility_affects_price(option, context)
+        option.volatility_affects_price(context)
     }
 }
 
@@ -259,10 +259,10 @@ fn continuous_price(
         value
     };
     let panels = settings.asset_step_count as usize + settings.asset_step_count as usize % 2;
-    let mut result = super::gaussian::Sum::default();
+    let mut result = crate::numerics::Sum::default();
     for section in breaks.windows(2) {
         let step = (section[1] - section[0]) / panels as f64;
-        let mut sum = super::gaussian::Sum::default();
+        let mut sum = crate::numerics::Sum::default();
         sum.add(integrand(section[0]));
         sum.add(integrand(section[1]));
         for index in 1..panels {
@@ -337,7 +337,7 @@ fn terminal_layer(option: &BarrierOption) -> Vec<super::gaussian::TerminalPiece>
 }
 
 use super::gaussian::{
-    CubicInterpolation, Polynomial, Sum, TerminalPiece, TransitionCache, integrate_curve,
+    CubicInterpolation, Polynomial, TerminalPiece, TransitionCache, integrate_curve,
     integrate_terminal, integration_nodes, scaled,
 };
 

@@ -1,6 +1,5 @@
-use crate::engines::analytic::asian::{checked, coverage, settlement};
-use crate::engines::analytic::barrier::{log_ratio, scaled_cash};
 use crate::instruments::asian::AverageTerms;
+use crate::numerics::{checked, log_ratio, scaled_cash};
 use crate::{
     ArithmeticAveragePriceOption, Error, GeometricAveragePriceOption, GreeksRequest,
     NumericalShiftSettings, PricingContext, PricingEngine, PricingResult, Result,
@@ -134,7 +133,7 @@ impl MonteCarloAsianEngine {
     ) -> Result<PricingResult> {
         let tau = o.validate(context)?;
         if tau == 0.0 {
-            return PricingResult::new(settlement(o, context)?);
+            return PricingResult::new(o.settlement(context)?);
         }
         let model = context.model_parameters();
         if geometric && (!model.risk_free_curve().is_flat() || !model.dividend_curve().is_flat()) {
@@ -142,7 +141,7 @@ impl MonteCarloAsianEngine {
                 "geometric Asian Monte Carlo requires flat rates".into(),
             ));
         }
-        coverage(o, context)?;
+        o.coverage(context)?;
         let valuation = context.valuation_time();
         let start = o.averaging_start.start_of_day();
         let expiry = o.terms.expiry_date().start_of_day();
@@ -632,12 +631,8 @@ impl Parameters {
         }
         let d1 = center + 0.5 * self.width;
         let d2 = center - 0.5 * self.width;
-        let log_asset = log_q
-            + self.log_discount
-            + crate::engines::analytic::european::log_normal_cdf(self.sign * d1);
-        let log_cash = log_b
-            + self.log_discount
-            + crate::engines::analytic::european::log_normal_cdf(self.sign * d2);
+        let log_asset = log_q + self.log_discount + crate::numerics::log_normal_cdf(self.sign * d1);
+        let log_cash = log_b + self.log_discount + crate::numerics::log_normal_cdf(self.sign * d2);
         let mut price = if self.sign > 0.0 {
             positive_difference(log_asset, log_cash)
         } else {
@@ -689,10 +684,10 @@ impl Parameters {
         let delta = if request.has(Greek::Delta) {
             self.sign
                 * ((log_c + self.log_discount - log_spot
-                    + crate::engines::analytic::european::log_normal_cdf(self.sign * d2))
+                    + crate::numerics::log_normal_cdf(self.sign * d2))
                 .exp()
                     + (log_q + self.log_discount - log_spot
-                        + crate::engines::analytic::european::log_normal_cdf(self.sign * d1))
+                        + crate::numerics::log_normal_cdf(self.sign * d1))
                     .exp())
         } else {
             0.0

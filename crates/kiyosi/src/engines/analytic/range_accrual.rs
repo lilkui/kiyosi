@@ -1,9 +1,8 @@
 use crate::RangeAccrualOption;
+use crate::numerics::{Sum, checked, log_interval_mass, log_ratio, scaled_cash, standardize};
 use crate::{
     Error, GreeksRequest, NumericalShiftSettings, ObservationSchedule, PricingContext,
     PricingEngine, PricingResult, Result,
-    engines::analytic::barrier::{checked, log_ratio, scaled_cash, standardize},
-    engines::quadrature::gaussian::{Sum, log_interval_mass},
 };
 
 /// Prices range coupons by summing exact BSM marginal probabilities with deterministic curves.

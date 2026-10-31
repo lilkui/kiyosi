@@ -1,6 +1,7 @@
 use super::*;
-use crate::engines::analytic::barrier::{checked, validate_life, validate_schedule};
 use crate::instruments::binary_barrier::Contract;
+use crate::instruments::monitoring::{validate_life, validate_schedule};
+use crate::numerics::checked;
 use crate::{
     AnalyticDigitalEngine, BinaryBarrierOption, DoubleTouchOption, ObservationMode,
     SettlementTiming, TouchOption,
@@ -479,9 +480,7 @@ fn native(
             dividend.log_factor(0.0, time)
         },
     );
-    let mut result = PricingResult::new(crate::engines::analytic::barrier::checked_with_scale(
-        sample[0], scale,
-    )?)?;
+    let mut result = PricingResult::new(crate::numerics::checked_with_scale(sample[0], scale)?)?;
     let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift);
     if !option.spot_discontinuity(context, h, contract.upper_barrier) {
         result.set(request, Greek::Delta, sample[1])?;

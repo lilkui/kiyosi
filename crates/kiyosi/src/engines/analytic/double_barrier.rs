@@ -1,9 +1,7 @@
 use crate::DoubleBarrierOption;
-use crate::engines::analytic::barrier::{
-    checked, log_ratio, resolved_price_with_state, scaled_cash, scaled_cdf, validate_life,
-    validate_schedule,
-};
-use crate::engines::quadrature::gaussian::{Sum, log_interval_mass};
+use crate::engines::analytic::barrier::resolved_price_with_state;
+use crate::instruments::monitoring::{validate_life, validate_schedule};
+use crate::numerics::{Sum, checked, log_interval_mass, log_ratio, scaled_cash, scaled_cdf};
 use crate::{
     AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationMode,
     OptionType, PricingContext, PricingEngine, PricingResult, RebateTiming, Result,
@@ -90,12 +88,7 @@ impl PricingEngine<DoubleBarrierOption> for AnalyticDoubleBarrierEngine {
         option: &DoubleBarrierOption,
         context: &PricingContext,
     ) -> bool {
-        let Ok((_, touched, finished)) = option.state(context) else {
-            return false;
-        };
-        !(touched && !option.knock_in()
-            || !touched && finished && option.knock_in()
-            || !option.knock_in() && option.payoff_requires_touch() && option.rebate() == 0.0)
+        option.volatility_affects_price(context)
     }
 }
 
