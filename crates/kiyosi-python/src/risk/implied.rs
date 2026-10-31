@@ -101,21 +101,36 @@ pub(crate) fn implied_volatility(
             )
         };
     }
-    if engine.is_instance_of::<analytic::range_accrual::AnalyticRangeAccrualEngine>() {
-        let option =
-            &extract_instrument::<PyRef<'_, range_accrual::RangeAccrualOption>>(instrument)?.0;
-        return solve!(kiyosi::AnalyticRangeAccrualEngine, option);
+    macro_rules! solve_with {
+        ($binding:ty, $option:ty) => {
+            if let Ok(engine) = engine.extract::<PyRef<'_, $binding>>() {
+                let engine = engine.0;
+                let option = &extract_instrument::<PyRef<'_, $option>>(instrument)?.0;
+                return solve!(engine, option);
+            }
+        };
+        ($binding:ty, $option:ty, $core:expr) => {
+            if engine.is_instance_of::<$binding>() {
+                let option = &extract_instrument::<PyRef<'_, $option>>(instrument)?.0;
+                return solve!($core, option);
+            }
+        };
     }
-    if engine.is_instance_of::<analytic::asian::TurnbullWakemanArithmeticAveragePriceEngine>() {
-        let option =
-            &extract_instrument::<PyRef<'_, asian::ArithmeticAveragePriceOption>>(instrument)?.0;
-        return solve!(kiyosi::TurnbullWakemanArithmeticAveragePriceEngine, option);
-    }
-    if engine.is_instance_of::<analytic::asian::AnalyticGeometricAveragePriceEngine>() {
-        let option =
-            &extract_instrument::<PyRef<'_, asian::GeometricAveragePriceOption>>(instrument)?.0;
-        return solve!(kiyosi::AnalyticGeometricAveragePriceEngine, option);
-    }
+    solve_with!(
+        analytic::range_accrual::AnalyticRangeAccrualEngine,
+        range_accrual::RangeAccrualOption,
+        kiyosi::AnalyticRangeAccrualEngine
+    );
+    solve_with!(
+        analytic::asian::TurnbullWakemanArithmeticAveragePriceEngine,
+        asian::ArithmeticAveragePriceOption,
+        kiyosi::TurnbullWakemanArithmeticAveragePriceEngine
+    );
+    solve_with!(
+        analytic::asian::AnalyticGeometricAveragePriceEngine,
+        asian::GeometricAveragePriceOption,
+        kiyosi::AnalyticGeometricAveragePriceEngine
+    );
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloAsianEngine>>() {
         let engine = engine.0;
         return match extract_instrument::<asian::AsianInstrument<'_>>(instrument)? {
@@ -171,29 +186,18 @@ pub(crate) fn implied_volatility(
         let option = instrument.contract();
         return solve!(engine, option);
     }
-    if let Ok(engine) =
-        engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceBarrierEngine>>()
-    {
-        let engine = engine.0;
-        let option = &extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?.0;
-        return solve!(engine, option);
-    }
-    if let Ok(engine) =
-        engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceDoubleBarrierEngine>>()
-    {
-        let engine = engine.0;
-        let option =
-            &extract_instrument::<PyRef<'_, double_barrier::DoubleBarrierOption>>(instrument)?.0;
-        return solve!(engine, option);
-    }
-    if let Ok(engine) =
-        engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceDoubleTouchEngine>>()
-    {
-        let engine = engine.0;
-        let option =
-            &extract_instrument::<PyRef<'_, double_touch::DoubleTouchOption>>(instrument)?.0;
-        return solve!(engine, option);
-    }
+    solve_with!(
+        finite_difference::FiniteDifferenceBarrierEngine,
+        barrier::BarrierOption
+    );
+    solve_with!(
+        finite_difference::FiniteDifferenceDoubleBarrierEngine,
+        double_barrier::DoubleBarrierOption
+    );
+    solve_with!(
+        finite_difference::FiniteDifferenceDoubleTouchEngine,
+        double_touch::DoubleTouchOption
+    );
     if let Ok(engine) = engine.extract::<PyRef<'_, binomial::CoxRossRubinsteinVanillaEngine>>() {
         let engine = engine.0;
         let option = extract_instrument::<binomial::VanillaInstrument<'_>>(instrument)?;
@@ -241,27 +245,20 @@ pub(crate) fn implied_volatility(
             }
         };
     }
-    if engine.is_instance_of::<analytic::double_barrier::AnalyticDoubleBarrierEngine>() {
-        let option =
-            &extract_instrument::<PyRef<'_, double_barrier::DoubleBarrierOption>>(instrument)?.0;
-        return solve!(kiyosi::AnalyticDoubleBarrierEngine, option);
-    }
-    if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloBarrierEngine>>() {
-        let engine = engine.0;
-        let option = &extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?.0;
-        return solve!(engine, option);
-    }
-    if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloDoubleBarrierEngine>>() {
-        let engine = engine.0;
-        let option =
-            &extract_instrument::<PyRef<'_, double_barrier::DoubleBarrierOption>>(instrument)?.0;
-        return solve!(engine, option);
-    }
-    if let Ok(engine) = engine.extract::<PyRef<'_, binomial::CoxRossRubinsteinBarrierEngine>>() {
-        let engine = engine.0;
-        let option = &extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?.0;
-        return solve!(engine, option);
-    }
+    solve_with!(
+        analytic::double_barrier::AnalyticDoubleBarrierEngine,
+        double_barrier::DoubleBarrierOption,
+        kiyosi::AnalyticDoubleBarrierEngine
+    );
+    solve_with!(monte_carlo::MonteCarloBarrierEngine, barrier::BarrierOption);
+    solve_with!(
+        monte_carlo::MonteCarloDoubleBarrierEngine,
+        double_barrier::DoubleBarrierOption
+    );
+    solve_with!(
+        binomial::CoxRossRubinsteinBarrierEngine,
+        barrier::BarrierOption
+    );
     if let Ok(engine) = engine.extract::<PyRef<'_, quadrature::QuadratureAutocallableEngine>>() {
         let engine = engine.0;
         return autocallable::with_note!(instrument, option, solve!(engine, option));
@@ -276,41 +273,34 @@ pub(crate) fn implied_volatility(
         let engine = engine.0;
         return autocallable::with_note!(instrument, option, solve!(engine, option));
     }
-    if let Ok(engine) =
-        engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceAccumulatorEngine>>()
-    {
-        let engine = engine.0;
-        let option = &extract_instrument::<PyRef<'_, accumulator::Accumulator>>(instrument)?.0;
-        return solve!(engine, option);
-    }
-    if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloAccumulatorEngine>>() {
-        let engine = engine.0;
-        let option = &extract_instrument::<PyRef<'_, accumulator::Accumulator>>(instrument)?.0;
-        return solve!(engine, option);
-    }
-    if let Ok(engine) = engine.extract::<PyRef<'_, quadrature::QuadratureAccumulatorEngine>>() {
-        let engine = engine.0;
-        let option = &extract_instrument::<PyRef<'_, accumulator::Accumulator>>(instrument)?.0;
-        return solve!(engine, option);
-    }
-    if let Ok(engine) = engine.extract::<PyRef<'_, quadrature::QuadratureBarrierEngine>>() {
-        let engine = engine.0;
-        let option = &extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?.0;
-        return solve!(engine, option);
-    }
-    if engine.is_instance_of::<analytic::barrier::AnalyticBarrierEngine>() {
-        let option = &extract_instrument::<PyRef<'_, barrier::BarrierOption>>(instrument)?.0;
-        return solve!(kiyosi::AnalyticBarrierEngine, option);
-    }
+    solve_with!(
+        finite_difference::FiniteDifferenceAccumulatorEngine,
+        accumulator::Accumulator
+    );
+    solve_with!(
+        monte_carlo::MonteCarloAccumulatorEngine,
+        accumulator::Accumulator
+    );
+    solve_with!(
+        quadrature::QuadratureAccumulatorEngine,
+        accumulator::Accumulator
+    );
+    solve_with!(quadrature::QuadratureBarrierEngine, barrier::BarrierOption);
+    solve_with!(
+        analytic::barrier::AnalyticBarrierEngine,
+        barrier::BarrierOption,
+        kiyosi::AnalyticBarrierEngine
+    );
     if engine.is_instance_of::<analytic::digital::AnalyticDigitalEngine>() {
         let instrument = extract_instrument::<digital::DigitalInstrument<'_>>(instrument)?;
         let option = instrument.contract();
         return solve!(kiyosi::AnalyticDigitalEngine, option);
     }
-    if engine.is_instance_of::<analytic::american::BjerksundStenslandVanillaEngine>() {
-        let option = &extract_instrument::<PyRef<'_, american::AmericanOption>>(instrument)?.0;
-        return solve!(kiyosi::BjerksundStenslandVanillaEngine, option);
-    }
+    solve_with!(
+        analytic::american::BjerksundStenslandVanillaEngine,
+        american::AmericanOption,
+        kiyosi::BjerksundStenslandVanillaEngine
+    );
     engine.extract::<PyRef<'_, AnalyticEuropeanEngine>>()?;
     let option = &extract_instrument::<PyRef<'_, EuropeanOption>>(instrument)?.0;
     solve!(kiyosi::AnalyticEuropeanEngine, option)
