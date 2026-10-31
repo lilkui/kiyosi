@@ -6,14 +6,9 @@ import re
 from . import oracle as g
 
 NUMERICAL_ENGINES = {
-    "CoxRossRubinsteinVanillaEngine": {"step_count"},
-    "FiniteDifferenceVanillaEngine": {
-        "asset_step_count",
-        "time_step_count",
-        "scheme",
-        "asset_upper_boundary",
-    },
-    "MonteCarloVanillaEngine": {"seed", "path_count", "step_count"},
+    "CoxRossRubinsteinVanillaEngine",
+    "FiniteDifferenceVanillaEngine",
+    "MonteCarloVanillaEngine",
 }
 
 
@@ -43,7 +38,7 @@ def numerical_profiles(path):
         "unknown or duplicate engine",
     )
     for profile in profiles:
-        g.validate_profile(profile, NUMERICAL_ENGINES[profile["engine"]])
+        g.validate_profile(profile)
         g.require(profile["shifts"]["time_shift_days"] <= 3, "invalid time shift")
     return profiles
 

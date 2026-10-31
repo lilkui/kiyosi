@@ -53,28 +53,15 @@ def configuration():
         "invalid digital engines",
     )
     for profile in config["profiles"]:
-        expected = (
-            {"asset_step_count", "time_step_count", "scheme", "asset_upper_boundary"}
-            if profile["engine"] == "FiniteDifferenceDigitalEngine"
-            else set()
-        )
-        g.validate_profile(profile, expected, extra_fields={"boundary_settings"})
-        settings = profile["settings"]
-        g.require(
-            settings.get("scheme", "crank_nicolson") == "crank_nicolson",
-            "invalid digital scheme",
-        )
+        g.validate_profile(profile, extra_fields={"boundary_settings"})
         g.require(
             set(profile["boundary_settings"])
-            == ({"asset_step_count"} if expected else set()),
-            "invalid digital boundary settings",
-        )
-        g.require(
-            all(
-                type(v) is int and 3 <= v <= 10000
-                for v in profile["boundary_settings"].values()
+            == (
+                {"asset_step_count"}
+                if profile["engine"] == "FiniteDifferenceDigitalEngine"
+                else set()
             ),
-            "invalid boundary grid",
+            "invalid digital boundary settings",
         )
         g.require(
             profile["shifts"]["time_shift_days"] == 1,

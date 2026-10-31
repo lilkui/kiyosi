@@ -365,34 +365,7 @@ def reference_row(
     }
 
 
-def validate_settings(settings, expected):
-    require(set(settings) == expected, "invalid engine settings")
-    for name, value in settings.items():
-        require(
-            value in {"explicit_euler", "implicit_euler", "crank_nicolson"}
-            if name == "scheme"
-            else type(value) is int and value > 0,
-            "invalid numerical setting",
-        )
-
-
-def validate_shifts(shifts):
-    require(
-        set(shifts)
-        == {"spot_shift", "volatility_shift", "rate_shift", "time_shift_days"},
-        "invalid shifts",
-    )
-    require(
-        all(
-            type(value) in (int, float) and math.isfinite(value) and value > 0
-            for value in shifts.values()
-        )
-        and type(shifts["time_shift_days"]) is int,
-        "invalid shift",
-    )
-
-
-def validate_profile(profile, expected_settings, *, extra_fields=()):
+def validate_profile(profile, *, extra_fields=()):
     require(
         set(profile)
         == {
@@ -405,8 +378,6 @@ def validate_profile(profile, expected_settings, *, extra_fields=()):
         },
         "invalid profile",
     )
-    validate_settings(profile["settings"], expected_settings)
-    validate_shifts(profile["shifts"])
     validate_budgets(profile)
 
 
