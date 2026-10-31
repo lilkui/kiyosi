@@ -218,31 +218,25 @@ fn native(
     let mut put_boundary = payoff.strike;
     let mut log_carry_error = 0.0;
     let mut valid_carry_error = true;
+    let mut damping = 2;
     for step in (0..time_grid.widths.len()).rev() {
-        let damp = theta == 0.5 && step + 2 >= time_grid.widths.len();
-        let count = if damp { 2 } else { 1 };
-        let weight = if damp { 1.0 } else { theta };
-        let dt = time_grid.widths[step] / f64::from(count);
-        let carry = if payoff.payout.is_some() {
-            risk.rate(0.0)
-        } else {
-            dividend.rate(0.0)
-        };
-        if payoff.digital && theta == 0.5 && (weight != 0.5 || carry < 0.0) {
-            let exponent = carry * dt;
-            let implicit = weight * exponent;
-            let explicit = -(1.0 - weight) * exponent;
-            if !exponent.is_finite() || implicit <= -1.0 || explicit <= -1.0 {
-                valid_carry_error = false;
+        for (current, dt, weight) in time_grid.substeps(step, theta, &mut damping) {
+            let carry = if payoff.payout.is_some() {
+                risk.rate(0.0)
             } else {
-                log_carry_error +=
-                    f64::from(count) * (exponent + explicit.ln_1p() - implicit.ln_1p()).max(0.0);
+                dividend.rate(0.0)
+            };
+            if payoff.digital && theta == 0.5 && (weight != 0.5 || carry < 0.0) {
+                let exponent = carry * dt;
+                let implicit = weight * exponent;
+                let explicit = -(1.0 - weight) * exponent;
+                if !exponent.is_finite() || implicit <= -1.0 || explicit <= -1.0 {
+                    valid_carry_error = false;
+                } else {
+                    log_carry_error += (exponent + explicit.ln_1p() - implicit.ln_1p()).max(0.0);
+                }
             }
-        }
-        for substep in 0..count {
-            let offset = dt * f64::from(count - substep - 1);
-            let current = time_grid.times[step] + offset;
-            let tau = time - time_grid.times[step] - offset;
+            let tau = time - current;
             let middle = current + 0.5 * dt;
             let rate = risk.rate(middle);
             let q = dividend.rate(middle);
