@@ -4,5 +4,6 @@ pub(crate) mod barrier;
 pub(crate) mod binary_barrier;
 pub(crate) mod digital;
 pub(crate) mod double_barrier;
+pub(crate) mod double_touch;
 pub(crate) mod european;
 pub(crate) mod range_accrual;

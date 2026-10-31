@@ -19,7 +19,7 @@ Kiyosi is a Rust derivatives pricing library with a Python API. It supports pric
 | Single-barrier options | Analytic, CRR, quadrature, FD, MC |
 | Double-barrier options | Analytic series, FD, MC |
 | Binary barriers, one-touch and no-touch options | Analytic, FD |
-| Double-touch and double-no-touch options | FD |
+| Double-touch and double-no-touch options | Analytic series, FD |
 | Snowballs, binary and ternary snowballs | Quadrature, FD, MC |
 | Phoenix notes | Quadrature, FD, MC |
 | Accumulators and decumulators | Quadrature, FD, MC |

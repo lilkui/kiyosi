@@ -1027,7 +1027,7 @@ def implied_volatility(
 ) -> float: ...
 @overload
 def implied_volatility(
-    engine: FiniteDifferenceDoubleTouchEngine,
+    engine: AnalyticDoubleTouchEngine | FiniteDifferenceDoubleTouchEngine,
     instrument: DoubleTouchOption,
     context: PricingContext,
     observed_price: float,
@@ -1405,6 +1405,23 @@ class AnalyticDoubleBarrierEngine:
     def price_with_greeks(
         self,
         instrument: DoubleBarrierOption,
+        context: PricingContext,
+        greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
+class AnalyticDoubleTouchEngine:
+    def __init__(self) -> None: ...
+    def price(
+        self, instrument: DoubleTouchOption, context: PricingContext
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: DoubleTouchOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,

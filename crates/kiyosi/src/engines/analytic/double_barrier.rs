@@ -3,7 +3,7 @@ use crate::engines::analytic::barrier::resolved_price_with_state;
 use crate::instruments::monitoring::{validate_life, validate_schedule};
 use crate::numerics::{Sum, checked, log_interval_mass, log_ratio, scaled_cash, scaled_cdf};
 use crate::{
-    AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationMode,
+    AnalyticEuropeanEngine, Date, Error, GreeksRequest, NumericalShiftSettings, ObservationMode,
     OptionType, PricingContext, PricingEngine, PricingResult, RebateTiming, Result,
 };
 use std::f64::consts::PI;
@@ -109,7 +109,7 @@ fn scaled(value: f64, exponent: f64) -> f64 {
 }
 
 #[derive(Clone, Copy)]
-struct AbsorbingDistribution {
+pub(super) struct AbsorbingDistribution {
     initial: f64,
     band: f64,
     log_lower: f64,
@@ -118,18 +118,21 @@ struct AbsorbingDistribution {
     time: f64,
 }
 impl AbsorbingDistribution {
-    fn new(option: &DoubleBarrierOption, context: &PricingContext) -> Result<Self> {
+    pub(super) fn new(
+        lower: f64,
+        upper: f64,
+        expiry: Date,
+        context: &PricingContext,
+    ) -> Result<Self> {
         let model = context.model_parameters();
         let sigma = model.volatility();
         Ok(Self {
-            initial: log_ratio(context.spot_price(), option.lower_barrier()),
-            band: log_ratio(option.upper_barrier(), option.lower_barrier()),
-            log_lower: option.lower_barrier().ln(),
+            initial: log_ratio(context.spot_price(), lower),
+            band: log_ratio(upper, lower),
+            log_lower: lower.ln(),
             volatility: sigma,
             drift: model.risk_free_rate()? - model.dividend_yield()? - 0.5 * sigma * sigma,
-            time: context
-                .valuation_time()
-                .years_until(option.expiry_date().start_of_day()),
+            time: context.valuation_time().years_until(expiry.start_of_day()),
         })
     }
     // Integrate asset^order against the killed density; complement avoids 1-survival cancellation.
@@ -302,67 +305,182 @@ impl AbsorbingDistribution {
         }
         Ok(value.max(0.0))
     }
-    fn hit_value(&self, rate: f64) -> Result<f64> {
-        let exit = self.moment(0, 0.0, self.band, 0.0, true)?;
-        let mut value = scaled(exit, -rate * self.time);
-        if rate != 0.0 {
-            // Split at diffusion and drift exit scales to capture short boundary layers.
-            let mut breaks = vec![0.0, self.time];
-            let mut append = |t: f64| {
-                if t > 0.0 && t < self.time {
-                    breaks.push(t);
-                }
-            };
-            for distance in [self.initial, self.band - self.initial] {
-                for factor in [0.0625, 1.0, 16.0] {
-                    append(factor * (distance / self.volatility).powi(2));
-                }
-            }
-            if self.drift != 0.0 {
-                let hit = if self.drift > 0.0 {
-                    (self.band - self.initial) / self.drift
+    pub(super) fn cash_value(&self, amount: f64, rate: f64, complement: bool) -> Result<f64> {
+        self.moment(
+            0,
+            0.0,
+            self.band,
+            amount.ln() - rate * self.time,
+            complement,
+        )
+    }
+    fn log_exit_density(&self, origin: f64, offset: f64, rate: f64) -> Result<f64> {
+        let time = origin + offset;
+        if time == 0.0 {
+            return Ok(f64::NEG_INFINITY);
+        }
+        let deviation = self.volatility * time.sqrt();
+        let ratio = deviation / self.band;
+        let boundary = |distance: f64, drift: f64| -> Result<f64> {
+            let mut sum = Sum::default();
+            let mut converged = false;
+            let base;
+            if ratio < 0.5 {
+                // Center the time offset before standardizing a narrow drift-driven peak.
+                let z = if drift > 0.0 {
+                    -drift * ((origin - distance / drift) + offset) / deviation
                 } else {
-                    -self.initial / self.drift
+                    (distance - drift * time) / deviation
                 };
-                let width = self.volatility * hit.sqrt() / self.drift.abs();
-                append(hit);
-                for factor in [-12.0, -4.0, -1.0, 1.0, 4.0, 12.0] {
-                    append(hit + factor * width);
+                base = distance.ln()
+                    - self.volatility.ln()
+                    - 1.5 * time.ln()
+                    - 0.5 * (2.0 * PI).ln()
+                    - 0.5 * z * z
+                    - rate * time;
+                sum.add(1.0);
+                for index in 1..=64 {
+                    let shift = f64::from(index) * self.band;
+                    let plus = scaled(
+                        1.0 + 2.0 * shift / distance,
+                        -2.0 * (shift / deviation) * ((shift + distance) / deviation),
+                    );
+                    let minus = scaled(
+                        1.0 - 2.0 * shift / distance,
+                        -2.0 * (shift / deviation) * ((shift - distance) / deviation),
+                    );
+                    sum.add(plus);
+                    sum.add(minus);
+                    if index >= 2 && plus.abs() + minus.abs() <= 1e-16 {
+                        converged = true;
+                        break;
+                    }
+                }
+            } else {
+                let first_decay = 0.5 * (PI * ratio).powi(2);
+                base = 2.0 * (self.volatility / self.band).ln() - first_decay
+                    + (drift / self.volatility)
+                        * ((distance - 0.5 * drift * time) / self.volatility)
+                    - rate * time;
+                for index in 1..=256 {
+                    let frequency = f64::from(index) * PI;
+                    sum.add(
+                        frequency
+                            * (frequency * (distance / self.band)).sin()
+                            * (first_decay - 0.5 * (frequency * ratio).powi(2)).exp(),
+                    );
+                    let next = f64::from(index + 1) * PI;
+                    if index >= 4 && next.ln() + first_decay - 0.5 * (next * ratio).powi(2) < -40.0
+                    {
+                        converged = true;
+                        break;
+                    }
                 }
             }
-            breaks.sort_by(f64::total_cmp);
-            breaks.dedup();
-            let evaluate = |t: f64| {
-                if t == 0.0 {
-                    return Ok(0.0);
-                }
-                Self { time: t, ..*self }.moment(0, 0.0, self.band, -rate * t, true)
-            };
-            let mut integral = Sum::default();
-            for pair in breaks.windows(2) {
-                let [left, right] = [pair[0], pair[1]];
-                let values = [
-                    evaluate(left)?,
-                    evaluate(left + (right - left) / 2.0)?,
-                    evaluate(right)?,
-                ];
-                integral.add(integrate_exit(
-                    &evaluate,
-                    [left, right],
-                    values,
-                    (right - left) * (values[0] + 4.0 * values[1] + values[2]) / 6.0,
-                    1e-13 * (-rate * self.time).exp().max(1.0) / breaks.len() as f64,
-                    32,
-                )?);
+            let value = sum.total();
+            if !value.is_finite() || value < -1e-12 || base.is_nan() || base == f64::INFINITY {
+                return Err(Error::ComputationFailure(
+                    "double-barrier exit density is not representable".into(),
+                ));
             }
-            value += rate * integral.total();
+            if !converged {
+                return Err(Error::NonConvergence(
+                    "double-barrier exit density did not converge".into(),
+                ));
+            }
+            Ok(base + value.max(0.0).ln())
+        };
+        let lower = boundary(self.initial, -self.drift)?;
+        let upper = boundary(self.band - self.initial, self.drift)?;
+        let scale = lower.max(upper);
+        Ok(if scale == f64::NEG_INFINITY {
+            scale
+        } else {
+            scale + ((lower - scale).exp() + (upper - scale).exp()).ln()
+        })
+    }
+
+    pub(super) fn hit_value(&self, amount: f64, rate: f64) -> Result<f64> {
+        if rate == 0.0 {
+            return self.cash_value(amount, rate, true);
         }
-        if !value.is_finite() || value < -1e-12 {
-            return Err(Error::ComputationFailure(
-                "double-barrier first-exit value is not representable".into(),
-            ));
+        // Reflection bounds both hit probabilities, including the largest possible discount.
+        let distance = (self.initial - (-self.drift).max(0.0) * self.time)
+            .min(self.band - self.initial - self.drift.max(0.0) * self.time)
+            .max(0.0);
+        let z = distance / (self.volatility * self.time.sqrt());
+        let log_bound = amount.ln() + (-rate * self.time).max(0.0) + 4.0_f64.ln() - 0.5 * z * z;
+        if log_bound < f64::from_bits(1).ln() - std::f64::consts::LN_2 {
+            return Ok(0.0);
         }
-        Ok(value.max(0.0))
+        // Integrate first-exit flux directly; subtracting cumulative values loses early payments.
+        let mut breaks = vec![0.0, self.time];
+        let mut append = |t: f64| {
+            if t > 0.0 && t < self.time {
+                breaks.push(t);
+            }
+        };
+        let tilted_speed = (self.drift * self.drift
+            + 2.0 * rate * self.volatility * self.volatility)
+            .max(0.0)
+            .sqrt();
+        for distance in [self.initial, self.band - self.initial] {
+            for factor in [0.0625, 1.0, 16.0] {
+                append(factor * (distance / self.volatility).powi(2));
+            }
+            for speed in [self.drift.abs(), tilted_speed] {
+                if speed > 0.0 {
+                    let hit = distance / speed;
+                    let width = self.volatility * hit.sqrt() / speed;
+                    append(hit);
+                    for factor in [-12.0, -4.0, -1.0, 1.0, 4.0, 12.0] {
+                        append(hit + factor * width);
+                    }
+                }
+            }
+        }
+        for factor in [1.0, 4.0, 16.0, 64.0] {
+            append(self.time - factor / rate.abs());
+        }
+        breaks.sort_by(f64::total_cmp);
+        breaks.dedup();
+        // Share the error budget so negligible tails do not require unattainable relative accuracy.
+        let mut panels = Vec::with_capacity(breaks.len());
+        let mut integral_scale = f64::NEG_INFINITY;
+        for pair in breaks.windows(2) {
+            let [left, right] = [pair[0], pair[1]];
+            let width = right - left;
+            let logs = [
+                self.log_exit_density(left, 0.0, rate)?,
+                self.log_exit_density(left, width / 2.0, rate)?,
+                self.log_exit_density(left, width, rate)?,
+            ];
+            let scale = logs.into_iter().fold(f64::NEG_INFINITY, f64::max);
+            if scale == f64::NEG_INFINITY {
+                continue;
+            }
+            integral_scale = integral_scale.max(width.ln() + scale);
+            panels.push((left, width, logs, scale));
+        }
+        let mut result = Sum::default();
+        for (left, width, logs, scale) in panels {
+            let evaluate =
+                |u: f64| Ok((self.log_exit_density(left, width * u, rate)? - scale).exp());
+            let values = logs.map(|value| (value - scale).exp());
+            let integral = integrate_exit(
+                &evaluate,
+                [0.0, 1.0],
+                values,
+                (values[0] + 4.0 * values[1] + values[2]) / 6.0,
+                1e-13 * (integral_scale - width.ln() - scale).exp() / breaks.len() as f64,
+                32,
+            )?;
+            result.add(checked(scaled_cash(
+                integral,
+                amount.ln() + width.ln() + scale,
+            ))?);
+        }
+        checked(result.total())
     }
 }
 fn integrate_exit(
@@ -409,7 +527,12 @@ fn integrate_exit(
     )?)
 }
 fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
-    let density = AbsorbingDistribution::new(option, context)?;
+    let density = AbsorbingDistribution::new(
+        option.lower_barrier(),
+        option.upper_barrier(),
+        option.expiry_date(),
+        context,
+    )?;
     let rate = context.model_parameters().risk_free_rate()?;
     let discount = -rate * density.time;
     let call = option.option_type() == OptionType::Call;
@@ -431,12 +554,11 @@ fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Res
         value = AnalyticEuropeanEngine.price(option.vanilla(), context)? - value;
     }
     if option.rebate() != 0.0 {
-        let weight = if option.rebate_timing() == RebateTiming::AtHit && !option.knock_in() {
-            density.hit_value(rate)?
+        value += if option.rebate_timing() == RebateTiming::AtHit && !option.knock_in() {
+            density.hit_value(option.rebate(), rate)?
         } else {
-            density.moment(0, 0.0, density.band, discount, !option.knock_in())?
+            density.cash_value(option.rebate(), rate, !option.knock_in())?
         };
-        value += option.rebate() * weight;
     }
     if !value.is_finite()
         || value
@@ -454,10 +576,15 @@ fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Res
 }
 
 pub(crate) fn hit_value(option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
-    checked(
-        option.rebate()
-            * AbsorbingDistribution::new(option, context)?
-                .hit_value(context.model_parameters().risk_free_rate()?)?,
+    AbsorbingDistribution::new(
+        option.lower_barrier(),
+        option.upper_barrier(),
+        option.expiry_date(),
+        context,
+    )?
+    .hit_value(
+        option.rebate(),
+        context.model_parameters().risk_free_rate()?,
     )
 }
 

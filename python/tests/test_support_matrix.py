@@ -158,7 +158,7 @@ def terminal_cases():
                     payout=10,
                     touch_state="untouched",
                 ),
-                ("FiniteDifferenceDoubleTouchEngine",),
+                ("AnalyticDoubleTouchEngine", "FiniteDifferenceDoubleTouchEngine"),
                 amount,
             )
         )

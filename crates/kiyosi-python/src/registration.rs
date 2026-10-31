@@ -68,6 +68,7 @@ pricing_classes!(
         analytic::barrier::AnalyticBarrierEngine,
         analytic::binary_barrier::AnalyticBinaryBarrierEngine,
         analytic::double_barrier::AnalyticDoubleBarrierEngine,
+        analytic::double_touch::AnalyticDoubleTouchEngine,
         analytic::range_accrual::AnalyticRangeAccrualEngine,
         engines::binomial::CoxRossRubinsteinVanillaEngine,
         engines::binomial::CoxRossRubinsteinDigitalEngine,

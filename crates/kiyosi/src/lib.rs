@@ -73,6 +73,7 @@ pub use engines::analytic::barrier::AnalyticBarrierEngine;
 pub use engines::analytic::binary_barrier::AnalyticBinaryBarrierEngine;
 pub use engines::analytic::digital::AnalyticDigitalEngine;
 pub use engines::analytic::double_barrier::AnalyticDoubleBarrierEngine;
+pub use engines::analytic::double_touch::AnalyticDoubleTouchEngine;
 pub use engines::analytic::european::AnalyticEuropeanEngine;
 pub use engines::analytic::range_accrual::AnalyticRangeAccrualEngine;
 pub use engines::binomial::{
