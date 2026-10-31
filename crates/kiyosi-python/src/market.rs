@@ -252,13 +252,13 @@ impl BlackScholesMertonParameters {
     /// Returns
     /// -------
     /// object
-    ///     New instance of the same class; omitted fields retain their values.
+    ///     New instance of the same class; omitted fields or Ellipsis retain their values.
     ///
     /// Raises
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, risk_free_rate=None, dividend_yield=None, volatility=None))]
+    #[pyo3(signature = (*, risk_free_rate=crate::conversions::OMITTED, dividend_yield=crate::conversions::OMITTED, volatility=crate::conversions::OMITTED))]
     fn replace(
         &self,
         #[pyo3(from_py_with = supplied)] risk_free_rate: Option<&Bound<'_, PyAny>>,
@@ -366,13 +366,13 @@ impl PricingContext {
     /// Returns
     /// -------
     /// object
-    ///     New instance of the same class; omitted fields retain their values.
+    ///     New instance of the same class; omitted fields or Ellipsis retain their values.
     ///
     /// Raises
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, model_parameters=None, spot_price=None, valuation_time=None, calendar=None))]
+    #[pyo3(signature = (*, model_parameters=crate::conversions::OMITTED, spot_price=crate::conversions::OMITTED, valuation_time=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
     fn replace(
         &self,
         #[pyo3(from_py_with = supplied)] model_parameters: Option<&Bound<'_, PyAny>>,

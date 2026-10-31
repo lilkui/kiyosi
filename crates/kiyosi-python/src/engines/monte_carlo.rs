@@ -405,7 +405,7 @@ sampling_settings!(
     ///     Greek names or "all" to request every measure; duplicates are ignored.
     /// spot_shift : float or None, optional
     ///     Positive finite absolute spot bump. European default: 0.01 spot units.
-    ///     American default: 8% of spot; None also selects this American default.
+    ///     American default: 8% of spot. None selects the product's default.
     /// volatility_shift : float, optional
     ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
     /// rate_shift : float, optional
@@ -429,8 +429,8 @@ sampling_settings!(
     /// Notes
     /// -----
     /// System entropy and worker-creation failures raise OSError.
-    /// For American vanilla options, omitted or None `spot_shift` uses 8% of
-    /// spot; other bumps use the shared core defaults.
+    /// Omitted or None `spot_shift` uses the product's default; other bumps
+    /// use the shared core defaults.
     #[pyo3(signature = (instrument, context, greeks, *, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
     #[expect(
         clippy::too_many_arguments,
@@ -443,7 +443,7 @@ sampling_settings!(
         instrument: binomial::VanillaInstrument<'_>,
         context: &PricingContext,
         greeks: &Bound<'_, PyAny>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] spot_shift: Option<&Bound<'_, PyAny>>,
+        spot_shift: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
         #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
         #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
@@ -451,37 +451,27 @@ sampling_settings!(
         let request = risk::greeks_request(greeks)?;
         let engine = self.0;
         let context = &context.0;
-        let result = match instrument {
-            binomial::VanillaInstrument::European(option) => {
-                let shifts = kiyosi::NumericalShiftSettings {
-                    spot_shift: spot_shift
-                        .map(crate::conversions::real)
-                        .transpose()?
-                        .unwrap_or(kiyosi::NumericalShiftSettings::default().spot_shift),
-                    volatility_shift,
-                    rate_shift,
-                    time_shift_days,
-                };
-                let option = &option.0;
-                domain(py.detach(|| engine.price_with_greeks(option, context, request, shifts)))
-            }
-            binomial::VanillaInstrument::American(option) => {
-                let shifts = kiyosi::NumericalShiftSettings {
-                    spot_shift: spot_shift
-                        .filter(|value| !value.is_none())
-                        .map(crate::conversions::real)
-                        .transpose()?
-                        .unwrap_or_else(|| {
-                            kiyosi::MonteCarloVanillaEngine::default_american_spot_shift(context)
-                        }),
-                    volatility_shift,
-                    rate_shift,
-                    time_shift_days,
-                };
-                let option = &option.0;
-                domain(py.detach(|| engine.price_with_greeks(option, context, request, shifts)))
-            }
-        }?;
+        let shifts = kiyosi::NumericalShiftSettings {
+            spot_shift: spot_shift
+                .map(crate::conversions::real)
+                .transpose()?
+                .unwrap_or_else(|| match &instrument {
+                    binomial::VanillaInstrument::European(_) => {
+                        kiyosi::NumericalShiftSettings::default().spot_shift
+                    }
+                    binomial::VanillaInstrument::American(_) => {
+                        kiyosi::MonteCarloVanillaEngine::default_american_spot_shift(context)
+                    }
+                }),
+            volatility_shift,
+            rate_shift,
+            time_shift_days,
+        };
+        let result = binomial::with_vanilla!(
+            instrument,
+            option,
+            domain(py.detach(|| engine.price_with_greeks(option, context, request, shifts)))
+        )?;
         Ok(risk::PricingResult(result))
     }
 );

@@ -82,13 +82,13 @@ impl RangeAccrualOption {
     /// Returns
     /// -------
     /// object
-    ///     New instance of the same class; omitted fields retain their values.
+    ///     New instance of the same class; omitted fields or Ellipsis retain their values.
     ///
     /// Raises
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, realized_hit_count=None))]
+    #[pyo3(signature = (*, realized_hit_count=crate::conversions::OMITTED))]
     fn replace(
         &self,
         #[pyo3(from_py_with = supplied)] realized_hit_count: Option<&Bound<'_, PyAny>>,

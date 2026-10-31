@@ -53,13 +53,13 @@ macro_rules! average_option {
             /// Returns
             /// -------
             /// object
-            ///     New instance of the same class; omitted fields retain their values.
+            ///     New instance of the same class; omitted fields or Ellipsis retain their values.
             ///
             /// Raises
             /// ------
             /// KiyosiError
             ///     If replacement terms fail domain validation. The original is unchanged.
-            #[pyo3(signature = (*, realized_average=None))]
+            #[pyo3(signature = (*, realized_average=crate::conversions::OMITTED))]
             fn replace(&self,
                 #[pyo3(from_py_with = supplied)] realized_average: Option<&Bound<'_, PyAny>>,
             ) -> PyResult<Self> {

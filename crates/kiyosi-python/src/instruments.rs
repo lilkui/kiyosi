@@ -14,15 +14,15 @@ macro_rules! monitoring_properties {
             /// Returns
             /// -------
             /// object
-            ///     New instance of the same class; omitted fields retain their values.
+            ///     New instance of the same class; omitted fields or Ellipsis retain their values.
             ///
             /// Raises
             /// ------
             /// TypeError
-            ///     If a field is unknown or touch_state is neither a string nor None.
+            ///     If a field is unknown or touch_state is not a string, None or Ellipsis.
             /// ValueError
             ///     If touch_state is an unknown choice.
-            #[pyo3(signature = (*, touch_state=None))]
+            #[pyo3(signature = (*, touch_state=crate::conversions::OMITTED))]
             fn replace(
                 &self,
                 #[pyo3(from_py_with = crate::conversions::supplied)] touch_state: Option<

@@ -6,8 +6,9 @@ their consistency with the market snapshot, calendar and supplied history.
 History describes events strictly before valuation; a current observation
 is evaluated from the current spot. Replacement returns a new contract.
 ``replace()`` exposes named keyword-only fields through ``inspect.signature``.
-Omitted fields retain their values; explicit ``None`` clears nullable history
-and is rejected for fields that require a value.
+Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
+values. Explicit ``None`` clears nullable history and is rejected for fields
+that require a value.
 
 Examples
 --------

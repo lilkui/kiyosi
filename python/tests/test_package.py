@@ -55,6 +55,60 @@ class PackageTests(unittest.TestCase):
                     self.assertEqual(
                         parameter.default is inspect.Parameter.empty, default is None
                     )
+                    if default is not None:
+                        self.assertIs(parameter.default, Ellipsis)
+
+    def test_replacement_signature_defaults_can_be_forwarded(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        dates = {"effective_date": start, "expiry_date": end}
+        vanilla = dict(dates, option_type="call", strike=100)
+        model = market.BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        )
+        values = [
+            model,
+            market.PricingContext(
+                model_parameters=model, spot_price=100, valuation_time=start
+            ),
+            instruments.AmericanOption(**vanilla),
+            instruments.CashOrNothingOption(**vanilla, payout=10),
+            instruments.AssetOrNothingOption(**vanilla),
+            instruments.GeometricAveragePriceOption(
+                **vanilla, averaging_start_date=start, realized_average=0
+            ),
+            instruments.ArithmeticAveragePriceOption(
+                **vanilla, averaging_start_date=start, realized_average=0
+            ),
+            instruments.BarrierOption(
+                **vanilla,
+                barrier_type="up_and_out",
+                barrier_level=120,
+                touch_state="untouched",
+            ),
+            instruments.RangeAccrualOption(
+                **dates,
+                notional=1000,
+                annual_coupon_rate=0.12,
+                lower_bound=95,
+                upper_bound=110,
+                realized_hit_count=3,
+            ),
+        ]
+        for value in values:
+            defaults = {
+                name: parameter.default
+                for name, parameter in inspect.signature(
+                    value.replace
+                ).parameters.items()
+            }
+            with self.subTest(type=type(value).__name__):
+                replacement = value.replace(**defaults)
+                self.assertEqual(replacement, value)
+                self.assertIsNot(replacement, value)
+        self.assertIsNone(values[-2].replace(touch_state=None).touch_state)
+        self.assertIsNone(
+            values[-1].replace(realized_hit_count=None).realized_hit_count
+        )
 
     def test_terminal_quadrature_engines_are_not_exported(self):
         for name in ("QuadratureVanillaEngine", "QuadratureDigitalEngine"):
@@ -111,7 +165,7 @@ class PackageTests(unittest.TestCase):
                 signature.parameters[name].kind, inspect.Parameter.KEYWORD_ONLY
             )
 
-    def test_monte_carlo_spot_shift_preserves_explicit_none_rules(self):
+    def test_monte_carlo_spot_shift_none_selects_each_product_default(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = market.PricingContext(
             model_parameters=market.BlackScholesMertonParameters(
@@ -127,14 +181,36 @@ class PackageTests(unittest.TestCase):
             "expiry_date": end,
         }
         engine = pricing.MonteCarloVanillaEngine(path_count=256, step_count=5, seed=42)
-        with self.assertRaises(TypeError):
-            engine.price_with_greeks(
-                instruments.EuropeanOption(**terms), context, "delta", spot_shift=None
+        for kind, shift in (
+            (instruments.EuropeanOption, 0.01),
+            (instruments.AmericanOption, 8.0),
+        ):
+            option = kind(**terms)
+            default = engine.price_with_greeks(option, context, "delta")
+            shift_default = (
+                inspect.signature(engine.price_with_greeks)
+                .parameters["spot_shift"]
+                .default
             )
-        option = instruments.AmericanOption(**terms)
-        default = engine.price_with_greeks(option, context, "delta")
-        explicit = engine.price_with_greeks(option, context, "delta", spot_shift=None)
-        self.assertEqual(explicit.require("delta"), default.require("delta"))
+            with self.subTest(product=kind.__name__):
+                self.assertIs(shift_default, None)
+                self.assertEqual(
+                    engine.price_with_greeks(
+                        option, context, "delta", spot_shift=shift_default
+                    ).require("delta"),
+                    default.require("delta"),
+                )
+                self.assertEqual(
+                    engine.price_with_greeks(
+                        option, context, "delta", spot_shift=shift
+                    ).require("delta"),
+                    default.require("delta"),
+                )
+                for invalid in (True, "invalid", Ellipsis):
+                    with self.assertRaises(TypeError):
+                        engine.price_with_greeks(
+                            option, context, "delta", spot_shift=invalid
+                        )
 
     def test_native_greek_methods_expose_only_request_controls(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

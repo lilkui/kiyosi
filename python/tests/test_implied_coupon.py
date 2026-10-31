@@ -1,5 +1,6 @@
 """Coupon quote validation and pricing through the Python API."""
 
+import inspect
 import math
 import sys
 import unittest
@@ -43,6 +44,19 @@ def binary(coupon=0.08, maturity=0.06, **changes):
 
 
 class ImpliedCouponTests(unittest.TestCase):
+    def test_phoenix_quote_convention_default_can_be_forwarded(self):
+        engine = QuadratureAutocallableEngine(asset_step_count=64)
+        note, context = phoenix(), market()
+        quote = engine.price(note, context)
+        default = (
+            inspect.signature(implied_coupon).parameters["quote_convention"].default
+        )
+        self.assertIs(default, Ellipsis)
+        solved = implied_coupon(engine, note, context, quote, quote_convention=default)
+        self.assertAlmostEqual(solved, note.coupon_rate, delta=1e-8)
+        with self.assertRaises(TypeError):
+            implied_coupon(engine, note, context, quote, quote_convention=None)
+
     def test_coupon_endpoints_can_change_daily_knock_in_layers(self):
         end = date(2025, 1, 13)
         note = snowball(
@@ -453,6 +467,7 @@ class ImpliedCouponTests(unittest.TestCase):
                 solve(quote_convention="preserve_maturity_coupon", max_iterations=value)
         for kwargs in (
             {},
+            {"quote_convention": Ellipsis},
             {"quote_convention": None},
             {"quote_convention": True},
             {"quote_convention": "preserve_maturity_coupon", "unknown": 1},

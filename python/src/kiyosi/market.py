@@ -5,7 +5,8 @@ use Actual/365 Fixed time; a calendar's trading-day basis applies only to
 trading-year fractions. ``BusinessDayConvention`` accepts ``"following"``
 or ``"preceding"``, including the supplied date when it is open.
 Model and context ``replace()`` methods expose named keyword-only fields.
-Omitted fields retain their values; explicit ``None`` is rejected.
+Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
+values; explicit ``None`` is rejected.
 
 Examples
 --------

@@ -32,11 +32,12 @@ Pricing controls are explicit keyword-only parameters, available through
 ``inspect.signature``. Instrument conversion and supported-family checks
 precede Greek-name parsing. Monte Carlo vanilla spot bumps default by product:
 0.01 for European options and 8% of spot for American options. Explicit
-``None`` selects the automatic bump only for American options.
+``None`` selects the automatic bump for either product.
 
 ``CouponQuoteConvention`` controls whether a snowball's maturity coupon
 shifts with observation coupons (``"shift_maturity_coupon"``) or stays fixed
-(``"preserve_maturity_coupon"``). Phoenix coupon solves omit this choice.
+(``"preserve_maturity_coupon"``). Phoenix coupon solves omit this choice;
+the displayed default ``...`` (``Ellipsis``) also means omitted.
 Unsupported coupon-solver instruments are rejected before checking this choice.
 
 Examples

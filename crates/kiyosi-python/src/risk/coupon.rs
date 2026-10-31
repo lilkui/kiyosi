@@ -24,7 +24,7 @@ use pyo3::prelude::*;
 /// quote_convention : CouponQuoteConvention
 ///     Required for snowballs: shift_maturity_coupon shifts the maturity
 ///     coupon with observation coupons; preserve_maturity_coupon keeps it
-///     fixed. Omit this keyword for Phoenix.
+///     fixed. Omit this keyword for Phoenix, or pass Ellipsis (the displayed default).
 /// lower_bound : float, optional
 ///     Finite lower annual coupon in decimal units; defaults to 0. Signed
 ///     bounds are accepted when the resulting contract terms are valid.
@@ -66,7 +66,7 @@ use pyo3::prelude::*;
 /// coupon; the ternary minimum remains fixed. Phoenix replaces its
 /// conditional annual coupon. Trials use affine interpolation, then bisection.
 #[pyfunction]
-#[pyo3(signature = (engine, instrument, context, observed_price, *, quote_convention=None, lower_bound=kiyosi::ImpliedCouponSettings::default().lower_bound, upper_bound=kiyosi::ImpliedCouponSettings::default().upper_bound, price_tolerance=kiyosi::ImpliedCouponSettings::default().price_tolerance, parameter_tolerance=kiyosi::ImpliedCouponSettings::default().parameter_tolerance, max_iterations=kiyosi::ImpliedCouponSettings::default().max_iterations))]
+#[pyo3(signature = (engine, instrument, context, observed_price, *, quote_convention=crate::conversions::OMITTED, lower_bound=kiyosi::ImpliedCouponSettings::default().lower_bound, upper_bound=kiyosi::ImpliedCouponSettings::default().upper_bound, price_tolerance=kiyosi::ImpliedCouponSettings::default().price_tolerance, parameter_tolerance=kiyosi::ImpliedCouponSettings::default().parameter_tolerance, max_iterations=kiyosi::ImpliedCouponSettings::default().max_iterations))]
 #[expect(clippy::too_many_arguments, reason = "explicit Python solver controls")]
 pub(crate) fn implied_coupon(
     py: Python<'_>,

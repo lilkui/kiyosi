@@ -401,7 +401,7 @@ class RateTermStructureTests(unittest.TestCase):
                 self.assertEqual(replacement, obj)
             self.assertIsNot(replacement, obj)
             for field in fields:
-                for value in (None, True, "invalid", Ellipsis):
+                for value in (None, True, "invalid"):
                     with (
                         self.subTest(field=field, value=value),
                         self.assertRaises(TypeError),

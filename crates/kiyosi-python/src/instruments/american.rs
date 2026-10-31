@@ -59,13 +59,13 @@ impl AmericanOption {
     /// Returns
     /// -------
     /// object
-    ///     New instance of the same class; omitted fields retain their values.
+    ///     New instance of the same class; omitted fields or Ellipsis retain their values.
     ///
     /// Raises
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, option_type=None, strike=None, effective_date=None, expiry_date=None))]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_date=crate::conversions::OMITTED, expiry_date=crate::conversions::OMITTED))]
     fn replace(
         &self,
         #[pyo3(from_py_with = supplied)] option_type: Option<&Bound<'_, PyAny>>,

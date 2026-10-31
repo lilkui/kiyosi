@@ -36,11 +36,14 @@ where
     })
 }
 
-// Preserve explicit None separately from an omitted keyword.
+// PyO3 displays nonliteral defaults as Ellipsis, which supplied treats as omission.
+pub(crate) const OMITTED: Option<&Bound<'_, PyAny>> = None;
+
+// Ellipsis marks omission; None remains an explicitly supplied value.
 pub(crate) fn supplied<'a, 'py>(
     value: &'a Bound<'py, PyAny>,
 ) -> PyResult<Option<&'a Bound<'py, PyAny>>> {
-    Ok(Some(value))
+    Ok((!value.is_instance_of::<pyo3::types::PyEllipsis>()).then_some(value))
 }
 
 pub(crate) fn real(value: &Bound<'_, PyAny>) -> PyResult<f64> {

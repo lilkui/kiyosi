@@ -3,6 +3,7 @@
 from collections.abc import Iterable, Iterator
 from datetime import date, datetime
 from datetime import date as _Date
+from types import EllipsisType
 from typing import Literal, Never, Self, TypeAlias, overload
 
 from . import pricing as _pricing
@@ -41,6 +42,7 @@ def implied_coupon(
     context: PricingContext,
     observed_price: float,
     *,
+    quote_convention: EllipsisType = ...,
     lower_bound: float = ...,
     upper_bound: float = ...,
     price_tolerance: float = ...,
@@ -78,10 +80,10 @@ class AmericanOption:
     def replace(
         self,
         *,
-        option_type: Literal["call", "put"] = ...,
-        strike: float = ...,
-        effective_date: date = ...,
-        expiry_date: date = ...,
+        option_type: Literal["call", "put"] | EllipsisType = ...,
+        strike: float | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
     ) -> AmericanOption: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
@@ -105,11 +107,11 @@ class CashOrNothingOption:
     def replace(
         self,
         *,
-        option_type: Literal["call", "put"] = ...,
-        strike: float = ...,
-        payout: float = ...,
-        effective_date: date = ...,
-        expiry_date: date = ...,
+        option_type: Literal["call", "put"] | EllipsisType = ...,
+        strike: float | EllipsisType = ...,
+        payout: float | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
     ) -> CashOrNothingOption: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
@@ -134,10 +136,10 @@ class AssetOrNothingOption:
     def replace(
         self,
         *,
-        option_type: Literal["call", "put"] = ...,
-        strike: float = ...,
-        effective_date: date = ...,
-        expiry_date: date = ...,
+        option_type: Literal["call", "put"] | EllipsisType = ...,
+        strike: float | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
     ) -> AssetOrNothingOption: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
@@ -186,9 +188,9 @@ class BlackScholesMertonParameters:
     def replace(
         self,
         *,
-        risk_free_rate: float | RateTermStructure = ...,
-        dividend_yield: float | RateTermStructure = ...,
-        volatility: float = ...,
+        risk_free_rate: float | RateTermStructure | EllipsisType = ...,
+        dividend_yield: float | RateTermStructure | EllipsisType = ...,
+        volatility: float | EllipsisType = ...,
     ) -> BlackScholesMertonParameters: ...
     @property
     def risk_free_rate(self) -> float | RateTermStructure: ...
@@ -258,10 +260,10 @@ class PricingContext:
     def replace(
         self,
         *,
-        model_parameters: BlackScholesMertonParameters = ...,
-        spot_price: float = ...,
-        valuation_time: date | datetime = ...,
-        calendar: TradingCalendar = ...,
+        model_parameters: BlackScholesMertonParameters | EllipsisType = ...,
+        spot_price: float | EllipsisType = ...,
+        valuation_time: date | datetime | EllipsisType = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
     ) -> PricingContext: ...
     @property
     def model_parameters(self) -> BlackScholesMertonParameters: ...
@@ -680,26 +682,13 @@ class MonteCarloVanillaEngine:
     def price_with_statistics(
         self, instrument: EuropeanOption, context: PricingContext
     ) -> MonteCarloEstimate: ...
-    @overload
     def price_with_greeks(
         self,
-        instrument: EuropeanOption,
+        instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float = ...,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
-    ) -> PricingResult: ...
-    @overload
-    def price_with_greeks(
-        self,
-        instrument: AmericanOption,
-        context: PricingContext,
-        greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: float | None = ...,
+        spot_shift: float | None = None,
         volatility_shift: float = ...,
         rate_shift: float = ...,
         time_shift_days: int = ...,
@@ -1172,7 +1161,7 @@ class GeometricAveragePriceOption:
         expiry_date: date,
         realized_average: float = ...,
     ) -> None: ...
-    def replace(self, *, realized_average: float = ...) -> Self: ...
+    def replace(self, *, realized_average: float | EllipsisType = ...) -> Self: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
     @property
@@ -1214,7 +1203,7 @@ class ArithmeticAveragePriceOption:
         expiry_date: date,
         realized_average: float = ...,
     ) -> None: ...
-    def replace(self, *, realized_average: float = ...) -> Self: ...
+    def replace(self, *, realized_average: float | EllipsisType = ...) -> Self: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
     @property
@@ -1262,7 +1251,9 @@ class BarrierOption:
         touch_state: Literal["untouched", "touched"] | None = None,
     ) -> None: ...
     def replace(
-        self, *, touch_state: Literal["untouched", "touched"] | None = ...
+        self,
+        *,
+        touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
     ) -> Self: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
@@ -1326,7 +1317,9 @@ class DoubleBarrierOption:
         touch_state: Literal["untouched", "touched"] | None = None,
     ) -> None: ...
     def replace(
-        self, *, touch_state: Literal["untouched", "touched"] | None = ...
+        self,
+        *,
+        touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
     ) -> Self: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
@@ -1369,7 +1362,9 @@ class RangeAccrualOption:
         expiry_date: date,
         realized_hit_count: int | None = ...,
     ) -> None: ...
-    def replace(self, *, realized_hit_count: int | None = ...) -> Self: ...
+    def replace(
+        self, *, realized_hit_count: int | None | EllipsisType = ...
+    ) -> Self: ...
     @property
     def notional(self) -> float: ...
     @property
@@ -1421,7 +1416,9 @@ class AnalyticDoubleBarrierEngine:
 
 class BinaryBarrierOption:
     def replace(
-        self, *, touch_state: Literal["untouched", "touched"] | None = ...
+        self,
+        *,
+        touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
     ) -> Self: ...
     @property
     def effective_date(self) -> date: ...
@@ -1454,7 +1451,9 @@ class BinaryBarrierOption:
 
 class TouchOption:
     def replace(
-        self, *, touch_state: Literal["untouched", "touched"] | None = ...
+        self,
+        *,
+        touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
     ) -> Self: ...
     @property
     def effective_date(self) -> date: ...
@@ -1555,7 +1554,9 @@ class AnalyticBinaryBarrierEngine:
 
 class DoubleTouchOption:
     def replace(
-        self, *, touch_state: Literal["untouched", "touched"] | None = ...
+        self,
+        *,
+        touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
     ) -> Self: ...
     @property
     def effective_date(self) -> date: ...
