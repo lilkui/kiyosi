@@ -22,7 +22,12 @@ class PackageTests(unittest.TestCase):
                     parameter_doc = factory.__doc__.split("time_step_count :", 1)[1]
                     parameter_doc = parameter_doc.split("scheme :", 1)[0]
                     self.assertIn(
-                        f"default {factory().time_step_count};", parameter_doc
+                        f"Read `{name}().time_step_count` for the engine's default.",
+                        parameter_doc,
+                    )
+                    self.assertEqual(
+                        factory().time_step_count,
+                        2000 if name == "FiniteDifferenceAutocallableEngine" else 200,
                     )
 
     def test_replacements_expose_declared_keyword_fields(self):
