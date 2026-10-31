@@ -68,6 +68,38 @@ class AnalyticsTests(unittest.TestCase):
             with self.subTest(request=request), self.assertRaises(ValueError):
                 self.engine.price_with_greeks(self.option, self.context, request)
 
+    def test_greek_iterables_deduplicate_and_validate_through_exhaustion(self):
+        names = get_args(Greek)
+        expected = self.engine.price_with_greeks(self.option, self.context, "all")
+
+        def repeated_names():
+            for _ in range(10_000):
+                yield from names
+
+        actual = self.engine.price_with_greeks(
+            self.option, self.context, repeated_names()
+        )
+        self.assertEqual(actual.price, expected.price)
+        for name in names:
+            self.assertEqual(actual.require(name), expected.require(name))
+
+        def invalid_tail(value):
+            yield from repeated_names()
+            yield value
+
+        for invalid, exception in (("unknown", ValueError), (True, TypeError)):
+            with self.subTest(invalid=invalid), self.assertRaises(exception):
+                self.engine.price_with_greeks(
+                    self.option, self.context, invalid_tail(invalid)
+                )
+
+        def failing_iterator():
+            yield from repeated_names()
+            raise RuntimeError("selection iterator failed")
+
+        with self.assertRaisesRegex(RuntimeError, "selection iterator failed"):
+            self.engine.price_with_greeks(self.option, self.context, failing_iterator())
+
     def test_live_quantlib_greeks_scalar_differences_and_recovery(self):
         oracle = importlib.import_module("quantlib_reference.oracle")
         differences = importlib.import_module("price_differences").price_differences
