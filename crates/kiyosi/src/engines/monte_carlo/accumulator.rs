@@ -1,7 +1,7 @@
 use super::{Moments, estimate, path_samples, scaled_value, unstable};
 use crate::{
-    Accumulator, Error, GreeksRequest, MonteCarloEstimate, MonteCarloSettings,
-    NumericalShiftSettings, PricingContext, PricingEngine, PricingResult, Result,
+    Accumulator, GreeksRequest, MonteCarloEstimate, MonteCarloSettings, NumericalShiftSettings,
+    PricingContext, PricingEngine, PricingResult, Result,
 };
 
 /// Prices accumulators with exact lognormal transitions between trading dates.
@@ -90,13 +90,13 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat rates ([`Error::UnsupportedOperation`]), inclusive life
-    /// ([`Error::InvalidInput`]), then trading expiry
-    /// ([`Error::InvalidInput`]), including for fixed settlements.
-    /// Sobol dimensions above 21,201 return [`Error::InvalidInput`].
+    /// Checks flat rates ([`crate::Error::UnsupportedOperation`]), inclusive life
+    /// ([`crate::Error::InvalidInput`]), then trading expiry
+    /// ([`crate::Error::InvalidInput`]), including for fixed settlements.
+    /// Sobol dimensions above 21,201 return [`crate::Error::InvalidInput`].
     /// Non-finite paths, quantities, settlements or uncertainty return
-    /// [`Error::ComputationFailure`]. Entropy and thread failures retain native
-    /// I/O details through [`Error::Io`]. Inputs remain unchanged.
+    /// [`crate::Error::ComputationFailure`]. Entropy and thread failures retain native
+    /// I/O details through [`crate::Error::Io`]. Inputs remain unchanged.
     ///
     /// # Panics
     ///
@@ -122,16 +122,7 @@ impl MonteCarloAccumulatorEngine {
         let model = context.model_parameters();
         let rate = model.risk_free_rate()?;
         let dividend = model.dividend_yield()?;
-        if context.valuation_time() < option.effective_date().start_of_day()
-            || context.valuation_time() > option.expiry_date().start_of_day()
-        {
-            return Err(Error::InvalidInput(
-                "valuation must be within contract life".into(),
-            ));
-        }
-        if !context.calendar().is_trading_day(option.expiry_date()) {
-            return Err(Error::InvalidInput("expiry must be a trading day".into()));
-        }
+        option.validate_pricing(context)?;
         let (quantity, settlement) = option.initial(context);
         if let Some(value) = settlement {
             if !value.is_finite() {
@@ -147,24 +138,17 @@ impl MonteCarloAccumulatorEngine {
         let valuation = context.valuation_time();
         let sigma = model.volatility();
         let mut previous = valuation;
-        let mut date = context.valuation_date();
         let mut steps = Vec::new();
-        loop {
-            if date.start_of_day() > valuation && context.calendar().is_trading_day(date) {
-                let time = previous.years_until(date.into());
-                let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
-                let diffusion = sigma * time.sqrt();
-                let log_discount = -rate * valuation.years_until(date.into());
-                if !drift.is_finite() || !diffusion.is_finite() || !log_discount.is_finite() {
-                    return Err(unstable());
-                }
-                steps.push((drift, diffusion, log_discount));
-                previous = date.into();
+        for date in option.future_observation_dates(context)? {
+            let time = previous.years_until(date.into());
+            let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
+            let diffusion = sigma * time.sqrt();
+            let log_discount = -rate * valuation.years_until(date.into());
+            if !drift.is_finite() || !diffusion.is_finite() || !log_discount.is_finite() {
+                return Err(unstable());
             }
-            if date == option.expiry_date() {
-                break;
-            }
-            date = date.add_days(1)?;
+            steps.push((drift, diffusion, log_discount));
+            previous = date.into();
         }
         let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
         let ([moments], [pairs]) = path_samples(self.settings, steps.len(), |normals| {

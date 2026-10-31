@@ -94,14 +94,6 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
     }
 }
 
-fn validate(option: &Accumulator, context: &PricingContext) -> Result<()> {
-    time_to_expiry(option, context)?;
-    if !context.calendar().is_trading_day(option.expiry_date()) {
-        return Err(Error::InvalidInput("expiry must be a trading day".into()));
-    }
-    Ok(())
-}
-
 fn default_upper(
     option: &Accumulator,
     context: &PricingContext,
@@ -129,7 +121,7 @@ fn native(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<(PricingResult, Option<f64>)> {
-    validate(option, context)?;
+    option.validate_pricing(context)?;
     let (quantity, settlement) = option.initial(context);
     if let Some(value) = settlement {
         return Ok((PricingResult::new(value)?, None));
@@ -153,18 +145,11 @@ fn native(
             .max(option.strike())
             .max(option.knock_out_level()),
     )?;
-    let mut trading = Vec::new();
-    let mut date = context.valuation_date();
-    loop {
-        if date.start_of_day() > context.valuation_time() && context.calendar().is_trading_day(date)
-        {
-            trading.push(context.valuation_time().years_until(date.into()));
-        }
-        if date == option.expiry_date() {
-            break;
-        }
-        date = date.add_days(1)?;
-    }
+    let trading: Vec<_> = option
+        .future_observation_dates(context)?
+        .into_iter()
+        .map(|date| context.valuation_time().years_until(date.into()))
+        .collect();
     let grid = TimeGrid::with_events(time, settings.time_step_count, &risk, &dividend, &trading);
     let theta = settings.scheme.theta();
     grid.validate_stability(&space, sigma, theta, true, &risk, &dividend)?;

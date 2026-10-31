@@ -2,7 +2,7 @@ use super::gaussian::{
     CubicInterpolation, Polynomial, Sum, TerminalPiece, Transition, integrate_curve,
     integrate_terminal, integration_nodes, scaled,
 };
-use super::{QuadratureSettings, flat_rates, time_to_expiry};
+use super::{QuadratureSettings, flat_rates};
 use crate::engines::analytic::barrier::log_ratio;
 use crate::{
     Accumulator, BlackScholesMertonParameters, Date, Error, GreeksRequest, NumericalShiftSettings,
@@ -190,26 +190,15 @@ fn price(
     prepared: &mut Option<PreparedCurve>,
 ) -> Result<f64> {
     let (rate, dividend) = flat_rates(context)?;
-    let horizon = time_to_expiry(option, context)?;
-    if !context.calendar().is_trading_day(option.expiry_date()) {
-        return Err(Error::InvalidInput("expiry must be a trading day".into()));
-    }
+    option.validate_pricing(context)?;
+    let horizon = context
+        .valuation_time()
+        .years_until(option.expiry_date().into());
     let (quantity, settlement) = option.initial(context);
     if let Some(value) = settlement {
         return checked(value);
     }
-    let mut dates = Vec::new();
-    let mut date = context.valuation_date();
-    loop {
-        if date.start_of_day() > context.valuation_time() && context.calendar().is_trading_day(date)
-        {
-            dates.push(date);
-        }
-        if date == option.expiry_date() {
-            break;
-        }
-        date = date.add_days(1)?;
-    }
+    let dates = option.future_observation_dates(context)?;
     if let Some(curve) = prepared.as_ref().filter(|c| {
         c.option == *option
             && c.model == *context.model_parameters()

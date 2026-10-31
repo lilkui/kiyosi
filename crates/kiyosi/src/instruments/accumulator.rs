@@ -134,6 +134,38 @@ impl Accumulator {
         self.terms.expiry_date
     }
 
+    pub(crate) fn validate_pricing(&self, context: &PricingContext) -> Result<()> {
+        let valuation = context.valuation_time();
+        if valuation < self.effective_date().start_of_day()
+            || valuation > self.expiry_date().start_of_day()
+        {
+            return Err(Error::InvalidInput(
+                "valuation must be within contract life".into(),
+            ));
+        }
+        if !context.calendar().is_trading_day(self.expiry_date()) {
+            return Err(Error::InvalidInput("expiry must be a trading day".into()));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn future_observation_dates(&self, context: &PricingContext) -> Result<Vec<Date>> {
+        let mut dates = Vec::new();
+        let mut date = context.valuation_date();
+        loop {
+            if date.start_of_day() > context.valuation_time()
+                && context.calendar().is_trading_day(date)
+            {
+                dates.push(date);
+            }
+            if date == self.expiry_date() {
+                break;
+            }
+            date = date.add_days(1)?;
+        }
+        Ok(dates)
+    }
+
     pub(crate) fn accrues(&self) -> bool {
         self.daily_quantity() != 0.0
             && (self.acceleration_factor() != 0.0 || self.knock_out_level() > self.strike())
