@@ -22,11 +22,89 @@ fn sampling(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::MonteCarloSampling> {
 }
 
 macro_rules! sampling_settings {
-    (@pricing $engine:ident, $instrument:ty,
-     [$($(#[$control_doc:meta])* $control:ident: $type:ty => $convert:ident),+ $(,)?],
-     $(#[$analysis_attr:meta])* settings = $settings:expr,
+    (@barrier $engine:ident, $instrument:ty) => {
+        sampling_settings!(
+            $engine,
+            [],
+            /// Return the price without changing the instrument or context.
+            ///
+            /// Parameters
+            /// ----------
+            /// instrument : object
+            ///     Supported contract; see the engine class for accepted types.
+            /// context : PricingContext
+            ///     Market snapshot and valuation instant.
+            ///
+            /// Returns
+            /// -------
+            /// float
+            ///     Present value of remaining contractual payments.
+            ///
+            /// Raises
+            /// ------
+            /// KiyosiError
+            ///     If domain validation, engine applicability or numerical pricing fails.
+            /// OSError
+            ///     If system entropy or worker creation fails.
+            fn price(
+                &self,
+                py: Python<'_>,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
+                context: &PricingContext,
+            ) -> PyResult<f64> {
+                let option = &instrument.0;
+                let engine = self.0;
+                let context = &context.0;
+                domain(py.detach(|| engine.price(option, context)))
+            },
+            /// Return the price and selected sensitivities.
+            ///
+            /// Parameters
+            /// ----------
+            /// instrument : object
+            ///     Supported contract; see the engine class for accepted types.
+            /// context : PricingContext
+            ///     Market snapshot and valuation instant.
+            /// greeks : str or iterable of str, optional
+            ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
+            /// all_greeks : bool, optional
+            ///     Request every measure; omit `greeks` when True. Defaults to False.
+            /// spot_shift : float, optional
+            ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+            ///
+            /// Returns
+            /// -------
+            /// PricingResult
+            ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
+            ///     including every Greek at expiry. Units follow PricingResult.
+            ///
+            /// Raises
+            /// ------
+            /// KiyosiError
+            ///     If requests, shifts, pricing or a feasible bumped valuation fails.
+            /// OSError
+            ///     If system entropy or worker creation fails.
+            #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift))]
+            fn price_with_greeks(
+                &self,
+                py: Python<'_>,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
+                context: &PricingContext,
+                greeks: Option<&Bound<'_, PyAny>>,
+                #[pyo3(from_py_with = boolean)] all_greeks: bool,
+                #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
+            ) -> PyResult<risk::PricingResult> {
+                let request = risk::greeks_request(greeks, all_greeks)?;
+                let option = &instrument.0;
+                let engine = self.0;
+                let context = &context.0;
+                Ok(risk::PricingResult(domain(py.detach(|| engine.price_with_greeks(option, context, request, spot_shift)))?))
+            }
+        );
+    };
+    (@structured $engine:ident, $instrument:ty,
      |$py:ident, $option:ident, $core:ident, $context:ident, $request:ident, $shifts:ident|
-     $price:expr, $analysis:expr $(, $statistics:expr)? $(,)?) => {
+     $price:expr, $analysis:expr, $statistics:expr) => {
         sampling_settings!(
             $engine,
             [],
@@ -74,7 +152,16 @@ macro_rules! sampling_settings {
             ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
             /// all_greeks : bool, optional
             ///     Request every measure; omit `greeks` when True. Defaults to False.
-            $($(#[$control_doc])*)+
+            /// spot_shift : float, optional
+            ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+            /// volatility_shift : float, optional
+            ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+            /// rate_shift : float, optional
+            ///     Positive finite parallel risk-free-rate bump in decimal units;
+            ///     defaults to 0.0001.
+            /// time_shift_days : int, optional
+            ///     Positive forward/backward time bump in calendar days; defaults to 1.
+            ///     All bumps are validated even when analytic Greeks are available.
             ///
             /// Returns
             /// -------
@@ -88,8 +175,8 @@ macro_rules! sampling_settings {
             ///     If requests, shifts, pricing or a feasible bumped valuation fails.
             /// OSError
             ///     If system entropy or worker creation fails.
-            #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, $($control=kiyosi::NumericalShiftSettings::default().$control),+))]
-            $(#[$analysis_attr])*
+            #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
+            #[expect(clippy::too_many_arguments, reason = "explicit Python pricing controls")]
             fn price_with_greeks(
                 &self,
                 py: Python<'_>,
@@ -97,50 +184,51 @@ macro_rules! sampling_settings {
                 context: &PricingContext,
                 greeks: Option<&Bound<'_, PyAny>>,
                 #[pyo3(from_py_with = boolean)] all_greeks: bool,
-                $(#[pyo3(from_py_with = crate::conversions::$convert)] $control: $type),+
+                #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
+                #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
+                #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
+                #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
             ) -> PyResult<risk::PricingResult> {
                 let $py = py;
                 let $request = risk::greeks_request(greeks, all_greeks)?;
-                let $shifts = $settings;
+                let $shifts = kiyosi::NumericalShiftSettings { spot_shift, volatility_shift, rate_shift, time_shift_days };
                 let $option = instrument;
                 let $core = self.0;
                 let $context = &context.0;
                 Ok(risk::PricingResult(domain($analysis)?))
+            },
+            /// Return the price and estimated sampling uncertainty.
+            ///
+            /// Parameters
+            /// ----------
+            /// instrument : object
+            ///     Supported contract; see the engine class for accepted types.
+            /// context : PricingContext
+            ///     Market snapshot and valuation instant.
+            ///
+            /// Returns
+            /// -------
+            /// MonteCarloEstimate
+            ///     Mean, optional standard error and asymptotic 95% confidence interval.
+            ///
+            /// Raises
+            /// ------
+            /// KiyosiError
+            ///     If domain validation or numerical pricing fails.
+            /// OSError
+            ///     If system entropy or worker creation fails.
+            fn price_with_statistics(
+                &self,
+                py: Python<'_>,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
+                context: &PricingContext,
+            ) -> PyResult<MonteCarloEstimate> {
+                let $py = py;
+                let $option = instrument;
+                let $core = self.0;
+                let $context = &context.0;
+                Ok(MonteCarloEstimate(domain($statistics)?))
             }
-            $(,
-                /// Return the price and estimated sampling uncertainty.
-                ///
-                /// Parameters
-                /// ----------
-                /// instrument : object
-                ///     Supported contract; see the engine class for accepted types.
-                /// context : PricingContext
-                ///     Market snapshot and valuation instant.
-                ///
-                /// Returns
-                /// -------
-                /// MonteCarloEstimate
-                ///     Mean, optional standard error and asymptotic 95% confidence interval.
-                ///
-                /// Raises
-                /// ------
-                /// KiyosiError
-                ///     If domain validation or numerical pricing fails.
-                /// OSError
-                ///     If system entropy or worker creation fails.
-                fn price_with_statistics(
-                    &self,
-                    py: Python<'_>,
-                    #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
-                    context: &PricingContext,
-                ) -> PyResult<MonteCarloEstimate> {
-                    let $py = py;
-                    let $option = instrument;
-                    let $core = self.0;
-                    let $context = &context.0;
-                    Ok(MonteCarloEstimate(domain($statistics)?))
-                }
-            )?
         );
     };
     ($engine:ident, [$($step:ident)?], $($methods:item),* $(,)?) => {
@@ -748,25 +836,7 @@ sampling_settings!(
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloBarrierEngine(pub(crate) kiyosi::MonteCarloBarrierEngine);
 
-sampling_settings!(
-    @pricing MonteCarloBarrierEngine,
-    PyRef<'_, barrier::BarrierOption>,
-    [
-        /// spot_shift : float, optional
-        ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
-        spot_shift: f64 => real,
-    ],
-    settings = spot_shift,
-    |py, option, engine, context, request, shifts|
-    {
-        let option = &option.0;
-        py.detach(|| engine.price(option, context))
-    },
-    {
-        let option = &option.0;
-        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-    }
-);
+sampling_settings!(@barrier MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierOption>);
 
 /// Flat-rate CPU Monte Carlo pricing for double-barrier vanilla options.
 ///
@@ -805,25 +875,7 @@ sampling_settings!(
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloDoubleBarrierEngine(pub(crate) kiyosi::MonteCarloDoubleBarrierEngine);
 
-sampling_settings!(
-    @pricing MonteCarloDoubleBarrierEngine,
-    PyRef<'_, double_barrier::DoubleBarrierOption>,
-    [
-        /// spot_shift : float, optional
-        ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
-        spot_shift: f64 => real,
-    ],
-    settings = spot_shift,
-    |py, option, engine, context, request, shifts|
-    {
-        let option = &option.0;
-        py.detach(|| engine.price(option, context))
-    },
-    {
-        let option = &option.0;
-        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-    }
-);
+sampling_settings!(@barrier MonteCarloDoubleBarrierEngine, PyRef<'_, double_barrier::DoubleBarrierOption>);
 
 /// Flat-rate CPU Monte Carlo pricing for snowball and Phoenix notes.
 ///
@@ -866,28 +918,8 @@ sampling_settings!(
 pub(crate) struct MonteCarloAutocallableEngine(pub(crate) kiyosi::MonteCarloAutocallableEngine);
 
 sampling_settings!(
-    @pricing MonteCarloAutocallableEngine,
+    @structured MonteCarloAutocallableEngine,
     Bound<'_, PyAny>,
-    [
-        /// spot_shift : float, optional
-        ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
-        spot_shift: f64 => real,
-        /// volatility_shift : float, optional
-        ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
-        volatility_shift: f64 => real,
-        /// rate_shift : float, optional
-        ///     Positive finite parallel risk-free-rate bump in decimal units;
-        ///     defaults to 0.0001.
-        rate_shift: f64 => real,
-        /// time_shift_days : int, optional
-        ///     Positive forward/backward time bump in calendar days; defaults to 1.
-        ///     All bumps are validated even when analytic Greeks are available.
-        time_shift_days: i32 => integer,
-    ],
-    #[expect(clippy::too_many_arguments, reason = "explicit Python pricing controls")]
-    settings = kiyosi::NumericalShiftSettings {
-        spot_shift, volatility_shift, rate_shift, time_shift_days,
-    },
     |py, option, engine, context, request, shifts|
     {
         autocallable::with_note!(&option, option, py.detach(|| engine.price(option, context)))
@@ -938,28 +970,8 @@ sampling_settings!(
 pub(crate) struct MonteCarloAccumulatorEngine(pub(crate) kiyosi::MonteCarloAccumulatorEngine);
 
 sampling_settings!(
-    @pricing MonteCarloAccumulatorEngine,
+    @structured MonteCarloAccumulatorEngine,
     PyRef<'_, accumulator::Accumulator>,
-    [
-        /// spot_shift : float, optional
-        ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
-        spot_shift: f64 => real,
-        /// volatility_shift : float, optional
-        ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
-        volatility_shift: f64 => real,
-        /// rate_shift : float, optional
-        ///     Positive finite parallel risk-free-rate bump in decimal units;
-        ///     defaults to 0.0001.
-        rate_shift: f64 => real,
-        /// time_shift_days : int, optional
-        ///     Positive forward/backward time bump in calendar days; defaults to 1.
-        ///     All bumps are validated even when analytic Greeks are available.
-        time_shift_days: i32 => integer,
-    ],
-    #[expect(clippy::too_many_arguments, reason = "explicit Python pricing controls")]
-    settings = kiyosi::NumericalShiftSettings {
-        spot_shift, volatility_shift, rate_shift, time_shift_days,
-    },
     |py, option, engine, context, request, shifts|
     {
         let option = &option.0;
