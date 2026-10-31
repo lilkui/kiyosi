@@ -76,7 +76,7 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        let (sample, _, _) = self.sample(option, context)?;
+        let (sample, _, _) = self.sample(option, context, false)?;
         scaled_value(sample.scale, sample.mean, 0.0)
     }
 
@@ -108,7 +108,7 @@ impl MonteCarloAccumulatorEngine {
         option: &Accumulator,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        let (sample, pairs, known) = self.sample(option, context)?;
+        let (sample, pairs, known) = self.sample(option, context, true)?;
         estimate(self.settings, sample, pairs, 0.0, known)
     }
 
@@ -116,6 +116,7 @@ impl MonteCarloAccumulatorEngine {
         &self,
         option: &Accumulator,
         context: &PricingContext,
+        statistics: bool,
     ) -> Result<(Moments, Moments, bool)> {
         let model = context.model_parameters();
         let rate = model.risk_free_rate()?;
@@ -127,7 +128,7 @@ impl MonteCarloAccumulatorEngine {
                 return Err(unstable());
             }
             let mut moments = Moments::default();
-            moments.add(value);
+            moments.add(value, false);
             return Ok((moments, moments, true));
         }
         if !quantity.is_finite() {
@@ -149,32 +150,33 @@ impl MonteCarloAccumulatorEngine {
             previous = date.into();
         }
         let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
-        let ([moments], [pairs]) = path_samples(self.settings, steps.len(), |normals| {
-            let mut spot = context.spot_price();
-            let mut quantity = quantity;
-            for ((drift, diffusion, log_discount), normal) in steps.iter().zip(normals) {
-                spot *= diffusion.mul_add(*normal, *drift).exp();
-                if !spot.is_finite() || spot <= 0.0 {
-                    return Err(unstable());
+        let ([moments], [pairs]) =
+            path_samples(self.settings, steps.len(), statistics, |normals| {
+                let mut spot = context.spot_price();
+                let mut quantity = quantity;
+                for ((drift, diffusion, log_discount), normal) in steps.iter().zip(normals) {
+                    spot *= diffusion.mul_add(*normal, *drift).exp();
+                    if !spot.is_finite() || spot <= 0.0 {
+                        return Err(unstable());
+                    }
+                    if spot >= option.knock_out_level() {
+                        return Ok([scaled_value(
+                            quantity,
+                            spot - option.strike(),
+                            *log_discount,
+                        )?]);
+                    }
+                    quantity += option.purchase(spot);
+                    if !quantity.is_finite() {
+                        return Err(unstable());
+                    }
                 }
-                if spot >= option.knock_out_level() {
-                    return Ok([scaled_value(
-                        quantity,
-                        spot - option.strike(),
-                        *log_discount,
-                    )?]);
-                }
-                quantity += option.purchase(spot);
-                if !quantity.is_finite() {
-                    return Err(unstable());
-                }
-            }
-            Ok([scaled_value(
-                quantity,
-                spot - option.strike(),
-                terminal_log_discount,
-            )?])
-        })?;
+                Ok([scaled_value(
+                    quantity,
+                    spot - option.strike(),
+                    terminal_log_discount,
+                )?])
+            })?;
         Ok((moments, pairs, false))
     }
 

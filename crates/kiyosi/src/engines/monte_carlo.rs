@@ -137,6 +137,72 @@ mod tests {
         assert_eq!(seeded.with_resolved_seed().unwrap(), seeded);
         assert_eq!(settings.seed, None);
     }
+
+    #[test]
+    fn moments_collect_variance_only_when_requested() {
+        for variance in [false, true] {
+            let mut sample = Moments::default();
+            for value in [-2.0, 4.0, 8.0] {
+                sample.add(value, variance);
+            }
+            let mut merged = Moments::default();
+            for value in [-2.0, 4.0, 8.0] {
+                let mut part = Moments::default();
+                part.add(value, variance);
+                merged.merge(part, variance);
+            }
+            for result in [sample, merged] {
+                assert_eq!(result.count, 3);
+                assert_eq!(result.scale, 8.0);
+                assert!((result.mean - 5.0 / 12.0).abs() < 1e-15);
+                let expected = if variance { 19.0 / 24.0 } else { 0.0 };
+                assert!((result.m2 - expected).abs() < 1e-15);
+            }
+        }
+    }
+
+    #[test]
+    fn statistics_mode_preserves_samples_and_mean_reductions() {
+        for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+            for path_count in [1, 2, 256, 257, 512] {
+                if sampling == MonteCarloSampling::Sobol && path_count == 257 {
+                    continue;
+                }
+                for antithetic in [false, true] {
+                    for thread_count in [1, 2] {
+                        let settings = MonteCarloSettings {
+                            path_count,
+                            seed: Some(42),
+                            thread_count,
+                            sampling,
+                            antithetic,
+                        };
+                        let payoff = |normals: &[f64]| Ok([normals[0], normals[1] * 1e150]);
+                        let (means, unused_pairs) =
+                            path_samples(settings, 2, false, payoff).unwrap();
+                        let (samples, pairs) = path_samples(settings, 2, true, payoff).unwrap();
+                        for i in 0..2 {
+                            assert_eq!(means[i].count, path_count as usize);
+                            assert_eq!(means[i].scale.to_bits(), samples[i].scale.to_bits());
+                            assert_eq!(means[i].mean.to_bits(), samples[i].mean.to_bits());
+                            assert_eq!(means[i].m2, 0.0);
+                            assert_eq!(unused_pairs[i].count, 0);
+                            let statistics = sampling == MonteCarloSampling::PseudoRandom
+                                && (!antithetic || path_count % 2 == 0);
+                            if statistics && antithetic {
+                                assert_eq!(pairs[i].count, path_count as usize / 2);
+                            } else {
+                                assert_eq!(pairs[i].count, 0);
+                            }
+                            if !statistics || antithetic {
+                                assert_eq!(samples[i].m2, 0.0);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Prices European and American vanilla contracts with flat-rate CPU sampling.
@@ -387,7 +453,7 @@ impl MonteCarloVanillaEngine {
         option: &EuropeanOption,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        let (sample, pairs, log_discount) = self.sample(option, context)?;
+        let (sample, pairs, log_discount) = self.sample(option, context, true)?;
         estimate(
             self.settings,
             sample,
@@ -401,6 +467,7 @@ impl MonteCarloVanillaEngine {
         &self,
         option: &EuropeanOption,
         context: &PricingContext,
+        statistics: bool,
     ) -> Result<(Moments, Moments, f64)> {
         let model = context.model_parameters();
         let rate = model.risk_free_rate()?;
@@ -420,7 +487,10 @@ impl MonteCarloVanillaEngine {
         let time = valuation.years_until(expiry);
         if time == 0.0 {
             let mut sample = Moments::default();
-            sample.add((sign * (context.spot_price() - option.strike())).max(0.0));
+            sample.add(
+                (sign * (context.spot_price() - option.strike())).max(0.0),
+                false,
+            );
             return Ok((sample, Moments::default(), 0.0));
         }
         let sigma = model.volatility();
@@ -430,7 +500,7 @@ impl MonteCarloVanillaEngine {
             return Err(unstable());
         }
         let moneyness = log_ratio(context.spot_price(), option.strike());
-        let (total, pairs) = terminal_samples(self.settings, |normal| {
+        let (total, pairs) = terminal_samples(self.settings, statistics, |normal| {
             let increment = diffusion.mul_add(normal, drift);
             let terminal = context.spot_price() * increment.exp();
             if !terminal.is_finite() || terminal <= 0.0 {
@@ -466,7 +536,7 @@ impl PricingEngine for MonteCarloVanillaEngine {
         })))
     }
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-        let (sample, _, log_discount) = self.sample(option, context)?;
+        let (sample, _, log_discount) = self.sample(option, context, false)?;
         scaled_value(sample.scale, sample.mean, log_discount)
     }
 }
@@ -510,9 +580,10 @@ fn estimate(
 
 fn terminal_samples<const N: usize>(
     settings: MonteCarloSettings,
+    statistics: bool,
     payoff: impl Fn(f64) -> Result<[f64; N]> + Sync,
 ) -> Result<([Moments; N], [Moments; N])> {
-    path_samples(settings, 1, |normals| payoff(normals[0]))
+    path_samples(settings, 1, statistics, |normals| payoff(normals[0]))
 }
 
 pub(crate) fn path_means<const N: usize>(
@@ -520,7 +591,7 @@ pub(crate) fn path_means<const N: usize>(
     dimensions: usize,
     payoff: impl Fn(&[f64]) -> Result<[f64; N]> + Sync,
 ) -> Result<[f64; N]> {
-    let (moments, _) = path_samples(settings, dimensions, payoff)?;
+    let (moments, _) = path_samples(settings, dimensions, false, payoff)?;
     let mut means = [0.0; N];
     for (mean, moment) in means.iter_mut().zip(moments) {
         *mean = scaled_value(moment.scale, moment.mean, 0.0)?;
@@ -531,6 +602,7 @@ pub(crate) fn path_means<const N: usize>(
 fn path_samples<const N: usize>(
     settings: MonteCarloSettings,
     dimensions: usize,
+    statistics: bool,
     payoff: impl Fn(&[f64]) -> Result<[f64; N]> + Sync,
 ) -> Result<([Moments; N], [Moments; N])> {
     let seed = settings.resolved_seed()?;
@@ -540,6 +612,10 @@ fn path_samples<const N: usize>(
     } else {
         paths
     };
+    let statistics = statistics
+        && settings.sampling == MonteCarloSampling::PseudoRandom
+        && (!settings.antithetic || paths % 2 == 0);
+    let variance = statistics && !settings.antithetic;
     let sobol = if settings.sampling == MonteCarloSampling::Sobol {
         Some(sobol::SobolSequence::new(dimensions, seed)?)
     } else {
@@ -568,7 +644,7 @@ fn path_samples<const N: usize>(
             }
             let positive = payoff(&normals)?;
             for i in 0..N {
-                moments[i].add(positive[i]);
+                moments[i].add(positive[i], variance);
             }
             if settings.antithetic && path < paths / 2 {
                 for normal in &mut normals {
@@ -576,8 +652,10 @@ fn path_samples<const N: usize>(
                 }
                 let negative = payoff(&normals)?;
                 for i in 0..N {
-                    moments[i].add(negative[i]);
-                    pairs[i].add(positive[i].midpoint(negative[i]));
+                    moments[i].add(negative[i], variance);
+                    if statistics {
+                        pairs[i].add(positive[i].midpoint(negative[i]), true);
+                    }
                 }
             }
         }
@@ -589,8 +667,10 @@ fn path_samples<const N: usize>(
     for partial in partials {
         let (payoffs, pair_means) = partial?;
         for i in 0..N {
-            total[i].merge(payoffs[i]);
-            pairs[i].merge(pair_means[i]);
+            total[i].merge(payoffs[i], variance);
+            if statistics && settings.antithetic {
+                pairs[i].merge(pair_means[i], true);
+            }
         }
     }
     Ok((total, pairs))
@@ -689,12 +769,14 @@ struct Moments {
 }
 
 impl Moments {
-    fn add(&mut self, value: f64) {
+    fn add(&mut self, value: f64, variance: bool) {
         // Normalize before accumulating so finite prices survive overflowing sums and squares.
         if value.abs() > self.scale {
             let ratio = self.scale / value.abs();
             self.mean *= ratio;
-            self.m2 *= ratio * ratio;
+            if variance {
+                self.m2 *= ratio * ratio;
+            }
             self.scale = value.abs();
         }
         self.count += 1;
@@ -705,10 +787,12 @@ impl Moments {
         };
         let delta = value - self.mean;
         self.mean += delta / self.count as f64;
-        self.m2 += delta * (value - self.mean);
+        if variance {
+            self.m2 += delta * (value - self.mean);
+        }
     }
 
-    fn merge(&mut self, other: Self) {
+    fn merge(&mut self, other: Self, variance: bool) {
         if self.count == 0 {
             *self = other;
             return;
@@ -727,9 +811,11 @@ impl Moments {
         let delta = other.mean * right - self.mean * left;
         let count = self.count + other.count;
         self.mean = self.mean * left + delta * (other.count as f64 / count as f64);
-        self.m2 = self.m2 * left * left
-            + other.m2 * right * right
-            + delta * delta * (self.count as f64 * (other.count as f64 / count as f64));
+        if variance {
+            self.m2 = self.m2 * left * left
+                + other.m2 * right * right
+                + delta * delta * (self.count as f64 * (other.count as f64 / count as f64));
+        }
         self.count = count;
         self.scale = scale;
     }

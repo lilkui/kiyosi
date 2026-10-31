@@ -187,7 +187,7 @@ impl MonteCarloVanillaEngine {
         }
         let mut mean = Moments::default();
         for cash in cash_flows {
-            mean.add(cash);
+            mean.add(cash, false);
         }
         Ok(scaled_value(mean.scale, mean.mean, -rate * dt)?.max(immediate))
     }

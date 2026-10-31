@@ -163,7 +163,7 @@ impl MonteCarloDigitalEngine {
         }
         let log_spot = spot.ln();
         let log_width = sigma.ln() + root.ln();
-        let (moments, _) = terminal_samples(self.settings, |normal| {
+        let (moments, _) = terminal_samples(self.settings, false, |normal| {
             // Standardization retains exercise when the terminal spot rounds to strike.
             let distance = d2 + normal;
             if !(if call { distance > 0.0 } else { distance < 0.0 }) {

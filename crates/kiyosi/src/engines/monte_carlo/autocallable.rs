@@ -85,7 +85,7 @@ impl MonteCarloAutocallableEngine {
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<f64> {
-        let (sample, _, _) = self.sample(option, context)?;
+        let (sample, _, _) = self.sample(option, context, false)?;
         scaled_value(sample.scale, sample.mean, 0.0)
     }
 
@@ -121,7 +121,7 @@ impl MonteCarloAutocallableEngine {
         note: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        let (sample, pairs, known) = self.sample(note, context)?;
+        let (sample, pairs, known) = self.sample(note, context, true)?;
         estimate(self.settings, sample, pairs, 0.0, known)
     }
 
@@ -129,6 +129,7 @@ impl MonteCarloAutocallableEngine {
         &self,
         note: &AutocallableNote<T>,
         context: &PricingContext,
+        statistics: bool,
     ) -> Result<(Moments, Moments, bool)> {
         let model = context.model_parameters();
         let rate = model.risk_free_rate()?;
@@ -142,7 +143,7 @@ impl MonteCarloAutocallableEngine {
                 return Err(unstable());
             }
             let mut moments = Moments::default();
-            moments.add(value);
+            moments.add(value, false);
             return Ok((moments, moments, true));
         }
         let terms = note.view();
@@ -171,45 +172,47 @@ impl MonteCarloAutocallableEngine {
             previous = date.into();
         }
         let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
-        let ([moments], [pairs]) = path_samples(self.settings, steps.len(), |normals| {
-            let mut spot = context.spot_price();
-            let mut knocked_in = state.knocked_in;
-            let mut coupons = state.coupon;
-            for ((drift, diffusion, log_discount, record), normal) in steps.iter().zip(normals) {
-                spot *= diffusion.mul_add(*normal, *drift).exp();
-                if !spot.is_finite() || spot <= 0.0 {
-                    return Err(unstable());
-                }
-                if daily {
-                    knocked_in |= terms.below_knock_in(spot);
-                }
-                if let Some(record) = record {
-                    let coupon = note.observation_coupon(record, spot);
-                    if spot >= record.knock_out_level {
-                        let value = coupons
-                            + scaled_value(
-                                1.0,
-                                note.knock_out_payment(record) + coupon,
-                                *log_discount,
-                            )?;
-                        return if value.is_finite() {
-                            Ok([value])
-                        } else {
-                            Err(unstable())
-                        };
+        let ([moments], [pairs]) =
+            path_samples(self.settings, steps.len(), statistics, |normals| {
+                let mut spot = context.spot_price();
+                let mut knocked_in = state.knocked_in;
+                let mut coupons = state.coupon;
+                for ((drift, diffusion, log_discount, record), normal) in steps.iter().zip(normals)
+                {
+                    spot *= diffusion.mul_add(*normal, *drift).exp();
+                    if !spot.is_finite() || spot <= 0.0 {
+                        return Err(unstable());
                     }
-                    coupons += scaled_value(1.0, coupon, *log_discount)?;
+                    if daily {
+                        knocked_in |= terms.below_knock_in(spot);
+                    }
+                    if let Some(record) = record {
+                        let coupon = note.observation_coupon(record, spot);
+                        if spot >= record.knock_out_level {
+                            let value = coupons
+                                + scaled_value(
+                                    1.0,
+                                    note.knock_out_payment(record) + coupon,
+                                    *log_discount,
+                                )?;
+                            return if value.is_finite() {
+                                Ok([value])
+                            } else {
+                                Err(unstable())
+                            };
+                        }
+                        coupons += scaled_value(1.0, coupon, *log_discount)?;
+                    }
                 }
-            }
-            knocked_in |= terms.below_knock_in(spot);
-            let value = coupons
-                + scaled_value(1.0, note.terminal(spot, knocked_in), terminal_log_discount)?;
-            if value.is_finite() {
-                Ok([value])
-            } else {
-                Err(unstable())
-            }
-        })?;
+                knocked_in |= terms.below_knock_in(spot);
+                let value = coupons
+                    + scaled_value(1.0, note.terminal(spot, knocked_in), terminal_log_discount)?;
+                if value.is_finite() {
+                    Ok([value])
+                } else {
+                    Err(unstable())
+                }
+            })?;
         Ok((moments, pairs, false))
     }
 
