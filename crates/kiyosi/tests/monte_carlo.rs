@@ -20,6 +20,25 @@ fn market() -> PricingContext {
 }
 
 #[test]
+fn prepared_vanilla_request_replays_prices_without_mutating_engine() {
+    let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
+        path_count: 256,
+        thread_count: 1,
+        ..Default::default()
+    })
+    .unwrap();
+    let prepared = <MonteCarloVanillaEngine as PricingEngine>::prepare_request(&engine)
+        .unwrap()
+        .unwrap();
+    let option = contract(OptionType::Call);
+    let context = market();
+    let price = prepared.price(&option, &context).unwrap();
+    assert_eq!(prepared.price(&option, &context).unwrap(), price);
+    assert!(prepared.prepare_request().unwrap().is_none());
+    assert_eq!(engine.settings().seed, None);
+}
+
+#[test]
 fn terminal_prices_match_analytic_references_and_ignore_validated_steps() {
     let defaults = MonteCarloVanillaEngine::default().settings();
     assert_eq!(defaults.path_count, 100_000);

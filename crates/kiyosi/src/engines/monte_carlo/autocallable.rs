@@ -1,5 +1,5 @@
 use super::{Moments, MonteCarloEstimate, MonteCarloSettings};
-use super::{estimate, path_samples, random_seed, scaled_value, unstable};
+use super::{estimate, path_samples, scaled_value, unstable};
 use crate::instruments::autocallable::pricing::{fixed_value, initial, validate};
 use crate::{
     AutocallableNote, AutocallableTerms, GreeksRequest, KnockInObservationMode,
@@ -282,7 +282,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
             return Ok(None);
         }
         let mut engine = *self;
-        engine.settings.seed = Some(random_seed()?);
+        engine.settings.seed = Some(self.settings.resolved_seed()?);
         Ok(Some(Box::new(engine)))
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {

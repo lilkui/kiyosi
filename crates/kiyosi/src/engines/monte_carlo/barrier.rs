@@ -1,4 +1,4 @@
-use super::{path_means, random_seed, scaled_value, unstable};
+use super::{path_means, scaled_value, unstable};
 use crate::engines::analytic::barrier::{
     hit_value, log_ratio, resolved_price, validate_life, validate_schedule,
 };
@@ -464,7 +464,7 @@ impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
         }
         Ok(Some(Box::new(Self {
             settings: MonteCarloSettings {
-                seed: Some(random_seed()?),
+                seed: Some(self.settings.resolved_seed()?),
                 ..self.settings
             },
         })))

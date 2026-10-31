@@ -1,4 +1,4 @@
-use super::{random_seed, scaled_value, terminal_samples, unstable};
+use super::{scaled_value, terminal_samples, unstable};
 use crate::{
     DigitalOption, Error, Greek, GreeksRequest, MonteCarloSettings, NumericalShiftSettings,
     OptionType, PricingContext, PricingEngine, PricingResult, Result,
@@ -220,7 +220,7 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         }
         Ok(Some(Box::new(Self {
             settings: MonteCarloSettings {
-                seed: Some(random_seed()?),
+                seed: Some(self.settings.resolved_seed()?),
                 ..self.settings
             },
         })))

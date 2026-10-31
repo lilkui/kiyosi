@@ -128,10 +128,7 @@ impl MonteCarloAsianEngine {
     fn seeded(&self) -> Result<Self> {
         Ok(Self {
             settings: MonteCarloSettings {
-                seed: Some(match self.settings.seed {
-                    Some(seed) => seed,
-                    None => crate::engines::monte_carlo::random_seed()?,
-                }),
+                seed: Some(self.settings.resolved_seed()?),
                 ..self.settings
             },
         })

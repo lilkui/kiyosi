@@ -1,5 +1,5 @@
 use super::barrier::Contract;
-use super::{random_seed, unstable};
+use super::unstable;
 use crate::{
     AnalyticDoubleBarrierEngine, DoubleBarrierOption, GreeksRequest, MonteCarloBarrierEngine,
     MonteCarloSettings, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
@@ -148,7 +148,7 @@ impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
             return Ok(None);
         }
         Ok(Some(Box::new(Self::new(MonteCarloSettings {
-            seed: Some(random_seed()?),
+            seed: Some(settings.resolved_seed()?),
             ..settings
         })?)))
     }

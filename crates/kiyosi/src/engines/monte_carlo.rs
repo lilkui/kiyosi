@@ -72,6 +72,15 @@ impl Default for MonteCarloSettings {
 }
 
 impl MonteCarloSettings {
+    fn resolved_seed(self) -> Result<u64> {
+        if let Some(seed) = self.seed {
+            return Ok(seed);
+        }
+        let mut bytes = [0; 8];
+        getrandom::fill(&mut bytes).map_err(|error| Error::Io(error.into()))?;
+        Ok(u64::from_ne_bytes(bytes))
+    }
+
     fn validate(self) -> Result<()> {
         if !(1..=10_000_000).contains(&self.path_count) || self.thread_count < 0 {
             return Err(Error::InvalidInput("invalid Monte Carlo settings".into()));
@@ -83,6 +92,22 @@ impl MonteCarloSettings {
             ));
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn configured_seeds_are_preserved() {
+        for seed in [0, 42, u64::MAX] {
+            let settings = MonteCarloSettings {
+                seed: Some(seed),
+                ..Default::default()
+            };
+            assert_eq!(settings.resolved_seed().unwrap(), seed);
+        }
     }
 }
 
@@ -361,7 +386,7 @@ impl PricingEngine for MonteCarloVanillaEngine {
         }
         Ok(Some(Box::new(Self {
             settings: MonteCarloSettings {
-                seed: Some(random_seed()?),
+                seed: Some(self.settings.resolved_seed()?),
                 ..self.settings
             },
         })))
@@ -443,10 +468,7 @@ fn path_samples<const N: usize>(
     dimensions: usize,
     payoff: impl Fn(&[f64]) -> Result<[f64; N]> + Sync,
 ) -> Result<([Moments; N], [Moments; N])> {
-    let seed = match settings.seed {
-        Some(seed) => seed,
-        None => random_seed()?,
-    };
+    let seed = settings.resolved_seed()?;
     let paths = settings.path_count as usize;
     let samples = if settings.antithetic {
         paths.div_ceil(2)
@@ -583,12 +605,6 @@ fn scaled_value(scale: f64, weight: f64, log_discount: f64) -> Result<f64> {
         return Err(unstable());
     }
     Ok(result)
-}
-
-pub(crate) fn random_seed() -> Result<u64> {
-    let mut bytes = [0; 8];
-    getrandom::fill(&mut bytes).map_err(|error| Error::Io(error.into()))?;
-    Ok(u64::from_ne_bytes(bytes))
 }
 
 #[derive(Clone, Copy, Default)]

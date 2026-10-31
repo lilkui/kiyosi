@@ -1,4 +1,4 @@
-use super::{Moments, estimate, path_samples, random_seed, scaled_value, unstable};
+use super::{Moments, estimate, path_samples, scaled_value, unstable};
 use crate::{
     Accumulator, Error, GreeksRequest, MonteCarloEstimate, MonteCarloSettings,
     NumericalShiftSettings, PricingContext, PricingEngine, PricingResult, Result,
@@ -241,7 +241,7 @@ impl PricingEngine<Accumulator> for MonteCarloAccumulatorEngine {
             return Ok(None);
         }
         let mut engine = *self;
-        engine.settings.seed = Some(random_seed()?);
+        engine.settings.seed = Some(self.settings.resolved_seed()?);
         Ok(Some(Box::new(engine)))
     }
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {

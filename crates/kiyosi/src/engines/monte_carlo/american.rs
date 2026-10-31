@@ -78,10 +78,7 @@ impl MonteCarloVanillaEngine {
         if !drift.is_finite() || !diffusion.is_finite() || !discount.is_finite() {
             return Err(unstable());
         }
-        let seed = match self.settings.seed {
-            Some(seed) => seed,
-            None => random_seed()?,
-        };
+        let seed = self.settings.resolved_seed()?;
         let paths = self.settings.path_count as usize;
         let samples = if self.settings.antithetic {
             paths.div_ceil(2)
@@ -221,7 +218,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         }
         Ok(Some(Box::new(Self {
             settings: MonteCarloSettings {
-                seed: Some(random_seed()?),
+                seed: Some(self.settings.resolved_seed()?),
                 ..self.settings
             },
         })))
@@ -243,10 +240,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         settings.validate()?;
         let engine = Self {
             settings: MonteCarloSettings {
-                seed: Some(match self.settings.seed {
-                    Some(seed) => seed,
-                    None => random_seed()?,
-                }),
+                seed: Some(self.settings.resolved_seed()?),
                 ..self.settings
             },
         };
