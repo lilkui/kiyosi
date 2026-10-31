@@ -106,12 +106,10 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for QuadratureAuto
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
-    fn prepare_request(
-        &self,
-    ) -> Result<Option<Box<dyn PricingEngine<AutocallableNote<T>> + Send + Sync + '_>>> {
+    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AutocallableNote<T>> + '_>>> {
         Ok(Some(Box::new(Request {
             settings: self.settings,
-            curve: std::sync::Mutex::new(None),
+            curve: std::cell::RefCell::new(None),
         })))
     }
     fn volatility_affects_price(
@@ -125,16 +123,14 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for QuadratureAuto
 }
 struct Request<T: AutocallableTerms> {
     settings: QuadratureSettings,
-    curve: std::sync::Mutex<Option<PreparedCurve<T>>>,
+    curve: std::cell::RefCell<Option<PreparedCurve<T>>>,
 }
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for Request<T> {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
-        let mut curve = self.curve.lock().map_err(|_| {
-            Error::ComputationFailure("quadrature request cache is poisoned".into())
-        })?;
+        let mut curve = self.curve.borrow_mut();
         price(option, context, self.settings, &mut curve)
     }
     fn volatility_affects_price(

@@ -275,9 +275,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
         context.model_parameters().dividend_yield()?;
         Ok(())
     }
-    fn prepare_request(
-        &self,
-    ) -> Result<Option<Box<dyn PricingEngine<AutocallableNote<T>> + Send + Sync + '_>>> {
+    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AutocallableNote<T>> + '_>>> {
         if self.settings.seed.is_some() {
             return Ok(None);
         }

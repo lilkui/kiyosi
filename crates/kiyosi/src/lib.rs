@@ -15,9 +15,13 @@
 //!
 //! # Concurrency and errors
 //!
-//! Built-in public types own their data and are `Send + Sync`. Distinct and shared
-//! instances support concurrent reads and pricing without synchronization.
+//! Built-in contracts, market data, engines and results own their data and are
+//! `Send + Sync`. Distinct and shared instances support concurrent reads and
+//! pricing without synchronization.
 //! Mutation requires exclusive Rust access; Python exposes immutable values.
+//! Handles returned by [`PricingEngine::prepare_request`] support sequential use
+//! within the calling thread and need not be `Send` or `Sync`. Concurrent requests
+//! prepare independent handles from the same engine.
 //! Custom calendar predicates must also uphold [`TradingCalendar`]'s determinism
 //! contract; panics in user predicates retain native Rust behavior.
 //! User-supplied [`PricingEngine`] implementations retain their own

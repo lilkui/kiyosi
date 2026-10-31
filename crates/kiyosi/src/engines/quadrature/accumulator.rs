@@ -88,12 +88,10 @@ impl PricingEngine<Accumulator> for QuadratureAccumulatorEngine {
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
-    fn prepare_request(
-        &self,
-    ) -> Result<Option<Box<dyn PricingEngine<Accumulator> + Send + Sync + '_>>> {
+    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<Accumulator> + '_>>> {
         Ok(Some(Box::new(Request {
             settings: self.settings,
-            curve: std::sync::Mutex::new(None),
+            curve: std::cell::RefCell::new(None),
         })))
     }
     fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
@@ -106,16 +104,14 @@ fn checked(value: f64) -> Result<f64> {
 
 struct Request {
     settings: QuadratureSettings,
-    curve: std::sync::Mutex<Option<PreparedCurve>>,
+    curve: std::cell::RefCell<Option<PreparedCurve>>,
 }
 impl PricingEngine<Accumulator> for Request {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        let mut curve = self.curve.lock().map_err(|_| {
-            Error::ComputationFailure("quadrature request cache is poisoned".into())
-        })?;
+        let mut curve = self.curve.borrow_mut();
         price(option, context, self.settings, &mut curve)
     }
     fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {

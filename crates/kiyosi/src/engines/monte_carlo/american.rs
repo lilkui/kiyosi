@@ -210,9 +210,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         <Self as PricingEngine<EuropeanOption>>::validate_applicability(self, context)
     }
 
-    fn prepare_request(
-        &self,
-    ) -> Result<Option<Box<dyn PricingEngine<AmericanOption> + Send + Sync + '_>>> {
+    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AmericanOption> + '_>>> {
         if self.settings.seed.is_some() {
             return Ok(None);
         }

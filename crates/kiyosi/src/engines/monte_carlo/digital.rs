@@ -212,9 +212,7 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         context.model_parameters().dividend_yield()?;
         Ok(())
     }
-    fn prepare_request(
-        &self,
-    ) -> Result<Option<Box<dyn PricingEngine<DigitalOption> + Send + Sync + '_>>> {
+    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<DigitalOption> + '_>>> {
         if self.settings.seed.is_some() {
             return Ok(None);
         }

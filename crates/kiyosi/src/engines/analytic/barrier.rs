@@ -76,7 +76,7 @@ pub(crate) fn checked_with_scale(value: f64, scale: f64) -> Result<f64> {
 fn price(
     option: &BarrierOption,
     context: &PricingContext,
-    schedule: Option<&std::sync::OnceLock<ScheduleValidation>>,
+    schedule: Option<&std::cell::OnceCell<ScheduleValidation>>,
 ) -> Result<f64> {
     context.model_parameters().risk_free_rate()?;
     context.model_parameters().dividend_yield()?;
@@ -174,10 +174,8 @@ impl PricingEngine<BarrierOption> for AnalyticBarrierEngine {
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
-    fn prepare_request(
-        &self,
-    ) -> Result<Option<Box<dyn PricingEngine<BarrierOption> + Send + Sync + '_>>> {
-        Ok(Some(Box::new(BarrierPricer(std::sync::OnceLock::new()))))
+    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<BarrierOption> + '_>>> {
+        Ok(Some(Box::new(BarrierPricer(std::cell::OnceCell::new()))))
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
         volatility_affects_price(option, context)
@@ -187,7 +185,7 @@ struct ScheduleValidation {
     schedule: ObservationSchedule,
     calendar: TradingCalendar,
 }
-struct BarrierPricer(std::sync::OnceLock<ScheduleValidation>);
+struct BarrierPricer(std::cell::OnceCell<ScheduleValidation>);
 impl PricingEngine<BarrierOption> for BarrierPricer {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         AnalyticBarrierEngine.validate_applicability(context)

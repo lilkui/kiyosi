@@ -16,14 +16,11 @@ fn market() -> (EuropeanOption, PricingContext) {
 
 #[test]
 fn numerical_greeks_validate_before_preparation_and_prepare_only_once() {
-    use std::sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    };
+    use std::{cell::Cell, rc::Rc};
 
     #[derive(Clone)]
     struct Engine {
-        preparations: Arc<AtomicUsize>,
+        preparations: Rc<Cell<usize>>,
         ready: bool,
         reject_prepared: bool,
     }
@@ -36,13 +33,13 @@ fn numerical_greeks_validate_before_preparation_and_prepare_only_once() {
             }
             Ok(())
         }
-        fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine + Send + Sync + '_>>> {
-            self.preparations.fetch_add(1, Ordering::Relaxed);
+        fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine + '_>>> {
+            self.preparations.set(self.preparations.get() + 1);
             Ok((!self.ready).then(|| {
                 Box::new(Self {
                     ready: true,
                     ..self.clone()
-                }) as Box<dyn PricingEngine + Send + Sync>
+                }) as Box<dyn PricingEngine>
             }))
         }
         fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
@@ -52,7 +49,7 @@ fn numerical_greeks_validate_before_preparation_and_prepare_only_once() {
     }
     let (option, context) = market();
     let engine = Engine {
-        preparations: Arc::new(AtomicUsize::new(0)),
+        preparations: Rc::new(Cell::new(0)),
         ready: false,
         reject_prepared: false,
     };
@@ -71,7 +68,7 @@ fn numerical_greeks_validate_before_preparation_and_prepare_only_once() {
             numerical_greeks(&engine, &option, &context, request, settings).unwrap_err(),
             Error::InvalidInput(_)
         ));
-        assert_eq!(engine.preparations.load(Ordering::Relaxed), 0);
+        assert_eq!(engine.preparations.get(), 0);
     }
     let expected = numerical_greeks(
         &AnalyticEuropeanEngine,
@@ -83,7 +80,7 @@ fn numerical_greeks_validate_before_preparation_and_prepare_only_once() {
     .unwrap();
     let actual = numerical_greeks(&engine, &option, &context, request, Default::default()).unwrap();
     assert_eq!(actual, expected);
-    assert_eq!(engine.preparations.load(Ordering::Relaxed), 1);
+    assert_eq!(engine.preparations.get(), 1);
     let unavailable = Engine {
         reject_prepared: true,
         ..engine

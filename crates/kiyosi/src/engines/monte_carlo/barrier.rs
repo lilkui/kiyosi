@@ -456,9 +456,7 @@ impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
         context.model_parameters().dividend_yield()?;
         Ok(())
     }
-    fn prepare_request(
-        &self,
-    ) -> Result<Option<Box<dyn PricingEngine<BarrierOption> + Send + Sync + '_>>> {
+    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<BarrierOption> + '_>>> {
         if self.settings.seed.is_some() {
             return Ok(None);
         }

@@ -222,11 +222,14 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// Returns `None` when this engine already evaluates one consistent price
     /// function, as deterministic engines do by default. A returned engine must
     /// itself return `None` here. See [`crate::MonteCarloVanillaEngine::price_with_greeks`].
+    /// Prepared handles support sequential use within the calling thread; they
+    /// need not implement [`Send`] or [`Sync`]. Independent requests prepare their
+    /// own handles, leaving the original engine's concurrency contract unchanged.
     ///
     /// # Errors
     ///
     /// Propagates operational failures while creating request-local state.
-    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<I> + Send + Sync + '_>>> {
+    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<I> + '_>>> {
         Ok(None)
     }
 

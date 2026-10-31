@@ -124,12 +124,10 @@ impl QuadratureBarrierEngine {
     }
 }
 impl PricingEngine<BarrierOption> for QuadratureBarrierEngine {
-    fn prepare_request(
-        &self,
-    ) -> Result<Option<Box<dyn PricingEngine<BarrierOption> + Send + Sync + '_>>> {
+    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<BarrierOption> + '_>>> {
         Ok(Some(Box::new(BarrierPricer {
             settings: self.settings,
-            prepared: std::sync::Mutex::new(None),
+            prepared: std::cell::RefCell::new(None),
         })))
     }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
@@ -164,16 +162,14 @@ fn price(
 
 struct BarrierPricer {
     settings: QuadratureSettings,
-    prepared: std::sync::Mutex<Option<PreparedCurve>>,
+    prepared: std::cell::RefCell<Option<PreparedCurve>>,
 }
 impl PricingEngine<BarrierOption> for BarrierPricer {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        let mut prepared = self.prepared.lock().map_err(|_| {
-            Error::ComputationFailure("quadrature request cache is poisoned".into())
-        })?;
+        let mut prepared = self.prepared.borrow_mut();
         price(option, context, self.settings, &mut prepared)
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {

@@ -140,9 +140,7 @@ impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         self.engine.validate_applicability(context)
     }
-    fn prepare_request(
-        &self,
-    ) -> Result<Option<Box<dyn PricingEngine<DoubleBarrierOption> + Send + Sync + '_>>> {
+    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<DoubleBarrierOption> + '_>>> {
         let settings = self.settings();
         if settings.seed.is_some() {
             return Ok(None);

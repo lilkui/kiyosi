@@ -373,8 +373,7 @@ fn result(means: [f64; 3], request: GreeksRequest) -> Result<PricingResult> {
 impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
     fn prepare_request(
         &self,
-    ) -> Result<Option<Box<dyn PricingEngine<GeometricAveragePriceOption> + Send + Sync + '_>>>
-    {
+    ) -> Result<Option<Box<dyn PricingEngine<GeometricAveragePriceOption> + '_>>> {
         Ok(if self.settings.seed.is_none() {
             Some(Box::new(self.seeded()?))
         } else {
@@ -401,8 +400,7 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
 impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
     fn prepare_request(
         &self,
-    ) -> Result<Option<Box<dyn PricingEngine<ArithmeticAveragePriceOption> + Send + Sync + '_>>>
-    {
+    ) -> Result<Option<Box<dyn PricingEngine<ArithmeticAveragePriceOption> + '_>>> {
         Ok(if self.settings.seed.is_none() {
             Some(Box::new(self.seeded()?))
         } else {

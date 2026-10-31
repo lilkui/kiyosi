@@ -234,9 +234,7 @@ impl PricingEngine<Accumulator> for MonteCarloAccumulatorEngine {
         context.model_parameters().dividend_yield()?;
         Ok(())
     }
-    fn prepare_request(
-        &self,
-    ) -> Result<Option<Box<dyn PricingEngine<Accumulator> + Send + Sync + '_>>> {
+    fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<Accumulator> + '_>>> {
         if self.settings.seed.is_some() {
             return Ok(None);
         }
