@@ -14,6 +14,17 @@ from kiyosi import _native, instruments, market, pricing
 
 
 class PackageTests(unittest.TestCase):
+    def test_finite_difference_docs_match_engine_time_step_defaults(self):
+        for name in pricing.__all__:
+            if name.startswith("FiniteDifference") and name.endswith("Engine"):
+                factory = getattr(pricing, name)
+                with self.subTest(engine=name):
+                    parameter_doc = factory.__doc__.split("time_step_count :", 1)[1]
+                    parameter_doc = parameter_doc.split("scheme :", 1)[0]
+                    self.assertIn(
+                        f"default {factory().time_step_count};", parameter_doc
+                    )
+
     def test_replacements_expose_declared_keyword_fields(self):
         stub = ast.parse((Path(kiyosi.__file__).parent / "_native.pyi").read_text())
         for node in stub.body:

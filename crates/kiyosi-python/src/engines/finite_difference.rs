@@ -23,7 +23,7 @@ fn scheme(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::FiniteDifferenceScheme> 
 }
 
 macro_rules! fd_engine {
-    ($name:ident, $instrument:ty, |$py:ident, $option:ident, $engine:ident, $context:ident, $request:ident, $shifts:ident| $price:expr, $analysis:expr) => {
+    ($name:ident, $instrument:ty, $time_step_default:literal, |$py:ident, $option:ident, $engine:ident, $context:ident, $request:ident, $shifts:ident| $price:expr, $analysis:expr) => {
         /// Finite-difference pricing with immutable grid settings.
         ///
         /// Parameters
@@ -31,7 +31,7 @@ macro_rules! fd_engine {
         /// asset_step_count : int, optional
         ///     Number of spatial steps, at least 3; defaults to 800.
         /// time_step_count : int, optional
-        ///     Positive time-step budget, default 200; event dates and curve knots
+        #[doc = concat!("    Positive time-step budget, default ", $time_step_default, "; event dates and curve knots")]
         ///     are added.
         /// scheme : FiniteDifferenceScheme, optional
         ///     Time-marching scheme; defaults to damped Crank-Nicolson.
@@ -193,6 +193,7 @@ macro_rules! fd_engine {
 fd_engine!(
     FiniteDifferenceAccumulatorEngine,
     PyRef<'_, accumulator::Accumulator>,
+    200,
     |py, option, engine, context, request, shifts| {
         let option = &option.0;
         py.detach(|| engine.price(option, context))
@@ -206,6 +207,7 @@ fd_engine!(
 fd_engine!(
     FiniteDifferenceVanillaEngine,
     binomial::VanillaInstrument<'_>,
+    200,
     |py, option, engine, context, request, shifts| {
         binomial::with_vanilla!(option, option, py.detach(|| engine.price(option, context)))
     },
@@ -220,6 +222,7 @@ fd_engine!(
 fd_engine!(
     FiniteDifferenceDigitalEngine,
     digital::DigitalInstrument<'_>,
+    200,
     |py, option, engine, context, request, shifts| {
         let option = option.contract();
         py.detach(|| engine.price(option, context))
@@ -233,6 +236,7 @@ fd_engine!(
 fd_engine!(
     FiniteDifferenceBarrierEngine,
     PyRef<'_, barrier::BarrierOption>,
+    200,
     |py, option, engine, context, request, shifts| {
         let option = &option.0;
         py.detach(|| engine.price(option, context))
@@ -246,6 +250,7 @@ fd_engine!(
 fd_engine!(
     FiniteDifferenceBinaryBarrierEngine,
     binary_barrier::BinaryInstrument<'_>,
+    200,
     |py, option, engine, context, request, shifts| {
         binary_barrier::with_binary!(option, option, py.detach(|| engine.price(option, context)))
     },
@@ -261,6 +266,7 @@ fd_engine!(
 fd_engine!(
     FiniteDifferenceDoubleBarrierEngine,
     PyRef<'_, double_barrier::DoubleBarrierOption>,
+    200,
     |py, option, engine, context, request, shifts| {
         let option = &option.0;
         py.detach(|| engine.price(option, context))
@@ -274,6 +280,7 @@ fd_engine!(
 fd_engine!(
     FiniteDifferenceDoubleTouchEngine,
     PyRef<'_, double_touch::DoubleTouchOption>,
+    200,
     |py, option, engine, context, request, shifts| {
         let option = &option.0;
         py.detach(|| engine.price(option, context))
@@ -287,6 +294,7 @@ fd_engine!(
 fd_engine!(
     FiniteDifferenceAutocallableEngine,
     Bound<'_, PyAny>,
+    2000,
     |py, option, engine, context, request, shifts| {
         autocallable::with_note!(&option, note, py.detach(|| engine.price(note, context)))
     },
