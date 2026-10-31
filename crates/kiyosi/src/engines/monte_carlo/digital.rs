@@ -8,7 +8,7 @@ use crate::{
 ///
 /// Uses flat BSM rates, standardized strict exercise tests and likelihood-ratio
 /// delta/gamma. Other engine Greeks remain absent; scalar numerical sensitivities
-/// are available through [`crate::numerical_greeks`]. Ignores `step_count`.
+/// are available through [`crate::numerical_greeks`].
 /// Sampling, exact path counts, thread caps and reproducibility follow
 /// [`crate::MonteCarloVanillaEngine`]. Shared and distinct instances permit concurrent
 /// calls; every call owns its samples and workers. See [`Self::price_with_greeks`].
@@ -21,8 +21,6 @@ impl MonteCarloDigitalEngine {
     /// Creates an engine with validated shared CPU sampling settings.
     ///
     /// See [`crate::MonteCarloVanillaEngine::new`] for sampling configuration examples.
-    ///
-    /// Ignores `step_count`; see [`MonteCarloSettings`].
     ///
     /// # Errors
     ///

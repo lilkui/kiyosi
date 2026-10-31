@@ -235,7 +235,7 @@ fn continuous_hit_rebates_keep_negative_rate_values_and_derivatives() {
 }
 
 #[test]
-fn steps_and_threads_do_not_change_samples_even_with_early_exit_and_pairing() {
+fn threads_do_not_change_samples_even_with_early_exit_and_pairing() {
     for scheduled in [false, true] {
         let mut t = terms(BarrierType::UpAndOut, OptionType::Put);
         t.rebate = 3.0;
@@ -254,11 +254,9 @@ fn steps_and_threads_do_not_change_samples_even_with_early_exit_and_pairing() {
                     thread_count: 1,
                     sampling,
                     antithetic,
-                    ..Default::default()
                 };
                 let serial = MonteCarloBarrierEngine::new(settings).unwrap();
                 let parallel = MonteCarloBarrierEngine::new(MonteCarloSettings {
-                    step_count: i32::MIN,
                     thread_count: 4,
                     ..settings
                 })

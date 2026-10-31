@@ -9,8 +9,8 @@ use crate::{
 /// Applies current midnight events before simulation, with inclusive knock-out
 /// before purchases and acceleration strictly below strike. Accrued units settle
 /// at knock-out or expiry. History follows [`Accumulator`]; zero prior quantity
-/// means none. Uses flat BSM rates and Actual/365 Fixed time; `step_count` is
-/// ignored. Draws complete normal vectors before evaluating paths,
+/// means none. Uses flat BSM rates and Actual/365 Fixed time.
+/// Draws complete normal vectors before evaluating paths,
 /// so early termination never shifts later draws. Sampling and thread
 /// reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
 /// instances permit concurrent calls with request-owned workers and buffers.
@@ -24,8 +24,6 @@ pub struct MonteCarloAccumulatorEngine {
 
 impl MonteCarloAccumulatorEngine {
     /// Creates an engine with validated CPU sampling settings.
-    ///
-    /// Ignores `step_count`; see [`MonteCarloSettings`].
     ///
     /// # Errors
     ///

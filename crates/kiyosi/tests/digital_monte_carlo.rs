@@ -67,7 +67,6 @@ fn terminal_prices_and_likelihood_greeks_match_analytic_and_share_draws() {
                     for thread_count in [0, 1, 4] {
                         let other = MonteCarloDigitalEngine::new(MonteCarloSettings {
                             thread_count,
-                            step_count: i32::MIN,
                             ..settings
                         })
                         .unwrap();

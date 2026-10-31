@@ -57,7 +57,7 @@ impl MonteCarloVanillaEngine {
         if time == 0.0 {
             return Ok(immediate);
         }
-        if self.settings.step_count < 3 {
+        if self.step_count < 3 {
             return Err(Error::InvalidInput(
                 "American Monte Carlo requires at least three grid points".into(),
             ));
@@ -69,7 +69,7 @@ impl MonteCarloVanillaEngine {
         {
             return Ok(self.price(option.vanilla(), context)?.max(immediate));
         }
-        let intervals = self.settings.step_count as usize - 1;
+        let intervals = self.step_count as usize - 1;
         let dt = time / intervals as f64;
         let sigma = model.volatility();
         let drift = (rate - dividend - 0.5 * sigma * sigma) * dt;
@@ -204,6 +204,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         }
         Ok(Some(Box::new(Self {
             settings: self.settings.with_resolved_seed()?,
+            ..*self
         })))
     }
 
@@ -223,6 +224,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         settings.validate()?;
         let engine = Self {
             settings: self.settings.with_resolved_seed()?,
+            ..*self
         };
         let native = |context: &PricingContext, requested: GreeksRequest| {
             let mut result = PricingResult::new(engine.price(option, context)?)?;

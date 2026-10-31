@@ -132,7 +132,6 @@ fn counts_pair_uncertainty_sobol_and_threads_preserve_the_same_samples() {
                     antithetic,
                     seed: Some(u64::MAX),
                     thread_count: 1,
-                    ..Default::default()
                 };
                 let serial = MonteCarloAccumulatorEngine::new(settings)
                     .unwrap()
@@ -141,7 +140,6 @@ fn counts_pair_uncertainty_sobol_and_threads_preserve_the_same_samples() {
                 for threads in [0, 3] {
                     let parallel = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
                         thread_count: threads,
-                        step_count: i32::MAX,
                         ..settings
                     })
                     .unwrap()

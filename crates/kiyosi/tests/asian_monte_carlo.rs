@@ -24,23 +24,24 @@ fn geometric_exact_sampling_matches_analytic_and_ignores_steps() {
         let context = market(100.0, 0.2, start.into());
         let settings = MonteCarloSettings {
             path_count: 16384,
-            step_count: 2,
             sampling: MonteCarloSampling::Sobol,
             antithetic: true,
             seed: Some(42),
             ..Default::default()
         };
-        let engine = MonteCarloAsianEngine::new(settings).unwrap();
+        let engine = MonteCarloAsianEngine::with_step_count(settings, 2).unwrap();
         let price = engine.price(&option, &context).unwrap();
         let reference = AnalyticGeometricAveragePriceEngine
             .price(&option, &context)
             .unwrap();
         assert!((price - reference).abs() < 0.01, "{price} vs {reference}");
-        let changed = MonteCarloAsianEngine::new(MonteCarloSettings {
-            step_count: 10000,
-            thread_count: 1,
-            ..settings
-        })
+        let changed = MonteCarloAsianEngine::with_step_count(
+            MonteCarloSettings {
+                thread_count: 1,
+                ..settings
+            },
+            10000,
+        )
         .unwrap();
         assert_eq!(price, changed.price(&option, &context).unwrap());
     }
@@ -54,7 +55,6 @@ fn arithmetic_retains_conditioned_integration_and_converges() {
         ArithmeticAveragePriceOption::new(OptionType::Call, 2.0, start, start, end, 0.0).unwrap();
     let settings = MonteCarloSettings {
         path_count: 65536,
-        step_count: 64,
         seed: Some(42),
         sampling: MonteCarloSampling::Sobol,
         antithetic: true,
@@ -67,17 +67,14 @@ fn arithmetic_retains_conditioned_integration_and_converges() {
             start.into(),
         )
         .unwrap();
-        let fine = MonteCarloAsianEngine::new(settings)
+        let fine = MonteCarloAsianEngine::with_step_count(settings, 64)
             .unwrap()
             .price(&option, &context)
             .unwrap();
-        let coarse = MonteCarloAsianEngine::new(MonteCarloSettings {
-            step_count: 2,
-            ..settings
-        })
-        .unwrap()
-        .price(&option, &context)
-        .unwrap();
+        let coarse = MonteCarloAsianEngine::with_step_count(settings, 2)
+            .unwrap()
+            .price(&option, &context)
+            .unwrap();
         assert!((fine - expected).abs() < 0.001, "{fine} vs {expected}");
         assert!((fine - expected).abs() < (coarse - expected).abs());
     }
@@ -87,14 +84,16 @@ fn arithmetic_retains_conditioned_integration_and_converges() {
 fn native_greeks_use_all_future_spots_and_fixed_history() {
     let start = date(1, 1);
     let end = Date::new(2026, 1, 1).unwrap();
-    let engine = MonteCarloAsianEngine::new(MonteCarloSettings {
-        path_count: 32768,
-        step_count: 32,
-        sampling: MonteCarloSampling::Sobol,
-        antithetic: true,
-        seed: Some(42),
-        ..Default::default()
-    })
+    let engine = MonteCarloAsianEngine::with_step_count(
+        MonteCarloSettings {
+            path_count: 32768,
+            sampling: MonteCarloSampling::Sobol,
+            antithetic: true,
+            seed: Some(42),
+            ..Default::default()
+        },
+        32,
+    )
     .unwrap();
     for direction in [OptionType::Call, OptionType::Put] {
         for (averaging, valuation, history) in [
@@ -196,17 +195,19 @@ fn sampling_exact_counts_threads_and_shared_calls_agree() {
                 } else {
                     1025
                 },
-                step_count: 16,
                 seed: Some(42),
                 sampling,
                 antithetic,
                 thread_count: 1,
             };
-            let serial = MonteCarloAsianEngine::new(settings).unwrap();
-            let parallel = MonteCarloAsianEngine::new(MonteCarloSettings {
-                thread_count: 4,
-                ..settings
-            })
+            let serial = MonteCarloAsianEngine::with_step_count(settings, 16).unwrap();
+            let parallel = MonteCarloAsianEngine::with_step_count(
+                MonteCarloSettings {
+                    thread_count: 4,
+                    ..settings
+                },
+                16,
+            )
             .unwrap();
             let expected = serial
                 .price_with_greeks(&a, &context, GreeksRequest::all())
@@ -355,10 +356,6 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             ..Default::default()
         },
         MonteCarloSettings {
-            step_count: 1,
-            ..Default::default()
-        },
-        MonteCarloSettings {
             thread_count: -1,
             ..Default::default()
         },
@@ -383,14 +380,16 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
 fn tiny_volatility_scaling_and_seasoned_negative_gamma_survive() {
     let start = date(1, 1);
     let end = Date::new(2026, 1, 1).unwrap();
-    let engine = MonteCarloAsianEngine::new(MonteCarloSettings {
-        path_count: 65536,
-        step_count: 64,
-        sampling: MonteCarloSampling::Sobol,
-        antithetic: true,
-        seed: Some(42),
-        ..Default::default()
-    })
+    let engine = MonteCarloAsianEngine::with_step_count(
+        MonteCarloSettings {
+            path_count: 65536,
+            sampling: MonteCarloSampling::Sobol,
+            antithetic: true,
+            seed: Some(42),
+            ..Default::default()
+        },
+        64,
+    )
     .unwrap();
     for (spot, sigma) in [
         (100.0_f64, 1e-170_f64),
@@ -454,13 +453,15 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
     )
     .unwrap();
     let model = BlackScholesMertonParameters::new(curve.clone(), 0.01, 0.2).unwrap();
-    let engine = MonteCarloAsianEngine::new(MonteCarloSettings {
-        path_count: 8192,
-        step_count: 16,
-        seed: Some(42),
-        sampling: MonteCarloSampling::Sobol,
-        ..Default::default()
-    })
+    let engine = MonteCarloAsianEngine::with_step_count(
+        MonteCarloSettings {
+            path_count: 8192,
+            seed: Some(42),
+            sampling: MonteCarloSampling::Sobol,
+            ..Default::default()
+        },
+        16,
+    )
     .unwrap();
     for (averaging, valuation, history) in [
         (start, start, 0.0),
@@ -618,14 +619,16 @@ fn conditioned_arithmetic_agrees_with_independent_raw_path_statistics() {
         )
         .unwrap();
         for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
-            let engine = MonteCarloAsianEngine::new(MonteCarloSettings {
-                path_count: paths,
-                step_count: steps,
-                seed: Some(42),
-                antithetic: true,
-                sampling,
-                ..Default::default()
-            })
+            let engine = MonteCarloAsianEngine::with_step_count(
+                MonteCarloSettings {
+                    path_count: paths,
+                    seed: Some(42),
+                    antithetic: true,
+                    sampling,
+                    ..Default::default()
+                },
+                steps,
+            )
             .unwrap();
             let result = engine
                 .price_with_greeks(
@@ -668,11 +671,13 @@ fn unseeded_analyses_pin_request_samples_without_mutation() {
     )
     .unwrap();
     let context = market(100.0, 0.2, start.into());
-    let engine = MonteCarloAsianEngine::new(MonteCarloSettings {
-        path_count: 32768,
-        step_count: 16,
-        ..Default::default()
-    })
+    let engine = MonteCarloAsianEngine::with_step_count(
+        MonteCarloSettings {
+            path_count: 32768,
+            ..Default::default()
+        },
+        16,
+    )
     .unwrap();
     let prepared =
         <MonteCarloAsianEngine as PricingEngine<ArithmeticAveragePriceOption>>::prepare_request(
@@ -728,12 +733,14 @@ fn arithmetic_validates_interval_drift_without_rejecting_a_finite_payoff() {
         start.into(),
     )
     .unwrap();
-    let engine = MonteCarloAsianEngine::new(MonteCarloSettings {
-        path_count: 1,
-        step_count: 100,
-        seed: Some(42),
-        ..Default::default()
-    })
+    let engine = MonteCarloAsianEngine::with_step_count(
+        MonteCarloSettings {
+            path_count: 1,
+            seed: Some(42),
+            ..Default::default()
+        },
+        100,
+    )
     .unwrap();
     // Every sampled future contribution vanishes; the initial trapezoid fixes 0.5.
     assert!((engine.price(&option, &context).unwrap() - 99.5).abs() < 1e-12);

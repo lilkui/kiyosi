@@ -11,8 +11,8 @@ use crate::{
 /// Prices snowball variants and Phoenix notes with trading-day CPU Monte Carlo.
 ///
 /// Uses exact lognormal transitions on trading days when knock-in matters, or
-/// remaining observation dates and expiry otherwise. Time is Actual/365 Fixed;
-/// `step_count` is ignored. Current events precede simulation.
+/// remaining observation dates and expiry otherwise. Time is Actual/365 Fixed.
+/// Current events precede simulation.
 /// Complete normal vectors are drawn before evaluating each path, so early
 /// knock-out cannot shift later paths. Sampling, antithetic counts and thread
 /// reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
@@ -28,8 +28,6 @@ pub struct MonteCarloAutocallableEngine {
 
 impl MonteCarloAutocallableEngine {
     /// Creates an engine with validated CPU sampling settings.
-    ///
-    /// Ignores `step_count`; see [`MonteCarloSettings`].
     ///
     /// # Errors
     ///

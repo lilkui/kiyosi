@@ -42,7 +42,7 @@ fn prepared_vanilla_request_replays_prices_without_mutating_engine() {
 fn terminal_prices_match_analytic_references_and_ignore_validated_steps() {
     let defaults = MonteCarloVanillaEngine::default().settings();
     assert_eq!(defaults.path_count, 100_000);
-    assert_eq!(defaults.step_count, 50);
+    assert_eq!(MonteCarloVanillaEngine::default().step_count(), 50);
     assert_eq!(defaults.thread_count, 0);
     assert_eq!(defaults.seed, None);
     for (direction, expected) in [
@@ -59,11 +59,7 @@ fn terminal_prices_match_analytic_references_and_ignore_validated_steps() {
         let price = engine.price(&option, &market()).unwrap();
         assert!((price - expected).abs() < 0.2, "{price} != {expected}");
         for steps in [2, 7, 10_000] {
-            let other = MonteCarloVanillaEngine::new(MonteCarloSettings {
-                step_count: steps,
-                ..engine.settings()
-            })
-            .unwrap();
+            let other = MonteCarloVanillaEngine::with_step_count(engine.settings(), steps).unwrap();
             assert_eq!(other.price(&option, &market()).unwrap(), price);
         }
         let other = MonteCarloVanillaEngine::new(MonteCarloSettings {
@@ -85,7 +81,6 @@ fn terminal_prices_preserve_tiny_positive_volatility() {
                 thread_count: 1,
                 sampling,
                 antithetic,
-                ..Default::default()
             })
             .unwrap();
             for amount in [100.0, 1e18] {
@@ -262,11 +257,11 @@ fn settings_validate_boundaries_before_committing_an_engine() {
     }
     for steps in [i32::MIN, 0, 1, 10_001, i32::MAX] {
         assert!(matches!(
-            MonteCarloVanillaEngine::new(MonteCarloSettings {
-                step_count: steps,
-                ..Default::default()
-            })
-            .unwrap_err(),
+            MonteCarloVanillaEngine::with_step_count(Default::default(), steps).unwrap_err(),
+            Error::InvalidInput(_)
+        ));
+        assert!(matches!(
+            MonteCarloAsianEngine::with_step_count(Default::default(), steps).unwrap_err(),
             Error::InvalidInput(_)
         ));
     }
@@ -282,15 +277,16 @@ fn settings_validate_boundaries_before_committing_an_engine() {
         for steps in [2, 10_000] {
             let settings = MonteCarloSettings {
                 path_count: paths,
-                step_count: steps,
                 seed: Some(u64::MAX),
                 thread_count: i32::MAX,
                 ..Default::default()
             };
-            assert_eq!(
-                MonteCarloVanillaEngine::new(settings).unwrap().settings(),
-                settings
-            );
+            let vanilla = MonteCarloVanillaEngine::with_step_count(settings, steps).unwrap();
+            let asian = MonteCarloAsianEngine::with_step_count(settings, steps).unwrap();
+            assert_eq!(vanilla.settings(), settings);
+            assert_eq!(asian.settings(), settings);
+            assert_eq!(vanilla.step_count(), steps);
+            assert_eq!(asian.step_count(), steps);
         }
     }
 }
@@ -820,7 +816,6 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
                         sampling,
                         antithetic,
                         thread_count: 1,
-                        ..Default::default()
                     })
                     .unwrap();
                     for direction in [OptionType::Call, OptionType::Put] {
@@ -846,7 +841,6 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
                 sampling,
                 antithetic,
                 thread_count: 1,
-                ..Default::default()
             })
             .unwrap();
             let option = contract(OptionType::Call);
@@ -991,10 +985,13 @@ fn antithetic_companion_failures_preserve_engine_and_inputs() {
     })
     .unwrap();
     assert!(one.price(&option, &context).unwrap().is_finite());
-    let pair = MonteCarloVanillaEngine::new(MonteCarloSettings {
-        path_count: 2,
-        ..one.settings()
-    })
+    let pair = MonteCarloVanillaEngine::with_step_count(
+        MonteCarloSettings {
+            path_count: 2,
+            ..one.settings()
+        },
+        one.step_count(),
+    )
     .unwrap();
     let baseline = pair.price(&option, &market()).unwrap();
     assert!(matches!(

@@ -356,7 +356,7 @@ fn scheduled_dates_and_unobserved_expiry_leg_match_finite_difference() {
 }
 
 #[test]
-fn thread_step_and_sampling_contracts_preserve_exact_samples_and_pairing() {
+fn thread_and_sampling_contracts_preserve_exact_samples_and_pairing() {
     assert_eq!(
         MonteCarloDoubleBarrierEngine::default().settings(),
         MonteCarloSettings::default()
@@ -382,11 +382,9 @@ fn thread_step_and_sampling_contracts_preserve_exact_samples_and_pairing() {
                     thread_count: 1,
                     sampling,
                     antithetic,
-                    ..Default::default()
                 };
                 let serial = MonteCarloDoubleBarrierEngine::new(settings).unwrap();
                 let parallel = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
-                    step_count: i32::MIN,
                     thread_count: 4,
                     ..settings
                 })

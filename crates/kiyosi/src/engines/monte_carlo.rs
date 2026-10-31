@@ -7,6 +7,7 @@ use crate::{
 };
 
 const BLOCK_SIZE: usize = 256;
+const DEFAULT_STEP_COUNT: i32 = 50;
 
 mod accumulator;
 mod american;
@@ -38,16 +39,14 @@ pub enum MonteCarloSampling {
 
 /// Configures terminal, Asian, barrier, autocallable, accumulator or American CPU sampling.
 ///
+/// Grid sizes belong to [`MonteCarloVanillaEngine::with_step_count`] and
+/// [`MonteCarloAsianEngine::with_step_count`].
+///
 /// See [`MonteCarloVanillaEngine::new`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MonteCarloSettings {
     /// Sets the exact path count, from 1 through 10,000,000; defaults to 100,000.
     pub path_count: i32,
-    /// Sets 2..=10,000 grid points (default 50); American pricing before expiry needs 3.
-    ///
-    /// Vanilla and Asian engines validate this field. Arithmetic Asian integration uses
-    /// this many intervals; digital, barrier, autocallable and accumulator engines ignore it.
-    pub step_count: i32,
     /// Selects a reproducible stream, or system entropy when absent (the default).
     pub seed: Option<u64>,
     /// Caps CPU workers per call: 0 automatic (default), 1 serial, or a positive cap.
@@ -62,7 +61,6 @@ impl Default for MonteCarloSettings {
     fn default() -> Self {
         Self {
             path_count: 100_000,
-            step_count: 50,
             seed: None,
             thread_count: 0,
             sampling: MonteCarloSampling::PseudoRandom,
@@ -111,7 +109,6 @@ mod tests {
         for seed in [0, 42, u64::MAX] {
             let settings = MonteCarloSettings {
                 path_count: 256,
-                step_count: 7,
                 seed: Some(seed),
                 thread_count: 1,
                 sampling: MonteCarloSampling::Sobol,
@@ -126,7 +123,6 @@ mod tests {
     fn unseeded_settings_pin_one_seed_and_preserve_other_controls() {
         let settings = MonteCarloSettings {
             path_count: 256,
-            step_count: 7,
             thread_count: 1,
             sampling: MonteCarloSampling::Sobol,
             antithetic: true,
@@ -135,7 +131,6 @@ mod tests {
         let seeded = settings.with_resolved_seed().unwrap();
         assert!(seeded.seed.is_some());
         assert_eq!(seeded.path_count, 256);
-        assert_eq!(seeded.step_count, 7);
         assert_eq!(seeded.thread_count, 1);
         assert_eq!(seeded.sampling, MonteCarloSampling::Sobol);
         assert!(seeded.antithetic);
@@ -157,9 +152,26 @@ mod tests {
 /// Shared and distinct instances permit concurrent calls without mutation;
 /// every call owns its workers and buffers and changes no global thread settings.
 /// See [`Self::price`] for an example.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MonteCarloVanillaEngine {
     settings: MonteCarloSettings,
+    step_count: i32,
+}
+
+impl Default for MonteCarloVanillaEngine {
+    fn default() -> Self {
+        Self {
+            settings: MonteCarloSettings::default(),
+            step_count: DEFAULT_STEP_COUNT,
+        }
+    }
+}
+
+fn validate_step_count(step_count: i32) -> Result<()> {
+    if !(2..=10_000).contains(&step_count) {
+        return Err(Error::InvalidInput("invalid Monte Carlo step count".into()));
+    }
+    Ok(())
 }
 
 /// Owns a Monte Carlo price and its optional sampling uncertainty.
@@ -194,12 +206,14 @@ impl MonteCarloEstimate {
 }
 
 impl MonteCarloVanillaEngine {
-    /// Creates an engine after validating grid and sampling settings.
+    /// Creates an engine with validated sampling settings and 50 exercise-grid points.
+    ///
+    /// Use [`Self::with_step_count`] to configure the exercise grid.
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for paths outside 1..=10,000,000,
-    /// steps outside 2..=10,000, a negative thread cap, or a non-power-of-two Sobol count.
+    /// a negative thread cap, or a non-power-of-two Sobol count.
     ///
     /// # Examples
     ///
@@ -218,11 +232,40 @@ impl MonteCarloVanillaEngine {
     /// # Ok(()) }
     /// ```
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {
-        if !(2..=10_000).contains(&settings.step_count) {
-            return Err(Error::InvalidInput("invalid Monte Carlo settings".into()));
-        }
+        Self::with_step_count(settings, DEFAULT_STEP_COUNT)
+    }
+
+    /// Creates an engine with a configured American exercise-grid point count.
+    ///
+    /// European pricing samples the terminal distribution and does not use this grid.
+    /// American pricing before expiry requires at least three points.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for steps outside 2..=10,000,
+    /// then reuses [`Self::new`] sampling validation. Inputs are consumed on failure.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{MonteCarloSettings, MonteCarloVanillaEngine};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let engine = MonteCarloVanillaEngine::with_step_count(MonteCarloSettings::default(), 100)?;
+    /// assert_eq!(engine.step_count(), 100);
+    /// # Ok(()) }
+    /// ```
+    pub fn with_step_count(settings: MonteCarloSettings, step_count: i32) -> Result<Self> {
+        validate_step_count(step_count)?;
         settings.validate()?;
-        Ok(Self { settings })
+        Ok(Self {
+            settings,
+            step_count,
+        })
+    }
+
+    /// Returns the American exercise-grid point count; see [`Self::with_step_count`].
+    pub fn step_count(&self) -> i32 {
+        self.step_count
     }
 
     /// Returns owned settings. See [`Self::new`] for an example.
@@ -419,6 +462,7 @@ impl PricingEngine for MonteCarloVanillaEngine {
         }
         Ok(Some(Box::new(Self {
             settings: self.settings.with_resolved_seed()?,
+            ..*self
         })))
     }
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {

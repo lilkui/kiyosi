@@ -18,7 +18,7 @@ pub(super) enum Contract<'a> {
 ///
 /// Continuous monitoring uses one terminal draw and Brownian-bridge survival;
 /// scheduled monitoring uses original fixing dates and an unobserved expiry leg
-/// when needed. Ignores `step_count`. Sampling, exact path counts and
+/// when needed. Sampling, exact path counts and
 /// thread reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
 /// instances support concurrent calls with request-owned workers and samples.
 /// Returns likelihood-ratio delta/gamma; scalar numerical analysis is available
@@ -32,8 +32,6 @@ impl MonteCarloBarrierEngine {
     /// Creates an engine with validated shared CPU sampling settings.
     ///
     /// See [`crate::MonteCarloVanillaEngine::new`] for configuration examples.
-    ///
-    /// Ignores `step_count`; see [`MonteCarloSettings`].
     ///
     /// # Errors
     ///

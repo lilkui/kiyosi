@@ -23,6 +23,12 @@ fn sampling(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::MonteCarloSampling> {
 }
 
 macro_rules! sampling_settings {
+    (@new $engine:ident, $settings:expr, []) => {
+        kiyosi::$engine::new($settings)
+    };
+    (@new $engine:ident, $settings:expr, [$step:ident]) => {
+        kiyosi::$engine::with_step_count($settings, $step)
+    };
     (@barrier $engine:ident, $instrument:ty) => {
         sampling_settings!(
             $engine,
@@ -211,7 +217,7 @@ macro_rules! sampling_settings {
         #[pymethods]
         impl $engine {
             #[new]
-            #[pyo3(signature = (*, path_count=kiyosi::MonteCarloSettings::default().path_count, $($step=kiyosi::MonteCarloSettings::default().$step,)? seed=None, thread_count=kiyosi::MonteCarloSettings::default().thread_count, sampling=kiyosi::MonteCarloSettings::default().sampling, antithetic=kiyosi::MonteCarloSettings::default().antithetic))]
+            #[pyo3(signature = (*, path_count=kiyosi::MonteCarloSettings::default().path_count, $($step=kiyosi::$engine::default().$step(),)? seed=None, thread_count=kiyosi::MonteCarloSettings::default().thread_count, sampling=kiyosi::MonteCarloSettings::default().sampling, antithetic=kiyosi::MonteCarloSettings::default().antithetic))]
             fn new(
                 #[pyo3(from_py_with = integer)] path_count: i32,
                 $(#[pyo3(from_py_with = integer)] $step: i32,)?
@@ -229,10 +235,8 @@ macro_rules! sampling_settings {
                     thread_count,
                     sampling,
                     antithetic,
-                    ..Default::default()
                 };
-                $(let settings = kiyosi::MonteCarloSettings { $step, ..settings };)?
-                Ok(Self(domain(kiyosi::$engine::new(settings))?))
+                Ok(Self(domain(sampling_settings!(@new $engine, settings, [$($step)?]))?))
             }
 
             /// Return the exact number of sampled paths.
@@ -244,7 +248,7 @@ macro_rules! sampling_settings {
                 /// Return the configured grid size.
                 #[getter]
                 fn $step(&self) -> i32 {
-                    self.0.settings().$step
+                    self.0.$step()
                 }
             )?
             /// Return the unsigned 64-bit seed, or None for system entropy.
