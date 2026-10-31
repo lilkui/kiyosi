@@ -115,7 +115,7 @@ numerical_greeks_methods!(
 );
 
 macro_rules! binomial_engine {
-    ($(#[$doc:meta])* $name:ident, $instrument:ty, |$py:ident, $option:ident, $engine:ident, $context:ident, $request:ident| $price:expr, $analysis:expr) => {
+    ($(#[$doc:meta])* $name:ident, $instrument:ty, |$value:ident| $contract:expr) => {
         /// Flat-rate Cox-Ross-Rubinstein tree pricing.
         ///
         /// Parameters
@@ -211,12 +211,14 @@ macro_rules! binomial_engine {
                 context: &PricingContext,
                 greeks: &Bound<'_, PyAny>,
             ) -> PyResult<risk::PricingResult> {
-                let $py = py;
-                let $option = instrument;
-                let $engine = self.0;
-                let $context = &context.0;
-                let $request = risk::greeks_request(greeks)?;
-                Ok(risk::PricingResult(domain($analysis)?))
+                let request = risk::greeks_request(greeks)?;
+                let $value = instrument;
+                let option = $contract;
+                let engine = self.0;
+                let context = &context.0;
+                Ok(risk::PricingResult(domain(py.detach(|| {
+                    engine.price_with_greeks(option, context, request)
+                }))?))
             }
         }
         impl $name {
@@ -227,12 +229,11 @@ macro_rules! binomial_engine {
                 context: &PricingContext,
                 request: ScalarRequest,
             ) -> PyResult<f64> {
-                let $request = request;
-                let $py = py;
-                let $option = instrument;
-                let $engine = self.0;
-                let $context = &context.0;
-                domain($price)
+                let $value = instrument;
+                let option = $contract;
+                let engine = self.0;
+                let context = &context.0;
+                domain(py.detach(|| request.evaluate(&engine, option, context)))
             }
         }
     };
@@ -246,14 +247,7 @@ binomial_engine!(
     /// AssetOrNothingOption : Supported contract.
     CoxRossRubinsteinDigitalEngine,
     digital::DigitalInstrument<'_>,
-    |py, option, engine, context, request| {
-        let option = option.contract();
-        py.detach(|| request.evaluate(&engine, option, context))
-    },
-    {
-        let option = option.contract();
-        py.detach(|| engine.price_with_greeks(option, context, request))
-    }
+    |instrument| instrument.contract()
 );
 binomial_engine!(
     ///
@@ -262,14 +256,7 @@ binomial_engine!(
     /// BarrierOption : Supported contract.
     CoxRossRubinsteinBarrierEngine,
     PyRef<'_, BarrierOption>,
-    |py, option, engine, context, request| {
-        let option = &option.0;
-        py.detach(|| request.evaluate(&engine, option, context))
-    },
-    {
-        let option = &option.0;
-        py.detach(|| engine.price_with_greeks(option, context, request))
-    }
+    |instrument| &instrument.0
 );
 
 impl CoxRossRubinsteinVanillaEngine {
