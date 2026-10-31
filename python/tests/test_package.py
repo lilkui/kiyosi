@@ -80,6 +80,10 @@ class PackageTests(unittest.TestCase):
             with self.subTest(engine=node.name):
                 signature = inspect.signature(engine.price_with_greeks)
                 self.assertEqual(tuple(signature.parameters), expected + keywords)
+                self.assertIs(
+                    signature.parameters["greeks"].default, inspect.Parameter.empty
+                )
+                self.assertEqual(method.args.defaults, [])
                 for name in keywords:
                     parameter = signature.parameters[name]
                     self.assertIs(parameter.kind, inspect.Parameter.KEYWORD_ONLY)
@@ -179,7 +183,7 @@ class PackageTests(unittest.TestCase):
             ):
                 self.assertEqual(
                     tuple(inspect.signature(engine.price_with_greeks).parameters),
-                    ("instrument", "context", "greeks", "all_greeks"),
+                    ("instrument", "context", "greeks"),
                 )
                 for field in (
                     "spot_shift",
@@ -189,9 +193,11 @@ class PackageTests(unittest.TestCase):
                 ):
                     with self.assertRaises(TypeError):
                         engine.price_with_greeks(option, context, "delta", **{field: 1})
-                for invalid in (1, None, "true"):
+                for invalid in (1, None, True):
                     with self.assertRaises(TypeError):
-                        engine.price_with_greeks(option, context, all_greeks=invalid)
+                        engine.price_with_greeks(option, context, greeks=invalid)
+                with self.assertRaises(TypeError):
+                    engine.price_with_greeks(option, context, "delta", all_greeks=True)
 
     def test_barrier_monte_carlo_greeks_expose_only_spot_controls(self):
         for name in ("MonteCarloBarrierEngine", "MonteCarloDoubleBarrierEngine"):
@@ -200,7 +206,7 @@ class PackageTests(unittest.TestCase):
                 signature = inspect.signature(engine.price_with_greeks)
                 self.assertEqual(
                     tuple(signature.parameters),
-                    ("instrument", "context", "greeks", "all_greeks", "spot_shift"),
+                    ("instrument", "context", "greeks", "spot_shift"),
                 )
                 self.assertIs(
                     signature.parameters["spot_shift"].kind,

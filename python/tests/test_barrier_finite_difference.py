@@ -138,7 +138,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
             for kind in KINDS:
                 contract = option(kind, rebate=3, touch_state="untouched")
                 result = engine.price_with_greeks(
-                    contract, market(spot=110, valuation=END), all_greeks=True
+                    contract, market(spot=110, valuation=END), greeks="all"
                 )
                 self.assertEqual(result.price, 3 if kind.endswith("in") else 10)
                 for greek in ("delta", "gamma", *OTHER_GREEKS):
@@ -312,7 +312,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         )
         context = market()
         quote = engine.price(contract, context)
-        result = engine.price_with_greeks(contract, context, all_greeks=True)
+        result = engine.price_with_greeks(contract, context, greeks="all")
         self.assertEqual(result.price, quote)
         for name in ("delta", "gamma", *OTHER_GREEKS):
             self.assertTrue(math.isfinite(getattr(result, name)), name)
@@ -401,7 +401,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         engine = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=400)
         contract = option(touch_state="untouched")
         context = market()
-        all_values = engine.price_with_greeks(contract, context, all_greeks=True)
+        all_values = engine.price_with_greeks(contract, context, greeks="all")
         for greek in ("speed", "vanna", "zomma", "charm", "color"):
             selected = engine.price_with_greeks(contract, context, greek)
             self.assertEqual(getattr(selected, greek), getattr(all_values, greek))

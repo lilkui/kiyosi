@@ -79,7 +79,7 @@ class DigitalNumericalTests(unittest.TestCase):
                             sampling=sampling,
                         ):
                             actual = engine.price_with_greeks(
-                                option, context, all_greeks=True
+                                option, context, greeks="all"
                             )
                             second = (
                                 spot**2 * math.exp(-0.04 * time + width**2)
@@ -136,7 +136,7 @@ class DigitalNumericalTests(unittest.TestCase):
                     path_count=65536, seed=42, sampling="sobol"
                 )
                 error = 0.001
-                actual = engine.price_with_greeks(option, context, all_greeks=True)
+                actual = engine.price_with_greeks(option, context, greeks="all")
                 scale = 100 if asset else 10
                 self.assertAlmostEqual(
                     actual.price, expected.price, delta=error * scale
@@ -163,9 +163,7 @@ class DigitalNumericalTests(unittest.TestCase):
                 }
                 for option, asset in options():
                     engine = pricing.MonteCarloDigitalEngine(**settings)
-                    expected = engine.price_with_greeks(
-                        option, market(), all_greeks=True
-                    )
+                    expected = engine.price_with_greeks(option, market(), greeks="all")
                     for threads in (0, 1, 4):
                         other = pricing.MonteCarloDigitalEngine(
                             **settings, thread_count=threads
@@ -322,7 +320,7 @@ class DigitalNumericalTests(unittest.TestCase):
             for spot in (math.nextafter(100, 0), 100, math.nextafter(100, 101)):
                 context = market(spot=spot, valuation=END)
                 engine = pricing.MonteCarloDigitalEngine(path_count=1)
-                result = engine.price_with_greeks(option, context, all_greeks=True)
+                result = engine.price_with_greeks(option, context, greeks="all")
                 pays = spot > 100 if option.option_type == "call" else spot < 100
                 self.assertEqual(result.price, (spot if asset else 10) if pays else 0)
                 for name in GREEKS:

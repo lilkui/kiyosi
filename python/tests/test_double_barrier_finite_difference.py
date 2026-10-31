@@ -482,7 +482,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         at_expiry = engine.price_with_greeks(
             option.replace(touch_state="untouched"),
             market(110, time=END),
-            all_greeks=True,
+            greeks="all",
         )
         self.assertEqual(at_expiry.price, 10)
         self.assertIsNone(at_expiry.delta)
@@ -745,7 +745,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         engine = pricing.FiniteDifferenceDoubleBarrierEngine(asset_upper_boundary=400)
         instrument = contract(touch_state="untouched")
         context = market()
-        result = engine.price_with_greeks(instrument, context, all_greeks=True)
+        result = engine.price_with_greeks(instrument, context, greeks="all")
         for name in (
             "delta",
             "gamma",
@@ -784,7 +784,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         self.assertIsNone(collapsed.speed)
         for bound in (80, 120):
             discontinuous = engine.price_with_greeks(
-                contract(), market(bound), all_greeks=True
+                contract(), market(bound), greeks="all"
             )
             self.assertTrue(
                 all(

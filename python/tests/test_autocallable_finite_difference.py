@@ -107,7 +107,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         engine = FD()
         note = phoenix()
         context = market(90, date(2025, 2, 3))
-        result = engine.price_with_greeks(note, context, all_greeks=True)
+        result = engine.price_with_greeks(note, context, greeks="all")
         self.assertIsNone(result.delta)
         self.assertIsNone(result.gamma)
         self.assertIsNone(result.speed)

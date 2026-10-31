@@ -16,13 +16,17 @@ finite fits with insufficient independent samples use a lower polynomial degree.
 ``AnalyticEuropeanEngine``, ``CoxRossRubinsteinDigitalEngine``,
 ``CoxRossRubinsteinBarrierEngine``, ``MonteCarloDigitalEngine`` and
 ``MonteCarloAsianEngine`` compute native Greeks without numerical bumps;
-their ``price_with_greeks`` methods accept only ``greeks`` and ``all_greeks``
-as request controls. Engines that use numerical differences also accept bump
+their ``price_with_greeks`` methods accept only ``greeks`` as a request
+control. Engines that use numerical differences also accept bump
 settings.
 
 ``MonteCarloBarrierEngine`` and ``MonteCarloDoubleBarrierEngine`` return only
 delta and gamma. Their only bump control is ``spot_shift``, used for barrier
 availability checks and numerical derivatives of continuous at-hit rebates.
+
+Pass ``greeks="all"`` to request every measure, a Greek name for one measure,
+or an iterable of names for a selection. The ``greeks`` argument is required;
+unavailable measures remain None.
 
 Pricing controls are explicit keyword-only parameters, available through
 ``inspect.signature``. Instrument conversion and supported-family checks
@@ -59,6 +63,11 @@ Price a European call and request its delta and vega:
 >>> round(result.price, 6)
 9.227006
 >>> result.require("delta") > 0
+True
+>>> sensitivities = AnalyticEuropeanEngine().price_with_greeks(
+...     option, context, greeks="all",
+... )
+>>> sensitivities.require("gamma") > 0
 True
 
 Recover the model volatility from its price using a chosen bracket:

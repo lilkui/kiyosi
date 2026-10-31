@@ -12,7 +12,7 @@ class AccumulatorFiniteDifferenceAccuracyTests(unittest.TestCase):
         engine = pricing.FiniteDifferenceAccumulatorEngine(
             asset_step_count=80, time_step_count=80
         )
-        joint = engine.price_with_greeks(option, context, all_greeks=True)
+        joint = engine.price_with_greeks(option, context, greeks="all")
         self.assertIsNotNone(joint.theta)
         for greek in (
             "delta",

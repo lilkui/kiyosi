@@ -98,7 +98,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         ):
             with self.subTest(spot=spot):
                 result = engine.price_with_greeks(
-                    option, market(spot, end), all_greeks=True
+                    option, market(spot, end), greeks="all"
                 )
                 self.assertEqual(result.price, quantity * (spot - 100))
                 for greek in (
@@ -231,7 +231,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         option = contract(date(2025, 4, 1))
         engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=440)
         context = market(100.25, datetime(2025, 1, 4, 12, tzinfo=UTC))
-        result = engine.price_with_greeks(option, context, all_greeks=True)
+        result = engine.price_with_greeks(option, context, greeks="all")
         h = 0.01
         high, low = (
             engine.price(option, context.replace(spot_price=100.25 + sign * h))
@@ -294,7 +294,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             self.assertIsNone(native.speed)
         for spot in (100, 110):
             boundary = engine.price_with_greeks(
-                option, market(spot, START), all_greeks=True
+                option, market(spot, START), greeks="all"
             )
             for greek in (
                 "delta",
@@ -312,7 +312,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         sunday = engine.price_with_greeks(
             option,
             market(90, datetime(2025, 1, 5, 23, 59, 59, tzinfo=UTC)),
-            all_greeks=True,
+            greeks="all",
         )
         self.assertIsNone(sunday.theta)
         small = engine.price_with_greeks(

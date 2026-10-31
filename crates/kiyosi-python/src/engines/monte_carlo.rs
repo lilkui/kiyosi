@@ -63,10 +63,8 @@ macro_rules! sampling_settings {
             ///     Supported contract; see the engine class for accepted types.
             /// context : PricingContext
             ///     Market snapshot and valuation instant.
-            /// greeks : str or iterable of str, optional
-            ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-            /// all_greeks : bool, optional
-            ///     Request every measure; omit `greeks` when True. Defaults to False.
+            /// greeks : str or iterable of str
+            ///     Greek names or "all" to request every measure; duplicates are ignored.
             /// spot_shift : float, optional
             ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
             ///
@@ -82,17 +80,16 @@ macro_rules! sampling_settings {
             ///     If requests, shifts, pricing or a feasible bumped valuation fails.
             /// OSError
             ///     If system entropy or worker creation fails.
-            #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift))]
+            #[pyo3(signature = (instrument, context, greeks, *, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift))]
             fn price_with_greeks(
                 &self,
                 py: Python<'_>,
                 #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &PricingContext,
-                greeks: Option<&Bound<'_, PyAny>>,
-                #[pyo3(from_py_with = boolean)] all_greeks: bool,
+                greeks: &Bound<'_, PyAny>,
                 #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
             ) -> PyResult<risk::PricingResult> {
-                let request = risk::greeks_request(greeks, all_greeks)?;
+                let request = risk::greeks_request(greeks)?;
                 let option = &instrument.0;
                 let engine = self.0;
                 let context = &context.0;
@@ -400,10 +397,8 @@ sampling_settings!(
     ///     Supported contract; see the engine class for accepted types.
     /// context : PricingContext
     ///     Market snapshot and valuation instant.
-    /// greeks : str or iterable of str, optional
-    ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// all_greeks : bool, optional
-    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// greeks : str or iterable of str
+    ///     Greek names or "all" to request every measure; duplicates are ignored.
     /// spot_shift : float or None, optional
     ///     Positive finite absolute spot bump. European default: 0.01 spot units.
     ///     American default: 8% of spot; None also selects this American default.
@@ -432,7 +427,7 @@ sampling_settings!(
     /// System entropy and worker-creation failures raise OSError.
     /// For American vanilla options, omitted or None `spot_shift` uses 8% of
     /// spot; other bumps use the shared core defaults.
-    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
+    #[pyo3(signature = (instrument, context, greeks, *, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
     #[expect(
         clippy::too_many_arguments,
         reason = "explicit Python pricing controls"
@@ -443,14 +438,13 @@ sampling_settings!(
         #[pyo3(from_py_with = crate::conversions::instrument)]
         instrument: binomial::VanillaInstrument<'_>,
         context: &PricingContext,
-        greeks: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::boolean)] all_greeks: bool,
+        greeks: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = crate::conversions::supplied)] spot_shift: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
         #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
         #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
     ) -> PyResult<risk::PricingResult> {
-        let request = risk::greeks_request(greeks, all_greeks)?;
+        let request = risk::greeks_request(greeks)?;
         let engine = self.0;
         let context = &context.0;
         let result = match instrument {
@@ -597,10 +591,8 @@ sampling_settings!(
     ///     Supported contract; see the engine class for accepted types.
     /// context : PricingContext
     ///     Market snapshot and valuation instant.
-    /// greeks : str or iterable of str, optional
-    ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// all_greeks : bool, optional
-    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// greeks : str or iterable of str
+    ///     Greek names or "all" to request every measure; duplicates are ignored.
     ///
     /// Returns
     /// -------
@@ -616,17 +608,16 @@ sampling_settings!(
     /// Notes
     /// -----
     /// System entropy and worker-creation failures raise OSError.
-    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false))]
+    #[pyo3(signature = (instrument, context, greeks))]
     fn price_with_greeks(
         &self,
         py: Python<'_>,
         #[pyo3(from_py_with = crate::conversions::instrument)]
         instrument: digital::DigitalInstrument<'_>,
         context: &PricingContext,
-        greeks: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = boolean)] all_greeks: bool,
+        greeks: &Bound<'_, PyAny>,
     ) -> PyResult<risk::PricingResult> {
-        let request = risk::greeks_request(greeks, all_greeks)?;
+        let request = risk::greeks_request(greeks)?;
         let engine = self.0;
         let option = instrument.contract();
         let context = &context.0;
@@ -721,10 +712,8 @@ sampling_settings!(
     ///     Supported contract; see the engine class for accepted types.
     /// context : PricingContext
     ///     Market snapshot and valuation instant.
-    /// greeks : str or iterable of str, optional
-    ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// all_greeks : bool, optional
-    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// greeks : str or iterable of str
+    ///     Greek names or "all" to request every measure; duplicates are ignored.
     ///
     /// Returns
     /// -------
@@ -740,7 +729,7 @@ sampling_settings!(
     /// Notes
     /// -----
     /// System entropy and worker-creation failures raise OSError.
-    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false))]
+    #[pyo3(signature = (instrument, context, greeks))]
     fn price_with_greeks(
         &self,
         py: Python<'_>,
@@ -748,10 +737,9 @@ sampling_settings!(
             '_,
         >,
         context: &PricingContext,
-        greeks: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = boolean)] all_greeks: bool,
+        greeks: &Bound<'_, PyAny>,
     ) -> PyResult<risk::PricingResult> {
-        let request = risk::greeks_request(greeks, all_greeks)?;
+        let request = risk::greeks_request(greeks)?;
         let engine = self.0;
         let context = &context.0;
         let result = asian::with_asian!(

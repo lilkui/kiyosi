@@ -1,5 +1,5 @@
 use crate::error::domain;
-use pyo3::exceptions::{PyTypeError, PyValueError};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 pub(crate) fn greek(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Greek> {
@@ -10,21 +10,11 @@ pub(crate) fn greek(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Greek> {
         .ok_or_else(|| PyValueError::new_err("unknown Greek name"))
 }
 
-pub(crate) fn greeks_request(
-    greeks: Option<&Bound<'_, PyAny>>,
-    all: bool,
-) -> PyResult<kiyosi::GreeksRequest> {
-    let greeks = greeks.filter(|g| !g.is_none());
-    if all {
-        if greeks.is_some() {
-            return Err(PyTypeError::new_err(
-                "greeks must be omitted with all_greeks",
-            ));
-        }
-        return Ok(kiyosi::GreeksRequest::all());
-    }
-    let greeks = greeks.ok_or_else(|| PyTypeError::new_err("provide greeks or all_greeks=True"))?;
+pub(crate) fn greeks_request(greeks: &Bound<'_, PyAny>) -> PyResult<kiyosi::GreeksRequest> {
     let measures = if greeks.is_instance_of::<pyo3::types::PyString>() {
+        if greeks.extract::<&str>()? == "all" {
+            return Ok(kiyosi::GreeksRequest::all());
+        }
         vec![greek(greeks)?]
     } else {
         greeks

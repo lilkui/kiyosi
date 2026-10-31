@@ -252,7 +252,7 @@ class MonteCarloTests(unittest.TestCase):
                     )
                     expected = differences(engine, option, context, **shifts)
                     actual = engine.price_with_greeks(
-                        option, context, all_greeks=True, **shifts
+                        option, context, greeks="all", **shifts
                     )
                     self.assertEqual(actual.price, expected.price)
                     for name in GREEKS:
@@ -281,7 +281,7 @@ class MonteCarloTests(unittest.TestCase):
             (estimate.price, estimate.standard_error, estimate.confidence_interval),
             (10, 0, (10, 10)),
         )
-        result = engine.price_with_greeks(option, expiry, all_greeks=True)
+        result = engine.price_with_greeks(option, expiry, greeks="all")
         self.assertEqual(result.price, 10)
         for name in GREEKS:
             self.assertIsNone(getattr(result, name))
@@ -534,7 +534,7 @@ class MonteCarloTests(unittest.TestCase):
     def test_concurrent_shared_and_distinct_engines(self):
         option, context = contract("put"), market()
         engine = MonteCarloVanillaEngine(path_count=4097, seed=42, thread_count=4)
-        expected = engine.price_with_greeks(option, context, all_greeks=True)
+        expected = engine.price_with_greeks(option, context, greeks="all")
 
         def compute(index):
             selected = (
@@ -542,7 +542,7 @@ class MonteCarloTests(unittest.TestCase):
                 if index % 2
                 else MonteCarloVanillaEngine(path_count=4097, seed=42, thread_count=1)
             )
-            result = selected.price_with_greeks(option, context, all_greeks=True)
+            result = selected.price_with_greeks(option, context, greeks="all")
             return result.price, tuple(result.require(name) for name in GREEKS)
 
         with ThreadPoolExecutor(max_workers=4) as executor:
@@ -717,7 +717,7 @@ class SamplingTests(unittest.TestCase):
                     engine = MonteCarloVanillaEngine(**settings, thread_count=1)
                     reference = differences(engine, option, context, **shifts)
                     expected = engine.price_with_greeks(
-                        option, context, all_greeks=True, **shifts
+                        option, context, greeks="all", **shifts
                     )
                     self.assertEqual(expected.price, reference.price)
                     for name in GREEKS:
@@ -740,7 +740,7 @@ class SamplingTests(unittest.TestCase):
                             **settings, thread_count=threads
                         )
                         actual = other.price_with_greeks(
-                            option, context, all_greeks=True, **shifts
+                            option, context, greeks="all", **shifts
                         )
                         self.assertEqual(actual.price, expected.price)
                         self.assertEqual(
@@ -862,7 +862,7 @@ class SamplingTests(unittest.TestCase):
                 self.assertEqual(
                     known.confidence_interval, None if sampling == "sobol" else (10, 10)
                 )
-                analysis = engine.price_with_greeks(option, expiry, all_greeks=True)
+                analysis = engine.price_with_greeks(option, expiry, greeks="all")
                 self.assertTrue(all(getattr(analysis, name) is None for name in GREEKS))
                 with self.assertRaises(UnsupportedOperationError) as error:
                     implied_volatility(engine, option, expiry, 10)
@@ -885,7 +885,7 @@ class SamplingTests(unittest.TestCase):
             for direction in ("call", "put"):
                 option, context = contract(direction), market()
                 reference = AnalyticEuropeanEngine().price_with_greeks(
-                    option, context, all_greeks=True
+                    option, context, greeks="all"
                 )
                 engine = MonteCarloVanillaEngine(
                     path_count=65_536, seed=42, sampling="sobol", antithetic=antithetic
@@ -893,7 +893,7 @@ class SamplingTests(unittest.TestCase):
                 actual = engine.price_with_greeks(
                     option,
                     context,
-                    all_greeks=True,
+                    greeks="all",
                     spot_shift=1,
                     volatility_shift=0.001,
                     rate_shift=0.001,

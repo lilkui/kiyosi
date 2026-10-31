@@ -126,7 +126,7 @@ class AsianRegressionTests(unittest.TestCase):
             selections = [
                 {"greeks": "delta"},
                 {"greeks": ["delta", "delta"]},
-                {"all_greeks": True},
+                {"greeks": "all"},
             ] * 4
             with self.subTest(kind=kind), ThreadPoolExecutor(max_workers=4) as pool:
                 for selection, result in zip(
@@ -134,7 +134,7 @@ class AsianRegressionTests(unittest.TestCase):
                 ):
                     self.assertAlmostEqual(result.price, expected_price, delta=1e-12)
                     self.assertAlmostEqual(result.delta, expected_delta, delta=1e-12)
-                    if "greeks" in selection:
+                    if selection["greeks"] != "all":
                         self.assertIsNone(result.gamma)
                         self.assertIsNone(result.vega)
                     else:

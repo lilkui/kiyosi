@@ -190,10 +190,8 @@ macro_rules! binomial_engine {
             ///     Supported contract; see the engine class for accepted types.
             /// context : PricingContext
             ///     Market snapshot and valuation instant.
-            /// greeks : str or iterable of str, optional
-            ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-            /// all_greeks : bool, optional
-            ///     Request every measure; omit `greeks` when True. Defaults to False.
+            /// greeks : str or iterable of str
+            ///     Greek names or "all" to request every measure; duplicates are ignored.
             ///
             /// Returns
             /// -------
@@ -205,20 +203,19 @@ macro_rules! binomial_engine {
             /// ------
             /// KiyosiError
             ///     If request validation or pricing fails.
-            #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false))]
+            #[pyo3(signature = (instrument, context, greeks))]
             fn price_with_greeks(
                 &self,
                 py: Python<'_>,
                 #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &PricingContext,
-                greeks: Option<&Bound<'_, PyAny>>,
-                #[pyo3(from_py_with = crate::conversions::boolean)] all_greeks: bool,
+                greeks: &Bound<'_, PyAny>,
             ) -> PyResult<risk::PricingResult> {
                 let $py = py;
                 let $option = instrument;
                 let $engine = self.0;
                 let $context = &context.0;
-                let $request = risk::greeks_request(greeks, all_greeks)?;
+                let $request = risk::greeks_request(greeks)?;
                 Ok(risk::PricingResult(domain($analysis)?))
             }
         }

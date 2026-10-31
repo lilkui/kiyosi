@@ -59,7 +59,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             expected = price_differences(
                 engine, note, context, ["vega", "rho"], **shifts
             )
-            actual = engine.price_with_greeks(note, context, all_greeks=True, **shifts)
+            actual = engine.price_with_greeks(note, context, greeks="all", **shifts)
             self.assertEqual(actual.price, expected.price)
             self.assertEqual(actual.vega, expected.vega)
             self.assertEqual(actual.rho, expected.rho)

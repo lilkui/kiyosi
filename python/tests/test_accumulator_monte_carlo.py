@@ -219,9 +219,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         note = contract(date(2025, 1, 6))
         context = market(valuation=datetime(2025, 1, 3, 12, tzinfo=UTC))
         engine = MC(path_count=4096, seed=42)
-        result = engine.price_with_greeks(
-            note, context, all_greeks=True, spot_shift=0.25
-        )
+        result = engine.price_with_greeks(note, context, greeks="all", spot_shift=0.25)
         self.assertEqual(result.price, engine.price(note, context))
         up = engine.price(note, context.replace(spot_price=100.5))
         down = engine.price(note, context.replace(spot_price=100))
@@ -245,9 +243,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         )
         self.assertAlmostEqual(sigma, 0.2, delta=1e-6)
         for spot in (100, 110):
-            boundary = engine.price_with_greeks(
-                note, market(spot, START), all_greeks=True
-            )
+            boundary = engine.price_with_greeks(note, market(spot, START), greeks="all")
             for greek in (
                 "delta",
                 "gamma",
@@ -262,7 +258,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             self.assertIsNotNone(boundary.vega)
             self.assertIsNotNone(boundary.rho)
         expired = engine.price_with_greeks(
-            note, market(90, note.expiry_date), all_greeks=True
+            note, market(90, note.expiry_date), greeks="all"
         )
         for greek in (
             "delta",
@@ -402,7 +398,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         result = engine.price_with_greeks(
             note,
             context,
-            all_greeks=True,
+            greeks="all",
             spot_shift=h,
             volatility_shift=0.002,
             rate_shift=0.001,

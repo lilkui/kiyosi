@@ -160,7 +160,7 @@ class BarrierTests(unittest.TestCase):
                         ):
                             self.assertEqual(engine.price(option, context), expected)
                             result = engine.price_with_greeks(
-                                option, context, all_greeks=True
+                                option, context, greeks="all"
                             )
                             self.assertTrue(
                                 all(getattr(result, g) is None for g in GREEKS)
@@ -290,15 +290,15 @@ class BarrierTests(unittest.TestCase):
             result = engine.price_with_greeks(
                 dense,
                 self.context(time=noon, calendar=all_days_calendar()),
-                all_greeks=True,
+                greeks="all",
             )
             for greek in ("theta", "charm", "color"):
                 self.assertIsNone(getattr(result, greek))
             self.assertIsNotNone(result.delta)
         option = BarrierOption(**self.terms(touch_state="untouched", rebate=7))
-        result = engine.price_with_greeks(option, self.context(120), all_greeks=True)
+        result = engine.price_with_greeks(option, self.context(120), greeks="all")
         self.assertTrue(all(getattr(result, g) is None for g in GREEKS))
-        near = engine.price_with_greeks(option, self.context(119.995), all_greeks=True)
+        near = engine.price_with_greeks(option, self.context(119.995), greeks="all")
         self.assertIsNone(near.delta)
         self.assertIsNone(near.speed)
         self.assertIsNotNone(near.vega)
@@ -356,7 +356,7 @@ class BarrierTests(unittest.TestCase):
             touch_state="untouched",
         )
         option = BarrierOption(**terms)
-        result = engine.price_with_greeks(option, self.context(), all_greeks=True)
+        result = engine.price_with_greeks(option, self.context(), greeks="all")
 
         def f(spot=100, sigma=0.2, rate=0.05, days=0):
             return reference(terms, spot=spot, sigma=sigma, rate=rate, days=days)

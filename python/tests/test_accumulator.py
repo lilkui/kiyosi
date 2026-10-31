@@ -384,7 +384,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             with self.subTest(spot=spot):
                 context = market(spot, end)
                 self.assertEqual(engine.price(option, context), expected)
-                result = engine.price_with_greeks(option, context, all_greeks=True)
+                result = engine.price_with_greeks(option, context, greeks="all")
                 self.assertEqual(result.price, expected)
                 for greek in (
                     "delta",
@@ -490,7 +490,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
     def test_greek_availability_and_normalized_convergence(self):
         option = contract()
         engine = pricing.QuadratureAccumulatorEngine()
-        boundary = engine.price_with_greeks(option, market(100, START), all_greeks=True)
+        boundary = engine.price_with_greeks(option, market(100, START), greeks="all")
         for greek in ("delta", "gamma", "speed", "theta"):
             self.assertIsNone(getattr(boundary, greek))
         small = engine.price_with_greeks(
@@ -511,12 +511,12 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 spot=context.spot_price,
                 volatility=context.model_parameters.volatility,
             ):
-                base = engine.price_with_greeks(option, context, all_greeks=True)
-                fine = refined.price_with_greeks(option, context, all_greeks=True)
+                base = engine.price_with_greeks(option, context, greeks="all")
+                fine = refined.price_with_greeks(option, context, greeks="all")
                 smaller = refined.price_with_greeks(
                     option,
                     context,
-                    all_greeks=True,
+                    greeks="all",
                     spot_shift=0.005,
                     volatility_shift=0.00005,
                     rate_shift=0.00005,

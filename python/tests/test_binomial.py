@@ -345,7 +345,7 @@ class BinomialTests(unittest.TestCase):
                 result = engine.price_with_greeks(
                     contract(AmericanOption, direction, strike),
                     market(spot, rate, dividend),
-                    all_greeks=True,
+                    greeks="all",
                 )
                 self.assertEqual(
                     (result.price, result.delta, result.gamma), (12, delta, 0)
@@ -353,10 +353,10 @@ class BinomialTests(unittest.TestCase):
             for rate, dividend in ((0, 0), (0.04, 0), (0.04, -0.01)):
                 context = market(rate=rate, dividend=dividend)
                 american = engine.price_with_greeks(
-                    contract(AmericanOption), context, all_greeks=True
+                    contract(AmericanOption), context, greeks="all"
                 )
                 european = engine.price_with_greeks(
-                    contract(EuropeanOption), context, all_greeks=True
+                    contract(EuropeanOption), context, greeks="all"
                 )
                 self.assertAlmostEqual(american.price, european.price, delta=1e-10)
                 for name in GREEKS:
@@ -383,7 +383,7 @@ class BinomialTests(unittest.TestCase):
                         if kind in DIGITAL
                         else intrinsic
                     )
-                    result = engine.price_with_greeks(option, context, all_greeks=True)
+                    result = engine.price_with_greeks(option, context, greeks="all")
                     self.assertEqual(result.price, expected)
                     for name in GREEKS:
                         self.assertIsNone(getattr(result, name))
@@ -492,7 +492,7 @@ class BinomialTests(unittest.TestCase):
         for kind in DIGITAL:
             for steps in (1, 2, 256):
                 engine, option = engine_for(kind, steps), contract(kind)
-                expected = engine.price_with_greeks(option, market(), all_greeks=True)
+                expected = engine.price_with_greeks(option, market(), greeks="all")
                 for name in GREEKS:
                     self.assertEqual(
                         getattr(expected, name) is not None,

@@ -66,7 +66,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
         self.assert_rejection(InvalidInputError, engine.price, option, context)
         expiry = context.replace(valuation_time=END)
         self.assertEqual(engine.price(option, expiry), 50)
-        result = engine.price_with_greeks(option, expiry, all_greeks=True)
+        result = engine.price_with_greeks(option, expiry, greeks="all")
         self.assertEqual(result.price, 50)
         self.assertTrue(all(getattr(result, name) is None for name in GREEKS))
         self.assert_rejection(
@@ -177,7 +177,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
                     antithetic=antithetic,
                 )
                 result = engine.price_with_greeks(
-                    option, context, all_greeks=True, **shifts
+                    option, context, greeks="all", **shifts
                 )
                 self.assertEqual(result.price, engine.price(option, context))
                 for name in GREEKS:
@@ -222,7 +222,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
                     values = list(
                         pool.map(
                             lambda _, engine=engine: engine.price_with_greeks(
-                                option, context, all_greeks=True, **shifts
+                                option, context, greeks="all", **shifts
                             ),
                             range(2),
                         )
@@ -234,7 +234,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
                         [getattr(result, name) for name in GREEKS],
                     )
         unseeded = MonteCarloVanillaEngine(path_count=1024, step_count=7)
-        result = unseeded.price_with_greeks(option, context, all_greeks=True, **shifts)
+        result = unseeded.price_with_greeks(option, context, greeks="all", **shifts)
         self.assertTrue(all(math.isfinite(getattr(result, name)) for name in GREEKS))
         self.assertIsNone(unseeded.seed)
 
@@ -298,9 +298,10 @@ class AmericanMonteCarloTests(unittest.TestCase):
             effective_date=START,
             expiry_date=END,
         )
-        for operation in (engine.price, engine.price_with_greeks):
-            with self.assertRaises(UnsupportedOperationError):
-                operation(digital, context)
+        with self.assertRaises(UnsupportedOperationError):
+            engine.price(digital, context)
+        with self.assertRaises(UnsupportedOperationError):
+            engine.price_with_greeks(digital, context, "delta")
         with self.assertRaises(UnsupportedOperationError):
             implied_volatility(engine, digital, context, 1)
         self.assertEqual(engine.price(option, context), price)

@@ -72,9 +72,7 @@ class DigitalTests(unittest.TestCase):
             (AssetOrNothingOption, 58.6851146134764, {}),
         ):
             option = cls(**self.terms, **extra)
-            result = self.engine.price_with_greeks(
-                option, self.context, all_greeks=True
-            )
+            result = self.engine.price_with_greeks(option, self.context, greeks="all")
             self.assertAlmostEqual(result.price, expected, delta=1e-12)
             self.assertAlmostEqual(
                 implied_volatility(
@@ -185,7 +183,7 @@ class DigitalTests(unittest.TestCase):
                         else 0
                     )
                     result = self.engine.price_with_greeks(
-                        option, context, all_greeks=True
+                        option, context, greeks="all"
                     )
                     self.assertEqual(self.engine.price(option, context), expected)
                     self.assertEqual(result.price, expected)
@@ -396,8 +394,8 @@ class DigitalTests(unittest.TestCase):
             model_parameters=model.replace(dividend_yield=short)
         )
         for option in self.options():
-            actual = self.engine.price_with_greeks(option, context, all_greeks=True)
-            expected = self.engine.price_with_greeks(option, flat, all_greeks=True)
+            actual = self.engine.price_with_greeks(option, context, greeks="all")
+            expected = self.engine.price_with_greeks(option, flat, greeks="all")
             for name in ("price", *GREEKS):
                 self.assertAlmostEqual(
                     getattr(actual, name), getattr(expected, name), delta=1e-10

@@ -466,9 +466,7 @@ class SnowballVariantTests(unittest.TestCase):
             note = self.fixed(kind)
             ctx = market(103)
             original = repr(note)
-            result = engine.price_with_greeks(
-                note, ctx, all_greeks=True, spot_shift=0.25
-            )
+            result = engine.price_with_greeks(note, ctx, greeks="all", spot_shift=0.25)
             for name in (
                 "delta",
                 "gamma",
@@ -509,9 +507,7 @@ class SnowballVariantTests(unittest.TestCase):
                     [middle, END], [110, 105], knock_out_coupon_rates=[0.08, 0.06]
                 ),
             )
-            current = engine.price_with_greeks(
-                note, market(110, middle), all_greeks=True
-            )
+            current = engine.price_with_greeks(note, market(110, middle), greeks="all")
             self.assertAlmostEqual(current.price, 1 + 0.08 * 33 / 365)
             self.assertIsNone(current.delta)
             self.assertIsNone(current.theta)

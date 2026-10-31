@@ -182,7 +182,7 @@ class AsianTests(unittest.TestCase):
                     InvalidInputError, engine.price, seasoned, market(at)
                 )
             self.assertEqual(engine.price(seasoned, market(END)), 10)
-            result = engine.price_with_greeks(seasoned, market(END), all_greeks=True)
+            result = engine.price_with_greeks(seasoned, market(END), greeks="all")
             self.assertTrue(all(getattr(result, g) is None for g in GREEKS))
             self.assert_rejection(
                 UnsupportedOperationError,
@@ -215,7 +215,7 @@ class AsianTests(unittest.TestCase):
     def test_greek_requests_stencils_and_solver_controls(self):
         for kind, engine_type in PAIRS:
             engine, option, context = engine_type(), kind(**terms()), market()
-            full = engine.price_with_greeks(option, context, all_greeks=True)
+            full = engine.price_with_greeks(option, context, greeks="all")
             for g in ("theta", "charm", "color"):
                 self.assertIsNone(getattr(full, g))
             for request in (
@@ -258,7 +258,7 @@ class AsianTests(unittest.TestCase):
             self.assertIsNone(collapsed.delta)
             seasoned = option.replace(realized_average=100)
             active = market(date(2025, 7, 1))
-            result = engine.price_with_greeks(seasoned, active, all_greeks=True)
+            result = engine.price_with_greeks(seasoned, active, greeks="all")
             self.assertTrue(all(getattr(result, g) is not None for g in GREEKS))
             self.assertAlmostEqual(
                 implied_volatility(engine, seasoned, active, result.price),

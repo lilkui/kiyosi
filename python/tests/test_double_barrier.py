@@ -246,7 +246,7 @@ class DoubleBarrierTests(unittest.TestCase):
                 lambda past=past: engine.price(past, market()),
             )
             if spot in (80, 120):
-                result = engine.price_with_greeks(option, market(spot), all_greeks=True)
+                result = engine.price_with_greeks(option, market(spot), greeks="all")
                 for name in (
                     "delta",
                     "gamma",
@@ -273,7 +273,7 @@ class DoubleBarrierTests(unittest.TestCase):
             touched = spot != 110
             expected = max(spot - 100, 0) if ((kind == "knock_in") == touched) else 2
             result = engine.price_with_greeks(
-                option, market(spot, time=END), all_greeks=True
+                option, market(spot, time=END), greeks="all"
             )
             self.assertEqual(result.price, expected)
             self.assertIsNone(result.delta)
@@ -479,7 +479,7 @@ class DoubleBarrierTests(unittest.TestCase):
         self.assertAlmostEqual(solved, 0.2, delta=1e-7)
         known = option.replace(touch_state="untouched")
         later = market(time=START + timedelta(days=1))
-        result = engine.price_with_greeks(known, later, all_greeks=True)
+        result = engine.price_with_greeks(known, later, greeks="all")
         for name in (
             "delta",
             "gamma",

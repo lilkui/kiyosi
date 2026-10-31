@@ -179,7 +179,7 @@ class FiniteDifferenceTests(unittest.TestCase):
                         if pays
                         else 0
                     )
-                    result = engine.price_with_greeks(option, context, all_greeks=True)
+                    result = engine.price_with_greeks(option, context, greeks="all")
                     self.assertEqual(result.price, expected)
                     self.assertEqual(engine.price(option, context), expected)
                     self.assertTrue(
@@ -254,7 +254,7 @@ class FiniteDifferenceTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 engine.price_with_greeks(option, context)
             with self.assertRaises(TypeError):
-                engine.price_with_greeks(option, context, "delta", all_greeks=True)
+                engine.price_with_greeks(option, context, "delta", greeks="all")
             with self.assertRaises(ValueError):
                 engine.price_with_greeks(option, context, "unknown")
             other = contract(CashOrNothingOption if kind in VANILLA else EuropeanOption)

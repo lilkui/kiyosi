@@ -6,9 +6,11 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 from fractions import Fraction
+from typing import get_args
 
 import QuantLib as ql
 from kiyosi import (
+    Greek,
     InvalidInputError,
     NonConvergenceError,
     RootNotBracketedError,
@@ -41,9 +43,7 @@ class AnalyticsTests(unittest.TestCase):
         self.engine = AnalyticEuropeanEngine()
 
     def test_greeks_and_volatility_recovery(self):
-        result = self.engine.price_with_greeks(
-            self.option, self.context, all_greeks=True
-        )
+        result = self.engine.price_with_greeks(self.option, self.context, greeks="all")
         self.assertAlmostEqual(result.delta, 0.586851146134764, delta=1e-12)
         self.assertAlmostEqual(result.gamma, 0.0189505787550087, delta=1e-12)
         self.assertAlmostEqual(result.vega, 0.379011575100175, delta=1e-12)
@@ -52,6 +52,21 @@ class AnalyticsTests(unittest.TestCase):
             0.2,
             delta=1e-8,
         )
+
+    def test_all_selection_matches_explicit_greek_names(self):
+        names = get_args(Greek)
+        explicit = self.engine.price_with_greeks(self.option, self.context, names)
+        for selected in (
+            self.engine.price_with_greeks(self.option, self.context, "all"),
+            self.engine.price_with_greeks(self.option, self.context, greeks="all"),
+        ):
+            self.assertEqual(selected.price, explicit.price)
+            for name in names:
+                with self.subTest(greek=name):
+                    self.assertEqual(selected.require(name), explicit.require(name))
+        for request in ("All", ["all"], ["delta", "all"]):
+            with self.subTest(request=request), self.assertRaises(ValueError):
+                self.engine.price_with_greeks(self.option, self.context, request)
 
     def test_live_quantlib_greeks_scalar_differences_and_recovery(self):
         oracle = importlib.import_module("quantlib_reference.oracle")
@@ -80,7 +95,7 @@ class AnalyticsTests(unittest.TestCase):
                 reference, metadata = oracle.reference(inputs)
             finally:
                 del saved
-            result = self.engine.price_with_greeks(option, context, all_greeks=True)
+            result = self.engine.price_with_greeks(option, context, greeks="all")
             budget = scenario["tolerances"]
             for name, expected in reference.items():
                 with self.subTest(case=scenario["case_id"], measure=name):
@@ -121,7 +136,7 @@ class AnalyticsTests(unittest.TestCase):
             )
 
     def test_requests_availability_and_expiry(self):
-        full = self.engine.price_with_greeks(self.option, self.context, all_greeks=True)
+        full = self.engine.price_with_greeks(self.option, self.context, greeks="all")
         for request in (
             "delta",
             ["delta", "vega", "delta"],
@@ -137,7 +152,7 @@ class AnalyticsTests(unittest.TestCase):
         expiry = self.context.replace(
             spot_price=110, valuation_time=self.option.expiry_date
         )
-        result = self.engine.price_with_greeks(self.option, expiry, all_greeks=True)
+        result = self.engine.price_with_greeks(self.option, expiry, greeks="all")
         self.assertEqual(result.price, 10)
         for name in (
             "delta",
@@ -156,6 +171,7 @@ class AnalyticsTests(unittest.TestCase):
                 result.require(name)
         for changes in (
             {},
+            {"greeks": None},
             {"all_greeks": 1},
             {"greeks": "delta", "all_greeks": True},
             {"greeks": True},
@@ -299,7 +315,7 @@ class AnalyticsTests(unittest.TestCase):
             ),
             valuation_time=knot,
         )
-        result = self.engine.price_with_greeks(self.option, context, all_greeks=True)
+        result = self.engine.price_with_greeks(self.option, context, greeks="all")
         after = self.context.replace(
             model_parameters=context.model_parameters,
             valuation_time=knot + timedelta(seconds=1),

@@ -354,7 +354,7 @@ class SnowballTests(unittest.TestCase):
         )
         engine = QuadratureAutocallableEngine()
         current = market(110, middle)
-        result = engine.price_with_greeks(note, current, all_greeks=True)
+        result = engine.price_with_greeks(note, current, greeks="all")
         self.assertAlmostEqual(result.price, 1 + 0.08 * 33 / 365)
         self.assertIsNone(result.delta)
         self.assertIsNone(result.gamma)
@@ -374,7 +374,7 @@ class SnowballTests(unittest.TestCase):
         )
         settled = note.replace(barrier_state="knocked_out")
         result = engine.price_with_greeks(
-            settled, market(valuation=date(2025, 3, 3)), all_greeks=True
+            settled, market(valuation=date(2025, 3, 3)), greeks="all"
         )
         self.assertEqual(result.price, 0)
         for greek in (
@@ -390,7 +390,7 @@ class SnowballTests(unittest.TestCase):
             "rho",
         ):
             self.assertEqual(getattr(result, greek), 0)
-        expiry = engine.price_with_greeks(note, market(80, END), all_greeks=True)
+        expiry = engine.price_with_greeks(note, market(80, END), greeks="all")
         self.assertIsNone(expiry.delta)
         daily = contract(
             knock_in_observation_mode="every_trading_day", barrier_state="knocked_in"
@@ -419,7 +419,7 @@ class SnowballTests(unittest.TestCase):
         )
         engine = QuadratureAutocallableEngine()
         context = market(80)
-        result = engine.price_with_greeks(note, context, all_greeks=True)
+        result = engine.price_with_greeks(note, context, greeks="all")
         self.assertAlmostEqual(result.price, math.exp(-0.04 * 90 / 365), delta=1e-15)
         self.assertEqual(result.delta, 0)
         self.assertGreater(result.rho * -1, 0)
@@ -488,7 +488,7 @@ class SnowballTests(unittest.TestCase):
         result = engine.price_with_greeks(
             note,
             context,
-            all_greeks=True,
+            greeks="all",
             spot_shift=h,
             volatility_shift=0.002,
             rate_shift=0.001,
@@ -685,11 +685,11 @@ class SnowballTests(unittest.TestCase):
         coarse = {"spot_shift": 0.5, "volatility_shift": 0.002, "rate_shift": 0.001}
         fine = {"spot_shift": 0.25, "volatility_shift": 0.001, "rate_shift": 0.0005}
         standard = QuadratureAutocallableEngine().price_with_greeks(
-            note, context, all_greeks=True, **coarse
+            note, context, greeks="all", **coarse
         )
         engine = QuadratureAutocallableEngine(asset_step_count=1024)
-        refined = engine.price_with_greeks(note, context, all_greeks=True, **coarse)
-        smaller = engine.price_with_greeks(note, context, all_greeks=True, **fine)
+        refined = engine.price_with_greeks(note, context, greeks="all", **coarse)
+        smaller = engine.price_with_greeks(note, context, greeks="all", **fine)
         tolerances = {
             "delta": (3e-6, 0.005),
             "gamma": (3e-7, 0.01),

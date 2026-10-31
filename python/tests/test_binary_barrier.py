@@ -293,7 +293,7 @@ class BinaryBarrierTests(unittest.TestCase):
         ]
         for option in options:
             context = self.context(time=date(2025, 7, 1))
-            result = engine.price_with_greeks(option, context, all_greeks=True)
+            result = engine.price_with_greeks(option, context, greeks="all")
             self.assertTrue(all(getattr(result, g) is not None for g in GREEKS))
             sigma = implied_volatility(
                 engine,
@@ -316,18 +316,14 @@ class BinaryBarrierTests(unittest.TestCase):
                     option, context, "delta", spot_shift=0
                 ),
             )
-            boundary = engine.price_with_greeks(
-                option, self.context(120), all_greeks=True
-            )
+            boundary = engine.price_with_greeks(option, self.context(120), greeks="all")
             self.assertTrue(all(getattr(boundary, g) is None for g in GREEKS))
-            near = engine.price_with_greeks(
-                option, self.context(119.995), all_greeks=True
-            )
+            near = engine.price_with_greeks(option, self.context(119.995), greeks="all")
             self.assertIsNone(near.delta)
             self.assertIsNone(near.speed)
             self.assertIsNotNone(near.vega)
             expiry = self.context(time=date(2026, 1, 1))
-            terminal = engine.price_with_greeks(option, expiry, all_greeks=True)
+            terminal = engine.price_with_greeks(option, expiry, greeks="all")
             self.assertTrue(all(getattr(terminal, g) is None for g in GREEKS))
             self.assert_rejection(
                 UnsupportedOperationError,
@@ -380,7 +376,7 @@ class BinaryBarrierTests(unittest.TestCase):
             self.context(
                 time=datetime(2025, 1, 1, 12, tzinfo=UTC), calendar=all_days_calendar()
             ),
-            all_greeks=True,
+            greeks="all",
         )
         self.assertTrue(
             all(getattr(result, g) is None for g in ("theta", "charm", "color"))
@@ -437,7 +433,7 @@ class BinaryBarrierTests(unittest.TestCase):
                 )
                 if not reference.exclusions(inputs):
                     result = engine.price_with_greeks(
-                        option, context, all_greeks=True, spot_shift=0.02
+                        option, context, greeks="all", spot_shift=0.02
                     )
                     expected_greeks, metadata = reference.g.reference(
                         inputs,

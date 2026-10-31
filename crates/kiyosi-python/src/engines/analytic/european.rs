@@ -1,4 +1,3 @@
-use crate::conversions::boolean;
 use crate::engines::ScalarRequest;
 use crate::error::domain;
 use crate::instruments::vanilla::EuropeanOption;
@@ -28,10 +27,8 @@ impl AnalyticEuropeanEngine {
     ///     Supported contract; see the engine class for accepted types.
     /// context : PricingContext
     ///     Market snapshot and valuation instant.
-    /// greeks : str or iterable of str, optional
-    ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// all_greeks : bool, optional
-    ///     Request every measure; omit `greeks` when True. Defaults to False.
+    /// greeks : str or iterable of str
+    ///     Greek names or "all" to request every measure; duplicates are ignored.
     ///
     /// Returns
     /// -------
@@ -43,7 +40,7 @@ impl AnalyticEuropeanEngine {
     /// ------
     /// KiyosiError
     ///     If requests, pricing or requested derivatives fail.
-    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false))]
+    #[pyo3(signature = (instrument, context, greeks))]
     fn price_with_greeks(
         &self,
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
@@ -51,10 +48,9 @@ impl AnalyticEuropeanEngine {
             EuropeanOption,
         >,
         context: &PricingContext,
-        greeks: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = boolean)] all_greeks: bool,
+        greeks: &Bound<'_, PyAny>,
     ) -> PyResult<risk::PricingResult> {
-        let request = risk::greeks_request(greeks, all_greeks)?;
+        let request = risk::greeks_request(greeks)?;
         Ok(risk::PricingResult(domain(
             kiyosi::AnalyticEuropeanEngine.price_with_greeks(&instrument.0, &context.0, request),
         )?))

@@ -248,7 +248,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         engine = FiniteDifferenceBinaryBarrierEngine(asset_upper_boundary=400)
         option = touch(touch_state="untouched")
         ctx = market(time=date(2025, 1, 2))
-        result = engine.price_with_greeks(option, ctx, all_greeks=True)
+        result = engine.price_with_greeks(option, ctx, greeks="all")
         greeks = (
             "delta",
             "gamma",
@@ -304,11 +304,9 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             ins.asset_no_touch_up,
         ):
             contract = touch(factory, touch_state="untouched")
-            expiry = engine.price_with_greeks(
-                contract, market(130, END), all_greeks=True
-            )
+            expiry = engine.price_with_greeks(contract, market(130, END), greeks="all")
             self.assertTrue(all(getattr(expiry, g) is None for g in greeks))
-        equality = engine.price_with_greeks(touch(), market(120.13), all_greeks=True)
+        equality = engine.price_with_greeks(touch(), market(120.13), greeks="all")
         self.assertTrue(all(getattr(equality, g) is None for g in greeks))
         paid = touch(settlement_timing="at_hit", touch_state="touched")
         self.assert_rejection(
@@ -449,7 +447,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                     (option.expiry_date - ctx.valuation_time.date()).days,
                 ) == (100, 100, 365):
                     result = engine.price_with_greeks(
-                        option, ctx, all_greeks=True, spot_shift=0.1
+                        option, ctx, greeks="all", spot_shift=0.1
                     )
                     for greek in (
                         "delta",

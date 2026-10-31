@@ -328,13 +328,13 @@ class PhoenixTests(unittest.TestCase):
     def test_event_greeks_settled_history_and_solver_failures(self):
         note = contract()
         engine = QuadratureAutocallableEngine()
-        result = engine.price_with_greeks(note, market(90, MIDDLE), all_greeks=True)
+        result = engine.price_with_greeks(note, market(90, MIDDLE), greeks="all")
         self.assertIsNone(result.delta)
         self.assertIsNone(result.gamma)
         self.assertIsNone(result.theta)
         self.assertIsNotNone(result.vega)
         self.assertIsNotNone(result.rho)
-        result = engine.price_with_greeks(note, market(110, MIDDLE), all_greeks=True)
+        result = engine.price_with_greeks(note, market(110, MIDDLE), greeks="all")
         self.assertEqual((result.vega, result.rho), (0, 0))
         self.assert_rejection(
             UnsupportedOperationError,
@@ -346,7 +346,7 @@ class PhoenixTests(unittest.TestCase):
         )
         settled = note.replace(barrier_state="knocked_out")
         self.assertEqual(engine.price(settled, market(valuation=END)), 0)
-        result = engine.price_with_greeks(note, market(90, END), all_greeks=True)
+        result = engine.price_with_greeks(note, market(90, END), greeks="all")
         self.assertTrue(all(getattr(result, g) is None for g in GREEKS))
         self.assert_rejection(
             UnsupportedOperationError,
@@ -515,11 +515,11 @@ class PhoenixTests(unittest.TestCase):
         coarse = {"spot_shift": 0.5, "volatility_shift": 0.002, "rate_shift": 0.001}
         fine = {"spot_shift": 0.25, "volatility_shift": 0.001, "rate_shift": 0.0005}
         standard = QuadratureAutocallableEngine().price_with_greeks(
-            note, context, all_greeks=True, **coarse
+            note, context, greeks="all", **coarse
         )
         engine = QuadratureAutocallableEngine(asset_step_count=1024)
-        refined = engine.price_with_greeks(note, context, all_greeks=True, **coarse)
-        smaller = engine.price_with_greeks(note, context, all_greeks=True, **fine)
+        refined = engine.price_with_greeks(note, context, greeks="all", **coarse)
+        smaller = engine.price_with_greeks(note, context, greeks="all", **fine)
         tolerances = {
             "delta": (3e-6, 0.005),
             "gamma": (3e-7, 0.01),
@@ -597,7 +597,7 @@ class PhoenixTests(unittest.TestCase):
         result = engine.price_with_greeks(
             note,
             context,
-            all_greeks=True,
+            greeks="all",
             spot_shift=h,
             volatility_shift=0.002,
             rate_shift=0.001,

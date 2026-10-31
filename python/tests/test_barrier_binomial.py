@@ -189,7 +189,7 @@ class BarrierBinomialTests(unittest.TestCase):
             for kind in KINDS:
                 contract = option(kind, rebate=3, touch_state="untouched")
                 result = engine.price_with_greeks(
-                    contract, market(spot=110, valuation=END), all_greeks=True
+                    contract, market(spot=110, valuation=END), greeks="all"
                 )
                 self.assertEqual(result.price, 3 if kind.endswith("in") else 10)
                 for greek in ("delta", "gamma", *OTHER_GREEKS):
@@ -275,7 +275,7 @@ class BarrierBinomialTests(unittest.TestCase):
         for steps in (1, 2, 256):
             engine = pricing.CoxRossRubinsteinBarrierEngine(step_count=steps)
             contract, context = option(), market()
-            result = engine.price_with_greeks(contract, context, all_greeks=True)
+            result = engine.price_with_greeks(contract, context, greeks="all")
             self.assertIsNotNone(result.delta)
             self.assertEqual(result.gamma is not None, steps >= 2)
             for name in OTHER_GREEKS:
@@ -306,13 +306,13 @@ class BarrierBinomialTests(unittest.TestCase):
                 context = market(spot=level)
                 expected = pricing.AnalyticBarrierEngine().price(contract, context)
                 self.assertEqual(engine.price(contract, context), expected)
-                result = engine.price_with_greeks(contract, context, all_greeks=True)
+                result = engine.price_with_greeks(contract, context, greeks="all")
                 for name in ("delta", "gamma", *OTHER_GREEKS):
                     self.assertIsNone(getattr(result, name))
                 touched = contract.replace(touch_state="touched")
                 context = market(valuation=START + timedelta(days=2))
                 expected = pricing.AnalyticBarrierEngine().price(touched, context)
-                result = engine.price_with_greeks(touched, context, all_greeks=True)
+                result = engine.price_with_greeks(touched, context, greeks="all")
                 self.assertEqual(result.price, expected)
                 self.assertIsNotNone(result.delta)
                 self.assertIsNotNone(result.gamma)

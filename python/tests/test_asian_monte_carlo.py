@@ -116,7 +116,7 @@ class AsianMonteCarloTests(unittest.TestCase):
                 result = settled.price_with_greeks(
                     option(kind, direction, realized=110),
                     market(valuation=END),
-                    all_greeks=True,
+                    greeks="all",
                 )
                 self.assertEqual(result.price, expected)
                 self.assertIsNone(result.delta)
@@ -181,9 +181,7 @@ class AsianMonteCarloTests(unittest.TestCase):
                         realized=105 if window == 2 else 0,
                     )
                     context = market(valuation=valuation, rate=-0.02)
-                    result = engine.price_with_greeks(
-                        instrument, context, all_greeks=True
-                    )
+                    result = engine.price_with_greeks(instrument, context, greeks="all")
                     self.assertEqual(result.price, engine.price(instrument, context))
                     for name in (
                         "speed",
@@ -263,15 +261,13 @@ class AsianMonteCarloTests(unittest.TestCase):
             )
             for kind in KINDS:
                 instrument = option(kind)
-                expected = engine.price_with_greeks(
-                    instrument, market(), all_greeks=True
-                )
+                expected = engine.price_with_greeks(instrument, market(), greeks="all")
                 with ThreadPoolExecutor(max_workers=4) as pool:
                     results = list(
                         pool.map(
                             lambda _, parallel=parallel, instrument=instrument: (
                                 parallel.price_with_greeks(
-                                    instrument, market(), all_greeks=True
+                                    instrument, market(), greeks="all"
                                 )
                             ),
                             range(8),
@@ -345,7 +341,7 @@ class AsianMonteCarloTests(unittest.TestCase):
         settled = pricing.MonteCarloAsianEngine(path_count=1, seed=42)
         instrument = option(ArithmeticAveragePriceOption, strike=25, realized=100)
         context = market(valuation=START + timedelta(days=180))
-        actual = settled.price_with_greeks(instrument, context, all_greeks=True)
+        actual = settled.price_with_greeks(instrument, context, greeks="all")
         self.assertEqual(
             actual.price,
             pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(

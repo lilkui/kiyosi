@@ -283,7 +283,7 @@ class RangeAccrualTests(unittest.TestCase):
         ):
             with self.subTest(spot=spot):
                 result = engine.price_with_greeks(
-                    option, market(option.expiry_date, spot), all_greeks=True
+                    option, market(option.expiry_date, spot), greeks="all"
                 )
                 self.assertAlmostEqual(
                     result.price, 1000 * 0.12 / 365 * (1 + hit), delta=1e-12
@@ -551,7 +551,7 @@ class RangeAccrualTests(unittest.TestCase):
             context = market(valuation, spot=99, rate=rate, dividend=dividend)
             engine = AnalyticRangeAccrualEngine()
             result = engine.price_with_greeks(
-                option, context, all_greeks=True, spot_shift=0.1
+                option, context, greeks="all", spot_shift=0.1
             )
 
             def price(
@@ -666,7 +666,7 @@ class RangeAccrualTests(unittest.TestCase):
         engine = AnalyticRangeAccrualEngine()
         option = contract(realized_hit_count=0)
         result = engine.price_with_greeks(
-            option, market(START + timedelta(days=1), spot=95), all_greeks=True
+            option, market(START + timedelta(days=1), spot=95), greeks="all"
         )
         for name in (
             "delta",

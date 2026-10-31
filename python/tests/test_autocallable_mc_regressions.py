@@ -151,7 +151,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                             (up2 - 2 * up + 2 * down - down2) / h / h / (2 * h),
                         )
                         numerical = engine.price_with_greeks(
-                            note, contexts[0], all_greeks=True, spot_shift=shift
+                            note, contexts[0], greeks="all", spot_shift=shift
                         )
                         self.assertEqual(
                             (result.price, result.delta, result.gamma, result.speed),

@@ -37,7 +37,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         for direction in ("call", "put"):
             for kind in ("knock_in", "knock_out"):
                 option = contract(option_type=direction, barrier_type=kind)
-                actual = engine.price_with_greeks(option, market(), all_greeks=True)
+                actual = engine.price_with_greeks(option, market(), greeks="all")
                 self.assertAlmostEqual(
                     actual.price, reference(direction, kind), delta=0.01
                 )
@@ -73,7 +73,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             )
             self.assertAlmostEqual(expected, refined, delta=1e-8)
             context = market(100.25)
-            result = engine.price_with_greeks(option, context, all_greeks=True)
+            result = engine.price_with_greeks(option, context, greeks="all")
             self.assertAlmostEqual(result.price, expected, delta=0.025)
             fd = pricing.FiniteDifferenceDoubleBarrierEngine(
                 asset_step_count=1200, time_step_count=1200
@@ -142,7 +142,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             ),
         ):
             result = engine.price_with_greeks(
-                contract(), market(volatility=volatility), all_greeks=True
+                contract(), market(volatility=volatility), greeks="all"
             )
             for actual, expected in (
                 (result.price, price),
@@ -219,7 +219,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                     "rebate_timing": timing,
                 }
                 option = contract(**terms, rebate=3)
-                actual = engine.price_with_greeks(option, context, all_greeks=True)
+                actual = engine.price_with_greeks(option, context, greeks="all")
                 self.assertAlmostEqual(
                     actual.price - engine.price(contract(**terms), context),
                     refs[index],
@@ -254,11 +254,11 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             }
             serial = pricing.MonteCarloDoubleBarrierEngine(thread_count=1, **settings)
             parallel = pricing.MonteCarloDoubleBarrierEngine(thread_count=4, **settings)
-            expected = serial.price_with_greeks(option, context, all_greeks=True)
+            expected = serial.price_with_greeks(option, context, greeks="all")
 
             def evaluate(index, parallel=parallel, serial=serial, option=option):
                 result = (parallel if index % 2 else serial).price_with_greeks(
-                    option, context, all_greeks=True
+                    option, context, greeks="all"
                 )
                 return result.price, result.delta, result.gamma
 
@@ -297,7 +297,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                     engine.price(option, context), analytic.price(option, context)
                 )
                 if spot in (80, 120):
-                    result = engine.price_with_greeks(option, context, all_greeks=True)
+                    result = engine.price_with_greeks(option, context, greeks="all")
                     self.assertIsNone(result.delta)
                     self.assertIsNone(result.gamma)
                 later = context.replace(
@@ -313,7 +313,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 for history in ("touched", "untouched"):
                     known = option.replace(touch_state=history)
                     expired = market(spot, time=END)
-                    result = engine.price_with_greeks(known, expired, all_greeks=True)
+                    result = engine.price_with_greeks(known, expired, greeks="all")
                     self.assertEqual(result.price, analytic.price(known, expired))
                     self.assertIsNone(result.delta)
                     self.assertIsNone(result.gamma)
@@ -338,7 +338,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             )
             self.assertIsNone(option.touch_state)
         for spot in (80.005, 119.995):
-            result = engine.price_with_greeks(contract(), market(spot), all_greeks=True)
+            result = engine.price_with_greeks(contract(), market(spot), greeks="all")
             self.assertIsNone(result.delta)
             self.assertIsNone(result.gamma)
 

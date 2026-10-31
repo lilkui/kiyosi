@@ -119,7 +119,7 @@ class AmericanTests(unittest.TestCase):
             for spot in (90, 100, 110):
                 context = self.market(spot=spot, rate=-0.05, dividend=-0.03, at=end)
                 expected = max(spot - 100 if direction == "call" else 100 - spot, 0)
-                result = self.engine.price_with_greeks(option, context, all_greeks=True)
+                result = self.engine.price_with_greeks(option, context, greeks="all")
                 self.assertEqual(result.price, expected)
                 self.assertTrue(all(getattr(result, name) is None for name in GREEKS))
                 self.assert_rejection(
@@ -270,9 +270,7 @@ class AmericanTests(unittest.TestCase):
         differences = importlib.import_module("price_differences").price_differences
         for direction in ("call", "put"):
             option = AmericanOption(**dict(self.terms, option_type=direction))
-            result = self.engine.price_with_greeks(
-                option, self.context, all_greeks=True
-            )
+            result = self.engine.price_with_greeks(option, self.context, greeks="all")
             numerical = differences(self.engine, option, self.context)
             for name in GREEKS:
                 with self.subTest(direction=direction, name=name):

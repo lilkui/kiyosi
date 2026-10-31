@@ -488,7 +488,7 @@ class DoubleTouchTests(unittest.TestCase):
             contract(payout=3, settlement_timing="at_hit"),
         ):
             known = option.replace(touch_state="untouched")
-            result = engine.price_with_greeks(known, market(time=END), all_greeks=True)
+            result = engine.price_with_greeks(known, market(time=END), greeks="all")
             self.assertEqual(result.price, 0 if known.is_one_touch else 3)
             self.assertIsNone(result.delta)
             self.assertIsNone(result.vega)
@@ -521,7 +521,7 @@ class DoubleTouchTests(unittest.TestCase):
             ).total_seconds() / (86400 * 365)
             expected = 2 * math.exp(-0.03 * remaining)
             context = market(130, time=time)
-            result = engine.price_with_greeks(known, context, all_greeks=True)
+            result = engine.price_with_greeks(known, context, greeks="all")
             self.assertAlmostEqual(result.price, expected, delta=1e-12)
             self.assertEqual(result.delta, 0)
             self.assertEqual(result.vega, 0)
@@ -551,7 +551,7 @@ class DoubleTouchTests(unittest.TestCase):
             contract(settlement_timing="at_hit", touch_state="untouched"),
             contract(cash_double_no_touch, touch_state="untouched"),
         ):
-            result = engine.price_with_greeks(option, market(), all_greeks=True)
+            result = engine.price_with_greeks(option, market(), greeks="all")
             bumped = price_differences(engine, option, market())
             for name in (
                 "delta",
@@ -584,9 +584,7 @@ class DoubleTouchTests(unittest.TestCase):
                 ),
             )
             for spot in (80, 120):
-                boundary = engine.price_with_greeks(
-                    option, market(spot), all_greeks=True
-                )
+                boundary = engine.price_with_greeks(option, market(spot), greeks="all")
                 for name in ("delta", "gamma", "theta", "vega", "rho"):
                     self.assertIsNone(getattr(boundary, name))
         scheduled = contract(
@@ -642,12 +640,8 @@ class DoubleTouchTests(unittest.TestCase):
                             getattr(more_terms[index], name),
                             delta=1e-14,
                         )
-                    rough = coarse.price_with_greeks(
-                        option, market(spot), all_greeks=True
-                    )
-                    refined = fine.price_with_greeks(
-                        option, market(spot), all_greeks=True
-                    )
+                    rough = coarse.price_with_greeks(option, market(spot), greeks="all")
+                    refined = fine.price_with_greeks(option, market(spot), greeks="all")
                     self.assertAlmostEqual(refined.price, price, delta=1e-7)
                     for name, budget in budgets.items():
                         with self.subTest(greek=name, budget=budget):

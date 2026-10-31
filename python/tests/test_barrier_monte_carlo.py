@@ -31,9 +31,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
             for kind in KINDS:
                 for direction in ("call", "put"):
                     contract = option(kind, direction, rebate=2)
-                    actual = engine.price_with_greeks(
-                        contract, market(), all_greeks=True
-                    )
+                    actual = engine.price_with_greeks(contract, market(), greeks="all")
                     expected = pricing.AnalyticBarrierEngine().price_with_greeks(
                         contract, market(), ("delta", "gamma")
                     )
@@ -70,7 +68,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     observation_mode="scheduled",
                     observation_dates=dates,
                 )
-                actual = engine.price_with_greeks(contract, market(), all_greeks=True)
+                actual = engine.price_with_greeks(contract, market(), greeks="all")
                 expected = pricing.QuadratureBarrierEngine().price_with_greeks(
                     contract, market(), ("delta", "gamma")
                 )
@@ -99,7 +97,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
             contract = option(kind, rebate=10, rebate_timing="at_hit")
             for rate in (-0.02, 0.04):
                 context = market(rate=rate)
-                actual = engine.price_with_greeks(contract, context, all_greeks=True)
+                actual = engine.price_with_greeks(contract, context, greeks="all")
                 expected = pricing.AnalyticBarrierEngine().price_with_greeks(
                     contract, context, ("delta", "gamma")
                 )
@@ -161,16 +159,14 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     parallel = pricing.MonteCarloBarrierEngine(
                         thread_count=4, **settings
                     )
-                    expected = serial.price_with_greeks(
-                        contract, context, all_greeks=True
-                    )
+                    expected = serial.price_with_greeks(contract, context, greeks="all")
 
                     def evaluate(
                         index, parallel=parallel, serial=serial, contract=contract
                     ):
                         engine = parallel if index % 2 else serial
                         result = engine.price_with_greeks(
-                            contract, context, all_greeks=True
+                            contract, context, greeks="all"
                         )
                         return result.price, result.delta, result.gamma
 
@@ -201,7 +197,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
             ):
                 contract = option(kind, rebate=7, rebate_timing=timing)
                 context = market(spot=contract.barrier_level)
-                result = engine.price_with_greeks(contract, context, all_greeks=True)
+                result = engine.price_with_greeks(contract, context, greeks="all")
                 self.assertEqual(
                     result.price,
                     pricing.AnalyticBarrierEngine().price(contract, context),
@@ -227,7 +223,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 for history in ("touched", "untouched"):
                     known = contract.replace(touch_state=history)
                     expired = market(spot=contract.barrier_level, valuation=END)
-                    result = engine.price_with_greeks(known, expired, all_greeks=True)
+                    result = engine.price_with_greeks(known, expired, greeks="all")
                     self.assertEqual(
                         result.price,
                         pricing.AnalyticBarrierEngine().price(known, expired),
@@ -260,7 +256,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 )
                 self.assertIsNone(contract.touch_state)
         near_barrier = market(spot=80.005)
-        result = engine.price_with_greeks(option(), near_barrier, all_greeks=True)
+        result = engine.price_with_greeks(option(), near_barrier, greeks="all")
         self.assertIsNone(result.delta)
         self.assertIsNone(result.gamma)
 
