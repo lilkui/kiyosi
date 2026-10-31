@@ -1,5 +1,7 @@
 use super::*;
-use crate::instruments::autocallable::pricing::{fixed_value, initial, validate};
+use crate::instruments::autocallable::pricing::{
+    fixed_value, initial, validate, volatility_affects_price,
+};
 use crate::{AutocallableNote, AutocallableObservation, AutocallableTerms, KnockInObservationMode};
 
 impl FiniteDifferenceAutocallableEngine {
@@ -103,8 +105,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> bool {
-        let state = initial(option, context);
-        state.settlement.is_none() && fixed_value(option, context, state.knocked_in).is_none()
+        volatility_affects_price(option, context)
     }
 }
 

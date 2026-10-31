@@ -4,7 +4,9 @@ use super::gaussian::{
 };
 use super::{QuadratureSettings, flat_rates};
 use crate::engines::analytic::barrier::log_ratio;
-use crate::instruments::autocallable::pricing::{fixed_value, initial, validate};
+use crate::instruments::autocallable::pricing::{
+    fixed_value, initial, validate, volatility_affects_price,
+};
 use crate::{
     AutocallableNote, AutocallableObservation, AutocallableTerms, BlackScholesMertonParameters,
     Date, Error, GreeksRequest, KnockInObservationMode, NumericalShiftSettings, PricingContext,
@@ -117,8 +119,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for QuadratureAuto
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> bool {
-        let initial = initial(option, context);
-        initial.settlement.is_none() && fixed_value(option, context, initial.knocked_in).is_none()
+        volatility_affects_price(option, context)
     }
 }
 struct Request<T: AutocallableTerms> {
@@ -138,7 +139,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for Request<T> {
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> bool {
-        QuadratureAutocallableEngine::default().volatility_affects_price(option, context)
+        volatility_affects_price(option, context)
     }
 }
 
