@@ -156,11 +156,7 @@ pub(crate) fn complete_greeks(
     let spot_samples = |vol, t, center| -> Result<(f64, f64, f64)> {
         Ok((
             price(spot + h, vol, 0.0, t)?,
-            if center {
-                price(spot, vol, 0.0, t)?
-            } else {
-                p0
-            },
+            center,
             price(spot - h, vol, 0.0, t)?,
         ))
     };
@@ -175,12 +171,24 @@ pub(crate) fn complete_greeks(
                               last_vol,
                               last_time,
                               delta: bool,
-                              gamma: bool|
+                              gamma: bool,
+                              prices: Option<(f64, f64)>|
      -> Result<((f64, f64), (f64, f64))> {
         if !native_spot_greeks {
+            let (first, last) = if gamma {
+                match prices {
+                    Some(prices) => prices,
+                    None => (
+                        price(spot, first_vol, 0.0, first_time)?,
+                        price(spot, last_vol, 0.0, last_time)?,
+                    ),
+                }
+            } else {
+                (p0, p0)
+            };
             return Ok((
-                derivatives(spot_samples(first_vol, first_time, gamma)?),
-                derivatives(spot_samples(last_vol, last_time, gamma)?),
+                derivatives(spot_samples(first_vol, first_time, first)?),
+                derivatives(spot_samples(last_vol, last_time, last)?),
             ));
         }
         let measures = GreeksRequest::new(
@@ -197,8 +205,8 @@ pub(crate) fn complete_greeks(
         // Both legs must use scalar stencils when either lacks the native derivative.
         let (first, last) = if missing_delta || missing_gamma {
             (
-                derivatives(spot_samples(first_vol, first_time, missing_gamma)?),
-                derivatives(spot_samples(last_vol, last_time, missing_gamma)?),
+                derivatives(spot_samples(first_vol, first_time, first.price())?),
+                derivatives(spot_samples(last_vol, last_time, last.price())?),
             )
         } else {
             ((0.0, 0.0), (0.0, 0.0))
@@ -249,9 +257,15 @@ pub(crate) fn complete_greeks(
         && (100.0 * v).is_finite()
         && (want(Greek::Vega) || (spot_ok && (want(Greek::Vanna) || want(Greek::Zomma))))
     {
-        if want(Greek::Vega) {
-            let up = price(spot, vol + v, 0.0, time)?;
-            let down = price(spot, vol - v, 0.0, time)?;
+        let prices = if want(Greek::Vega) {
+            Some((
+                price(spot, vol + v, 0.0, time)?,
+                price(spot, vol - v, 0.0, time)?,
+            ))
+        } else {
+            None
+        };
+        if let Some((up, down)) = prices {
             result.set(request, Greek::Vega, (up - down) / (200.0 * v))?;
         }
         if spot_ok && (want(Greek::Vanna) || want(Greek::Zomma)) {
@@ -262,6 +276,7 @@ pub(crate) fn complete_greeks(
                 time,
                 want(Greek::Vanna),
                 want(Greek::Zomma),
+                prices,
             )?;
             result.set(request, Greek::Vanna, (high.0 - low.0) / (200.0 * v))?;
             result.set(request, Greek::Zomma, (high.1 - low.1) / (200.0 * v))?;
@@ -307,12 +322,16 @@ pub(crate) fn complete_greeks(
         let after = time.add_micros(shift.min(after_width))?;
         if before != after && option.time_stencil_available(context, before, after) {
             let days = before.micros_until(after) as f64 / 86_400_000_000.0;
-            if want(Greek::Theta) {
-                result.set(
-                    request,
-                    Greek::Theta,
-                    (price(spot, vol, 0.0, after)? - price(spot, vol, 0.0, before)?) / days,
-                )?;
+            let prices = if want(Greek::Theta) {
+                Some((
+                    price(spot, vol, 0.0, after)?,
+                    price(spot, vol, 0.0, before)?,
+                ))
+            } else {
+                None
+            };
+            if let Some((after, before)) = prices {
+                result.set(request, Greek::Theta, (after - before) / days)?;
             }
             if spot_ok && (want(Greek::Charm) || want(Greek::Color)) {
                 let (first, last) = paired_derivatives(
@@ -322,6 +341,7 @@ pub(crate) fn complete_greeks(
                     after,
                     want(Greek::Charm),
                     want(Greek::Color),
+                    prices.map(|(after, before)| (before, after)),
                 )?;
                 result.set(request, Greek::Charm, (last.0 - first.0) / days)?;
                 result.set(request, Greek::Color, (last.1 - first.1) / days)?;
@@ -451,5 +471,117 @@ mod tests {
         assert_eq!(result.get(Greek::Gamma), None);
         assert_eq!(calls.get(), 4);
         assert_eq!(*option.radii.borrow(), [0.0, 0.25, 0.5]);
+    }
+
+    #[test]
+    fn related_scalar_greeks_reuse_prices_without_changing_sensitivities() {
+        let (option, context) = inputs();
+        let context = context
+            .replace(PricingContextChanges {
+                model_parameters: Some(BlackScholesMertonParameters::new(0.125, 0.0, 0.5).unwrap()),
+                valuation_time: Some(Date::new(2025, 1, 3).unwrap().into()),
+                ..Default::default()
+            })
+            .unwrap();
+        for (request, expected_calls) in [
+            (
+                GreeksRequest::new([Greek::Vega, Greek::Vanna, Greek::Zomma]),
+                7,
+            ),
+            (
+                GreeksRequest::new([Greek::Theta, Greek::Charm, Greek::Color]),
+                7,
+            ),
+            (GreeksRequest::all(), 19),
+        ] {
+            let calls = RefCell::new(Vec::new());
+            let evaluate = |context: &PricingContext, _| {
+                calls.borrow_mut().push(context.clone());
+                let days = option
+                    .effective_date()
+                    .start_of_day()
+                    .micros_until(context.valuation_time()) as f64
+                    / 86_400_000_000.0;
+                let spot = context.spot_price();
+                let model = context.model_parameters();
+                PricingResult::new(
+                    spot.powi(3) * (1.0 + model.volatility().powi(2))
+                        + spot.powi(2) * days
+                        + model.risk_free_rate()?,
+                )
+            };
+            let result = complete_greeks(
+                &option,
+                &context,
+                request,
+                NumericalShiftSettings {
+                    spot_shift: 0.25,
+                    volatility_shift: 0.125,
+                    rate_shift: 0.125,
+                    time_shift_days: 1,
+                },
+                false,
+                evaluate(&context, request).unwrap(),
+                evaluate,
+            )
+            .unwrap();
+            assert_eq!(result.price(), 18.125);
+            for (greek, expected) in [
+                (Greek::Delta, 23.078125),
+                (Greek::Gamma, 19.0),
+                (Greek::Speed, 7.5),
+                (Greek::Vega, 0.08),
+                (Greek::Vanna, 0.120625),
+                (Greek::Zomma, 0.12),
+                (Greek::Theta, 4.0),
+                (Greek::Charm, 4.0),
+                (Greek::Color, 2.0),
+                (Greek::Rho, 0.01),
+            ] {
+                if request.has(greek) {
+                    assert!((result.require(greek).unwrap() - expected).abs() < 1e-12);
+                } else {
+                    assert_eq!(result.get(greek), None);
+                }
+            }
+            let calls = calls.borrow();
+            assert_eq!(calls.len(), expected_calls);
+            for (index, context) in calls.iter().enumerate() {
+                assert!(
+                    !calls[..index].contains(context),
+                    "repeated valuation: {context:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn missing_native_gamma_reuses_prices_for_scalar_fallback() {
+        let (option, context) = inputs();
+        let request = GreeksRequest::new([Greek::Zomma]);
+        let calls = Cell::new(0);
+        let evaluate = |context: &PricingContext, _| {
+            calls.set(calls.get() + 1);
+            PricingResult::new(
+                context.spot_price().powi(2) * context.model_parameters().volatility().powi(2),
+            )
+        };
+        let result = complete_greeks(
+            &option,
+            &context,
+            request,
+            NumericalShiftSettings {
+                spot_shift: 0.25,
+                volatility_shift: 0.125,
+                ..Default::default()
+            },
+            true,
+            evaluate(&context, request).unwrap(),
+            evaluate,
+        )
+        .unwrap();
+        assert!((result.require(Greek::Zomma).unwrap() - 0.008).abs() < 1e-12);
+        assert_eq!(result.get(Greek::Gamma), None);
+        assert_eq!(calls.get(), 7);
     }
 }
