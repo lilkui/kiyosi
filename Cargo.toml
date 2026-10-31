@@ -8,7 +8,6 @@ version = "0.14.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
-license-file = "LICENSE.txt"
 repository = "https://github.com/lilkui/kiyosi"
 
 [workspace.dependencies]
