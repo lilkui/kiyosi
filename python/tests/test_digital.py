@@ -109,7 +109,7 @@ class DigitalTests(unittest.TestCase):
         oracle = importlib.import_module("quantlib_reference.oracle")
         differences = importlib.import_module("price_differences").price_differences
         oracle.require_version()
-        config = digital.configuration()
+        config = oracle.load_fixture("digital.json")
         for identifier, inputs in digital.scenarios(config):
             cls = (
                 CashOrNothingOption

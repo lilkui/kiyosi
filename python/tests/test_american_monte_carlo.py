@@ -1,13 +1,11 @@
 """American regression Monte Carlo through the installed public API."""
 
 import importlib
-import json
 import math
 import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
 
 import QuantLib as ql
 from kiyosi import (
@@ -311,16 +309,12 @@ class AmericanMonteCarloTests(unittest.TestCase):
             engine.step_count = 2
 
     def test_live_quantlib_refinement_and_existing_error_budgets(self):
-        root = Path(__file__).resolve().parent
-
         american = importlib.import_module("quantlib_reference.american")
         oracle = importlib.import_module("quantlib_reference.oracle")
         oracle.require_version()
-        config = json.loads((root / "quantlib_reference/american.json").read_text())
+        config = oracle.load_fixture("american.json")
         profile = next(
-            p
-            for p in oracle.expand_profiles(config)
-            if p["engine"] == "MonteCarloVanillaEngine"
+            p for p in config["profiles"] if p["engine"] == "MonteCarloVanillaEngine"
         )
         engine = MonteCarloVanillaEngine(**profile["settings"])
         for scenario in config["scenarios"]:

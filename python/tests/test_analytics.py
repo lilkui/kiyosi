@@ -1,13 +1,11 @@
 """Shared European analytics contracts, through the Rust extension."""
 
 import importlib
-import json
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 from fractions import Fraction
-from pathlib import Path
 
 import QuantLib as ql
 from kiyosi import (
@@ -56,14 +54,12 @@ class AnalyticsTests(unittest.TestCase):
         )
 
     def test_live_quantlib_greeks_scalar_differences_and_recovery(self):
-        root = Path(__file__).resolve().parent
-
         oracle = importlib.import_module("quantlib_reference.oracle")
         differences = importlib.import_module("price_differences").price_differences
         oracle.require_version()
-        config = json.loads((root / "quantlib_reference/scenarios.json").read_text())
+        config = oracle.load_fixture("scenarios.json")
         for scenario in config["scenarios"]:
-            inputs = dict(config["defaults"]["inputs"], **scenario["inputs"])
+            inputs = scenario["inputs"]
             option = EuropeanOption(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
@@ -85,9 +81,7 @@ class AnalyticsTests(unittest.TestCase):
             finally:
                 del saved
             result = self.engine.price_with_greeks(option, context, all_greeks=True)
-            budget = dict(
-                config["defaults"]["tolerances"], **scenario.get("tolerances", {})
-            )
+            budget = scenario["tolerances"]
             for name, expected in reference.items():
                 with self.subTest(case=scenario["case_id"], measure=name):
                     self.assertAlmostEqual(
@@ -96,10 +90,7 @@ class AnalyticsTests(unittest.TestCase):
                         delta=budget[name] + metadata[f"uncertainty_{name}"],
                     )
             # Reuse the scalar oracle and unchanged numerical acceptance budgets.
-            numeric_budget = dict(
-                config["defaults"]["numerical_tolerances"],
-                **scenario.get("numerical_tolerances", {}),
-            )
+            numeric_budget = scenario["numerical_tolerances"]
             bumps = (
                 (0.008, 0.01)
                 if (option.expiry_date - context.valuation_time.date()).days <= 2

@@ -1,13 +1,11 @@
 """American approximation contracts shared by the Rust implementation."""
 
 import importlib
-import json
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 from fractions import Fraction
-from pathlib import Path
 
 import QuantLib as ql
 from kiyosi import (
@@ -419,15 +417,13 @@ class AmericanTests(unittest.TestCase):
             implied_volatility(AnalyticEuropeanEngine(), self.option, self.context, 10)
 
     def test_live_quantlib_refinement_and_existing_error_budgets(self):
-        root = Path(__file__).resolve().parent
-
         american = importlib.import_module("quantlib_reference.american")
         oracle = importlib.import_module("quantlib_reference.oracle")
         oracle.require_version()
-        config = json.loads((root / "quantlib_reference/american.json").read_text())
+        config = oracle.load_fixture("american.json")
         profile = next(
             p
-            for p in oracle.expand_profiles(config)
+            for p in config["profiles"]
             if p["engine"] == "BjerksundStenslandVanillaEngine"
         )
         for scenario in config["scenarios"]:

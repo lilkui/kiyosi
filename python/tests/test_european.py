@@ -1,14 +1,12 @@
 """Public API checks, through the Rust extension."""
 
 import importlib
-import json
 import math
 import numbers
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta, timezone
 from fractions import Fraction
-from pathlib import Path
 
 import QuantLib as ql
 from kiyosi import ComputationFailureError, InvalidInputError
@@ -73,15 +71,11 @@ class EuropeanTests(unittest.TestCase):
                 )
 
     def test_existing_scenarios_against_live_quantlib(self):
-        test_root = Path(__file__).resolve().parent
-
         oracle = importlib.import_module("quantlib_reference.oracle")
         oracle.require_version()
-        config = json.loads(
-            (test_root / "quantlib_reference/scenarios.json").read_text()
-        )
+        config = oracle.load_fixture("scenarios.json")
         for scenario in config["scenarios"]:
-            inputs = dict(config["defaults"]["inputs"], **scenario["inputs"])
+            inputs = scenario["inputs"]
             with self.subTest(case=scenario["case_id"]), ql.SavedSettings():
                 expected = oracle.vanilla_option(inputs).NPV()
                 model = BlackScholesMertonParameters(
@@ -100,9 +94,7 @@ class EuropeanTests(unittest.TestCase):
                     spot_price=inputs["spot"],
                     valuation_time=date.fromisoformat(inputs["valuation"]),
                 )
-                tolerance = scenario.get("tolerances", {}).get(
-                    "price", config["defaults"]["tolerances"]["price"]
-                )
+                tolerance = scenario["tolerances"]["price"]
                 self.assertAlmostEqual(
                     AnalyticEuropeanEngine().price(option, context),
                     expected,

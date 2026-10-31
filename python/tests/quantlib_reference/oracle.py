@@ -1,5 +1,6 @@
 """Shared independent QuantLib calculations; no product-module dependencies."""
 
+import json
 import math
 from datetime import date, timedelta
 from importlib.metadata import version
@@ -8,17 +9,6 @@ from pathlib import Path
 import QuantLib as ql
 
 DATA_DIR = Path(__file__).resolve().parent
-INPUTS = {
-    "option",
-    "strike",
-    "effective_date",
-    "expiry_date",
-    "valuation",
-    "spot",
-    "rate",
-    "dividend",
-    "volatility",
-}
 MEASURES = [
     "price",
     "delta",
@@ -72,32 +62,6 @@ def require_version():
     require(
         version("QuantLib") == ql.__version__ == "1.43",
         "QuantLib 1.43 is required for pricing reference tests",
-    )
-
-
-def validate_inputs(inputs):
-    require(set(inputs) == INPUTS, "incomplete or unknown inputs")
-    require(inputs["option"] in ("call", "put"), "unknown option")
-    for key in ("strike", "spot", "rate", "dividend", "volatility"):
-        require(
-            type(inputs[key]) in (int, float) and math.isfinite(inputs[key]),
-            f"invalid {key}",
-        )
-    require(
-        all(inputs[key] > 0 for key in ("strike", "spot", "volatility")),
-        "non-positive input",
-    )
-    dates = {
-        key: date.fromisoformat(inputs[key])
-        for key in ("effective_date", "valuation", "expiry_date")
-    }
-    require(
-        all(dates[key].isoformat() == inputs[key] for key in dates),
-        "dates must be YYYY-MM-DD",
-    )
-    require(
-        dates["effective_date"] <= dates["valuation"] < dates["expiry_date"],
-        "invalid date ordering",
     )
 
 
@@ -365,35 +329,23 @@ def reference_row(
     }
 
 
-def validate_profile(profile, *, extra_fields=()):
-    require(
-        set(profile)
-        == {
-            "engine",
-            "settings",
-            "shifts",
-            "tolerances",
-            "numerical_tolerances",
-            *extra_fields,
-        },
-        "invalid profile",
-    )
-    validate_budgets(profile)
-
-
-def expand_profiles(config):
-    defaults = config["profile_defaults"]
-    require(
-        set(defaults) == {"shifts", "tolerances", "numerical_tolerances"},
-        "invalid profile defaults",
-    )
-    return [
-        dict(
-            profile,
-            **{
-                field: dict(values, **profile.get(field, {}))
-                for field, values in defaults.items()
-            },
+def load_fixture(name):
+    """Load fresh fixture data with defaults expanded and budgets checked."""
+    config = json.loads((DATA_DIR / name).read_text(encoding="utf-8"))
+    for collection, defaults_key in (
+        ("scenarios", "defaults"),
+        ("profiles", "profile_defaults"),
+    ):
+        for record in config.get(collection, []):
+            for field, values in config.get(defaults_key, {}).items():
+                record[field] = dict(values, **record.get(field, {}))
+            if collection == "profiles" or defaults_key in config:
+                validate_budgets(record)
+    if "scenarios" in config:
+        rows = config["scenarios"]
+        require(bool(rows), "no scenarios")
+        require(
+            len({row["case_id"] for row in rows}) == len(rows),
+            "duplicate scenario identifier",
         )
-        for profile in config["profiles"]
-    ]
+    return config

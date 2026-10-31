@@ -470,7 +470,7 @@ class DigitalNumericalTests(unittest.TestCase):
         digital = importlib.import_module("quantlib_reference.digital")
         oracle = importlib.import_module("quantlib_reference.oracle")
         oracle.require_version()
-        config = digital.configuration()
+        config = oracle.load_fixture("digital.json")
         for identifier, inputs in digital.scenarios(config):
             cls = (
                 CashOrNothingOption

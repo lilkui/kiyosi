@@ -8,7 +8,6 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 from fractions import Fraction
-from pathlib import Path
 
 import QuantLib as ql
 from kiyosi import (
@@ -450,21 +449,14 @@ class MonteCarloTests(unittest.TestCase):
         self.assertEqual(context.model_parameters.volatility, 0.2)
 
     def test_existing_quantlib_monte_carlo_profile(self):
-        root = Path(__file__).resolve().parent
-
-        scenarios = importlib.import_module("quantlib_reference.scenarios")
         oracle = importlib.import_module("quantlib_reference.oracle")
         oracle.require_version()
         profile = next(
             p
-            for p in scenarios.numerical_profiles(
-                root / "quantlib_reference/numerical_engines.json"
-            )
+            for p in oracle.load_fixture("numerical_engines.json")["profiles"]
             if p["engine"] == "MonteCarloVanillaEngine"
         )
-        for scenario in scenarios.load_scenarios(
-            root / "quantlib_reference/scenarios.json"
-        ):
+        for scenario in oracle.load_fixture("scenarios.json")["scenarios"]:
             inputs = scenario["inputs"]
             if oracle.exclusions(inputs):
                 continue

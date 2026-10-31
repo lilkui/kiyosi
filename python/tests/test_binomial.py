@@ -1,7 +1,6 @@
 """CRR public contracts shared by the Rust implementation."""
 
 import importlib
-import json
 import math
 import numbers
 import sys
@@ -9,7 +8,6 @@ import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
 
 import QuantLib as ql
 from kiyosi import (
@@ -621,30 +619,21 @@ class BinomialTests(unittest.TestCase):
                     self.assertAlmostEqual(sigma, 0.2, delta=1e-6)
 
     def test_existing_quantlib_european_and_american_profiles(self):
-        root = Path(__file__).resolve().parent
-
         oracle = importlib.import_module("quantlib_reference.oracle")
         american = importlib.import_module("quantlib_reference.american")
-        scenarios = importlib.import_module("quantlib_reference.scenarios")
         oracle.require_version()
         european_profile = next(
             p
-            for p in scenarios.numerical_profiles(
-                root / "quantlib_reference/numerical_engines.json"
-            )
+            for p in oracle.load_fixture("numerical_engines.json")["profiles"]
             if p["engine"] == "CoxRossRubinsteinVanillaEngine"
         )
-        american_config = json.loads(
-            (root / "quantlib_reference/american.json").read_text()
-        )
+        american_config = oracle.load_fixture("american.json")
         american_profile = next(
             p
-            for p in oracle.expand_profiles(american_config)
+            for p in american_config["profiles"]
             if p["engine"] == "CoxRossRubinsteinVanillaEngine"
         )
-        european_scenarios = scenarios.load_scenarios(
-            root / "quantlib_reference/scenarios.json"
-        )
+        european_scenarios = oracle.load_fixture("scenarios.json")["scenarios"]
         for kind, rows, profile in (
             (EuropeanOption, european_scenarios, european_profile),
             (AmericanOption, american_config["scenarios"], american_profile),
