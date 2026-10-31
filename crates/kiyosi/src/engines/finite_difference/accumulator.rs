@@ -5,13 +5,13 @@ impl FiniteDifferenceAccumulatorEngine {
     /// Prices outstanding units and future trading-date purchases, settling at knock-out or expiry.
     ///
     /// Applies a current midnight event exactly once, with inclusive knock-out and
-    /// acceleration strictly below strike. Supports flat and node rate curves.
+    /// direction-dependent acceleration. Supports flat and node rate curves.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] outside contract life or curve coverage,
-    /// for non-trading expiry, clipped domains or unstable explicit steps.
+    /// for non-trading expiry or knock-out dates, clipped domains or unstable explicit steps.
     /// Numerical failures return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         Ok(native(
@@ -132,23 +132,23 @@ fn native(
             .max(option.strike())
             .max(option.knock_out_level()),
     )?;
-    let trading: Vec<_> = option
-        .future_observation_dates(context)?
-        .into_iter()
-        .map(|date| context.valuation_time().years_until(date.into()))
+    let dates = option.future_observation_dates(context)?;
+    let trading: Vec<_> = dates
+        .iter()
+        .map(|date| context.valuation_time().years_until((*date).into()))
         .collect();
     let grid = TimeGrid::with_events(time, settings.time_step_count, &risk, &dividend, &trading);
     let theta = settings.scheme.theta();
     grid.validate_stability(&space, sigma, theta, true, &risk, &dividend)?;
-    let count = if option.accrues() { 2 } else { 1 };
+    let count = if option.accrues(context) { 2 } else { 1 };
     let mut layers = [vec![0.0; space.count + 1], vec![0.0; space.count + 1]];
     let mut next = layers.clone();
     let mut breaks = vec![option.strike(), option.knock_out_level()];
     breaks.sort_by(f64::total_cmp);
     breaks.dedup();
-    let event = |asset: f64, slope: f64, intercept: f64| {
-        if asset >= option.knock_out_level() {
-            [asset - option.strike(), 0.0]
+    let event = |asset: f64, slope: f64, intercept: f64, observe: bool| {
+        if observe && option.is_knock_out(asset) {
+            [option.unit_payoff(asset), 0.0]
         } else {
             [slope, intercept + slope * option.purchase(asset)]
         }
@@ -156,7 +156,12 @@ fn native(
     let [slope, intercept] = &mut layers;
     for (i, (slope, intercept)) in slope.iter_mut().zip(intercept).enumerate() {
         let value = super::autocallable::project(&space, &breaks, i, |asset| {
-            event(asset, asset - option.strike(), 0.0)
+            event(
+                asset,
+                option.unit_payoff(asset),
+                0.0,
+                option.observes_knock_out(option.expiry_date()),
+            )
         });
         *slope = value[0];
         *intercept = value[1];
@@ -187,16 +192,14 @@ fn native(
                 std::mem::swap(&mut layers[layer], &mut next[layer]);
             }
         }
-        if trading
-            .binary_search_by(|t| t.total_cmp(&grid.times[step]))
-            .is_ok()
-        {
+        if let Ok(event_index) = trading.binary_search_by(|t| t.total_cmp(&grid.times[step])) {
+            let observe = option.observes_knock_out(dates[event_index]);
             for i in 0..=space.count {
                 // Project only the event jump to preserve smooth continuation.
                 let correction = super::autocallable::project(&space, &breaks, i, |asset| {
                     let slope = space.linear(&layers[0], asset);
                     let intercept = space.linear(&layers[1], asset);
-                    let value = event(asset, slope, intercept);
+                    let value = event(asset, slope, intercept, observe);
                     [value[0] - slope, value[1] - intercept]
                 });
                 for layer in 0..count {

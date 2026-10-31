@@ -7,7 +7,7 @@ use crate::{
 /// Prices accumulators with exact lognormal transitions between trading dates.
 ///
 /// Applies current midnight events before simulation, with inclusive knock-out
-/// before purchases and acceleration strictly below strike. Accrued units settle
+/// before accumulation and direction-dependent acceleration. Accrued units settle
 /// at knock-out or expiry. History follows [`Accumulator`]; zero prior quantity
 /// means none. Uses flat BSM rates and Actual/365 Fixed time.
 /// Draws complete normal vectors before evaluating paths,
@@ -89,7 +89,7 @@ impl MonteCarloAccumulatorEngine {
     /// # Errors
     ///
     /// Checks flat rates ([`crate::Error::UnsupportedOperation`]), inclusive life
-    /// ([`crate::Error::InvalidInput`]), then trading expiry
+    /// ([`crate::Error::InvalidInput`]), then trading expiry and knock-out dates
     /// ([`crate::Error::InvalidInput`]), including for fixed settlements.
     /// Sobol dimensions above 21,201 return [`crate::Error::InvalidInput`].
     /// Non-finite paths, quantities, settlements or uncertainty return
@@ -146,7 +146,12 @@ impl MonteCarloAccumulatorEngine {
             if !drift.is_finite() || !diffusion.is_finite() || !log_discount.is_finite() {
                 return Err(unstable());
             }
-            steps.push((drift, diffusion, log_discount));
+            steps.push((
+                drift,
+                diffusion,
+                log_discount,
+                option.observes_knock_out(date),
+            ));
             previous = date.into();
         }
         let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
@@ -154,15 +159,16 @@ impl MonteCarloAccumulatorEngine {
             path_samples(self.settings, steps.len(), statistics, |normals| {
                 let mut spot = context.spot_price();
                 let mut quantity = quantity;
-                for ((drift, diffusion, log_discount), normal) in steps.iter().zip(normals) {
+                for ((drift, diffusion, log_discount, observe), normal) in steps.iter().zip(normals)
+                {
                     spot *= diffusion.mul_add(*normal, *drift).exp();
                     if !spot.is_finite() || spot <= 0.0 {
                         return Err(unstable());
                     }
-                    if spot >= option.knock_out_level() {
+                    if *observe && option.is_knock_out(spot) {
                         return Ok([scaled_value(
                             quantity,
-                            spot - option.strike(),
+                            option.unit_payoff(spot),
                             *log_discount,
                         )?]);
                     }
@@ -173,7 +179,7 @@ impl MonteCarloAccumulatorEngine {
                 }
                 Ok([scaled_value(
                     quantity,
-                    spot - option.strike(),
+                    option.unit_payoff(spot),
                     terminal_log_discount,
                 )?])
             })?;

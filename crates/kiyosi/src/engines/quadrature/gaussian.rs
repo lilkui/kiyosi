@@ -209,7 +209,10 @@ pub(super) fn integration_nodes(
     }
     nodes.extend_from_slice(breaks);
     nodes.sort_by(f64::total_cmp);
-    nodes.dedup();
+    // Avoid roundoff-sized cells without collapsing the resolution of narrow grids.
+    let minimum_spacing = (64.0 * f64::EPSILON * lower.abs().max(upper.abs()).max(1.0))
+        .min(0.5 * (upper - lower) / f64::from(steps));
+    nodes.dedup_by(|next, previous| (*next - *previous).abs() <= minimum_spacing);
     if nodes.len() < 4 {
         return Err(invalid());
     }
@@ -217,7 +220,7 @@ pub(super) fn integration_nodes(
 }
 
 struct Cell {
-    first: usize,
+    indices: [usize; 4],
     coordinates: [f64; 4],
     divisors: [f64; 6],
 }
@@ -228,9 +231,59 @@ impl CubicInterpolation {
             (0..nodes.len() - 1)
                 .map(|cell| {
                     let first = cell.saturating_sub(1).min(nodes.len() - 4);
+                    let mut indices = std::array::from_fn(|k| first + k);
+                    let gaps = &nodes[first..first + 4];
+                    let minimum_spacing = gaps
+                        .windows(2)
+                        .map(|pair| pair[1] - pair[0])
+                        .fold(0.0_f64, f64::max)
+                        * (8.0 * f64::EPSILON.sqrt().sqrt());
+                    if gaps
+                        .windows(2)
+                        .any(|pair| pair[1] - pair[0] < minimum_spacing)
+                    {
+                        // Closely clustered knots must not determine a wide cell's derivatives.
+                        let middle = nodes[cell].midpoint(nodes[cell + 1]);
+                        let mut selected = [cell; 4];
+                        let mut left = cell.checked_sub(1);
+                        let mut right = cell + 1;
+                        let mut lower = nodes[cell];
+                        let mut upper = lower;
+                        let mut complete = true;
+                        for slot in selected.iter_mut().skip(1) {
+                            while let Some(index) = left {
+                                if lower - nodes[index] > minimum_spacing {
+                                    break;
+                                }
+                                left = index.checked_sub(1);
+                            }
+                            while right < nodes.len() && nodes[right] - upper <= minimum_spacing {
+                                right += 1;
+                            }
+                            if let Some(index) = left.filter(|&index| {
+                                right == nodes.len()
+                                    || middle - nodes[index] <= nodes[right] - middle
+                            }) {
+                                *slot = index;
+                                lower = nodes[index];
+                                left = index.checked_sub(1);
+                            } else if right < nodes.len() {
+                                *slot = right;
+                                upper = nodes[right];
+                                right += 1;
+                            } else {
+                                complete = false;
+                                break;
+                            }
+                        }
+                        if complete {
+                            selected.sort_unstable();
+                            indices = selected;
+                        }
+                    }
                     let width = nodes[cell + 1] - nodes[cell];
                     let coordinates =
-                        std::array::from_fn(|k| (nodes[first + k] - nodes[cell]) / width);
+                        std::array::from_fn(|k| (nodes[indices[k]] - nodes[cell]) / width);
                     let mut divisors = [0.0; 6];
                     let mut index = 0;
                     for order in 1..4 {
@@ -240,7 +293,7 @@ impl CubicInterpolation {
                         }
                     }
                     Cell {
-                        first,
+                        indices,
                         coordinates,
                         divisors,
                     }
@@ -252,7 +305,7 @@ impl CubicInterpolation {
         self.0
             .iter()
             .map(|stencil| {
-                let mut differences: [f64; 4] = std::array::from_fn(|k| values[stencil.first + k]);
+                let mut differences: [f64; 4] = std::array::from_fn(|k| values[stencil.indices[k]]);
                 let mut index = 0;
                 for order in 1..4 {
                     for k in (order..4).rev() {
@@ -394,6 +447,29 @@ impl Transition {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn integration_nodes_merge_roundoff_without_collapsing_narrow_grids() {
+        let nodes = integration_nodes(-0.2, 0.2, 512, &[0.0, 1.4e-16]).unwrap();
+        assert_eq!(nodes.len(), 513);
+        assert!(nodes.windows(2).all(|pair| pair[1] - pair[0] > 1e-14));
+
+        let tiny = integration_nodes(-1e-20, 1e-20, 8, &[0.0]).unwrap();
+        assert_eq!(tiny.len(), 9);
+        assert_eq!(tiny[0], -1e-20);
+        assert_eq!(tiny[tiny.len() - 1], 1e-20);
+        let values: Vec<_> = tiny.iter().map(|&node| 1.0 + node / 1e-20).collect();
+        let curve = CubicInterpolation::new(&tiny).interpolate(&values);
+        assert!((integrate_curve(&curve, &tiny, 2e-21, 1e-21, 0.0) - 1.2).abs() < 1e-12);
+    }
+
+    #[test]
+    fn cubic_stencils_preserve_polynomials_with_clustered_knots() {
+        let nodes = [-1.0, -0.5, 0.0, 1e-13, 0.5, 1.0];
+        let values: Vec<_> = nodes.iter().map(|&x| 1.0 + x + x * x).collect();
+        let curve = CubicInterpolation::new(&nodes).interpolate(&values);
+        assert!((integrate_curve(&curve, &nodes, 0.2, 0.1, 0.0) - 1.25).abs() < 1e-12);
+    }
 
     #[test]
     fn transition_cache_bounds_storage_and_preserves_integrals_after_eviction() {

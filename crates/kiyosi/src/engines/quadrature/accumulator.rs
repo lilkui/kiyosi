@@ -6,10 +6,10 @@ use super::{QuadratureSettings, flat_rates};
 use crate::numerics::log_ratio;
 use crate::{
     Accumulator, BlackScholesMertonParameters, Date, Error, GreeksRequest, NumericalShiftSettings,
-    PricingContext, PricingEngine, PricingResult, Result, Timestamp,
+    OptionType, PricingContext, PricingEngine, PricingResult, Result, Timestamp,
 };
 
-/// Prices trading-date accumulators using affine quantity layers and cubic Gaussian integration.
+/// Prices accumulators and decumulators using affine layers and Gaussian integration.
 ///
 /// Owns immutable settings; shared and distinct instances support concurrent pricing.
 /// See [`Self::new`] for an example.
@@ -49,13 +49,13 @@ impl QuadratureAccumulatorEngine {
     }
     /// Prices outstanding cashflows, applying a current midnight trading event once.
     ///
-    /// Knock-out is inclusive and precedes purchases; acceleration is strict below strike.
-    /// Settles accrued units at knock-out or expiry. See [`Self::new`].
+    /// Observes knock-out only on the contract's specified dates, before accumulation.
+    /// Acceleration and settlement follow the contract's direction. See [`Self::new`].
     ///
     /// # Errors
     ///
     /// Checks flat rates ([`Error::UnsupportedOperation`]), inclusive life
-    /// ([`Error::InvalidInput`]), then trading expiry
+    /// ([`Error::InvalidInput`]), then trading expiry and knock-out dates
     /// ([`Error::InvalidInput`]). Non-finite results or unrepresentable grids
     /// and transitions return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
@@ -168,6 +168,11 @@ fn price(
         );
     }
     let knock_out = log_ratio(option.knock_out_level(), strike);
+    let sign = match option.option_type() {
+        OptionType::Call => 1.0,
+        OptionType::Put => -1.0,
+    };
+    let knocks_out = |point: f64| sign * point >= sign * knock_out;
     let sigma = context.model_parameters().volatility();
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
     let transition = |time: f64| -> Result<(f64, f64, f64)> {
@@ -180,29 +185,38 @@ fn price(
         }
         Ok((drift, deviation, -rate * time))
     };
-    let count = if option.accrues() { 2 } else { 1 };
+    let count = if option.accrues(context) { 2 } else { 1 };
     let mut layers: [Layer; 2] = Default::default();
     layers[0].exact.push(TerminalPiece {
         lower: f64::NEG_INFINITY,
         upper: f64::INFINITY,
-        cash: -strike,
-        asset: 1.0,
+        cash: -sign * strike,
+        asset: sign,
     });
     if count == 2 {
-        let accelerated = option.purchase(0.0);
-        layers[1].exact.push(TerminalPiece {
-            lower: f64::NEG_INFINITY,
-            upper: knock_out.min(0.0),
-            cash: -strike * accelerated,
-            asset: accelerated,
-        });
-        if knock_out > 0.0 {
-            layers[1].exact.push(TerminalPiece {
-                lower: 0.0,
-                upper: knock_out,
-                cash: -strike * option.daily_quantity(),
-                asset: option.daily_quantity(),
-            });
+        let (live_lower, live_upper) = if option.observes_knock_out(option.expiry_date()) {
+            if sign > 0.0 {
+                (f64::NEG_INFINITY, knock_out)
+            } else {
+                (knock_out, f64::INFINITY)
+            }
+        } else {
+            (f64::NEG_INFINITY, f64::INFINITY)
+        };
+        for (lower, upper, quantity) in [
+            (f64::NEG_INFINITY, 0.0, option.purchase(0.0)),
+            (0.0, f64::INFINITY, option.purchase(f64::INFINITY)),
+        ] {
+            let lower = lower.max(live_lower);
+            let upper = upper.min(live_upper);
+            if lower < upper {
+                layers[1].exact.push(TerminalPiece {
+                    lower,
+                    upper,
+                    cash: -sign * strike * quantity,
+                    asset: sign * quantity,
+                });
+            }
         }
     }
     if dates.len() == 1 {
@@ -210,48 +224,97 @@ fn price(
         return evaluate(&[], &layers, drift, deviation, discount);
     }
     let extent = settings.integration_standard_deviations * sigma * horizon.sqrt();
-    let lower = knock_out.min(0.0) + (drift_rate * horizon).min(0.0) - extent;
-    let upper = knock_out.max(0.0) + (drift_rate * horizon).max(0.0) + extent;
-    let nodes = integration_nodes(lower, upper, settings.asset_step_count, &[0.0, knock_out])?;
+    // Cover both forward drift and the backward movement of future event boundaries.
+    let drift_extent = (drift_rate * horizon).abs();
+    let lower = knock_out.min(0.0) - drift_extent - extent;
+    let upper = knock_out.max(0.0) + drift_extent + extent;
+    let mut breaks = vec![0.0, knock_out];
+    if drift_extent > extent || extent < knock_out.abs() {
+        // Resolve each event boundary's drift and diffusion range without enlarging every cell.
+        for boundary in [0.0, knock_out] {
+            let lower = boundary - drift_extent - extent;
+            let upper = boundary + drift_extent + extent;
+            if lower < upper {
+                breaks.extend(integration_nodes(
+                    lower,
+                    upper,
+                    settings.asset_step_count,
+                    &[],
+                )?);
+            }
+        }
+    }
+    let nodes = integration_nodes(lower, upper, settings.asset_step_count, &breaks)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let mut transitions = TransitionCache::default();
     let mut continuation: [Vec<Polynomial>; 2] = Default::default();
+    let mut next_knock_out = None;
     for event in (0..dates.len()).rev() {
         let final_event = event + 1 == dates.len();
+        let observes_knock_out = option.observes_knock_out(dates[event]);
+        if observes_knock_out {
+            next_knock_out = Some(event);
+        }
         if !final_event {
-            let remaining = dates[event]
-                .start_of_day()
-                .years_until(option.expiry_date().into());
             for (layer, result) in layers.iter_mut().enumerate().take(count) {
-                let low_quantity = if layer == 0 {
-                    1.0
-                } else {
-                    (dates.len() - event) as f64 * option.purchase(0.0)
-                };
-                // The low-price limit retains the asset as well as all remaining purchase cash.
-                result.exact = vec![TerminalPiece {
-                    lower: f64::NEG_INFINITY,
-                    upper: nodes[0],
-                    cash: low_quantity * scaled(-strike, -rate * remaining),
-                    asset: low_quantity * (-dividend * remaining).exp(),
-                }];
+                result.exact.clear();
+                for (point, lower, upper, purchase) in [
+                    (
+                        f64::NEG_INFINITY,
+                        f64::NEG_INFINITY,
+                        nodes[0],
+                        option.purchase(0.0),
+                    ),
+                    (
+                        f64::INFINITY,
+                        nodes[nodes.len() - 1],
+                        f64::INFINITY,
+                        option.purchase(f64::INFINITY),
+                    ),
+                ] {
+                    let knock_out_side = knocks_out(point);
+                    if observes_knock_out && knock_out_side {
+                        continue;
+                    }
+                    let settlement = if knock_out_side { next_knock_out } else { None };
+                    let last = settlement.unwrap_or(dates.len() - 1);
+                    let remaining = dates[event].start_of_day().years_until(dates[last].into());
+                    let quantity = if layer == 0 {
+                        1.0
+                    } else {
+                        (last - event + usize::from(settlement.is_none())) as f64 * purchase
+                    };
+                    // Extreme paths settle at the next eligible knock-out, or at expiry.
+                    result.exact.push(TerminalPiece {
+                        lower,
+                        upper,
+                        cash: quantity * scaled(-sign * strike, -rate * remaining),
+                        asset: sign * quantity * (-dividend * remaining).exp(),
+                    });
+                }
                 result.cells = vec![[0.0; 4]; nodes.len() - 1];
             }
-            layers[0].exact.push(TerminalPiece {
-                lower: knock_out,
-                upper: f64::INFINITY,
-                cash: -strike,
-                asset: 1.0,
-            });
+            if observes_knock_out {
+                layers[0].exact.push(TerminalPiece {
+                    lower: if sign > 0.0 {
+                        knock_out
+                    } else {
+                        f64::NEG_INFINITY
+                    },
+                    upper: if sign > 0.0 { f64::INFINITY } else { knock_out },
+                    cash: -sign * strike,
+                    asset: sign,
+                });
+            }
             for (cell, edges) in nodes.windows(2).enumerate() {
                 let point = edges[0].midpoint(edges[1]);
-                if point < knock_out {
+                if !(observes_knock_out && knocks_out(point)) {
                     layers[0].cells[cell] = continuation[0][cell];
                     if count == 2 {
                         let purchase = if point < 0.0 {
                             option.purchase(0.0)
                         } else {
-                            option.daily_quantity()
+                            option.purchase(f64::INFINITY)
                         };
                         layers[1].cells[cell] = std::array::from_fn(|power| {
                             continuation[1][cell][power] + purchase * continuation[0][cell][power]

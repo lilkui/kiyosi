@@ -136,10 +136,10 @@ fn validation_categories_and_order_preserve_accepted_degenerate_terms() {
     let mut t = terms(day(1, 1));
     t.daily_quantity = 0.0;
     t.acceleration_factor = 0.0;
-    assert!(Accumulator::new(t).is_ok());
+    assert!(Accumulator::new(t.clone()).is_ok());
     t.expiry_date = Date::new(2024, 12, 31).unwrap();
     assert!(matches!(
-        Accumulator::new(t).unwrap_err(),
+        Accumulator::new(t.clone()).unwrap_err(),
         Error::InvalidInput(_)
     ));
     t.strike = 0.0;

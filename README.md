@@ -22,12 +22,8 @@ Kiyosi 是一个用 Rust 编写的衍生品定价库，提供 Python API。它�
 | 双触碰与双不触碰期权 | FD |
 | 雪球、二元雪球、三元雪球 | 数值积分、FD、MC |
 | 凤凰结构 | 数值积分、FD、MC |
-| 累购 | 数值积分、FD、MC |
+| 累购、累沽 | 数值积分、FD、MC |
 | 区间累计 | BSM 区间概率解析求和 |
-
-终端积分引擎 `QuadratureVanillaEngine` 和 `QuadratureDigitalEngine` 已移除，
-请分别使用 `AnalyticEuropeanEngine` 和 `AnalyticDigitalEngine`。
-障碍、自动赎回和累购产品的积分引擎仍然可用。
 
 ## 安装
 

@@ -1957,7 +1957,13 @@ class Accumulator:
         effective_date: date,
         expiry_date: date,
         accumulated_quantity: float = ...,
+        option_type: Literal["call", "put"] = ...,
+        knock_out_observation_dates: Iterable[date] | None = None,
     ) -> None: ...
+    @property
+    def option_type(self) -> Literal["call", "put"]: ...
+    @property
+    def knock_out_observation_dates(self) -> list[date] | None: ...
     @property
     def strike(self) -> float: ...
     @property

@@ -22,12 +22,8 @@ Kiyosi is a Rust derivatives pricing library with a Python API. It supports pric
 | Double-touch and double-no-touch options | FD |
 | Snowballs, binary and ternary snowballs | Quadrature, FD, MC |
 | Phoenix notes | Quadrature, FD, MC |
-| Accumulators | Quadrature, FD, MC |
+| Accumulators and decumulators | Quadrature, FD, MC |
 | Range accruals | Sum of analytic BSM range probabilities |
-
-The terminal `QuadratureVanillaEngine` and `QuadratureDigitalEngine` have been removed.
-Use `AnalyticEuropeanEngine` and `AnalyticDigitalEngine` for these products.
-Barrier, autocallable and accumulator quadrature engines remain available.
 
 ## Installation
 
