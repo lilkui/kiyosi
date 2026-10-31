@@ -125,15 +125,6 @@ impl MonteCarloAsianEngine {
         )
     }
 
-    fn seeded(&self) -> Result<Self> {
-        Ok(Self {
-            settings: MonteCarloSettings {
-                seed: Some(self.settings.resolved_seed()?),
-                ..self.settings
-            },
-        })
-    }
-
     fn native(
         &self,
         o: &AverageTerms,
@@ -375,7 +366,9 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         &self,
     ) -> Result<Option<Box<dyn PricingEngine<GeometricAveragePriceOption> + '_>>> {
         Ok(if self.settings.seed.is_none() {
-            Some(Box::new(self.seeded()?))
+            Some(Box::new(Self {
+                settings: self.settings.with_resolved_seed()?,
+            }))
         } else {
             None
         })
@@ -402,7 +395,9 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         &self,
     ) -> Result<Option<Box<dyn PricingEngine<ArithmeticAveragePriceOption> + '_>>> {
         Ok(if self.settings.seed.is_none() {
-            Some(Box::new(self.seeded()?))
+            Some(Box::new(Self {
+                settings: self.settings.with_resolved_seed()?,
+            }))
         } else {
             None
         })

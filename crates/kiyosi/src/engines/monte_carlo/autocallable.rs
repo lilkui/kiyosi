@@ -279,9 +279,9 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
         if self.settings.seed.is_some() {
             return Ok(None);
         }
-        let mut engine = *self;
-        engine.settings.seed = Some(self.settings.resolved_seed()?);
-        Ok(Some(Box::new(engine)))
+        Ok(Some(Box::new(Self {
+            settings: self.settings.with_resolved_seed()?,
+        })))
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         self.price(option, context)

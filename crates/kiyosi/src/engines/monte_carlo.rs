@@ -72,6 +72,13 @@ impl Default for MonteCarloSettings {
 }
 
 impl MonteCarloSettings {
+    fn with_resolved_seed(self) -> Result<Self> {
+        Ok(Self {
+            seed: Some(self.resolved_seed()?),
+            ..self
+        })
+    }
+
     fn resolved_seed(self) -> Result<u64> {
         if let Some(seed) = self.seed {
             return Ok(seed);
@@ -103,11 +110,37 @@ mod tests {
     fn configured_seeds_are_preserved() {
         for seed in [0, 42, u64::MAX] {
             let settings = MonteCarloSettings {
+                path_count: 256,
+                step_count: 7,
                 seed: Some(seed),
-                ..Default::default()
+                thread_count: 1,
+                sampling: MonteCarloSampling::Sobol,
+                antithetic: true,
             };
             assert_eq!(settings.resolved_seed().unwrap(), seed);
+            assert_eq!(settings.with_resolved_seed().unwrap(), settings);
         }
+    }
+
+    #[test]
+    fn unseeded_settings_pin_one_seed_and_preserve_other_controls() {
+        let settings = MonteCarloSettings {
+            path_count: 256,
+            step_count: 7,
+            thread_count: 1,
+            sampling: MonteCarloSampling::Sobol,
+            antithetic: true,
+            ..Default::default()
+        };
+        let seeded = settings.with_resolved_seed().unwrap();
+        assert!(seeded.seed.is_some());
+        assert_eq!(seeded.path_count, 256);
+        assert_eq!(seeded.step_count, 7);
+        assert_eq!(seeded.thread_count, 1);
+        assert_eq!(seeded.sampling, MonteCarloSampling::Sobol);
+        assert!(seeded.antithetic);
+        assert_eq!(seeded.with_resolved_seed().unwrap(), seeded);
+        assert_eq!(settings.seed, None);
     }
 }
 
@@ -385,10 +418,7 @@ impl PricingEngine for MonteCarloVanillaEngine {
             return Ok(None);
         }
         Ok(Some(Box::new(Self {
-            settings: MonteCarloSettings {
-                seed: Some(self.settings.resolved_seed()?),
-                ..self.settings
-            },
+            settings: self.settings.with_resolved_seed()?,
         })))
     }
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {

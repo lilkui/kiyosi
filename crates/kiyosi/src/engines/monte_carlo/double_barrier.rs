@@ -145,10 +145,7 @@ impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
         if settings.seed.is_some() {
             return Ok(None);
         }
-        Ok(Some(Box::new(Self::new(MonteCarloSettings {
-            seed: Some(settings.resolved_seed()?),
-            ..settings
-        })?)))
+        Ok(Some(Box::new(Self::new(settings.with_resolved_seed()?)?)))
     }
     fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
         Self::price(self, option, context)

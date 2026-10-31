@@ -217,10 +217,7 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
             return Ok(None);
         }
         Ok(Some(Box::new(Self {
-            settings: MonteCarloSettings {
-                seed: Some(self.settings.resolved_seed()?),
-                ..self.settings
-            },
+            settings: self.settings.with_resolved_seed()?,
         })))
     }
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
