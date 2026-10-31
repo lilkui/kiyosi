@@ -1,6 +1,6 @@
 use super::{
-    AutocallableBarrierState, AutocallableObservation, KnockInObservationMode, SnowballOption,
-    SnowballTerms,
+    AutocallableBarrierState, AutocallableObservation, DEFAULT_PRINCIPAL_RATIO,
+    KnockInObservationMode, SnowballOption, SnowballTerms,
 };
 use crate::{Date, Result};
 
@@ -82,23 +82,13 @@ impl SnowballPresetTerms {
         expiry_date: Date,
         observation_dates: Vec<Date>,
     ) -> Self {
-        let defaults = SnowballTerms::new(
-            coupon_rate,
-            initial_spot,
-            knock_in_level,
-            initial_spot,
-            0.0,
-            effective_date,
-            expiry_date,
-            Vec::new(),
-        );
         Self {
             coupon_rate,
             initial_spot,
             knock_in_level,
             knock_out_level,
-            barrier_state: defaults.barrier_state,
-            principal_ratio: defaults.principal_ratio,
+            barrier_state: None,
+            principal_ratio: DEFAULT_PRINCIPAL_RATIO,
             effective_date,
             expiry_date,
             observation_dates,

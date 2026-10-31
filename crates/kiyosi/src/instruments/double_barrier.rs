@@ -54,14 +54,6 @@ impl DoubleBarrierOptionTerms {
         upper_barrier: f64,
         barrier_type: DoubleBarrierType,
     ) -> Self {
-        let defaults = BarrierOptionTerms::new(
-            option_type,
-            strike,
-            effective_date,
-            expiry_date,
-            lower_barrier,
-            BarrierType::DownAndOut,
-        );
         Self {
             option_type,
             strike,
@@ -70,11 +62,11 @@ impl DoubleBarrierOptionTerms {
             lower_barrier,
             upper_barrier,
             barrier_type,
-            rebate: defaults.rebate,
-            rebate_timing: defaults.rebate_timing,
-            observation_mode: defaults.observation_mode,
-            observation_dates: defaults.observation_dates,
-            touch_state: defaults.touch_state,
+            rebate: BarrierOptionTerms::DEFAULT_REBATE,
+            rebate_timing: RebateTiming::default(),
+            observation_mode: ObservationMode::default(),
+            observation_dates: Vec::new(),
+            touch_state: None,
         }
     }
 }

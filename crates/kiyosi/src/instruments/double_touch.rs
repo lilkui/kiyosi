@@ -1,7 +1,7 @@
 use crate::{
-    BarrierTouchState, BarrierType, Date, DoubleBarrierOption, DoubleBarrierOptionTerms,
-    DoubleBarrierType, Error, ObservationMode, ObservationSchedule, OptionContract, OptionType,
-    PricingContext, Result, SettlementTiming, Timestamp, TouchOptionTerms,
+    BarrierTouchState, Date, DoubleBarrierOption, DoubleBarrierOptionTerms, DoubleBarrierType,
+    Error, ObservationMode, ObservationSchedule, OptionContract, OptionType, PricingContext,
+    Result, SettlementTiming, Timestamp,
 };
 
 /// Cash double-touch inputs; see [`DoubleTouchOption::cash`] for validation and usage.
@@ -35,22 +35,16 @@ impl DoubleTouchOptionTerms {
         upper_barrier: f64,
         barrier_type: DoubleBarrierType,
     ) -> Self {
-        let defaults = TouchOptionTerms::new(
-            effective_date,
-            expiry_date,
-            lower_barrier,
-            BarrierType::DownAndIn,
-        );
         Self {
             effective_date,
             expiry_date,
             lower_barrier,
             upper_barrier,
             barrier_type,
-            settlement_timing: defaults.settlement_timing,
-            observation_mode: defaults.observation_mode,
-            observation_dates: defaults.observation_dates,
-            touch_state: defaults.touch_state,
+            settlement_timing: SettlementTiming::default(),
+            observation_mode: ObservationMode::default(),
+            observation_dates: Vec::new(),
+            touch_state: None,
         }
     }
 }
