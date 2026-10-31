@@ -18,7 +18,7 @@ pub(crate) struct BinaryBarrierOption(pub kiyosi::BinaryBarrierOption);
 ///
 /// Notes
 /// -----
-/// Use a directional factory such as cash_one_touch_up or asset_no_touch_down.
+/// Construct with cash_touch_option or asset_touch_option and an explicit barrier_type.
 /// Prior at-hit payments are settled.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -218,21 +218,63 @@ pub(crate) fn settlement(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Settlemen
 }
 
 macro_rules! touch_factory {
-    ($(#[$attribute:meta])* $name:ident, $constructor:ident, $kind:ident, [$($settlement:ident)?] $(, $payout:ident)?, $doc:literal) => {
-        #[doc = $doc]
+    ($name:ident, $constructor:ident $(, $payout:ident)?) => {
+        /// Creates a cash or asset one-touch or no-touch contract.
+        ///
+        /// Parameters
+        /// ----------
+        /// effective_date : datetime.date
+        ///     Inclusive first contract date.
+        /// expiry_date : datetime.date
+        ///     Final contract date; expiry is at midnight UTC.
+        /// barrier_level : float
+        ///     Positive finite trigger level; equality counts as a touch.
+        /// barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
+        ///     In selects one-touch; out selects no-touch. Up/down selects direction.
+        $(
+            #[doc = concat!(stringify!($payout), " : float")]
+            ///     Positive finite cash payment.
+        )?
+        /// settlement_timing : {'at_hit', 'at_expiry'}, optional
+        ///     Defaults to expiry. At-hit settlement requires a one-touch contract.
+        /// observation_mode : {'continuous', 'scheduled'}, optional
+        ///     Continuous monitoring or observations on the supplied dates.
+        /// observation_dates : iterable of date, optional
+        ///     Strictly increasing observation dates within the contract life.
+        /// touch_state : {'untouched', 'touched'} or None, optional
+        ///     Strictly prior history. None is unknown; untouched means known no hit.
+        ///
+        /// Returns
+        /// -------
+        /// TouchOption
+        ///     Validated owned contract. Asset settlement has no cash payout.
+        ///
+        /// Raises
+        /// ------
+        /// InvalidInputError
+        ///     If amounts, life dates or observation terms are invalid, or at-hit
+        ///     settlement is requested for a no-touch contract.
+        ///
+        /// Notes
+        /// -----
+        /// History and trading-calendar consistency are checked during pricing.
+        /// Prior at-hit payments have no remaining value. A current asset hit
+        /// transfers spot; a future continuous asset hit transfers the barrier amount.
+        /// See the kiyosi.instruments module examples for construction.
         #[pyfunction]
-        #[pyo3(signature = (*, effective_date, expiry_date, barrier_level, $($payout,)? $($settlement=kiyosi::SettlementTiming::default(),)? observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
-        $(#[$attribute])*
+        #[pyo3(signature = (*, effective_date, expiry_date, barrier_level, barrier_type, $($payout,)? settlement_timing=kiyosi::SettlementTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+        #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
         pub(crate) fn $name(effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
-            barrier_level: &Bound<'_, PyAny>, $($payout: &Bound<'_, PyAny>,)?
-            $(#[pyo3(from_py_with = settlement)] $settlement: kiyosi::SettlementTiming,)?
+            barrier_level: &Bound<'_, PyAny>, barrier_type: &Bound<'_, PyAny>,
+            $($payout: &Bound<'_, PyAny>,)?
+            #[pyo3(from_py_with = settlement)] settlement_timing: kiyosi::SettlementTiming,
             #[pyo3(from_py_with = barrier::mode)] observation_mode: kiyosi::ObservationMode,
             #[pyo3(from_py_with = dates)] observation_dates: Vec<kiyosi::Date>,
             #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
         ) -> PyResult<TouchOption> {
-            let mut terms = kiyosi::TouchOptionTerms::new(date(effective_date)?, date(expiry_date)?, real(barrier_level)?, kiyosi::BarrierType::$kind);
+            let mut terms = kiyosi::TouchOptionTerms::new(date(effective_date)?, date(expiry_date)?, real(barrier_level)?, barrier::kind(barrier_type)?);
             $(let $payout = real($payout)?;)?
-            $(terms.settlement_timing = $settlement;)?
+            terms.settlement_timing = settlement_timing;
             terms.observation_mode = observation_mode;
             terms.observation_dates = observation_dates;
             terms.touch_state = touch_state;
@@ -240,348 +282,8 @@ macro_rules! touch_factory {
         }
     };
 }
-touch_factory!(
-    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
-    cash_one_touch_up,
-    cash,
-    UpAndIn,
-    [settlement_timing],
-    payout,
-    r"Create a cash payment activated by upward barrier touch.
-
-Parameters
-----------
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_level : float
-    Positive finite trigger level; equality counts as a touch.
-payout : float
-    Positive finite cash payment.
-settlement_timing : {'at_hit', 'at_expiry'}, optional
-    At-hit or expiry payment; no-touch contracts settle only at expiry.
-observation_mode : {'continuous', 'scheduled'}, optional
-    Continuous monitoring or observations on the supplied dates.
-observation_dates : iterable of date, optional
-    Strictly increasing observation dates within the contract life.
-touch_state : {'untouched', 'touched'} or None, optional
-    Strictly prior history. None means unknown; untouched means known no
-    hit.
-
-Returns
--------
-TouchOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Barrier equality counts as a touch. Strictly prior history and trading
-calendar compatibility are checked during pricing. Prior at-hit
-payments have no remaining value. No-touch payments occur only at
-expiry."
-);
-touch_factory!(
-    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
-    cash_one_touch_down,
-    cash,
-    DownAndIn,
-    [settlement_timing],
-    payout,
-    r"Create a cash payment activated by downward barrier touch.
-
-Parameters
-----------
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_level : float
-    Positive finite trigger level; equality counts as a touch.
-payout : float
-    Positive finite cash payment.
-settlement_timing : {'at_hit', 'at_expiry'}, optional
-    At-hit or expiry payment; no-touch contracts settle only at expiry.
-observation_mode : {'continuous', 'scheduled'}, optional
-    Continuous monitoring or observations on the supplied dates.
-observation_dates : iterable of date, optional
-    Strictly increasing observation dates within the contract life.
-touch_state : {'untouched', 'touched'} or None, optional
-    Strictly prior history. None means unknown; untouched means known no
-    hit.
-
-Returns
--------
-TouchOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Barrier equality counts as a touch. Strictly prior history and trading
-calendar compatibility are checked during pricing. Prior at-hit
-payments have no remaining value. No-touch payments occur only at
-expiry."
-);
-touch_factory!(
-    cash_no_touch_up,
-    cash,
-    UpAndOut,
-    [],
-    payout,
-    r"Create a cash payment requiring no upward barrier touch.
-
-Parameters
-----------
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_level : float
-    Positive finite trigger level; equality counts as a touch.
-payout : float
-    Positive finite cash payment.
-observation_mode : {'continuous', 'scheduled'}, optional
-    Continuous monitoring or observations on the supplied dates.
-observation_dates : iterable of date, optional
-    Strictly increasing observation dates within the contract life.
-touch_state : {'untouched', 'touched'} or None, optional
-    Strictly prior history. None means unknown; untouched means known no
-    hit.
-
-Returns
--------
-TouchOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Barrier equality counts as a touch. Strictly prior history and trading
-calendar compatibility are checked during pricing. Prior at-hit
-payments have no remaining value. No-touch payments occur only at
-expiry."
-);
-touch_factory!(
-    cash_no_touch_down,
-    cash,
-    DownAndOut,
-    [],
-    payout,
-    r"Create a cash payment requiring no downward barrier touch.
-
-Parameters
-----------
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_level : float
-    Positive finite trigger level; equality counts as a touch.
-payout : float
-    Positive finite cash payment.
-observation_mode : {'continuous', 'scheduled'}, optional
-    Continuous monitoring or observations on the supplied dates.
-observation_dates : iterable of date, optional
-    Strictly increasing observation dates within the contract life.
-touch_state : {'untouched', 'touched'} or None, optional
-    Strictly prior history. None means unknown; untouched means known no
-    hit.
-
-Returns
--------
-TouchOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Barrier equality counts as a touch. Strictly prior history and trading
-calendar compatibility are checked during pricing. Prior at-hit
-payments have no remaining value. No-touch payments occur only at
-expiry."
-);
-touch_factory!(
-    asset_one_touch_up,
-    asset,
-    UpAndIn,
-    [settlement_timing],
-    r"Create an asset payment activated by upward barrier touch.
-
-Parameters
-----------
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_level : float
-    Positive finite trigger level; equality counts as a touch.
-settlement_timing : {'at_hit', 'at_expiry'}, optional
-    At-hit or expiry payment; no-touch contracts settle only at expiry.
-observation_mode : {'continuous', 'scheduled'}, optional
-    Continuous monitoring or observations on the supplied dates.
-observation_dates : iterable of date, optional
-    Strictly increasing observation dates within the contract life.
-touch_state : {'untouched', 'touched'} or None, optional
-    Strictly prior history. None means unknown; untouched means known no
-    hit.
-
-Returns
--------
-TouchOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Barrier equality counts as a touch. Strictly prior history and trading
-calendar compatibility are checked during pricing. A current at-hit
-payment transfers spot; future continuous hits transfer the barrier
-amount. No-touch payments occur only at expiry."
-);
-touch_factory!(
-    asset_one_touch_down,
-    asset,
-    DownAndIn,
-    [settlement_timing],
-    r"Create an asset payment activated by downward barrier touch.
-
-Parameters
-----------
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_level : float
-    Positive finite trigger level; equality counts as a touch.
-settlement_timing : {'at_hit', 'at_expiry'}, optional
-    At-hit or expiry payment; no-touch contracts settle only at expiry.
-observation_mode : {'continuous', 'scheduled'}, optional
-    Continuous monitoring or observations on the supplied dates.
-observation_dates : iterable of date, optional
-    Strictly increasing observation dates within the contract life.
-touch_state : {'untouched', 'touched'} or None, optional
-    Strictly prior history. None means unknown; untouched means known no
-    hit.
-
-Returns
--------
-TouchOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Barrier equality counts as a touch. Strictly prior history and trading
-calendar compatibility are checked during pricing. A current at-hit
-payment transfers spot; future continuous hits transfer the barrier
-amount. No-touch payments occur only at expiry."
-);
-touch_factory!(
-    asset_no_touch_up,
-    asset,
-    UpAndOut,
-    [],
-    r"Create an asset payment requiring no upward barrier touch.
-
-Parameters
-----------
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_level : float
-    Positive finite trigger level; equality counts as a touch.
-observation_mode : {'continuous', 'scheduled'}, optional
-    Continuous monitoring or observations on the supplied dates.
-observation_dates : iterable of date, optional
-    Strictly increasing observation dates within the contract life.
-touch_state : {'untouched', 'touched'} or None, optional
-    Strictly prior history. None means unknown; untouched means known no
-    hit.
-
-Returns
--------
-TouchOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Barrier equality counts as a touch. Strictly prior history and trading
-calendar compatibility are checked during pricing. A current at-hit
-payment transfers spot; future continuous hits transfer the barrier
-amount. No-touch payments occur only at expiry."
-);
-touch_factory!(
-    asset_no_touch_down,
-    asset,
-    DownAndOut,
-    [],
-    r"Create an asset payment requiring no downward barrier touch.
-
-Parameters
-----------
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_level : float
-    Positive finite trigger level; equality counts as a touch.
-observation_mode : {'continuous', 'scheduled'}, optional
-    Continuous monitoring or observations on the supplied dates.
-observation_dates : iterable of date, optional
-    Strictly increasing observation dates within the contract life.
-touch_state : {'untouched', 'touched'} or None, optional
-    Strictly prior history. None means unknown; untouched means known no
-    hit.
-
-Returns
--------
-TouchOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Barrier equality counts as a touch. Strictly prior history and trading
-calendar compatibility are checked during pricing. A current at-hit
-payment transfers spot; future continuous hits transfer the barrier
-amount. No-touch payments occur only at expiry."
-);
+touch_factory!(cash_touch_option, cash, payout);
+touch_factory!(asset_touch_option, asset);
 
 #[derive(FromPyObject)]
 pub(crate) enum BinaryInstrument<'py> {

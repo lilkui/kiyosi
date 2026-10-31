@@ -22,6 +22,17 @@ Cash and asset digitals pay zero when the expiry spot equals the strike:
 >>> replacement = option.replace(strike=105)
 >>> (option.strike, replacement.strike, replacement.payout)
 (100.0, 105.0, 10.0)
+
+Construct a cash no-touch contract using the same barrier choices as barrier options.
+Use ``asset_touch_option`` for asset settlement. At-hit settlement is available
+only for one-touch contracts (``up_and_in`` or ``down_and_in``):
+
+>>> touch = cash_touch_option(
+...     effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
+...     barrier_level=80, barrier_type="down_and_out", payout=10,
+... )
+>>> (touch.barrier_type, touch.is_one_touch, touch.settlement_timing)
+('down_and_out', False, 'at_expiry')
 """
 
 from typing import Literal
@@ -46,19 +57,13 @@ from ._native import (
     TernarySnowballOption,
     TouchOption,
     asset_binary_barrier_option,
-    asset_no_touch_down,
-    asset_no_touch_up,
-    asset_one_touch_down,
-    asset_one_touch_up,
+    asset_touch_option,
     autocallable_observations,
     both_down_snowball,
     cash_binary_barrier_option,
     cash_double_no_touch,
     cash_double_touch,
-    cash_no_touch_down,
-    cash_no_touch_up,
-    cash_one_touch_down,
-    cash_one_touch_up,
+    cash_touch_option,
     dual_coupon_snowball,
     european_snowball,
     loss_capped_snowball,
@@ -91,19 +96,13 @@ __all__ = [
     "TernarySnowballOption",
     "TouchOption",
     "asset_binary_barrier_option",
-    "asset_no_touch_down",
-    "asset_no_touch_up",
-    "asset_one_touch_down",
-    "asset_one_touch_up",
+    "asset_touch_option",
     "autocallable_observations",
     "both_down_snowball",
     "cash_binary_barrier_option",
     "cash_double_no_touch",
     "cash_double_touch",
-    "cash_no_touch_down",
-    "cash_no_touch_up",
-    "cash_one_touch_down",
-    "cash_one_touch_up",
+    "cash_touch_option",
     "dual_coupon_snowball",
     "european_snowball",
     "loss_capped_snowball",

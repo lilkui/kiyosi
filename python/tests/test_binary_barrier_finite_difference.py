@@ -35,9 +35,10 @@ def market(spot=100, time=START, rate=0.04, dividend=0.01, sigma=0.2):
     )
 
 
-def touch(factory=ins.cash_one_touch_up, **changes):
+def touch(factory=ins.cash_touch_option, **changes):
     terms = {"effective_date": START, "expiry_date": END, "barrier_level": 120.13}
-    if factory.__name__.startswith("cash"):
+    terms["barrier_type"] = "up_and_in"
+    if factory is ins.cash_touch_option:
         terms["payout"] = 10
     return factory(**(terms | changes))
 
@@ -45,36 +46,28 @@ def touch(factory=ins.cash_one_touch_up, **changes):
 class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
     def test_continuous_touch_settlements_match_analytics(self):
         engine = FiniteDifferenceBinaryBarrierEngine()
-        for factory in (
-            ins.cash_one_touch_up,
-            ins.cash_one_touch_down,
-            ins.cash_no_touch_up,
-            ins.cash_no_touch_down,
-            ins.asset_one_touch_up,
-            ins.asset_one_touch_down,
-            ins.asset_no_touch_up,
-            ins.asset_no_touch_down,
-        ):
-            for timing in ("at_expiry", "at_hit"):
-                if "no_touch" in factory.__name__ and timing == "at_hit":
-                    continue
-                fields = {
-                    "barrier_level": 79.87 if "down" in factory.__name__ else 120.13
-                }
-                if "one_touch" in factory.__name__:
-                    fields["settlement_timing"] = timing
-                option = touch(factory, **fields)
-                self.assertAlmostEqual(
-                    engine.price(option, market()),
-                    AnalyticBinaryBarrierEngine().price(option, market()),
-                    delta=0.02 if option.payoff_type == "asset" else 0.002,
-                )
+        for factory in (ins.cash_touch_option, ins.asset_touch_option):
+            for kind in ("up_and_in", "up_and_out", "down_and_in", "down_and_out"):
+                for timing in ("at_expiry", "at_hit"):
+                    if kind.endswith("_out") and timing == "at_hit":
+                        continue
+                    option = touch(
+                        factory,
+                        barrier_type=kind,
+                        barrier_level=79.87 if kind.startswith("down") else 120.13,
+                        settlement_timing=timing,
+                    )
+                    self.assertAlmostEqual(
+                        engine.price(option, market()),
+                        AnalyticBinaryBarrierEngine().price(option, market()),
+                        delta=0.02 if option.payoff_type == "asset" else 0.002,
+                    )
 
     def test_current_and_prior_at_hit_payment(self):
         engine = FiniteDifferenceBinaryBarrierEngine()
         for factory, amount in (
-            (ins.cash_one_touch_up, 10),
-            (ins.asset_one_touch_up, 130),
+            (ins.cash_touch_option, 10),
+            (ins.asset_touch_option, 130),
         ):
             option = touch(factory, settlement_timing="at_hit")
             self.assertEqual(engine.price(option, market(130)), amount)
@@ -104,12 +97,10 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                     ("one_touch", True),
                     ("no_touch", False),
                 ):
-                    factory = getattr(
-                        ins,
-                        f"{'asset' if asset else 'cash'}_{kind}_{'up' if up else 'down'}",
-                    )
+                    factory = ins.asset_touch_option if asset else ins.cash_touch_option
                     fields = {
                         "barrier_level": 120.125 if up else 79.875,
+                        "barrier_type": f"{'up' if up else 'down'}_and_{'in' if kind == 'one_touch' else 'out'}",
                         "observation_mode": "scheduled",
                         "observation_dates": [date(2025, 6, 30), END],
                     }
@@ -185,7 +176,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         for asset in (False, True):
             for at_hit in (False, True):
                 option = touch(
-                    ins.asset_one_touch_up if asset else ins.cash_one_touch_up,
+                    ins.asset_touch_option if asset else ins.cash_touch_option,
                     barrier_level=120.125,
                     observation_mode="scheduled",
                     observation_dates=[fixing, END],
@@ -233,7 +224,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         self.assertEqual(engine.price(known, after), 0)
         self.assertEqual(engine.price(option, market(130, fixing)), 10)
         no_touch = touch(
-            ins.cash_no_touch_up,
+            barrier_type="up_and_out",
             observation_mode="scheduled",
             observation_dates=[fixing],
             touch_state="untouched",
@@ -297,15 +288,13 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             ["delta"],
             spot_shift=0,
         )
-        for factory in (
-            ins.cash_one_touch_up,
-            ins.cash_no_touch_up,
-            ins.asset_one_touch_up,
-            ins.asset_no_touch_up,
-        ):
-            contract = touch(factory, touch_state="untouched")
-            expiry = engine.price_with_greeks(contract, market(130, END), greeks="all")
-            self.assertTrue(all(getattr(expiry, g) is None for g in greeks))
+        for factory in (ins.cash_touch_option, ins.asset_touch_option):
+            for kind in ("up_and_in", "up_and_out"):
+                contract = touch(factory, barrier_type=kind, touch_state="untouched")
+                expiry = engine.price_with_greeks(
+                    contract, market(130, END), greeks="all"
+                )
+                self.assertTrue(all(getattr(expiry, g) is None for g in greeks))
         equality = engine.price_with_greeks(touch(), market(120.13), greeks="all")
         self.assertTrue(all(getattr(equality, g) is None for g in greeks))
         paid = touch(settlement_timing="at_hit", touch_state="touched")
@@ -413,10 +402,12 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 if not asset:
                     fields["payout"] = inputs["payout"]
                 if inputs["option"] == "none":
-                    name = f"{'asset' if asset else 'cash'}_{'one_touch' if kind.endswith('_in') else 'no_touch'}_{'up' if kind.startswith('up') else 'down'}"
-                    if kind.endswith("_in"):
-                        fields["settlement_timing"] = inputs["settlement"]
-                    option = getattr(ins, name)(**fields)
+                    factory = ins.asset_touch_option if asset else ins.cash_touch_option
+                    option = factory(
+                        **fields,
+                        barrier_type=kind,
+                        settlement_timing=inputs["settlement"],
+                    )
                 else:
                     option = (
                         ins.asset_binary_barrier_option

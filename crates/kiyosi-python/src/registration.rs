@@ -134,35 +134,11 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         module
     )?)?;
     module.add_function(wrap_pyfunction!(
-        instruments::binary_barrier::cash_one_touch_up,
+        instruments::binary_barrier::cash_touch_option,
         module
     )?)?;
     module.add_function(wrap_pyfunction!(
-        instruments::binary_barrier::cash_one_touch_down,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        instruments::binary_barrier::cash_no_touch_up,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        instruments::binary_barrier::cash_no_touch_down,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        instruments::binary_barrier::asset_one_touch_up,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        instruments::binary_barrier::asset_one_touch_down,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        instruments::binary_barrier::asset_no_touch_up,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        instruments::binary_barrier::asset_no_touch_down,
+        instruments::binary_barrier::asset_touch_option,
         module
     )?)?;
     module.add_function(wrap_pyfunction!(

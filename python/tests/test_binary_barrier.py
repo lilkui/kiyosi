@@ -42,11 +42,12 @@ class BinaryBarrierTests(unittest.TestCase):
             "barrier_type": "up_and_out",
         } | changes
 
-    def touch(self, factory=ins.cash_one_touch_up, **changes):
+    def touch(self, factory=ins.cash_touch_option, **changes):
         terms = self.terms()
-        for key in ("option_type", "strike", "barrier_type"):
+        for key in ("option_type", "strike"):
             terms.pop(key)
-        if factory.__name__.startswith("cash"):
+        terms["barrier_type"] = "up_and_in"
+        if factory is ins.cash_touch_option:
             terms["payout"] = 10
         return factory(**(terms | changes))
 
@@ -76,8 +77,8 @@ class BinaryBarrierTests(unittest.TestCase):
 
     def test_strict_history_current_and_paid_cash_and_asset_settlement(self):
         engine = AnalyticBinaryBarrierEngine()
-        for factory in (ins.cash_one_touch_up, ins.asset_one_touch_up):
-            asset = factory is ins.asset_one_touch_up
+        for factory in (ins.cash_touch_option, ins.asset_touch_option):
+            asset = factory is ins.asset_touch_option
             for timing in ("at_hit", "at_expiry"):
                 option = self.touch(factory, settlement_timing=timing)
                 self.assertIsNone(option.touch_state)
@@ -214,29 +215,72 @@ class BinaryBarrierTests(unittest.TestCase):
         for field in (
             "barrier_level",
             "payout",
+            "barrier_type",
             "settlement_timing",
             "observation_mode",
             "touch_state",
         ):
             with self.subTest(field=field), self.assertRaises(TypeError):
                 self.touch(**{field: True})
-        for field in ("settlement_timing", "observation_mode", "touch_state"):
+        for field in (
+            "barrier_type",
+            "settlement_timing",
+            "observation_mode",
+            "touch_state",
+        ):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 self.touch(**{field: "unknown"})
-        with self.assertRaises(TypeError):
-            self.touch(ins.cash_no_touch_up, settlement_timing="at_hit")
+        with self.assertRaises(InvalidInputError):
+            self.touch(barrier_type="up_and_out", settlement_timing="at_hit")
         with self.assertRaises(TypeError):
             self.touch(effective_date=datetime(2025, 1, 1, tzinfo=UTC))
         with self.assertRaises(TypeError):
             AnalyticBinaryBarrierEngine().price(object(), self.context())
 
+    def test_touch_factories_select_all_barrier_types_and_validate_settlement(self):
+        for factory in (ins.cash_touch_option, ins.asset_touch_option):
+            for kind in ("up_and_in", "up_and_out", "down_and_in", "down_and_out"):
+                with self.subTest(factory=factory.__name__, barrier_type=kind):
+                    option = self.touch(factory, barrier_type=kind)
+                    self.assertEqual(option.barrier_type, kind)
+                    self.assertEqual(option.is_up, kind.startswith("up"))
+                    self.assertEqual(option.is_one_touch, kind.endswith("_in"))
+                    self.assertEqual(option.settlement_timing, "at_expiry")
+                    self.assertEqual(
+                        option.payout, 10 if factory is ins.cash_touch_option else None
+                    )
+                    if kind.endswith("_in"):
+                        at_hit = self.touch(
+                            factory, barrier_type=kind, settlement_timing="at_hit"
+                        )
+                        self.assertEqual(at_hit.settlement_timing, "at_hit")
+                    else:
+                        self.assert_rejection(
+                            InvalidInputError,
+                            lambda factory=factory, kind=kind: self.touch(
+                                factory, barrier_type=kind, settlement_timing="at_hit"
+                            ),
+                        )
+            for invalid, error in (
+                (True, TypeError),
+                (None, TypeError),
+                ("up", ValueError),
+            ):
+                with self.subTest(factory=factory.__name__, invalid=invalid):
+                    self.assert_rejection(
+                        error,
+                        lambda factory=factory, invalid=invalid: self.touch(
+                            factory, barrier_type=invalid
+                        ),
+                    )
+
     def test_scheduled_boundaries_history_and_owned_dates(self):
         engine = AnalyticBinaryBarrierEngine()
         fixing = date(2025, 1, 2)
-        for factory in (ins.cash_one_touch_up, ins.cash_no_touch_up):
-            one = factory is ins.cash_one_touch_up
+        for kind in ("up_and_in", "up_and_out"):
+            one = kind == "up_and_in"
             option = self.touch(
-                factory,
+                barrier_type=kind,
                 observation_mode="scheduled",
                 observation_dates=(d for d in [fixing]),
             )
@@ -402,10 +446,12 @@ class BinaryBarrierTests(unittest.TestCase):
                 if not asset:
                     terms["payout"] = inputs["payout"]
                 if inputs["option"] == "none":
-                    name = f"{'asset' if asset else 'cash'}_{'one_touch' if kind.endswith('_in') else 'no_touch'}_{'up' if kind.startswith('up') else 'down'}"
-                    if kind.endswith("_in"):
-                        terms["settlement_timing"] = inputs["settlement"]
-                    option = getattr(ins, name)(**terms)
+                    factory = ins.asset_touch_option if asset else ins.cash_touch_option
+                    option = factory(
+                        **terms,
+                        barrier_type=kind,
+                        settlement_timing=inputs["settlement"],
+                    )
                 else:
                     factory = (
                         ins.asset_binary_barrier_option
@@ -454,6 +500,6 @@ class BinaryBarrierTests(unittest.TestCase):
     def test_subnormal_ratio_retains_half_probability_at_expiry(self):
         spot, barrier = 1e20, 1e-300
         drift = math.log(barrier) - math.log(spot)
-        option = self.touch(ins.cash_one_touch_down, barrier_level=barrier, payout=1)
+        option = self.touch(barrier_type="down_and_in", barrier_level=barrier, payout=1)
         context = self.context(spot, rate=0, dividend=-drift, sigma=1e-200)
         self.assertEqual(AnalyticBinaryBarrierEngine().price(option, context), 0.5)

@@ -128,16 +128,22 @@ def terminal_cases():
             120 / 365,
         ),
     ]
-    for factory, amount in (
-        (ins.cash_one_touch_up, 0),
-        (ins.cash_no_touch_up, 10),
-        (ins.asset_one_touch_up, 0),
-        (ins.asset_no_touch_up, 105),
+    for factory, kind, amount in (
+        (ins.cash_touch_option, "up_and_in", 0),
+        (ins.cash_touch_option, "up_and_out", 10),
+        (ins.asset_touch_option, "up_and_in", 0),
+        (ins.asset_touch_option, "up_and_out", 105),
     ):
-        payout = {"payout": 10} if factory.__name__.startswith("cash") else {}
+        payout = {"payout": 10} if factory is ins.cash_touch_option else {}
         cases.append(
             (
-                factory(**dates, barrier_level=120, touch_state="untouched", **payout),
+                factory(
+                    **dates,
+                    barrier_level=120,
+                    barrier_type=kind,
+                    touch_state="untouched",
+                    **payout,
+                ),
                 binary,
                 amount,
             )

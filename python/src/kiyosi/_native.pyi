@@ -1512,82 +1512,25 @@ def asset_binary_barrier_option(
     observation_dates: Iterable[date] = ...,
     touch_state: Literal["untouched", "touched"] | None = None,
 ) -> BinaryBarrierOption: ...
-def cash_one_touch_up(
+def cash_touch_option(
     *,
     effective_date: date,
     expiry_date: date,
     barrier_level: float,
+    barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
     payout: float,
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
     observation_mode: Literal["continuous", "scheduled"] = ...,
     observation_dates: Iterable[date] = ...,
     touch_state: Literal["untouched", "touched"] | None = None,
 ) -> TouchOption: ...
-def cash_one_touch_down(
+def asset_touch_option(
     *,
     effective_date: date,
     expiry_date: date,
     barrier_level: float,
-    payout: float,
+    barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
-    observation_mode: Literal["continuous", "scheduled"] = ...,
-    observation_dates: Iterable[date] = ...,
-    touch_state: Literal["untouched", "touched"] | None = None,
-) -> TouchOption: ...
-def cash_no_touch_up(
-    *,
-    effective_date: date,
-    expiry_date: date,
-    barrier_level: float,
-    payout: float,
-    observation_mode: Literal["continuous", "scheduled"] = ...,
-    observation_dates: Iterable[date] = ...,
-    touch_state: Literal["untouched", "touched"] | None = None,
-) -> TouchOption: ...
-def cash_no_touch_down(
-    *,
-    effective_date: date,
-    expiry_date: date,
-    barrier_level: float,
-    payout: float,
-    observation_mode: Literal["continuous", "scheduled"] = ...,
-    observation_dates: Iterable[date] = ...,
-    touch_state: Literal["untouched", "touched"] | None = None,
-) -> TouchOption: ...
-def asset_one_touch_up(
-    *,
-    effective_date: date,
-    expiry_date: date,
-    barrier_level: float,
-    settlement_timing: Literal["at_hit", "at_expiry"] = ...,
-    observation_mode: Literal["continuous", "scheduled"] = ...,
-    observation_dates: Iterable[date] = ...,
-    touch_state: Literal["untouched", "touched"] | None = None,
-) -> TouchOption: ...
-def asset_one_touch_down(
-    *,
-    effective_date: date,
-    expiry_date: date,
-    barrier_level: float,
-    settlement_timing: Literal["at_hit", "at_expiry"] = ...,
-    observation_mode: Literal["continuous", "scheduled"] = ...,
-    observation_dates: Iterable[date] = ...,
-    touch_state: Literal["untouched", "touched"] | None = None,
-) -> TouchOption: ...
-def asset_no_touch_up(
-    *,
-    effective_date: date,
-    expiry_date: date,
-    barrier_level: float,
-    observation_mode: Literal["continuous", "scheduled"] = ...,
-    observation_dates: Iterable[date] = ...,
-    touch_state: Literal["untouched", "touched"] | None = None,
-) -> TouchOption: ...
-def asset_no_touch_down(
-    *,
-    effective_date: date,
-    expiry_date: date,
-    barrier_level: float,
     observation_mode: Literal["continuous", "scheduled"] = ...,
     observation_dates: Iterable[date] = ...,
     touch_state: Literal["untouched", "touched"] | None = None,
