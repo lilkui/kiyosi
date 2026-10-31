@@ -4,6 +4,84 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
 
+macro_rules! autocallable_properties {
+    ($name:ident, $($extra:item),* $(,)?) => {
+        #[pymethods]
+        impl $name {
+            $($extra)*
+            /// Returns a validated replacement without changing this value.
+            ///
+            /// Parameters
+            /// ----------
+            /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None
+            ///     Strictly prior events. None is unknown; the string none means no
+            ///     event.
+            ///
+            /// Returns
+            /// -------
+            /// object
+            ///     New instance of the same class; omitted fields retain their values.
+            ///
+            /// Raises
+            /// ------
+            /// KiyosiError
+            ///     If replacement terms fail domain validation. The original is unchanged.
+            #[pyo3(signature = (*, barrier_state))]
+            fn replace(&self, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
+                Ok(Self(domain(self.0.replace(state(barrier_state)?))?))
+            }
+            /// Returns owned copies of the contractual observations.
+            #[getter]
+            fn observations(&self) -> Vec<AutocallableObservation> {
+                self.0
+                    .observations()
+                    .iter()
+                    .copied()
+                    .map(AutocallableObservation)
+                    .collect()
+            }
+            /// Returns a copy of the contractual observation dates.
+            #[getter]
+            fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
+                self.0
+                    .observations()
+                    .iter()
+                    .map(|r| python_date(py, r.date))
+                    .collect()
+            }
+            /// Returns copied knock-out thresholds in observation order.
+            #[getter]
+            fn knock_out_levels(&self) -> Vec<f64> {
+                self.0
+                    .observations()
+                    .iter()
+                    .map(|r| r.knock_out_level)
+                    .collect()
+            }
+            /// Returns nonnegative normalized principal, independent of coupons and losses.
+            #[getter]
+            fn principal_ratio(&self) -> f64 {
+                self.0.terms().principal_ratio
+            }
+            /// Returns strictly prior autocallable history, or None if unknown.
+            #[getter]
+            fn barrier_state(&self) -> Option<&'static str> {
+                state_name(self.0.barrier_state())
+            }
+            /// Returns inclusive first contract date.
+            #[getter]
+            fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
+                python_date(py, self.0.effective_date())
+            }
+            /// Returns final contract date; expiry is at midnight UTC.
+            #[getter]
+            fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
+                python_date(py, self.0.expiry_date())
+            }
+        }
+    };
+}
+
 fn state(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::AutocallableBarrierState>> {
     if value.is_none() {
         return Ok(None);
@@ -630,8 +708,8 @@ and trading-calendar consistency are checked during pricing."
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct SnowballOption(pub kiyosi::SnowballOption);
-#[pymethods]
-impl SnowballOption {
+autocallable_properties! {
+    SnowballOption,
     #[new]
     #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
@@ -664,56 +742,7 @@ impl SnowballOption {
         }
         terms.principal_ratio = principal_ratio;
         Ok(Self(domain(kiyosi::SnowballOption::new(terms))?))
-    }
-    /// Return a validated replacement without changing this value.
-    ///
-    /// Parameters
-    /// ----------
-    /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None
-    ///     Strictly prior events. None is unknown; the string none means no
-    ///     event.
-    ///
-    /// Returns
-    /// -------
-    /// object
-    ///     New instance of the same class; omitted fields retain their values.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, barrier_state))]
-    fn replace(&self, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(self.0.replace(state(barrier_state)?))?))
-    }
-    /// Return owned copies of the contractual observations.
-    #[getter]
-    fn observations(&self) -> Vec<AutocallableObservation> {
-        self.0
-            .observations()
-            .iter()
-            .copied()
-            .map(AutocallableObservation)
-            .collect()
-    }
-    /// Return a copy of the contractual observation dates.
-    #[getter]
-    fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
-        self.0
-            .observations()
-            .iter()
-            .map(|r| python_date(py, r.date))
-            .collect()
-    }
-    /// Return copied knock-out thresholds in observation order.
-    #[getter]
-    fn knock_out_levels(&self) -> Vec<f64> {
-        self.0
-            .observations()
-            .iter()
-            .map(|r| r.knock_out_level)
-            .collect()
-    }
+    },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
     fn knock_out_coupon_rates(&self) -> Vec<f64> {
@@ -722,57 +751,37 @@ impl SnowballOption {
             .iter()
             .map(|r| r.coupon_rate)
             .collect()
-    }
+    },
     /// Return finite annual maturity coupon rate in decimal units.
     #[getter]
     fn maturity_coupon_rate(&self) -> f64 {
         self.0.terms().maturity_coupon_rate
-    }
+    },
     /// Return positive reference spot used to normalize downside losses.
     #[getter]
     fn initial_spot(&self) -> f64 {
         self.0.terms().initial_spot
-    }
+    },
     /// Return positive strict downside threshold.
     #[getter]
     fn knock_in_level(&self) -> f64 {
         self.0.terms().knock_in_level
-    }
+    },
     /// Return positive upper terminal settlement strike.
     #[getter]
     fn upper_strike(&self) -> f64 {
         self.0.terms().upper_strike
-    }
+    },
     /// Return nonnegative lower terminal strike, at most the upper strike.
     #[getter]
     fn lower_strike(&self) -> f64 {
         self.0.terms().lower_strike
-    }
-    /// Return nonnegative normalized principal, independent of coupons and losses.
-    #[getter]
-    fn principal_ratio(&self) -> f64 {
-        self.0.terms().principal_ratio
-    }
+    },
     /// Return the knock-in monitoring choice string.
     #[getter]
     fn knock_in_observation_mode(&self) -> &'static str {
         mode_name(self.0.terms().knock_in_observation_mode)
-    }
-    /// Return strictly prior autocallable history, or None if unknown.
-    #[getter]
-    fn barrier_state(&self) -> Option<&'static str> {
-        state_name(self.0.barrier_state())
-    }
-    /// Return inclusive first contract date.
-    #[getter]
-    fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.effective_date())
-    }
-    /// Return final contract date; expiry is at midnight UTC.
-    #[getter]
-    fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.expiry_date())
-    }
+    },
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let records = self
             .observations()
@@ -826,8 +835,8 @@ impl SnowballOption {
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct BinarySnowballOption(pub kiyosi::BinarySnowballOption);
-#[pymethods]
-impl BinarySnowballOption {
+autocallable_properties! {
+    BinarySnowballOption,
     #[new]
     #[pyo3(signature = (*, maturity_coupon_rate, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     fn new(
@@ -849,56 +858,7 @@ impl BinarySnowballOption {
         }
         terms.principal_ratio = principal_ratio;
         Ok(Self(domain(kiyosi::BinarySnowballOption::new(terms))?))
-    }
-    /// Return a validated replacement without changing this value.
-    ///
-    /// Parameters
-    /// ----------
-    /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None
-    ///     Strictly prior events. None is unknown; the string none means no
-    ///     event.
-    ///
-    /// Returns
-    /// -------
-    /// object
-    ///     New instance of the same class; omitted fields retain their values.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, barrier_state))]
-    fn replace(&self, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(self.0.replace(state(barrier_state)?))?))
-    }
-    /// Return owned copies of the contractual observations.
-    #[getter]
-    fn observations(&self) -> Vec<AutocallableObservation> {
-        self.0
-            .observations()
-            .iter()
-            .copied()
-            .map(AutocallableObservation)
-            .collect()
-    }
-    /// Return a copy of the contractual observation dates.
-    #[getter]
-    fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
-        self.0
-            .observations()
-            .iter()
-            .map(|r| python_date(py, r.date))
-            .collect()
-    }
-    /// Return copied knock-out thresholds in observation order.
-    #[getter]
-    fn knock_out_levels(&self) -> Vec<f64> {
-        self.0
-            .observations()
-            .iter()
-            .map(|r| r.knock_out_level)
-            .collect()
-    }
+    },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
     fn knock_out_coupon_rates(&self) -> Vec<f64> {
@@ -907,32 +867,12 @@ impl BinarySnowballOption {
             .iter()
             .map(|r| r.coupon_rate)
             .collect()
-    }
+    },
     /// Return finite annual maturity coupon rate in decimal units.
     #[getter]
     fn maturity_coupon_rate(&self) -> f64 {
         self.0.terms().maturity_coupon_rate
-    }
-    /// Return nonnegative normalized principal, independent of coupons and losses.
-    #[getter]
-    fn principal_ratio(&self) -> f64 {
-        self.0.terms().principal_ratio
-    }
-    /// Return strictly prior autocallable history, or None if unknown.
-    #[getter]
-    fn barrier_state(&self) -> Option<&'static str> {
-        state_name(self.0.barrier_state())
-    }
-    /// Return inclusive first contract date.
-    #[getter]
-    fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.effective_date())
-    }
-    /// Return final contract date; expiry is at midnight UTC.
-    #[getter]
-    fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.expiry_date())
-    }
+    },
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let records = self
             .observations()
@@ -987,8 +927,8 @@ impl BinarySnowballOption {
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct TernarySnowballOption(pub kiyosi::TernarySnowballOption);
-#[pymethods]
-impl TernarySnowballOption {
+autocallable_properties! {
+    TernarySnowballOption,
     #[new]
     #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
@@ -1017,56 +957,7 @@ impl TernarySnowballOption {
         }
         terms.principal_ratio = principal_ratio;
         Ok(Self(domain(kiyosi::TernarySnowballOption::new(terms))?))
-    }
-    /// Return a validated replacement without changing this value.
-    ///
-    /// Parameters
-    /// ----------
-    /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None
-    ///     Strictly prior events. None is unknown; the string none means no
-    ///     event.
-    ///
-    /// Returns
-    /// -------
-    /// object
-    ///     New instance of the same class; omitted fields retain their values.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, barrier_state))]
-    fn replace(&self, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(self.0.replace(state(barrier_state)?))?))
-    }
-    /// Return owned copies of the contractual observations.
-    #[getter]
-    fn observations(&self) -> Vec<AutocallableObservation> {
-        self.0
-            .observations()
-            .iter()
-            .copied()
-            .map(AutocallableObservation)
-            .collect()
-    }
-    /// Return a copy of the contractual observation dates.
-    #[getter]
-    fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
-        self.0
-            .observations()
-            .iter()
-            .map(|r| python_date(py, r.date))
-            .collect()
-    }
-    /// Return copied knock-out thresholds in observation order.
-    #[getter]
-    fn knock_out_levels(&self) -> Vec<f64> {
-        self.0
-            .observations()
-            .iter()
-            .map(|r| r.knock_out_level)
-            .collect()
-    }
+    },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
     fn knock_out_coupon_rates(&self) -> Vec<f64> {
@@ -1075,47 +966,27 @@ impl TernarySnowballOption {
             .iter()
             .map(|r| r.coupon_rate)
             .collect()
-    }
+    },
     /// Return finite annual maturity coupon rate in decimal units.
     #[getter]
     fn maturity_coupon_rate(&self) -> f64 {
         self.0.terms().maturity_coupon_rate
-    }
+    },
     /// Return positive strict downside threshold.
     #[getter]
     fn knock_in_level(&self) -> f64 {
         self.0.terms().knock_in_level
-    }
+    },
     /// Return the annual knocked-in maturity coupon.
     #[getter]
     fn minimum_coupon_rate(&self) -> f64 {
         self.0.terms().minimum_coupon_rate
-    }
-    /// Return nonnegative normalized principal, independent of coupons and losses.
-    #[getter]
-    fn principal_ratio(&self) -> f64 {
-        self.0.terms().principal_ratio
-    }
+    },
     /// Return the knock-in monitoring choice string.
     #[getter]
     fn knock_in_observation_mode(&self) -> &'static str {
         mode_name(self.0.terms().knock_in_observation_mode)
-    }
-    /// Return strictly prior autocallable history, or None if unknown.
-    #[getter]
-    fn barrier_state(&self) -> Option<&'static str> {
-        state_name(self.0.barrier_state())
-    }
-    /// Return inclusive first contract date.
-    #[getter]
-    fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.effective_date())
-    }
-    /// Return final contract date; expiry is at midnight UTC.
-    #[getter]
-    fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.expiry_date())
-    }
+    },
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let records = self
             .observations()
@@ -1183,8 +1054,8 @@ impl TernarySnowballOption {
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PhoenixOption(pub kiyosi::PhoenixOption);
-#[pymethods]
-impl PhoenixOption {
+autocallable_properties! {
+    PhoenixOption,
     #[new]
     #[pyo3(signature = (*, coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
@@ -1217,56 +1088,7 @@ impl PhoenixOption {
         }
         terms.principal_ratio = principal_ratio;
         Ok(Self(domain(kiyosi::PhoenixOption::new(terms))?))
-    }
-    /// Return a validated replacement without changing this value.
-    ///
-    /// Parameters
-    /// ----------
-    /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None
-    ///     Strictly prior events. None is unknown; the string none means no
-    ///     event.
-    ///
-    /// Returns
-    /// -------
-    /// object
-    ///     New instance of the same class; omitted fields retain their values.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, barrier_state))]
-    fn replace(&self, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(self.0.replace(state(barrier_state)?))?))
-    }
-    /// Return owned copies of the contractual observations.
-    #[getter]
-    fn observations(&self) -> Vec<AutocallableObservation> {
-        self.0
-            .observations()
-            .iter()
-            .copied()
-            .map(AutocallableObservation)
-            .collect()
-    }
-    /// Return a copy of the contractual observation dates.
-    #[getter]
-    fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
-        self.0
-            .observations()
-            .iter()
-            .map(|r| python_date(py, r.date))
-            .collect()
-    }
-    /// Return copied knock-out thresholds in observation order.
-    #[getter]
-    fn knock_out_levels(&self) -> Vec<f64> {
-        self.0
-            .observations()
-            .iter()
-            .map(|r| r.knock_out_level)
-            .collect()
-    }
+    },
     /// Return copied Phoenix coupon thresholds in observation order.
     #[getter]
     fn coupon_barrier_levels(&self) -> Vec<f64> {
@@ -1275,57 +1097,37 @@ impl PhoenixOption {
             .iter()
             .map(|r| r.coupon_barrier_level)
             .collect()
-    }
+    },
     /// Return finite annual coupon rate in decimal units.
     #[getter]
     fn coupon_rate(&self) -> f64 {
         self.0.terms().coupon_rate
-    }
+    },
     /// Return positive reference spot used to normalize downside losses.
     #[getter]
     fn initial_spot(&self) -> f64 {
         self.0.terms().initial_spot
-    }
+    },
     /// Return positive strict downside threshold.
     #[getter]
     fn knock_in_level(&self) -> f64 {
         self.0.terms().knock_in_level
-    }
+    },
     /// Return positive upper terminal settlement strike.
     #[getter]
     fn upper_strike(&self) -> f64 {
         self.0.terms().upper_strike
-    }
+    },
     /// Return nonnegative lower terminal strike, at most the upper strike.
     #[getter]
     fn lower_strike(&self) -> f64 {
         self.0.terms().lower_strike
-    }
-    /// Return nonnegative normalized principal, independent of coupons and losses.
-    #[getter]
-    fn principal_ratio(&self) -> f64 {
-        self.0.terms().principal_ratio
-    }
+    },
     /// Return the knock-in monitoring choice string.
     #[getter]
     fn knock_in_observation_mode(&self) -> &'static str {
         mode_name(self.0.terms().knock_in_observation_mode)
-    }
-    /// Return strictly prior autocallable history, or None if unknown.
-    #[getter]
-    fn barrier_state(&self) -> Option<&'static str> {
-        state_name(self.0.barrier_state())
-    }
-    /// Return inclusive first contract date.
-    #[getter]
-    fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.effective_date())
-    }
-    /// Return final contract date; expiry is at midnight UTC.
-    #[getter]
-    fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.expiry_date())
-    }
+    },
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let records = self
             .observations()
