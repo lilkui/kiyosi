@@ -19,6 +19,11 @@ their ``price_with_greeks`` methods accept only ``greeks`` and ``all_greeks``
 as request controls. Engines that use numerical differences also accept bump
 settings.
 
+Pricing controls are explicit keyword-only parameters, available through
+``inspect.signature``. Monte Carlo vanilla spot bumps default by product:
+0.01 for European options and 8% of spot for American options. Explicit
+``None`` selects the automatic bump only for American options.
+
 ``CouponQuoteConvention`` controls whether a snowball's maturity coupon
 shifts with observation coupons (``"shift_maturity_coupon"``) or stays fixed
 (``"preserve_maturity_coupon"``). Phoenix coupon solves omit this choice.

@@ -3,7 +3,6 @@ use crate::instruments::barrier::BarrierOption;
 use crate::market::PricingContext;
 use crate::risk;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 /// Flat-rate single-barrier analytics with BGK scheduled monitoring.
 ///
 /// See Also
@@ -82,17 +81,30 @@ impl AnalyticBarrierEngine {
     /// ------
     /// KiyosiError
     ///     If requests, shifts, pricing or a feasible bumped valuation fails.
-    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit Python pricing controls"
+    )]
     fn price_with_greeks(
         &self,
         py: Python<'_>,
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, BarrierOption>,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
-        settings: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = crate::conversions::boolean)] all_greeks: bool,
+        #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
     ) -> PyResult<risk::PricingResult> {
-        let request = risk::request(greeks, settings)?;
-        let shifts = risk::shifts(settings)?;
+        let request = risk::greeks_request(greeks, all_greeks)?;
+        let shifts = kiyosi::NumericalShiftSettings {
+            spot_shift,
+            volatility_shift,
+            rate_shift,
+            time_shift_days,
+        };
         let option = &instrument.0;
         let context = &context.0;
         Ok(risk::PricingResult(domain(

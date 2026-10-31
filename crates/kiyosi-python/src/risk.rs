@@ -1,8 +1,6 @@
-use crate::conversions::{boolean, check_changes, integer, real};
 use crate::error::domain;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 
 pub(crate) fn greek(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Greek> {
     let name = value.extract::<&str>()?;
@@ -10,20 +8,6 @@ pub(crate) fn greek(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Greek> {
         .into_iter()
         .find(|g| g.name() == name)
         .ok_or_else(|| PyValueError::new_err("unknown Greek name"))
-}
-
-pub(crate) fn request(
-    greeks: Option<&Bound<'_, PyAny>>,
-    settings: Option<&Bound<'_, PyDict>>,
-) -> PyResult<kiyosi::GreeksRequest> {
-    let all = settings
-        .map(|s| s.get_item("all_greeks"))
-        .transpose()?
-        .flatten();
-    greeks_request(
-        greeks,
-        all.as_ref().map(boolean).transpose()?.unwrap_or(false),
-    )
 }
 
 pub(crate) fn greeks_request(
@@ -49,62 +33,6 @@ pub(crate) fn greeks_request(
             .collect::<PyResult<Vec<_>>>()?
     };
     Ok(kiyosi::GreeksRequest::new(measures))
-}
-
-pub(crate) fn real_setting(
-    settings: Option<&Bound<'_, PyDict>>,
-    name: &str,
-    default: f64,
-) -> PyResult<f64> {
-    settings
-        .map(|s| s.get_item(name))
-        .transpose()?
-        .flatten()
-        .as_ref()
-        .map(real)
-        .transpose()
-        .map(|v| v.unwrap_or(default))
-}
-pub(crate) fn integer_setting(
-    settings: Option<&Bound<'_, PyDict>>,
-    name: &str,
-    default: i32,
-) -> PyResult<i32> {
-    settings
-        .map(|s| s.get_item(name))
-        .transpose()?
-        .flatten()
-        .as_ref()
-        .map(integer)
-        .transpose()
-        .map(|v| v.unwrap_or(default))
-}
-pub(crate) fn shifts(
-    settings: Option<&Bound<'_, PyDict>>,
-) -> PyResult<kiyosi::NumericalShiftSettings> {
-    shifts_with_defaults(settings, kiyosi::NumericalShiftSettings::default())
-}
-
-pub(crate) fn shifts_with_defaults(
-    settings: Option<&Bound<'_, PyDict>>,
-    d: kiyosi::NumericalShiftSettings,
-) -> PyResult<kiyosi::NumericalShiftSettings> {
-    check_changes(
-        settings,
-        &[
-            "all_greeks",
-            "spot_shift",
-            "volatility_shift",
-            "rate_shift",
-            "time_shift_days",
-        ],
-    )?;
-    Ok(kiyosi::NumericalShiftSettings {
-        spot_shift: real_setting(settings, "spot_shift", d.spot_shift)?,
-        volatility_shift: real_setting(settings, "volatility_shift", d.volatility_shift)?,
-        rate_shift: real_setting(settings, "rate_shift", d.rate_shift)?,
-        time_shift_days: integer_setting(settings, "time_shift_days", d.time_shift_days)?,
-    })
 }
 
 /// Finite price and optional finite price sensitivities.

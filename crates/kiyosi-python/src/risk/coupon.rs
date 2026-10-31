@@ -1,4 +1,4 @@
-use crate::conversions::{check_changes, real};
+use crate::conversions::{integer, real, supplied};
 use crate::engines::finite_difference;
 use crate::engines::monte_carlo;
 use crate::engines::quadrature::QuadratureAutocallableEngine;
@@ -7,10 +7,8 @@ use crate::instruments::autocallable::{
     BinarySnowballOption, PhoenixOption, SnowballOption, TernarySnowballOption,
 };
 use crate::market::PricingContext;
-use crate::risk;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 /// Solve the annual coupon that reproduces an observed price.
 ///
 /// Parameters
@@ -70,25 +68,62 @@ use pyo3::types::PyDict;
 /// coupon; the ternary minimum remains fixed. Phoenix replaces its
 /// conditional annual coupon. Trials use affine interpolation, then bisection.
 #[pyfunction]
-#[pyo3(signature = (engine, instrument, context, observed_price, **settings))]
+#[pyo3(signature = (engine, instrument, context, observed_price, *, quote_convention=None, lower_bound=kiyosi::ImpliedCouponSettings::default().lower_bound, upper_bound=kiyosi::ImpliedCouponSettings::default().upper_bound, price_tolerance=kiyosi::ImpliedCouponSettings::default().price_tolerance, parameter_tolerance=kiyosi::ImpliedCouponSettings::default().parameter_tolerance, max_iterations=kiyosi::ImpliedCouponSettings::default().max_iterations))]
+#[expect(clippy::too_many_arguments, reason = "explicit Python solver controls")]
 pub(crate) fn implied_coupon(
     py: Python<'_>,
     engine: &Bound<'_, PyAny>,
     instrument: &Bound<'_, PyAny>,
     context: &PricingContext,
-    observed_price: &Bound<'_, PyAny>,
-    settings: Option<&Bound<'_, PyDict>>,
+    #[pyo3(from_py_with = real)] observed_price: f64,
+    #[pyo3(from_py_with = supplied)] quote_convention: Option<&Bound<'_, PyAny>>,
+    #[pyo3(from_py_with = real)] lower_bound: f64,
+    #[pyo3(from_py_with = real)] upper_bound: f64,
+    #[pyo3(from_py_with = real)] price_tolerance: f64,
+    #[pyo3(from_py_with = real)] parameter_tolerance: f64,
+    #[pyo3(from_py_with = integer)] max_iterations: i32,
 ) -> PyResult<f64> {
+    let controls = kiyosi::ImpliedCouponSettings {
+        lower_bound,
+        upper_bound,
+        price_tolerance,
+        parameter_tolerance,
+        max_iterations,
+    };
     if let Ok(engine) = engine.extract::<PyRef<'_, QuadratureAutocallableEngine>>() {
-        return solve_coupon(py, engine.0, instrument, context, observed_price, settings);
+        return solve_coupon(
+            py,
+            engine.0,
+            instrument,
+            context,
+            observed_price,
+            quote_convention,
+            controls,
+        );
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloAutocallableEngine>>() {
-        return solve_coupon(py, engine.0, instrument, context, observed_price, settings);
+        return solve_coupon(
+            py,
+            engine.0,
+            instrument,
+            context,
+            observed_price,
+            quote_convention,
+            controls,
+        );
     }
     let engine = crate::conversions::engine::<
         PyRef<'_, finite_difference::FiniteDifferenceAutocallableEngine>,
     >(engine)?;
-    solve_coupon(py, engine.0, instrument, context, observed_price, settings)
+    solve_coupon(
+        py,
+        engine.0,
+        instrument,
+        context,
+        observed_price,
+        quote_convention,
+        controls,
+    )
 }
 
 fn solve_coupon<E>(
@@ -96,8 +131,9 @@ fn solve_coupon<E>(
     engine: E,
     instrument: &Bound<'_, PyAny>,
     context: &PricingContext,
-    observed_price: &Bound<'_, PyAny>,
-    settings: Option<&Bound<'_, PyDict>>,
+    observed: f64,
+    convention: Option<&Bound<'_, PyAny>>,
+    controls: kiyosi::ImpliedCouponSettings,
 ) -> PyResult<f64>
 where
     E: kiyosi::PricingEngine<kiyosi::SnowballOption>
@@ -106,34 +142,6 @@ where
         + kiyosi::PricingEngine<kiyosi::PhoenixOption>
         + Sync,
 {
-    check_changes(
-        settings,
-        &[
-            "quote_convention",
-            "lower_bound",
-            "upper_bound",
-            "price_tolerance",
-            "parameter_tolerance",
-            "max_iterations",
-        ],
-    )?;
-    let observed = real(observed_price)?;
-    let d = kiyosi::ImpliedCouponSettings::default();
-    let controls = kiyosi::ImpliedCouponSettings {
-        lower_bound: risk::real_setting(settings, "lower_bound", d.lower_bound)?,
-        upper_bound: risk::real_setting(settings, "upper_bound", d.upper_bound)?,
-        price_tolerance: risk::real_setting(settings, "price_tolerance", d.price_tolerance)?,
-        parameter_tolerance: risk::real_setting(
-            settings,
-            "parameter_tolerance",
-            d.parameter_tolerance,
-        )?,
-        max_iterations: risk::integer_setting(settings, "max_iterations", d.max_iterations)?,
-    };
-    let convention = settings
-        .map(|s| s.get_item("quote_convention"))
-        .transpose()?
-        .flatten();
     let context = &context.0;
     if let Ok(note) = instrument.extract::<PyRef<'_, PhoenixOption>>() {
         if convention.is_some() {

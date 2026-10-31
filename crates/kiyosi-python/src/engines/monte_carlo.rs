@@ -12,7 +12,6 @@ use crate::market::PricingContext;
 use crate::risk;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 
 fn sampling(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::MonteCarloSampling> {
     match value.extract::<&str>()? {
@@ -258,7 +257,11 @@ sampling_settings!(
     /// System entropy and worker-creation failures raise OSError.
     /// For American vanilla options, omitted or None `spot_shift` uses 8% of
     /// spot; other bumps use the shared core defaults.
-    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit Python pricing controls"
+    )]
     fn price_with_greeks(
         &self,
         py: Python<'_>,
@@ -266,14 +269,26 @@ sampling_settings!(
         instrument: binomial::VanillaInstrument<'_>,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
-        settings: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = crate::conversions::boolean)] all_greeks: bool,
+        #[pyo3(from_py_with = crate::conversions::supplied)] spot_shift: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
     ) -> PyResult<risk::PricingResult> {
-        let request = risk::request(greeks, settings)?;
+        let request = risk::greeks_request(greeks, all_greeks)?;
         let engine = self.0;
         let context = &context.0;
         let result = match instrument {
             binomial::VanillaInstrument::European(option) => {
-                let shifts = risk::shifts(settings)?;
+                let shifts = kiyosi::NumericalShiftSettings {
+                    spot_shift: spot_shift
+                        .map(crate::conversions::real)
+                        .transpose()?
+                        .unwrap_or(kiyosi::NumericalShiftSettings::default().spot_shift),
+                    volatility_shift,
+                    rate_shift,
+                    time_shift_days,
+                };
                 let option = &option.0;
                 domain(
                     py,
@@ -281,23 +296,18 @@ sampling_settings!(
                 )
             }
             binomial::VanillaInstrument::American(option) => {
-                let default = kiyosi::NumericalShiftSettings {
-                    spot_shift: kiyosi::MonteCarloVanillaEngine::default_american_spot_shift(
-                        context,
-                    ),
-                    ..Default::default()
+                let shifts = kiyosi::NumericalShiftSettings {
+                    spot_shift: spot_shift
+                        .filter(|value| !value.is_none())
+                        .map(crate::conversions::real)
+                        .transpose()?
+                        .unwrap_or_else(|| {
+                            kiyosi::MonteCarloVanillaEngine::default_american_spot_shift(context)
+                        }),
+                    volatility_shift,
+                    rate_shift,
+                    time_shift_days,
                 };
-                let fields = settings
-                    .map(Bound::copy)
-                    .transpose()?
-                    .unwrap_or_else(|| PyDict::new(py));
-                if fields
-                    .get_item("spot_shift")?
-                    .is_some_and(|value| value.is_none())
-                {
-                    fields.del_item("spot_shift")?;
-                }
-                let shifts = risk::shifts_with_defaults(Some(&fields), default)?;
                 let option = &option.0;
                 domain(
                     py,
@@ -723,7 +733,11 @@ sampling_settings!(
     /// Notes
     /// -----
     /// System entropy and worker-creation failures raise OSError.
-    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit Python pricing controls"
+    )]
     fn price_with_greeks(
         &self,
         py: Python<'_>,
@@ -733,10 +747,19 @@ sampling_settings!(
         >,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
-        settings: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = crate::conversions::boolean)] all_greeks: bool,
+        #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
     ) -> PyResult<risk::PricingResult> {
-        let request = risk::request(greeks, settings)?;
-        let shifts = risk::shifts(settings)?;
+        let request = risk::greeks_request(greeks, all_greeks)?;
+        let shifts = kiyosi::NumericalShiftSettings {
+            spot_shift,
+            volatility_shift,
+            rate_shift,
+            time_shift_days,
+        };
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
@@ -860,7 +883,11 @@ sampling_settings!(
     /// Notes
     /// -----
     /// System entropy and worker-creation failures raise OSError.
-    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit Python pricing controls"
+    )]
     fn price_with_greeks(
         &self,
         py: Python<'_>,
@@ -870,10 +897,19 @@ sampling_settings!(
         >,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
-        settings: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = crate::conversions::boolean)] all_greeks: bool,
+        #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
     ) -> PyResult<risk::PricingResult> {
-        let request = risk::request(greeks, settings)?;
-        let shifts = risk::shifts(settings)?;
+        let request = risk::greeks_request(greeks, all_greeks)?;
+        let shifts = kiyosi::NumericalShiftSettings {
+            spot_shift,
+            volatility_shift,
+            rate_shift,
+            time_shift_days,
+        };
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
@@ -1037,17 +1073,30 @@ sampling_settings!(
     /// Notes
     /// -----
     /// System entropy and worker-creation failures raise OSError.
-    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit Python pricing controls"
+    )]
     fn price_with_greeks(
         &self,
         py: Python<'_>,
         instrument: &Bound<'_, PyAny>,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
-        settings: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = crate::conversions::boolean)] all_greeks: bool,
+        #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
     ) -> PyResult<risk::PricingResult> {
-        let request = risk::request(greeks, settings)?;
-        let shifts = risk::shifts(settings)?;
+        let request = risk::greeks_request(greeks, all_greeks)?;
+        let shifts = kiyosi::NumericalShiftSettings {
+            spot_shift,
+            volatility_shift,
+            rate_shift,
+            time_shift_days,
+        };
         let engine = self.0;
         let context = &context.0;
         autocallable::with_note!(
@@ -1211,7 +1260,11 @@ sampling_settings!(
     /// Notes
     /// -----
     /// System entropy and worker-creation failures raise OSError.
-    #[pyo3(signature = (instrument, context, greeks=None, **settings))]
+    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit Python pricing controls"
+    )]
     fn price_with_greeks(
         &self,
         py: Python<'_>,
@@ -1221,10 +1274,19 @@ sampling_settings!(
         >,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
-        settings: Option<&Bound<'_, PyDict>>,
+        #[pyo3(from_py_with = crate::conversions::boolean)] all_greeks: bool,
+        #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
+        #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
     ) -> PyResult<risk::PricingResult> {
-        let request = risk::request(greeks, settings)?;
-        let shifts = risk::shifts(settings)?;
+        let request = risk::greeks_request(greeks, all_greeks)?;
+        let shifts = kiyosi::NumericalShiftSettings {
+            spot_shift,
+            volatility_shift,
+            rate_shift,
+            time_shift_days,
+        };
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;

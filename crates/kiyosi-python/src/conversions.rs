@@ -90,6 +90,13 @@ where
     })
 }
 
+// Preserve explicit None separately from an omitted keyword.
+pub(crate) fn supplied<'a, 'py>(
+    value: &'a Bound<'py, PyAny>,
+) -> PyResult<Option<&'a Bound<'py, PyAny>>> {
+    Ok(Some(value))
+}
+
 pub(crate) fn real(value: &Bound<'_, PyAny>) -> PyResult<f64> {
     if value.is_instance_of::<PyBool>()
         || !value.is_instance(&value.py().import("numbers")?.getattr("Real")?)?

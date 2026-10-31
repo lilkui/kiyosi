@@ -14,6 +14,75 @@ from kiyosi import _native, instruments, market, pricing
 
 
 class PackageTests(unittest.TestCase):
+    def test_greek_methods_expose_declared_keyword_controls(self):
+        stub = ast.parse((Path(kiyosi.__file__).parent / "_native.pyi").read_text())
+        for node in stub.body:
+            if not isinstance(node, ast.ClassDef) or not node.name.endswith("Engine"):
+                continue
+            method = next(
+                member
+                for member in node.body
+                if isinstance(member, ast.FunctionDef)
+                and member.name == "price_with_greeks"
+            )
+            expected = tuple(arg.arg for arg in method.args.args if arg.arg != "self")
+            keywords = tuple(arg.arg for arg in method.args.kwonlyargs)
+            engine = getattr(pricing, node.name)()
+            with self.subTest(engine=node.name):
+                signature = inspect.signature(engine.price_with_greeks)
+                self.assertEqual(tuple(signature.parameters), expected + keywords)
+                for name in keywords:
+                    parameter = signature.parameters[name]
+                    self.assertIs(parameter.kind, inspect.Parameter.KEYWORD_ONLY)
+                    self.assertIsNot(parameter.default, inspect.Parameter.empty)
+
+    def test_coupon_solver_exposes_keyword_controls(self):
+        signature = inspect.signature(pricing.implied_coupon)
+        self.assertEqual(
+            tuple(signature.parameters),
+            (
+                "engine",
+                "instrument",
+                "context",
+                "observed_price",
+                "quote_convention",
+                "lower_bound",
+                "upper_bound",
+                "price_tolerance",
+                "parameter_tolerance",
+                "max_iterations",
+            ),
+        )
+        for name in tuple(signature.parameters)[4:]:
+            self.assertIs(
+                signature.parameters[name].kind, inspect.Parameter.KEYWORD_ONLY
+            )
+
+    def test_monte_carlo_spot_shift_preserves_explicit_none_rules(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        terms = {
+            "option_type": "put",
+            "strike": 100,
+            "effective_date": start,
+            "expiry_date": end,
+        }
+        engine = pricing.MonteCarloVanillaEngine(path_count=256, step_count=5, seed=42)
+        with self.assertRaises(TypeError):
+            engine.price_with_greeks(
+                instruments.EuropeanOption(**terms), context, "delta", spot_shift=None
+            )
+        option = instruments.AmericanOption(**terms)
+        default = engine.price_with_greeks(option, context, "delta")
+        explicit = engine.price_with_greeks(option, context, "delta", spot_shift=None)
+        self.assertEqual(explicit.require("delta"), default.require("delta"))
+
     def test_native_greek_methods_expose_only_request_controls(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = market.PricingContext(
