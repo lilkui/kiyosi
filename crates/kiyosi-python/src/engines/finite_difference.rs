@@ -59,131 +59,83 @@ macro_rules! fd_engine {
         #[pyclass(frozen, module = "kiyosi._native")]
         pub(crate) struct $name(pub(crate) kiyosi::$name);
 
-        #[pymethods]
-        impl $name {
-            #[new]
-            #[pyo3(signature = (*, asset_step_count=kiyosi::$name::default().settings().asset_step_count, time_step_count=kiyosi::$name::default().settings().time_step_count, scheme=kiyosi::$name::default().settings().scheme, asset_upper_boundary=None))]
-            fn new(
-                #[pyo3(from_py_with = integer)] asset_step_count: i32,
-                #[pyo3(from_py_with = integer)] time_step_count: i32,
-                #[pyo3(from_py_with = scheme)] scheme: kiyosi::FiniteDifferenceScheme,
-                asset_upper_boundary: Option<&Bound<'_, PyAny>>,
-            ) -> PyResult<Self> {
-                Ok(Self(domain(kiyosi::$name::new(kiyosi::FiniteDifferenceSettings {
-                    asset_step_count,
-                    time_step_count,
-                    scheme,
-                    asset_upper_boundary: asset_upper_boundary.map(real).transpose()?,
-                }))?))
-            }
-            /// Return the configured spatial grid budget.
-            #[getter]
-            fn asset_step_count(&self) -> i32 {
-                self.0.settings().asset_step_count
-            }
-            /// Return the configured time-step budget before event insertion.
-            #[getter]
-            fn time_step_count(&self) -> i32 {
-                self.0.settings().time_step_count
-            }
-            /// Return the configured time-marching choice string.
-            #[getter]
-            fn scheme(&self) -> &'static str {
-                match self.0.settings().scheme {
-                    kiyosi::FiniteDifferenceScheme::ExplicitEuler => "explicit_euler",
-                    kiyosi::FiniteDifferenceScheme::ImplicitEuler => "implicit_euler",
-                    kiyosi::FiniteDifferenceScheme::CrankNicolson => "crank_nicolson",
-                }
-            }
-            /// Return the explicit upper spot boundary, or None for automatic selection.
-            #[getter]
-            fn asset_upper_boundary(&self) -> Option<f64> {
-                self.0.settings().asset_upper_boundary
-            }
-
-            /// Return the price without changing the instrument or context.
-            ///
-            /// Parameters
-            /// ----------
-            /// instrument : object
-            ///     Supported contract; see the engine class for accepted types.
-            /// context : PricingContext
-            ///     Market snapshot and valuation instant.
-            ///
-            /// Returns
-            /// -------
-            /// float
-            ///     Present value of remaining contractual payments.
-            ///
-            /// Raises
-            /// ------
-            /// KiyosiError
-            ///     If domain validation, engine applicability or numerical pricing fails.
-            fn price(
-                &self,
-                py: Python<'_>,
-                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
-                context: &PricingContext,
-            ) -> PyResult<f64> {
-                self.evaluate(py, instrument, context, ScalarRequest::Price)
-            }
-
-            /// Return the price and selected sensitivities.
-            ///
-            /// Parameters
-            /// ----------
-            /// instrument : object
-            ///     Supported contract; see the engine class for accepted types.
-            /// context : PricingContext
-            ///     Market snapshot and valuation instant.
-            /// greeks : str or iterable of str, optional
-            ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-            /// all_greeks : bool, optional
-            ///     Request every measure; omit `greeks` when True. Defaults to False.
-            /// spot_shift : float, optional
-            ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
-            /// volatility_shift : float, optional
-            ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
-            /// rate_shift : float, optional
-            ///     Positive finite parallel risk-free-rate bump in decimal units;
-            ///     defaults to 0.0001.
-            /// time_shift_days : int, optional
-            ///     Positive forward/backward time bump in calendar days; defaults to 1.
-            ///     All bumps are validated even when analytic Greeks are available.
-            ///
-            /// Returns
-            /// -------
-            /// PricingResult
-            ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-            ///     including every Greek at expiry. Units follow PricingResult.
-            ///
-            /// Raises
-            /// ------
-            /// KiyosiError
-            ///     If requests, shifts, pricing or a feasible bumped valuation fails.
-            #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
-            #[expect(clippy::too_many_arguments, reason = "explicit Python pricing controls")]
-            fn price_with_greeks(
-                &self,
-                py: Python<'_>,
-                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
-                context: &PricingContext,
-                greeks: Option<&Bound<'_, PyAny>>,
-                #[pyo3(from_py_with = crate::conversions::boolean)] all_greeks: bool,
-                #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
-                #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
-                #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
-                #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
-            ) -> PyResult<risk::PricingResult> {
-                let $py = py;
-                let $request = risk::greeks_request(greeks, all_greeks)?;
-                let $shifts = kiyosi::NumericalShiftSettings { spot_shift, volatility_shift, rate_shift, time_shift_days };
-                let $option = instrument;
-                let $engine = self.0;
-                let $context = &context.0;
+        numerical_greeks_methods!(
+            $instrument,
+            |binding, $py, $option, $context, $request, $shifts| {
+                let $engine = binding.0;
+                let $context = &$context.0;
                 Ok(risk::PricingResult(domain($analysis)?))
-            }
-        }
+            },
+            [],
+            engine_methods!(
+                $name,
+                #[new]
+                #[pyo3(signature = (*, asset_step_count=kiyosi::$name::default().settings().asset_step_count, time_step_count=kiyosi::$name::default().settings().time_step_count, scheme=kiyosi::$name::default().settings().scheme, asset_upper_boundary=None))]
+                fn new(
+                    #[pyo3(from_py_with = integer)] asset_step_count: i32,
+                    #[pyo3(from_py_with = integer)] time_step_count: i32,
+                    #[pyo3(from_py_with = scheme)] scheme: kiyosi::FiniteDifferenceScheme,
+                    asset_upper_boundary: Option<&Bound<'_, PyAny>>,
+                ) -> PyResult<Self> {
+                    Ok(Self(domain(kiyosi::$name::new(kiyosi::FiniteDifferenceSettings {
+                        asset_step_count,
+                        time_step_count,
+                        scheme,
+                        asset_upper_boundary: asset_upper_boundary.map(real).transpose()?,
+                    }))?))
+                },
+                /// Return the configured spatial grid budget.
+                #[getter]
+                fn asset_step_count(&self) -> i32 {
+                    self.0.settings().asset_step_count
+                },
+                /// Return the configured time-step budget before event insertion.
+                #[getter]
+                fn time_step_count(&self) -> i32 {
+                    self.0.settings().time_step_count
+                },
+                /// Return the configured time-marching choice string.
+                #[getter]
+                fn scheme(&self) -> &'static str {
+                    match self.0.settings().scheme {
+                        kiyosi::FiniteDifferenceScheme::ExplicitEuler => "explicit_euler",
+                        kiyosi::FiniteDifferenceScheme::ImplicitEuler => "implicit_euler",
+                        kiyosi::FiniteDifferenceScheme::CrankNicolson => "crank_nicolson",
+                    }
+                },
+                /// Return the explicit upper spot boundary, or None for automatic selection.
+                #[getter]
+                fn asset_upper_boundary(&self) -> Option<f64> {
+                    self.0.settings().asset_upper_boundary
+                },
+                /// Return the price without changing the instrument or context.
+                ///
+                /// Parameters
+                /// ----------
+                /// instrument : object
+                ///     Supported contract; see the engine class for accepted types.
+                /// context : PricingContext
+                ///     Market snapshot and valuation instant.
+                ///
+                /// Returns
+                /// -------
+                /// float
+                ///     Present value of remaining contractual payments.
+                ///
+                /// Raises
+                /// ------
+                /// KiyosiError
+                ///     If domain validation, engine applicability or numerical pricing fails.
+                fn price(
+                    &self,
+                    py: Python<'_>,
+                    #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
+                    context: &PricingContext,
+                ) -> PyResult<f64> {
+                    self.evaluate(py, instrument, context, ScalarRequest::Price)
+                }
+            )
+        );
         impl $name {
             pub(crate) fn evaluate(
                 &self,
