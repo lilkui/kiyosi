@@ -242,8 +242,53 @@ pub(crate) fn autocallable_observations(
 }
 
 macro_rules! snowball_preset {
-    ($name:ident, $coupon:ident, $level:ident, [$($extra:ident),*], $preset:expr, $doc:literal) => {
-        #[doc = $doc]
+    ($name:ident, $coupon:ident => $coupon_doc:literal, $level:ident => $level_doc:literal,
+     [$($extra:ident => $extra_doc:literal),*], $preset:expr,
+     $summary:literal, $monitoring:literal, $notes:literal) => {
+        #[doc = $summary]
+        ///
+        /// Parameters
+        /// ----------
+        #[doc = concat!(stringify!($coupon), " : float")]
+        #[doc = concat!("    ", $coupon_doc)]
+        /// initial_spot : float
+        ///     Positive reference spot used to normalize downside losses.
+        /// knock_in_level : float
+        ///     Positive strict downside threshold.
+        #[doc = concat!(stringify!($level), " : float")]
+        #[doc = concat!("    ", $level_doc)]
+        $(
+            #[doc = concat!(stringify!($extra), " : float")]
+            #[doc = concat!("    ", $extra_doc)]
+        )*
+        /// observation_dates : iterable of date
+        ///     Strictly increasing observation dates within the contract life.
+        /// effective_date : datetime.date
+        ///     Inclusive first contract date.
+        /// expiry_date : datetime.date
+        ///     Final contract date; expiry is at midnight UTC.
+        /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+        ///     Strictly prior events. None is unknown; the string none means no event.
+        /// principal_ratio : float, optional
+        ///     Nonnegative normalized principal, independent of coupons and losses.
+        ///
+        /// Returns
+        /// -------
+        /// SnowballOption
+        ///     Validated owned contract.
+        ///
+        /// Raises
+        /// ------
+        /// InvalidInputError
+        ///     If contractual amounts, life dates or observation terms are invalid.
+        ///
+        /// Notes
+        /// -----
+        #[doc = concat!("Knock-in is observed ", $monitoring, ".")]
+        /// Unit principal, zero lower strike and initial spot as upper strike are used
+        /// unless the preset overrides them. History and trading-calendar consistency
+        /// are checked during pricing.
+        #[doc = $notes]
         #[pyfunction]
         #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* observation_dates, effective_date, expiry_date, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
@@ -274,402 +319,99 @@ macro_rules! snowball_preset {
 }
 snowball_preset!(
     standard_snowball,
-    coupon_rate,
-    knock_out_level,
+    coupon_rate => "Finite annual coupon rate in decimal units.",
+    knock_out_level => "Positive inclusive knock-out threshold.",
     [],
     kiyosi::SnowballPreset::Standard,
-    r"Create constant knock-out coupons and levels with daily knock-in
-monitoring.
-
-Parameters
-----------
-coupon_rate : float
-    Finite annual coupon rate in decimal units.
-initial_spot : float
-    Positive reference spot used to normalize downside losses.
-knock_in_level : float
-    Positive strict downside threshold.
-knock_out_level : float
-    Positive inclusive knock-out threshold.
-observation_dates : iterable of date
-    Strictly increasing observation dates within the contract life.
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
-    Strictly prior events. None is unknown; the string none means no
-    event.
-principal_ratio : float, optional
-    Nonnegative normalized principal, independent of coupons and losses.
-
-Returns
--------
-SnowballOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Daily knock-in monitoring, unit principal, zero lower strike and initial
-spot as upper strike are used unless the preset overrides them. History
-and trading-calendar consistency are checked during pricing."
+    "Creates constant knock-out coupons and levels with daily knock-in monitoring.",
+    "on every trading day",
+    ""
 );
 snowball_preset!(
     european_snowball,
-    coupon_rate,
-    knock_out_level,
+    coupon_rate => "Finite annual coupon rate in decimal units.",
+    knock_out_level => "Positive inclusive knock-out threshold.",
     [],
     kiyosi::SnowballPreset::European,
-    r"Create a snowball with knock-in observed only at expiry.
-
-Parameters
-----------
-coupon_rate : float
-    Finite annual coupon rate in decimal units.
-initial_spot : float
-    Positive reference spot used to normalize downside losses.
-knock_in_level : float
-    Positive strict downside threshold.
-knock_out_level : float
-    Positive inclusive knock-out threshold.
-observation_dates : iterable of date
-    Strictly increasing observation dates within the contract life.
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
-    Strictly prior events. None is unknown; the string none means no
-    event.
-principal_ratio : float, optional
-    Nonnegative normalized principal, independent of coupons and losses.
-
-Returns
--------
-SnowballOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Daily knock-in monitoring, unit principal, zero lower strike and initial
-spot as upper strike are used unless the preset overrides them. History
-and trading-calendar consistency are checked during pricing. Knock-in is
-observed only at expiry."
+    "Creates a snowball with knock-in observed only at expiry.",
+    "only at expiry",
+    ""
 );
 snowball_preset!(
     step_down_snowball,
-    coupon_rate,
-    initial_knock_out_level,
-    [knock_out_level_decrement],
+    coupon_rate => "Finite annual coupon rate in decimal units.",
+    initial_knock_out_level => "Positive knock-out threshold at the first observation.",
+    [knock_out_level_decrement => "Absolute price decrement after each observation; may be negative."],
     kiyosi::SnowballPreset::StepDown {
         knock_out_level_decrement
     },
-    r"Create a snowball with decreasing knock-out levels.
-
-Parameters
-----------
-coupon_rate : float
-    Finite annual coupon rate in decimal units.
-initial_spot : float
-    Positive reference spot used to normalize downside losses.
-knock_in_level : float
-    Positive strict downside threshold.
-initial_knock_out_level : float
-    Positive knock-out threshold at the first observation.
-knock_out_level_decrement : float
-    Absolute price decrement after each observation; may be negative.
-observation_dates : iterable of date
-    Strictly increasing observation dates within the contract life.
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
-    Strictly prior events. None is unknown; the string none means no
-    event.
-principal_ratio : float, optional
-    Nonnegative normalized principal, independent of coupons and losses.
-
-Returns
--------
-SnowballOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Daily knock-in monitoring, unit principal, zero lower strike and initial
-spot as upper strike are used unless the preset overrides them. History
-and trading-calendar consistency are checked during pricing.
-Decrements apply after each observation; the first uses the initial
+    "Creates a snowball with decreasing knock-out levels.",
+    "on every trading day",
+    r"Decrements apply after each observation; the first uses the initial
 value. Signed coupons and decrements are accepted if all expanded terms
 remain valid."
 );
 snowball_preset!(
     both_down_snowball,
-    initial_coupon_rate,
-    initial_knock_out_level,
-    [coupon_rate_decrement, knock_out_level_decrement],
+    initial_coupon_rate => "Annual coupon rate at the first observation.",
+    initial_knock_out_level => "Positive knock-out threshold at the first observation.",
+    [
+        coupon_rate_decrement => "Absolute decimal-rate decrement after each observation.",
+        knock_out_level_decrement => "Absolute price decrement after each observation; may be negative."
+    ],
     kiyosi::SnowballPreset::BothDown {
         coupon_rate_decrement,
         knock_out_level_decrement
     },
-    r"Create a snowball with decreasing coupons and knock-out levels.
-
-Parameters
-----------
-initial_coupon_rate : float
-    Annual coupon rate at the first observation.
-initial_spot : float
-    Positive reference spot used to normalize downside losses.
-knock_in_level : float
-    Positive strict downside threshold.
-initial_knock_out_level : float
-    Positive knock-out threshold at the first observation.
-coupon_rate_decrement : float
-    Absolute decimal-rate decrement after each observation.
-knock_out_level_decrement : float
-    Absolute price decrement after each observation; may be negative.
-observation_dates : iterable of date
-    Strictly increasing observation dates within the contract life.
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
-    Strictly prior events. None is unknown; the string none means no
-    event.
-principal_ratio : float, optional
-    Nonnegative normalized principal, independent of coupons and losses.
-
-Returns
--------
-SnowballOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Daily knock-in monitoring, unit principal, zero lower strike and initial
-spot as upper strike are used unless the preset overrides them. History
-and trading-calendar consistency are checked during pricing.
-Decrements apply after each observation; the first uses the initial
+    "Creates a snowball with decreasing coupons and knock-out levels.",
+    "on every trading day",
+    r"Decrements apply after each observation; the first uses the initial
 value. Signed coupons and decrements are accepted if all expanded terms
 remain valid. Maturity uses the final observation coupon."
 );
 snowball_preset!(
     dual_coupon_snowball,
-    knock_out_coupon_rate,
-    knock_out_level,
-    [maturity_coupon_rate],
+    knock_out_coupon_rate => "Annual coupon rate for knock-out settlement.",
+    knock_out_level => "Positive inclusive knock-out threshold.",
+    [maturity_coupon_rate => "Finite annual maturity coupon rate in decimal units."],
     kiyosi::SnowballPreset::DualCoupon {
         maturity_coupon_rate
     },
-    r"Create a snowball with separate knock-out and maturity coupons.
-
-Parameters
-----------
-knock_out_coupon_rate : float
-    Annual coupon rate for knock-out settlement.
-initial_spot : float
-    Positive reference spot used to normalize downside losses.
-knock_in_level : float
-    Positive strict downside threshold.
-knock_out_level : float
-    Positive inclusive knock-out threshold.
-maturity_coupon_rate : float
-    Finite annual maturity coupon rate in decimal units.
-observation_dates : iterable of date
-    Strictly increasing observation dates within the contract life.
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
-    Strictly prior events. None is unknown; the string none means no
-    event.
-principal_ratio : float, optional
-    Nonnegative normalized principal, independent of coupons and losses.
-
-Returns
--------
-SnowballOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Daily knock-in monitoring, unit principal, zero lower strike and initial
-spot as upper strike are used unless the preset overrides them. History
-and trading-calendar consistency are checked during pricing."
+    "Creates a snowball with separate knock-out and maturity coupons.",
+    "on every trading day",
+    ""
 );
 snowball_preset!(
     parachute_snowball,
-    coupon_rate,
-    knock_out_level,
-    [final_knock_out_level],
+    coupon_rate => "Finite annual coupon rate in decimal units.",
+    knock_out_level => "Positive inclusive knock-out threshold.",
+    [final_knock_out_level => "Positive threshold replacing only the final knock-out level."],
     kiyosi::SnowballPreset::Parachute {
         final_knock_out_level
     },
-    r"Create a snowball with a distinct final knock-out level.
-
-Parameters
-----------
-coupon_rate : float
-    Finite annual coupon rate in decimal units.
-initial_spot : float
-    Positive reference spot used to normalize downside losses.
-knock_in_level : float
-    Positive strict downside threshold.
-knock_out_level : float
-    Positive inclusive knock-out threshold.
-final_knock_out_level : float
-    Positive threshold replacing only the final knock-out level.
-observation_dates : iterable of date
-    Strictly increasing observation dates within the contract life.
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
-    Strictly prior events. None is unknown; the string none means no
-    event.
-principal_ratio : float, optional
-    Nonnegative normalized principal, independent of coupons and losses.
-
-Returns
--------
-SnowballOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Daily knock-in monitoring, unit principal, zero lower strike and initial
-spot as upper strike are used unless the preset overrides them. History
-and trading-calendar consistency are checked during pricing."
+    "Creates a snowball with a distinct final knock-out level.",
+    "on every trading day",
+    ""
 );
 snowball_preset!(
     otm_snowball,
-    coupon_rate,
-    knock_out_level,
-    [upper_strike],
+    coupon_rate => "Finite annual coupon rate in decimal units.",
+    knock_out_level => "Positive inclusive knock-out threshold.",
+    [upper_strike => "Positive upper terminal settlement strike."],
     kiyosi::SnowballPreset::Otm { upper_strike },
-    r"Create a snowball with a replaced upper terminal strike.
-
-Parameters
-----------
-coupon_rate : float
-    Finite annual coupon rate in decimal units.
-initial_spot : float
-    Positive reference spot used to normalize downside losses.
-knock_in_level : float
-    Positive strict downside threshold.
-knock_out_level : float
-    Positive inclusive knock-out threshold.
-upper_strike : float
-    Positive upper terminal settlement strike.
-observation_dates : iterable of date
-    Strictly increasing observation dates within the contract life.
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
-    Strictly prior events. None is unknown; the string none means no
-    event.
-principal_ratio : float, optional
-    Nonnegative normalized principal, independent of coupons and losses.
-
-Returns
--------
-SnowballOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Daily knock-in monitoring, unit principal, zero lower strike and initial
-spot as upper strike are used unless the preset overrides them. History
-and trading-calendar consistency are checked during pricing."
+    "Creates a snowball with a replaced upper terminal strike.",
+    "on every trading day",
+    ""
 );
 snowball_preset!(
     loss_capped_snowball,
-    coupon_rate,
-    knock_out_level,
-    [lower_strike],
+    coupon_rate => "Finite annual coupon rate in decimal units.",
+    knock_out_level => "Positive inclusive knock-out threshold.",
+    [lower_strike => "Nonnegative lower terminal strike, at most the upper strike."],
     kiyosi::SnowballPreset::LossCapped { lower_strike },
-    r"Create a snowball whose lower terminal strike caps downside loss.
-
-Parameters
-----------
-coupon_rate : float
-    Finite annual coupon rate in decimal units.
-initial_spot : float
-    Positive reference spot used to normalize downside losses.
-knock_in_level : float
-    Positive strict downside threshold.
-knock_out_level : float
-    Positive inclusive knock-out threshold.
-lower_strike : float
-    Nonnegative lower terminal strike, at most the upper strike.
-observation_dates : iterable of date
-    Strictly increasing observation dates within the contract life.
-effective_date : datetime.date
-    Inclusive first contract date.
-expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
-barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
-    Strictly prior events. None is unknown; the string none means no
-    event.
-principal_ratio : float, optional
-    Nonnegative normalized principal, independent of coupons and losses.
-
-Returns
--------
-SnowballOption
-    Validated owned contract.
-
-Raises
-------
-InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
-
-Notes
------
-Daily knock-in monitoring, unit principal, zero lower strike and initial
-spot as upper strike are used unless the preset overrides them. History
-and trading-calendar consistency are checked during pricing."
+    "Creates a snowball whose lower terminal strike caps downside loss.",
+    "on every trading day",
+    ""
 );
 
 /// Snowball with knock-out coupons and capped knock-in downside loss.
