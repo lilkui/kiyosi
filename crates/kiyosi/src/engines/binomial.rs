@@ -525,12 +525,12 @@ impl CoxRossRubinsteinDigitalEngine {
 
     /// Returns requested node delta/gamma; all other Greeks remain absent.
     ///
-    /// One-step gamma and all expiry Greeks are absent. Shifts are validated but unused.
+    /// One-step gamma and all expiry Greeks are absent.
     ///
     /// # Errors
     ///
-    /// Checks flat-rate applicability before request and shift validation, then reuses
-    /// [`Self::price`] errors. Empty requests or invalid shifts return
+    /// Checks flat-rate applicability before request validation, then reuses
+    /// [`Self::price`] errors. Empty requests return
     /// [`Error::InvalidInput`]. Inputs remain unchanged.
     ///
     /// # Examples
@@ -545,7 +545,7 @@ impl CoxRossRubinsteinDigitalEngine {
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// let result = CoxRossRubinsteinDigitalEngine::default().price_with_greeks(
-    ///     &option, &context, GreeksRequest::all(), Default::default())?;
+    ///     &option, &context, GreeksRequest::all())?;
     /// assert!(result.require(Greek::Delta)? > 0.0);
     /// assert!(!result.has(Greek::Vega));
     /// # Ok(()) }
@@ -555,11 +555,9 @@ impl CoxRossRubinsteinDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         flat_rates(context)?;
         request.validate()?;
-        settings.validate()?;
         self.native(option, context, request)
     }
 
@@ -598,9 +596,9 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
+        _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        Self::price_with_greeks(self, option, context, request, settings)
+        Self::price_with_greeks(self, option, context, request)
     }
     fn prepare_implied_volatility(
         &self,

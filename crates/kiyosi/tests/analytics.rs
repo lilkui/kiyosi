@@ -296,6 +296,33 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         option.expiry_date(),
     )
     .unwrap();
+    let engine = CoxRossRubinsteinDigitalEngine::default();
+    check(
+        &engine,
+        &digital,
+        &context,
+        engine
+            .price_with_greeks(&digital, &context, request)
+            .unwrap(),
+    );
+    let barrier = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        option.effective_date(),
+        option.expiry_date(),
+        120.0,
+        BarrierType::UpAndOut,
+    ))
+    .unwrap();
+    let engine = CoxRossRubinsteinBarrierEngine::default();
+    check(
+        &engine,
+        &barrier,
+        &context,
+        engine
+            .price_with_greeks(&barrier, &context, request)
+            .unwrap(),
+    );
     let engine = MonteCarloDigitalEngine::new(settings).unwrap();
     check(
         &engine,

@@ -164,12 +164,7 @@ fn prices_and_node_greeks_match_independent_paths_across_supported_terms() {
                             let mut observed = vec![!scheduled; steps + 1];
                             observed[steps] = true;
                             let result = engine
-                                .price_with_greeks(
-                                    &option,
-                                    &context,
-                                    GreeksRequest::all(),
-                                    Default::default(),
-                                )
+                                .price_with_greeks(&option, &context, GreeksRequest::all())
                                 .unwrap();
                             assert!(
                                 (result.price()
@@ -303,12 +298,7 @@ fn continuous_refinement_matches_analytic_prices_and_node_greeks() {
                 let result =
                     CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: steps })
                         .unwrap()
-                        .price_with_greeks(
-                            &option,
-                            &context,
-                            GreeksRequest::all(),
-                            Default::default(),
-                        )
+                        .price_with_greeks(&option, &context, GreeksRequest::all())
                         .unwrap();
                 assert!((result.price() - expected.price()).abs() < 0.25);
                 assert!(
@@ -383,27 +373,13 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     ));
     let hit = market(t.effective_date.into(), 120.0, 0.04, 0.2);
     let result = engine
-        .price_with_greeks(&unknown, &hit, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&unknown, &hit, GreeksRequest::all())
         .unwrap();
     assert_eq!(result.price(), 3.0);
     assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
     assert!(matches!(
         engine
-            .price_with_greeks(&unknown, &hit, GreeksRequest::default(), Default::default())
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
-    assert!(matches!(
-        engine
-            .price_with_greeks(
-                &unknown,
-                &hit,
-                GreeksRequest::all(),
-                NumericalShiftSettings {
-                    spot_shift: 0.0,
-                    ..Default::default()
-                }
-            )
+            .price_with_greeks(&unknown, &hit, GreeksRequest::default())
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -428,12 +404,7 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &unknown,
-                &nonflat,
-                GreeksRequest::default(),
-                Default::default()
-            )
+            .price_with_greeks(&unknown, &nonflat, GreeksRequest::default())
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
@@ -481,7 +452,7 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
             };
             let context = market(time, 100.0, 0.04, 0.2);
             let result = engine
-                .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+                .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap();
             assert_eq!(
                 result.price(),
@@ -500,7 +471,7 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
                 let option = BarrierOption::new(t.clone()).unwrap();
                 let context = market(t.expiry_date.into(), spot, 0.04, 0.2);
                 let result = engine
-                    .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+                    .price_with_greeks(&option, &context, GreeksRequest::all())
                     .unwrap();
                 assert_eq!(
                     result.price(),

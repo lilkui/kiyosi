@@ -336,10 +336,6 @@ class CoxRossRubinsteinBarrierEngine:
         greeks: Greek | Iterable[Greek] | None = None,
         *,
         all_greeks: bool = False,
-        spot_shift: float = ...,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
     ) -> PricingResult: ...
 
 class QuadratureBarrierEngine:
@@ -403,10 +399,6 @@ class CoxRossRubinsteinDigitalEngine:
         greeks: Greek | Iterable[Greek] | None = None,
         *,
         all_greeks: bool = False,
-        spot_shift: float = ...,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
     ) -> PricingResult: ...
 
 FiniteDifferenceScheme: TypeAlias = Literal[

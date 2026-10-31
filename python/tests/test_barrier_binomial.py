@@ -183,14 +183,6 @@ class BarrierBinomialTests(unittest.TestCase):
                 market(),
                 [],
             )
-            self.assert_rejection(
-                InvalidInputError,
-                engine.price_with_greeks,
-                option(),
-                market(),
-                "delta",
-                spot_shift=0,
-            )
 
     def test_expiry_settlement_has_no_greeks(self):
         for engine in engines():
@@ -279,7 +271,7 @@ class BarrierBinomialTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             factory(17)
 
-    def test_only_requested_node_greeks_are_returned_and_shifts_are_unused(self):
+    def test_only_requested_node_greeks_are_returned(self):
         for steps in (1, 2, 256):
             engine = pricing.CoxRossRubinsteinBarrierEngine(step_count=steps)
             contract, context = option(), market()
@@ -293,10 +285,6 @@ class BarrierBinomialTests(unittest.TestCase):
                     contract,
                     context,
                     name,
-                    spot_shift=1e9,
-                    volatility_shift=1e9,
-                    rate_shift=1e9,
-                    time_shift_days=1000,
                 )
                 self.assertEqual(getattr(selected, name), getattr(result, name))
                 self.assertEqual(selected.price, result.price)
@@ -426,7 +414,7 @@ class BarrierBinomialTests(unittest.TestCase):
         ):
             with self.assertRaises(TypeError):
                 engine.price_with_greeks(option(), market(), "delta", **kwargs)
-        with self.assertRaises(OverflowError):
+        with self.assertRaises(TypeError):
             engine.price_with_greeks(option(), market(), "delta", time_shift_days=2**31)
         mismatch = EuropeanOption(
             option_type="call", strike=100, effective_date=START, expiry_date=END

@@ -68,24 +68,22 @@ impl CoxRossRubinsteinBarrierEngine {
     /// Returns requested node delta/gamma; other Greeks remain absent.
     ///
     /// One-step gamma and expiry Greeks are absent. Current barrier equality also
-    /// suppresses Greeks without a prior touch. Shifts are validated but unused.
+    /// suppresses Greeks without a prior touch.
     /// See [`Self::price`] for a pricing example.
     ///
     /// # Errors
     ///
-    /// Checks flat-rate applicability before request/shift validation, then reuses
-    /// [`Self::price`] errors. Empty requests and invalid shifts return
+    /// Checks flat-rate applicability before request validation, then reuses
+    /// [`Self::price`] errors. Empty requests return
     /// [`Error::InvalidInput`]. Inputs remain unchanged.
     pub fn price_with_greeks(
         &self,
         option: &BarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         flat_rates(context)?;
         request.validate()?;
-        settings.validate()?;
         self.native(option, context, request)
     }
 
@@ -269,9 +267,9 @@ impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
         option: &BarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
+        _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        Self::price_with_greeks(self, option, context, request, settings)
+        Self::price_with_greeks(self, option, context, request)
     }
     fn prepare_implied_volatility(
         &self,

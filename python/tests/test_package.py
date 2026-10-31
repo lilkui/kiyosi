@@ -137,6 +137,16 @@ class PackageTests(unittest.TestCase):
                 pricing.MonteCarloDigitalEngine(path_count=32, seed=42),
                 instruments.CashOrNothingOption(**terms, payout=10),
             ),
+            (
+                pricing.CoxRossRubinsteinDigitalEngine(),
+                instruments.CashOrNothingOption(**terms, payout=10),
+            ),
+            (
+                pricing.CoxRossRubinsteinBarrierEngine(),
+                instruments.BarrierOption(
+                    **terms, barrier_type="up_and_out", barrier_level=120
+                ),
+            ),
             *(
                 (
                     pricing.MonteCarloAsianEngine(path_count=32, seed=42),

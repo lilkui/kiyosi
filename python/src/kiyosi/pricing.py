@@ -13,7 +13,8 @@ Coarse numerical grids may require refinement before pricing succeeds.
 American Monte Carlo also rejects non-finite continuation regressions;
 finite fits with insufficient independent samples use a lower polynomial degree.
 
-``AnalyticEuropeanEngine``, ``MonteCarloDigitalEngine`` and
+``AnalyticEuropeanEngine``, ``CoxRossRubinsteinDigitalEngine``,
+``CoxRossRubinsteinBarrierEngine``, ``MonteCarloDigitalEngine`` and
 ``MonteCarloAsianEngine`` compute native Greeks without numerical bumps;
 their ``price_with_greeks`` methods accept only ``greeks`` and ``all_greeks``
 as request controls. Engines that use numerical differences also accept bump
