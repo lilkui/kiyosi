@@ -229,15 +229,6 @@ impl PricingEngine<Accumulator> for MonteCarloAccumulatorEngine {
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
     }
-    fn price_with_greeks(
-        &self,
-        option: &Accumulator,
-        context: &PricingContext,
-        request: GreeksRequest,
-        shifts: NumericalShiftSettings,
-    ) -> Result<PricingResult> {
-        self.price_with_greeks(option, context, request, shifts)
-    }
     fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
         option.volatility_affects_price(context)
     }

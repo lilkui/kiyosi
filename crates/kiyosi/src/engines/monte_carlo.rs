@@ -425,15 +425,6 @@ impl PricingEngine for MonteCarloVanillaEngine {
         let (sample, _, log_discount) = self.sample(option, context)?;
         scaled_value(sample.scale, sample.mean, log_discount)
     }
-    fn price_with_greeks(
-        &self,
-        option: &EuropeanOption,
-        context: &PricingContext,
-        request: GreeksRequest,
-        settings: NumericalShiftSettings,
-    ) -> Result<PricingResult> {
-        crate::numerical_greeks(self, option, context, request, settings)
-    }
 }
 
 fn estimate(
