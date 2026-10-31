@@ -1,10 +1,10 @@
 use crate::engines::analytic::barrier::{
     analytic_log_shift, checked, hit_value, log_ratio, reflection_tail, scaled_cash, scaled_cdf,
-    standardize,
+    standardize, validate_life, validate_schedule,
 };
 use crate::{
-    AnalyticDigitalEngine, Error, GreeksRequest, NumericalShiftSettings, OptionContract,
-    OptionType, PricingContext, PricingEngine, PricingResult, Result,
+    AnalyticDigitalEngine, GreeksRequest, NumericalShiftSettings, OptionContract, OptionType,
+    PricingContext, PricingEngine, PricingResult, Result,
 };
 use crate::{BinaryBarrierOption, SettlementTiming, TouchOption};
 
@@ -22,10 +22,10 @@ impl AnalyticBinaryBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves or unsupported
-    /// schedules. Returns [`Error::InvalidInput`] outside life, for non-trading
+    /// Returns [`crate::Error::UnsupportedOperation`] for node curves or unsupported
+    /// schedules. Returns [`crate::Error::InvalidInput`] outside life, for non-trading
     /// fixings, or for missing or impossible history, checked in that order.
-    /// Non-finite results return [`Error::ComputationFailure`]. Inputs remain unchanged.
+    /// Non-finite results return [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Examples
     ///
@@ -100,22 +100,8 @@ impl Contract<'_> {
         let rate = model.risk_free_rate()?;
         let dividend = model.dividend_yield()?;
         let valuation = context.valuation_time();
-        if valuation < option.effective_date().start_of_day()
-            || valuation > option.expiry_date().start_of_day()
-        {
-            return Err(Error::InvalidInput(
-                "valuation outside contract life".into(),
-            ));
-        }
-        if option
-            .observation_dates()
-            .iter()
-            .any(|&d| !context.calendar().is_trading_day(d))
-        {
-            return Err(Error::InvalidInput(
-                "observation is not a trading day".into(),
-            ));
-        }
+        validate_life(option, context)?;
+        validate_schedule(option, context)?;
         let (prior, touched, finished) = option.state(context)?;
         let t = valuation.years_until(option.expiry_date().start_of_day());
         let knock_in = option.barrier_type().is_knock_in();

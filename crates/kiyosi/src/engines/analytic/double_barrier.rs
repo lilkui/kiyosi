@@ -1,5 +1,7 @@
 use crate::DoubleBarrierOption;
-use crate::engines::analytic::barrier::{checked, log_ratio, scaled_cash, scaled_cdf};
+use crate::engines::analytic::barrier::{
+    checked, log_ratio, scaled_cash, scaled_cdf, validate_life, validate_schedule,
+};
 use crate::engines::quadrature::gaussian::{Sum, log_interval_mass};
 use crate::{
     AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationMode,
@@ -42,23 +44,8 @@ impl AnalyticDoubleBarrierEngine {
     /// ```
     pub fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
         self.validate_applicability(context)?;
-        let time = context.valuation_time();
-        if time < option.effective_date().start_of_day()
-            || time > option.expiry_date().start_of_day()
-        {
-            return Err(Error::InvalidInput(
-                "valuation outside contract life".into(),
-            ));
-        }
-        if option
-            .observation_dates()
-            .iter()
-            .any(|&d| !context.calendar().is_trading_day(d))
-        {
-            return Err(Error::InvalidInput(
-                "observation is not a trading day".into(),
-            ));
-        }
+        validate_life(&option.lower, context)?;
+        validate_schedule(&option.lower, context)?;
         if let Some(value) = resolved_price(option, context)? {
             return Ok(value);
         }
