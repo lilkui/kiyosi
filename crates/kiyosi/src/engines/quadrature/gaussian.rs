@@ -337,6 +337,26 @@ pub(super) fn integrate_curve(
     sum.total()
 }
 
+#[derive(Default)]
+pub(super) struct TransitionCache(Vec<(f64, Transition)>);
+
+impl TransitionCache {
+    pub fn get(&mut self, time: f64, nodes: &[f64], drift: f64, deviation: f64) -> &Transition {
+        let index = if let Some(index) = self.0.iter().position(|(duration, _)| *duration == time) {
+            index
+        } else {
+            // Retain common event gaps without accumulating matrices for irregular schedules.
+            if self.0.len() == 3 {
+                self.0.remove(0);
+            }
+            self.0
+                .push((time, Transition::new(nodes, drift, deviation)));
+            self.0.len() - 1
+        };
+        &self.0[index].1
+    }
+}
+
 pub(super) struct Transition {
     moments: Vec<IntervalMoments>,
     rows: Vec<(usize, Vec<usize>)>,
@@ -392,5 +412,38 @@ impl Transition {
             }
             *value = sum.total();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transition_cache_bounds_storage_and_preserves_integrals_after_eviction() {
+        let nodes = [-1.0, 0.0, 1.0];
+        let curve = [[1.0, 0.0, 0.0, 0.0]; 2];
+        let mut cache = TransitionCache::default();
+        for time in [1.0_f64, 2.0, 3.0, 4.0, 1.0] {
+            let deviation = time.sqrt();
+            let mut values = [0.0; 3];
+            cache
+                .get(time, &nodes, 0.0, deviation)
+                .integrate(&curve, 0.0, &mut values);
+            for (&node, value) in nodes.iter().zip(values) {
+                let expected = 0.5
+                    * (libm::erf((1.0 - node) / (2.0_f64.sqrt() * deviation))
+                        - libm::erf((-1.0 - node) / (2.0_f64.sqrt() * deviation)));
+                assert!((value - expected).abs() < 1e-14);
+            }
+            assert!(cache.0.len() <= 3);
+        }
+        assert_eq!(
+            cache.0.iter().map(|(time, _)| *time).collect::<Vec<_>>(),
+            [3.0, 4.0, 1.0]
+        );
+        let retained = cache.get(1.0, &nodes, 0.0, 1.0) as *const Transition;
+        assert!(std::ptr::eq(retained, cache.get(1.0, &nodes, 0.0, 1.0)));
+        assert_eq!(cache.0.len(), 3);
     }
 }

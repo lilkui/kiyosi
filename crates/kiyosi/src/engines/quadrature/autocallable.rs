@@ -1,6 +1,6 @@
 use super::gaussian::{
-    CubicInterpolation, Polynomial, TerminalPiece, Transition, integrate_curve, integrate_terminal,
-    integration_nodes, scaled,
+    CubicInterpolation, Polynomial, TerminalPiece, TransitionCache, integrate_curve,
+    integrate_terminal, integration_nodes, scaled,
 };
 use super::{QuadratureSettings, flat_rates};
 use crate::engines::analytic::barrier::log_ratio;
@@ -425,7 +425,7 @@ fn price<T: AutocallableTerms>(
         low: terminal_in.first().map_or([0.0; 2], |p| [p.cash, p.asset]),
         high: terminal_in.last().map_or(0.0, |p| p.cash),
     };
-    let mut transitions: Vec<(f64, Transition)> = Vec::new();
+    let mut transitions = TransitionCache::default();
     for index in (0..dates.len()).rev() {
         let final_event = index == dates.len() - 1;
         if !final_event {
@@ -476,19 +476,10 @@ fn price<T: AutocallableTerms>(
                 }
             }
         } else {
-            let ti = if let Some(i) = transitions.iter().position(|(t, _)| *t == time) {
-                i
-            } else {
-                transitions.push((time, Transition::new(&nodes, drift, deviation)));
-                transitions.len() - 1
-            };
-            transitions[ti]
-                .1
-                .integrate(&alive.cells, discount, &mut values);
+            let transition = transitions.get(time, &nodes, drift, deviation);
+            transition.integrate(&alive.cells, discount, &mut values);
             if layers {
-                transitions[ti]
-                    .1
-                    .integrate(&knocked.cells, discount, &mut values_in);
+                transition.integrate(&knocked.cells, discount, &mut values_in);
             }
             let tails = alive.tails(&nodes);
             let tails_in = knocked.tails(&nodes);

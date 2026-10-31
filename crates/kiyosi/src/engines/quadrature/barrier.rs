@@ -337,7 +337,7 @@ fn terminal_layer(option: &BarrierOption) -> Vec<super::gaussian::TerminalPiece>
 }
 
 use super::gaussian::{
-    CubicInterpolation, Polynomial, Sum, TerminalPiece, Transition, integrate_curve,
+    CubicInterpolation, Polynomial, Sum, TerminalPiece, TransitionCache, integrate_curve,
     integrate_terminal, integration_nodes, scaled,
 };
 
@@ -570,7 +570,7 @@ fn scheduled_price(
     let nodes = integration_nodes(lower, upper, settings.asset_step_count, &[0.0, barrier])?;
     let interpolation = CubicInterpolation::new(&nodes);
     let mut values = vec![0.0; nodes.len()];
-    let mut transitions: Vec<(f64, Transition)> = Vec::new();
+    let mut transitions = TransitionCache::default();
     for event in (0..dates.len()).rev() {
         let final_event = event + 1 == dates.len();
         let layer = if final_event && dates[event] == option.expiry_date() {
@@ -619,18 +619,11 @@ fn scheduled_price(
             return Ok(value);
         }
         if !layer.curve.is_empty() {
-            let index = if let Some(index) = transitions
-                .iter()
-                .position(|(duration, _)| *duration == time)
-            {
-                index
-            } else {
-                transitions.push((time, Transition::new(&nodes, drift, deviation)));
-                transitions.len() - 1
-            };
-            transitions[index]
-                .1
-                .integrate(&layer.curve, discount, &mut values);
+            transitions.get(time, &nodes, drift, deviation).integrate(
+                &layer.curve,
+                discount,
+                &mut values,
+            );
         } else {
             values.fill(0.0);
         }

@@ -1,5 +1,5 @@
 use super::gaussian::{
-    CubicInterpolation, Polynomial, Sum, TerminalPiece, Transition, integrate_curve,
+    CubicInterpolation, Polynomial, Sum, TerminalPiece, TransitionCache, integrate_curve,
     integrate_terminal, integration_nodes, scaled,
 };
 use super::{QuadratureSettings, flat_rates};
@@ -258,7 +258,7 @@ fn price(
     let upper = knock_out.max(0.0) + (drift_rate * horizon).max(0.0) + extent;
     let nodes = integration_nodes(lower, upper, settings.asset_step_count, &[0.0, knock_out])?;
     let interpolation = CubicInterpolation::new(&nodes);
-    let mut transitions: Vec<(f64, Transition)> = Vec::new();
+    let mut transitions = TransitionCache::default();
     let mut continuation: [Vec<Polynomial>; 2] = Default::default();
     for event in (0..dates.len()).rev() {
         let final_event = event + 1 == dates.len();
@@ -328,24 +328,15 @@ fn price(
             *prepared = Some(curve);
             return Ok(value);
         }
-        let ti = if final_event {
+        let transition = if final_event {
             None
         } else {
-            Some(
-                if let Some(index) = transitions.iter().position(|(t, _)| *t == time) {
-                    index
-                } else {
-                    transitions.push((time, Transition::new(&nodes, drift, deviation)));
-                    transitions.len() - 1
-                },
-            )
+            Some(transitions.get(time, &nodes, drift, deviation))
         };
         for layer in 0..count {
             let mut values = vec![0.0; nodes.len()];
-            if let Some(ti) = ti {
-                transitions[ti]
-                    .1
-                    .integrate(&layers[layer].cells, discount, &mut values);
+            if let Some(transition) = transition {
+                transition.integrate(&layers[layer].cells, discount, &mut values);
             }
             for (value, &node) in values.iter_mut().zip(&nodes) {
                 *value += integrate_terminal(
