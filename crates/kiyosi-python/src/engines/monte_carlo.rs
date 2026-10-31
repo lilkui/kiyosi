@@ -114,15 +114,15 @@ macro_rules! sampling_settings {
             }
         }
     };
-    (@structured $engine:ident, $instrument:ty,
-     |$py:ident, $option:ident, $core:ident, $context:ident, $request:ident, $shifts:ident|
-     $price:expr, $analysis:expr, $statistics:expr) => {
+    (@structured $engine:ident, $instrument:ty, $with:path) => {
         numerical_greeks_methods!(
             $instrument,
-            |binding, $py, $option, $context, $request, $shifts| {
-                let $core = binding.0;
-                let $context = &$context.0;
-                Ok(risk::PricingResult(domain($analysis)?))
+            |binding, py, instrument, context, request, shifts| {
+                let engine = binding.0;
+                let context = &context.0;
+                $with!(&instrument, option, Ok(risk::PricingResult(domain(py.detach(|| {
+                    engine.price_with_greeks(option, context, request, shifts)
+                }))?)))
             },
             [
                 /// OSError
@@ -186,11 +186,11 @@ macro_rules! sampling_settings {
                     #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                     context: &PricingContext,
                 ) -> PyResult<MonteCarloEstimate> {
-                    let $py = py;
-                    let $option = instrument;
-                    let $core = self.0;
-                    let $context = &context.0;
-                    Ok(MonteCarloEstimate(domain($statistics)?))
+                    let engine = self.0;
+                    let context = &context.0;
+                    $with!(&instrument, option, Ok(MonteCarloEstimate(domain(py.detach(|| {
+                        engine.price_with_statistics(option, context)
+                    }))?)))
                 }
             )
         );
@@ -202,12 +202,11 @@ macro_rules! sampling_settings {
                 context: &PricingContext,
                 request: ScalarRequest,
             ) -> PyResult<f64> {
-                let $request = request;
-                let $py = py;
-                let $option = instrument;
-                let $core = self.0;
-                let $context = &context.0;
-                domain($price)
+                let engine = self.0;
+                let context = &context.0;
+                $with!(&instrument, option, domain(py.detach(|| {
+                    request.evaluate(&engine, option, context)
+                })))
             }
         }
     };
@@ -885,16 +884,7 @@ pub(crate) struct MonteCarloAutocallableEngine(pub(crate) kiyosi::MonteCarloAuto
 sampling_settings!(
     @structured MonteCarloAutocallableEngine,
     Bound<'_, PyAny>,
-    |py, option, engine, context, request, shifts|
-    {
-        autocallable::with_note!(&option, option, py.detach(|| request.evaluate(&engine, option, context)))
-    },
-    {
-        autocallable::with_note!(&option, option, py.detach(|| engine.price_with_greeks(option, context, request, shifts)))
-    },
-    {
-        autocallable::with_note!(&option, option, py.detach(|| engine.price_with_statistics(option, context)))
-    }
+    autocallable::with_note
 );
 
 /// Flat-rate CPU Monte Carlo pricing for accumulators.
@@ -937,19 +927,7 @@ pub(crate) struct MonteCarloAccumulatorEngine(pub(crate) kiyosi::MonteCarloAccum
 sampling_settings!(
     @structured MonteCarloAccumulatorEngine,
     PyRef<'_, accumulator::Accumulator>,
-    |py, option, engine, context, request, shifts|
-    {
-        let option = &option.0;
-        py.detach(|| request.evaluate(&engine, option, context))
-    },
-    {
-        let option = &option.0;
-        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-    },
-    {
-        let option = &option.0;
-        py.detach(|| engine.price_with_statistics(option, context))
-    }
+    with_contract
 );
 
 impl MonteCarloVanillaEngine {
