@@ -5,6 +5,8 @@ from datetime import date, datetime
 from datetime import date as _Date
 from typing import Literal, Never, Self, TypeAlias, overload
 
+from . import pricing as _pricing
+
 __version__: str
 
 class KiyosiError(Exception): ...
@@ -13,10 +15,6 @@ class UnsupportedOperationError(KiyosiError): ...
 class ComputationFailureError(KiyosiError): ...
 class RootNotBracketedError(KiyosiError): ...
 class NonConvergenceError(KiyosiError): ...
-
-CouponQuoteConvention: TypeAlias = Literal[
-    "shift_maturity_coupon", "preserve_maturity_coupon"
-]
 
 @overload
 def implied_coupon(
@@ -27,7 +25,7 @@ def implied_coupon(
     context: PricingContext,
     observed_price: float,
     *,
-    quote_convention: CouponQuoteConvention,
+    quote_convention: _pricing.CouponQuoteConvention,
     lower_bound: float = ...,
     upper_bound: float = ...,
     price_tolerance: float = ...,
@@ -391,17 +389,13 @@ class CoxRossRubinsteinDigitalEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
     ) -> PricingResult: ...
 
-FiniteDifferenceScheme: TypeAlias = Literal[
-    "explicit_euler", "implicit_euler", "crank_nicolson"
-]
-
 class FiniteDifferenceAccumulatorEngine:
     def __init__(
         self,
         *,
         asset_step_count: int = ...,
         time_step_count: int = ...,
-        scheme: FiniteDifferenceScheme = ...,
+        scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: float | None = None,
     ) -> None: ...
     @property
@@ -409,7 +403,7 @@ class FiniteDifferenceAccumulatorEngine:
     @property
     def time_step_count(self) -> int: ...
     @property
-    def scheme(self) -> FiniteDifferenceScheme: ...
+    def scheme(self) -> _pricing.FiniteDifferenceScheme: ...
     @property
     def asset_upper_boundary(self) -> float | None: ...
     def price(self, instrument: Accumulator, context: PricingContext) -> float: ...
@@ -431,7 +425,7 @@ class FiniteDifferenceBarrierEngine:
         *,
         asset_step_count: int = ...,
         time_step_count: int = ...,
-        scheme: FiniteDifferenceScheme = ...,
+        scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: float | None = None,
     ) -> None: ...
     @property
@@ -439,7 +433,7 @@ class FiniteDifferenceBarrierEngine:
     @property
     def time_step_count(self) -> int: ...
     @property
-    def scheme(self) -> FiniteDifferenceScheme: ...
+    def scheme(self) -> _pricing.FiniteDifferenceScheme: ...
     @property
     def asset_upper_boundary(self) -> float | None: ...
     def price(self, instrument: BarrierOption, context: PricingContext) -> float: ...
@@ -461,7 +455,7 @@ class FiniteDifferenceDoubleBarrierEngine:
         *,
         asset_step_count: int = ...,
         time_step_count: int = ...,
-        scheme: FiniteDifferenceScheme = ...,
+        scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: float | None = None,
     ) -> None: ...
     @property
@@ -469,7 +463,7 @@ class FiniteDifferenceDoubleBarrierEngine:
     @property
     def time_step_count(self) -> int: ...
     @property
-    def scheme(self) -> FiniteDifferenceScheme: ...
+    def scheme(self) -> _pricing.FiniteDifferenceScheme: ...
     @property
     def asset_upper_boundary(self) -> float | None: ...
     def price(
@@ -493,7 +487,7 @@ class FiniteDifferenceAutocallableEngine:
         *,
         asset_step_count: int = ...,
         time_step_count: int = ...,
-        scheme: FiniteDifferenceScheme = ...,
+        scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: float | None = None,
     ) -> None: ...
     @property
@@ -501,7 +495,7 @@ class FiniteDifferenceAutocallableEngine:
     @property
     def time_step_count(self) -> int: ...
     @property
-    def scheme(self) -> FiniteDifferenceScheme: ...
+    def scheme(self) -> _pricing.FiniteDifferenceScheme: ...
     @property
     def asset_upper_boundary(self) -> float | None: ...
     def price(
@@ -533,7 +527,7 @@ class FiniteDifferenceDoubleTouchEngine:
         *,
         asset_step_count: int = ...,
         time_step_count: int = ...,
-        scheme: FiniteDifferenceScheme = ...,
+        scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: float | None = None,
     ) -> None: ...
     @property
@@ -541,7 +535,7 @@ class FiniteDifferenceDoubleTouchEngine:
     @property
     def time_step_count(self) -> int: ...
     @property
-    def scheme(self) -> FiniteDifferenceScheme: ...
+    def scheme(self) -> _pricing.FiniteDifferenceScheme: ...
     @property
     def asset_upper_boundary(self) -> float | None: ...
     def price(
@@ -565,7 +559,7 @@ class FiniteDifferenceBinaryBarrierEngine:
         *,
         asset_step_count: int = ...,
         time_step_count: int = ...,
-        scheme: FiniteDifferenceScheme = ...,
+        scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: float | None = None,
     ) -> None: ...
     @property
@@ -573,7 +567,7 @@ class FiniteDifferenceBinaryBarrierEngine:
     @property
     def time_step_count(self) -> int: ...
     @property
-    def scheme(self) -> FiniteDifferenceScheme: ...
+    def scheme(self) -> _pricing.FiniteDifferenceScheme: ...
     @property
     def asset_upper_boundary(self) -> float | None: ...
     def price(
@@ -597,7 +591,7 @@ class FiniteDifferenceVanillaEngine:
         *,
         asset_step_count: int = ...,
         time_step_count: int = ...,
-        scheme: FiniteDifferenceScheme = ...,
+        scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: float | None = None,
     ) -> None: ...
     @property
@@ -605,7 +599,7 @@ class FiniteDifferenceVanillaEngine:
     @property
     def time_step_count(self) -> int: ...
     @property
-    def scheme(self) -> FiniteDifferenceScheme: ...
+    def scheme(self) -> _pricing.FiniteDifferenceScheme: ...
     @property
     def asset_upper_boundary(self) -> float | None: ...
     def price(
@@ -629,7 +623,7 @@ class FiniteDifferenceDigitalEngine:
         *,
         asset_step_count: int = ...,
         time_step_count: int = ...,
-        scheme: FiniteDifferenceScheme = ...,
+        scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: float | None = None,
     ) -> None: ...
     @property
@@ -637,7 +631,7 @@ class FiniteDifferenceDigitalEngine:
     @property
     def time_step_count(self) -> int: ...
     @property
-    def scheme(self) -> FiniteDifferenceScheme: ...
+    def scheme(self) -> _pricing.FiniteDifferenceScheme: ...
     @property
     def asset_upper_boundary(self) -> float | None: ...
     def price(
@@ -657,8 +651,6 @@ class FiniteDifferenceDigitalEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
-MonteCarloSampling: TypeAlias = Literal["pseudo_random", "sobol"]
-
 class MonteCarloVanillaEngine:
     def __init__(
         self,
@@ -667,7 +659,7 @@ class MonteCarloVanillaEngine:
         step_count: int = ...,
         seed: int | None = None,
         thread_count: int = ...,
-        sampling: MonteCarloSampling = ...,
+        sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
     @property
@@ -679,7 +671,7 @@ class MonteCarloVanillaEngine:
     @property
     def thread_count(self) -> int: ...
     @property
-    def sampling(self) -> MonteCarloSampling: ...
+    def sampling(self) -> _pricing.MonteCarloSampling: ...
     @property
     def antithetic(self) -> bool: ...
     def price(
@@ -729,7 +721,7 @@ class MonteCarloDigitalEngine:
         path_count: int = ...,
         seed: int | None = None,
         thread_count: int = ...,
-        sampling: MonteCarloSampling = ...,
+        sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
     @property
@@ -739,7 +731,7 @@ class MonteCarloDigitalEngine:
     @property
     def thread_count(self) -> int: ...
     @property
-    def sampling(self) -> MonteCarloSampling: ...
+    def sampling(self) -> _pricing.MonteCarloSampling: ...
     @property
     def antithetic(self) -> bool: ...
     def price(
@@ -761,7 +753,7 @@ class MonteCarloBarrierEngine:
         path_count: int = ...,
         seed: int | None = None,
         thread_count: int = ...,
-        sampling: MonteCarloSampling = ...,
+        sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
     @property
@@ -771,7 +763,7 @@ class MonteCarloBarrierEngine:
     @property
     def thread_count(self) -> int: ...
     @property
-    def sampling(self) -> MonteCarloSampling: ...
+    def sampling(self) -> _pricing.MonteCarloSampling: ...
     @property
     def antithetic(self) -> bool: ...
     def price(
@@ -795,7 +787,7 @@ class MonteCarloDoubleBarrierEngine:
         path_count: int = ...,
         seed: int | None = None,
         thread_count: int = ...,
-        sampling: MonteCarloSampling = ...,
+        sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
     @property
@@ -805,7 +797,7 @@ class MonteCarloDoubleBarrierEngine:
     @property
     def thread_count(self) -> int: ...
     @property
-    def sampling(self) -> MonteCarloSampling: ...
+    def sampling(self) -> _pricing.MonteCarloSampling: ...
     @property
     def antithetic(self) -> bool: ...
     def price(
@@ -829,7 +821,7 @@ class MonteCarloAutocallableEngine:
         path_count: int = ...,
         seed: int | None = None,
         thread_count: int = ...,
-        sampling: MonteCarloSampling = ...,
+        sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
     @property
@@ -839,7 +831,7 @@ class MonteCarloAutocallableEngine:
     @property
     def thread_count(self) -> int: ...
     @property
-    def sampling(self) -> MonteCarloSampling: ...
+    def sampling(self) -> _pricing.MonteCarloSampling: ...
     @property
     def antithetic(self) -> bool: ...
     def price(
@@ -880,7 +872,7 @@ class MonteCarloAccumulatorEngine:
         path_count: int = ...,
         seed: int | None = None,
         thread_count: int = ...,
-        sampling: MonteCarloSampling = ...,
+        sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
     @property
@@ -890,7 +882,7 @@ class MonteCarloAccumulatorEngine:
     @property
     def thread_count(self) -> int: ...
     @property
-    def sampling(self) -> MonteCarloSampling: ...
+    def sampling(self) -> _pricing.MonteCarloSampling: ...
     @property
     def antithetic(self) -> bool: ...
     def price(self, instrument: Accumulator, context: PricingContext) -> float: ...
@@ -917,7 +909,7 @@ class MonteCarloAsianEngine:
         step_count: int = ...,
         seed: int | None = None,
         thread_count: int = ...,
-        sampling: MonteCarloSampling = ...,
+        sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
     @property
@@ -929,7 +921,7 @@ class MonteCarloAsianEngine:
     @property
     def thread_count(self) -> int: ...
     @property
-    def sampling(self) -> MonteCarloSampling: ...
+    def sampling(self) -> _pricing.MonteCarloSampling: ...
     @property
     def antithetic(self) -> bool: ...
     def price(

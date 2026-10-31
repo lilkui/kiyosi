@@ -211,20 +211,6 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         module
     )?)?;
     module.add_class::<engines::monte_carlo::MonteCarloEstimate>()?;
-    module.add(
-        "MonteCarloSampling",
-        py.import("typing")?
-            .getattr("Literal")?
-            .get_item(("pseudo_random", "sobol"))?,
-    )?;
-    module.add(
-        "FiniteDifferenceScheme",
-        py.import("typing")?.getattr("Literal")?.get_item((
-            "explicit_euler",
-            "implicit_euler",
-            "crank_nicolson",
-        ))?,
-    )?;
     module.add_class::<BlackScholesMertonParameters>()?;
     module.add_class::<market::RateTermStructure>()?;
     module.add_class::<TradingCalendar>()?;
@@ -233,12 +219,6 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     module.add_class::<risk::PricingResult>()?;
     module.add_function(wrap_pyfunction!(risk::implied_volatility, module)?)?;
     module.add_function(wrap_pyfunction!(risk::implied_coupon, module)?)?;
-    module.add(
-        "CouponQuoteConvention",
-        py.import("typing")?
-            .getattr("Literal")?
-            .get_item(("shift_maturity_coupon", "preserve_maturity_coupon"))?,
-    )?;
     module.add_function(wrap_pyfunction!(calendar::weekdays_calendar, module)?)?;
     module.add_function(wrap_pyfunction!(calendar::all_days_calendar, module)?)?;
     module.add_function(wrap_pyfunction!(calendar::sse_calendar, module)?)?;

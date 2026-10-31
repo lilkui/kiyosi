@@ -80,6 +80,8 @@ Recover the model volatility from its price using a chosen bracket:
 0.2
 """
 
+from typing import Literal
+
 from ._native import (
     AnalyticBarrierEngine,
     AnalyticBinaryBarrierEngine,
@@ -89,7 +91,6 @@ from ._native import (
     AnalyticGeometricAveragePriceEngine,
     AnalyticRangeAccrualEngine,
     BjerksundStenslandVanillaEngine,
-    CouponQuoteConvention,
     CoxRossRubinsteinBarrierEngine,
     CoxRossRubinsteinDigitalEngine,
     CoxRossRubinsteinVanillaEngine,
@@ -100,7 +101,6 @@ from ._native import (
     FiniteDifferenceDigitalEngine,
     FiniteDifferenceDoubleBarrierEngine,
     FiniteDifferenceDoubleTouchEngine,
-    FiniteDifferenceScheme,
     FiniteDifferenceVanillaEngine,
     MonteCarloAccumulatorEngine,
     MonteCarloAsianEngine,
@@ -109,7 +109,6 @@ from ._native import (
     MonteCarloDigitalEngine,
     MonteCarloDoubleBarrierEngine,
     MonteCarloEstimate,
-    MonteCarloSampling,
     MonteCarloVanillaEngine,
     PricingResult,
     QuadratureAccumulatorEngine,
@@ -119,6 +118,10 @@ from ._native import (
     implied_coupon,
     implied_volatility,
 )
+
+CouponQuoteConvention = Literal["shift_maturity_coupon", "preserve_maturity_coupon"]
+FiniteDifferenceScheme = Literal["explicit_euler", "implicit_euler", "crank_nicolson"]
+MonteCarloSampling = Literal["pseudo_random", "sobol"]
 
 __all__ = [
     "AnalyticBarrierEngine",
