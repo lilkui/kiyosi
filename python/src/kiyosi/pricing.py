@@ -25,7 +25,8 @@ delta and gamma. Their only bump control is ``spot_shift``, used for barrier
 availability checks and numerical derivatives of continuous at-hit rebates.
 
 Pricing controls are explicit keyword-only parameters, available through
-``inspect.signature``. Monte Carlo vanilla spot bumps default by product:
+``inspect.signature``. Instrument conversion and supported-family checks
+precede Greek-name parsing. Monte Carlo vanilla spot bumps default by product:
 0.01 for European options and 8% of spot for American options. Explicit
 ``None`` selects the automatic bump only for American options.
 

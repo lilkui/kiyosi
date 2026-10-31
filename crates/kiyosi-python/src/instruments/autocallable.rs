@@ -1364,7 +1364,7 @@ pub(crate) enum AutocallableInstrument<'py> {
 macro_rules! with_note {
     ($instrument:expr, $note:ident, $body:expr) => {{
         use $crate::instruments::autocallable::AutocallableInstrument;
-        match $crate::conversions::instrument::<AutocallableInstrument<'_>>($instrument)? {
+        match $instrument {
             AutocallableInstrument::Phoenix(note) => {
                 let $note = &note.0;
                 $body

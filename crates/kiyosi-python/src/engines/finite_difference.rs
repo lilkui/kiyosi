@@ -192,6 +192,6 @@ fd_engine!(
 );
 fd_engine!(
     FiniteDifferenceAutocallableEngine,
-    Bound<'_, PyAny>,
+    autocallable::AutocallableInstrument<'_>,
     autocallable::with_note,
 );

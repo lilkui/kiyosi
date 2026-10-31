@@ -883,7 +883,7 @@ pub(crate) struct MonteCarloAutocallableEngine(pub(crate) kiyosi::MonteCarloAuto
 
 sampling_settings!(
     @structured MonteCarloAutocallableEngine,
-    Bound<'_, PyAny>,
+    autocallable::AutocallableInstrument<'_>,
     autocallable::with_note
 );
 

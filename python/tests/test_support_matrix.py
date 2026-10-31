@@ -312,6 +312,19 @@ class SupportMatrixTests(unittest.TestCase):
                     with self.assertRaises(TypeError):
                         pricing.implied_volatility(engine, instrument, self.context, 1)
 
+    def test_autocallable_instrument_conversion_precedes_greek_name_validation(self):
+        for name, engine in self.engines.items():
+            if not name.endswith("AutocallableEngine"):
+                continue
+            for instrument, expected_error in (
+                (self.cases[0][0], UnsupportedOperationError),
+                (object(), TypeError),
+            ):
+                with self.subTest(engine=name, instrument=type(instrument).__name__):
+                    with self.assertRaises(expected_error) as error:
+                        engine.price_with_greeks(instrument, self.context, ["invalid"])
+                    self.assertIs(type(error.exception), expected_error)
+
     def test_statistics_reject_unsupported_products_as_domain_errors(self):
         products = {
             "MonteCarloVanillaEngine": (ins.EuropeanOption,),

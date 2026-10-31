@@ -151,6 +151,6 @@ quadrature_engine!(
     /// Preserves cash and asset payments below the spatial grid, including
     /// zero-lower-strike losses after large spot declines.
     QuadratureAutocallableEngine,
-    Bound<'_, PyAny>,
+    autocallable::AutocallableInstrument<'_>,
     autocallable::with_note,
 );
