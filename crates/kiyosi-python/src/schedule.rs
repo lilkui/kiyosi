@@ -44,31 +44,10 @@ impl ObservationSchedule {
             .ok_or_else(|| PyIndexError::new_err("schedule index out of range"))?;
         python_date(py, *date)
     }
-    fn __iter__(slf: PyRef<'_, Self>) -> ScheduleIterator {
-        ScheduleIterator {
-            owner: slf.into(),
-            index: 0,
-        }
-    }
-}
-
-#[pyclass]
-struct ScheduleIterator {
-    owner: Py<ObservationSchedule>,
-    index: usize,
-}
-
-#[pymethods]
-impl ScheduleIterator {
-    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
-        slf
-    }
-    fn __next__<'py>(&mut self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyDate>>> {
-        let date = self.owner.borrow(py).0.dates().get(self.index).copied();
-        if date.is_some() {
-            self.index += 1;
-        }
-        date.map(|date| python_date(py, date)).transpose()
+    fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, PyAny>> {
+        // SAFETY: slf is live under the GIL and has a sequence slot from __getitem__.
+        // PySeqIter_New returns a new reference (or null) and retains the schedule.
+        unsafe { Bound::from_owned_ptr_or_err(slf.py(), pyo3::ffi::PySeqIter_New(slf.as_ptr())) }
     }
 }
 

@@ -182,7 +182,7 @@ class CalendarTests(unittest.TestCase):
         self.assertEqual(schedule.dates, expected)
         with self.assertRaises(AttributeError):
             schedule.dates = []
-        first, second = iter(schedule), iter(schedule)
+        first, second = iter(schedule), schedule.__iter__()
         self.assertIs(iter(first), first)
         self.assertEqual(next(first), expected[0])
         del schedule

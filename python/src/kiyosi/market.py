@@ -17,7 +17,7 @@ without moving the March anchor:
 ...     start=date(2025, 1, 31), end=date(2025, 3, 31),
 ...     first_observation_month=1, calendar=all_days_calendar(),
 ... )
->>> schedule.dates
+>>> list(schedule)
 [datetime.date(2025, 2, 28), datetime.date(2025, 3, 31)]
 
 Combine a discount curve with a scalar dividend yield:
