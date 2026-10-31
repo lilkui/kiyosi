@@ -177,6 +177,20 @@ class PackageTests(unittest.TestCase):
                     with self.assertRaises(TypeError):
                         engine.price_with_greeks(option, context, all_greeks=invalid)
 
+    def test_barrier_monte_carlo_greeks_expose_only_spot_controls(self):
+        for name in ("MonteCarloBarrierEngine", "MonteCarloDoubleBarrierEngine"):
+            engine = getattr(pricing, name)()
+            with self.subTest(engine=name):
+                signature = inspect.signature(engine.price_with_greeks)
+                self.assertEqual(
+                    tuple(signature.parameters),
+                    ("instrument", "context", "greeks", "all_greeks", "spot_shift"),
+                )
+                self.assertIs(
+                    signature.parameters["spot_shift"].kind,
+                    inspect.Parameter.KEYWORD_ONLY,
+                )
+
     def test_constructors_and_factories_match_declared_keywords(self):
         stub = ast.parse((Path(kiyosi.__file__).parent / "_native.pyi").read_text())
         factories = [pricing.implied_volatility]

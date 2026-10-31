@@ -809,9 +809,6 @@ class MonteCarloBarrierEngine:
         *,
         all_greeks: bool = False,
         spot_shift: float = ...,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
     ) -> PricingResult: ...
 
 class MonteCarloDoubleBarrierEngine:
@@ -847,9 +844,6 @@ class MonteCarloDoubleBarrierEngine:
         *,
         all_greeks: bool = False,
         spot_shift: float = ...,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
     ) -> PricingResult: ...
 
 class MonteCarloAutocallableEngine:

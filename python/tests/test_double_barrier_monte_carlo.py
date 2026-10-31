@@ -393,16 +393,13 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             self.assertEqual(factory(seed=seed).seed, seed)
         for fields in (
             {"spot_shift": True},
-            {"time_shift_days": True},
-            {"time_shift_days": 1.5},
+            {"volatility_shift": 0.0001},
+            {"rate_shift": 0.0001},
+            {"time_shift_days": 1},
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):
                 engine.price_with_greeks(contract(), market(), "delta", **fields)
-        with self.assertRaises(OverflowError):
-            engine.price_with_greeks(
-                contract(), market(), "delta", time_shift_days=2**31
-            )
         option = EuropeanOption(
             option_type="call", strike=100, effective_date=START, expiry_date=END
         )

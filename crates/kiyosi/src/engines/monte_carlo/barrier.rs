@@ -86,14 +86,16 @@ impl MonteCarloBarrierEngine {
     /// Returns requested delta/gamma using the price's normal samples.
     ///
     /// Other Greeks remain absent. Expiry and spot stencils crossing a current
-    /// monitored barrier suppress delta/gamma. Shifts only affect that availability
-    /// and numerical derivatives of the analytic continuous at-hit rebate.
+    /// monitored barrier suppress delta/gamma. The positive finite `spot_shift`
+    /// controls that availability and numerical derivatives of the analytic
+    /// continuous at-hit rebate. Other numerical bump settings are unused by the
+    /// [`PricingEngine::price_with_greeks`] adapter.
     /// Near-expiry likelihood estimates can have substantial sampling error.
     ///
     /// # Errors
     ///
-    /// Checks flat rates before requests and shifts, then propagates [`Self::price`]
-    /// errors. Empty requests or invalid shifts return
+    /// Checks flat rates before requests and the spot shift, then propagates
+    /// [`Self::price`] errors. Empty requests or a nonpositive/non-finite spot shift return
     /// [`crate::Error::InvalidInput`]; non-finite requested Greek samples
     /// return [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
     ///
@@ -116,7 +118,8 @@ impl MonteCarloBarrierEngine {
     ///     ..Default::default()
     /// })?;
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]), Default::default())?;
+    ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+    ///     NumericalShiftSettings::default().spot_shift)?;
     /// assert!(result.price() > 0.0);
     /// assert!(result.has(Greek::Delta));
     /// assert_eq!(engine.settings().path_count, 32768);
@@ -127,10 +130,14 @@ impl MonteCarloBarrierEngine {
         option: &BarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
+        spot_shift: f64,
     ) -> Result<PricingResult> {
         self.validate_applicability(context)?;
         request.validate()?;
+        let settings = NumericalShiftSettings {
+            spot_shift,
+            ..Default::default()
+        };
         settings.validate()?;
         self.native(Contract::Single(option), context, request, settings)
     }
@@ -474,7 +481,7 @@ impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        Self::price_with_greeks(self, option, context, request, settings)
+        Self::price_with_greeks(self, option, context, request, settings.spot_shift)
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
         crate::engines::analytic::barrier::volatility_affects_price(option, context)

@@ -20,6 +20,10 @@ their ``price_with_greeks`` methods accept only ``greeks`` and ``all_greeks``
 as request controls. Engines that use numerical differences also accept bump
 settings.
 
+``MonteCarloBarrierEngine`` and ``MonteCarloDoubleBarrierEngine`` return only
+delta and gamma. Their only bump control is ``spot_shift``, used for barrier
+availability checks and numerical derivatives of continuous at-hit rebates.
+
 Pricing controls are explicit keyword-only parameters, available through
 ``inspect.signature``. Monte Carlo vanilla spot bumps default by product:
 0.01 for European options and 8% of spot for American options. Explicit
