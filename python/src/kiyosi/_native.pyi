@@ -1719,7 +1719,8 @@ class PhoenixOption:
     def __init__(
         self,
         *,
-        coupon_rate: float,
+        coupon_rate: float = ...,
+        coupon_per_period: float = ...,
         initial_spot: float,
         knock_in_level: float,
         upper_strike: float,
@@ -1743,7 +1744,9 @@ class PhoenixOption:
     @property
     def coupon_barrier_levels(self) -> list[float]: ...
     @property
-    def coupon_rate(self) -> float: ...
+    def coupon_rate(self) -> float | None: ...
+    @property
+    def coupon_per_period(self) -> float | None: ...
     @property
     def initial_spot(self) -> float: ...
     @property
@@ -2008,3 +2011,59 @@ class QuadratureAccumulatorEngine:
         rate_shift: float = ...,
         time_shift_days: int = ...,
     ) -> PricingResult: ...
+
+def fixed_coupon_note(
+    *,
+    coupon_per_period: float,
+    initial_spot: float,
+    knock_in_level: float,
+    knock_out_level: float,
+    observation_dates: Iterable[date],
+    effective_date: date,
+    expiry_date: date,
+    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    principal_ratio: float = ...,
+) -> PhoenixOption: ...
+def digital_coupon_note(
+    *,
+    coupon_per_period: float,
+    initial_spot: float,
+    knock_in_level: float,
+    knock_out_level: float,
+    coupon_barrier_level: float,
+    observation_dates: Iterable[date],
+    effective_date: date,
+    expiry_date: date,
+    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    principal_ratio: float = ...,
+) -> PhoenixOption: ...
+def early_profit_snowball(
+    *,
+    first_coupon_rate: float,
+    initial_spot: float,
+    knock_in_level: float,
+    knock_out_level: float,
+    second_coupon_rate: float,
+    first_stage_end_date: date,
+    observation_dates: Iterable[date],
+    effective_date: date,
+    expiry_date: date,
+    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    principal_ratio: float = ...,
+) -> SnowballOption: ...
+def butterfly_snowball(
+    *,
+    first_coupon_rate: float,
+    initial_spot: float,
+    knock_in_level: float,
+    knock_out_level: float,
+    second_coupon_rate: float,
+    third_coupon_rate: float,
+    first_stage_end_date: date,
+    second_stage_end_date: date,
+    observation_dates: Iterable[date],
+    effective_date: date,
+    expiry_date: date,
+    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    principal_ratio: float = ...,
+) -> SnowballOption: ...

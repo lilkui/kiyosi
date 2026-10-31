@@ -1,4 +1,4 @@
-"""Validated derivative contracts, snowball presets and observation adapters.
+"""Validated derivative contracts, autocallable presets and observation adapters.
 
 ``OptionType`` selects ``"call"`` or ``"put"``. Contract dates are inclusive,
 with expiry at midnight UTC. Constructors validate terms; pricing validates
@@ -9,6 +9,14 @@ is evaluated from the current spot. Replacement returns a new contract.
 Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
 values. Explicit ``None`` clears nullable history and is rejected for fields
 that require a value.
+
+``fixed_coupon_note`` and ``digital_coupon_note`` return Phoenix contracts
+with fixed ``coupon_per_period`` and expiry-only knock-in. Explicit Phoenix
+construction requires exactly one of annual ``coupon_rate`` or fixed
+``coupon_per_period``; the unused property is None. ``early_profit_snowball``
+and ``butterfly_snowball`` use two or three annual coupon stages with inclusive
+cutoff dates. Knock-out applies the selected rate over the whole holding period;
+maturity uses the final stage rate.
 
 Examples
 --------
@@ -61,12 +69,16 @@ from ._native import (
     asset_touch_option,
     autocallable_observations,
     both_down_snowball,
+    butterfly_snowball,
     cash_binary_barrier_option,
     cash_double_no_touch,
     cash_double_touch,
     cash_touch_option,
+    digital_coupon_note,
     dual_coupon_snowball,
+    early_profit_snowball,
     european_snowball,
+    fixed_coupon_note,
     loss_capped_snowball,
     otm_snowball,
     parachute_snowball,
@@ -100,12 +112,16 @@ __all__ = [
     "asset_touch_option",
     "autocallable_observations",
     "both_down_snowball",
+    "butterfly_snowball",
     "cash_binary_barrier_option",
     "cash_double_no_touch",
     "cash_double_touch",
     "cash_touch_option",
+    "digital_coupon_note",
     "dual_coupon_snowball",
+    "early_profit_snowball",
     "european_snowball",
+    "fixed_coupon_note",
     "loss_capped_snowball",
     "otm_snowball",
     "parachute_snowball",

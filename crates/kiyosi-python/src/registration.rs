@@ -183,6 +183,22 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     )?)?;
     module.add_class::<instruments::autocallable::AutocallableObservation>()?;
     module.add_function(wrap_pyfunction!(
+        instruments::autocallable::fixed_coupon_note,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        instruments::autocallable::digital_coupon_note,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        instruments::autocallable::early_profit_snowball,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        instruments::autocallable::butterfly_snowball,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
         instruments::autocallable::autocallable_observations,
         module
     )?)?;

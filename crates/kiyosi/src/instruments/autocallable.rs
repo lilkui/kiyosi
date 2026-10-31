@@ -1,6 +1,6 @@
 mod presets;
 pub(crate) mod pricing;
-pub use presets::{SnowballPreset, SnowballPresetTerms};
+pub use presets::{PhoenixPreset, PhoenixPresetTerms, SnowballPreset, SnowballPresetTerms};
 
 use crate::error::finite;
 use crate::{Date, Error, OptionContract, PricingContext, Result, Timestamp, TradingCalendar};
@@ -172,11 +172,29 @@ impl SnowballTerms {
     }
 }
 
+/// Selects annual accrual or a fixed payment per qualifying Phoenix observation.
+///
+/// See [`PhoenixPresetTerms::expand`] for a fixed-payment example.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PhoenixCoupon {
+    /// Accrues the signed annual rate over each observation period on Actual/365 Fixed.
+    Annual(f64),
+    /// Pays the signed proportion once per qualifying observation, regardless of period length.
+    PerPeriod(f64),
+}
+impl PhoenixCoupon {
+    fn value(self) -> f64 {
+        match self {
+            Self::Annual(value) | Self::PerPeriod(value) => value,
+        }
+    }
+}
+
 /// Supplies Phoenix terms; see [`Self::new`] and [`PhoenixOption::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct PhoenixTerms {
-    /// Sets the finite annual coupon for each conditional observation period.
-    pub coupon_rate: f64,
+    /// Sets the finite signed coupon and its contractual payment convention.
+    pub coupon: PhoenixCoupon,
     /// Sets the positive reference spot used to normalize downside losses.
     pub initial_spot: f64,
     /// Sets the positive strict downside threshold.
@@ -199,7 +217,7 @@ pub struct PhoenixTerms {
     pub observations: Vec<AutocallableObservation>,
 }
 impl PhoenixTerms {
-    /// Creates input terms with daily monitoring, unknown history and unit principal.
+    /// Creates annual-coupon terms with daily monitoring, unknown history and unit principal.
     ///
     /// Validation occurs in [`PhoenixOption::new`]; see its example.
     #[expect(
@@ -217,7 +235,7 @@ impl PhoenixTerms {
         observations: Vec<AutocallableObservation>,
     ) -> Self {
         Self {
-            coupon_rate,
+            coupon: PhoenixCoupon::Annual(coupon_rate),
             initial_spot,
             knock_in_level,
             upper_strike,
@@ -337,10 +355,11 @@ pub type TernarySnowballOption = AutocallableNote<TernarySnowballTerms>;
 
 /// Owns validated Phoenix terms; see [`Self::new`].
 ///
-/// Pays a signed annual coupon times each observation period's Actual/365 Fixed
-/// length when spot is at or above its coupon barrier, including on knock-out.
-/// The first period starts at the effective date; later periods start at the
-/// preceding contractual observation, even when pricing a seasoned note.
+/// Pays the signed [`PhoenixCoupon`] when spot is at or above its coupon barrier,
+/// including on knock-out. Annual coupons use each observation period's Actual/365
+/// Fixed length; fixed per-period coupons pay once without day accrual.
+/// The first annual period starts at the effective date; later periods start at
+/// the preceding contractual observation, even when pricing a seasoned note.
 /// Otherwise expiry pays principal, less capped downside loss after knock-in.
 /// Past coupons are settled; current coupons are included once. Zero coupon
 /// barriers pay unconditionally. There is no coupon memory or maturity coupon.
@@ -401,7 +420,7 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
 }
 
 impl PhoenixOption {
-    /// Returns an owning note with its conditional annual coupon replaced.
+    /// Returns an owning note with its coupon value replaced in the existing units.
     ///
     /// See [`crate::implied_coupon`] for an example.
     ///
@@ -411,7 +430,10 @@ impl PhoenixOption {
     /// This note remains unchanged on success and failure.
     pub fn with_coupon(&self, coupon: f64) -> Result<Self> {
         let mut terms = self.0.clone();
-        terms.coupon_rate = coupon;
+        terms.coupon = match terms.coupon {
+            PhoenixCoupon::Annual(_) => PhoenixCoupon::Annual(coupon),
+            PhoenixCoupon::PerPeriod(_) => PhoenixCoupon::PerPeriod(coupon),
+        };
         Self::new(terms)
     }
 }
@@ -445,7 +467,7 @@ mod sealed {
     #[derive(Clone, Copy)]
     pub enum Coupon {
         Snowball(f64),
-        Phoenix(f64),
+        Phoenix(PhoenixCoupon),
     }
     pub struct View<'a> {
         pub knock_in: Option<KnockIn>,
@@ -489,7 +511,7 @@ macro_rules! terms_view {
     };
 }
 terms_view!(SnowballTerms, Coupon::Snowball, maturity_coupon_rate);
-terms_view!(PhoenixTerms, Coupon::Phoenix, coupon_rate);
+terms_view!(PhoenixTerms, Coupon::Phoenix, coupon);
 
 impl sealed::Terms for BinarySnowballTerms {
     fn set_history(&mut self, state: Option<AutocallableBarrierState>) {
@@ -621,8 +643,10 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     }
     pub(crate) fn period_coupon(&self, record: &AutocallableObservation) -> f64 {
         let t = self.view();
-        let Coupon::Phoenix(rate) = t.coupon else {
-            return 0.0;
+        let rate = match t.coupon {
+            Coupon::Snowball(_) => return 0.0,
+            Coupon::Phoenix(PhoenixCoupon::PerPeriod(value)) => return value,
+            Coupon::Phoenix(PhoenixCoupon::Annual(rate)) => rate,
         };
         let i = t.observations.partition_point(|r| r.date < record.date);
         let previous = if i == 0 {
@@ -892,8 +916,8 @@ impl sealed::View<'_> {
                 ));
             }
         }
-        if let Coupon::Phoenix(rate) = terms.coupon {
-            finite(rate, false)?;
+        if let Coupon::Phoenix(coupon) = terms.coupon {
+            finite(coupon.value(), false)?;
             for r in terms.observations {
                 finite(r.coupon_barrier_level, false)?;
                 if r.coupon_barrier_level < 0.0 || r.coupon_rate != 0.0 {

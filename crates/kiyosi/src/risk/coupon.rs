@@ -14,7 +14,7 @@ pub enum CouponQuoteConvention {
     PreserveMaturityCoupon,
 }
 
-/// Sets finite signed coupon bounds and convergence controls.
+/// Sets finite signed coupon bounds and convergence controls in the contract's units.
 ///
 /// Either tolerance stops bisection; endpoint and interpolation evaluations do
 /// not count toward the iteration limit. See [`implied_coupon`] for an example.
@@ -99,10 +99,12 @@ pub fn implied_snowball_coupon<
     )
 }
 
-/// Solves a Phoenix price curve in its conditional annual coupon.
+/// Solves a Phoenix price curve in its conditional coupon, preserving its units.
 ///
 /// Uses the validation, endpoint, convergence and failure-state contract of
 /// [`implied_snowball_coupon`], without a quote convention.
+/// Bounds, parameter tolerance and result use the contract's coupon units:
+/// an annual rate or a fixed per-period proportion, including FCN/DCN presets.
 ///
 /// # Errors
 ///

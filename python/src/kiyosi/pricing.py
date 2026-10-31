@@ -39,6 +39,9 @@ shifts with observation coupons (``"shift_maturity_coupon"``) or stays fixed
 (``"preserve_maturity_coupon"``). Phoenix coupon solves omit this choice;
 the displayed default ``...`` (``Ellipsis``) also means omitted.
 Unsupported coupon-solver instruments are rejected before checking this choice.
+Phoenix solves preserve the contract's coupon units: annual rate for annual
+coupons, fixed per-period proportion for FCN/DCN. Bounds, parameter tolerance
+and the returned value use the same units.
 
 Examples
 --------

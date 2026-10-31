@@ -1,6 +1,6 @@
-use crate::conversions::{date, dates, python_date, real};
+use crate::conversions::{date, dates, python_date, real, supplied};
 use crate::error::domain;
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
 
@@ -243,7 +243,7 @@ pub(crate) fn autocallable_observations(
 
 macro_rules! snowball_preset {
     ($name:ident, $coupon:ident => $coupon_doc:literal, $level:ident => $level_doc:literal,
-     [$($extra:ident => $extra_doc:literal),*], $preset:expr,
+     [$($extra:ident => $extra_doc:literal => $convert:ident),*], $preset:expr,
      $summary:literal, $monitoring:literal, $notes:literal) => {
         #[doc = $summary]
         ///
@@ -258,7 +258,7 @@ macro_rules! snowball_preset {
         #[doc = concat!(stringify!($level), " : float")]
         #[doc = concat!("    ", $level_doc)]
         $(
-            #[doc = concat!(stringify!($extra), " : float")]
+            #[doc = concat!(stringify!($extra), " : ", snowball_preset!(@type $convert))]
             #[doc = concat!("    ", $extra_doc)]
         )*
         /// observation_dates : iterable of date
@@ -308,7 +308,7 @@ macro_rules! snowball_preset {
                 real($coupon)?, real(initial_spot)?, real(knock_in_level)?, real($level)?,
                 date(effective_date)?, date(expiry_date)?, dates(observation_dates)?,
             );
-            $(let $extra = real($extra)?;)*
+            $(let $extra = $convert($extra)?;)*
             if let Some(value) = barrier_state {
                 terms.barrier_state = state(value)?;
             }
@@ -316,6 +316,8 @@ macro_rules! snowball_preset {
             Ok(SnowballOption(domain(terms.expand($preset))?))
         }
     };
+    (@type real) => { "float" };
+    (@type date) => { "datetime.date" };
 }
 snowball_preset!(
     standard_snowball,
@@ -341,7 +343,7 @@ snowball_preset!(
     step_down_snowball,
     coupon_rate => "Finite annual coupon rate in decimal units.",
     initial_knock_out_level => "Positive knock-out threshold at the first observation.",
-    [knock_out_level_decrement => "Absolute price decrement after each observation; may be negative."],
+    [knock_out_level_decrement => "Absolute price decrement after each observation; may be negative." => real],
     kiyosi::SnowballPreset::StepDown {
         knock_out_level_decrement
     },
@@ -356,8 +358,8 @@ snowball_preset!(
     initial_coupon_rate => "Annual coupon rate at the first observation.",
     initial_knock_out_level => "Positive knock-out threshold at the first observation.",
     [
-        coupon_rate_decrement => "Absolute decimal-rate decrement after each observation.",
-        knock_out_level_decrement => "Absolute price decrement after each observation; may be negative."
+        coupon_rate_decrement => "Absolute decimal-rate decrement after each observation." => real,
+        knock_out_level_decrement => "Absolute price decrement after each observation; may be negative." => real
     ],
     kiyosi::SnowballPreset::BothDown {
         coupon_rate_decrement,
@@ -373,7 +375,7 @@ snowball_preset!(
     dual_coupon_snowball,
     knock_out_coupon_rate => "Annual coupon rate for knock-out settlement.",
     knock_out_level => "Positive inclusive knock-out threshold.",
-    [maturity_coupon_rate => "Finite annual maturity coupon rate in decimal units."],
+    [maturity_coupon_rate => "Finite annual maturity coupon rate in decimal units." => real],
     kiyosi::SnowballPreset::DualCoupon {
         maturity_coupon_rate
     },
@@ -385,7 +387,7 @@ snowball_preset!(
     parachute_snowball,
     coupon_rate => "Finite annual coupon rate in decimal units.",
     knock_out_level => "Positive inclusive knock-out threshold.",
-    [final_knock_out_level => "Positive threshold replacing only the final knock-out level."],
+    [final_knock_out_level => "Positive threshold replacing only the final knock-out level." => real],
     kiyosi::SnowballPreset::Parachute {
         final_knock_out_level
     },
@@ -397,7 +399,7 @@ snowball_preset!(
     otm_snowball,
     coupon_rate => "Finite annual coupon rate in decimal units.",
     knock_out_level => "Positive inclusive knock-out threshold.",
-    [upper_strike => "Positive upper terminal settlement strike."],
+    [upper_strike => "Positive upper terminal settlement strike." => real],
     kiyosi::SnowballPreset::Otm { upper_strike },
     "Creates a snowball with a replaced upper terminal strike.",
     "on every trading day",
@@ -407,11 +409,46 @@ snowball_preset!(
     loss_capped_snowball,
     coupon_rate => "Finite annual coupon rate in decimal units.",
     knock_out_level => "Positive inclusive knock-out threshold.",
-    [lower_strike => "Nonnegative lower terminal strike, at most the upper strike."],
+    [lower_strike => "Nonnegative lower terminal strike, at most the upper strike." => real],
     kiyosi::SnowballPreset::LossCapped { lower_strike },
     "Creates a snowball whose lower terminal strike caps downside loss.",
     "on every trading day",
     ""
+);
+
+snowball_preset!(
+    early_profit_snowball,
+    first_coupon_rate => "Finite signed annual coupon through first_stage_end_date.",
+    knock_out_level => "Positive inclusive knock-out threshold.",
+    [
+        second_coupon_rate => "Finite signed annual coupon after the cutoff and at maturity." => real,
+        first_stage_end_date => "Inclusive first-stage end within life and strictly before expiry." => date
+    ],
+    kiyosi::SnowballPreset::EarlyProfit { first_stage_end_date, second_coupon_rate },
+    "Creates a two-stage early-profit snowball.",
+    "on every trading day",
+    r"Knock-out uses the observation's stage rate over the whole holding period.
+Maturity uses the final stage rate. Cutoffs need not be observation or trading
+dates, stages may have no observations, and rates need not decrease."
+);
+snowball_preset!(
+    butterfly_snowball,
+    first_coupon_rate => "Finite signed annual coupon through first_stage_end_date.",
+    knock_out_level => "Positive inclusive knock-out threshold.",
+    [
+        second_coupon_rate => "Finite signed annual coupon in the second stage." => real,
+        third_coupon_rate => "Finite signed annual coupon in the third stage and at maturity." => real,
+        first_stage_end_date => "Inclusive first-stage end within life and before second_stage_end_date." => date,
+        second_stage_end_date => "Inclusive second-stage end strictly before expiry." => date
+    ],
+    kiyosi::SnowballPreset::Butterfly {
+        first_stage_end_date, second_coupon_rate, second_stage_end_date, third_coupon_rate
+    },
+    "Creates a three-stage butterfly snowball.",
+    "on every trading day",
+    r"Knock-out uses the observation's stage rate over the whole holding period.
+Maturity uses the final stage rate. Cutoffs need not be observation or trading
+dates, stages may have no observations, and rates need not decrease."
 );
 
 /// Snowball with knock-out coupons and capped knock-in downside loss.
@@ -758,8 +795,12 @@ autocallable_properties! {
 ///
 /// Parameters
 /// ----------
-/// coupon_rate : float
-///     Finite annual coupon rate in decimal units.
+/// coupon_rate : float, optional
+///     Finite signed annual coupon rate. Supply exactly one of coupon_rate
+///     and coupon_per_period; omission or Ellipsis leaves a choice unspecified.
+/// coupon_per_period : float, optional
+///     Finite signed fixed coupon proportion per qualifying observation,
+///     without day accrual. The unused coupon property returns None.
 /// initial_spot : float
 ///     Positive reference spot used to normalize downside losses.
 /// knock_in_level : float
@@ -784,13 +825,17 @@ autocallable_properties! {
 ///
 /// Raises
 /// ------
+/// TypeError
+///     If both coupon choices or neither are supplied, or a supplied value is not real.
 /// InvalidInputError
 ///     If amounts, strikes, life dates or observations are invalid.
 ///     Observation coupon_rate must be zero; coupon_barrier_level is nonnegative.
 ///
 /// Notes
 /// -----
-/// Coupons accrue over contractual observation periods on Actual/365 Fixed.
+/// Annual coupons accrue over contractual observation periods on Actual/365 Fixed.
+/// Fixed per-period coupons pay once per qualifying observation, even for an
+/// observation on the effective date. Explicit None is not a coupon value.
 /// Coupon and knock-out barriers are inclusive; knock-in is strict. Past
 /// coupons are settled. There is no coupon memory or maturity coupon.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
@@ -799,10 +844,11 @@ pub(crate) struct PhoenixOption(pub kiyosi::PhoenixOption);
 autocallable_properties! {
     PhoenixOption,
     #[new]
-    #[pyo3(signature = (*, coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
+    #[pyo3(signature = (*, coupon_rate=crate::conversions::OMITTED, coupon_per_period=crate::conversions::OMITTED, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
-        coupon_rate: &Bound<'_, PyAny>,
+        #[pyo3(from_py_with = supplied)] coupon_rate: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] coupon_per_period: Option<&Bound<'_, PyAny>>,
         initial_spot: &Bound<'_, PyAny>,
         knock_in_level: &Bound<'_, PyAny>,
         upper_strike: &Bound<'_, PyAny>,
@@ -814,8 +860,15 @@ autocallable_properties! {
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_ratio: f64,
     ) -> PyResult<Self> {
+        let coupon = match (coupon_rate, coupon_per_period) {
+            (Some(value), None) => kiyosi::PhoenixCoupon::Annual(real(value)?),
+            (None, Some(value)) => kiyosi::PhoenixCoupon::PerPeriod(real(value)?),
+            _ => return Err(PyTypeError::new_err(
+                "supply exactly one of coupon_rate and coupon_per_period",
+            )),
+        };
         let mut terms = kiyosi::PhoenixTerms::new(
-            real(coupon_rate)?,
+            0.0,
             real(initial_spot)?,
             real(knock_in_level)?,
             real(upper_strike)?,
@@ -824,6 +877,7 @@ autocallable_properties! {
             date(expiry_date)?,
             records(observations)?,
         );
+        terms.coupon = coupon;
         terms.knock_in_observation_mode = mode(knock_in_observation_mode)?;
         if let Some(value) = barrier_state {
             terms.barrier_state = state(value)?;
@@ -840,10 +894,21 @@ autocallable_properties! {
             .map(|r| r.coupon_barrier_level)
             .collect()
     },
-    /// Return finite annual coupon rate in decimal units.
+    /// Returns the annual coupon rate, or None for a fixed per-period coupon.
     #[getter]
-    fn coupon_rate(&self) -> f64 {
-        self.0.terms().coupon_rate
+    fn coupon_rate(&self) -> Option<f64> {
+        match self.0.terms().coupon {
+            kiyosi::PhoenixCoupon::Annual(value) => Some(value),
+            kiyosi::PhoenixCoupon::PerPeriod(_) => None,
+        }
+    },
+    /// Returns the fixed per-period coupon, or None for an annual coupon.
+    #[getter]
+    fn coupon_per_period(&self) -> Option<f64> {
+        match self.0.terms().coupon {
+            kiyosi::PhoenixCoupon::PerPeriod(value) => Some(value),
+            kiyosi::PhoenixCoupon::Annual(_) => None,
+        }
     },
     /// Return positive reference spot used to normalize downside losses.
     #[getter]
@@ -880,9 +945,13 @@ autocallable_properties! {
         let state = self
             .barrier_state()
             .map_or_else(|| "None".into(), |s| format!("{s:?}"));
+        let coupon = match self.0.terms().coupon {
+            kiyosi::PhoenixCoupon::Annual(value) => format!("coupon_rate={value:?}"),
+            kiyosi::PhoenixCoupon::PerPeriod(value) => format!("coupon_per_period={value:?}"),
+        };
         Ok(format!(
-            "PhoenixOption(coupon_rate={:?}, initial_spot={:?}, knock_in_level={:?}, upper_strike={:?}, lower_strike={:?}, knock_in_observation_mode={:?}, barrier_state={}, principal_ratio={:?}, effective_date={}, expiry_date={}, observations=[{}])",
-            self.coupon_rate(),
+            "PhoenixOption({}, initial_spot={:?}, knock_in_level={:?}, upper_strike={:?}, lower_strike={:?}, knock_in_observation_mode={:?}, barrier_state={}, principal_ratio={:?}, effective_date={}, expiry_date={}, observations=[{}])",
+            coupon,
             self.initial_spot(),
             self.knock_in_level(),
             self.upper_strike(),
@@ -896,6 +965,94 @@ autocallable_properties! {
         ))
     }
 }
+
+macro_rules! phoenix_preset {
+    ($name:ident, [$($extra:ident => $extra_doc:literal),*], $preset:expr, $summary:literal) => {
+        #[doc = $summary]
+        ///
+        /// Parameters
+        /// ----------
+        /// coupon_per_period : float
+        ///     Finite signed coupon proportion per qualifying observation; not annualized.
+        /// initial_spot : float
+        ///     Positive reference spot used to normalize downside losses.
+        /// knock_in_level : float
+        ///     Positive strict expiry knock-in threshold and upper settlement strike.
+        /// knock_out_level : float
+        ///     Positive inclusive knock-out threshold.
+        $(
+            #[doc = concat!(stringify!($extra), " : float")]
+            #[doc = concat!("    ", $extra_doc)]
+        )*
+        /// observation_dates : iterable of datetime.date
+        ///     Strictly increasing observation and payment dates within life.
+        /// effective_date : datetime.date
+        ///     Inclusive first contract date.
+        /// expiry_date : datetime.date
+        ///     Final contract date at midnight UTC.
+        /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+        ///     Strictly prior events; None means unknown history.
+        /// principal_ratio : float, optional
+        ///     Nonnegative normalized principal, independent of coupon and loss components.
+        ///
+        /// Returns
+        /// -------
+        /// PhoenixOption
+        ///     Validated owned contract, with expiry-only knock-in and zero lower strike.
+        ///
+        /// Raises
+        /// ------
+        /// InvalidInputError
+        ///     If numeric terms, dates or observations are invalid.
+        ///
+        /// Notes
+        /// -----
+        /// Coupons pay once per qualifying observation, including a qualifying KO,
+        /// with no day accrual or memory. KO and coupon barriers are inclusive;
+        /// knock-in is strict. Observation dates are payment dates; no observation
+        /// is implicitly added at expiry. Calendar and history consistency are
+        /// checked during pricing. Past coupons are settled.
+        #[pyfunction]
+        #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, knock_out_level, $($extra,)* observation_dates, effective_date, expiry_date, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
+        #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
+        pub(crate) fn $name(
+            coupon_per_period: &Bound<'_, PyAny>,
+            initial_spot: &Bound<'_, PyAny>,
+            knock_in_level: &Bound<'_, PyAny>,
+            knock_out_level: &Bound<'_, PyAny>,
+            $($extra: &Bound<'_, PyAny>,)*
+            observation_dates: &Bound<'_, PyAny>,
+            effective_date: &Bound<'_, PyAny>,
+            expiry_date: &Bound<'_, PyAny>,
+            barrier_state: Option<&Bound<'_, PyAny>>,
+            #[pyo3(from_py_with = real)] principal_ratio: f64,
+        ) -> PyResult<PhoenixOption> {
+            let mut terms = kiyosi::PhoenixPresetTerms::new(
+                real(coupon_per_period)?, real(initial_spot)?, real(knock_in_level)?,
+                real(knock_out_level)?, date(effective_date)?, date(expiry_date)?,
+                dates(observation_dates)?,
+            );
+            $(let $extra = real($extra)?;)*
+            if let Some(value) = barrier_state {
+                terms.barrier_state = state(value)?;
+            }
+            terms.principal_ratio = principal_ratio;
+            Ok(PhoenixOption(domain(terms.expand($preset))?))
+        }
+    };
+}
+phoenix_preset!(
+    fixed_coupon_note,
+    [],
+    kiyosi::PhoenixPreset::FixedCouponNote,
+    "Creates an FCN with an unconditional fixed coupon at each surviving observation."
+);
+phoenix_preset!(
+    digital_coupon_note,
+    [coupon_barrier_level => "Finite nonnegative inclusive coupon threshold, also tested on KO dates."],
+    kiyosi::PhoenixPreset::DigitalCouponNote { coupon_barrier_level },
+    "Creates a DCN with fixed per-period coupons conditional on an explicit barrier."
+);
 
 #[derive(FromPyObject)]
 pub(crate) enum AutocallableInstrument<'py> {

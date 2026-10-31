@@ -37,7 +37,7 @@ fn conditional_period_coupons_are_inclusive_and_independent_of_principal_and_los
     let engine = QuadratureAutocallableEngine::default();
     for coupon in [0.365, -0.365] {
         let mut terms = terms();
-        terms.coupon_rate = coupon;
+        terms.coupon = PhoenixCoupon::Annual(coupon);
         terms.principal_ratio = 0.25;
         let note = PhoenixOption::new(terms).unwrap();
         for (spot, base, paid) in [
@@ -72,7 +72,7 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
             t.knock_in_level = 100.0;
             t.lower_strike = lower;
             t.principal_ratio = 0.25;
-            t.coupon_rate = coupon;
+            t.coupon = PhoenixCoupon::Annual(coupon);
             t.observations =
                 autocallable_observations(&[end], &[100.0], None, Some(&[100.0])).unwrap();
             let put = |strike| {
@@ -126,7 +126,7 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
         Error::InvalidInput(_)
     ));
     let mut t = terms();
-    t.coupon_rate = f64::NAN;
+    t.coupon = PhoenixCoupon::Annual(f64::NAN);
     assert!(matches!(
         PhoenixOption::new(t).unwrap_err(),
         Error::InvalidInput(_)
@@ -230,7 +230,7 @@ fn unconditional_coupon_tails_match_a_two_date_cashflow_portfolio() {
     let middle = date(7, 1);
     let end = Date::new(2026, 1, 1).unwrap();
     let mut t = terms();
-    t.coupon_rate = -0.5;
+    t.coupon = PhoenixCoupon::Annual(-0.5);
     t.lower_strike = 100.0;
     t.principal_ratio = 0.25;
     t.expiry_date = end;

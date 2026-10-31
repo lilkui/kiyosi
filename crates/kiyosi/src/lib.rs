@@ -103,9 +103,9 @@ pub use instruments::asian::{
 pub use instruments::autocallable::{
     AutocallableBarrierState, AutocallableNote, AutocallableObservation, AutocallableTerms,
     BinarySnowballOption, BinarySnowballTerms, DEFAULT_PRINCIPAL_RATIO, KnockInObservationMode,
-    PhoenixOption, PhoenixTerms, SnowballCouponTerms, SnowballOption, SnowballPreset,
-    SnowballPresetTerms, SnowballTerms, TernarySnowballOption, TernarySnowballTerms,
-    autocallable_observations,
+    PhoenixCoupon, PhoenixOption, PhoenixPreset, PhoenixPresetTerms, PhoenixTerms,
+    SnowballCouponTerms, SnowballOption, SnowballPreset, SnowballPresetTerms, SnowballTerms,
+    TernarySnowballOption, TernarySnowballTerms, autocallable_observations,
 };
 pub use instruments::barrier::{
     BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType, ObservationMode,

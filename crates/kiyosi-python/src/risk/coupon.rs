@@ -7,7 +7,7 @@ use crate::instruments::autocallable::AutocallableInstrument;
 use crate::market::PricingContext;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-/// Solve the annual coupon that reproduces an observed price.
+/// Solve the coupon that reproduces an observed price in the contract's units.
 ///
 /// Parameters
 /// ----------
@@ -26,14 +26,14 @@ use pyo3::prelude::*;
 ///     coupon with observation coupons; preserve_maturity_coupon keeps it
 ///     fixed. Omit this keyword for Phoenix, or pass Ellipsis (the displayed default).
 /// lower_bound : float, optional
-///     Finite lower annual coupon in decimal units; defaults to 0. Signed
+///     Finite lower coupon in the contract's units; defaults to 0. Signed
 ///     bounds are accepted when the resulting contract terms are valid.
 /// upper_bound : float, optional
-///     Finite upper annual coupon, above lower_bound; defaults to 2.
+///     Finite upper coupon in the same units, above lower_bound; defaults to 2.
 /// price_tolerance : float, optional
 ///     Positive finite absolute price residual tolerance; defaults to 1e-8.
 /// parameter_tolerance : float, optional
-///     Positive finite bracket-width tolerance in decimal units; defaults to
+///     Positive finite bracket-width tolerance in the contract's coupon units; defaults to
 ///     1e-8. Either tolerance can stop iteration.
 /// max_iterations : int, optional
 ///     Positive iteration budget; defaults to 100.
@@ -42,7 +42,8 @@ use pyo3::prelude::*;
 /// Returns
 /// -------
 /// float
-///     Annual parameter in decimal units.
+///     Annual coupon rate, or fixed per-period proportion for FCN/DCN and other
+///     per-period Phoenix contracts.
 ///
 /// Raises
 /// ------
@@ -64,7 +65,8 @@ use pyo3::prelude::*;
 /// Snowballs shift all observation coupons relative to the first one,
 /// including past observations. The maturity convention controls the final
 /// coupon; the ternary minimum remains fixed. Phoenix replaces its
-/// conditional annual coupon. Trials use affine interpolation, then bisection.
+/// conditional coupon without changing its units. Bounds, parameter tolerance
+/// and result use the same units. Trials use affine interpolation, then bisection.
 #[pyfunction]
 #[pyo3(signature = (engine, instrument, context, observed_price, *, quote_convention=crate::conversions::OMITTED, lower_bound=kiyosi::ImpliedCouponSettings::default().lower_bound, upper_bound=kiyosi::ImpliedCouponSettings::default().upper_bound, price_tolerance=kiyosi::ImpliedCouponSettings::default().price_tolerance, parameter_tolerance=kiyosi::ImpliedCouponSettings::default().parameter_tolerance, max_iterations=kiyosi::ImpliedCouponSettings::default().max_iterations))]
 #[expect(clippy::too_many_arguments, reason = "explicit Python solver controls")]

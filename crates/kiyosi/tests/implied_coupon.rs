@@ -188,7 +188,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
                 < 1e-8
         );
     }
-    assert_eq!(note.terms().coupon_rate, 0.08);
+    assert_eq!(note.terms().coupon, PhoenixCoupon::Annual(0.08));
 }
 
 #[test]
