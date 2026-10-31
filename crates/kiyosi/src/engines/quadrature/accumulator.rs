@@ -115,7 +115,7 @@ impl PricingEngine<Accumulator> for Request {
         price(option, context, self.settings, &mut curve)
     }
     fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
-        QuadratureAccumulatorEngine::default().volatility_affects_price(option, context)
+        option.volatility_affects_price(context)
     }
 }
 
