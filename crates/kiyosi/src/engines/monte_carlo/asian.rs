@@ -1,5 +1,5 @@
-use crate::engines::analytic::asian::{checked, coverage, scaled_exp, settlement};
-use crate::engines::analytic::barrier::log_ratio;
+use crate::engines::analytic::asian::{checked, coverage, settlement};
+use crate::engines::analytic::barrier::{log_ratio, scaled_cash};
 use crate::instruments::asian::AverageTerms;
 use crate::{
     ArithmeticAveragePriceOption, Error, GeometricAveragePriceOption, GreeksRequest,
@@ -190,8 +190,8 @@ impl MonteCarloAsianEngine {
                     .price(&ArithmeticAveragePriceOption(o.clone()), context)?
             } else if o.sign() > 0.0 {
                 checked(
-                    scaled_exp(context.spot_price(), log_discount + weight.ln() + log_mean)
-                        + scaled_exp(accrued, log_discount),
+                    scaled_cash(context.spot_price(), log_discount + weight.ln() + log_mean)
+                        + scaled_cash(accrued, log_discount),
                 )?
             } else {
                 0.0

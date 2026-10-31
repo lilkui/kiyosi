@@ -1,5 +1,5 @@
 pub(crate) use super::barrier::checked;
-use super::barrier::{checked_with_scale, log_ratio};
+use super::barrier::{checked_with_scale, log_ratio, scaled_cash};
 use crate::{ArithmeticAveragePriceOption, GeometricAveragePriceOption};
 use crate::{
     Error, GreeksRequest, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
@@ -239,8 +239,8 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
             }
             let accrued = (o.realized * (elapsed / period) - o.terms.strike()).max(0.0);
             return checked(
-                scaled_exp(accrued, -rate * tau)
-                    + scaled_exp(context.spot_price(), m1.ln() + scale.ln() - rate * tau),
+                scaled_cash(accrued, -rate * tau)
+                    + scaled_cash(context.spot_price(), m1.ln() + scale.ln() - rate * tau),
             );
         }
         let overflow = !strike.is_finite();
@@ -296,8 +296,8 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
             {
                 return Ok(0.0);
             }
-            let asset = scaled_exp(context.spot_price(), log_scale + m1.ln() - rate * tau);
-            let cash = scaled_exp(cash_strike, -rate * tau);
+            let asset = scaled_cash(context.spot_price(), log_scale + m1.ln() - rate * tau);
+            let cash = scaled_cash(cash_strike, -rate * tau);
             return checked_with_scale(
                 price_scale * o.sign() * (asset - cash),
                 price_scale * asset.max(cash),
@@ -317,16 +317,6 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
         )
     }
 }
-pub(crate) fn scaled_exp(amount: f64, exponent: f64) -> f64 {
-    let factor = exponent.exp();
-    let value = amount * factor;
-    if factor.is_normal() && value.is_finite() {
-        value
-    } else {
-        (amount.ln() + exponent).exp()
-    }
-}
-
 macro_rules! asian_analytics {
     ($engine:ident, $option:ident) => {
         impl $engine {
