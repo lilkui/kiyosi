@@ -47,6 +47,40 @@ pub(crate) fn initial<T: AutocallableTerms>(
         coupon,
     }
 }
+
+pub(crate) fn future_event_dates<T: AutocallableTerms>(
+    note: &AutocallableNote<T>,
+    context: &PricingContext,
+    daily: bool,
+) -> Result<Vec<Date>> {
+    let mut dates = Vec::new();
+    if daily {
+        let mut date = context.valuation_date();
+        loop {
+            if date.start_of_day() > context.valuation_time()
+                && context.calendar().is_trading_day(date)
+            {
+                dates.push(date);
+            }
+            if date == note.expiry_date() {
+                break;
+            }
+            date = date.add_days(1)?;
+        }
+    } else {
+        dates.extend(
+            note.observations()
+                .iter()
+                .map(|r| r.date)
+                .filter(|d| d.start_of_day() > context.valuation_time()),
+        );
+        if dates.last() != Some(&note.expiry_date()) {
+            dates.push(note.expiry_date());
+        }
+    }
+    Ok(dates)
+}
+
 pub(crate) fn validate<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     context: &PricingContext,

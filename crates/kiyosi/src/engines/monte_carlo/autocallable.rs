@@ -1,7 +1,7 @@
 use super::{Moments, MonteCarloEstimate, MonteCarloSettings};
 use super::{estimate, path_samples, scaled_value, unstable};
 use crate::instruments::autocallable::pricing::{
-    fixed_value, initial, validate, volatility_affects_price,
+    fixed_value, future_event_dates, initial, validate, volatility_affects_price,
 };
 use crate::{
     AutocallableNote, AutocallableTerms, GreeksRequest, KnockInObservationMode,
@@ -152,29 +152,7 @@ impl MonteCarloAutocallableEngine {
             && !state.knocked_in
             && note.knock_in_affects_payoff();
         let valuation = context.valuation_time();
-        let mut dates = Vec::new();
-        if daily {
-            let mut date = context.valuation_date();
-            loop {
-                if date.start_of_day() > valuation && context.calendar().is_trading_day(date) {
-                    dates.push(date);
-                }
-                if date == note.expiry_date() {
-                    break;
-                }
-                date = date.add_days(1)?;
-            }
-        } else {
-            dates.extend(
-                note.observations()
-                    .iter()
-                    .map(|r| r.date)
-                    .filter(|d| d.start_of_day() > valuation),
-            );
-            if dates.last() != Some(&note.expiry_date()) {
-                dates.push(note.expiry_date());
-            }
-        }
+        let dates = future_event_dates(note, context, daily)?;
         let mut previous = valuation;
         let sigma = model.volatility();
         let mut steps = Vec::with_capacity(dates.len());

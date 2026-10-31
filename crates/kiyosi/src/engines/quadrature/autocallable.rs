@@ -5,7 +5,7 @@ use super::gaussian::{
 use super::{QuadratureSettings, flat_rates};
 use crate::engines::analytic::barrier::log_ratio;
 use crate::instruments::autocallable::pricing::{
-    fixed_value, initial, validate, volatility_affects_price,
+    fixed_value, future_event_dates, initial, validate, volatility_affects_price,
 };
 use crate::{
     AutocallableNote, AutocallableObservation, AutocallableTerms, BlackScholesMertonParameters,
@@ -333,31 +333,7 @@ fn price<T: AutocallableTerms>(
     let layers = note.view().knock_in_observation_mode == KnockInObservationMode::EveryTradingDay
         && !state.knocked_in
         && note.knock_in_affects_payoff();
-    let mut dates = Vec::new();
-    if layers {
-        let mut date = context.valuation_date();
-        loop {
-            if date.start_of_day() > context.valuation_time()
-                && context.calendar().is_trading_day(date)
-            {
-                dates.push(date);
-            }
-            if date == note.expiry_date() {
-                break;
-            }
-            date = date.add_days(1)?;
-        }
-    } else {
-        dates.extend(
-            note.observations()
-                .iter()
-                .map(|r| r.date)
-                .filter(|d| d.start_of_day() > context.valuation_time()),
-        );
-        if dates.last() != Some(&note.expiry_date()) {
-            dates.push(note.expiry_date());
-        }
-    }
+    let dates = future_event_dates(note, context, layers)?;
     if let Some(curve) = prepared.as_ref().filter(|c| {
         c.option == *note
             && c.model == *context.model_parameters()
