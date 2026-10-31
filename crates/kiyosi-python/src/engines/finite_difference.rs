@@ -207,28 +207,14 @@ fd_engine!(
     FiniteDifferenceVanillaEngine,
     binomial::VanillaInstrument<'_>,
     |py, option, engine, context, request, shifts| {
-        match option {
-            binomial::VanillaInstrument::European(option) => {
-                let option = &option.0;
-                py.detach(|| engine.price(option, context))
-            }
-            binomial::VanillaInstrument::American(option) => {
-                let option = &option.0;
-                py.detach(|| engine.price(option, context))
-            }
-        }
+        binomial::with_vanilla!(option, option, py.detach(|| engine.price(option, context)))
     },
     {
-        match option {
-            binomial::VanillaInstrument::European(option) => {
-                let option = &option.0;
-                py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-            }
-            binomial::VanillaInstrument::American(option) => {
-                let option = &option.0;
-                py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-            }
-        }
+        binomial::with_vanilla!(
+            option,
+            option,
+            py.detach(|| engine.price_with_greeks(option, context, request, shifts))
+        )
     }
 );
 fd_engine!(
@@ -261,28 +247,14 @@ fd_engine!(
     FiniteDifferenceBinaryBarrierEngine,
     binary_barrier::BinaryInstrument<'_>,
     |py, option, engine, context, request, shifts| {
-        match option {
-            binary_barrier::BinaryInstrument::Binary(option) => {
-                let option = &option.0;
-                py.detach(|| engine.price(option, context))
-            }
-            binary_barrier::BinaryInstrument::Touch(option) => {
-                let option = &option.0;
-                py.detach(|| engine.price(option, context))
-            }
-        }
+        binary_barrier::with_binary!(option, option, py.detach(|| engine.price(option, context)))
     },
     {
-        match option {
-            binary_barrier::BinaryInstrument::Binary(option) => {
-                let option = &option.0;
-                py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-            }
-            binary_barrier::BinaryInstrument::Touch(option) => {
-                let option = &option.0;
-                py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-            }
-        }
+        binary_barrier::with_binary!(
+            option,
+            option,
+            py.detach(|| engine.price_with_greeks(option, context, request, shifts))
+        )
     }
 );
 

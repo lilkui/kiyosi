@@ -1,5 +1,5 @@
 use crate::error::domain;
-use crate::instruments::binary_barrier::BinaryInstrument;
+use crate::instruments::binary_barrier::{self, BinaryInstrument};
 use crate::market::PricingContext;
 use crate::risk;
 use pyo3::prelude::*;
@@ -42,16 +42,11 @@ impl AnalyticBinaryBarrierEngine {
         context: &PricingContext,
     ) -> PyResult<f64> {
         let context = &context.0;
-        match instrument {
-            BinaryInstrument::Binary(option) => {
-                let option = &option.0;
-                domain(py.detach(|| kiyosi::AnalyticBinaryBarrierEngine.price(option, context)))
-            }
-            BinaryInstrument::Touch(option) => {
-                let option = &option.0;
-                domain(py.detach(|| kiyosi::AnalyticBinaryBarrierEngine.price(option, context)))
-            }
-        }
+        binary_barrier::with_binary!(
+            instrument,
+            option,
+            domain(py.detach(|| kiyosi::AnalyticBinaryBarrierEngine.price(option, context)))
+        )
     }
     /// Return the price and selected sensitivities.
     ///
@@ -111,22 +106,14 @@ impl AnalyticBinaryBarrierEngine {
             time_shift_days,
         };
         let context = &context.0;
-        let result = match instrument {
-            BinaryInstrument::Binary(option) => {
-                let option = &option.0;
-                py.detach(|| {
-                    kiyosi::AnalyticBinaryBarrierEngine
-                        .price_with_greeks(option, context, request, shifts)
-                })
-            }
-            BinaryInstrument::Touch(option) => {
-                let option = &option.0;
-                py.detach(|| {
-                    kiyosi::AnalyticBinaryBarrierEngine
-                        .price_with_greeks(option, context, request, shifts)
-                })
-            }
-        };
+        let result = binary_barrier::with_binary!(
+            instrument,
+            option,
+            py.detach(|| {
+                kiyosi::AnalyticBinaryBarrierEngine
+                    .price_with_greeks(option, context, request, shifts)
+            })
+        );
         Ok(risk::PricingResult(domain(result)?))
     }
 }

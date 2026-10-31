@@ -97,3 +97,19 @@ pub(crate) enum AsianInstrument<'py> {
     Geometric(PyRef<'py, GeometricAveragePriceOption>),
     Arithmetic(PyRef<'py, ArithmeticAveragePriceOption>),
 }
+
+macro_rules! with_asian {
+    ($instrument:expr, $option:ident, $body:expr) => {{
+        match $instrument {
+            $crate::instruments::asian::AsianInstrument::Geometric(option) => {
+                let $option = &option.0;
+                $body
+            }
+            $crate::instruments::asian::AsianInstrument::Arithmetic(option) => {
+                let $option = &option.0;
+                $body
+            }
+        }
+    }};
+}
+pub(crate) use with_asian;

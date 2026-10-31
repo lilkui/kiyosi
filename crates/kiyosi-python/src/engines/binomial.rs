@@ -14,6 +14,22 @@ pub(crate) enum VanillaInstrument<'py> {
     American(PyRef<'py, american::AmericanOption>),
 }
 
+macro_rules! with_vanilla {
+    ($instrument:expr, $option:ident, $body:expr) => {{
+        match $instrument {
+            $crate::engines::binomial::VanillaInstrument::European(option) => {
+                let $option = &option.0;
+                $body
+            }
+            $crate::engines::binomial::VanillaInstrument::American(option) => {
+                let $option = &option.0;
+                $body
+            }
+        }
+    }};
+}
+pub(crate) use with_vanilla;
+
 macro_rules! binomial_engine {
     ($name:ident, $instrument:ty, |$py:ident, $option:ident, $engine:ident, $context:ident, $request:ident, $shifts:ident| $price:expr, $analysis:expr) => {
         /// Flat-rate Cox-Ross-Rubinstein tree pricing.
@@ -149,28 +165,14 @@ binomial_engine!(
     CoxRossRubinsteinVanillaEngine,
     VanillaInstrument<'_>,
     |py, option, engine, context, request, shifts| {
-        match option {
-            VanillaInstrument::European(option) => {
-                let option = &option.0;
-                py.detach(|| engine.price(option, context))
-            }
-            VanillaInstrument::American(option) => {
-                let option = &option.0;
-                py.detach(|| engine.price(option, context))
-            }
-        }
+        with_vanilla!(option, option, py.detach(|| engine.price(option, context)))
     },
     {
-        match option {
-            VanillaInstrument::European(option) => {
-                let option = &option.0;
-                py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-            }
-            VanillaInstrument::American(option) => {
-                let option = &option.0;
-                py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-            }
-        }
+        with_vanilla!(
+            option,
+            option,
+            py.detach(|| engine.price_with_greeks(option, context, request, shifts))
+        )
     }
 );
 binomial_engine!(

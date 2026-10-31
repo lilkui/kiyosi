@@ -130,16 +130,11 @@ pub(crate) fn implied_volatility(
     );
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloAsianEngine>>() {
         let engine = engine.0;
-        return match extract_instrument::<asian::AsianInstrument<'_>>(instrument)? {
-            asian::AsianInstrument::Geometric(option) => {
-                let option = &option.0;
-                solve!(engine, option)
-            }
-            asian::AsianInstrument::Arithmetic(option) => {
-                let option = &option.0;
-                solve!(engine, option)
-            }
-        };
+        return asian::with_asian!(
+            extract_instrument::<asian::AsianInstrument<'_>>(instrument)?,
+            option,
+            solve!(engine, option)
+        );
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloDigitalEngine>>() {
         let engine = engine.0;
@@ -149,31 +144,21 @@ pub(crate) fn implied_volatility(
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, monte_carlo::MonteCarloVanillaEngine>>() {
         let engine = engine.0;
-        return match extract_instrument::<binomial::VanillaInstrument<'_>>(instrument)? {
-            binomial::VanillaInstrument::European(option) => {
-                let option = &option.0;
-                solve!(engine, option)
-            }
-            binomial::VanillaInstrument::American(option) => {
-                let option = &option.0;
-                solve!(engine, option)
-            }
-        };
+        return binomial::with_vanilla!(
+            extract_instrument::<binomial::VanillaInstrument<'_>>(instrument)?,
+            option,
+            solve!(engine, option)
+        );
     }
     if let Ok(engine) =
         engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceVanillaEngine>>()
     {
         let engine = engine.0;
-        return match extract_instrument::<binomial::VanillaInstrument<'_>>(instrument)? {
-            binomial::VanillaInstrument::European(option) => {
-                let option = &option.0;
-                solve!(engine, option)
-            }
-            binomial::VanillaInstrument::American(option) => {
-                let option = &option.0;
-                solve!(engine, option)
-            }
-        };
+        return binomial::with_vanilla!(
+            extract_instrument::<binomial::VanillaInstrument<'_>>(instrument)?,
+            option,
+            solve!(engine, option)
+        );
     }
     if let Ok(engine) =
         engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceDigitalEngine>>()
@@ -198,16 +183,7 @@ pub(crate) fn implied_volatility(
     if let Ok(engine) = engine.extract::<PyRef<'_, binomial::CoxRossRubinsteinVanillaEngine>>() {
         let engine = engine.0;
         let option = extract_instrument::<binomial::VanillaInstrument<'_>>(instrument)?;
-        return match option {
-            binomial::VanillaInstrument::European(option) => {
-                let option = &option.0;
-                solve!(engine, option)
-            }
-            binomial::VanillaInstrument::American(option) => {
-                let option = &option.0;
-                solve!(engine, option)
-            }
-        };
+        return binomial::with_vanilla!(option, option, solve!(engine, option));
     }
     if let Ok(engine) = engine.extract::<PyRef<'_, binomial::CoxRossRubinsteinDigitalEngine>>() {
         let engine = engine.0;
@@ -219,28 +195,18 @@ pub(crate) fn implied_volatility(
         engine.extract::<PyRef<'_, finite_difference::FiniteDifferenceBinaryBarrierEngine>>()
     {
         let engine = engine.0;
-        return match extract_instrument::<binary_barrier::BinaryInstrument<'_>>(instrument)? {
-            binary_barrier::BinaryInstrument::Binary(option) => {
-                let option = &option.0;
-                solve!(engine, option)
-            }
-            binary_barrier::BinaryInstrument::Touch(option) => {
-                let option = &option.0;
-                solve!(engine, option)
-            }
-        };
+        return binary_barrier::with_binary!(
+            extract_instrument::<binary_barrier::BinaryInstrument<'_>>(instrument)?,
+            option,
+            solve!(engine, option)
+        );
     }
     if engine.is_instance_of::<analytic::binary_barrier::AnalyticBinaryBarrierEngine>() {
-        return match extract_instrument::<binary_barrier::BinaryInstrument<'_>>(instrument)? {
-            binary_barrier::BinaryInstrument::Binary(option) => {
-                let option = &option.0;
-                solve!(kiyosi::AnalyticBinaryBarrierEngine, option)
-            }
-            binary_barrier::BinaryInstrument::Touch(option) => {
-                let option = &option.0;
-                solve!(kiyosi::AnalyticBinaryBarrierEngine, option)
-            }
-        };
+        return binary_barrier::with_binary!(
+            extract_instrument::<binary_barrier::BinaryInstrument<'_>>(instrument)?,
+            option,
+            solve!(kiyosi::AnalyticBinaryBarrierEngine, option)
+        );
     }
     solve_with!(
         analytic::double_barrier::AnalyticDoubleBarrierEngine,

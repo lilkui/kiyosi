@@ -168,16 +168,11 @@ sampling_settings!(
     ) -> PyResult<f64> {
         let engine = self.0;
         let context = &context.0;
-        match instrument {
-            binomial::VanillaInstrument::European(option) => {
-                let option = &option.0;
-                domain(py.detach(|| engine.price(option, context)))
-            }
-            binomial::VanillaInstrument::American(option) => {
-                let option = &option.0;
-                domain(py.detach(|| engine.price(option, context)))
-            }
-        }
+        binomial::with_vanilla!(
+            instrument,
+            option,
+            domain(py.detach(|| engine.price(option, context)))
+        )
     },
     /// Return the price and estimated sampling uncertainty.
     ///
@@ -539,16 +534,11 @@ sampling_settings!(
     ) -> PyResult<f64> {
         let engine = self.0;
         let context = &context.0;
-        match instrument {
-            asian::AsianInstrument::Geometric(option) => {
-                let option = &option.0;
-                domain(py.detach(|| engine.price(option, context)))
-            }
-            asian::AsianInstrument::Arithmetic(option) => {
-                let option = &option.0;
-                domain(py.detach(|| engine.price(option, context)))
-            }
-        }
+        asian::with_asian!(
+            instrument,
+            option,
+            domain(py.detach(|| engine.price(option, context)))
+        )
     },
     /// Return the price and selected sensitivities.
     ///
@@ -591,16 +581,11 @@ sampling_settings!(
         let request = risk::greeks_request(greeks, all_greeks)?;
         let engine = self.0;
         let context = &context.0;
-        let result = match instrument {
-            asian::AsianInstrument::Geometric(option) => {
-                let option = &option.0;
-                domain(py.detach(|| engine.price_with_greeks(option, context, request)))
-            }
-            asian::AsianInstrument::Arithmetic(option) => {
-                let option = &option.0;
-                domain(py.detach(|| engine.price_with_greeks(option, context, request)))
-            }
-        }?;
+        let result = asian::with_asian!(
+            instrument,
+            option,
+            domain(py.detach(|| engine.price_with_greeks(option, context, request)))
+        )?;
         Ok(risk::PricingResult(result))
     }
 );

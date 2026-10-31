@@ -655,3 +655,19 @@ pub(crate) enum BinaryInstrument<'py> {
     Binary(PyRef<'py, BinaryBarrierOption>),
     Touch(PyRef<'py, TouchOption>),
 }
+
+macro_rules! with_binary {
+    ($instrument:expr, $option:ident, $body:expr) => {{
+        match $instrument {
+            $crate::instruments::binary_barrier::BinaryInstrument::Binary(option) => {
+                let $option = &option.0;
+                $body
+            }
+            $crate::instruments::binary_barrier::BinaryInstrument::Touch(option) => {
+                let $option = &option.0;
+                $body
+            }
+        }
+    }};
+}
+pub(crate) use with_binary;
