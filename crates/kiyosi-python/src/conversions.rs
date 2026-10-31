@@ -7,66 +7,14 @@ pub(crate) fn instrument<'a, 'py, T>(value: &'a Bound<'py, PyAny>) -> PyResult<T
 where
     T: FromPyObject<'a, 'py>,
 {
-    pricing_argument(value, |value| {
-        use crate::instruments::*;
-        value.is_instance_of::<vanilla::EuropeanOption>()
-            || value.is_instance_of::<american::AmericanOption>()
-            || value.is_instance_of::<digital::CashOrNothingOption>()
-            || value.is_instance_of::<digital::AssetOrNothingOption>()
-            || value.is_instance_of::<asian::GeometricAveragePriceOption>()
-            || value.is_instance_of::<asian::ArithmeticAveragePriceOption>()
-            || value.is_instance_of::<barrier::BarrierOption>()
-            || value.is_instance_of::<binary_barrier::BinaryBarrierOption>()
-            || value.is_instance_of::<binary_barrier::TouchOption>()
-            || value.is_instance_of::<double_barrier::DoubleBarrierOption>()
-            || value.is_instance_of::<double_touch::DoubleTouchOption>()
-            || value.is_instance_of::<autocallable::SnowballOption>()
-            || value.is_instance_of::<autocallable::BinarySnowballOption>()
-            || value.is_instance_of::<autocallable::TernarySnowballOption>()
-            || value.is_instance_of::<autocallable::PhoenixOption>()
-            || value.is_instance_of::<accumulator::Accumulator>()
-            || value.is_instance_of::<range_accrual::RangeAccrualOption>()
-    })
+    pricing_argument(value, crate::registration::is_instrument)
 }
 
 pub(crate) fn engine<'a, 'py, T>(value: &'a Bound<'py, PyAny>) -> PyResult<T>
 where
     T: FromPyObject<'a, 'py>,
 {
-    pricing_argument(value, |value| {
-        use crate::engines::*;
-        value.is_instance_of::<analytic::european::AnalyticEuropeanEngine>()
-            || value.is_instance_of::<analytic::american::BjerksundStenslandVanillaEngine>()
-            || value.is_instance_of::<analytic::digital::AnalyticDigitalEngine>()
-            || value.is_instance_of::<analytic::asian::AnalyticGeometricAveragePriceEngine>()
-            || value
-                .is_instance_of::<analytic::asian::TurnbullWakemanArithmeticAveragePriceEngine>()
-            || value.is_instance_of::<analytic::barrier::AnalyticBarrierEngine>()
-            || value.is_instance_of::<analytic::binary_barrier::AnalyticBinaryBarrierEngine>()
-            || value.is_instance_of::<analytic::double_barrier::AnalyticDoubleBarrierEngine>()
-            || value.is_instance_of::<analytic::range_accrual::AnalyticRangeAccrualEngine>()
-            || value.is_instance_of::<binomial::CoxRossRubinsteinVanillaEngine>()
-            || value.is_instance_of::<binomial::CoxRossRubinsteinDigitalEngine>()
-            || value.is_instance_of::<binomial::CoxRossRubinsteinBarrierEngine>()
-            || value.is_instance_of::<quadrature::QuadratureBarrierEngine>()
-            || value.is_instance_of::<quadrature::QuadratureAutocallableEngine>()
-            || value.is_instance_of::<quadrature::QuadratureAccumulatorEngine>()
-            || value.is_instance_of::<finite_difference::FiniteDifferenceVanillaEngine>()
-            || value.is_instance_of::<finite_difference::FiniteDifferenceDigitalEngine>()
-            || value.is_instance_of::<finite_difference::FiniteDifferenceBarrierEngine>()
-            || value.is_instance_of::<finite_difference::FiniteDifferenceDoubleBarrierEngine>()
-            || value.is_instance_of::<finite_difference::FiniteDifferenceBinaryBarrierEngine>()
-            || value.is_instance_of::<finite_difference::FiniteDifferenceDoubleTouchEngine>()
-            || value.is_instance_of::<finite_difference::FiniteDifferenceAutocallableEngine>()
-            || value.is_instance_of::<finite_difference::FiniteDifferenceAccumulatorEngine>()
-            || value.is_instance_of::<monte_carlo::MonteCarloVanillaEngine>()
-            || value.is_instance_of::<monte_carlo::MonteCarloDigitalEngine>()
-            || value.is_instance_of::<monte_carlo::MonteCarloAsianEngine>()
-            || value.is_instance_of::<monte_carlo::MonteCarloBarrierEngine>()
-            || value.is_instance_of::<monte_carlo::MonteCarloDoubleBarrierEngine>()
-            || value.is_instance_of::<monte_carlo::MonteCarloAutocallableEngine>()
-            || value.is_instance_of::<monte_carlo::MonteCarloAccumulatorEngine>()
-    })
+    pricing_argument(value, crate::registration::is_engine)
 }
 
 fn pricing_argument<'a, 'py, T>(
