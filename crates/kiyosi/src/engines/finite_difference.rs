@@ -362,17 +362,23 @@ fn native(
     Ok((result, Some(upper)))
 }
 
-fn analysis(
-    option: &impl OptionContract,
-    payoff: Payoff,
+fn analysis<I: OptionContract>(
+    option: &I,
     context: &PricingContext,
     mut settings: FiniteDifferenceSettings,
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
+    native: impl Fn(
+        &I,
+        &PricingContext,
+        FiniteDifferenceSettings,
+        GreeksRequest,
+        NumericalShiftSettings,
+    ) -> Result<(PricingResult, Option<f64>)>,
 ) -> Result<PricingResult> {
     request.validate()?;
     shifts.validate()?;
-    let (result, upper) = native(option, payoff, context, settings, request, shifts)?;
+    let (result, upper) = native(option, context, settings, request, shifts)?;
     settings.asset_upper_boundary = upper.or(settings.asset_upper_boundary);
     crate::risk::numerical::complete_greeks(
         option,
@@ -381,7 +387,7 @@ fn analysis(
         shifts,
         true,
         result,
-        |context, request| Ok(native(option, payoff, context, settings, request, shifts)?.0),
+        |context, request| Ok(native(option, context, settings, request, shifts)?.0),
     )
 }
 
@@ -565,13 +571,16 @@ macro_rules! vanilla_pricing {
                 request: GreeksRequest,
                 settings: NumericalShiftSettings,
             ) -> Result<PricingResult> {
+                let payoff = Payoff::vanilla(option.option_type(), option.strike(), $american);
                 analysis(
                     option,
-                    Payoff::vanilla(option.option_type(), option.strike(), $american),
                     context,
                     self.settings,
                     request,
                     settings,
+                    |option, context, settings, request, shifts| {
+                        native(option, payoff, context, settings, request, shifts)
+                    },
                 )
             }
         }
@@ -635,13 +644,16 @@ impl FiniteDifferenceDigitalEngine {
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         flat_rates(context)?;
+        let payoff = Payoff::digital(option);
         analysis(
             option,
-            Payoff::digital(option),
             context,
             self.settings,
             request,
             shifts,
+            |option, context, settings, request, shifts| {
+                native(option, payoff, context, settings, request, shifts)
+            },
         )
     }
 }

@@ -70,20 +70,7 @@ impl FiniteDifferenceAutocallableEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        request.validate()?;
-        shifts.validate()?;
-        let mut settings = self.settings;
-        let (result, upper) = native(option, context, settings, request, shifts)?;
-        settings.asset_upper_boundary = upper.or(settings.asset_upper_boundary);
-        crate::risk::numerical::complete_greeks(
-            option,
-            context,
-            request,
-            shifts,
-            true,
-            result,
-            |context, request| Ok(native(option, context, settings, request, shifts)?.0),
-        )
+        analysis(option, context, self.settings, request, shifts, native)
     }
 }
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
