@@ -80,7 +80,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Build the source distribution
         run: uv build --sdist --out-dir dist
-      - name: Build and test all five CPython wheels from the sdist
+      - name: Build and test selected CPython wheels from the sdist
         run: uv run --no-project --with cibuildwheel -- cibuildwheel dist/*.tar.gz --output-dir dist
       - name: Keep one source distribution from Linux
         if: runner.os == 'Windows'

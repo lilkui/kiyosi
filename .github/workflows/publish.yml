@@ -67,21 +67,38 @@ jobs:
           github-token: ${{ github.token }}
           path: dist
 
-      - name: Check complete ordinary-wheel matrix and source distribution
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import tomllib
+      - uses: astral-sh/setup-uv@v7
 
-          version = tomllib.loads(Path('Cargo.toml').read_text())['workspace']['package']['version']
-          distributions = Path('dist')
-          for abi in ('cp311', 'cp312', 'cp313', 'cp314', 'cp315'):
-              for platform in ('manylinux*_x86_64', 'win_amd64'):
-                  pattern = f'kiyosi-{version}-{abi}-{abi}-{platform}.whl'
+      - name: Check configured wheel matrix and source distribution
+        run: |
+          uv run --no-project --with cibuildwheel -- python - <<'PY'
+          import subprocess
+          import sys
+          import tomllib
+          from pathlib import Path
+
+          version = tomllib.loads(Path("Cargo.toml").read_text())["workspace"]["package"][
+              "version"
+          ]
+          distributions = Path("dist")
+          command = [sys.executable, "-m", "cibuildwheel", "--print-build-identifiers"]
+          expected_wheels = set()
+          for platform in ("linux", "windows"):
+              identifiers = subprocess.check_output(
+                  [*command, "--platform", platform], text=True
+              ).split()
+              assert identifiers, platform
+              for identifier in identifiers:
+                  abi, platform_tag = identifier.split("-", 1)
+                  platform_tag = platform_tag.replace("manylinux_", "manylinux*_")
+                  pattern = f"kiyosi-{version}-{abi}-{abi}-{platform_tag}.whl"
                   matches = list(distributions.glob(pattern))
                   assert len(matches) == 1, (pattern, matches)
-          assert len(list(distributions.glob('*.whl'))) == 10
-          assert [path.name for path in distributions.glob('*.tar.gz')] == [f'kiyosi-{version}.tar.gz']
+                  expected_wheels.update(matches)
+          assert set(distributions.glob("*.whl")) == expected_wheels
+          assert [path.name for path in distributions.glob("*.tar.gz")] == [
+              f"kiyosi-{version}.tar.gz"
+          ]
           PY
 
       - name: Publish distributions
