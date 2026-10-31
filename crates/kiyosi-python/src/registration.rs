@@ -151,8 +151,6 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     module.add_class::<analytic::digital::AnalyticDigitalEngine>()?;
     module.add_class::<engines::binomial::CoxRossRubinsteinVanillaEngine>()?;
     module.add_class::<engines::binomial::CoxRossRubinsteinDigitalEngine>()?;
-    module.add_class::<engines::quadrature::QuadratureVanillaEngine>()?;
-    module.add_class::<engines::quadrature::QuadratureDigitalEngine>()?;
     module.add_class::<engines::monte_carlo::MonteCarloVanillaEngine>()?;
     module.add_class::<engines::monte_carlo::MonteCarloDigitalEngine>()?;
     module.add_class::<engines::monte_carlo::MonteCarloBarrierEngine>()?;

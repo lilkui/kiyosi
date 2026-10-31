@@ -12,7 +12,6 @@ INSTRUMENTS = {
 }
 ENGINES = {
     "AnalyticDigitalEngine",
-    "QuadratureDigitalEngine",
     "FiniteDifferenceDigitalEngine",
 }
 # Whole-day time stencils see greater curvature for digital asset payouts.
@@ -50,7 +49,7 @@ def configuration():
     config["profiles"] = g.expand_profiles(config)
     g.require(
         {p["engine"] for p in config["profiles"]} == ENGINES
-        and len(config["profiles"]) == 3,
+        and len(config["profiles"]) == len(ENGINES),
         "invalid digital engines",
     )
     for profile in config["profiles"]:

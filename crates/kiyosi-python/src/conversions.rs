@@ -48,8 +48,6 @@ where
             || value.is_instance_of::<binomial::CoxRossRubinsteinVanillaEngine>()
             || value.is_instance_of::<binomial::CoxRossRubinsteinDigitalEngine>()
             || value.is_instance_of::<binomial::CoxRossRubinsteinBarrierEngine>()
-            || value.is_instance_of::<quadrature::QuadratureVanillaEngine>()
-            || value.is_instance_of::<quadrature::QuadratureDigitalEngine>()
             || value.is_instance_of::<quadrature::QuadratureBarrierEngine>()
             || value.is_instance_of::<quadrature::QuadratureAutocallableEngine>()
             || value.is_instance_of::<quadrature::QuadratureAccumulatorEngine>()

@@ -683,22 +683,6 @@ class FiniteDifferenceDigitalEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
-class QuadratureVanillaEngine:
-    def __init__(self) -> None: ...
-    def price(self, instrument: EuropeanOption, context: PricingContext) -> float: ...
-    def price_with_greeks(
-        self,
-        instrument: EuropeanOption,
-        context: PricingContext,
-        greeks: Greek | Iterable[Greek] | None = None,
-        *,
-        all_greeks: bool = False,
-        spot_shift: float = ...,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
-    ) -> PricingResult: ...
-
 MonteCarloSampling: TypeAlias = Literal["pseudo_random", "sobol"]
 
 class MonteCarloVanillaEngine:
@@ -1002,26 +986,6 @@ class MonteCarloAsianEngine:
         all_greeks: bool = False,
     ) -> PricingResult: ...
 
-class QuadratureDigitalEngine:
-    def __init__(self) -> None: ...
-    def price(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-    ) -> float: ...
-    def price_with_greeks(
-        self,
-        instrument: CashOrNothingOption | AssetOrNothingOption,
-        context: PricingContext,
-        greeks: Greek | Iterable[Greek] | None = None,
-        *,
-        all_greeks: bool = False,
-        spot_shift: float = ...,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
-    ) -> PricingResult: ...
-
 Greek: TypeAlias = Literal[
     "delta",
     "gamma",
@@ -1180,7 +1144,7 @@ def implied_volatility(
 ) -> float: ...
 @overload
 def implied_volatility(
-    engine: AnalyticEuropeanEngine | QuadratureVanillaEngine | MonteCarloVanillaEngine,
+    engine: AnalyticEuropeanEngine | MonteCarloVanillaEngine,
     instrument: EuropeanOption,
     context: PricingContext,
     observed_price: float,
@@ -1196,7 +1160,6 @@ def implied_volatility(
     engine: AnalyticDigitalEngine
     | MonteCarloDigitalEngine
     | CoxRossRubinsteinDigitalEngine
-    | QuadratureDigitalEngine
     | FiniteDifferenceDigitalEngine,
     instrument: CashOrNothingOption | AssetOrNothingOption,
     context: PricingContext,

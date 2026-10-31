@@ -11,9 +11,9 @@ Kiyosi is a Rust derivatives pricing library with a Python API. It supports pric
 
 | Product | Pricing algorithms |
 | --- | --- |
-| European vanilla options | BSM closed form, CRR, quadrature, FD, MC |
+| European vanilla options | BSM closed form, CRR, FD, MC |
 | American vanilla options | Bjerksund–Stensland 2002 approximation, CRR, FD, least-squares MC |
-| Cash-or-nothing and asset-or-nothing digitals | Closed form, CRR, quadrature, FD, MC |
+| Cash-or-nothing and asset-or-nothing digitals | Closed form, CRR, FD, MC |
 | Geometric-average Asian options | Continuous-average closed form, MC |
 | Arithmetic-average Asian options | Turnbull–Wakeman continuous-average approximation, MC |
 | Single-barrier options | Analytic, CRR, quadrature, FD, MC |
@@ -24,6 +24,10 @@ Kiyosi is a Rust derivatives pricing library with a Python API. It supports pric
 | Phoenix notes | Quadrature, FD, MC |
 | Accumulators | Quadrature, FD, MC |
 | Range accruals | Sum of analytic BSM range probabilities |
+
+The terminal `QuadratureVanillaEngine` and `QuadratureDigitalEngine` have been removed.
+Use `AnalyticEuropeanEngine` and `AnalyticDigitalEngine` for these products.
+Barrier, autocallable and accumulator quadrature engines remain available.
 
 ## Installation
 

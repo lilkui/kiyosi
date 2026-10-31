@@ -14,6 +14,13 @@ from kiyosi import _native, instruments, market, pricing
 
 
 class PackageTests(unittest.TestCase):
+    def test_terminal_quadrature_engines_are_not_exported(self):
+        for name in ("QuadratureVanillaEngine", "QuadratureDigitalEngine"):
+            with self.subTest(engine=name):
+                self.assertFalse(hasattr(_native, name))
+                self.assertFalse(hasattr(pricing, name))
+                self.assertNotIn(name, pricing.__all__)
+
     def test_greek_methods_expose_declared_keyword_controls(self):
         stub = ast.parse((Path(kiyosi.__file__).parent / "_native.pyi").read_text())
         for node in stub.body:

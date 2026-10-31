@@ -11,9 +11,9 @@ Kiyosi 是一个用 Rust 编写的衍生品定价库，提供 Python API。它�
 
 | 金融产品 | 定价算法 |
 | --- | --- |
-| 欧式香草期权 | BSM 解析解、CRR、数值积分、FD、MC |
+| 欧式香草期权 | BSM 解析解、CRR、FD、MC |
 | 美式香草期权 | Bjerksund–Stensland 2002 近似、CRR、FD、最小二乘 MC |
-| 数字期权（现金或资产支付） | 解析解、CRR、数值积分、FD、MC |
+| 数字期权（现金或资产支付） | 解析解、CRR、FD、MC |
 | 几何平均亚式期权 | 连续平均解析解、MC |
 | 算术平均亚式期权 | Turnbull–Wakeman 连续平均近似、MC |
 | 单障碍期权 | 解析法、CRR、数值积分、FD、MC |
@@ -24,6 +24,10 @@ Kiyosi 是一个用 Rust 编写的衍生品定价库，提供 Python API。它�
 | 凤凰结构 | 数值积分、FD、MC |
 | 累购 | 数值积分、FD、MC |
 | 区间累计 | BSM 区间概率解析求和 |
+
+终端积分引擎 `QuadratureVanillaEngine` 和 `QuadratureDigitalEngine` 已移除，
+请分别使用 `AnalyticEuropeanEngine` 和 `AnalyticDigitalEngine`。
+障碍、自动赎回和累购产品的积分引擎仍然可用。
 
 ## 安装
 

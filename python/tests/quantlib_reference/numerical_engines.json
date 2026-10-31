@@ -7,39 +7,6 @@
       }
     },
     {
-      "engine": "QuadratureVanillaEngine",
-      "settings": {},
-      "shifts": {
-        "spot_shift": 0.01,
-        "volatility_shift": 0.0001,
-        "rate_shift": 0.0001
-      },
-      "tolerances": {
-        "price": 0.000001,
-        "speed": 1e-7,
-        "theta": 0.00003,
-        "charm": 1e-7,
-        "color": 1e-8,
-        "vega": 0.000001,
-        "vanna": 1e-7,
-        "zomma": 1e-7,
-        "rho": 0.000001
-      },
-      "numerical_tolerances": {
-        "price": 0.000001,
-        "delta": 0.000001,
-        "gamma": 1e-7,
-        "speed": 1e-7,
-        "theta": 0.00003,
-        "charm": 1e-7,
-        "color": 1e-8,
-        "vega": 0.000001,
-        "vanna": 1e-7,
-        "zomma": 1e-7,
-        "rho": 0.000001
-      }
-    },
-    {
       "engine": "FiniteDifferenceVanillaEngine",
       "settings": {
         "asset_step_count": 400,

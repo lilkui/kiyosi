@@ -84,7 +84,7 @@ pub use engines::monte_carlo::{
 };
 pub use engines::quadrature::{
     QuadratureAccumulatorEngine, QuadratureAutocallableEngine, QuadratureBarrierEngine,
-    QuadratureDigitalEngine, QuadratureSettings, QuadratureVanillaEngine,
+    QuadratureSettings,
 };
 pub use error::{Error, Result};
 pub use instruments::accumulator::{Accumulator, AccumulatorTerms};

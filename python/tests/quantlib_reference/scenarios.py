@@ -8,7 +8,6 @@ from . import oracle as g
 
 NUMERICAL_ENGINES = {
     "CoxRossRubinsteinVanillaEngine": {"step_count"},
-    "QuadratureVanillaEngine": set(),
     "FiniteDifferenceVanillaEngine": {
         "asset_step_count",
         "time_step_count",

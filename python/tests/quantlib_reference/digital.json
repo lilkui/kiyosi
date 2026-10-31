@@ -15,11 +15,6 @@
       "boundary_settings": {}
     },
     {
-      "engine": "QuadratureDigitalEngine",
-      "settings": {},
-      "boundary_settings": {}
-    },
-    {
       "engine": "FiniteDifferenceDigitalEngine",
       "settings": {
         "asset_step_count": 1602,

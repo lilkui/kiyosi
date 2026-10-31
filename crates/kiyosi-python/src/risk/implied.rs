@@ -194,15 +194,6 @@ pub(crate) fn implied_volatility(
             &extract_instrument::<PyRef<'_, double_touch::DoubleTouchOption>>(instrument)?.0;
         return solve!(engine, option);
     }
-    if engine.is_instance_of::<quadrature::QuadratureVanillaEngine>() {
-        let option = &extract_instrument::<PyRef<'_, EuropeanOption>>(instrument)?.0;
-        return solve!(kiyosi::QuadratureVanillaEngine, option);
-    }
-    if engine.is_instance_of::<quadrature::QuadratureDigitalEngine>() {
-        let instrument = extract_instrument::<digital::DigitalInstrument<'_>>(instrument)?;
-        let option = instrument.contract();
-        return solve!(kiyosi::QuadratureDigitalEngine, option);
-    }
     if let Ok(engine) = engine.extract::<PyRef<'_, binomial::CoxRossRubinsteinVanillaEngine>>() {
         let engine = engine.0;
         let option = extract_instrument::<binomial::VanillaInstrument<'_>>(instrument)?;
