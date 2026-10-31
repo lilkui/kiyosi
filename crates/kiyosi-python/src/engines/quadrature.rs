@@ -5,458 +5,214 @@ use crate::market::PricingContext;
 use crate::risk;
 use pyo3::prelude::*;
 
-/// Flat-rate quadrature pricing with immutable integration settings.
-///
-/// Parameters
-/// ----------
-/// asset_step_count : int, optional
-///     Spatial grid budget, at least 4; defaults to 512.
-/// integration_standard_deviations : float, optional
-///     Positive finite integration extent in standard deviations; defaults to 8.
-///
-/// Raises
-/// ------
-/// InvalidInputError
-///     If asset_step_count is below 4 or integration_standard_deviations
-///     is nonpositive or non-finite.
-///
-/// See Also
-/// --------
-/// BarrierOption : Supported contract.
-#[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct QuadratureBarrierEngine(pub(crate) kiyosi::QuadratureBarrierEngine);
+macro_rules! quadrature_engine {
+    ($(#[$doc:meta])* $name:ident, $instrument:ty,
+     |$py:ident, $option:ident, $engine:ident, $context:ident, $request:ident, $shifts:ident| $price:expr, $analysis:expr) => {
+        /// Flat-rate quadrature pricing with immutable integration settings.
+        ///
+        /// Parameters
+        /// ----------
+        /// asset_step_count : int, optional
+        ///     Spatial grid budget, at least 4; defaults to 512.
+        /// integration_standard_deviations : float, optional
+        ///     Positive finite integration extent in standard deviations; defaults to 8.
+        ///
+        /// Raises
+        /// ------
+        /// InvalidInputError
+        ///     If asset_step_count is below 4 or integration_standard_deviations
+        ///     is nonpositive or non-finite.
+        ///
+        $(#[$doc])*
+        #[pyclass(frozen, module = "kiyosi._native")]
+        pub(crate) struct $name(pub(crate) kiyosi::$name);
 
-#[pymethods]
-impl QuadratureBarrierEngine {
-    #[new]
-    #[pyo3(signature = (*, asset_step_count=kiyosi::QuadratureSettings::default().asset_step_count, integration_standard_deviations=kiyosi::QuadratureSettings::default().integration_standard_deviations))]
-    fn new(
-        #[pyo3(from_py_with = integer)] asset_step_count: i32,
-        #[pyo3(from_py_with = real)] integration_standard_deviations: f64,
-    ) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::QuadratureBarrierEngine::new(
-            kiyosi::QuadratureSettings {
-                asset_step_count,
-                integration_standard_deviations,
-            },
-        ))?))
-    }
-    /// Return the configured spatial grid budget.
-    #[getter]
-    fn asset_step_count(&self) -> i32 {
-        self.0.settings().asset_step_count
-    }
-    /// Return the integration extent in standard deviations.
-    #[getter]
-    fn integration_standard_deviations(&self) -> f64 {
-        self.0.settings().integration_standard_deviations
-    }
-    fn __repr__(&self) -> String {
-        format!(
-            "QuadratureBarrierEngine(asset_step_count={}, integration_standard_deviations={})",
-            self.asset_step_count(),
-            self.integration_standard_deviations()
-        )
-    }
-    /// Return the price without changing the instrument or context.
-    ///
-    /// Parameters
-    /// ----------
-    /// instrument : object
-    ///     Supported contract; see the engine class for accepted types.
-    /// context : PricingContext
-    ///     Market snapshot and valuation instant.
-    ///
-    /// Returns
-    /// -------
-    /// float
-    ///     Present value of remaining contractual payments.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If domain validation, engine applicability or numerical pricing fails.
-    fn price(
-        &self,
-        py: Python<'_>,
-        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, BarrierOption>,
-        context: &PricingContext,
-    ) -> PyResult<f64> {
-        let engine = self.0;
-        let option = &instrument.0;
-        let context = &context.0;
-        domain(py.detach(|| engine.price(option, context)))
-    }
-    /// Return the price and selected sensitivities.
-    ///
-    /// Parameters
-    /// ----------
-    /// instrument : object
-    ///     Supported contract; see the engine class for accepted types.
-    /// context : PricingContext
-    ///     Market snapshot and valuation instant.
-    /// greeks : str or iterable of str, optional
-    ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// all_greeks : bool, optional
-    ///     Request every measure; omit `greeks` when True. Defaults to False.
-    /// spot_shift : float, optional
-    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
-    /// volatility_shift : float, optional
-    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
-    /// rate_shift : float, optional
-    ///     Positive finite parallel risk-free-rate bump in decimal units;
-    ///     defaults to 0.0001.
-    /// time_shift_days : int, optional
-    ///     Positive forward/backward time bump in calendar days; defaults to 1.
-    ///     All bumps are validated even when analytic Greeks are available.
-    ///
-    /// Returns
-    /// -------
-    /// PricingResult
-    ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-    ///     including every Greek at expiry. Units follow PricingResult.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If requests, shifts, pricing or a feasible bumped valuation fails.
-    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "explicit Python pricing controls"
-    )]
-    fn price_with_greeks(
-        &self,
-        py: Python<'_>,
-        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, BarrierOption>,
-        context: &PricingContext,
-        greeks: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::boolean)] all_greeks: bool,
-        #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
-        #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
-        #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
-        #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
-    ) -> PyResult<risk::PricingResult> {
-        let request = risk::greeks_request(greeks, all_greeks)?;
-        let shifts = kiyosi::NumericalShiftSettings {
-            spot_shift,
-            volatility_shift,
-            rate_shift,
-            time_shift_days,
-        };
-        let engine = self.0;
-        let option = &instrument.0;
-        let context = &context.0;
-        Ok(risk::PricingResult(domain(py.detach(|| {
-            engine.price_with_greeks(option, context, request, shifts)
-        }))?))
-    }
+        #[pymethods]
+        impl $name {
+            #[new]
+            #[pyo3(signature = (*, asset_step_count=kiyosi::QuadratureSettings::default().asset_step_count, integration_standard_deviations=kiyosi::QuadratureSettings::default().integration_standard_deviations))]
+            fn new(
+                #[pyo3(from_py_with = integer)] asset_step_count: i32,
+                #[pyo3(from_py_with = real)] integration_standard_deviations: f64,
+            ) -> PyResult<Self> {
+                Ok(Self(domain(kiyosi::$name::new(
+                    kiyosi::QuadratureSettings {
+                        asset_step_count,
+                        integration_standard_deviations,
+                    },
+                ))?))
+            }
+            /// Returns the configured spatial grid budget.
+            #[getter]
+            fn asset_step_count(&self) -> i32 {
+                self.0.settings().asset_step_count
+            }
+            /// Returns the integration extent in standard deviations.
+            #[getter]
+            fn integration_standard_deviations(&self) -> f64 {
+                self.0.settings().integration_standard_deviations
+            }
+            fn __repr__(&self) -> String {
+                format!(
+                    concat!(
+                        stringify!($name),
+                        "(asset_step_count={}, integration_standard_deviations={})"
+                    ),
+                    self.asset_step_count(),
+                    self.integration_standard_deviations()
+                )
+            }
+            /// Returns the price without changing the instrument or context.
+            ///
+            /// Parameters
+            /// ----------
+            /// instrument : object
+            ///     Supported contract; see the engine class for accepted types.
+            /// context : PricingContext
+            ///     Market snapshot and valuation instant.
+            ///
+            /// Returns
+            /// -------
+            /// float
+            ///     Present value of remaining contractual payments.
+            ///
+            /// Raises
+            /// ------
+            /// KiyosiError
+            ///     If domain validation, engine applicability or numerical pricing fails.
+            fn price(
+                &self,
+                py: Python<'_>,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
+                context: &PricingContext,
+            ) -> PyResult<f64> {
+                let $py = py;
+                let $option = instrument;
+                let $engine = self.0;
+                let $context = &context.0;
+                domain($price)
+            }
+            /// Returns the price and selected sensitivities.
+            ///
+            /// Parameters
+            /// ----------
+            /// instrument : object
+            ///     Supported contract; see the engine class for accepted types.
+            /// context : PricingContext
+            ///     Market snapshot and valuation instant.
+            /// greeks : str or iterable of str, optional
+            ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
+            /// all_greeks : bool, optional
+            ///     Request every measure; omit `greeks` when True. Defaults to False.
+            /// spot_shift : float, optional
+            ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+            /// volatility_shift : float, optional
+            ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+            /// rate_shift : float, optional
+            ///     Positive finite parallel risk-free-rate bump in decimal units;
+            ///     defaults to 0.0001.
+            /// time_shift_days : int, optional
+            ///     Positive forward/backward time bump in calendar days; defaults to 1.
+            ///     All bumps are validated even when analytic Greeks are available.
+            ///
+            /// Returns
+            /// -------
+            /// PricingResult
+            ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
+            ///     including every Greek at expiry. Units follow PricingResult.
+            ///
+            /// Raises
+            /// ------
+            /// KiyosiError
+            ///     If requests, shifts, pricing or a feasible bumped valuation fails.
+            #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
+            #[expect(
+                clippy::too_many_arguments,
+                reason = "explicit Python pricing controls"
+            )]
+            fn price_with_greeks(
+                &self,
+                py: Python<'_>,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
+                context: &PricingContext,
+                greeks: Option<&Bound<'_, PyAny>>,
+                #[pyo3(from_py_with = crate::conversions::boolean)] all_greeks: bool,
+                #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
+                #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
+                #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
+                #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
+            ) -> PyResult<risk::PricingResult> {
+                let $py = py;
+                let $request = risk::greeks_request(greeks, all_greeks)?;
+                let $shifts = kiyosi::NumericalShiftSettings {
+                    spot_shift,
+                    volatility_shift,
+                    rate_shift,
+                    time_shift_days,
+                };
+                let $option = instrument;
+                let $engine = self.0;
+                let $context = &context.0;
+                Ok(risk::PricingResult(domain($analysis)?))
+            }
+        }
+    };
 }
-/// Flat-rate quadrature pricing with immutable integration settings.
-///
-/// Parameters
-/// ----------
-/// asset_step_count : int, optional
-///     Spatial grid budget, at least 4; defaults to 512.
-/// integration_standard_deviations : float, optional
-///     Positive finite integration extent in standard deviations; defaults to 8.
-///
-/// Raises
-/// ------
-/// InvalidInputError
-///     If asset_step_count is below 4 or integration_standard_deviations
-///     is nonpositive or non-finite.
-///
-/// See Also
-/// --------
-/// Accumulator : Supported contract.
-#[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct QuadratureAccumulatorEngine(pub(crate) kiyosi::QuadratureAccumulatorEngine);
 
-#[pymethods]
-impl QuadratureAccumulatorEngine {
-    #[new]
-    #[pyo3(signature = (*, asset_step_count=kiyosi::QuadratureSettings::default().asset_step_count, integration_standard_deviations=kiyosi::QuadratureSettings::default().integration_standard_deviations))]
-    fn new(
-        #[pyo3(from_py_with = integer)] asset_step_count: i32,
-        #[pyo3(from_py_with = real)] integration_standard_deviations: f64,
-    ) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::QuadratureAccumulatorEngine::new(
-            kiyosi::QuadratureSettings {
-                asset_step_count,
-                integration_standard_deviations,
-            },
-        ))?))
+quadrature_engine!(
+    /// See Also
+    /// --------
+    /// BarrierOption : Supported contract.
+    QuadratureBarrierEngine,
+    PyRef<'_, BarrierOption>,
+    |py, option, engine, context, request, shifts| {
+        let option = &option.0;
+        py.detach(|| engine.price(option, context))
+    },
+    {
+        let option = &option.0;
+        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
     }
-    /// Return the configured spatial grid budget.
-    #[getter]
-    fn asset_step_count(&self) -> i32 {
-        self.0.settings().asset_step_count
-    }
-    /// Return the integration extent in standard deviations.
-    #[getter]
-    fn integration_standard_deviations(&self) -> f64 {
-        self.0.settings().integration_standard_deviations
-    }
-    fn __repr__(&self) -> String {
-        format!(
-            "QuadratureAccumulatorEngine(asset_step_count={}, integration_standard_deviations={})",
-            self.asset_step_count(),
-            self.integration_standard_deviations()
-        )
-    }
-    /// Return the price without changing the instrument or context.
-    ///
-    /// Parameters
-    /// ----------
-    /// instrument : object
-    ///     Supported contract; see the engine class for accepted types.
-    /// context : PricingContext
-    ///     Market snapshot and valuation instant.
-    ///
-    /// Returns
-    /// -------
-    /// float
-    ///     Present value of remaining contractual payments.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If domain validation, engine applicability or numerical pricing fails.
-    fn price(
-        &self,
-        py: Python<'_>,
-        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, Accumulator>,
-        context: &PricingContext,
-    ) -> PyResult<f64> {
-        let engine = self.0;
-        let option = &instrument.0;
-        let context = &context.0;
-        domain(py.detach(|| engine.price(option, context)))
-    }
-    /// Return the price and selected sensitivities.
-    ///
-    /// Parameters
-    /// ----------
-    /// instrument : object
-    ///     Supported contract; see the engine class for accepted types.
-    /// context : PricingContext
-    ///     Market snapshot and valuation instant.
-    /// greeks : str or iterable of str, optional
-    ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// all_greeks : bool, optional
-    ///     Request every measure; omit `greeks` when True. Defaults to False.
-    /// spot_shift : float, optional
-    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
-    /// volatility_shift : float, optional
-    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
-    /// rate_shift : float, optional
-    ///     Positive finite parallel risk-free-rate bump in decimal units;
-    ///     defaults to 0.0001.
-    /// time_shift_days : int, optional
-    ///     Positive forward/backward time bump in calendar days; defaults to 1.
-    ///     All bumps are validated even when analytic Greeks are available.
-    ///
-    /// Returns
-    /// -------
-    /// PricingResult
-    ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-    ///     including every Greek at expiry. Units follow PricingResult.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If requests, shifts, pricing or a feasible bumped valuation fails.
-    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "explicit Python pricing controls"
-    )]
-    fn price_with_greeks(
-        &self,
-        py: Python<'_>,
-        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<'_, Accumulator>,
-        context: &PricingContext,
-        greeks: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::boolean)] all_greeks: bool,
-        #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
-        #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
-        #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
-        #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
-    ) -> PyResult<risk::PricingResult> {
-        let request = risk::greeks_request(greeks, all_greeks)?;
-        let shifts = kiyosi::NumericalShiftSettings {
-            spot_shift,
-            volatility_shift,
-            rate_shift,
-            time_shift_days,
-        };
-        let engine = self.0;
-        let option = &instrument.0;
-        let context = &context.0;
-        Ok(risk::PricingResult(domain(py.detach(|| {
-            engine.price_with_greeks(option, context, request, shifts)
-        }))?))
-    }
-}
-/// Flat-rate quadrature pricing with immutable integration settings.
-///
-/// Parameters
-/// ----------
-/// asset_step_count : int, optional
-///     Spatial grid budget, at least 4; defaults to 512.
-/// integration_standard_deviations : float, optional
-///     Positive finite integration extent in standard deviations; defaults to 8.
-///
-/// Raises
-/// ------
-/// InvalidInputError
-///     If asset_step_count is below 4 or integration_standard_deviations
-///     is nonpositive or non-finite.
-///
-/// See Also
-/// --------
-/// SnowballOption : Supported contract.
-/// BinarySnowballOption : Supported contract.
-/// TernarySnowballOption : Supported contract.
-/// PhoenixOption : Supported contract.
-///
-/// Notes
-/// -----
-/// Preserves cash and asset payments below the spatial grid, including
-/// zero-lower-strike losses after large spot declines.
-#[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct QuadratureAutocallableEngine(pub(crate) kiyosi::QuadratureAutocallableEngine);
+);
 
-#[pymethods]
-impl QuadratureAutocallableEngine {
-    #[new]
-    #[pyo3(signature = (*, asset_step_count=kiyosi::QuadratureSettings::default().asset_step_count, integration_standard_deviations=kiyosi::QuadratureSettings::default().integration_standard_deviations))]
-    fn new(
-        #[pyo3(from_py_with = integer)] asset_step_count: i32,
-        #[pyo3(from_py_with = real)] integration_standard_deviations: f64,
-    ) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::QuadratureAutocallableEngine::new(
-            kiyosi::QuadratureSettings {
-                asset_step_count,
-                integration_standard_deviations,
-            },
-        ))?))
+quadrature_engine!(
+    /// See Also
+    /// --------
+    /// Accumulator : Supported contract.
+    QuadratureAccumulatorEngine,
+    PyRef<'_, Accumulator>,
+    |py, option, engine, context, request, shifts| {
+        let option = &option.0;
+        py.detach(|| engine.price(option, context))
+    },
+    {
+        let option = &option.0;
+        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
     }
-    /// Return the configured spatial grid budget.
-    #[getter]
-    fn asset_step_count(&self) -> i32 {
-        self.0.settings().asset_step_count
-    }
-    /// Return the integration extent in standard deviations.
-    #[getter]
-    fn integration_standard_deviations(&self) -> f64 {
-        self.0.settings().integration_standard_deviations
-    }
-    fn __repr__(&self) -> String {
-        format!(
-            "QuadratureAutocallableEngine(asset_step_count={}, integration_standard_deviations={})",
-            self.asset_step_count(),
-            self.integration_standard_deviations()
-        )
-    }
-    /// Return the price without changing the instrument or context.
+);
+
+quadrature_engine!(
+    /// See Also
+    /// --------
+    /// SnowballOption : Supported contract.
+    /// BinarySnowballOption : Supported contract.
+    /// TernarySnowballOption : Supported contract.
+    /// PhoenixOption : Supported contract.
     ///
-    /// Parameters
-    /// ----------
-    /// instrument : object
-    ///     Supported contract; see the engine class for accepted types.
-    /// context : PricingContext
-    ///     Market snapshot and valuation instant.
-    ///
-    /// Returns
-    /// -------
-    /// float
-    ///     Present value of remaining contractual payments.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If domain validation, engine applicability or numerical pricing fails.
-    fn price(
-        &self,
-        py: Python<'_>,
-        instrument: &Bound<'_, PyAny>,
-        context: &PricingContext,
-    ) -> PyResult<f64> {
-        let engine = self.0;
-        let context = &context.0;
+    /// Notes
+    /// -----
+    /// Preserves cash and asset payments below the spatial grid, including
+    /// zero-lower-strike losses after large spot declines.
+    QuadratureAutocallableEngine,
+    Bound<'_, PyAny>,
+    |py, option, engine, context, request, shifts| {
+        autocallable::with_note!(&option, note, py.detach(|| engine.price(note, context)))
+    },
+    {
         autocallable::with_note!(
-            instrument,
-            option,
-            domain(py.detach(|| engine.price(option, context)))
+            &option,
+            note,
+            py.detach(|| engine.price_with_greeks(note, context, request, shifts))
         )
     }
-    /// Return the price and selected sensitivities.
-    ///
-    /// Parameters
-    /// ----------
-    /// instrument : object
-    ///     Supported contract; see the engine class for accepted types.
-    /// context : PricingContext
-    ///     Market snapshot and valuation instant.
-    /// greeks : str or iterable of str, optional
-    ///     Greek names. Required unless `all_greeks=True`; duplicates are ignored.
-    /// all_greeks : bool, optional
-    ///     Request every measure; omit `greeks` when True. Defaults to False.
-    /// spot_shift : float, optional
-    ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
-    /// volatility_shift : float, optional
-    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
-    /// rate_shift : float, optional
-    ///     Positive finite parallel risk-free-rate bump in decimal units;
-    ///     defaults to 0.0001.
-    /// time_shift_days : int, optional
-    ///     Positive forward/backward time bump in calendar days; defaults to 1.
-    ///     All bumps are validated even when analytic Greeks are available.
-    ///
-    /// Returns
-    /// -------
-    /// PricingResult
-    ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-    ///     including every Greek at expiry. Units follow PricingResult.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If requests, shifts, pricing or a feasible bumped valuation fails.
-    #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "explicit Python pricing controls"
-    )]
-    fn price_with_greeks(
-        &self,
-        py: Python<'_>,
-        instrument: &Bound<'_, PyAny>,
-        context: &PricingContext,
-        greeks: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::boolean)] all_greeks: bool,
-        #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
-        #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
-        #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
-        #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
-    ) -> PyResult<risk::PricingResult> {
-        let request = risk::greeks_request(greeks, all_greeks)?;
-        let shifts = kiyosi::NumericalShiftSettings {
-            spot_shift,
-            volatility_shift,
-            rate_shift,
-            time_shift_days,
-        };
-        let engine = self.0;
-        let context = &context.0;
-        autocallable::with_note!(
-            instrument,
-            option,
-            Ok(risk::PricingResult(domain(py.detach(|| {
-                engine.price_with_greeks(option, context, request, shifts)
-            }),)?))
-        )
-    }
-}
+);
