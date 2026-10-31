@@ -1,4 +1,5 @@
 use crate::conversions::{integer, real};
+use crate::engines::ScalarRequest;
 use crate::error::domain;
 use crate::instruments::{accumulator::Accumulator, autocallable, barrier::BarrierOption};
 use crate::market::PricingContext;
@@ -86,11 +87,7 @@ macro_rules! quadrature_engine {
                 #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &PricingContext,
             ) -> PyResult<f64> {
-                let $py = py;
-                let $option = instrument;
-                let $engine = self.0;
-                let $context = &context.0;
-                domain($price)
+                self.evaluate(py, instrument, context, ScalarRequest::Price)
             }
             /// Returns the price and selected sensitivities.
             ///
@@ -156,6 +153,22 @@ macro_rules! quadrature_engine {
                 Ok(risk::PricingResult(domain($analysis)?))
             }
         }
+        impl $name {
+            pub(crate) fn evaluate(
+                &self,
+                py: Python<'_>,
+                instrument: $instrument,
+                context: &PricingContext,
+                request: ScalarRequest,
+            ) -> PyResult<f64> {
+                let $request = request;
+                let $py = py;
+                let $option = instrument;
+                let $engine = self.0;
+                let $context = &context.0;
+                domain($price)
+            }
+        }
     };
 }
 
@@ -167,7 +180,7 @@ quadrature_engine!(
     PyRef<'_, BarrierOption>,
     |py, option, engine, context, request, shifts| {
         let option = &option.0;
-        py.detach(|| engine.price(option, context))
+        py.detach(|| request.evaluate(&engine, option, context))
     },
     {
         let option = &option.0;
@@ -183,7 +196,7 @@ quadrature_engine!(
     PyRef<'_, Accumulator>,
     |py, option, engine, context, request, shifts| {
         let option = &option.0;
-        py.detach(|| engine.price(option, context))
+        py.detach(|| request.evaluate(&engine, option, context))
     },
     {
         let option = &option.0;
@@ -206,7 +219,7 @@ quadrature_engine!(
     QuadratureAutocallableEngine,
     Bound<'_, PyAny>,
     |py, option, engine, context, request, shifts| {
-        autocallable::with_note!(&option, note, py.detach(|| engine.price(note, context)))
+        autocallable::with_note!(&option, note, py.detach(|| request.evaluate(&engine, note, context)))
     },
     {
         autocallable::with_note!(

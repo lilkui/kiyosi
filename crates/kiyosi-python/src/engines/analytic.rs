@@ -36,9 +36,7 @@ macro_rules! analytic_engine {
                 >,
                 context: &PricingContext,
             ) -> PyResult<f64> {
-                let option = &instrument.0;
-                let context = &context.0;
-                domain(py.detach(|| kiyosi::$engine.price(option, context)))
+                self.evaluate(py, instrument, context, $crate::engines::ScalarRequest::Price)
             }
             /// Returns the price and selected sensitivities.
             ///
@@ -97,6 +95,19 @@ macro_rules! analytic_engine {
                 Ok(risk::PricingResult(domain(py.detach(|| {
                     kiyosi::$engine.price_with_greeks(option, context, request, shifts)
                 }))?))
+            }
+        }
+        impl $engine {
+            pub(crate) fn evaluate(
+                &self,
+                py: Python<'_>,
+                instrument: PyRef<'_, $option>,
+                context: &PricingContext,
+                request: $crate::engines::ScalarRequest,
+            ) -> PyResult<f64> {
+                let option = &instrument.0;
+                let context = &context.0;
+                domain(py.detach(|| request.evaluate(&kiyosi::$engine, option, context)))
             }
         }
     };

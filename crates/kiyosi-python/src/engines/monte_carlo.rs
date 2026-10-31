@@ -1,4 +1,5 @@
 use crate::conversions::{boolean, check_integer, integer};
+use crate::engines::ScalarRequest;
 use crate::engines::binomial;
 use crate::error::domain;
 use crate::instruments::accumulator;
@@ -52,10 +53,7 @@ macro_rules! sampling_settings {
                 #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &PricingContext,
             ) -> PyResult<f64> {
-                let option = &instrument.0;
-                let engine = self.0;
-                let context = &context.0;
-                domain(py.detach(|| engine.price(option, context)))
+                self.evaluate(py, instrument, context, ScalarRequest::Price)
             },
             /// Return the price and selected sensitivities.
             ///
@@ -101,6 +99,20 @@ macro_rules! sampling_settings {
                 Ok(risk::PricingResult(domain(py.detach(|| engine.price_with_greeks(option, context, request, spot_shift)))?))
             }
         );
+        impl $engine {
+            pub(crate) fn evaluate(
+                &self,
+                py: Python<'_>,
+                instrument: $instrument,
+                context: &PricingContext,
+                request: ScalarRequest,
+            ) -> PyResult<f64> {
+                let option = &instrument.0;
+                let engine = self.0;
+                let context = &context.0;
+                domain(py.detach(|| request.evaluate(&engine, option, context)))
+            }
+        }
     };
     (@structured $engine:ident, $instrument:ty,
      |$py:ident, $option:ident, $core:ident, $context:ident, $request:ident, $shifts:ident|
@@ -134,11 +146,7 @@ macro_rules! sampling_settings {
                 #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &PricingContext,
             ) -> PyResult<f64> {
-                let $py = py;
-                let $option = instrument;
-                let $core = self.0;
-                let $context = &context.0;
-                domain($price)
+                self.evaluate(py, instrument, context, ScalarRequest::Price)
             },
             /// Return the price and selected sensitivities.
             ///
@@ -230,6 +238,22 @@ macro_rules! sampling_settings {
                 Ok(MonteCarloEstimate(domain($statistics)?))
             }
         );
+        impl $engine {
+            pub(crate) fn evaluate(
+                &self,
+                py: Python<'_>,
+                instrument: $instrument,
+                context: &PricingContext,
+                request: ScalarRequest,
+            ) -> PyResult<f64> {
+                let $request = request;
+                let $py = py;
+                let $option = instrument;
+                let $core = self.0;
+                let $context = &context.0;
+                domain($price)
+            }
+        }
     };
     ($engine:ident, [$($step:ident)?], $($methods:item),* $(,)?) => {
         #[pymethods]
@@ -375,13 +399,7 @@ sampling_settings!(
         instrument: binomial::VanillaInstrument<'_>,
         context: &PricingContext,
     ) -> PyResult<f64> {
-        let engine = self.0;
-        let context = &context.0;
-        binomial::with_vanilla!(
-            instrument,
-            option,
-            domain(py.detach(|| engine.price(option, context)))
-        )
+        self.evaluate(py, instrument, context, ScalarRequest::Price)
     },
     /// Return the price and estimated sampling uncertainty.
     ///
@@ -614,10 +632,7 @@ sampling_settings!(
         instrument: digital::DigitalInstrument<'_>,
         context: &PricingContext,
     ) -> PyResult<f64> {
-        let engine = self.0;
-        let option = instrument.contract();
-        let context = &context.0;
-        domain(py.detach(|| engine.price(option, context)))
+        self.evaluate(py, instrument, context, ScalarRequest::Price)
     },
     /// Return the price and selected sensitivities.
     ///
@@ -741,13 +756,7 @@ sampling_settings!(
         >,
         context: &PricingContext,
     ) -> PyResult<f64> {
-        let engine = self.0;
-        let context = &context.0;
-        asian::with_asian!(
-            instrument,
-            option,
-            domain(py.detach(|| engine.price(option, context)))
-        )
+        self.evaluate(py, instrument, context, ScalarRequest::Price)
     },
     /// Return the price and selected sensitivities.
     ///
@@ -922,7 +931,7 @@ sampling_settings!(
     Bound<'_, PyAny>,
     |py, option, engine, context, request, shifts|
     {
-        autocallable::with_note!(&option, option, py.detach(|| engine.price(option, context)))
+        autocallable::with_note!(&option, option, py.detach(|| request.evaluate(&engine, option, context)))
     },
     {
         autocallable::with_note!(&option, option, py.detach(|| engine.price_with_greeks(option, context, request, shifts)))
@@ -975,7 +984,7 @@ sampling_settings!(
     |py, option, engine, context, request, shifts|
     {
         let option = &option.0;
-        py.detach(|| engine.price(option, context))
+        py.detach(|| request.evaluate(&engine, option, context))
     },
     {
         let option = &option.0;
@@ -986,3 +995,54 @@ sampling_settings!(
         py.detach(|| engine.price_with_statistics(option, context))
     }
 );
+
+impl MonteCarloVanillaEngine {
+    pub(crate) fn evaluate(
+        &self,
+        py: Python<'_>,
+        instrument: binomial::VanillaInstrument<'_>,
+        context: &PricingContext,
+        request: ScalarRequest,
+    ) -> PyResult<f64> {
+        let engine = self.0;
+        let context = &context.0;
+        binomial::with_vanilla!(
+            instrument,
+            option,
+            domain(py.detach(|| request.evaluate(&engine, option, context)))
+        )
+    }
+}
+
+impl MonteCarloDigitalEngine {
+    pub(crate) fn evaluate(
+        &self,
+        py: Python<'_>,
+        instrument: digital::DigitalInstrument<'_>,
+        context: &PricingContext,
+        request: ScalarRequest,
+    ) -> PyResult<f64> {
+        let engine = self.0;
+        let option = instrument.contract();
+        let context = &context.0;
+        domain(py.detach(|| request.evaluate(&engine, option, context)))
+    }
+}
+
+impl MonteCarloAsianEngine {
+    pub(crate) fn evaluate(
+        &self,
+        py: Python<'_>,
+        instrument: asian::AsianInstrument<'_>,
+        context: &PricingContext,
+        request: ScalarRequest,
+    ) -> PyResult<f64> {
+        let engine = self.0;
+        let context = &context.0;
+        asian::with_asian!(
+            instrument,
+            option,
+            domain(py.detach(|| request.evaluate(&engine, option, context)))
+        )
+    }
+}

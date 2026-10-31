@@ -3,7 +3,7 @@
 import unittest
 from datetime import date
 
-from kiyosi import UnsupportedOperationError, pricing
+from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
 from kiyosi import instruments as ins
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -233,6 +233,33 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertEqual(
             set(self.engines), {name for _, names, _ in self.cases for name in names}
         )
+
+    def test_scalar_operations_preserve_expired_contract_errors(self):
+        expired = self.context.replace(valuation_time=date(2026, 1, 2))
+        for instrument, supported, _ in self.cases:
+            for name in supported:
+                engine = self.engines[name]
+                with self.subTest(instrument=type(instrument).__name__, engine=name):
+                    with self.assertRaises(InvalidInputError):
+                        engine.price(instrument, expired)
+                    with self.assertRaises(InvalidInputError):
+                        pricing.implied_volatility(engine, instrument, expired, 1)
+        self.assertEqual(self.context.valuation_time.date(), date(2026, 1, 1))
+
+    def test_solver_rejects_unregistered_engine_representations(self):
+        instrument = self.cases[0][0]
+        for engine in (
+            None,
+            True,
+            100,
+            "engine",
+            object(),
+            self.context,
+            instrument,
+            pricing.AnalyticEuropeanEngine,
+        ):
+            with self.subTest(engine=engine), self.assertRaises(TypeError):
+                pricing.implied_volatility(engine, instrument, self.context, 1)
 
     def test_supported_terminal_prices_greeks_and_unidentifiable_volatility(self):
         for instrument, supported, expected in self.cases:

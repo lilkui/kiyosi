@@ -1,4 +1,5 @@
 use crate::conversions::integer;
+use crate::engines::ScalarRequest;
 use crate::error::domain;
 use crate::instruments::american;
 use crate::instruments::barrier::BarrierOption;
@@ -95,13 +96,7 @@ impl CoxRossRubinsteinVanillaEngine {
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: VanillaInstrument<'_>,
         context: &PricingContext,
     ) -> PyResult<f64> {
-        let engine = self.0;
-        let context = &context.0;
-        with_vanilla!(
-            instrument,
-            option,
-            domain(py.detach(|| engine.price(option, context)))
-        )
+        self.evaluate(py, instrument, context, ScalarRequest::Price)
     }
 
     /// Return the price and selected sensitivities.
@@ -238,11 +233,7 @@ macro_rules! binomial_engine {
                 #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &PricingContext,
             ) -> PyResult<f64> {
-                let $py = py;
-                let $option = instrument;
-                let $engine = self.0;
-                let $context = &context.0;
-                domain($price)
+                self.evaluate(py, instrument, context, ScalarRequest::Price)
             }
 
             /// Return the price and selected sensitivities.
@@ -285,6 +276,22 @@ macro_rules! binomial_engine {
                 Ok(risk::PricingResult(domain($analysis)?))
             }
         }
+        impl $name {
+            pub(crate) fn evaluate(
+                &self,
+                py: Python<'_>,
+                instrument: $instrument,
+                context: &PricingContext,
+                request: ScalarRequest,
+            ) -> PyResult<f64> {
+                let $request = request;
+                let $py = py;
+                let $option = instrument;
+                let $engine = self.0;
+                let $context = &context.0;
+                domain($price)
+            }
+        }
     };
 }
 
@@ -298,7 +305,7 @@ binomial_engine!(
     digital::DigitalInstrument<'_>,
     |py, option, engine, context, request| {
         let option = option.contract();
-        py.detach(|| engine.price(option, context))
+        py.detach(|| request.evaluate(&engine, option, context))
     },
     {
         let option = option.contract();
@@ -314,10 +321,28 @@ binomial_engine!(
     PyRef<'_, BarrierOption>,
     |py, option, engine, context, request| {
         let option = &option.0;
-        py.detach(|| engine.price(option, context))
+        py.detach(|| request.evaluate(&engine, option, context))
     },
     {
         let option = &option.0;
         py.detach(|| engine.price_with_greeks(option, context, request))
     }
 );
+
+impl CoxRossRubinsteinVanillaEngine {
+    pub(crate) fn evaluate(
+        &self,
+        py: Python<'_>,
+        instrument: VanillaInstrument<'_>,
+        context: &PricingContext,
+        request: ScalarRequest,
+    ) -> PyResult<f64> {
+        let engine = self.0;
+        let context = &context.0;
+        with_vanilla!(
+            instrument,
+            option,
+            domain(py.detach(|| request.evaluate(&engine, option, context)))
+        )
+    }
+}

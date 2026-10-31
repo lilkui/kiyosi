@@ -1,3 +1,4 @@
+use crate::engines::ScalarRequest;
 use crate::error::domain;
 use crate::instruments::binary_barrier::{self, BinaryInstrument};
 use crate::market::PricingContext;
@@ -41,12 +42,7 @@ impl AnalyticBinaryBarrierEngine {
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: BinaryInstrument<'_>,
         context: &PricingContext,
     ) -> PyResult<f64> {
-        let context = &context.0;
-        binary_barrier::with_binary!(
-            instrument,
-            option,
-            domain(py.detach(|| kiyosi::AnalyticBinaryBarrierEngine.price(option, context)))
-        )
+        self.evaluate(py, instrument, context, ScalarRequest::Price)
     }
     /// Return the price and selected sensitivities.
     ///
@@ -115,5 +111,26 @@ impl AnalyticBinaryBarrierEngine {
             })
         );
         Ok(risk::PricingResult(domain(result)?))
+    }
+}
+
+impl AnalyticBinaryBarrierEngine {
+    pub(crate) fn evaluate(
+        &self,
+        py: Python<'_>,
+        instrument: BinaryInstrument<'_>,
+        context: &PricingContext,
+        request: ScalarRequest,
+    ) -> PyResult<f64> {
+        let context = &context.0;
+        binary_barrier::with_binary!(
+            instrument,
+            option,
+            domain(py.detach(|| request.evaluate(
+                &kiyosi::AnalyticBinaryBarrierEngine,
+                option,
+                context
+            )))
+        )
     }
 }

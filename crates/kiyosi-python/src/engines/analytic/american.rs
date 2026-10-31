@@ -1,3 +1,4 @@
+use crate::engines::ScalarRequest;
 use crate::error::domain;
 use crate::instruments::american::AmericanOption;
 use crate::market::PricingContext;
@@ -38,13 +39,14 @@ impl BjerksundStenslandVanillaEngine {
     ///     If domain validation, engine applicability or numerical pricing fails.
     fn price(
         &self,
+        py: Python<'_>,
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
             '_,
             AmericanOption,
         >,
         context: &PricingContext,
     ) -> PyResult<f64> {
-        domain(kiyosi::BjerksundStenslandVanillaEngine.price(&instrument.0, &context.0))
+        self.evaluate(py, instrument, context, ScalarRequest::Price)
     }
 
     /// Return the price and selected sensitivities.
@@ -114,5 +116,26 @@ impl BjerksundStenslandVanillaEngine {
                 shifts,
             ),
         )?))
+    }
+}
+
+impl BjerksundStenslandVanillaEngine {
+    pub(crate) fn evaluate(
+        &self,
+        py: Python<'_>,
+        instrument: PyRef<'_, AmericanOption>,
+        context: &PricingContext,
+        request: ScalarRequest,
+    ) -> PyResult<f64> {
+        let option = &instrument.0;
+        let context = &context.0;
+        let calculate =
+            || request.evaluate(&kiyosi::BjerksundStenslandVanillaEngine, option, context);
+        // Keep the GIL for short scalar formulas, but release it for iterative solves.
+        domain(if matches!(request, ScalarRequest::Price) {
+            calculate()
+        } else {
+            py.detach(calculate)
+        })
     }
 }

@@ -5,6 +5,22 @@ use crate::{calendar, engines, error, instruments, market, risk, schedule};
 use pyo3::prelude::*;
 
 macro_rules! pricing_classes {
+    (@engines [$($class:ty),+ $(,)?]) => {
+        pricing_classes!(register_engines, is_engine, [$($class),+]);
+
+        pub(crate) fn evaluate(
+            py: Python<'_>,
+            engine: &Bound<'_, PyAny>,
+            instrument: &Bound<'_, PyAny>,
+            context: &PricingContext,
+            request: engines::ScalarRequest,
+        ) -> PyResult<f64> {
+            $(if let Ok(engine) = engine.extract::<PyRef<'_, $class>>() {
+                return engine.evaluate(py, crate::conversions::instrument(instrument)?, context, request);
+            })+
+            Err(pyo3::exceptions::PyTypeError::new_err("expected a Kiyosi pricing engine"))
+        }
+    };
     ($register:ident, $recognize:ident, [$($class:ty),+ $(,)?]) => {
         fn $register(module: &Bound<'_, PyModule>) -> PyResult<()> {
             $(module.add_class::<$class>()?;)+
@@ -42,8 +58,7 @@ pricing_classes!(
 );
 
 pricing_classes!(
-    register_engines,
-    is_engine,
+    @engines
     [
         analytic::european::AnalyticEuropeanEngine,
         analytic::american::BjerksundStenslandVanillaEngine,
