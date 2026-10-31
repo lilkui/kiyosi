@@ -14,7 +14,6 @@ KINDS = {
     "down_and_in": ql.Barrier.DownIn,
     "down_and_out": ql.Barrier.DownOut,
 }
-ENGINES = ("AnalyticBarrierEngine", "FiniteDifferenceBarrierEngine")
 STABILITY = dict(
     g.STABILITY, delta=1e-5, gamma=1e-6, speed=1e-6, color=3e-6, vanna=1e-6, zomma=1e-7
 )
@@ -163,40 +162,6 @@ def scenarios():
                         f"ql-barrier-{direction}-{kind.replace('_', '-')}-{settlement.replace('_', '-')}-{spot}-{days}d",
                         inputs,
                     )
-
-
-def rows():
-    for identifier, inputs in scenarios():
-        reference = g.reference(inputs, STABILITY, measure_fn=measure)
-        for engine in ENGINES:
-            budget = ANALYTIC if engine == ENGINES[0] else FD
-            row = g.reference_row(
-                identifier + "-" + engine.lower(),
-                inputs,
-                reference,
-                budget,
-                budget,
-                instrument="BarrierOption",
-                engine=engine,
-            )
-            terms = row["inputs"]
-            terms.update(
-                spot_shift=0.03 if engine == ENGINES[0] else 2,
-                volatility_shift=0.0001 if engine == ENGINES[0] else 0.002,
-                rate_shift=0.0001 if engine == ENGINES[0] else 0.001,
-                time_shift_days=1,
-            )
-            terms["wrapper"] = inputs["expiry_date"] != "2025-01-07" and (
-                engine == ENGINES[0] or inputs["spot"] == 100
-            )
-            if engine == ENGINES[1]:
-                terms.update(
-                    asset_step_count=1600,
-                    time_step_count=1600,
-                    asset_upper_boundary=400,
-                    scheme="crank_nicolson",
-                )
-            yield row
 
 
 def check_bindings():

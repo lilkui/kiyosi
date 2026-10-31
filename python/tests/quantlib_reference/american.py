@@ -1,8 +1,6 @@
 """American contract references from refined QuantLib finite differences."""
 
-import json
 import math
-import re
 from datetime import date
 from functools import lru_cache
 
@@ -21,17 +19,6 @@ STABILITY = {
     "vanna": 0.00003,
     "zomma": 0.00001,
     "rho": 0.001,
-}
-ENGINES = {
-    "CoxRossRubinsteinVanillaEngine": {"step_count"},
-    "FiniteDifferenceVanillaEngine": {
-        "asset_step_count",
-        "time_step_count",
-        "scheme",
-        "asset_upper_boundary",
-    },
-    "BjerksundStenslandVanillaEngine": set(),
-    "MonteCarloVanillaEngine": {"seed", "path_count", "step_count"},
 }
 EXPIRY_REASON = "whole-day stability stencil touches expiry_date"
 EXERCISE_REASON = "whole-day stability stencil precedes exercise window"
@@ -128,55 +115,3 @@ def reference(inputs):
             f"unstable American final refinement: inputs={inputs}",
         )
     return outputs, metadata
-
-
-def rows():
-    data = json.loads((g.DATA_DIR / "american.json").read_text())
-    g.require(
-        set(data) == {"scenarios", "profiles", "profile_defaults"},
-        "invalid American configuration",
-    )
-    data["profiles"] = g.expand_profiles(data)
-    g.require(
-        {p["engine"] for p in data["profiles"]} == set(ENGINES)
-        and len(data["profiles"]) == len(ENGINES),
-        "incomplete American engines",
-    )
-    for profile in data["profiles"]:
-        g.validate_profile(profile, ENGINES[profile["engine"]])
-        g.require(
-            profile["settings"].get("scheme", "crank_nicolson") == "crank_nicolson",
-            "invalid American scheme",
-        )
-    seen = set()
-    for scenario in data["scenarios"]:
-        g.require(
-            set(scenario) == {"case_id", "inputs", "wrapper"},
-            "invalid American scenario",
-        )
-        g.require(
-            re.fullmatch(r"ql-american-[a-z0-9-]+", scenario["case_id"])
-            and scenario["case_id"] not in seen,
-            "invalid American case identifier",
-        )
-        seen.add(scenario["case_id"])
-        g.require(type(scenario["wrapper"]) is bool, "invalid wrapper selection")
-        inputs = scenario["inputs"]
-        g.validate_inputs(inputs)
-        outputs, metadata = reference(inputs)
-        for profile in data["profiles"]:
-            engine = profile["engine"]
-            row = g.reference_row(
-                scenario["case_id"] + "-" + engine.lower(),
-                inputs,
-                (outputs, metadata),
-                profile["tolerances"],
-                profile["numerical_tolerances"],
-                instrument="AmericanOption",
-                engine=engine,
-            )
-            attributes = row["inputs"]
-            attributes.update(profile["settings"])
-            attributes.update(profile["shifts"])
-            attributes["wrapper"] = scenario["wrapper"]
-            yield row

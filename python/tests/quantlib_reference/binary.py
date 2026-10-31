@@ -197,33 +197,6 @@ def scenarios():
                         )
 
 
-def rows():
-    for identifier, inputs in scenarios():
-        reference = g.reference(
-            inputs, STABILITY, unavailable=exclusions(inputs), measure_fn=measure
-        )
-        row = g.reference_row(
-            identifier,
-            inputs,
-            reference,
-            BUDGET,
-            BUDGET,
-            instrument="TouchOption"
-            if inputs["option"] == "none"
-            else "BinaryBarrierOption",
-            engine="AnalyticBinaryBarrierEngine",
-        )
-        terms = row["inputs"]
-        terms.update(
-            spot_shift=0.02,
-            volatility_shift=0.0001,
-            rate_shift=0.0001,
-            time_shift_days=1,
-            wrapper=not exclusions(inputs),
-        )
-        yield row
-
-
 def check_bindings():
     valuation, expiry_date = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
     process = g.market_process(

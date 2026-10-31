@@ -106,38 +106,3 @@ def scenarios(config):
                         **({"payout": config["payout"]} if kind == "cash" else {}),
                     ),
                 )
-
-
-def rows():
-    config = configuration()
-    for identifier, inputs in scenarios(config):
-        g.validate_inputs(
-            {key: value for key, value in inputs.items() if key in g.INPUTS}
-        )
-        reference = g.reference(inputs, STABILITY)
-        for profile in config["profiles"]:
-            row = g.reference_row(
-                identifier + "-" + profile["engine"].lower(),
-                inputs,
-                reference,
-                profile["tolerances"],
-                profile["numerical_tolerances"],
-                instrument=INSTRUMENTS[inputs["payoff"]],
-                engine=profile["engine"],
-            )
-            metadata = row["inputs"]
-            metadata.update(profile["settings"])
-            metadata.update(profile["shifts"])
-            # Boundary prices/native Greeks remain checked; no wrapper time stencil touches expiry_date.
-            smooth = (
-                date.fromisoformat(inputs["expiry_date"])
-                - date.fromisoformat(inputs["valuation"])
-            ).days > 2
-            if not smooth:
-                metadata.update(profile["boundary_settings"])
-            metadata["wrapper"] = smooth and (
-                profile["engine"] != "FiniteDifferenceDigitalEngine"
-                or inputs["spot"] == 100
-                and inputs["expiry_date"] == "2026-01-06"
-            )
-            yield row
