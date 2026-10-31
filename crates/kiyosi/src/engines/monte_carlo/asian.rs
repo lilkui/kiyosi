@@ -14,7 +14,7 @@ use crate::{OptionContract, Timestamp, TurnbullWakemanArithmeticAveragePriceEngi
 /// interval integrated conditionally; forward starts sample a separate lead interval.
 /// Sampling, exact path counts, thread caps and reproducibility follow
 /// [`crate::MonteCarloVanillaEngine`]. Shared and distinct engines support concurrent
-/// calls; buffers and workers belong to each call. See [`Self::price`].
+/// calls with request-owned buffers and shared workers. See [`Self::price`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MonteCarloAsianEngine {
     settings: MonteCarloSettings,
@@ -96,7 +96,7 @@ impl MonteCarloAsianEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers.
+    /// Propagates worker panics after the call's parallel work has finished.
     ///
     /// # Aborts
     ///
@@ -147,7 +147,7 @@ impl MonteCarloAsianEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers, as in [`Self::price`].
+    /// Propagates worker panics after the call's parallel work, as in [`Self::price`].
     pub fn price_with_greeks<I: OptionContract>(
         &self,
         option: &I,

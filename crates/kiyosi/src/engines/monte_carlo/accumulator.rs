@@ -13,7 +13,7 @@ use crate::{
 /// Draws complete normal vectors before evaluating paths,
 /// so early termination never shifts later draws. Sampling and thread
 /// reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
-/// instances permit concurrent calls with request-owned workers and buffers.
+/// instances permit concurrent calls with request-owned buffers and shared workers.
 /// Greeks and implied-volatility solves pin one request-local seed; solver
 /// tolerances constrain the sampled curve, not its statistical error.
 /// See [`Self::new`] for an example.
@@ -70,7 +70,7 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers.
+    /// Propagates worker panics after the call's parallel work has finished.
     ///
     /// # Aborts
     ///
@@ -98,7 +98,7 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers.
+    /// Propagates worker panics after the call's parallel work has finished.
     ///
     /// # Aborts
     ///
@@ -196,7 +196,7 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers.
+    /// Propagates worker panics after the call's parallel work has finished.
     ///
     /// # Aborts
     ///

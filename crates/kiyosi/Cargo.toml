@@ -8,6 +8,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-chrono.workspace = true
+chrono = { version = "0.4", default-features = false, features = ["std"] }
 libm = "0.2"
 getrandom = { version = "0.3", features = ["std"] }
+rayon = "1.12"

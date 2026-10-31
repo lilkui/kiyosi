@@ -20,7 +20,7 @@ pub(super) enum Contract<'a> {
 /// scheduled monitoring uses original fixing dates and an unobserved expiry leg
 /// when needed. Sampling, exact path counts and
 /// thread reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
-/// instances support concurrent calls with request-owned workers and samples.
+/// instances support concurrent calls with request-owned samples and shared workers.
 /// Returns likelihood-ratio delta/gamma; scalar numerical analysis is available
 /// through [`crate::numerical_greeks`]. See [`Self::price_with_greeks`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -65,7 +65,7 @@ impl MonteCarloBarrierEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers.
+    /// Propagates worker panics after the call's parallel work has finished.
     ///
     /// # Aborts
     ///
@@ -99,7 +99,7 @@ impl MonteCarloBarrierEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers, as in [`Self::price`].
+    /// Propagates worker panics after the call's parallel work, as in [`Self::price`].
     ///
     /// # Examples
     ///

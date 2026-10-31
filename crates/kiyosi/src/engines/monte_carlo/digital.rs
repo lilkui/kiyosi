@@ -11,7 +11,7 @@ use crate::{
 /// are available through [`crate::numerical_greeks`].
 /// Sampling, exact path counts, thread caps and reproducibility follow
 /// [`crate::MonteCarloVanillaEngine`]. Shared and distinct instances permit concurrent
-/// calls; every call owns its samples and workers. See [`Self::price_with_greeks`].
+/// calls with request-owned samples and shared workers. See [`Self::price_with_greeks`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MonteCarloDigitalEngine {
     settings: MonteCarloSettings,
@@ -50,7 +50,7 @@ impl MonteCarloDigitalEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers.
+    /// Propagates worker panics after the call's parallel work has finished.
     ///
     /// # Aborts
     ///
@@ -75,7 +75,7 @@ impl MonteCarloDigitalEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers, as in [`Self::price`].
+    /// Propagates worker panics after the call's parallel work, as in [`Self::price`].
     ///
     /// # Examples
     ///

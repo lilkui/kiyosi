@@ -16,7 +16,7 @@ use crate::{
 /// Complete normal vectors are drawn before evaluating each path, so early
 /// knock-out cannot shift later paths. Sampling, antithetic counts and thread
 /// reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
-/// instances permit concurrent calls with request-owned workers and buffers.
+/// instances permit concurrent calls with request-owned buffers and shared workers.
 /// Greeks and implied-parameter solves pin one request-local seed. Solvers
 /// constrain the sampled price curve, not its statistical error. Coupon trials
 /// retain their own event-grid shortcuts when knock-in exposure changes.
@@ -75,7 +75,7 @@ impl MonteCarloAutocallableEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers.
+    /// Propagates worker panics after the call's parallel work has finished.
     ///
     /// # Aborts
     ///
@@ -111,7 +111,7 @@ impl MonteCarloAutocallableEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers.
+    /// Propagates worker panics after the call's parallel work has finished.
     ///
     /// # Aborts
     ///
@@ -232,7 +232,7 @@ impl MonteCarloAutocallableEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers.
+    /// Propagates worker panics after the call's parallel work has finished.
     ///
     /// # Aborts
     ///

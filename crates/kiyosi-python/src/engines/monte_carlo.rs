@@ -314,7 +314,8 @@ macro_rules! sampling_settings {
 /// Notes
 /// -----
 /// Fixed seeds reproduce results across thread counts in the same build.
-/// Each call owns its workers and samples. Greeks and solves pin a seed per
+/// Calls own their samples and share a library-owned Rayon pool. A worker cap
+/// does not reserve workers. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
 /// European pricing samples the exact terminal distribution and ignores
 /// step_count. Near-strike payoffs preserve small movements even when the
@@ -537,7 +538,8 @@ impl MonteCarloEstimate {
 /// Notes
 /// -----
 /// Fixed seeds reproduce results across thread counts in the same build.
-/// Each call owns its workers and samples. Greeks and solves pin a seed per
+/// Calls own their samples and share a library-owned Rayon pool. A worker cap
+/// does not reserve workers. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
 /// Only native delta and gamma are returned; other requested Greeks remain absent.
 #[pyclass(frozen, module = "kiyosi._native")]
@@ -655,7 +657,8 @@ sampling_settings!(
 /// Notes
 /// -----
 /// Fixed seeds reproduce results across thread counts in the same build.
-/// Each call owns its workers and samples. Greeks and solves pin a seed per
+/// Calls own their samples and share a library-owned Rayon pool. A worker cap
+/// does not reserve workers. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
 /// Geometric averages and single fixings sample exact distributions.
 /// Arithmetic averages use step_count trapezoidal intervals with the first
@@ -775,7 +778,8 @@ sampling_settings!(
 /// Notes
 /// -----
 /// Fixed seeds reproduce results across thread counts in the same build.
-/// Each call owns its workers and samples. Greeks and solves pin a seed per
+/// Calls own their samples and share a library-owned Rayon pool. A worker cap
+/// does not reserve workers. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
 /// Monitoring uses continuous survival or the original fixing dates.
 /// Only delta and gamma are returned.
@@ -814,7 +818,8 @@ sampling_settings!(@barrier MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierO
 /// Notes
 /// -----
 /// Fixed seeds reproduce results across thread counts in the same build.
-/// Each call owns its workers and samples. Greeks and solves pin a seed per
+/// Calls own their samples and share a library-owned Rayon pool. A worker cap
+/// does not reserve workers. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
 /// Monitoring uses continuous survival or the original fixing dates.
 /// Only delta and gamma are returned.
@@ -856,7 +861,8 @@ sampling_settings!(@barrier MonteCarloDoubleBarrierEngine, PyRef<'_, double_barr
 /// Notes
 /// -----
 /// Fixed seeds reproduce results across thread counts in the same build.
-/// Each call owns its workers and samples. Greeks and solves pin a seed per
+/// Calls own their samples and share a library-owned Rayon pool. A worker cap
+/// does not reserve workers. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
 /// Simulation uses trading days when knock-in matters, or observation
 /// dates and expiry otherwise.
@@ -899,7 +905,8 @@ sampling_settings!(
 /// Notes
 /// -----
 /// Fixed seeds reproduce results across thread counts in the same build.
-/// Each call owns its workers and samples. Greeks and solves pin a seed per
+/// Calls own their samples and share a library-owned Rayon pool. A worker cap
+/// does not reserve workers. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
 /// Simulation uses the future trading dates. A current knock-out settles
 /// before any purchase.

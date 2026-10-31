@@ -13,7 +13,7 @@ use std::f64::consts::PI;
 /// dates and an unobserved expiry leg when needed.
 /// Sampling, exact path counts and thread reproducibility follow
 /// [`MonteCarloBarrierEngine`]. Shared and distinct instances permit concurrent
-/// calls with request-owned workers and samples. See [`Self::price_with_greeks`].
+/// calls with request-owned samples and shared workers. See [`Self::price_with_greeks`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MonteCarloDoubleBarrierEngine {
     engine: MonteCarloBarrierEngine,
@@ -59,7 +59,7 @@ impl MonteCarloDoubleBarrierEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers.
+    /// Propagates worker panics after the call's parallel work has finished.
     ///
     /// # Aborts
     ///
@@ -95,7 +95,7 @@ impl MonteCarloDoubleBarrierEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers, as in [`Self::price`].
+    /// Propagates worker panics after the call's parallel work, as in [`Self::price`].
     ///
     /// # Aborts
     ///

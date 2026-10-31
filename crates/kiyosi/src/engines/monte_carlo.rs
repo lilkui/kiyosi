@@ -1,4 +1,11 @@
-use std::{f64::consts::TAU, thread};
+use std::{
+    f64::consts::TAU,
+    io,
+    sync::{Arc, Mutex},
+    thread,
+};
+
+use rayon::prelude::*;
 
 use crate::numerics::log_ratio;
 use crate::{
@@ -49,7 +56,11 @@ pub struct MonteCarloSettings {
     pub path_count: i32,
     /// Selects a reproducible stream, or system entropy when absent (the default).
     pub seed: Option<u64>,
-    /// Caps CPU workers per call: 0 automatic (default), 1 serial, or a positive cap.
+    /// Caps CPU workers per call; defaults to 0 (automatic).
+    ///
+    /// One runs on the calling thread. Positive caps are also limited by
+    /// available CPUs and simulation blocks.
+    /// Parallel calls share a library-owned pool; see [`MonteCarloVanillaEngine`].
     pub thread_count: i32,
     /// Selects pseudorandom (default) or Sobol sampling; Sobol requires power-of-two paths.
     pub sampling: MonteCarloSampling,
@@ -203,6 +214,111 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn serial_blocks_stay_on_the_calling_thread() {
+        let caller = thread::current().id();
+        for count in [0, 1, 513] {
+            let mut blocks = vec![(usize::MAX, caller); count];
+            run_blocks(&mut blocks, 1, |block| (block, thread::current().id())).unwrap();
+            assert_eq!(
+                blocks,
+                (0..count).map(|block| (block, caller)).collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn parallel_blocks_reuse_a_private_pool_and_respect_each_calls_cap() {
+        let available = thread::available_parallelism().map_or(1, |count| count.get());
+        let pool = worker_pool(available).unwrap();
+        assert!(Arc::ptr_eq(&pool, &worker_pool(available).unwrap()));
+        let external = rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .unwrap();
+        external.install(|| {
+            let caller = thread::current().id();
+            for thread_count in [0, 2, 4, i32::MAX] {
+                let mut blocks = vec![(usize::MAX, caller, false); 513];
+                run_blocks(&mut blocks, thread_count, |block| {
+                    (
+                        block,
+                        thread::current().id(),
+                        pool.current_thread_index().is_some(),
+                    )
+                })
+                .unwrap();
+                let mut workers = std::collections::HashSet::new();
+                for (expected, (block, worker, in_pool)) in blocks.into_iter().enumerate() {
+                    assert_eq!(block, expected);
+                    assert_eq!(in_pool, available > 1);
+                    assert_eq!(worker == caller, available == 1);
+                    workers.insert(worker);
+                }
+                let cap = if thread_count == 0 {
+                    available
+                } else {
+                    thread_count as usize
+                };
+                assert!(workers.len() <= cap.min(available));
+            }
+            assert_eq!(rayon::current_num_threads(), 1);
+        });
+    }
+
+    #[test]
+    fn block_panics_propagate_and_leave_the_pool_usable() {
+        let panic = std::panic::catch_unwind(|| {
+            run_blocks(&mut [0; 513], 2, |block| {
+                if block == 3 {
+                    std::panic::panic_any("Monte Carlo worker panic");
+                }
+                block
+            })
+            .unwrap();
+        })
+        .unwrap_err();
+        assert_eq!(
+            panic.downcast_ref::<&str>(),
+            Some(&"Monte Carlo worker panic")
+        );
+        let mut blocks = [0; 513];
+        run_blocks(&mut blocks, 2, |block| block).unwrap();
+        assert_eq!(blocks, std::array::from_fn(|block| block));
+    }
+
+    #[test]
+    fn pool_creation_preserves_native_os_errors_after_partial_startup() {
+        let error = build_pool(2, |worker| {
+            if worker.index() == 1 {
+                Err(io::Error::from_raw_os_error(13))
+            } else {
+                thread::Builder::new()
+                    .spawn(move || worker.run())
+                    .map(|_| ())
+            }
+        })
+        .unwrap_err();
+        let Error::Io(native) = error else {
+            panic!("native I/O cause was lost")
+        };
+        assert_eq!(native.raw_os_error(), Some(13));
+        assert_eq!(native.kind(), io::Error::from_raw_os_error(13).kind());
+    }
+
+    #[test]
+    fn pool_creation_preserves_custom_io_payloads() {
+        let error = build_pool(1, |_| {
+            Err(io::Error::new(io::ErrorKind::Interrupted, std::fmt::Error))
+        })
+        .unwrap_err();
+        let Error::Io(native) = error else {
+            panic!("native I/O cause was lost")
+        };
+        assert_eq!(native.kind(), io::ErrorKind::Interrupted);
+        assert!(native.get_ref().unwrap().is::<std::fmt::Error>());
+    }
 }
 
 /// Prices European and American vanilla contracts with flat-rate CPU sampling.
@@ -216,7 +332,13 @@ mod tests {
 /// grids, and `ceil(path_count / 2)` points with antithetic pairing.
 /// Fixed seeds reproduce results across thread counts within the same build.
 /// Shared and distinct instances permit concurrent calls without mutation;
-/// every call owns its workers and buffers and changes no global thread settings.
+/// every call owns its buffers. Parallel calls reuse a library-owned Rayon pool,
+/// sized from available CPU parallelism on first use and retained until process exit.
+/// Concurrent calls share these workers; a per-call cap does not reserve workers.
+/// Neither the application's global Rayon pool nor `RAYON_NUM_THREADS` configures
+/// this pool. Serial calls run on the calling thread without initializing the pool.
+/// Forking after pool initialization does not preserve usable workers in the child;
+/// use a fresh process, such as Python's `spawn` multiprocessing start method.
 /// See [`Self::price`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MonteCarloVanillaEngine {
@@ -389,7 +511,7 @@ impl MonteCarloVanillaEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers.
+    /// Propagates worker panics after the call's parallel work has finished.
     ///
     /// # Aborts
     ///
@@ -432,7 +554,7 @@ impl MonteCarloVanillaEngine {
     ///
     /// # Panics
     ///
-    /// Resumes worker panics after joining the call's workers, as in [`Self::price`].
+    /// Propagates worker panics after the call's parallel work, as in [`Self::price`].
     ///
     /// # Examples
     ///
@@ -708,34 +830,63 @@ fn run_blocks<T: Send>(
         (thread_count as usize).min(available)
     }
     .min(partials.len());
-    if workers == 1 {
+    if workers <= 1 {
         for (block, partial) in partials.iter_mut().enumerate() {
             *partial = simulate(block);
         }
         return Ok(());
     }
-    thread::scope(|scope| -> Result<()> {
-        let chunk_size = partials.len().div_ceil(workers);
-        let mut handles = Vec::new();
-        for (chunk, values) in partials.chunks_mut(chunk_size).enumerate() {
-            let simulate = &simulate;
-            handles.push(
-                thread::Builder::new()
-                    .spawn_scoped(scope, move || {
-                        for (index, value) in values.iter_mut().enumerate() {
-                            *value = simulate(chunk * chunk_size + index);
-                        }
-                    })
-                    .map_err(Error::from)?,
-            );
-        }
-        for handle in handles {
-            if let Err(panic) = handle.join() {
-                std::panic::resume_unwind(panic);
-            }
-        }
-        Ok(())
-    })
+    let pool = worker_pool(available)?;
+    let chunk_size = partials
+        .len()
+        .div_ceil(workers.min(pool.current_num_threads()));
+    pool.install(|| {
+        // Each chunk runs sequentially, keeping the number of active workers within the cap.
+        partials
+            .par_chunks_mut(chunk_size)
+            .enumerate()
+            .for_each(|(chunk, values)| {
+                for (index, value) in values.iter_mut().enumerate() {
+                    *value = simulate(chunk * chunk_size + index);
+                }
+            });
+    });
+    Ok(())
+}
+
+fn worker_pool(available: usize) -> Result<Arc<rayon::ThreadPool>> {
+    static POOL: Mutex<Option<Arc<rayon::ThreadPool>>> = Mutex::new(None);
+    let mut shared = POOL.lock().unwrap_or_else(|error| error.into_inner());
+    if let Some(pool) = &*shared {
+        return Ok(Arc::clone(pool));
+    }
+    let pool = Arc::new(build_pool(available, |worker| {
+        thread::Builder::new()
+            .name("kiyosi-monte-carlo".into())
+            .spawn(move || worker.run())
+            .map(|_| ())
+    })?);
+    *shared = Some(Arc::clone(&pool));
+    Ok(pool)
+}
+
+fn build_pool(
+    workers: usize,
+    mut spawn: impl FnMut(rayon::ThreadBuilder) -> io::Result<()>,
+) -> Result<rayon::ThreadPool> {
+    let mut spawn_error = None;
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(workers)
+        .spawn_handler(|worker| {
+            spawn(worker).map_err(|error| {
+                // Rayon exposes only a borrowed I/O cause; retain ownership for Error::Io.
+                let kind = error.kind();
+                spawn_error = Some(error);
+                io::Error::from(kind)
+            })
+        })
+        .build();
+    pool.map_err(|error| Error::Io(spawn_error.unwrap_or_else(|| io::Error::other(error))))
 }
 
 pub(crate) fn unstable() -> Error {

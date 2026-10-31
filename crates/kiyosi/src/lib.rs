@@ -19,6 +19,10 @@
 //! `Send + Sync`. Distinct and shared instances support concurrent reads and
 //! pricing without synchronization.
 //! Mutation requires exclusive Rust access; Python exposes immutable values.
+//! Parallel Monte Carlo calls reuse one library-owned Rayon pool, with per-call
+//! worker caps and request-owned buffers; [`MonteCarloSettings::thread_count`]
+//! controls participation. Serial calls stay on the calling thread. The pool is
+//! initialized lazily and leaves the application's global Rayon pool unchanged.
 //! Handles returned by [`PricingEngine::prepare_request`] support sequential use
 //! within the calling thread and need not be `Send` or `Sync`. Concurrent requests
 //! prepare independent handles from the same engine.
@@ -29,7 +33,7 @@
 //! Calls are synchronous, with no cancellation or signal polling. Domain
 //! rejections use [`Result`], never panics. Allocation exhaustion follows Rust's
 //! allocator behavior (normally process abort); internal panics are not domain errors.
-//! Monte Carlo entropy-source and thread-creation failures retain native I/O
+//! Monte Carlo entropy-source and pool thread-creation failures retain native I/O
 //! details through [`Error::Io`] and the standard error source.
 //!
 //! # Examples
