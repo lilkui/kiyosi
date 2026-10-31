@@ -7,8 +7,11 @@ use crate::risk;
 use pyo3::prelude::*;
 
 macro_rules! quadrature_engine {
+    ($(#[$doc:meta])* $name:ident, $instrument:ty $(,)?) => {
+        quadrature_engine!($(#[$doc])* $name, $instrument, with_contract);
+    };
     ($(#[$doc:meta])* $name:ident, $instrument:ty,
-     |$py:ident, $option:ident, $engine:ident, $context:ident, $request:ident, $shifts:ident| $price:expr, $analysis:expr) => {
+     $with:path $(,)?) => {
         /// Flat-rate quadrature pricing with immutable integration settings.
         ///
         /// Parameters
@@ -30,10 +33,12 @@ macro_rules! quadrature_engine {
 
         numerical_greeks_methods!(
             $instrument,
-            |binding, $py, $option, $context, $request, $shifts| {
-                let $engine = binding.0;
-                let $context = &$context.0;
-                Ok(risk::PricingResult(domain($analysis)?))
+            |binding, py, instrument, context, request, shifts| {
+                let engine = binding.0;
+                let context = &context.0;
+                $with!(&instrument, option, Ok(risk::PricingResult(domain(py.detach(|| {
+                    engine.price_with_greeks(option, context, request, shifts)
+                }))?)))
             },
             [],
             engine_methods!(
@@ -107,12 +112,11 @@ macro_rules! quadrature_engine {
                 context: &PricingContext,
                 request: ScalarRequest,
             ) -> PyResult<f64> {
-                let $request = request;
-                let $py = py;
-                let $option = instrument;
-                let $engine = self.0;
-                let $context = &context.0;
-                domain($price)
+                let engine = self.0;
+                let context = &context.0;
+                $with!(&instrument, option, domain(py.detach(|| {
+                    request.evaluate(&engine, option, context)
+                })))
             }
         }
     };
@@ -124,14 +128,6 @@ quadrature_engine!(
     /// BarrierOption : Supported contract.
     QuadratureBarrierEngine,
     PyRef<'_, BarrierOption>,
-    |py, option, engine, context, request, shifts| {
-        let option = &option.0;
-        py.detach(|| request.evaluate(&engine, option, context))
-    },
-    {
-        let option = &option.0;
-        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-    }
 );
 
 quadrature_engine!(
@@ -140,14 +136,6 @@ quadrature_engine!(
     /// Accumulator : Supported contract.
     QuadratureAccumulatorEngine,
     PyRef<'_, Accumulator>,
-    |py, option, engine, context, request, shifts| {
-        let option = &option.0;
-        py.detach(|| request.evaluate(&engine, option, context))
-    },
-    {
-        let option = &option.0;
-        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-    }
 );
 
 quadrature_engine!(
@@ -164,14 +152,5 @@ quadrature_engine!(
     /// zero-lower-strike losses after large spot declines.
     QuadratureAutocallableEngine,
     Bound<'_, PyAny>,
-    |py, option, engine, context, request, shifts| {
-        autocallable::with_note!(&option, note, py.detach(|| request.evaluate(&engine, note, context)))
-    },
-    {
-        autocallable::with_note!(
-            &option,
-            note,
-            py.detach(|| engine.price_with_greeks(note, context, request, shifts))
-        )
-    }
+    autocallable::with_note,
 );

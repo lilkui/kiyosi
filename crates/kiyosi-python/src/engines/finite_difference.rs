@@ -24,7 +24,10 @@ fn scheme(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::FiniteDifferenceScheme> 
 }
 
 macro_rules! fd_engine {
-    ($name:ident, $instrument:ty, |$py:ident, $option:ident, $engine:ident, $context:ident, $request:ident, $shifts:ident| $price:expr, $analysis:expr) => {
+    ($name:ident, $instrument:ty $(,)?) => {
+        fd_engine!($name, $instrument, with_contract);
+    };
+    ($name:ident, $instrument:ty, $with:path $(,)?) => {
         /// Finite-difference pricing with immutable grid settings.
         ///
         /// Parameters
@@ -61,10 +64,12 @@ macro_rules! fd_engine {
 
         numerical_greeks_methods!(
             $instrument,
-            |binding, $py, $option, $context, $request, $shifts| {
-                let $engine = binding.0;
-                let $context = &$context.0;
-                Ok(risk::PricingResult(domain($analysis)?))
+            |binding, py, instrument, context, request, shifts| {
+                let engine = binding.0;
+                let context = &context.0;
+                $with!(&instrument, option, Ok(risk::PricingResult(domain(py.detach(|| {
+                    engine.price_with_greeks(option, context, request, shifts)
+                }))?)))
             },
             [],
             engine_methods!(
@@ -144,12 +149,11 @@ macro_rules! fd_engine {
                 context: &PricingContext,
                 request: ScalarRequest,
             ) -> PyResult<f64> {
-                let $request = request;
-                let $py = py;
-                let $option = instrument;
-                let $engine = self.0;
-                let $context = &context.0;
-                domain($price)
+                let engine = self.0;
+                let context = &context.0;
+                $with!(&instrument, option, domain(py.detach(|| {
+                    request.evaluate(&engine, option, context)
+                })))
             }
         }
     };
@@ -158,120 +162,36 @@ macro_rules! fd_engine {
 fd_engine!(
     FiniteDifferenceAccumulatorEngine,
     PyRef<'_, accumulator::Accumulator>,
-    |py, option, engine, context, request, shifts| {
-        let option = &option.0;
-        py.detach(|| request.evaluate(&engine, option, context))
-    },
-    {
-        let option = &option.0;
-        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-    }
 );
-
 fd_engine!(
     FiniteDifferenceVanillaEngine,
     binomial::VanillaInstrument<'_>,
-    |py, option, engine, context, request, shifts| {
-        binomial::with_vanilla!(
-            option,
-            option,
-            py.detach(|| request.evaluate(&engine, option, context))
-        )
-    },
-    {
-        binomial::with_vanilla!(
-            option,
-            option,
-            py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-        )
-    }
+    binomial::with_vanilla,
 );
 fd_engine!(
     FiniteDifferenceDigitalEngine,
     digital::DigitalInstrument<'_>,
-    |py, option, engine, context, request, shifts| {
-        let option = option.contract();
-        py.detach(|| request.evaluate(&engine, option, context))
-    },
-    {
-        let option = option.contract();
-        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-    }
+    digital::with_digital,
 );
-
 fd_engine!(
     FiniteDifferenceBarrierEngine,
     PyRef<'_, barrier::BarrierOption>,
-    |py, option, engine, context, request, shifts| {
-        let option = &option.0;
-        py.detach(|| request.evaluate(&engine, option, context))
-    },
-    {
-        let option = &option.0;
-        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-    }
 );
-
 fd_engine!(
     FiniteDifferenceBinaryBarrierEngine,
     binary_barrier::BinaryInstrument<'_>,
-    |py, option, engine, context, request, shifts| {
-        binary_barrier::with_binary!(
-            option,
-            option,
-            py.detach(|| request.evaluate(&engine, option, context))
-        )
-    },
-    {
-        binary_barrier::with_binary!(
-            option,
-            option,
-            py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-        )
-    }
+    binary_barrier::with_binary,
 );
-
 fd_engine!(
     FiniteDifferenceDoubleBarrierEngine,
     PyRef<'_, double_barrier::DoubleBarrierOption>,
-    |py, option, engine, context, request, shifts| {
-        let option = &option.0;
-        py.detach(|| request.evaluate(&engine, option, context))
-    },
-    {
-        let option = &option.0;
-        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-    }
 );
-
 fd_engine!(
     FiniteDifferenceDoubleTouchEngine,
     PyRef<'_, double_touch::DoubleTouchOption>,
-    |py, option, engine, context, request, shifts| {
-        let option = &option.0;
-        py.detach(|| request.evaluate(&engine, option, context))
-    },
-    {
-        let option = &option.0;
-        py.detach(|| engine.price_with_greeks(option, context, request, shifts))
-    }
 );
-
 fd_engine!(
     FiniteDifferenceAutocallableEngine,
     Bound<'_, PyAny>,
-    |py, option, engine, context, request, shifts| {
-        autocallable::with_note!(
-            &option,
-            note,
-            py.detach(|| request.evaluate(&engine, note, context))
-        )
-    },
-    {
-        autocallable::with_note!(
-            &option,
-            note,
-            py.detach(|| engine.price_with_greeks(note, context, request, shifts))
-        )
-    }
+    autocallable::with_note,
 );

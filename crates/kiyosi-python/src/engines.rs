@@ -7,6 +7,13 @@ macro_rules! engine_methods {
     };
 }
 
+macro_rules! with_contract {
+    ($instrument:expr, $option:ident, $body:expr) => {{
+        let $option = &$instrument.0;
+        $body
+    }};
+}
+
 // Expand methods before PyO3 parses the impl, including Monte Carlo's settings methods.
 macro_rules! numerical_greeks_methods {
     ($instrument:ty,

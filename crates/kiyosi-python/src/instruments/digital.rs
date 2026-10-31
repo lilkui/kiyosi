@@ -151,3 +151,11 @@ impl DigitalInstrument<'_> {
         }
     }
 }
+
+macro_rules! with_digital {
+    ($instrument:expr, $option:ident, $body:expr) => {{
+        let $option = $instrument.contract();
+        $body
+    }};
+}
+pub(crate) use with_digital;
