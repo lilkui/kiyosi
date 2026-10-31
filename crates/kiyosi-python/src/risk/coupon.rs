@@ -151,7 +151,6 @@ where
         }
         let note = &note.0;
         return domain(
-            py,
             py.detach(|| kiyosi::implied_coupon(&engine, note, context, observed, controls)),
         );
     }
@@ -165,14 +164,11 @@ where
     macro_rules! solve {
         ($note:expr) => {{
             let note = &$note.0;
-            domain(
-                py,
-                py.detach(|| {
-                    kiyosi::implied_snowball_coupon(
-                        &engine, note, context, observed, convention, controls,
-                    )
-                }),
-            )
+            domain(py.detach(|| {
+                kiyosi::implied_snowball_coupon(
+                    &engine, note, context, observed, convention, controls,
+                )
+            }))
         }};
     }
     if let Ok(note) = instrument.extract::<PyRef<'_, BinarySnowballOption>>() {

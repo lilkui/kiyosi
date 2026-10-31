@@ -124,7 +124,7 @@ macro_rules! double_touch_factory {
         #[pyo3(signature = (*, effective_date, expiry_date, lower_barrier, upper_barrier, payout, $($settlement=kiyosi::SettlementTiming::default(),)? observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
         pub(crate) fn $name(
-            py: Python<'_>, effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
+            effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
             lower_barrier: &Bound<'_, PyAny>, upper_barrier: &Bound<'_, PyAny>, payout: &Bound<'_, PyAny>,
             $(#[pyo3(from_py_with = super::binary_barrier::settlement)] $settlement: kiyosi::SettlementTiming,)?
             #[pyo3(from_py_with = barrier::mode)] observation_mode: kiyosi::ObservationMode,
@@ -137,7 +137,7 @@ macro_rules! double_touch_factory {
             terms.observation_mode = observation_mode;
             terms.observation_dates = observation_dates;
             terms.touch_state = touch_state;
-            Ok(DoubleTouchOption(domain(py, kiyosi::DoubleTouchOption::cash(terms, payout))?))
+            Ok(DoubleTouchOption(domain(kiyosi::DoubleTouchOption::cash(terms, payout))?))
         }
     };
 }

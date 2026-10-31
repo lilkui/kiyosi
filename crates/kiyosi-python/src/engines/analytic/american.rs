@@ -38,17 +38,13 @@ impl BjerksundStenslandVanillaEngine {
     ///     If domain validation, engine applicability or numerical pricing fails.
     fn price(
         &self,
-        py: Python<'_>,
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
             '_,
             AmericanOption,
         >,
         context: &PricingContext,
     ) -> PyResult<f64> {
-        domain(
-            py,
-            kiyosi::BjerksundStenslandVanillaEngine.price(&instrument.0, &context.0),
-        )
+        domain(kiyosi::BjerksundStenslandVanillaEngine.price(&instrument.0, &context.0))
     }
 
     /// Return the price and selected sensitivities.
@@ -91,7 +87,6 @@ impl BjerksundStenslandVanillaEngine {
     )]
     fn price_with_greeks(
         &self,
-        py: Python<'_>,
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
             '_,
             AmericanOption,
@@ -112,7 +107,6 @@ impl BjerksundStenslandVanillaEngine {
             time_shift_days,
         };
         Ok(risk::PricingResult(domain(
-            py,
             kiyosi::BjerksundStenslandVanillaEngine.price_with_greeks(
                 &instrument.0,
                 &context.0,

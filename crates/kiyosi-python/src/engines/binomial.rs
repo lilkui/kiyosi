@@ -40,13 +40,9 @@ macro_rules! binomial_engine {
             #[new]
             #[pyo3(signature = (*, step_count=kiyosi::BinomialSettings::default().step_count))]
             fn new(
-                py: Python<'_>,
                 #[pyo3(from_py_with = integer)] step_count: i32,
             ) -> PyResult<Self> {
-                Ok(Self(domain(
-                    py,
-                    kiyosi::$name::new(kiyosi::BinomialSettings { step_count }),
-                )?))
+                Ok(Self(domain(kiyosi::$name::new(kiyosi::BinomialSettings { step_count }))?))
             }
 
             /// Return the configured grid size.
@@ -87,7 +83,7 @@ macro_rules! binomial_engine {
                 let $option = instrument;
                 let $engine = self.0;
                 let $context = &context.0;
-                domain(py, $price)
+                domain($price)
             }
 
             /// Return the price and selected sensitivities.
@@ -143,7 +139,7 @@ macro_rules! binomial_engine {
                 let $context = &context.0;
                 let $request = risk::greeks_request(greeks, all_greeks)?;
                 let $shifts = kiyosi::NumericalShiftSettings { spot_shift, volatility_shift, rate_shift, time_shift_days };
-                Ok(risk::PricingResult(domain(py, $analysis)?))
+                Ok(risk::PricingResult(domain($analysis)?))
             }
         }
     };
@@ -211,11 +207,10 @@ pub(crate) struct CoxRossRubinsteinBarrierEngine(pub(crate) kiyosi::CoxRossRubin
 impl CoxRossRubinsteinBarrierEngine {
     #[new]
     #[pyo3(signature = (*, step_count=kiyosi::BinomialSettings::default().step_count))]
-    fn new(py: Python<'_>, #[pyo3(from_py_with = integer)] step_count: i32) -> PyResult<Self> {
-        Ok(Self(domain(
-            py,
-            kiyosi::CoxRossRubinsteinBarrierEngine::new(kiyosi::BinomialSettings { step_count }),
-        )?))
+    fn new(#[pyo3(from_py_with = integer)] step_count: i32) -> PyResult<Self> {
+        Ok(Self(domain(kiyosi::CoxRossRubinsteinBarrierEngine::new(
+            kiyosi::BinomialSettings { step_count },
+        ))?))
     }
     /// Return the configured grid size.
     #[getter]
@@ -255,7 +250,7 @@ impl CoxRossRubinsteinBarrierEngine {
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        domain(py, py.detach(|| engine.price(option, context)))
+        domain(py.detach(|| engine.price(option, context)))
     }
     /// Return the price and selected sensitivities.
     ///
@@ -317,9 +312,8 @@ impl CoxRossRubinsteinBarrierEngine {
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        Ok(risk::PricingResult(domain(
-            py,
-            py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
-        )?))
+        Ok(risk::PricingResult(domain(py.detach(|| {
+            engine.price_with_greeks(option, context, request, shifts)
+        }))?))
     }
 }

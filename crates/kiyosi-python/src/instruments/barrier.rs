@@ -82,7 +82,6 @@ impl BarrierOption {
     #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, barrier_level, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
-        py: Python<'_>,
         option_type: &Bound<'_, PyAny>,
         strike: &Bound<'_, PyAny>,
         effective_date: &Bound<'_, PyAny>,
@@ -108,7 +107,7 @@ impl BarrierOption {
         terms.observation_mode = observation_mode;
         terms.observation_dates = observation_dates;
         terms.touch_state = touch_state;
-        Ok(Self(domain(py, kiyosi::BarrierOption::new(terms))?))
+        Ok(Self(domain(kiyosi::BarrierOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
     ///

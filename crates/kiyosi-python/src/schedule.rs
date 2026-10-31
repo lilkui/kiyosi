@@ -106,7 +106,6 @@ impl ScheduleIterator {
 #[pyfunction]
 #[pyo3(signature = (*, start, end, interval_days, calendar=TradingCalendar::default()))]
 pub(crate) fn fixed_interval_schedule(
-    py: Python<'_>,
     start: &Bound<'_, PyAny>,
     end: &Bound<'_, PyAny>,
     interval_days: &Bound<'_, PyAny>,
@@ -117,7 +116,6 @@ pub(crate) fn fixed_interval_schedule(
     check_integer(interval_days)?;
     let interval_days = interval_days.extract::<i64>()?;
     Ok(ObservationSchedule(domain(
-        py,
         kiyosi::ObservationSchedule::fixed_interval(start, end, interval_days, &calendar.0),
     )?))
 }
@@ -154,14 +152,12 @@ pub(crate) fn fixed_interval_schedule(
 #[pyfunction]
 #[pyo3(signature = (*, start, end, first_observation_month, calendar=TradingCalendar::default()))]
 pub(crate) fn monthly_schedule(
-    py: Python<'_>,
     start: &Bound<'_, PyAny>,
     end: &Bound<'_, PyAny>,
     first_observation_month: &Bound<'_, PyAny>,
     calendar: TradingCalendar,
 ) -> PyResult<ObservationSchedule> {
     Ok(ObservationSchedule(domain(
-        py,
         kiyosi::ObservationSchedule::monthly(
             date(start)?,
             date(end)?,

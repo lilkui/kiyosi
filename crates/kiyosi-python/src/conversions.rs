@@ -143,14 +143,11 @@ pub(crate) fn date(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Date> {
         ));
     }
     let date = value.cast::<PyDate>()?;
-    domain(
-        value.py(),
-        kiyosi::Date::new(
-            date.get_year(),
-            date.get_month().into(),
-            date.get_day().into(),
-        ),
-    )
+    domain(kiyosi::Date::new(
+        date.get_year(),
+        date.get_month().into(),
+        date.get_day().into(),
+    ))
 }
 
 pub(crate) fn timestamp(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Timestamp> {
@@ -171,20 +168,18 @@ pub(crate) fn timestamp(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Timestamp>
         (value, module.getattr("timezone")?.getattr("utc")?),
     )?;
     let utc = utc.cast::<PyDateTime>()?;
-    let day = domain(
-        py,
-        kiyosi::Date::new(utc.get_year(), utc.get_month().into(), utc.get_day().into()),
-    )?;
-    domain(
-        py,
-        kiyosi::Timestamp::new(
-            day,
-            utc.get_hour().into(),
-            utc.get_minute().into(),
-            utc.get_second().into(),
-            utc.get_microsecond(),
-        ),
-    )
+    let day = domain(kiyosi::Date::new(
+        utc.get_year(),
+        utc.get_month().into(),
+        utc.get_day().into(),
+    ))?;
+    domain(kiyosi::Timestamp::new(
+        day,
+        utc.get_hour().into(),
+        utc.get_minute().into(),
+        utc.get_second().into(),
+        utc.get_microsecond(),
+    ))
 }
 
 pub(crate) fn python_date(py: Python<'_>, date: kiyosi::Date) -> PyResult<Bound<'_, PyDate>> {

@@ -29,22 +29,18 @@ impl AmericanOption {
     #[new]
     #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date))]
     fn new(
-        py: Python<'_>,
         option_type: &Bound<'_, PyAny>,
         strike: &Bound<'_, PyAny>,
         effective_date: &Bound<'_, PyAny>,
         expiry_date: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let direction = direction(option_type)?;
-        Ok(Self(domain(
-            py,
-            kiyosi::AmericanOption::new(
-                direction,
-                real(strike)?,
-                date(effective_date)?,
-                date(expiry_date)?,
-            ),
-        )?))
+        Ok(Self(domain(kiyosi::AmericanOption::new(
+            direction,
+            real(strike)?,
+            date(effective_date)?,
+            date(expiry_date)?,
+        ))?))
     }
 
     /// Return a validated replacement without changing this value.
@@ -72,7 +68,6 @@ impl AmericanOption {
     #[pyo3(signature = (*, option_type=None, strike=None, effective_date=None, expiry_date=None))]
     fn replace(
         &self,
-        py: Python<'_>,
         #[pyo3(from_py_with = supplied)] option_type: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] strike: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] effective_date: Option<&Bound<'_, PyAny>>,
@@ -84,7 +79,7 @@ impl AmericanOption {
             effective_date: effective_date.map(date).transpose()?,
             expiry_date: expiry_date.map(date).transpose()?,
         };
-        Ok(Self(domain(py, self.0.replace(changes))?))
+        Ok(Self(domain(self.0.replace(changes))?))
     }
 
     /// Return call or put payoff direction.

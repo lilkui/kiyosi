@@ -45,7 +45,6 @@ impl AnalyticEuropeanEngine {
     #[pyo3(signature = (instrument, context, greeks=None, *, all_greeks=false))]
     fn price_with_greeks(
         &self,
-        py: Python<'_>,
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
             '_,
             EuropeanOption,
@@ -56,7 +55,6 @@ impl AnalyticEuropeanEngine {
     ) -> PyResult<risk::PricingResult> {
         let request = risk::greeks_request(greeks, all_greeks)?;
         Ok(risk::PricingResult(domain(
-            py,
             kiyosi::AnalyticEuropeanEngine.price_with_greeks(&instrument.0, &context.0, request),
         )?))
     }
@@ -81,7 +79,6 @@ impl AnalyticEuropeanEngine {
     ///     If domain validation, engine applicability or numerical pricing fails.
     fn price(
         &self,
-        py: Python<'_>,
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
             '_,
             EuropeanOption,
@@ -89,9 +86,6 @@ impl AnalyticEuropeanEngine {
         context: &PricingContext,
     ) -> PyResult<f64> {
         // Keep the GIL for this short scalar formula.
-        domain(
-            py,
-            kiyosi::AnalyticEuropeanEngine.price(&instrument.0, &context.0),
-        )
+        domain(kiyosi::AnalyticEuropeanEngine.price(&instrument.0, &context.0))
     }
 }

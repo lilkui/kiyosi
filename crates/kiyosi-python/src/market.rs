@@ -36,7 +36,6 @@ impl RateTermStructure {
     #[new]
     #[pyo3(signature = (*, reference_time, times, factors))]
     fn new(
-        py: Python<'_>,
         reference_time: &Bound<'_, PyAny>,
         times: &Bound<'_, PyAny>,
         factors: &Bound<'_, PyAny>,
@@ -50,10 +49,9 @@ impl RateTermStructure {
             .try_iter()?
             .map(|item| real(&item?))
             .collect::<PyResult<Vec<_>>>()?;
-        Ok(Self(domain(
-            py,
-            kiyosi::RateTermStructure::new(reference, nodes, factors),
-        )?))
+        Ok(Self(domain(kiyosi::RateTermStructure::new(
+            reference, nodes, factors,
+        ))?))
     }
     /// Create a continuously compounded flat rate curve.
     ///
@@ -75,18 +73,11 @@ impl RateTermStructure {
     ///     If the rate is non-finite.
     #[staticmethod]
     #[pyo3(signature = (rate, *, reference_time=None))]
-    fn flat(
-        py: Python<'_>,
-        rate: &Bound<'_, PyAny>,
-        reference_time: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
-        Ok(Self(domain(
-            py,
-            kiyosi::RateTermStructure::flat(
-                real(rate)?,
-                reference_time.map(timestamp).transpose()?,
-            ),
-        )?))
+    fn flat(rate: &Bound<'_, PyAny>, reference_time: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
+        Ok(Self(domain(kiyosi::RateTermStructure::flat(
+            real(rate)?,
+            reference_time.map(timestamp).transpose()?,
+        ))?))
     }
     /// Return whether the rate curve is explicitly flat.
     #[getter]
@@ -141,13 +132,8 @@ impl RateTermStructure {
     ///     If endpoints are reversed or outside curve coverage.
     /// ComputationFailureError
     ///     If the log factor is non-finite or exponentiation overflows.
-    fn factor(
-        &self,
-        py: Python<'_>,
-        start: &Bound<'_, PyAny>,
-        end: &Bound<'_, PyAny>,
-    ) -> PyResult<f64> {
-        domain(py, self.0.factor(timestamp(start)?, timestamp(end)?))
+    fn factor(&self, start: &Bound<'_, PyAny>, end: &Bound<'_, PyAny>) -> PyResult<f64> {
+        domain(self.0.factor(timestamp(start)?, timestamp(end)?))
     }
     /// Return the log factor over an ordered, covered interval.
     ///
@@ -167,13 +153,8 @@ impl RateTermStructure {
     ///     If endpoints are reversed or outside curve coverage.
     /// ComputationFailureError
     ///     If the result is non-finite.
-    fn log_factor(
-        &self,
-        py: Python<'_>,
-        start: &Bound<'_, PyAny>,
-        end: &Bound<'_, PyAny>,
-    ) -> PyResult<f64> {
-        domain(py, self.0.log_factor(timestamp(start)?, timestamp(end)?))
+    fn log_factor(&self, start: &Bound<'_, PyAny>, end: &Bound<'_, PyAny>) -> PyResult<f64> {
+        domain(self.0.log_factor(timestamp(start)?, timestamp(end)?))
     }
     /// Return the right-hand instantaneous forward rate.
     ///
@@ -191,8 +172,8 @@ impl RateTermStructure {
     /// ------
     /// InvalidInputError
     ///     If the instant is outside curve coverage.
-    fn forward_rate(&self, py: Python<'_>, time: &Bound<'_, PyAny>) -> PyResult<f64> {
-        domain(py, self.0.forward_rate(timestamp(time)?))
+    fn forward_rate(&self, time: &Bound<'_, PyAny>) -> PyResult<f64> {
+        domain(self.0.forward_rate(timestamp(time)?))
     }
     /// Create a parallel rate shift without changing this curve.
     ///
@@ -210,8 +191,8 @@ impl RateTermStructure {
     /// ------
     /// InvalidInputError
     ///     If the shift or resulting rates are non-finite.
-    fn shifted(&self, py: Python<'_>, shift: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(py, self.0.shifted(real(shift)?))?))
+    fn shifted(&self, shift: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(domain(self.0.shifted(real(shift)?))?))
     }
 }
 
@@ -247,19 +228,15 @@ impl BlackScholesMertonParameters {
     #[new]
     #[pyo3(signature = (*, risk_free_rate, dividend_yield, volatility))]
     fn new(
-        py: Python<'_>,
         risk_free_rate: &Bound<'_, PyAny>,
         dividend_yield: &Bound<'_, PyAny>,
         volatility: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
-        Ok(Self(domain(
-            py,
-            kiyosi::BlackScholesMertonParameters::new(
-                rate(risk_free_rate)?,
-                rate(dividend_yield)?,
-                real(volatility)?,
-            ),
-        )?))
+        Ok(Self(domain(kiyosi::BlackScholesMertonParameters::new(
+            rate(risk_free_rate)?,
+            rate(dividend_yield)?,
+            real(volatility)?,
+        ))?))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -284,7 +261,6 @@ impl BlackScholesMertonParameters {
     #[pyo3(signature = (*, risk_free_rate=None, dividend_yield=None, volatility=None))]
     fn replace(
         &self,
-        py: Python<'_>,
         #[pyo3(from_py_with = supplied)] risk_free_rate: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] dividend_yield: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] volatility: Option<&Bound<'_, PyAny>>,
@@ -294,7 +270,7 @@ impl BlackScholesMertonParameters {
             dividend_yield: dividend_yield.map(rate).transpose()?,
             volatility: volatility.map(real).transpose()?,
         };
-        Ok(Self(domain(py, self.0.replace(update))?))
+        Ok(Self(domain(self.0.replace(update))?))
     }
     /// Return the scalar risk-free rate or an owned node curve.
     #[getter]
@@ -361,21 +337,17 @@ impl PricingContext {
     #[new]
     #[pyo3(signature = (*, model_parameters, spot_price, valuation_time, calendar = TradingCalendar::default()))]
     fn new(
-        py: Python<'_>,
         model_parameters: &BlackScholesMertonParameters,
         spot_price: &Bound<'_, PyAny>,
         valuation_time: &Bound<'_, PyAny>,
         calendar: TradingCalendar,
     ) -> PyResult<Self> {
-        Ok(Self(domain(
-            py,
-            kiyosi::PricingContext::with_calendar(
-                model_parameters.0.clone(),
-                real(spot_price)?,
-                timestamp(valuation_time)?,
-                calendar.0,
-            ),
-        )?))
+        Ok(Self(domain(kiyosi::PricingContext::with_calendar(
+            model_parameters.0.clone(),
+            real(spot_price)?,
+            timestamp(valuation_time)?,
+            calendar.0,
+        ))?))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -403,7 +375,6 @@ impl PricingContext {
     #[pyo3(signature = (*, model_parameters=None, spot_price=None, valuation_time=None, calendar=None))]
     fn replace(
         &self,
-        py: Python<'_>,
         #[pyo3(from_py_with = supplied)] model_parameters: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] spot_price: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] valuation_time: Option<&Bound<'_, PyAny>>,
@@ -424,7 +395,7 @@ impl PricingContext {
                 .map(|value| -> PyResult<_> { Ok(value.extract::<TradingCalendar>()?.0) })
                 .transpose()?,
         };
-        Ok(Self(domain(py, self.0.replace(update))?))
+        Ok(Self(domain(self.0.replace(update))?))
     }
     /// Return an owned copy of the model parameters.
     #[getter]

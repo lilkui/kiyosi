@@ -38,7 +38,7 @@ macro_rules! analytic_engine {
             ) -> PyResult<f64> {
                 let option = &instrument.0;
                 let context = &context.0;
-                domain(py, py.detach(|| kiyosi::$engine.price(option, context)))
+                domain(py.detach(|| kiyosi::$engine.price(option, context)))
             }
             /// Returns the price and selected sensitivities.
             ///
@@ -94,12 +94,9 @@ macro_rules! analytic_engine {
                 let shifts = kiyosi::NumericalShiftSettings { spot_shift, volatility_shift, rate_shift, time_shift_days };
                 let option = &instrument.0;
                 let context = &context.0;
-                Ok(risk::PricingResult(domain(
-                    py,
-                    py.detach(|| {
-                        kiyosi::$engine.price_with_greeks(option, context, request, shifts)
-                    }),
-                )?))
+                Ok(risk::PricingResult(domain(py.detach(|| {
+                    kiyosi::$engine.price_with_greeks(option, context, request, shifts)
+                }))?))
             }
         }
     };

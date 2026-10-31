@@ -166,7 +166,7 @@ macro_rules! binary_factory {
         #[pyfunction]
         #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, barrier_level, barrier_type, $($payout,)? observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
-        pub(crate) fn $name(py: Python<'_>, option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
+        pub(crate) fn $name(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
             effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
             barrier_level: &Bound<'_, PyAny>, barrier_type: &Bound<'_, PyAny>,
             $($payout: &Bound<'_, PyAny>,)?
@@ -180,7 +180,7 @@ macro_rules! binary_factory {
             terms.observation_mode = observation_mode;
             terms.observation_dates = observation_dates;
             terms.touch_state = touch_state;
-            Ok(BinaryBarrierOption(domain(py, kiyosi::BinaryBarrierOption::$constructor(terms $(, $payout)?))?))
+            Ok(BinaryBarrierOption(domain(kiyosi::BinaryBarrierOption::$constructor(terms $(, $payout)?))?))
         }
     };
 }
@@ -290,7 +290,7 @@ macro_rules! touch_factory {
         #[pyfunction]
         #[pyo3(signature = (*, effective_date, expiry_date, barrier_level, $($payout,)? $($settlement=kiyosi::SettlementTiming::default(),)? observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
         $(#[$attribute])*
-        pub(crate) fn $name(py: Python<'_>, effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
+        pub(crate) fn $name(effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
             barrier_level: &Bound<'_, PyAny>, $($payout: &Bound<'_, PyAny>,)?
             $(#[pyo3(from_py_with = settlement)] $settlement: kiyosi::SettlementTiming,)?
             #[pyo3(from_py_with = barrier::mode)] observation_mode: kiyosi::ObservationMode,
@@ -303,7 +303,7 @@ macro_rules! touch_factory {
             terms.observation_mode = observation_mode;
             terms.observation_dates = observation_dates;
             terms.touch_state = touch_state;
-            Ok(TouchOption(domain(py, kiyosi::TouchOption::$constructor(terms $(, $payout)?))?))
+            Ok(TouchOption(domain(kiyosi::TouchOption::$constructor(terms $(, $payout)?))?))
         }
     };
 }
@@ -400,7 +400,6 @@ payments have no remaining value. No-touch payments occur only at
 expiry."
 );
 touch_factory!(
-    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     cash_no_touch_up,
     cash,
     UpAndOut,
@@ -444,7 +443,6 @@ payments have no remaining value. No-touch payments occur only at
 expiry."
 );
 touch_factory!(
-    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     cash_no_touch_down,
     cash,
     DownAndOut,
@@ -488,7 +486,6 @@ payments have no remaining value. No-touch payments occur only at
 expiry."
 );
 touch_factory!(
-    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     asset_one_touch_up,
     asset,
     UpAndIn,
@@ -531,7 +528,6 @@ payment transfers spot; future continuous hits transfer the barrier
 amount. No-touch payments occur only at expiry."
 );
 touch_factory!(
-    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     asset_one_touch_down,
     asset,
     DownAndIn,

@@ -38,7 +38,7 @@ pyo3::create_exception!(
     "Iteration or integration limit reached without convergence."
 );
 
-pub(crate) fn domain<T>(_py: Python<'_>, result: kiyosi::Result<T>) -> PyResult<T> {
+pub(crate) fn domain<T>(result: kiyosi::Result<T>) -> PyResult<T> {
     result.map_err(|error| match error {
         kiyosi::Error::InvalidInput(message) => InvalidInputError::new_err(message.into_owned()),
         kiyosi::Error::UnsupportedOperation(message) => {

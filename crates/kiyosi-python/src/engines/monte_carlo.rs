@@ -28,7 +28,6 @@ macro_rules! sampling_settings {
             #[new]
             #[pyo3(signature = (*, path_count=kiyosi::MonteCarloSettings::default().path_count, $($step=kiyosi::MonteCarloSettings::default().$step,)? seed=None, thread_count=kiyosi::MonteCarloSettings::default().thread_count, sampling=kiyosi::MonteCarloSettings::default().sampling, antithetic=kiyosi::MonteCarloSettings::default().antithetic))]
             fn new(
-                py: Python<'_>,
                 #[pyo3(from_py_with = integer)] path_count: i32,
                 $(#[pyo3(from_py_with = integer)] $step: i32,)?
                 seed: Option<&Bound<'_, PyAny>>,
@@ -48,7 +47,7 @@ macro_rules! sampling_settings {
                     ..Default::default()
                 };
                 $(let settings = kiyosi::MonteCarloSettings { $step, ..settings };)?
-                Ok(Self(domain(py, kiyosi::$engine::new(settings))?))
+                Ok(Self(domain(kiyosi::$engine::new(settings))?))
             }
 
             /// Return the exact number of sampled paths.
@@ -172,11 +171,11 @@ sampling_settings!(
         match instrument {
             binomial::VanillaInstrument::European(option) => {
                 let option = &option.0;
-                domain(py, py.detach(|| engine.price(option, context)))
+                domain(py.detach(|| engine.price(option, context)))
             }
             binomial::VanillaInstrument::American(option) => {
                 let option = &option.0;
-                domain(py, py.detach(|| engine.price(option, context)))
+                domain(py.detach(|| engine.price(option, context)))
             }
         }
     },
@@ -212,10 +211,9 @@ sampling_settings!(
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        Ok(MonteCarloEstimate(domain(
-            py,
-            py.detach(|| engine.price_with_statistics(option, context)),
-        )?))
+        Ok(MonteCarloEstimate(domain(py.detach(|| {
+            engine.price_with_statistics(option, context)
+        }))?))
     },
     /// Return the price and selected sensitivities.
     ///
@@ -290,10 +288,7 @@ sampling_settings!(
                     time_shift_days,
                 };
                 let option = &option.0;
-                domain(
-                    py,
-                    py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
-                )
+                domain(py.detach(|| engine.price_with_greeks(option, context, request, shifts)))
             }
             binomial::VanillaInstrument::American(option) => {
                 let shifts = kiyosi::NumericalShiftSettings {
@@ -309,10 +304,7 @@ sampling_settings!(
                     time_shift_days,
                 };
                 let option = &option.0;
-                domain(
-                    py,
-                    py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
-                )
+                domain(py.detach(|| engine.price_with_greeks(option, context, request, shifts)))
             }
         }?;
         Ok(risk::PricingResult(result))
@@ -421,7 +413,7 @@ sampling_settings!(
         let engine = self.0;
         let option = instrument.contract();
         let context = &context.0;
-        domain(py, py.detach(|| engine.price(option, context)))
+        domain(py.detach(|| engine.price(option, context)))
     },
     /// Return the price and selected sensitivities.
     ///
@@ -464,10 +456,9 @@ sampling_settings!(
         let engine = self.0;
         let option = instrument.contract();
         let context = &context.0;
-        Ok(risk::PricingResult(domain(
-            py,
-            py.detach(|| engine.price_with_greeks(option, context, request)),
-        )?))
+        Ok(risk::PricingResult(domain(py.detach(|| {
+            engine.price_with_greeks(option, context, request)
+        }))?))
     }
 );
 
@@ -551,11 +542,11 @@ sampling_settings!(
         match instrument {
             asian::AsianInstrument::Geometric(option) => {
                 let option = &option.0;
-                domain(py, py.detach(|| engine.price(option, context)))
+                domain(py.detach(|| engine.price(option, context)))
             }
             asian::AsianInstrument::Arithmetic(option) => {
                 let option = &option.0;
-                domain(py, py.detach(|| engine.price(option, context)))
+                domain(py.detach(|| engine.price(option, context)))
             }
         }
     },
@@ -603,17 +594,11 @@ sampling_settings!(
         let result = match instrument {
             asian::AsianInstrument::Geometric(option) => {
                 let option = &option.0;
-                domain(
-                    py,
-                    py.detach(|| engine.price_with_greeks(option, context, request)),
-                )
+                domain(py.detach(|| engine.price_with_greeks(option, context, request)))
             }
             asian::AsianInstrument::Arithmetic(option) => {
                 let option = &option.0;
-                domain(
-                    py,
-                    py.detach(|| engine.price_with_greeks(option, context, request)),
-                )
+                domain(py.detach(|| engine.price_with_greeks(option, context, request)))
             }
         }?;
         Ok(risk::PricingResult(result))
@@ -694,7 +679,7 @@ sampling_settings!(
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        domain(py, py.detach(|| engine.price(option, context)))
+        domain(py.detach(|| engine.price(option, context)))
     },
     /// Return the price and selected sensitivities.
     ///
@@ -763,10 +748,9 @@ sampling_settings!(
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        Ok(risk::PricingResult(domain(
-            py,
-            py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
-        )?))
+        Ok(risk::PricingResult(domain(py.detach(|| {
+            engine.price_with_greeks(option, context, request, shifts)
+        }))?))
     }
 );
 
@@ -844,7 +828,7 @@ sampling_settings!(
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        domain(py, py.detach(|| engine.price(option, context)))
+        domain(py.detach(|| engine.price(option, context)))
     },
     /// Return the price and selected sensitivities.
     ///
@@ -913,10 +897,9 @@ sampling_settings!(
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        Ok(risk::PricingResult(domain(
-            py,
-            py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
-        )?))
+        Ok(risk::PricingResult(domain(py.detach(|| {
+            engine.price_with_greeks(option, context, request, shifts)
+        }))?))
     }
 );
 
@@ -996,7 +979,7 @@ sampling_settings!(
         autocallable::with_note!(
             instrument,
             note,
-            domain(py, py.detach(|| engine.price(note, context)))
+            domain(py.detach(|| engine.price(note, context)))
         )
     },
     /// Return the price and estimated sampling uncertainty.
@@ -1031,7 +1014,6 @@ sampling_settings!(
             instrument,
             note,
             Ok(MonteCarloEstimate(domain(
-                py,
                 py.detach(|| engine.price_with_statistics(note, context))
             )?))
         )
@@ -1102,10 +1084,9 @@ sampling_settings!(
         autocallable::with_note!(
             instrument,
             note,
-            Ok(risk::PricingResult(domain(
-                py,
-                py.detach(|| engine.price_with_greeks(note, context, request, shifts))
-            )?))
+            Ok(risk::PricingResult(domain(py.detach(|| {
+                engine.price_with_greeks(note, context, request, shifts)
+            }))?))
         )
     }
 );
@@ -1184,7 +1165,7 @@ sampling_settings!(
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        domain(py, py.detach(|| engine.price(option, context)))
+        domain(py.detach(|| engine.price(option, context)))
     },
     /// Return the price and estimated sampling uncertainty.
     ///
@@ -1218,10 +1199,9 @@ sampling_settings!(
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        Ok(MonteCarloEstimate(domain(
-            py,
-            py.detach(|| engine.price_with_statistics(option, context)),
-        )?))
+        Ok(MonteCarloEstimate(domain(py.detach(|| {
+            engine.price_with_statistics(option, context)
+        }))?))
     },
     /// Return the price and selected sensitivities.
     ///
@@ -1290,9 +1270,8 @@ sampling_settings!(
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        Ok(risk::PricingResult(domain(
-            py,
-            py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
-        )?))
+        Ok(risk::PricingResult(domain(py.detach(|| {
+            engine.price_with_greeks(option, context, request, shifts)
+        }))?))
     }
 );

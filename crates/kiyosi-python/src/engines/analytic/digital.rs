@@ -39,14 +39,10 @@ impl AnalyticDigitalEngine {
     ///     If domain validation, engine applicability or numerical pricing fails.
     fn price(
         &self,
-        py: Python<'_>,
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: DigitalInstrument<'_>,
         context: &PricingContext,
     ) -> PyResult<f64> {
-        domain(
-            py,
-            kiyosi::AnalyticDigitalEngine.price(instrument.contract(), &context.0),
-        )
+        domain(kiyosi::AnalyticDigitalEngine.price(instrument.contract(), &context.0))
     }
 
     /// Return the price and selected sensitivities.
@@ -89,7 +85,6 @@ impl AnalyticDigitalEngine {
     )]
     fn price_with_greeks(
         &self,
-        py: Python<'_>,
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: DigitalInstrument<'_>,
         context: &PricingContext,
         greeks: Option<&Bound<'_, PyAny>>,
@@ -107,7 +102,6 @@ impl AnalyticDigitalEngine {
             time_shift_days,
         };
         Ok(risk::PricingResult(domain(
-            py,
             kiyosi::AnalyticDigitalEngine.price_with_greeks(
                 instrument.contract(),
                 &context.0,

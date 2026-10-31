@@ -41,9 +41,7 @@ pub(crate) struct Accumulator(pub(crate) kiyosi::Accumulator);
 impl Accumulator {
     #[new]
     #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_date, expiry_date, accumulated_quantity=kiyosi::AccumulatorTerms::DEFAULT_ACCUMULATED_QUANTITY))]
-    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
-        py: Python<'_>,
         strike: &Bound<'_, PyAny>,
         knock_out_level: &Bound<'_, PyAny>,
         daily_quantity: &Bound<'_, PyAny>,
@@ -61,7 +59,7 @@ impl Accumulator {
             date(expiry_date)?,
         );
         terms.accumulated_quantity = accumulated_quantity;
-        Ok(Self(domain(py, kiyosi::Accumulator::new(terms))?))
+        Ok(Self(domain(kiyosi::Accumulator::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -80,11 +78,8 @@ impl Accumulator {
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (*, accumulated_quantity))]
-    fn replace(&self, py: Python<'_>, accumulated_quantity: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(
-            py,
-            self.0.replace(real(accumulated_quantity)?),
-        )?))
+    fn replace(&self, accumulated_quantity: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(domain(self.0.replace(real(accumulated_quantity)?))?))
     }
     /// Return the exercise or purchase price in underlying price units.
     #[getter]

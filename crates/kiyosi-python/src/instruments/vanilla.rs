@@ -29,22 +29,18 @@ impl EuropeanOption {
     #[new]
     #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date))]
     fn new(
-        py: Python<'_>,
         option_type: &Bound<'_, PyAny>,
         strike: &Bound<'_, PyAny>,
         effective_date: &Bound<'_, PyAny>,
         expiry_date: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let direction = direction(option_type)?;
-        Ok(Self(domain(
-            py,
-            kiyosi::EuropeanOption::new(
-                direction,
-                real(strike)?,
-                date(effective_date)?,
-                date(expiry_date)?,
-            ),
-        )?))
+        Ok(Self(domain(kiyosi::EuropeanOption::new(
+            direction,
+            real(strike)?,
+            date(effective_date)?,
+            date(expiry_date)?,
+        ))?))
     }
 
     /// Return call or put payoff direction.

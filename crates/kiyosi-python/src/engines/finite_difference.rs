@@ -63,21 +63,17 @@ macro_rules! fd_engine {
             #[new]
             #[pyo3(signature = (*, asset_step_count=kiyosi::$name::default().settings().asset_step_count, time_step_count=kiyosi::$name::default().settings().time_step_count, scheme=kiyosi::$name::default().settings().scheme, asset_upper_boundary=None))]
             fn new(
-                py: Python<'_>,
                 #[pyo3(from_py_with = integer)] asset_step_count: i32,
                 #[pyo3(from_py_with = integer)] time_step_count: i32,
                 #[pyo3(from_py_with = scheme)] scheme: kiyosi::FiniteDifferenceScheme,
                 asset_upper_boundary: Option<&Bound<'_, PyAny>>,
             ) -> PyResult<Self> {
-                Ok(Self(domain(
-                    py,
-                    kiyosi::$name::new(kiyosi::FiniteDifferenceSettings {
-                        asset_step_count,
-                        time_step_count,
-                        scheme,
-                        asset_upper_boundary: asset_upper_boundary.map(real).transpose()?,
-                    }),
-                )?))
+                Ok(Self(domain(kiyosi::$name::new(kiyosi::FiniteDifferenceSettings {
+                    asset_step_count,
+                    time_step_count,
+                    scheme,
+                    asset_upper_boundary: asset_upper_boundary.map(real).transpose()?,
+                }))?))
             }
             /// Return the configured spatial grid budget.
             #[getter]
@@ -132,7 +128,7 @@ macro_rules! fd_engine {
                 let $option = instrument;
                 let $engine = self.0;
                 let $context = &context.0;
-                domain(py, $price)
+                domain($price)
             }
 
             /// Return the price and selected sensitivities.
@@ -188,7 +184,7 @@ macro_rules! fd_engine {
                 let $option = instrument;
                 let $engine = self.0;
                 let $context = &context.0;
-                Ok(risk::PricingResult(domain(py, $analysis)?))
+                Ok(risk::PricingResult(domain($analysis)?))
             }
         }
     };

@@ -49,9 +49,7 @@ pub(crate) struct RangeAccrualOption(pub kiyosi::RangeAccrualOption);
 impl RangeAccrualOption {
     #[new]
     #[pyo3(signature = (*, notional, annual_coupon_rate, lower_bound, upper_bound, effective_date, expiry_date, realized_hit_count=None))]
-    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
-        py: Python<'_>,
         notional: &Bound<'_, PyAny>,
         annual_coupon_rate: &Bound<'_, PyAny>,
         lower_bound: &Bound<'_, PyAny>,
@@ -71,7 +69,7 @@ impl RangeAccrualOption {
         if let Some(value) = realized_hit_count {
             terms.realized_hit_count = history(value)?;
         }
-        Ok(Self(domain(py, kiyosi::RangeAccrualOption::new(terms))?))
+        Ok(Self(domain(kiyosi::RangeAccrualOption::new(terms))?))
     }
 
     /// Return a validated replacement without changing this value.
@@ -93,14 +91,13 @@ impl RangeAccrualOption {
     #[pyo3(signature = (*, realized_hit_count=None))]
     fn replace(
         &self,
-        py: Python<'_>,
         #[pyo3(from_py_with = supplied)] realized_hit_count: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let count = match realized_hit_count {
             Some(value) => history(value)?,
             None => self.0.realized_hit_count(),
         };
-        Ok(Self(domain(py, self.0.replace(count))?))
+        Ok(Self(domain(self.0.replace(count))?))
     }
     /// Return positive finite coupon notional, without principal repayment.
     #[getter]

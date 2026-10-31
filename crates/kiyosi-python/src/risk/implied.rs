@@ -93,12 +93,9 @@ pub(crate) fn implied_volatility(
     let context = &context.0;
     macro_rules! solve {
         ($engine:expr, $option:expr) => {
-            domain(
-                py,
-                py.detach(|| {
-                    kiyosi::implied_volatility(&$engine, $option, context, observed, controls)
-                }),
-            )
+            domain(py.detach(|| {
+                kiyosi::implied_volatility(&$engine, $option, context, observed, controls)
+            }))
         };
     }
     macro_rules! solve_with {

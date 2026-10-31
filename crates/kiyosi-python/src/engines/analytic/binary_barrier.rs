@@ -45,17 +45,11 @@ impl AnalyticBinaryBarrierEngine {
         match instrument {
             BinaryInstrument::Binary(option) => {
                 let option = &option.0;
-                domain(
-                    py,
-                    py.detach(|| kiyosi::AnalyticBinaryBarrierEngine.price(option, context)),
-                )
+                domain(py.detach(|| kiyosi::AnalyticBinaryBarrierEngine.price(option, context)))
             }
             BinaryInstrument::Touch(option) => {
                 let option = &option.0;
-                domain(
-                    py,
-                    py.detach(|| kiyosi::AnalyticBinaryBarrierEngine.price(option, context)),
-                )
+                domain(py.detach(|| kiyosi::AnalyticBinaryBarrierEngine.price(option, context)))
             }
         }
     }
@@ -133,6 +127,6 @@ impl AnalyticBinaryBarrierEngine {
                 })
             }
         };
-        Ok(risk::PricingResult(domain(py, result)?))
+        Ok(risk::PricingResult(domain(result)?))
     }
 }

@@ -77,7 +77,7 @@ impl TradingCalendar {
                 ));
             }
         };
-        python_date(py, domain(py, self.0.adjust(nominal, convention))?)
+        python_date(py, domain(self.0.adjust(nominal, convention))?)
     }
 
     /// Count trading dates in the half-open interval [start, end).
@@ -98,11 +98,10 @@ impl TradingCalendar {
     ///     If end precedes start.
     fn trading_days_between(
         &self,
-        py: Python<'_>,
         start: &Bound<'_, PyAny>,
         end: &Bound<'_, PyAny>,
     ) -> PyResult<i32> {
-        domain(py, self.0.trading_days_between(date(start)?, date(end)?))
+        domain(self.0.trading_days_between(date(start)?, date(end)?))
     }
 
     /// Return trading-day count divided by the calendar annualization basis.
@@ -123,11 +122,10 @@ impl TradingCalendar {
     ///     If end precedes start.
     fn trading_year_fraction(
         &self,
-        py: Python<'_>,
         start: &Bound<'_, PyAny>,
         end: &Bound<'_, PyAny>,
     ) -> PyResult<f64> {
-        domain(py, self.0.trading_year_fraction(date(start)?, date(end)?))
+        domain(self.0.trading_year_fraction(date(start)?, date(end)?))
     }
 }
 
@@ -194,15 +192,16 @@ pub(crate) fn sse_calendar() -> TradingCalendar {
 #[pyfunction]
 #[pyo3(signature = (*, base, closed_dates=Vec::new(), open_dates=Vec::new(), trading_days_per_year=None))]
 pub(crate) fn custom_calendar(
-    py: Python<'_>,
     base: &TradingCalendar,
     #[pyo3(from_py_with = dates)] closed_dates: Vec<kiyosi::Date>,
     #[pyo3(from_py_with = dates)] open_dates: Vec<kiyosi::Date>,
     trading_days_per_year: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<TradingCalendar> {
     let basis = trading_days_per_year.map(integer).transpose()?;
-    Ok(TradingCalendar(domain(
-        py,
-        kiyosi::TradingCalendar::custom(base.0.clone(), closed_dates, open_dates, basis),
-    )?))
+    Ok(TradingCalendar(domain(kiyosi::TradingCalendar::custom(
+        base.0.clone(),
+        closed_dates,
+        open_dates,
+        basis,
+    ))?))
 }

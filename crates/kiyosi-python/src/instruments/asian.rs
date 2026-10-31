@@ -36,10 +36,10 @@ macro_rules! average_option {
         impl $name {
             #[new]
             #[pyo3(signature = (*, option_type, strike, effective_date, averaging_start_date, expiry_date, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE))]
-            fn new(py: Python<'_>, option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
+            fn new(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
                 effective_date: &Bound<'_, PyAny>, averaging_start_date: &Bound<'_, PyAny>,
                 expiry_date: &Bound<'_, PyAny>, #[pyo3(from_py_with = real)] realized_average: f64) -> PyResult<Self> {
-                Ok(Self(domain(py, kiyosi::$name::new(direction(option_type)?, real(strike)?,
+                Ok(Self(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
                     date(effective_date)?, date(averaging_start_date)?, date(expiry_date)?, realized_average))?))
             }
             /// Return a validated replacement without changing this value.
@@ -60,11 +60,11 @@ macro_rules! average_option {
             /// KiyosiError
             ///     If replacement terms fail domain validation. The original is unchanged.
             #[pyo3(signature = (*, realized_average=None))]
-            fn replace(&self, py: Python<'_>,
+            fn replace(&self,
                 #[pyo3(from_py_with = supplied)] realized_average: Option<&Bound<'_, PyAny>>,
             ) -> PyResult<Self> {
                 let realized = realized_average.map(real).transpose()?.unwrap_or(self.0.realized_average());
-                Ok(Self(domain(py, self.0.replace(realized))?))
+                Ok(Self(domain(self.0.replace(realized))?))
             }
             /// Return call or put payoff direction.
             #[getter]

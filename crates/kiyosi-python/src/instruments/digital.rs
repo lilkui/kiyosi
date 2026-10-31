@@ -14,10 +14,10 @@ macro_rules! digital_option {
         impl $name {
             #[new]
             #[pyo3(signature = (*, option_type, strike, $($payout,)? effective_date, expiry_date))]
-            fn new(py: Python<'_>, option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
+            fn new(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
                 $($payout: &Bound<'_, PyAny>,)? effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
             ) -> PyResult<Self> {
-                Ok(Self(domain(py, kiyosi::DigitalOption::$constructor(direction(option_type)?,
+                Ok(Self(domain(kiyosi::DigitalOption::$constructor(direction(option_type)?,
                     real(strike)?, $(real($payout)?,)? date(effective_date)?, date(expiry_date)?) )?))
             }
 
@@ -48,7 +48,6 @@ macro_rules! digital_option {
             #[pyo3(signature = (*, option_type=None, strike=None, $($payout=None,)? effective_date=None, expiry_date=None))]
             fn replace(
                 &self,
-                py: Python<'_>,
                 #[pyo3(from_py_with = supplied)] option_type: Option<&Bound<'_, PyAny>>,
                 #[pyo3(from_py_with = supplied)] strike: Option<&Bound<'_, PyAny>>,
                 $(#[pyo3(from_py_with = supplied)] $payout: Option<&Bound<'_, PyAny>>,)?
@@ -63,7 +62,7 @@ macro_rules! digital_option {
                 $(changes.payout = $payout.map(real).transpose()?;)?
                 changes.effective_date = effective_date.map(date).transpose()?;
                 changes.expiry_date = expiry_date.map(date).transpose()?;
-                Ok(Self(domain(py, self.0.replace(changes))?))
+                Ok(Self(domain(self.0.replace(changes))?))
             }
 
             /// Return call or put payoff direction.

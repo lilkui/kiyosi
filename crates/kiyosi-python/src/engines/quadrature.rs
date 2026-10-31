@@ -31,17 +31,15 @@ impl QuadratureBarrierEngine {
     #[new]
     #[pyo3(signature = (*, asset_step_count=kiyosi::QuadratureSettings::default().asset_step_count, integration_standard_deviations=kiyosi::QuadratureSettings::default().integration_standard_deviations))]
     fn new(
-        py: Python<'_>,
         #[pyo3(from_py_with = integer)] asset_step_count: i32,
         #[pyo3(from_py_with = real)] integration_standard_deviations: f64,
     ) -> PyResult<Self> {
-        Ok(Self(domain(
-            py,
-            kiyosi::QuadratureBarrierEngine::new(kiyosi::QuadratureSettings {
+        Ok(Self(domain(kiyosi::QuadratureBarrierEngine::new(
+            kiyosi::QuadratureSettings {
                 asset_step_count,
                 integration_standard_deviations,
-            }),
-        )?))
+            },
+        ))?))
     }
     /// Return the configured spatial grid budget.
     #[getter]
@@ -87,7 +85,7 @@ impl QuadratureBarrierEngine {
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        domain(py, py.detach(|| engine.price(option, context)))
+        domain(py.detach(|| engine.price(option, context)))
     }
     /// Return the price and selected sensitivities.
     ///
@@ -149,10 +147,9 @@ impl QuadratureBarrierEngine {
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        Ok(risk::PricingResult(domain(
-            py,
-            py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
-        )?))
+        Ok(risk::PricingResult(domain(py.detach(|| {
+            engine.price_with_greeks(option, context, request, shifts)
+        }))?))
     }
 }
 /// Flat-rate quadrature pricing with immutable integration settings.
@@ -181,17 +178,15 @@ impl QuadratureAccumulatorEngine {
     #[new]
     #[pyo3(signature = (*, asset_step_count=kiyosi::QuadratureSettings::default().asset_step_count, integration_standard_deviations=kiyosi::QuadratureSettings::default().integration_standard_deviations))]
     fn new(
-        py: Python<'_>,
         #[pyo3(from_py_with = integer)] asset_step_count: i32,
         #[pyo3(from_py_with = real)] integration_standard_deviations: f64,
     ) -> PyResult<Self> {
-        Ok(Self(domain(
-            py,
-            kiyosi::QuadratureAccumulatorEngine::new(kiyosi::QuadratureSettings {
+        Ok(Self(domain(kiyosi::QuadratureAccumulatorEngine::new(
+            kiyosi::QuadratureSettings {
                 asset_step_count,
                 integration_standard_deviations,
-            }),
-        )?))
+            },
+        ))?))
     }
     /// Return the configured spatial grid budget.
     #[getter]
@@ -237,7 +232,7 @@ impl QuadratureAccumulatorEngine {
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        domain(py, py.detach(|| engine.price(option, context)))
+        domain(py.detach(|| engine.price(option, context)))
     }
     /// Return the price and selected sensitivities.
     ///
@@ -299,10 +294,9 @@ impl QuadratureAccumulatorEngine {
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;
-        Ok(risk::PricingResult(domain(
-            py,
-            py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
-        )?))
+        Ok(risk::PricingResult(domain(py.detach(|| {
+            engine.price_with_greeks(option, context, request, shifts)
+        }))?))
     }
 }
 /// Flat-rate quadrature pricing with immutable integration settings.
@@ -339,17 +333,15 @@ impl QuadratureAutocallableEngine {
     #[new]
     #[pyo3(signature = (*, asset_step_count=kiyosi::QuadratureSettings::default().asset_step_count, integration_standard_deviations=kiyosi::QuadratureSettings::default().integration_standard_deviations))]
     fn new(
-        py: Python<'_>,
         #[pyo3(from_py_with = integer)] asset_step_count: i32,
         #[pyo3(from_py_with = real)] integration_standard_deviations: f64,
     ) -> PyResult<Self> {
-        Ok(Self(domain(
-            py,
-            kiyosi::QuadratureAutocallableEngine::new(kiyosi::QuadratureSettings {
+        Ok(Self(domain(kiyosi::QuadratureAutocallableEngine::new(
+            kiyosi::QuadratureSettings {
                 asset_step_count,
                 integration_standard_deviations,
-            }),
-        )?))
+            },
+        ))?))
     }
     /// Return the configured spatial grid budget.
     #[getter]
@@ -397,7 +389,7 @@ impl QuadratureAutocallableEngine {
         autocallable::with_note!(
             instrument,
             option,
-            domain(py, py.detach(|| engine.price(option, context)))
+            domain(py.detach(|| engine.price(option, context)))
         )
     }
     /// Return the price and selected sensitivities.
@@ -462,10 +454,9 @@ impl QuadratureAutocallableEngine {
         autocallable::with_note!(
             instrument,
             option,
-            Ok(risk::PricingResult(domain(
-                py,
-                py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
-            )?))
+            Ok(risk::PricingResult(domain(py.detach(|| {
+                engine.price_with_greeks(option, context, request, shifts)
+            }),)?))
         )
     }
 }

@@ -143,7 +143,6 @@ impl AutocallableObservation {
 #[pyfunction]
 #[pyo3(signature = (observation_dates, knock_out_levels, *, knock_out_coupon_rates=None, coupon_barrier_levels=None))]
 pub(crate) fn autocallable_observations(
-    py: Python<'_>,
     observation_dates: &Bound<'_, PyAny>,
     knock_out_levels: &Bound<'_, PyAny>,
     knock_out_coupon_rates: Option<&Bound<'_, PyAny>>,
@@ -153,10 +152,12 @@ pub(crate) fn autocallable_observations(
     let levels = reals(knock_out_levels)?;
     let coupons = knock_out_coupon_rates.map(reals).transpose()?;
     let barriers = coupon_barrier_levels.map(reals).transpose()?;
-    Ok(domain(
-        py,
-        kiyosi::autocallable_observations(&dates, &levels, coupons.as_deref(), barriers.as_deref()),
-    )?
+    Ok(domain(kiyosi::autocallable_observations(
+        &dates,
+        &levels,
+        coupons.as_deref(),
+        barriers.as_deref(),
+    ))?
     .into_iter()
     .map(AutocallableObservation)
     .collect())
@@ -169,7 +170,6 @@ macro_rules! snowball_preset {
         #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* observation_dates, effective_date, expiry_date, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
         pub(crate) fn $name(
-            py: Python<'_>,
             $coupon: &Bound<'_, PyAny>,
             initial_spot: &Bound<'_, PyAny>,
             knock_in_level: &Bound<'_, PyAny>,
@@ -190,7 +190,7 @@ macro_rules! snowball_preset {
                 terms.barrier_state = state(value)?;
             }
             terms.principal_ratio = principal_ratio;
-            Ok(SnowballOption(domain(py, terms.expand($preset))?))
+            Ok(SnowballOption(domain(terms.expand($preset))?))
         }
     };
 }
@@ -636,7 +636,6 @@ impl SnowballOption {
     #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
-        py: Python<'_>,
         maturity_coupon_rate: &Bound<'_, PyAny>,
         initial_spot: &Bound<'_, PyAny>,
         knock_in_level: &Bound<'_, PyAny>,
@@ -664,7 +663,7 @@ impl SnowballOption {
             terms.barrier_state = state(value)?;
         }
         terms.principal_ratio = principal_ratio;
-        Ok(Self(domain(py, kiyosi::SnowballOption::new(terms))?))
+        Ok(Self(domain(kiyosi::SnowballOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -684,8 +683,8 @@ impl SnowballOption {
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (*, barrier_state))]
-    fn replace(&self, py: Python<'_>, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(py, self.0.replace(state(barrier_state)?))?))
+    fn replace(&self, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(domain(self.0.replace(state(barrier_state)?))?))
     }
     /// Return owned copies of the contractual observations.
     #[getter]
@@ -832,7 +831,6 @@ impl BinarySnowballOption {
     #[new]
     #[pyo3(signature = (*, maturity_coupon_rate, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     fn new(
-        py: Python<'_>,
         maturity_coupon_rate: &Bound<'_, PyAny>,
         effective_date: &Bound<'_, PyAny>,
         expiry_date: &Bound<'_, PyAny>,
@@ -850,7 +848,7 @@ impl BinarySnowballOption {
             terms.barrier_state = state(value)?;
         }
         terms.principal_ratio = principal_ratio;
-        Ok(Self(domain(py, kiyosi::BinarySnowballOption::new(terms))?))
+        Ok(Self(domain(kiyosi::BinarySnowballOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -870,8 +868,8 @@ impl BinarySnowballOption {
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (*, barrier_state))]
-    fn replace(&self, py: Python<'_>, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(py, self.0.replace(state(barrier_state)?))?))
+    fn replace(&self, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(domain(self.0.replace(state(barrier_state)?))?))
     }
     /// Return owned copies of the contractual observations.
     #[getter]
@@ -995,7 +993,6 @@ impl TernarySnowballOption {
     #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
-        py: Python<'_>,
         maturity_coupon_rate: &Bound<'_, PyAny>,
         minimum_coupon_rate: &Bound<'_, PyAny>,
         knock_in_level: &Bound<'_, PyAny>,
@@ -1019,7 +1016,7 @@ impl TernarySnowballOption {
             terms.barrier_state = state(value)?;
         }
         terms.principal_ratio = principal_ratio;
-        Ok(Self(domain(py, kiyosi::TernarySnowballOption::new(terms))?))
+        Ok(Self(domain(kiyosi::TernarySnowballOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -1039,8 +1036,8 @@ impl TernarySnowballOption {
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (*, barrier_state))]
-    fn replace(&self, py: Python<'_>, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(py, self.0.replace(state(barrier_state)?))?))
+    fn replace(&self, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(domain(self.0.replace(state(barrier_state)?))?))
     }
     /// Return owned copies of the contractual observations.
     #[getter]
@@ -1192,7 +1189,6 @@ impl PhoenixOption {
     #[pyo3(signature = (*, coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
-        py: Python<'_>,
         coupon_rate: &Bound<'_, PyAny>,
         initial_spot: &Bound<'_, PyAny>,
         knock_in_level: &Bound<'_, PyAny>,
@@ -1220,7 +1216,7 @@ impl PhoenixOption {
             terms.barrier_state = state(value)?;
         }
         terms.principal_ratio = principal_ratio;
-        Ok(Self(domain(py, kiyosi::PhoenixOption::new(terms))?))
+        Ok(Self(domain(kiyosi::PhoenixOption::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -1240,8 +1236,8 @@ impl PhoenixOption {
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (*, barrier_state))]
-    fn replace(&self, py: Python<'_>, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(py, self.0.replace(state(barrier_state)?))?))
+    fn replace(&self, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(domain(self.0.replace(state(barrier_state)?))?))
     }
     /// Return owned copies of the contractual observations.
     #[getter]

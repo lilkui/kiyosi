@@ -118,8 +118,8 @@ impl PricingResult {
     /// ------
     /// UnsupportedOperationError
     ///     If the measure was not requested or is undefined at this valuation.
-    fn require(&self, py: Python<'_>, measure: &Bound<'_, PyAny>) -> PyResult<f64> {
-        domain(py, self.0.require(greek(measure)?))
+    fn require(&self, measure: &Bound<'_, PyAny>) -> PyResult<f64> {
+        domain(self.0.require(greek(measure)?))
     }
 }
 
