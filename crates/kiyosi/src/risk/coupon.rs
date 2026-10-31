@@ -1,6 +1,6 @@
 use crate::{
-    AutocallableNote, Error, ImpliedVolatilitySettings, PhoenixOption, PricingContext,
-    PricingEngine, Result, SnowballCouponTerms,
+    AutocallableNote, Error, PhoenixOption, PricingContext, PricingEngine, Result,
+    SnowballCouponTerms,
 };
 
 /// Selects how a snowball maturity coupon follows its quoted observation coupon.
@@ -33,13 +33,12 @@ pub struct ImpliedCouponSettings {
 }
 impl Default for ImpliedCouponSettings {
     fn default() -> Self {
-        let controls = ImpliedVolatilitySettings::default();
         Self {
             lower_bound: 0.0,
             upper_bound: 2.0,
-            price_tolerance: controls.price_tolerance,
-            parameter_tolerance: controls.parameter_tolerance,
-            max_iterations: controls.max_iterations,
+            price_tolerance: 1e-8,
+            parameter_tolerance: 1e-8,
+            max_iterations: 100,
         }
     }
 }
