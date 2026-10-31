@@ -485,18 +485,10 @@ fn native(
     if !option.spot_discontinuity(context, h, contract.upper_barrier) {
         result.set(request, Greek::Delta, sample[1])?;
         result.set(request, Greek::Gamma, sample[2])?;
-        if request.has(Greek::Speed)
-            && h > 0.0
-            && spot - h > space.asset(0)
-            && spot + h < space.upper
-        {
-            result.set(
-                request,
-                Greek::Speed,
-                (space.sample(&values, &curvature, spot + h)[2]
-                    - space.sample(&values, &curvature, spot - h)[2])
-                    / (2.0 * h),
-            )?;
+        if request.has(Greek::Speed) {
+            if let Some(speed) = space.speed(&values, &curvature, spot, h) {
+                result.set(request, Greek::Speed, speed)?;
+            }
         }
     }
     Ok(result)

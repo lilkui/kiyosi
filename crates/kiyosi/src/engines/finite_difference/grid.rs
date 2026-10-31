@@ -177,6 +177,18 @@ impl SpatialGrid {
         curvature
     }
 
+    pub fn speed(&self, values: &[f64], curvature: &[f64], spot: f64, shift: f64) -> Option<f64> {
+        if shift > 0.0 && spot - shift > self.asset(0) && spot + shift < self.upper {
+            Some(
+                (self.sample(values, curvature, spot + shift)[2]
+                    - self.sample(values, curvature, spot - shift)[2])
+                    / (2.0 * shift),
+            )
+        } else {
+            None
+        }
+    }
+
     pub fn sample(&self, values: &[f64], curvature: &[f64], spot: f64) -> [f64; 3] {
         let (index, weight) = self.locate(spot);
         let h = self.width(index);
@@ -437,6 +449,40 @@ impl TimeGrid {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn speed_uses_gamma_differences_only_strictly_inside_grid() {
+        let mut grid = SpatialGrid::new(
+            FiniteDifferenceSettings {
+                asset_step_count: 4,
+                ..Default::default()
+            },
+            20.0,
+            0.0,
+            0.0,
+        )
+        .unwrap();
+        grid.uniform_domain(10.0, 20.0).unwrap();
+        let values: Vec<_> = (0..=grid.count).map(|i| grid.asset(i).powi(3)).collect();
+        let curvature: Vec<_> = (0..=grid.count)
+            .map(|i| 6.0 * grid.asset(i) * grid.spacing.powi(2))
+            .collect();
+        for spot in [11.25, 15.0, 18.75] {
+            assert!((grid.speed(&values, &curvature, spot, 1.0).unwrap() - 6.0).abs() < 1e-12);
+        }
+        for (spot, shift) in [
+            (11.0, 1.0),
+            (19.0, 1.0),
+            (10.5, 1.0),
+            (19.5, 1.0),
+            (15.0, 0.0),
+            (15.0, -1.0),
+            (15.0, f64::NAN),
+            (15.0, f64::INFINITY),
+        ] {
+            assert_eq!(grid.speed(&values, &curvature, spot, shift), None);
+        }
+    }
 
     #[test]
     fn substeps_damp_two_intervals_then_resume_crank_nicolson() {
