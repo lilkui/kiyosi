@@ -80,7 +80,7 @@ impl QuadratureAutocallableEngine {
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<f64> {
-        price(option, context, self.settings, &mut None)
+        price(option, context, self.settings, None)
     }
     /// Computes requested scalar sensitivities using shared core bump defaults.
     ///
@@ -133,7 +133,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for Request<T> {
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         let mut curve = self.curve.borrow_mut();
-        price(option, context, self.settings, &mut curve)
+        price(option, context, self.settings, Some(&mut curve))
     }
     fn volatility_affects_price(
         &self,
@@ -193,18 +193,6 @@ struct PreparedCurve<T: AutocallableTerms> {
     drift: f64,
     deviation: f64,
     discount: f64,
-}
-impl<T: AutocallableTerms> PreparedCurve<T> {
-    fn evaluate(&self, spot: f64) -> Result<f64> {
-        let anchor = self.option.view().reference_spot();
-        checked(self.curve.evaluate(
-            &self.nodes,
-            log_ratio(spot, anchor) + self.drift,
-            anchor,
-            self.deviation,
-            self.discount,
-        ))
-    }
 }
 fn event<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
@@ -316,7 +304,7 @@ fn price<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     context: &PricingContext,
     settings: QuadratureSettings,
-    prepared: &mut Option<PreparedCurve<T>>,
+    prepared: Option<&mut Option<PreparedCurve<T>>>,
 ) -> Result<f64> {
     let (rate, dividend) = flat_rates(context)?;
     validate(note, context)?;
@@ -336,18 +324,34 @@ fn price<T: AutocallableTerms>(
     }
     let layers =
         note.view().daily_knock_in() && !state.knocked_in && note.knock_in_affects_payoff();
+    let t = note.view();
+    let anchor = t.reference_spot();
+    let evaluate = |nodes: &[f64], curve: &Curve, drift, deviation, discount| {
+        let value = checked(curve.evaluate(
+            nodes,
+            log_ratio(context.spot_price(), anchor) + drift,
+            anchor,
+            deviation,
+            discount,
+        ))?;
+        checked(state.coupon + value)
+    };
     let dates = future_event_dates(note, context, layers)?;
-    if let Some(curve) = prepared.as_ref().filter(|c| {
+    if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *note
             && c.model == *context.model_parameters()
             && c.valuation == context.valuation_time()
             && c.knocked_in == state.knocked_in
             && c.dates == dates
     }) {
-        return checked(state.coupon + curve.evaluate(context.spot_price())?);
+        return evaluate(
+            &curve.nodes,
+            &curve.curve,
+            curve.drift,
+            curve.deviation,
+            curve.discount,
+        );
     }
-    let t = note.view();
-    let anchor = t.reference_spot();
     let mut breaks = Vec::new();
     if let Some(ki) = t.knock_in {
         breaks.push(log_ratio(ki.level, anchor));
@@ -449,20 +453,21 @@ fn price<T: AutocallableTerms>(
         };
         let (drift, deviation, discount) = transition(time)?;
         if index == 0 {
-            let curve = PreparedCurve {
-                option: note.clone(),
-                model: context.model_parameters().clone(),
-                valuation: context.valuation_time(),
-                knocked_in: state.knocked_in,
-                nodes,
-                dates,
-                curve: alive,
-                drift,
-                deviation,
-                discount,
-            };
-            let value = checked(state.coupon + curve.evaluate(context.spot_price())?)?;
-            *prepared = Some(curve);
+            let value = evaluate(&nodes, &alive, drift, deviation, discount)?;
+            if let Some(prepared) = prepared {
+                *prepared = Some(PreparedCurve {
+                    option: note.clone(),
+                    model: context.model_parameters().clone(),
+                    valuation: context.valuation_time(),
+                    knocked_in: state.knocked_in,
+                    nodes,
+                    dates,
+                    curve: alive,
+                    drift,
+                    deviation,
+                    discount,
+                });
+            }
             return Ok(value);
         }
         let mut values = vec![0.0; nodes.len()];

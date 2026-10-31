@@ -59,7 +59,7 @@ impl QuadratureAccumulatorEngine {
     /// ([`Error::InvalidInput`]). Non-finite results or unrepresentable grids
     /// and transitions return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        price(option, context, self.settings, &mut None)
+        price(option, context, self.settings, None)
     }
     /// Computes requested scalar Greeks with shared core bump defaults; see [`Self::new`].
     ///
@@ -112,7 +112,7 @@ impl PricingEngine<Accumulator> for Request {
     }
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         let mut curve = self.curve.borrow_mut();
-        price(option, context, self.settings, &mut curve)
+        price(option, context, self.settings, Some(&mut curve))
     }
     fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
         option.volatility_affects_price(context)
@@ -130,28 +130,11 @@ struct PreparedCurve {
     deviation: f64,
     discount: f64,
 }
-impl PreparedCurve {
-    fn evaluate(&self, spot: f64, quantity: f64) -> Result<f64> {
-        let current = log_ratio(spot, self.option.strike());
-        let value = |layer: &Layer| {
-            layer.evaluate(
-                &self.nodes,
-                current,
-                self.option.strike(),
-                self.drift,
-                self.deviation,
-                self.discount,
-            )
-        };
-        checked(quantity * value(&self.layers[0]) + value(&self.layers[1]))
-    }
-}
-
 fn price(
     option: &Accumulator,
     context: &PricingContext,
     settings: QuadratureSettings,
-    prepared: &mut Option<PreparedCurve>,
+    prepared: Option<&mut Option<PreparedCurve>>,
 ) -> Result<f64> {
     let (rate, dividend) = flat_rates(context)?;
     option.validate_pricing(context)?;
@@ -162,16 +145,28 @@ fn price(
     if let Some(value) = settlement {
         return checked(value);
     }
+    let strike = option.strike();
+    let current = log_ratio(context.spot_price(), strike);
+    let evaluate = |nodes: &[f64], layers: &[Layer; 2], drift, deviation, discount| {
+        let value =
+            |layer: &Layer| layer.evaluate(nodes, current, strike, drift, deviation, discount);
+        checked(quantity * value(&layers[0]) + value(&layers[1]))
+    };
     let dates = option.future_observation_dates(context)?;
-    if let Some(curve) = prepared.as_ref().filter(|c| {
+    if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *option
             && c.model == *context.model_parameters()
             && c.valuation == context.valuation_time()
             && c.dates == dates
     }) {
-        return curve.evaluate(context.spot_price(), quantity);
+        return evaluate(
+            &curve.nodes,
+            &curve.layers,
+            curve.drift,
+            curve.deviation,
+            curve.discount,
+        );
     }
-    let strike = option.strike();
     let knock_out = log_ratio(option.knock_out_level(), strike);
     let sigma = context.model_parameters().volatility();
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
@@ -212,10 +207,7 @@ fn price(
     }
     if dates.len() == 1 {
         let (drift, deviation, discount) = transition(horizon)?;
-        let current = log_ratio(context.spot_price(), strike);
-        let value =
-            |layer: &Layer| layer.evaluate(&[], current, strike, drift, deviation, discount);
-        return checked(quantity * value(&layers[0]) + value(&layers[1]));
+        return evaluate(&[], &layers, drift, deviation, discount);
     }
     let extent = settings.integration_standard_deviations * sigma * horizon.sqrt();
     let lower = knock_out.min(0.0) + (drift_rate * horizon).min(0.0) - extent;
@@ -277,19 +269,20 @@ fn price(
         };
         let (drift, deviation, discount) = transition(time)?;
         if event == 0 {
-            let curve = PreparedCurve {
-                option: option.clone(),
-                model: context.model_parameters().clone(),
-                valuation: context.valuation_time(),
-                dates,
-                nodes,
-                layers,
-                drift,
-                deviation,
-                discount,
-            };
-            let value = curve.evaluate(context.spot_price(), quantity)?;
-            *prepared = Some(curve);
+            let value = evaluate(&nodes, &layers, drift, deviation, discount)?;
+            if let Some(prepared) = prepared {
+                *prepared = Some(PreparedCurve {
+                    option: option.clone(),
+                    model: context.model_parameters().clone(),
+                    valuation: context.valuation_time(),
+                    dates,
+                    nodes,
+                    layers,
+                    drift,
+                    deviation,
+                    discount,
+                });
+            }
             return Ok(value);
         }
         let transition = if final_event {

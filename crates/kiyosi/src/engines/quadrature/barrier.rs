@@ -100,7 +100,7 @@ impl QuadratureBarrierEngine {
     /// missing or impossible history, checked in that order. Unrepresentable grids,
     /// transitions or results return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        price(option, context, self.settings, &mut None)
+        price(option, context, self.settings, None)
     }
 
     /// Computes requested scalar numerical Greeks with shared bump defaults.
@@ -145,7 +145,7 @@ fn price(
     option: &BarrierOption,
     context: &PricingContext,
     settings: QuadratureSettings,
-    prepared: &mut Option<PreparedCurve>,
+    prepared: Option<&mut Option<PreparedCurve>>,
 ) -> Result<f64> {
     flat_rates(context)?;
     validate_life(option, context)?;
@@ -170,7 +170,7 @@ impl PricingEngine<BarrierOption> for BarrierPricer {
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         let mut prepared = self.prepared.borrow_mut();
-        price(option, context, self.settings, &mut prepared)
+        price(option, context, self.settings, Some(&mut prepared))
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
         option.volatility_affects_price(context)
@@ -471,31 +471,34 @@ struct PreparedCurve {
     deviation: f64,
     discount: f64,
 }
-impl PreparedCurve {
-    fn evaluate(&self, spot: f64) -> Result<f64> {
-        checked(self.layer.evaluate(
-            &self.nodes,
-            log_ratio(spot, self.option.strike()),
-            self.option.strike(),
-            self.drift,
-            self.deviation,
-            self.discount,
-        ))
-    }
-}
-
 fn scheduled_price(
     option: &BarrierOption,
     context: &PricingContext,
     settings: QuadratureSettings,
-    prepared: &mut Option<PreparedCurve>,
+    prepared: Option<&mut Option<PreparedCurve>>,
 ) -> Result<f64> {
-    if let Some(curve) = prepared.as_ref() {
+    let evaluate = |nodes: &[f64], layer: &Layer, drift, deviation, discount| {
+        checked(layer.evaluate(
+            nodes,
+            log_ratio(context.spot_price(), option.strike()),
+            option.strike(),
+            drift,
+            deviation,
+            discount,
+        ))
+    };
+    if let Some(curve) = prepared.as_deref().and_then(Option::as_ref) {
         if curve.option == *option
             && curve.model == *context.model_parameters()
             && curve.valuation == context.valuation_time()
         {
-            return curve.evaluate(context.spot_price());
+            return evaluate(
+                &curve.nodes,
+                &curve.layer,
+                curve.drift,
+                curve.deviation,
+                curve.discount,
+            );
         }
     }
     let dates: Vec<_> = option
@@ -567,18 +570,19 @@ fn scheduled_price(
             return Err(invalid_transition());
         }
         if event == 0 {
-            let curve = PreparedCurve {
-                option: option.clone(),
-                model: context.model_parameters().clone(),
-                valuation: context.valuation_time(),
-                nodes,
-                layer,
-                drift,
-                deviation,
-                discount,
-            };
-            let value = curve.evaluate(context.spot_price())?;
-            *prepared = Some(curve);
+            let value = evaluate(&nodes, &layer, drift, deviation, discount)?;
+            if let Some(prepared) = prepared {
+                *prepared = Some(PreparedCurve {
+                    option: option.clone(),
+                    model: context.model_parameters().clone(),
+                    valuation: context.valuation_time(),
+                    nodes,
+                    layer,
+                    drift,
+                    deviation,
+                    discount,
+                });
+            }
             return Ok(value);
         }
         if !layer.cells.is_empty() {

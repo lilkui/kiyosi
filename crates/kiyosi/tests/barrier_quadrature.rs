@@ -33,6 +33,50 @@ const KINDS: [BarrierType; 4] = [
 ];
 
 #[test]
+fn prepared_scheduled_prices_match_scalar_after_spot_and_model_changes() {
+    let engine = QuadratureBarrierEngine::new(QuadratureSettings {
+        asset_step_count: 128,
+        ..Default::default()
+    })
+    .unwrap();
+    for kind in KINDS {
+        let mut terms = terms(kind, OptionType::Call);
+        terms.observation_mode = ObservationMode::Scheduled;
+        terms.observation_dates = vec![day(2, 3), day(5, 1), terms.expiry_date];
+        let option = BarrierOption::new(terms).unwrap();
+        let context = market(0.04);
+        let spot = context
+            .replace(PricingContextChanges {
+                spot_price: Some(
+                    if matches!(kind, BarrierType::UpAndIn | BarrierType::UpAndOut) {
+                        105.0
+                    } else {
+                        95.0
+                    },
+                ),
+                ..Default::default()
+            })
+            .unwrap();
+        let model = spot
+            .replace(PricingContextChanges {
+                model_parameters: Some(
+                    BlackScholesMertonParameters::new(-0.02, 0.01, 0.35).unwrap(),
+                ),
+                ..Default::default()
+            })
+            .unwrap();
+        let prepared = engine.prepare_request().unwrap().unwrap();
+        for context in [&context, &spot, &model, &context] {
+            assert_eq!(
+                prepared.price(&option, context).unwrap(),
+                engine.price(&option, context).unwrap(),
+                "{kind:?} {context:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn continuous_quadrature_matches_analytic_for_all_payoffs_and_rebates() {
     let engine = QuadratureBarrierEngine::new(QuadratureSettings {
         asset_step_count: 1024,
