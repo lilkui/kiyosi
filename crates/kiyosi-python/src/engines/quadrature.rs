@@ -1,10 +1,6 @@
 use crate::conversions::{integer, real};
 use crate::error::domain;
-use crate::instruments::{
-    accumulator::Accumulator,
-    autocallable::{BinarySnowballOption, PhoenixOption, SnowballOption, TernarySnowballOption},
-    barrier::BarrierOption,
-};
+use crate::instruments::{accumulator::Accumulator, autocallable, barrier::BarrierOption};
 use crate::market::PricingContext;
 use crate::risk;
 use pyo3::prelude::*;
@@ -398,20 +394,11 @@ impl QuadratureAutocallableEngine {
     ) -> PyResult<f64> {
         let engine = self.0;
         let context = &context.0;
-        if let Ok(note) = instrument.extract::<PyRef<'_, PhoenixOption>>() {
-            let option = &note.0;
-            return domain(py, py.detach(|| engine.price(option, context)));
-        }
-        if let Ok(note) = instrument.extract::<PyRef<'_, BinarySnowballOption>>() {
-            let option = &note.0;
-            return domain(py, py.detach(|| engine.price(option, context)));
-        }
-        if let Ok(note) = instrument.extract::<PyRef<'_, TernarySnowballOption>>() {
-            let option = &note.0;
-            return domain(py, py.detach(|| engine.price(option, context)));
-        }
-        let option = &crate::conversions::instrument::<PyRef<'_, SnowballOption>>(instrument)?.0;
-        domain(py, py.detach(|| engine.price(option, context)))
+        autocallable::with_note!(
+            instrument,
+            option,
+            domain(py, py.detach(|| engine.price(option, context)))
+        )
     }
     /// Return the price and selected sensitivities.
     ///
@@ -472,31 +459,13 @@ impl QuadratureAutocallableEngine {
         };
         let engine = self.0;
         let context = &context.0;
-        if let Ok(note) = instrument.extract::<PyRef<'_, PhoenixOption>>() {
-            let option = &note.0;
-            return Ok(risk::PricingResult(domain(
+        autocallable::with_note!(
+            instrument,
+            option,
+            Ok(risk::PricingResult(domain(
                 py,
                 py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
-            )?));
-        }
-        if let Ok(note) = instrument.extract::<PyRef<'_, BinarySnowballOption>>() {
-            let option = &note.0;
-            return Ok(risk::PricingResult(domain(
-                py,
-                py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
-            )?));
-        }
-        if let Ok(note) = instrument.extract::<PyRef<'_, TernarySnowballOption>>() {
-            let option = &note.0;
-            return Ok(risk::PricingResult(domain(
-                py,
-                py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
-            )?));
-        }
-        let option = &crate::conversions::instrument::<PyRef<'_, SnowballOption>>(instrument)?.0;
-        Ok(risk::PricingResult(domain(
-            py,
-            py.detach(|| engine.price_with_greeks(option, context, request, shifts)),
-        )?))
+            )?))
+        )
     }
 }
