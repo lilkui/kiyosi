@@ -129,8 +129,21 @@ pub(crate) fn resolved_price(
     option: &BarrierOption,
     context: &PricingContext,
 ) -> Result<Option<f64>> {
+    resolved_price_with_state(
+        option,
+        context,
+        option.state(context)?,
+        option.payoff_requires_touch(),
+    )
+}
+
+pub(super) fn resolved_price_with_state(
+    option: &BarrierOption,
+    context: &PricingContext,
+    (prior, touched, finished): (bool, bool, bool),
+    payoff_requires_touch: bool,
+) -> Result<Option<f64>> {
     let time = context.valuation_time();
-    let (prior, touched, finished) = option.state(context)?;
     let knock_in = option.barrier_type().is_knock_in();
     let cash = || {
         if option.rebate() == 0.0 {
@@ -154,7 +167,7 @@ pub(crate) fn resolved_price(
     if !touched && finished && knock_in {
         return cash().map(Some);
     }
-    let fixed = option.rebate() == 0.0 && option.payoff_requires_touch();
+    let fixed = option.rebate() == 0.0 && payoff_requires_touch;
     if fixed && !knock_in {
         return Ok(Some(0.0));
     }

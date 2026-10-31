@@ -1,6 +1,7 @@
 use crate::DoubleBarrierOption;
 use crate::engines::analytic::barrier::{
-    checked, log_ratio, scaled_cash, scaled_cdf, validate_life, validate_schedule,
+    checked, log_ratio, resolved_price_with_state, scaled_cash, scaled_cdf, validate_life,
+    validate_schedule,
 };
 use crate::engines::quadrature::gaussian::{Sum, log_interval_mass};
 use crate::{
@@ -102,41 +103,12 @@ pub(crate) fn resolved_price(
     option: &DoubleBarrierOption,
     context: &PricingContext,
 ) -> Result<Option<f64>> {
-    let time = context.valuation_time();
-    let (prior, touched, finished) = option.state(context)?;
-    let knock_in = option.knock_in();
-    let cash = || {
-        if option.rebate() == 0.0 {
-            return Ok(0.0);
-        }
-        checked(scaled_cash(
-            option.rebate(),
-            context
-                .model_parameters()
-                .risk_free_curve()
-                .log_factor(time, option.expiry_date().start_of_day())?,
-        ))
-    };
-    if touched && !knock_in {
-        return if option.rebate_timing() == RebateTiming::AtHit {
-            Ok(Some(if prior { 0.0 } else { option.rebate() }))
-        } else {
-            cash().map(Some)
-        };
-    }
-    if !touched && finished && knock_in {
-        return cash().map(Some);
-    }
-    let fixed = option.rebate() == 0.0 && option.payoff_requires_touch();
-    if fixed && !knock_in {
-        return Ok(Some(0.0));
-    }
-    if touched || finished || fixed {
-        return AnalyticEuropeanEngine
-            .price(option.vanilla(), context)
-            .map(Some);
-    }
-    Ok(None)
+    resolved_price_with_state(
+        &option.lower,
+        context,
+        option.state(context)?,
+        option.payoff_requires_touch(),
+    )
 }
 
 fn scaled(value: f64, exponent: f64) -> f64 {
