@@ -1,8 +1,9 @@
 use super::*;
+use crate::instruments::autocallable::Coupon;
 use crate::instruments::autocallable::pricing::{
     fixed_value, initial, validate, volatility_affects_price,
 };
-use crate::{AutocallableNote, AutocallableObservation, AutocallableTerms, KnockInObservationMode};
+use crate::{AutocallableNote, AutocallableObservation, AutocallableTerms};
 
 impl FiniteDifferenceAutocallableEngine {
     /// Prices remaining snowball or Phoenix cashflows on exact trading and observation dates.
@@ -111,12 +112,12 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
 
 fn highest<T: AutocallableTerms>(note: &AutocallableNote<T>) -> f64 {
     let t = note.view();
-    let mut level = t.initial_spot;
-    if t.has_knock_in {
-        level = level.max(t.knock_in_level);
+    let mut level = t.reference_spot();
+    if let Some(ki) = t.knock_in {
+        level = level.max(ki.level);
     }
-    if t.fixed_knocked_in_coupon.is_none() {
-        level = level.max(t.upper_strike).max(t.lower_strike);
+    if let Some(d) = t.downside() {
+        level = level.max(d.upper_strike).max(d.lower_strike);
     }
     note.observations().iter().fold(level, |level, r| {
         level.max(r.knock_out_level).max(r.coupon_barrier_level)
@@ -286,7 +287,7 @@ fn native<T: AutocallableTerms>(
         return Ok((result, None));
     }
     let t = note.view();
-    let daily = t.knock_in_observation_mode == KnockInObservationMode::EveryTradingDay;
+    let daily = t.daily_knock_in();
     let layered = daily && !state.knocked_in && note.knock_in_affects_payoff();
     let model = context.model_parameters();
     let expiry = note.expiry_date().start_of_day();
@@ -355,12 +356,12 @@ fn native<T: AutocallableTerms>(
         highest(note).max(context.spot_price()),
     )?;
     if settings.scheme != FiniteDifferenceScheme::ExplicitEuler {
-        let mut levels = vec![t.initial_spot];
-        if t.has_knock_in {
-            levels.push(t.knock_in_level);
+        let mut levels = vec![t.reference_spot()];
+        if let Some(ki) = t.knock_in {
+            levels.push(ki.level);
         }
-        if t.fixed_knocked_in_coupon.is_none() {
-            levels.extend([t.lower_strike, t.upper_strike]);
+        if let Some(d) = t.downside() {
+            levels.extend([d.lower_strike, d.upper_strike]);
         }
         for r in note
             .observations()
@@ -368,7 +369,7 @@ fn native<T: AutocallableTerms>(
             .filter(|r| r.date.start_of_day() > context.valuation_time())
         {
             levels.push(r.knock_out_level);
-            if t.phoenix {
+            if matches!(t.coupon, Coupon::Phoenix(_)) {
                 levels.push(r.coupon_barrier_level);
             }
         }
@@ -391,11 +392,11 @@ fn native<T: AutocallableTerms>(
     let mut next_alive = vec![0.0; size];
     let mut next_knocked = vec![0.0; size];
     let mut breaks = Vec::new();
-    if t.has_knock_in {
-        breaks.push(t.knock_in_level);
+    if let Some(ki) = t.knock_in {
+        breaks.push(ki.level);
     }
-    if t.fixed_knocked_in_coupon.is_none() {
-        breaks.extend([t.lower_strike, t.upper_strike]);
+    if let Some(d) = t.downside() {
+        breaks.extend([d.lower_strike, d.upper_strike]);
     }
     let end_event = event(note, time, context);
     if let Some(r) = end_event {
@@ -407,10 +408,7 @@ fn native<T: AutocallableTerms>(
             + if let Some(r) = record.filter(|r| asset >= r.knock_out_level) {
                 note.knock_out_payment(r)
             } else {
-                note.terminal(
-                    asset,
-                    knocked_in || t.has_knock_in && asset < t.knock_in_level,
-                )
+                note.terminal(asset, knocked_in || t.below_knock_in(asset))
             }
     };
     for i in 0..size {
@@ -458,8 +456,8 @@ fn native<T: AutocallableTerms>(
         let ki = layered && trading.binary_search_by(|v| v.total_cmp(&time)).is_ok();
         if record.is_some() || ki {
             breaks.clear();
-            if ki {
-                breaks.push(t.knock_in_level);
+            if let Some(ki) = t.knock_in.filter(|_| ki) {
+                breaks.push(ki.level);
             }
             if let Some(r) = record {
                 breaks.extend([r.knock_out_level, r.coupon_barrier_level]);
@@ -478,7 +476,7 @@ fn native<T: AutocallableTerms>(
                         [payment - a, payment - k]
                     } else {
                         [
-                            (if ki && asset < t.knock_in_level {
+                            (if ki && t.below_knock_in(asset) {
                                 k - a
                             } else {
                                 0.0

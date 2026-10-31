@@ -425,64 +425,71 @@ mod sealed {
     pub trait SnowballCoupon: Sized {
         fn with_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self;
     }
-    pub struct View<'a> {
+    #[derive(Clone, Copy)]
+    pub struct Downside {
         pub initial_spot: f64,
-        pub knock_in_level: f64,
         pub upper_strike: f64,
         pub lower_strike: f64,
-        pub knock_in_observation_mode: KnockInObservationMode,
+    }
+    #[derive(Clone, Copy)]
+    pub enum Redemption {
+        Downside(Downside),
+        FixedCoupon(f64),
+    }
+    #[derive(Clone, Copy)]
+    pub struct KnockIn {
+        pub level: f64,
+        pub observation_mode: KnockInObservationMode,
+        pub redemption: Redemption,
+    }
+    #[derive(Clone, Copy)]
+    pub enum Coupon {
+        Snowball(f64),
+        Phoenix(f64),
+    }
+    pub struct View<'a> {
+        pub knock_in: Option<KnockIn>,
+        pub coupon: Coupon,
         pub barrier_state: Option<AutocallableBarrierState>,
         pub principal_ratio: f64,
         pub effective_date: Date,
         pub expiry_date: Date,
         pub observations: &'a [AutocallableObservation],
-        pub maturity_coupon_rate: f64,
-        pub coupon_rate: f64,
-        pub phoenix: bool,
-        pub has_knock_in: bool,
-        pub fixed_knocked_in_coupon: Option<f64>,
     }
 }
+pub(crate) use sealed::Coupon;
+use sealed::{Downside, KnockIn, Redemption};
+
 macro_rules! terms_view {
-    ($terms:ty, $maturity:expr, $coupon:expr, $phoenix:expr) => {
+    ($terms:ty, $coupon:path, $rate:ident) => {
         impl sealed::Terms for $terms {
             fn set_history(&mut self, state: Option<AutocallableBarrierState>) {
                 self.barrier_state = state;
             }
             fn view(&self) -> sealed::View<'_> {
                 sealed::View {
-                    initial_spot: self.initial_spot,
-                    knock_in_level: self.knock_in_level,
-                    upper_strike: self.upper_strike,
-                    lower_strike: self.lower_strike,
-                    knock_in_observation_mode: self.knock_in_observation_mode,
+                    knock_in: Some(KnockIn {
+                        level: self.knock_in_level,
+                        observation_mode: self.knock_in_observation_mode,
+                        redemption: Redemption::Downside(Downside {
+                            initial_spot: self.initial_spot,
+                            upper_strike: self.upper_strike,
+                            lower_strike: self.lower_strike,
+                        }),
+                    }),
+                    coupon: $coupon(self.$rate),
                     barrier_state: self.barrier_state,
                     principal_ratio: self.principal_ratio,
                     effective_date: self.effective_date,
                     expiry_date: self.expiry_date,
                     observations: &self.observations,
-                    maturity_coupon_rate: $maturity(self),
-                    coupon_rate: $coupon(self),
-                    phoenix: $phoenix,
-                    has_knock_in: true,
-                    fixed_knocked_in_coupon: None,
                 }
             }
         }
     };
 }
-terms_view!(
-    SnowballTerms,
-    |t: &SnowballTerms| t.maturity_coupon_rate,
-    |_: &SnowballTerms| 0.0,
-    false
-);
-terms_view!(
-    PhoenixTerms,
-    |_: &PhoenixTerms| 0.0,
-    |t: &PhoenixTerms| t.coupon_rate,
-    true
-);
+terms_view!(SnowballTerms, Coupon::Snowball, maturity_coupon_rate);
+terms_view!(PhoenixTerms, Coupon::Phoenix, coupon_rate);
 
 impl sealed::Terms for BinarySnowballTerms {
     fn set_history(&mut self, state: Option<AutocallableBarrierState>) {
@@ -490,21 +497,13 @@ impl sealed::Terms for BinarySnowballTerms {
     }
     fn view(&self) -> sealed::View<'_> {
         sealed::View {
-            initial_spot: self.observations.first().map_or(1.0, |r| r.knock_out_level),
-            knock_in_level: 1.0,
-            upper_strike: 1.0,
-            lower_strike: 1.0,
-            knock_in_observation_mode: KnockInObservationMode::AtExpiry,
+            knock_in: None,
+            coupon: Coupon::Snowball(self.maturity_coupon_rate),
             barrier_state: self.barrier_state,
             principal_ratio: self.principal_ratio,
             effective_date: self.effective_date,
             expiry_date: self.expiry_date,
             observations: &self.observations,
-            maturity_coupon_rate: self.maturity_coupon_rate,
-            coupon_rate: 0.0,
-            phoenix: false,
-            has_knock_in: false,
-            fixed_knocked_in_coupon: Some(self.maturity_coupon_rate),
         }
     }
 }
@@ -515,21 +514,17 @@ impl sealed::Terms for TernarySnowballTerms {
     }
     fn view(&self) -> sealed::View<'_> {
         sealed::View {
-            initial_spot: self.knock_in_level,
-            knock_in_level: self.knock_in_level,
-            upper_strike: self.knock_in_level,
-            lower_strike: self.knock_in_level,
-            knock_in_observation_mode: self.knock_in_observation_mode,
+            knock_in: Some(KnockIn {
+                level: self.knock_in_level,
+                observation_mode: self.knock_in_observation_mode,
+                redemption: Redemption::FixedCoupon(self.minimum_coupon_rate),
+            }),
+            coupon: Coupon::Snowball(self.maturity_coupon_rate),
             barrier_state: self.barrier_state,
             principal_ratio: self.principal_ratio,
             effective_date: self.effective_date,
             expiry_date: self.expiry_date,
             observations: &self.observations,
-            maturity_coupon_rate: self.maturity_coupon_rate,
-            coupon_rate: 0.0,
-            phoenix: false,
-            has_knock_in: true,
-            fixed_knocked_in_coupon: Some(self.minimum_coupon_rate),
         }
     }
 }
@@ -626,28 +621,30 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     }
     pub(crate) fn period_coupon(&self, record: &AutocallableObservation) -> f64 {
         let t = self.view();
-        if !t.phoenix {
+        let Coupon::Phoenix(rate) = t.coupon else {
             return 0.0;
-        }
+        };
         let i = t.observations.partition_point(|r| r.date < record.date);
         let previous = if i == 0 {
             t.effective_date
         } else {
             t.observations[i - 1].date
         };
-        t.coupon_rate * previous.start_of_day().years_until(record.date.into())
+        rate * previous.start_of_day().years_until(record.date.into())
     }
     pub(crate) fn knock_in_affects_payoff(&self) -> bool {
-        if let Some(coupon) = self.view().fixed_knocked_in_coupon {
-            return self.view().has_knock_in && coupon != self.view().maturity_coupon_rate;
-        }
-        self.view().lower_strike != self.view().upper_strike
-            || self.view().maturity_coupon_rate != 0.0
+        let t = self.view();
+        t.knock_in.is_some_and(|ki| match ki.redemption {
+            Redemption::FixedCoupon(coupon) => coupon != t.maturity_coupon_rate(),
+            Redemption::Downside(d) => {
+                d.lower_strike != d.upper_strike || t.maturity_coupon_rate() != 0.0
+            }
+        })
     }
     pub(crate) fn prior(&self, time: Timestamp, calendar: &TradingCalendar) -> Result<bool> {
         let had_out = self.observations()[0].date.start_of_day() < time;
         let mut had_in = false;
-        if self.view().knock_in_observation_mode == KnockInObservationMode::EveryTradingDay {
+        if self.view().daily_knock_in() {
             let mut date = self.effective_date();
             while date.start_of_day() < time {
                 if calendar.is_trading_day(date) {
@@ -676,35 +673,41 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         Ok(self.barrier_state() == Some(AutocallableBarrierState::KnockedIn))
     }
     pub(crate) fn daily_at(&self, context: &PricingContext) -> bool {
-        self.view().knock_in_observation_mode == KnockInObservationMode::EveryTradingDay
+        self.view().daily_knock_in()
             && context.valuation_time() == context.valuation_date().start_of_day()
             && context.calendar().is_trading_day(context.valuation_date())
     }
     pub(crate) fn terminal(&self, spot: f64, knocked_in: bool) -> f64 {
         let t = self.view();
-        if knocked_in && t.fixed_knocked_in_coupon.is_none() {
-            t.principal_ratio
-                + (spot.clamp(t.lower_strike, t.upper_strike) - t.upper_strike) / t.initial_spot
+        let coupon = if knocked_in {
+            match t.redemption() {
+                Redemption::Downside(d) => {
+                    return t.principal_ratio
+                        + (spot.clamp(d.lower_strike, d.upper_strike) - d.upper_strike)
+                            / d.initial_spot;
+                }
+                Redemption::FixedCoupon(coupon) => coupon,
+            }
         } else {
-            t.principal_ratio
-                + if knocked_in {
-                    t.fixed_knocked_in_coupon.unwrap_or(t.maturity_coupon_rate)
-                } else {
-                    t.maturity_coupon_rate
-                } * t
-                    .effective_date
+            t.maturity_coupon_rate()
+        };
+        t.principal_ratio
+            + coupon
+                * t.effective_date
                     .start_of_day()
                     .years_until(t.expiry_date.into())
-        }
     }
     pub(crate) fn knock_out_payment(&self, record: &AutocallableObservation) -> f64 {
         let t = self.view();
         t.principal_ratio
-            + if t.phoenix { 0.0 } else { record.coupon_rate }
-                * self
-                    .effective_date()
-                    .start_of_day()
-                    .years_until(record.date.into())
+            + if matches!(t.coupon, Coupon::Phoenix(_)) {
+                0.0
+            } else {
+                record.coupon_rate
+            } * self
+                .effective_date()
+                .start_of_day()
+                .years_until(record.date.into())
     }
 }
 impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
@@ -730,7 +733,7 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
             .iter()
             .find(|r| r.date == context.valuation_date())
         {
-            if self.view().phoenix
+            if matches!(self.view().coupon, Coupon::Phoenix(_))
                 && self.period_coupon(record) != 0.0
                 && record.coupon_barrier_level > 0.0
                 && crosses(record.coupon_barrier_level)
@@ -747,7 +750,7 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
         self.barrier_state() != Some(AutocallableBarrierState::KnockedIn)
             && self.knock_in_affects_payoff()
             && self.daily_at(context)
-            && crosses(self.view().knock_in_level)
+            && self.view().knock_in.is_some_and(|ki| crosses(ki.level))
     }
     fn time_stencil_available(
         &self,
@@ -768,7 +771,7 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
         {
             return false;
         }
-        if self.view().knock_in_observation_mode == KnockInObservationMode::EveryTradingDay
+        if self.view().daily_knock_in()
             && self.barrier_state() != Some(AutocallableBarrierState::KnockedIn)
             && self.knock_in_affects_payoff()
         {
@@ -791,8 +794,49 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
 }
 
 impl sealed::View<'_> {
+    pub(crate) fn maturity_coupon_rate(&self) -> f64 {
+        match self.coupon {
+            Coupon::Snowball(rate) => rate,
+            Coupon::Phoenix(_) => 0.0,
+        }
+    }
+
+    fn redemption(&self) -> Redemption {
+        self.knock_in
+            .map_or(Redemption::FixedCoupon(self.maturity_coupon_rate()), |ki| {
+                ki.redemption
+            })
+    }
+
+    pub(crate) fn downside(&self) -> Option<Downside> {
+        match self.redemption() {
+            Redemption::Downside(d) => Some(d),
+            Redemption::FixedCoupon(_) => None,
+        }
+    }
+
+    pub(crate) fn reference_spot(&self) -> f64 {
+        match self.knock_in {
+            Some(KnockIn {
+                redemption: Redemption::Downside(d),
+                ..
+            }) => d.initial_spot,
+            Some(ki) => ki.level,
+            None => self.observations[0].knock_out_level,
+        }
+    }
+
+    pub(crate) fn daily_knock_in(&self) -> bool {
+        self.knock_in
+            .is_some_and(|ki| ki.observation_mode == KnockInObservationMode::EveryTradingDay)
+    }
+
+    pub(crate) fn below_knock_in(&self, spot: f64) -> bool {
+        self.knock_in.is_some_and(|ki| spot < ki.level)
+    }
+
     fn validate_history(&self, barrier_state: Option<AutocallableBarrierState>) -> Result<()> {
-        if !self.has_knock_in && barrier_state == Some(AutocallableBarrierState::KnockedIn) {
+        if self.knock_in.is_none() && barrier_state == Some(AutocallableBarrierState::KnockedIn) {
             return Err(Error::InvalidInput(
                 "knock-in state requires a knock-in barrier".into(),
             ));
@@ -802,12 +846,12 @@ impl sealed::View<'_> {
 
     fn validate(&self) -> Result<()> {
         let terms = self;
-        if terms.fixed_knocked_in_coupon.is_none() {
-            for value in [terms.initial_spot, terms.upper_strike] {
+        if let Some(d) = terms.downside() {
+            for value in [d.initial_spot, d.upper_strike] {
                 finite(value, true)?;
             }
-            finite(terms.lower_strike, false)?;
-            if terms.lower_strike < 0.0 || terms.lower_strike > terms.upper_strike {
+            finite(d.lower_strike, false)?;
+            if d.lower_strike < 0.0 || d.lower_strike > d.upper_strike {
                 return Err(Error::InvalidInput("invalid lower strike".into()));
             }
         }
@@ -837,17 +881,19 @@ impl sealed::View<'_> {
             finite(r.knock_out_level, true)?;
         }
         terms.validate_history(terms.barrier_state)?;
-        finite(terms.knock_in_level, true)?;
-        if let Some(coupon) = terms.fixed_knocked_in_coupon {
+        if let Some(ki) = terms.knock_in {
+            finite(ki.level, true)?;
+        }
+        if let Redemption::FixedCoupon(coupon) = terms.redemption() {
             finite(coupon, false)?;
-            if coupon > terms.maturity_coupon_rate {
+            if coupon > terms.maturity_coupon_rate() {
                 return Err(Error::InvalidInput(
                     "minimum coupon exceeds maturity coupon".into(),
                 ));
             }
         }
-        if terms.phoenix {
-            finite(terms.coupon_rate, false)?;
+        if let Coupon::Phoenix(rate) = terms.coupon {
+            finite(rate, false)?;
             for r in terms.observations {
                 finite(r.coupon_barrier_level, false)?;
                 if r.coupon_barrier_level < 0.0 || r.coupon_rate != 0.0 {
@@ -860,7 +906,7 @@ impl sealed::View<'_> {
             for r in terms.observations {
                 finite(r.coupon_rate, false)?;
             }
-            finite(terms.maturity_coupon_rate, false)?;
+            finite(terms.maturity_coupon_rate(), false)?;
             if terms
                 .observations
                 .iter()

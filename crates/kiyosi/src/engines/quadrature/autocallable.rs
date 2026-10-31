@@ -4,13 +4,14 @@ use super::gaussian::{
 };
 use super::{QuadratureSettings, flat_rates};
 use crate::engines::analytic::barrier::log_ratio;
+use crate::instruments::autocallable::Coupon;
 use crate::instruments::autocallable::pricing::{
     fixed_value, future_event_dates, initial, validate, volatility_affects_price,
 };
 use crate::{
     AutocallableNote, AutocallableObservation, AutocallableTerms, BlackScholesMertonParameters,
-    Date, Error, GreeksRequest, KnockInObservationMode, NumericalShiftSettings, PricingContext,
-    PricingEngine, PricingResult, Result, Timestamp,
+    Date, Error, GreeksRequest, NumericalShiftSettings, PricingContext, PricingEngine,
+    PricingResult, Result, Timestamp,
 };
 
 /// Prices snowball variants and Phoenix notes by cubic Gaussian integration between exact event dates.
@@ -195,10 +196,11 @@ struct PreparedCurve<T: AutocallableTerms> {
 }
 impl<T: AutocallableTerms> PreparedCurve<T> {
     fn evaluate(&self, spot: f64) -> Result<f64> {
+        let anchor = self.option.view().reference_spot();
         checked(self.curve.evaluate(
             &self.nodes,
-            log_ratio(spot, self.option.view().initial_spot) + self.drift,
-            self.option.view().initial_spot,
+            log_ratio(spot, anchor) + self.drift,
+            anchor,
             self.deviation,
             self.discount,
         ))
@@ -220,6 +222,7 @@ fn terminal<T: AutocallableTerms>(
     knocked_in: bool,
 ) -> Vec<TerminalPiece> {
     let t = note.view();
+    let anchor = t.reference_spot();
     let mut edges = vec![f64::NEG_INFINITY];
     edges.extend_from_slice(breaks);
     edges.push(f64::INFINITY);
@@ -235,30 +238,30 @@ fn terminal<T: AutocallableTerms>(
             };
             let mut cash;
             let mut asset = 0.0;
-            if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level, t.initial_spot))
-            {
+            if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level, anchor)) {
                 cash = note.knock_out_payment(r);
             } else if knocked_in
-                || t.has_knock_in && point < log_ratio(t.knock_in_level, t.initial_spot)
+                || t.knock_in
+                    .is_some_and(|ki| point < log_ratio(ki.level, anchor))
             {
-                if t.fixed_knocked_in_coupon.is_some() {
-                    cash = note.terminal(t.initial_spot, true);
-                } else if t.lower_strike > 0.0 && point < log_ratio(t.lower_strike, t.initial_spot)
-                {
-                    cash = t.principal_ratio - t.upper_strike / t.initial_spot;
-                    cash += t.lower_strike / t.initial_spot;
-                } else if point > log_ratio(t.upper_strike, t.initial_spot) {
-                    cash = t.principal_ratio;
+                if let Some(d) = t.downside() {
+                    if d.lower_strike > 0.0 && point < log_ratio(d.lower_strike, anchor) {
+                        cash = t.principal_ratio - d.upper_strike / d.initial_spot;
+                        cash += d.lower_strike / d.initial_spot;
+                    } else if point > log_ratio(d.upper_strike, anchor) {
+                        cash = t.principal_ratio;
+                    } else {
+                        cash = t.principal_ratio - d.upper_strike / d.initial_spot;
+                        asset = 1.0 / d.initial_spot;
+                    }
                 } else {
-                    cash = t.principal_ratio - t.upper_strike / t.initial_spot;
-                    asset = 1.0 / t.initial_spot;
+                    cash = note.terminal(anchor, true);
                 }
             } else {
-                cash = note.terminal(t.initial_spot, false);
+                cash = note.terminal(anchor, false);
             }
             if let Some(r) = record.filter(|r| {
-                r.coupon_barrier_level == 0.0
-                    || point > log_ratio(r.coupon_barrier_level, t.initial_spot)
+                r.coupon_barrier_level == 0.0 || point > log_ratio(r.coupon_barrier_level, anchor)
             }) {
                 cash += note.period_coupon(r);
             }
@@ -279,13 +282,13 @@ fn apply_event<T: AutocallableTerms>(
     knocked: Option<&Curve>,
 ) {
     let t = note.view();
+    let anchor = t.reference_spot();
     let record = event(note, date);
     let amount = record.map_or(0.0, |r| note.period_coupon(r));
     let coupon = |point: f64| {
         record
             .filter(|r| {
-                r.coupon_barrier_level == 0.0
-                    || point >= log_ratio(r.coupon_barrier_level, t.initial_spot)
+                r.coupon_barrier_level == 0.0 || point >= log_ratio(r.coupon_barrier_level, anchor)
             })
             .map_or(0.0, |_| amount)
     };
@@ -298,11 +301,12 @@ fn apply_event<T: AutocallableTerms>(
     alive.low[0] += coupon(f64::NEG_INFINITY);
     for (i, cell) in alive.cells.iter_mut().enumerate() {
         let point = nodes[i].midpoint(nodes[i + 1]);
-        if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level, t.initial_spot)) {
+        if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level, anchor)) {
             *cell = [note.knock_out_payment(r), 0.0, 0.0, 0.0];
-        } else if let Some(knocked) =
-            knocked.filter(|_| point < log_ratio(t.knock_in_level, t.initial_spot))
-        {
+        } else if let Some(knocked) = knocked.filter(|_| {
+            t.knock_in
+                .is_some_and(|ki| point < log_ratio(ki.level, anchor))
+        }) {
             *cell = knocked.cells[i];
         }
         cell[0] += coupon(point);
@@ -330,9 +334,8 @@ fn price<T: AutocallableTerms>(
                 },
         );
     }
-    let layers = note.view().knock_in_observation_mode == KnockInObservationMode::EveryTradingDay
-        && !state.knocked_in
-        && note.knock_in_affects_payoff();
+    let layers =
+        note.view().daily_knock_in() && !state.knocked_in && note.knock_in_affects_payoff();
     let dates = future_event_dates(note, context, layers)?;
     if let Some(curve) = prepared.as_ref().filter(|c| {
         c.option == *note
@@ -343,16 +346,17 @@ fn price<T: AutocallableTerms>(
     }) {
         return checked(state.coupon + curve.evaluate(context.spot_price())?);
     }
-    let anchor = note.view().initial_spot;
+    let t = note.view();
+    let anchor = t.reference_spot();
     let mut breaks = Vec::new();
-    if note.view().has_knock_in {
-        breaks.push(log_ratio(note.view().knock_in_level, anchor));
+    if let Some(ki) = t.knock_in {
+        breaks.push(log_ratio(ki.level, anchor));
     }
-    if note.view().fixed_knocked_in_coupon.is_none() {
-        breaks.push(log_ratio(note.view().upper_strike, anchor));
-    }
-    if note.view().fixed_knocked_in_coupon.is_none() && note.view().lower_strike > 0.0 {
-        breaks.push(log_ratio(note.view().lower_strike, anchor));
+    if let Some(d) = t.downside() {
+        breaks.push(log_ratio(d.upper_strike, anchor));
+        if d.lower_strike > 0.0 {
+            breaks.push(log_ratio(d.lower_strike, anchor));
+        }
     }
     for r in note
         .observations()
@@ -360,7 +364,7 @@ fn price<T: AutocallableTerms>(
         .filter(|r| r.date.start_of_day() > context.valuation_time())
     {
         breaks.push(log_ratio(r.knock_out_level, anchor));
-        if note.view().phoenix && r.coupon_barrier_level > 0.0 {
+        if matches!(t.coupon, Coupon::Phoenix(_)) && r.coupon_barrier_level > 0.0 {
             breaks.push(log_ratio(r.coupon_barrier_level, anchor));
         }
     }

@@ -18,7 +18,7 @@ pub(crate) fn initial<T: AutocallableTerms>(
     }
     let mut knocked_in = note.barrier_state() == Some(AutocallableBarrierState::KnockedIn);
     if note.daily_at(context) {
-        knocked_in |= context.spot_price() < note.view().knock_in_level;
+        knocked_in |= note.view().below_knock_in(context.spot_price());
     }
     let current = note
         .observations()
@@ -33,9 +33,7 @@ pub(crate) fn initial<T: AutocallableTerms>(
                 coupon
                     + note.terminal(
                         context.spot_price(),
-                        knocked_in
-                            || note.view().has_knock_in
-                                && context.spot_price() < note.view().knock_in_level,
+                        knocked_in || note.view().below_knock_in(context.spot_price()),
                     ),
             )
         } else {
@@ -124,11 +122,11 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
     knocked_in: bool,
 ) -> Option<f64> {
     let t = note.view();
-    if t.fixed_knocked_in_coupon.is_some() {
-        if !knocked_in && note.knock_in_affects_payoff() {
+    if let Some(d) = t.downside() {
+        if d.lower_strike != d.upper_strike || !knocked_in && t.maturity_coupon_rate() != 0.0 {
             return None;
         }
-    } else if t.lower_strike != t.upper_strike || !knocked_in && t.maturity_coupon_rate != 0.0 {
+    } else if !knocked_in && note.knock_in_affects_payoff() {
         return None;
     }
     let discount = |date: Date| {
@@ -153,7 +151,7 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
         if !discount.is_normal() || note.knock_out_payment(record) * discount != value + coupons {
             return None;
         }
-        if t.phoenix {
+        if matches!(t.coupon, Coupon::Phoenix(_)) {
             let coupon = note.period_coupon(record);
             if coupon != 0.0 && record.coupon_barrier_level != 0.0 {
                 return None;

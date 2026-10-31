@@ -4,8 +4,8 @@ use crate::instruments::autocallable::pricing::{
     fixed_value, future_event_dates, initial, validate, volatility_affects_price,
 };
 use crate::{
-    AutocallableNote, AutocallableTerms, GreeksRequest, KnockInObservationMode,
-    NumericalShiftSettings, PricingContext, PricingEngine, PricingResult, Result,
+    AutocallableNote, AutocallableTerms, GreeksRequest, NumericalShiftSettings, PricingContext,
+    PricingEngine, PricingResult, Result,
 };
 
 /// Prices snowball variants and Phoenix notes with trading-day CPU Monte Carlo.
@@ -148,9 +148,7 @@ impl MonteCarloAutocallableEngine {
             return Ok((moments, moments, true));
         }
         let terms = note.view();
-        let daily = terms.knock_in_observation_mode == KnockInObservationMode::EveryTradingDay
-            && !state.knocked_in
-            && note.knock_in_affects_payoff();
+        let daily = terms.daily_knock_in() && !state.knocked_in && note.knock_in_affects_payoff();
         let valuation = context.valuation_time();
         let dates = future_event_dates(note, context, daily)?;
         let mut previous = valuation;
@@ -185,7 +183,7 @@ impl MonteCarloAutocallableEngine {
                     return Err(unstable());
                 }
                 if daily {
-                    knocked_in |= spot < terms.knock_in_level;
+                    knocked_in |= terms.below_knock_in(spot);
                 }
                 if let Some(record) = record {
                     let coupon = note.observation_coupon(record, spot);
@@ -205,7 +203,7 @@ impl MonteCarloAutocallableEngine {
                     coupons += scaled_value(1.0, coupon, *log_discount)?;
                 }
             }
-            knocked_in |= terms.has_knock_in && spot < terms.knock_in_level;
+            knocked_in |= terms.below_knock_in(spot);
             let value = coupons
                 + scaled_value(1.0, note.terminal(spot, knocked_in), terminal_log_discount)?;
             if value.is_finite() {
