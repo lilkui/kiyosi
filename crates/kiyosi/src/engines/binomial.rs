@@ -1,3 +1,5 @@
+use super::Payoff;
+
 mod barrier;
 pub use barrier::CoxRossRubinsteinBarrierEngine;
 
@@ -163,15 +165,6 @@ fn prepare_implied(
     Ok(settings)
 }
 
-#[derive(Clone, Copy)]
-struct Payoff {
-    strike: f64,
-    sign: f64,
-    american: bool,
-    digital: bool,
-    payout: Option<f64>,
-}
-
 fn unstable() -> Error {
     Error::ComputationFailure("binomial tree produced unstable parameters, nodes or values".into())
 }
@@ -280,15 +273,7 @@ fn native(
     let spot = context.spot_price();
     let exercise = |s: f64| (payoff.sign * (s - payoff.strike)).max(0.0);
     if dt == 0.0 {
-        return PricingResult::new(if payoff.digital {
-            if payoff.sign * (spot - payoff.strike) > 0.0 {
-                payoff.payout.unwrap_or(spot)
-            } else {
-                0.0
-            }
-        } else {
-            exercise(spot)
-        });
+        return PricingResult::new(payoff.value(spot));
     }
     let (width, up, down, discount, p) = parameters(context, dt)?;
     let steps = settings.step_count as usize;
@@ -412,17 +397,7 @@ macro_rules! vanilla_pricing {
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
                 Ok(native(
                     option,
-                    Payoff {
-                        strike: option.strike(),
-                        sign: if option.option_type() == OptionType::Call {
-                            1.0
-                        } else {
-                            -1.0
-                        },
-                        american: $american,
-                        digital: false,
-                        payout: None,
-                    },
+                    Payoff::vanilla(option.option_type(), option.strike(), $american),
                     context,
                     self.settings,
                     GreeksRequest::default(),
@@ -442,17 +417,7 @@ macro_rules! vanilla_pricing {
                 let evaluate = |context: &PricingContext, request| {
                     native(
                         option,
-                        Payoff {
-                            strike: option.strike(),
-                            sign: if option.option_type() == OptionType::Call {
-                                1.0
-                            } else {
-                                -1.0
-                            },
-                            american: $american,
-                            digital: false,
-                            payout: None,
-                        },
+                        Payoff::vanilla(option.option_type(), option.strike(), $american),
                         context,
                         self.settings,
                         request,
@@ -569,17 +534,7 @@ impl CoxRossRubinsteinDigitalEngine {
     ) -> Result<PricingResult> {
         native(
             option,
-            Payoff {
-                strike: option.strike(),
-                sign: if option.option_type() == OptionType::Call {
-                    1.0
-                } else {
-                    -1.0
-                },
-                american: false,
-                digital: true,
-                payout: option.payout(),
-            },
+            Payoff::digital(option),
             context,
             self.settings,
             request,

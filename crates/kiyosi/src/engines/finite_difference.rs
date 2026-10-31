@@ -1,3 +1,4 @@
+use super::Payoff;
 use crate::{
     AmericanOption, DigitalOption, Error, EuropeanOption, Greek, GreeksRequest,
     NumericalShiftSettings, OptionContract, OptionType, PricingContext, PricingEngine,
@@ -91,29 +92,6 @@ fn invalid_grid(message: &'static str) -> Error {
 }
 fn unstable() -> Error {
     Error::ComputationFailure("finite-difference system is numerically unstable".into())
-}
-
-#[derive(Clone, Copy)]
-struct Payoff {
-    strike: f64,
-    sign: f64,
-    american: bool,
-    digital: bool,
-    payout: Option<f64>,
-}
-
-impl Payoff {
-    fn value(self, spot: f64) -> f64 {
-        if self.digital {
-            if self.sign * (spot - self.strike) > 0.0 {
-                self.payout.unwrap_or(spot)
-            } else {
-                0.0
-            }
-        } else {
-            (self.sign * (spot - self.strike)).max(0.0)
-        }
-    }
 }
 
 fn time_to_expiry(option: &impl OptionContract, context: &PricingContext) -> Result<f64> {
@@ -580,17 +558,7 @@ macro_rules! vanilla_pricing {
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
                 Ok(native(
                     option,
-                    Payoff {
-                        strike: option.strike(),
-                        sign: if option.option_type() == OptionType::Call {
-                            1.0
-                        } else {
-                            -1.0
-                        },
-                        american: $american,
-                        digital: false,
-                        payout: None,
-                    },
+                    Payoff::vanilla(option.option_type(), option.strike(), $american),
                     context,
                     self.settings,
                     GreeksRequest::default(),
@@ -608,17 +576,7 @@ macro_rules! vanilla_pricing {
             ) -> Result<PricingResult> {
                 analysis(
                     option,
-                    Payoff {
-                        strike: option.strike(),
-                        sign: if option.option_type() == OptionType::Call {
-                            1.0
-                        } else {
-                            -1.0
-                        },
-                        american: $american,
-                        digital: false,
-                        payout: None,
-                    },
+                    Payoff::vanilla(option.option_type(), option.strike(), $american),
                     context,
                     self.settings,
                     request,
@@ -660,7 +618,7 @@ impl FiniteDifferenceDigitalEngine {
         flat_rates(context)?;
         Ok(native(
             option,
-            Self::payoff(option),
+            Payoff::digital(option),
             context,
             self.settings,
             GreeksRequest::default(),
@@ -688,26 +646,12 @@ impl FiniteDifferenceDigitalEngine {
         flat_rates(context)?;
         analysis(
             option,
-            Self::payoff(option),
+            Payoff::digital(option),
             context,
             self.settings,
             request,
             shifts,
         )
-    }
-
-    fn payoff(option: &DigitalOption) -> Payoff {
-        Payoff {
-            strike: option.strike(),
-            sign: if option.option_type() == OptionType::Call {
-                1.0
-            } else {
-                -1.0
-            },
-            american: false,
-            digital: true,
-            payout: option.payout(),
-        }
     }
 }
 
