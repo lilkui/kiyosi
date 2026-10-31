@@ -111,19 +111,7 @@ impl MonteCarloVanillaEngine {
                 let mut positive = context.spot_price();
                 let mut negative = positive;
                 for step in 0..intervals {
-                    let normal = if let Some(cursor) = &mut cursor {
-                        cursor.normal()
-                    } else {
-                        match spare.take() {
-                            Some(value) => value,
-                            None => {
-                                let radius = (-2.0 * generator.uniform().ln()).sqrt();
-                                let (sin, cos) = (TAU * generator.uniform()).sin_cos();
-                                spare = Some(radius * sin);
-                                radius * cos
-                            }
-                        }
-                    };
+                    let normal = sample_normal(&mut generator, &mut spare, &mut cursor);
                     positive *= diffusion.mul_add(normal, drift).exp();
                     if !positive.is_finite() || positive <= 0.0 {
                         return Err(unstable());

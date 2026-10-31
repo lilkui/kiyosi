@@ -526,19 +526,7 @@ fn path_samples<const N: usize>(
         let mut normals = vec![0.0; dimensions];
         for path in block * BLOCK_SIZE..((block + 1) * BLOCK_SIZE).min(samples) {
             for normal in &mut normals {
-                *normal = if let Some(cursor) = &mut cursor {
-                    cursor.normal()
-                } else {
-                    match spare.take() {
-                        Some(value) => value,
-                        None => {
-                            let radius = (-2.0 * generator.uniform().ln()).sqrt();
-                            let (sin, cos) = (TAU * generator.uniform()).sin_cos();
-                            spare = Some(radius * sin);
-                            radius * cos
-                        }
-                    }
-                };
+                *normal = sample_normal(&mut generator, &mut spare, &mut cursor);
             }
             if let Some(cursor) = &mut cursor {
                 cursor.next_path();
@@ -571,6 +559,26 @@ fn path_samples<const N: usize>(
         }
     }
     Ok((total, pairs))
+}
+
+fn sample_normal(
+    generator: &mut Pcg32,
+    spare: &mut Option<f64>,
+    cursor: &mut Option<sobol::SobolCursor<'_>>,
+) -> f64 {
+    if let Some(cursor) = cursor {
+        cursor.normal()
+    } else {
+        match spare.take() {
+            Some(value) => value,
+            None => {
+                let radius = (-2.0 * generator.uniform().ln()).sqrt();
+                let (sin, cos) = (TAU * generator.uniform()).sin_cos();
+                *spare = Some(radius * sin);
+                radius * cos
+            }
+        }
+    }
 }
 
 fn run_blocks<T: Send>(
