@@ -1,5 +1,44 @@
 use super::*;
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "explicit grid, model and barrier event inputs"
+)]
+pub(super) fn march(
+    mut values: Vec<f64>,
+    space: &SpatialGrid,
+    grid: &TimeGrid,
+    sigma: f64,
+    theta: f64,
+    [risk, dividend]: [&Curve; 2],
+    observations: &[f64],
+    edges: impl Fn(f64) -> [f64; 2],
+    observe: impl Fn(&mut [f64], f64),
+) -> Result<Vec<f64>> {
+    let mut next = vec![0.0; values.len()];
+    let mut stepper = Stepper::new(space.count);
+    let mut damping: u32 = 2;
+    for step in (0..grid.widths.len()).rev() {
+        for (current, dt, weight) in grid.substeps(step, theta, &mut damping) {
+            let middle = current + 0.5 * dt;
+            stepper.advance(
+                &values,
+                &mut next,
+                space,
+                sigma,
+                [dt, weight, risk.rate(middle), dividend.rate(middle)],
+                edges(current),
+            )?;
+            std::mem::swap(&mut values, &mut next);
+        }
+        if observations.contains(&grid.times[step]) {
+            observe(&mut values, grid.times[step]);
+            damping = 2;
+        }
+    }
+    Ok(values)
+}
+
 struct Factors {
     key: [f64; 4],
     coefficients: Vec<[f64; 3]>,

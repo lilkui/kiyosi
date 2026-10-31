@@ -422,7 +422,7 @@ fn native(
         }
     };
     let march = |events: bool| -> Result<Vec<f64>> {
-        let mut values: Vec<_> = (0..=space.count)
+        let values: Vec<_> = (0..=space.count)
             .map(|i| {
                 super::barrier::project(&space, &breaks, i, |asset| {
                     if !events {
@@ -435,28 +435,21 @@ fn native(
                 })
             })
             .collect();
-        let mut next = vec![0.0; values.len()];
-        let mut stepper = Stepper::new(space.count);
-        let mut damping: u32 = 2;
-        for step in (0..grid.widths.len()).rev() {
-            for (current, dt, weight) in grid.substeps(step, theta, &mut damping) {
-                let middle = current + 0.5 * dt;
-                stepper.advance(
-                    &values,
-                    &mut next,
-                    &space,
-                    sigma,
-                    [dt, weight, risk.rate(middle), dividend.rate(middle)],
-                    edges(current, events),
-                )?;
-                std::mem::swap(&mut values, &mut next);
-            }
-            if events && scheduled && observations.contains(&grid.times[step]) {
-                observe(&mut values, grid.times[step]);
-                damping = 2;
-            }
-        }
-        Ok(values)
+        step::march(
+            values,
+            &space,
+            &grid,
+            sigma,
+            theta,
+            [&risk, &dividend],
+            if events && scheduled {
+                &observations
+            } else {
+                &[]
+            },
+            |current| edges(current, events),
+            observe,
+        )
     };
     let mut values = march(true)?;
     if contract.digital.is_some() && knock_in {

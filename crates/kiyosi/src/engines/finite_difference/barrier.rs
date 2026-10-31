@@ -416,32 +416,27 @@ fn native_barrier(
                 }
             }
         }
-        let mut next = vec![0.0; values.len()];
-        let mut stepper = Stepper::new(space.count);
-        let mut damping: u32 = 2;
-        for step in (0..grid.widths.len()).rev() {
-            for (current, dt, weight) in grid.substeps(step, theta, &mut damping) {
-                let middle = current + 0.5 * dt;
-                stepper.advance(
-                    &values,
-                    &mut next,
-                    &space,
-                    sigma,
-                    [dt, weight, risk.rate(middle), dividend.rate(middle)],
-                    if events {
-                        edges(current)
-                    } else {
-                        vanilla_edges(current)
-                    },
-                )?;
-                std::mem::swap(&mut values, &mut next);
-            }
-            if events && scheduled && observations.contains(&grid.times[step]) {
-                observe(&mut values, grid.times[step], false);
-                damping = 2;
-            }
-        }
-        Ok(values)
+        step::march(
+            values,
+            &space,
+            &grid,
+            sigma,
+            theta,
+            [&risk, &dividend],
+            if events && scheduled {
+                &observations
+            } else {
+                &[]
+            },
+            |current| {
+                if events {
+                    edges(current)
+                } else {
+                    vanilla_edges(current)
+                }
+            },
+            |values, current| observe(values, current, false),
+        )
     };
     let mut values = march(initial.clone(), true)?;
     if terms.barrier_type().is_knock_in() {
