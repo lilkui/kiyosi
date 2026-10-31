@@ -1,10 +1,8 @@
-use crate::conversions::{date, dates, direction, python_date, real, supplied};
+use crate::conversions::{date, dates, direction, real};
 use crate::error::domain;
 use crate::instruments::barrier;
-use crate::schedule::ObservationSchedule;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyDate;
 
 /// Cash or asset digital with barrier monitoring and strict exercise.
 ///
@@ -26,53 +24,14 @@ pub(crate) struct BinaryBarrierOption(pub kiyosi::BinaryBarrierOption);
 #[derive(Clone, PartialEq)]
 pub(crate) struct TouchOption(pub kiyosi::TouchOption);
 
-macro_rules! monitoring_properties {
+macro_rules! binary_properties {
     ($name:ident, $($extra:item),* $(,)?) => {
-        #[pymethods]
-        impl $name {
-            $($extra)*
-            /// Return a validated replacement without changing this value.
-            ///
-            /// Parameters
-            /// ----------
-            /// touch_state : {'untouched', 'touched'} or None, optional
-            ///     Strictly prior history. None means unknown; untouched means known no
-            ///     hit.
-            ///
-            /// Returns
-            /// -------
-            /// object
-            ///     New instance of the same class; omitted fields retain their values.
-            ///
-            /// Raises
-            /// ------
-            /// TypeError
-            ///     If a field is unknown or touch_state is neither a string nor None.
-            /// ValueError
-            ///     If touch_state is an unknown choice.
-            #[pyo3(signature = (*, touch_state=None))]
-            fn replace(&self,
-                #[pyo3(from_py_with = supplied)] touch_state: Option<&Bound<'_, PyAny>>,
-            ) -> PyResult<Self> {
-                let state = match touch_state {
-                    Some(value) => barrier::history(value)?,
-                    None => self.0.touch_state(),
-                };
-                Ok(Self(self.0.replace(state)))
-            }
-            /// Return inclusive first contract date.
-            #[getter]
-            fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-                python_date(py, self.0.effective_date())
-            }
-            /// Return final contract date; expiry is at midnight UTC.
-            #[getter]
-            fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-                python_date(py, self.0.expiry_date())
-            }
+        monitoring_properties!(
+            $name,
+            $($extra,)*
             /// Return positive finite trigger level; equality counts as a touch.
             #[getter]
-            fn barrier_level(&self) -> f64 { self.0.barrier_level() }
+            fn barrier_level(&self) -> f64 { self.0.barrier_level() },
             /// Return trigger direction and knock-in or knock-out behavior.
             #[getter]
             fn barrier_type(&self) -> &'static str {
@@ -82,46 +41,20 @@ macro_rules! monitoring_properties {
                     kiyosi::BarrierType::DownAndIn => "down_and_in",
                     kiyosi::BarrierType::DownAndOut => "down_and_out",
                 }
-            }
+            },
             /// Return cash or asset settlement as a choice string.
             #[getter]
-            fn payoff_type(&self) -> &'static str { if self.0.payout().is_some() { "cash" } else { "asset" } }
+            fn payoff_type(&self) -> &'static str { if self.0.payout().is_some() { "cash" } else { "asset" } },
             /// Return the cash payout, or None for asset settlement.
             #[getter]
-            fn payout(&self) -> Option<f64> { self.0.payout() }
-            /// Return continuous monitoring or observations on the supplied dates.
-            #[getter]
-            fn observation_mode(&self) -> &'static str {
-                match self.0.observation_mode() {
-                    kiyosi::ObservationMode::Continuous => "continuous",
-                    kiyosi::ObservationMode::Scheduled => "scheduled",
-                }
-            }
-            /// Return an owned copy of the monitoring schedule.
-            #[getter]
-            fn observation_schedule(&self) -> ObservationSchedule {
-                ObservationSchedule(self.0.observation_schedule().clone())
-            }
-            /// Return a copy of the contractual observation dates.
-            #[getter]
-            fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
-                self.0.observation_dates().iter().map(|&d| python_date(py, d)).collect()
-            }
+            fn payout(&self) -> Option<f64> { self.0.payout() },
             /// Return mean fixing spacing in Actual/365 Fixed years.
             #[getter]
             fn mean_observation_year_fraction(&self) -> f64 { self.0.mean_observation_year_fraction() }
-            /// Return strictly prior touch history, or None if unknown.
-            #[getter]
-            fn touch_state(&self) -> Option<&'static str> {
-                self.0.touch_state().map(|s| match s {
-                    kiyosi::BarrierTouchState::Untouched => "untouched",
-                    kiyosi::BarrierTouchState::Touched => "touched",
-                })
-            }
-        }
+        );
     };
 }
-monitoring_properties!(
+binary_properties!(
     BinaryBarrierOption,
     /// Return call or put payoff direction.
     #[getter]
@@ -138,7 +71,7 @@ monitoring_properties!(
         self.0.strike()
     }
 );
-monitoring_properties!(
+binary_properties!(
     TouchOption,
     /// Return whether touching activates payment.
     #[getter]

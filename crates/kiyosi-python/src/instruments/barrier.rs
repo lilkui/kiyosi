@@ -1,9 +1,7 @@
-use crate::conversions::{date, dates, direction, python_date, real, supplied};
+use crate::conversions::{date, dates, direction, real};
 use crate::error::domain;
-use crate::schedule::ObservationSchedule;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyDate;
 
 pub(crate) fn kind(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::BarrierType> {
     match value.extract::<&str>()? {
@@ -76,8 +74,8 @@ pub(crate) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::Barri
 #[derive(Clone, PartialEq)]
 pub(crate) struct BarrierOption(pub kiyosi::BarrierOption);
 
-#[pymethods]
-impl BarrierOption {
+monitoring_properties!(
+    BarrierOption,
     #[new]
     #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, barrier_level, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
@@ -108,37 +106,7 @@ impl BarrierOption {
         terms.observation_dates = observation_dates;
         terms.touch_state = touch_state;
         Ok(Self(domain(kiyosi::BarrierOption::new(terms))?))
-    }
-    /// Return a validated replacement without changing this value.
-    ///
-    /// Parameters
-    /// ----------
-    /// touch_state : {'untouched', 'touched'} or None, optional
-    ///     Strictly prior history. None means unknown; untouched means known no
-    ///     hit.
-    ///
-    /// Returns
-    /// -------
-    /// object
-    ///     New instance of the same class; omitted fields retain their values.
-    ///
-    /// Raises
-    /// ------
-    /// TypeError
-    ///     If a field is unknown or touch_state is neither a string nor None.
-    /// ValueError
-    ///     If touch_state is an unknown choice.
-    #[pyo3(signature = (*, touch_state=None))]
-    fn replace(
-        &self,
-        #[pyo3(from_py_with = supplied)] touch_state: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
-        let state = match touch_state {
-            Some(value) => history(value)?,
-            None => self.0.touch_state(),
-        };
-        Ok(Self(self.0.replace(state)))
-    }
+    },
     /// Return call or put payoff direction.
     #[getter]
     fn option_type(&self) -> &'static str {
@@ -147,27 +115,17 @@ impl BarrierOption {
         } else {
             "put"
         }
-    }
+    },
     /// Return the exercise or purchase price in underlying price units.
     #[getter]
     fn strike(&self) -> f64 {
         self.0.strike()
-    }
-    /// Return inclusive first contract date.
-    #[getter]
-    fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.effective_date())
-    }
-    /// Return final contract date; expiry is at midnight UTC.
-    #[getter]
-    fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.expiry_date())
-    }
+    },
     /// Return positive finite trigger level; equality counts as a touch.
     #[getter]
     fn barrier_level(&self) -> f64 {
         self.0.barrier_level()
-    }
+    },
     /// Return trigger direction and knock-in or knock-out behavior.
     #[getter]
     fn barrier_type(&self) -> &'static str {
@@ -177,12 +135,12 @@ impl BarrierOption {
             kiyosi::BarrierType::DownAndIn => "down_and_in",
             kiyosi::BarrierType::DownAndOut => "down_and_out",
         }
-    }
+    },
     /// Return nonnegative finite cash rebate; defaults to zero.
     #[getter]
     fn rebate(&self) -> f64 {
         self.0.rebate()
-    }
+    },
     /// Return payment timing; at-hit rebates are valid only for knock-outs.
     #[getter]
     fn rebate_timing(&self) -> &'static str {
@@ -190,40 +148,10 @@ impl BarrierOption {
             kiyosi::RebateTiming::AtHit => "at_hit",
             kiyosi::RebateTiming::AtExpiry => "at_expiry",
         }
-    }
-    /// Return continuous monitoring or observations on the supplied dates.
-    #[getter]
-    fn observation_mode(&self) -> &'static str {
-        match self.0.observation_mode() {
-            kiyosi::ObservationMode::Continuous => "continuous",
-            kiyosi::ObservationMode::Scheduled => "scheduled",
-        }
-    }
-    /// Return an owned copy of the monitoring schedule.
-    #[getter]
-    fn observation_schedule(&self) -> ObservationSchedule {
-        ObservationSchedule(self.0.observation_schedule().clone())
-    }
-    /// Return a copy of the contractual observation dates.
-    #[getter]
-    fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
-        self.0
-            .observation_dates()
-            .iter()
-            .map(|&d| python_date(py, d))
-            .collect()
-    }
+    },
     /// Return mean fixing spacing in Actual/365 Fixed years.
     #[getter]
     fn mean_observation_year_fraction(&self) -> f64 {
         self.0.mean_observation_year_fraction()
     }
-    /// Return strictly prior touch history, or None if unknown.
-    #[getter]
-    fn touch_state(&self) -> Option<&'static str> {
-        self.0.touch_state().map(|s| match s {
-            kiyosi::BarrierTouchState::Untouched => "untouched",
-            kiyosi::BarrierTouchState::Touched => "touched",
-        })
-    }
-}
+);

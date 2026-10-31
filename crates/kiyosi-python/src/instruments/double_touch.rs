@@ -1,9 +1,7 @@
-use crate::conversions::{date, dates, python_date, real, supplied};
+use crate::conversions::{date, dates, real};
 use crate::error::domain;
 use crate::instruments::barrier;
-use crate::schedule::ObservationSchedule;
 use pyo3::prelude::*;
-use pyo3::types::PyDate;
 
 /// Cash one-touch or no-touch contract with two inclusive boundaries.
 ///
@@ -15,68 +13,28 @@ use pyo3::types::PyDate;
 #[derive(Clone, PartialEq)]
 pub(crate) struct DoubleTouchOption(pub kiyosi::DoubleTouchOption);
 
-#[pymethods]
-impl DoubleTouchOption {
-    /// Return a validated replacement without changing this value.
-    ///
-    /// Parameters
-    /// ----------
-    /// touch_state : {'untouched', 'touched'} or None, optional
-    ///     Strictly prior history. None means unknown; untouched means known no
-    ///     hit.
-    ///
-    /// Returns
-    /// -------
-    /// object
-    ///     New instance of the same class; omitted fields retain their values.
-    ///
-    /// Raises
-    /// ------
-    /// TypeError
-    ///     If a field is unknown or touch_state is neither a string nor None.
-    /// ValueError
-    ///     If touch_state is an unknown choice.
-    #[pyo3(signature = (*, touch_state=None))]
-    fn replace(
-        &self,
-        #[pyo3(from_py_with = supplied)] touch_state: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
-        let state = match touch_state {
-            Some(value) => barrier::history(value)?,
-            None => self.0.touch_state(),
-        };
-        Ok(Self(self.0.replace(state)))
-    }
-    /// Return inclusive first contract date.
-    #[getter]
-    fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.effective_date())
-    }
-    /// Return final contract date; expiry is at midnight UTC.
-    #[getter]
-    fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.expiry_date())
-    }
+monitoring_properties!(
+    DoubleTouchOption,
     /// Return positive finite lower trigger; equality counts as a touch.
     #[getter]
     fn lower_barrier(&self) -> f64 {
         self.0.lower_barrier()
-    }
+    },
     /// Return finite upper trigger, strictly above the lower trigger.
     #[getter]
     fn upper_barrier(&self) -> f64 {
         self.0.upper_barrier()
-    }
+    },
     /// Return the nonnegative finite cash payout.
     #[getter]
     fn payout(&self) -> f64 {
         self.0.payout()
-    }
+    },
     /// Return whether touching activates payment.
     #[getter]
     fn is_one_touch(&self) -> bool {
         self.0.is_one_touch()
-    }
+    },
     /// Return at-hit or expiry payment; no-touch contracts settle only at expiry.
     #[getter]
     fn settlement_timing(&self) -> &'static str {
@@ -85,37 +43,7 @@ impl DoubleTouchOption {
             kiyosi::SettlementTiming::AtExpiry => "at_expiry",
         }
     }
-    /// Return continuous monitoring or observations on the supplied dates.
-    #[getter]
-    fn observation_mode(&self) -> &'static str {
-        match self.0.observation_mode() {
-            kiyosi::ObservationMode::Continuous => "continuous",
-            kiyosi::ObservationMode::Scheduled => "scheduled",
-        }
-    }
-    /// Return an owned copy of the monitoring schedule.
-    #[getter]
-    fn observation_schedule(&self) -> ObservationSchedule {
-        ObservationSchedule(self.0.observation_schedule().clone())
-    }
-    /// Return a copy of the contractual observation dates.
-    #[getter]
-    fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
-        self.0
-            .observation_dates()
-            .iter()
-            .map(|&d| python_date(py, d))
-            .collect()
-    }
-    /// Return strictly prior touch history, or None if unknown.
-    #[getter]
-    fn touch_state(&self) -> Option<&'static str> {
-        self.0.touch_state().map(|s| match s {
-            kiyosi::BarrierTouchState::Untouched => "untouched",
-            kiyosi::BarrierTouchState::Touched => "touched",
-        })
-    }
-}
+);
 
 macro_rules! double_touch_factory {
     ($name:ident, $kind:ident, [$($settlement:ident)?], $doc:literal) => {
