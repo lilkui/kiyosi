@@ -47,6 +47,43 @@ pub(super) fn integrate_terminal(
 
 pub(super) type Polynomial = [f64; 4];
 
+#[derive(Default)]
+pub(super) struct Layer {
+    pub cells: Vec<Polynomial>,
+    pub exact: Vec<TerminalPiece>,
+}
+impl Layer {
+    pub fn evaluate(
+        &self,
+        nodes: &[f64],
+        current: f64,
+        anchor: f64,
+        drift: f64,
+        deviation: f64,
+        discount: f64,
+    ) -> f64 {
+        let mut sum = Sum::default();
+        sum.add(integrate_terminal(
+            &self.exact,
+            current,
+            anchor,
+            drift,
+            deviation,
+            discount,
+        ));
+        if !self.cells.is_empty() {
+            sum.add(integrate_curve(
+                &self.cells,
+                nodes,
+                current + drift,
+                deviation,
+                discount,
+            ));
+        }
+        sum.total()
+    }
+}
+
 pub(super) struct IntervalMoments {
     mass: f64,
     log_mass: f64,

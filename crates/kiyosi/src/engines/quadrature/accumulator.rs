@@ -1,9 +1,9 @@
 use super::gaussian::{
-    CubicInterpolation, Polynomial, TerminalPiece, TransitionCache, integrate_curve,
-    integrate_terminal, integration_nodes, scaled,
+    CubicInterpolation, Layer, Polynomial, TerminalPiece, TransitionCache, integrate_terminal,
+    integration_nodes, scaled,
 };
 use super::{QuadratureSettings, flat_rates};
-use crate::numerics::{Sum, log_ratio};
+use crate::numerics::log_ratio;
 use crate::{
     Accumulator, BlackScholesMertonParameters, Date, Error, GreeksRequest, NumericalShiftSettings,
     PricingContext, PricingEngine, PricingResult, Result, Timestamp,
@@ -119,42 +119,6 @@ impl PricingEngine<Accumulator> for Request {
     }
 }
 
-#[derive(Default)]
-struct Layer {
-    cells: Vec<Polynomial>,
-    exact: Vec<TerminalPiece>,
-}
-impl Layer {
-    fn evaluate(
-        &self,
-        nodes: &[f64],
-        spot: f64,
-        strike: f64,
-        drift: f64,
-        deviation: f64,
-        discount: f64,
-    ) -> f64 {
-        let mut sum = Sum::default();
-        sum.add(integrate_terminal(
-            &self.exact,
-            spot,
-            strike,
-            drift,
-            deviation,
-            discount,
-        ));
-        if !self.cells.is_empty() {
-            sum.add(integrate_curve(
-                &self.cells,
-                nodes,
-                spot + drift,
-                deviation,
-                discount,
-            ));
-        }
-        sum.total()
-    }
-}
 struct PreparedCurve {
     option: Accumulator,
     model: BlackScholesMertonParameters,

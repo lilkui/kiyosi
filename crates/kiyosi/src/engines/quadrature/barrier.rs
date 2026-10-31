@@ -1,7 +1,7 @@
 use super::flat_rates;
 use crate::engines::analytic::barrier::{hit_value, resolved_price};
 use crate::instruments::monitoring::{validate_life, validate_schedule};
-use crate::numerics::{Sum, checked, log_ratio, scaled_cash};
+use crate::numerics::{checked, log_ratio, scaled_cash};
 use crate::{
     BarrierOption, Error, GreeksRequest, NumericalShiftSettings, OptionType, PricingContext,
     PricingEngine, PricingResult, RebateTiming, Result,
@@ -337,46 +337,9 @@ fn terminal_layer(option: &BarrierOption) -> Vec<super::gaussian::TerminalPiece>
 }
 
 use super::gaussian::{
-    CubicInterpolation, Polynomial, TerminalPiece, TransitionCache, integrate_curve,
-    integrate_terminal, integration_nodes, scaled,
+    CubicInterpolation, Layer, TerminalPiece, TransitionCache, integrate_terminal,
+    integration_nodes, scaled,
 };
-
-#[derive(Default)]
-struct Layer {
-    curve: Vec<Polynomial>,
-    exact: Vec<TerminalPiece>,
-}
-impl Layer {
-    fn evaluate(
-        &self,
-        nodes: &[f64],
-        current: f64,
-        anchor: f64,
-        drift: f64,
-        deviation: f64,
-        discount: f64,
-    ) -> f64 {
-        let mut sum = Sum::default();
-        sum.add(integrate_terminal(
-            &self.exact,
-            current,
-            anchor,
-            drift,
-            deviation,
-            discount,
-        ));
-        if !self.curve.is_empty() {
-            sum.add(integrate_curve(
-                &self.curve,
-                nodes,
-                current + drift,
-                deviation,
-                discount,
-            ));
-        }
-        sum.total()
-    }
-}
 
 fn event_limit(
     option: &BarrierOption,
@@ -480,7 +443,7 @@ fn event_layer(
     let low = event_limit(option, remaining, context, false)?;
     let high = event_limit(option, remaining, context, true)?;
     Ok(Layer {
-        curve,
+        cells: curve,
         exact: vec![
             TerminalPiece {
                 lower: f64::NEG_INFINITY,
@@ -575,7 +538,7 @@ fn scheduled_price(
         let final_event = event + 1 == dates.len();
         let layer = if final_event && dates[event] == option.expiry_date() {
             Layer {
-                curve: Vec::new(),
+                cells: Vec::new(),
                 exact: terminal_layer(option),
             }
         } else {
@@ -618,9 +581,9 @@ fn scheduled_price(
             *prepared = Some(curve);
             return Ok(value);
         }
-        if !layer.curve.is_empty() {
+        if !layer.cells.is_empty() {
             transitions.get(time, &nodes, drift, deviation).integrate(
-                &layer.curve,
+                &layer.cells,
                 discount,
                 &mut values,
             );
