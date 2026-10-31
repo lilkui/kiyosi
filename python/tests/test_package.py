@@ -14,6 +14,32 @@ from kiyosi import _native, instruments, market, pricing
 
 
 class PackageTests(unittest.TestCase):
+    def test_replacements_expose_declared_keyword_fields(self):
+        stub = ast.parse((Path(kiyosi.__file__).parent / "_native.pyi").read_text())
+        for node in stub.body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+            method = next(
+                (
+                    member
+                    for member in node.body
+                    if isinstance(member, ast.FunctionDef) and member.name == "replace"
+                ),
+                None,
+            )
+            if method is None:
+                continue
+            signature = inspect.signature(getattr(_native, node.name).replace)
+            keywords = tuple(arg.arg for arg in method.args.kwonlyargs)
+            with self.subTest(api=f"{node.name}.replace"):
+                self.assertEqual(tuple(signature.parameters), ("self", *keywords))
+                for name, default in zip(keywords, method.args.kw_defaults):
+                    parameter = signature.parameters[name]
+                    self.assertIs(parameter.kind, inspect.Parameter.KEYWORD_ONLY)
+                    self.assertEqual(
+                        parameter.default is inspect.Parameter.empty, default is None
+                    )
+
     def test_terminal_quadrature_engines_are_not_exported(self):
         for name in ("QuadratureVanillaEngine", "QuadratureDigitalEngine"):
             with self.subTest(engine=name):

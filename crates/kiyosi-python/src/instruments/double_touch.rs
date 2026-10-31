@@ -1,9 +1,9 @@
-use crate::conversions::{check_changes, date, dates, python_date, real};
+use crate::conversions::{date, dates, python_date, real, supplied};
 use crate::error::domain;
 use crate::instruments::barrier;
 use crate::schedule::ObservationSchedule;
 use pyo3::prelude::*;
-use pyo3::types::{PyDate, PyDict};
+use pyo3::types::PyDate;
 
 /// Cash one-touch or no-touch contract with two inclusive boundaries.
 ///
@@ -36,15 +36,13 @@ impl DoubleTouchOption {
     ///     If a field is unknown or touch_state is neither a string nor None.
     /// ValueError
     ///     If touch_state is an unknown choice.
-    #[pyo3(signature = (**fields))]
-    fn replace(&self, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        check_changes(fields, &["touch_state"])?;
-        let state = match fields
-            .map(|f| f.get_item("touch_state"))
-            .transpose()?
-            .flatten()
-        {
-            Some(value) => barrier::history(&value)?,
+    #[pyo3(signature = (*, touch_state=None))]
+    fn replace(
+        &self,
+        #[pyo3(from_py_with = supplied)] touch_state: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let state = match touch_state {
+            Some(value) => barrier::history(value)?,
             None => self.0.touch_state(),
         };
         Ok(Self(self.0.replace(state)))

@@ -1,7 +1,7 @@
-use crate::conversions::{check_changes, date, direction, python_date, real};
+use crate::conversions::{date, direction, python_date, real, supplied};
 use crate::error::domain;
 use pyo3::prelude::*;
-use pyo3::types::{PyDate, PyDict};
+use pyo3::types::PyDate;
 
 /// Vanilla option exercisable throughout its inclusive contract life.
 ///
@@ -69,23 +69,20 @@ impl AmericanOption {
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (**fields))]
-    fn replace(&self, py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        check_changes(
-            fields,
-            &["option_type", "strike", "effective_date", "expiry_date"],
-        )?;
-        let item = |name| {
-            fields
-                .map(|f| f.get_item(name))
-                .transpose()
-                .map(Option::flatten)
-        };
+    #[pyo3(signature = (*, option_type=None, strike=None, effective_date=None, expiry_date=None))]
+    fn replace(
+        &self,
+        py: Python<'_>,
+        #[pyo3(from_py_with = supplied)] option_type: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] strike: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] effective_date: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] expiry_date: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
         let changes = kiyosi::AmericanOptionChanges {
-            option_type: item("option_type")?.as_ref().map(direction).transpose()?,
-            strike: item("strike")?.as_ref().map(real).transpose()?,
-            effective_date: item("effective_date")?.as_ref().map(date).transpose()?,
-            expiry_date: item("expiry_date")?.as_ref().map(date).transpose()?,
+            option_type: option_type.map(direction).transpose()?,
+            strike: strike.map(real).transpose()?,
+            effective_date: effective_date.map(date).transpose()?,
+            expiry_date: expiry_date.map(date).transpose()?,
         };
         Ok(Self(domain(py, self.0.replace(changes))?))
     }

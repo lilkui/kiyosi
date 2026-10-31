@@ -1,7 +1,7 @@
-use crate::conversions::{check_changes, date, direction, python_date, real};
+use crate::conversions::{date, direction, python_date, real, supplied};
 use crate::error::domain;
 use pyo3::prelude::*;
-use pyo3::types::{PyDate, PyDict};
+use pyo3::types::PyDate;
 
 macro_rules! average_option {
     ($name:ident) => {
@@ -59,11 +59,11 @@ macro_rules! average_option {
             /// ------
             /// KiyosiError
             ///     If replacement terms fail domain validation. The original is unchanged.
-            #[pyo3(signature = (**fields))]
-            fn replace(&self, py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-                check_changes(fields, &["realized_average"])?;
-                let realized = fields.map(|f| f.get_item("realized_average")).transpose()?.flatten()
-                    .as_ref().map(real).transpose()?.unwrap_or(self.0.realized_average());
+            #[pyo3(signature = (*, realized_average=None))]
+            fn replace(&self, py: Python<'_>,
+                #[pyo3(from_py_with = supplied)] realized_average: Option<&Bound<'_, PyAny>>,
+            ) -> PyResult<Self> {
+                let realized = realized_average.map(real).transpose()?.unwrap_or(self.0.realized_average());
                 Ok(Self(domain(py, self.0.replace(realized))?))
             }
             /// Return call or put payoff direction.

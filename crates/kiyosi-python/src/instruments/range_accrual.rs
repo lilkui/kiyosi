@@ -1,7 +1,7 @@
-use crate::conversions::{check_changes, date, integer, python_date, real};
+use crate::conversions::{date, integer, python_date, real, supplied};
 use crate::error::domain;
 use pyo3::prelude::*;
-use pyo3::types::{PyDate, PyDict};
+use pyo3::types::PyDate;
 
 fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
     if value.is_none() {
@@ -90,15 +90,14 @@ impl RangeAccrualOption {
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (**fields))]
-    fn replace(&self, py: Python<'_>, fields: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        check_changes(fields, &["realized_hit_count"])?;
-        let count = match fields
-            .map(|f| f.get_item("realized_hit_count"))
-            .transpose()?
-            .flatten()
-        {
-            Some(value) => history(&value)?,
+    #[pyo3(signature = (*, realized_hit_count=None))]
+    fn replace(
+        &self,
+        py: Python<'_>,
+        #[pyo3(from_py_with = supplied)] realized_hit_count: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let count = match realized_hit_count {
+            Some(value) => history(value)?,
             None => self.0.realized_hit_count(),
         };
         Ok(Self(domain(py, self.0.replace(count))?))

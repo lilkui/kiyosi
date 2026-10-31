@@ -1,7 +1,7 @@
 use crate::error::domain;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDate, PyDateAccess, PyDateTime, PyDict, PyTimeAccess};
+use pyo3::types::{PyBool, PyDate, PyDateAccess, PyDateTime, PyTimeAccess};
 
 pub(crate) fn instrument<'a, 'py, T>(value: &'a Bound<'py, PyAny>) -> PyResult<T>
 where
@@ -208,15 +208,4 @@ pub(crate) fn python_timestamp(
         micros % 1_000_000,
         module.getattr("timezone")?.getattr("utc")?,
     ))
-}
-
-pub(crate) fn check_changes(changes: Option<&Bound<'_, PyDict>>, fields: &[&str]) -> PyResult<()> {
-    if let Some(changes) = changes {
-        for key in changes.keys() {
-            if !fields.contains(&key.extract::<&str>()?) {
-                return Err(PyTypeError::new_err("unexpected replacement field"));
-            }
-        }
-    }
-    Ok(())
 }

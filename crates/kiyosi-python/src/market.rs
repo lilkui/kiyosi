@@ -1,8 +1,8 @@
 use crate::calendar::TradingCalendar;
-use crate::conversions::{check_changes, python_date, python_timestamp, real, timestamp};
+use crate::conversions::{python_date, python_timestamp, real, supplied, timestamp};
 use crate::error::domain;
 use pyo3::prelude::*;
-use pyo3::types::{PyDate, PyDict};
+use pyo3::types::PyDate;
 
 /// Immutable rate curve with log-linear factors and Actual/365 Fixed time.
 ///
@@ -281,27 +281,19 @@ impl BlackScholesMertonParameters {
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (**changes))]
-    fn replace(&self, py: Python<'_>, changes: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        check_changes(changes, &["risk_free_rate", "dividend_yield", "volatility"])?;
-        let mut update = kiyosi::BlackScholesMertonParameterChanges::default();
-        if let Some(changes) = changes {
-            update.risk_free_rate = changes
-                .get_item("risk_free_rate")?
-                .as_ref()
-                .map(rate)
-                .transpose()?;
-            update.dividend_yield = changes
-                .get_item("dividend_yield")?
-                .as_ref()
-                .map(rate)
-                .transpose()?;
-            update.volatility = changes
-                .get_item("volatility")?
-                .as_ref()
-                .map(real)
-                .transpose()?;
-        }
+    #[pyo3(signature = (*, risk_free_rate=None, dividend_yield=None, volatility=None))]
+    fn replace(
+        &self,
+        py: Python<'_>,
+        #[pyo3(from_py_with = supplied)] risk_free_rate: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] dividend_yield: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] volatility: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let update = kiyosi::BlackScholesMertonParameterChanges {
+            risk_free_rate: risk_free_rate.map(rate).transpose()?,
+            dividend_yield: dividend_yield.map(rate).transpose()?,
+            volatility: volatility.map(real).transpose()?,
+        };
         Ok(Self(domain(py, self.0.replace(update))?))
     }
     /// Return the scalar risk-free rate or an owned node curve.
@@ -408,43 +400,30 @@ impl PricingContext {
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (**changes))]
-    fn replace(&self, py: Python<'_>, changes: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        check_changes(
-            changes,
-            &[
-                "model_parameters",
-                "spot_price",
-                "valuation_time",
-                "calendar",
-            ],
-        )?;
-        let mut update = kiyosi::PricingContextChanges::default();
-        if let Some(changes) = changes {
-            update.model_parameters = changes
-                .get_item("model_parameters")?
+    #[pyo3(signature = (*, model_parameters=None, spot_price=None, valuation_time=None, calendar=None))]
+    fn replace(
+        &self,
+        py: Python<'_>,
+        #[pyo3(from_py_with = supplied)] model_parameters: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] spot_price: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] valuation_time: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] calendar: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let update = kiyosi::PricingContextChanges {
+            model_parameters: model_parameters
                 .map(|value| -> PyResult<_> {
                     Ok(value
                         .extract::<PyRef<'_, BlackScholesMertonParameters>>()?
                         .0
                         .clone())
                 })
-                .transpose()?;
-            update.spot_price = changes
-                .get_item("spot_price")?
-                .as_ref()
-                .map(real)
-                .transpose()?;
-            update.valuation_time = changes
-                .get_item("valuation_time")?
-                .as_ref()
-                .map(timestamp)
-                .transpose()?;
-            update.calendar = changes
-                .get_item("calendar")?
+                .transpose()?,
+            spot_price: spot_price.map(real).transpose()?,
+            valuation_time: valuation_time.map(timestamp).transpose()?,
+            calendar: calendar
                 .map(|value| -> PyResult<_> { Ok(value.extract::<TradingCalendar>()?.0) })
-                .transpose()?;
-        }
+                .transpose()?,
+        };
         Ok(Self(domain(py, self.0.replace(update))?))
     }
     /// Return an owned copy of the model parameters.
