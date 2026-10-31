@@ -1,7 +1,7 @@
+use super::monitoring::Monitoring;
 use crate::{
-    BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType, Date, DigitalOption, Error,
-    ObservationMode, ObservationSchedule, OptionContract, OptionType, PricingContext, Result,
-    Timestamp,
+    BarrierTouchState, BarrierType, Date, DigitalOption, Error, ObservationMode,
+    ObservationSchedule, OptionContract, OptionType, PricingContext, Result, Timestamp,
 };
 
 /// Payment timing for a touch contract; see [`TouchOption::cash`].
@@ -62,19 +62,16 @@ impl BinaryBarrierTerms {
             touch_state: None,
         }
     }
-    fn monitoring(self) -> Result<BarrierOption> {
-        let mut terms = BarrierOptionTerms::new(
-            self.option_type,
-            self.strike,
+    fn monitoring(self) -> Result<Monitoring> {
+        Monitoring::new(
             self.effective_date,
             self.expiry_date,
             self.barrier_level,
             self.barrier_type,
-        );
-        terms.observation_mode = self.observation_mode;
-        terms.observation_dates = self.observation_dates;
-        terms.touch_state = self.touch_state;
-        BarrierOption::new(terms)
+            self.observation_mode,
+            self.observation_dates,
+            self.touch_state,
+        )
     }
 }
 
@@ -84,7 +81,7 @@ impl BinaryBarrierTerms {
 /// See [`Self::cash`] and [`Self::asset`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinaryBarrierOption {
-    monitoring: BarrierOption,
+    monitoring: Monitoring,
     digital: DigitalOption,
 }
 impl BinaryBarrierOption {
@@ -164,7 +161,7 @@ impl BinaryBarrierOption {
     }
     /// Returns an owning copy with replaced strictly prior history; `None` restores unknown.
     ///
-    /// See [`BarrierOption::replace`] for an example and time consistency rules.
+    /// See [`crate::BarrierOption::replace`] for an example and time consistency rules.
     ///
     /// Preserves the validated monitoring and payoff terms.
     pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
@@ -216,25 +213,21 @@ impl TouchOptionTerms {
             touch_state: None,
         }
     }
-    fn monitoring(self) -> Result<BarrierOption> {
+    fn monitoring(self) -> Result<Monitoring> {
         if self.settlement_timing == SettlementTiming::AtHit && !self.barrier_type.is_knock_in() {
             return Err(Error::InvalidInput(
                 "at-hit settlement requires a one-touch".into(),
             ));
         }
-        // Reuse the validated barrier's monitoring rules; no strike is exposed or used for touch payoffs.
-        let mut terms = BarrierOptionTerms::new(
-            OptionType::Call,
-            self.barrier_level,
+        Monitoring::new(
             self.effective_date,
             self.expiry_date,
             self.barrier_level,
             self.barrier_type,
-        );
-        terms.observation_mode = self.observation_mode;
-        terms.observation_dates = self.observation_dates;
-        terms.touch_state = self.touch_state;
-        BarrierOption::new(terms)
+            self.observation_mode,
+            self.observation_dates,
+            self.touch_state,
+        )
     }
 }
 
@@ -244,7 +237,7 @@ impl TouchOptionTerms {
 /// See [`Self::cash`] and [`Self::asset`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct TouchOption {
-    monitoring: BarrierOption,
+    monitoring: Monitoring,
     payout: Option<f64>,
     settlement_timing: SettlementTiming,
 }
@@ -327,7 +320,7 @@ impl TouchOption {
     }
     /// Returns an owning copy with replaced strictly prior history; `None` restores unknown.
     ///
-    /// See [`BarrierOption::replace`] for examples and time consistency rules.
+    /// See [`crate::BarrierOption::replace`] for examples and time consistency rules.
     ///
     /// Preserves the validated monitoring and payoff terms.
     pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
@@ -405,19 +398,21 @@ monitoring_accessors!(BinaryBarrierOption);
 monitoring_accessors!(TouchOption);
 
 pub(crate) struct Contract<'a> {
-    pub(crate) monitoring: &'a BarrierOption,
-    pub(crate) double: Option<&'a crate::DoubleBarrierOption>,
+    pub(crate) monitoring: &'a Monitoring,
+    pub(crate) upper_barrier: Option<f64>,
     pub(crate) digital: Option<&'a DigitalOption>,
     pub(crate) payout: Option<f64>,
     pub(crate) timing: SettlementTiming,
 }
 impl Contract<'_> {
     pub(crate) fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
-        if let Some(double) = self.double {
-            double.state(context)
-        } else {
-            self.monitoring.state(context)
-        }
+        self.monitoring.state(context, self.upper_barrier)
+    }
+    pub(crate) fn payoff_requires_touch(&self) -> bool {
+        self.digital.is_some_and(|digital| {
+            self.monitoring
+                .payoff_requires_touch(digital.option_type(), digital.strike())
+        })
     }
 }
 
@@ -425,7 +420,7 @@ impl BinaryBarrierOption {
     pub(crate) fn contract(&self) -> Contract<'_> {
         Contract {
             monitoring: &self.monitoring,
-            double: None,
+            upper_barrier: None,
             digital: Some(&self.digital),
             payout: self.payout(),
             timing: SettlementTiming::AtExpiry,
@@ -436,7 +431,7 @@ impl TouchOption {
     pub(crate) fn contract(&self) -> Contract<'_> {
         Contract {
             monitoring: &self.monitoring,
-            double: None,
+            upper_barrier: None,
             digital: None,
             payout: self.payout,
             timing: self.settlement_timing,

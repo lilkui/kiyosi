@@ -1,7 +1,7 @@
+use super::monitoring::{Monitoring, validate_upper};
 use crate::{
-    BarrierTouchState, Date, DoubleBarrierOption, DoubleBarrierOptionTerms, DoubleBarrierType,
-    Error, ObservationMode, ObservationSchedule, OptionContract, OptionType, PricingContext,
-    Result, SettlementTiming, Timestamp,
+    BarrierTouchState, BarrierType, Date, DoubleBarrierType, Error, ObservationMode,
+    ObservationSchedule, OptionContract, PricingContext, Result, SettlementTiming, Timestamp,
 };
 
 /// Cash double-touch inputs; see [`DoubleTouchOption::cash`] for validation and usage.
@@ -56,7 +56,8 @@ impl DoubleTouchOptionTerms {
 /// See [`Self::cash`] for construction and pricing.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleTouchOption {
-    monitoring: DoubleBarrierOption,
+    monitoring: Monitoring,
+    upper_barrier: f64,
     payout: f64,
     settlement_timing: SettlementTiming,
 }
@@ -68,8 +69,8 @@ impl DoubleTouchOption {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for invalid positive finite payout,
-    /// then for at-hit no-touch settlement, then reuses
-    /// [`DoubleBarrierOption::new`] boundary, life and schedule validation categories.
+    /// then for at-hit no-touch settlement. Shared monitoring validation then
+    /// rejects invalid boundaries, reversed life or invalid schedules.
     /// Failure preserves inputs; no-touch can settle only at expiry.
     ///
     /// # Examples
@@ -104,21 +105,23 @@ impl DoubleTouchOption {
                 "at-hit settlement requires a one-touch".into(),
             ));
         }
-        // Reuse double-barrier monitoring; the internal strike is not a touch payoff.
-        let mut monitoring = DoubleBarrierOptionTerms::new(
-            OptionType::Call,
-            terms.lower_barrier,
+        validate_upper(terms.lower_barrier, terms.upper_barrier)?;
+        let monitoring = Monitoring::new(
             terms.effective_date,
             terms.expiry_date,
             terms.lower_barrier,
-            terms.upper_barrier,
-            terms.barrier_type,
-        );
-        monitoring.observation_mode = terms.observation_mode;
-        monitoring.observation_dates = terms.observation_dates;
-        monitoring.touch_state = terms.touch_state;
+            if terms.barrier_type == DoubleBarrierType::KnockIn {
+                BarrierType::DownAndIn
+            } else {
+                BarrierType::DownAndOut
+            },
+            terms.observation_mode,
+            terms.observation_dates,
+            terms.touch_state,
+        )?;
         Ok(Self {
-            monitoring: DoubleBarrierOption::new(monitoring)?,
+            monitoring,
+            upper_barrier: terms.upper_barrier,
             payout,
             settlement_timing: terms.settlement_timing,
         })
@@ -133,11 +136,11 @@ impl DoubleTouchOption {
     }
     /// Returns the positive lower boundary; see [`Self::cash`].
     pub fn lower_barrier(&self) -> f64 {
-        self.monitoring.lower_barrier()
+        self.monitoring.barrier_level()
     }
     /// Returns the upper boundary; see [`Self::cash`].
     pub fn upper_barrier(&self) -> f64 {
-        self.monitoring.upper_barrier()
+        self.upper_barrier
     }
     /// Returns the positive cash payout; see [`Self::cash`].
     pub fn payout(&self) -> f64 {
@@ -145,7 +148,7 @@ impl DoubleTouchOption {
     }
     /// Reports whether a touch activates payment; see [`Self::cash`].
     pub fn is_one_touch(&self) -> bool {
-        self.monitoring.barrier_type() == DoubleBarrierType::KnockIn
+        self.monitoring.barrier_type().is_knock_in()
     }
     /// Returns payment timing; see [`Self::cash`].
     pub fn settlement_timing(&self) -> SettlementTiming {
@@ -169,19 +172,20 @@ impl DoubleTouchOption {
     }
     /// Returns an owning copy with replaced history; `None` restores unknown. See [`Self::cash`].
     ///
-    /// Preserves validated monitoring terms through [`DoubleBarrierOption::replace`].
+    /// Preserves validated monitoring terms without reconstructing the contract.
     /// The original value remains unchanged.
     pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
             monitoring: self.monitoring.replace(touch_state),
+            upper_barrier: self.upper_barrier,
             payout: self.payout,
             settlement_timing: self.settlement_timing,
         }
     }
     pub(crate) fn contract(&self) -> crate::instruments::binary_barrier::Contract<'_> {
         crate::instruments::binary_barrier::Contract {
-            monitoring: &self.monitoring.lower,
-            double: Some(&self.monitoring),
+            monitoring: &self.monitoring,
+            upper_barrier: Some(self.upper_barrier),
             digital: None,
             payout: Some(self.payout),
             timing: self.settlement_timing,
@@ -196,7 +200,8 @@ impl OptionContract for DoubleTouchOption {
         self.expiry_date()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
-        self.monitoring.at_spot_discontinuity(context, radius)
+        self.monitoring
+            .spot_discontinuity(context, radius, Some(self.upper_barrier))
     }
     fn time_stencil_available(
         &self,

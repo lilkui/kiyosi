@@ -1,3 +1,4 @@
+use crate::instruments::monitoring::Monitoring;
 use crate::{
     AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationSchedule,
     OptionType, PricingContext, PricingEngine, PricingResult, Result, TradingCalendar,
@@ -88,7 +89,7 @@ fn price(
                 && cached.calendar == *context.calendar()
         });
     if cached.is_none() {
-        validate_schedule(option, context)?;
+        validate_schedule(option.observation_schedule(), context)?;
         if let Some(schedule) = schedule {
             let _ = schedule.set(ScheduleValidation {
                 schedule: option.observation_schedule().clone(),
@@ -102,7 +103,10 @@ fn price(
     }
 }
 
-pub(crate) fn validate_life(option: &BarrierOption, context: &PricingContext) -> Result<()> {
+pub(crate) fn validate_life(
+    option: &impl crate::OptionContract,
+    context: &PricingContext,
+) -> Result<()> {
     let time = context.valuation_time();
     if time < option.effective_date().start_of_day() || time > option.expiry_date().start_of_day() {
         return Err(Error::InvalidInput(
@@ -112,9 +116,12 @@ pub(crate) fn validate_life(option: &BarrierOption, context: &PricingContext) ->
     Ok(())
 }
 
-pub(crate) fn validate_schedule(option: &BarrierOption, context: &PricingContext) -> Result<()> {
-    if option
-        .observation_dates()
+pub(crate) fn validate_schedule(
+    schedule: &ObservationSchedule,
+    context: &PricingContext,
+) -> Result<()> {
+    if schedule
+        .dates()
         .iter()
         .any(|&d| !context.calendar().is_trading_day(d))
     {
@@ -273,7 +280,7 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
     let sigma = model.volatility();
     let upper = option.barrier_type().is_up();
     let knock_in = option.barrier_type().is_knock_in();
-    let shift = analytic_log_shift(option, spot, sigma)?;
+    let shift = analytic_log_shift(&option.monitoring, spot, sigma)?;
     let strike_above = log_ratio(option.strike(), option.barrier_level()) > shift;
     let requires_touch = option.payoff_requires_touch();
     let needs_vanilla = if requires_touch {
@@ -601,7 +608,7 @@ fn integrate(
     )
 }
 
-pub(crate) fn analytic_log_shift(option: &BarrierOption, spot: f64, sigma: f64) -> Result<f64> {
+pub(crate) fn analytic_log_shift(option: &Monitoring, spot: f64, sigma: f64) -> Result<f64> {
     let upper = option.barrier_type().is_up();
     if option.continuous() {
         Ok(0.0)

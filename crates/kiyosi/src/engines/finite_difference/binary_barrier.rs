@@ -177,11 +177,15 @@ impl FiniteDifferenceDoubleTouchEngine {
 }
 
 fn default_upper(contract: &Contract<'_>, context: &PricingContext) -> f64 {
-    let relevant = context.spot_price().max(contract.monitoring.strike());
+    let relevant = context.spot_price().max(
+        contract
+            .digital
+            .map_or(contract.monitoring.barrier_level(), |d| d.strike()),
+    );
     (4.0 * relevant).max(
         contract
-            .double
-            .map_or(contract.monitoring.barrier_level(), |d| d.upper_barrier())
+            .upper_barrier
+            .unwrap_or(contract.monitoring.barrier_level())
             + relevant,
     )
 }
@@ -195,9 +199,9 @@ fn native(
 ) -> Result<PricingResult> {
     let option = contract.monitoring;
     validate_life(option, context)?;
-    validate_schedule(option, context)?;
+    validate_schedule(option.observation_schedule(), context)?;
     let (prior, touched, finished) = contract.state(context)?;
-    let upper_barrier = contract.double.map(|d| d.upper_barrier());
+    let upper_barrier = contract.upper_barrier;
     let knock_in = option.barrier_type().is_knock_in();
     let at_hit = contract.timing == SettlementTiming::AtHit;
     let spot = context.spot_price();
@@ -270,8 +274,12 @@ fn native(
         settings,
         upper,
         0.0,
-        spot.max(option.strike())
-            .max(upper_barrier.unwrap_or(option.barrier_level())),
+        spot.max(
+            contract
+                .digital
+                .map_or(option.barrier_level(), |d| d.strike()),
+        )
+        .max(upper_barrier.unwrap_or(option.barrier_level())),
     )?;
     let up = option.barrier_type().is_up();
     if !scheduled {
@@ -366,7 +374,11 @@ fn native(
     let levels: Vec<_> = std::iter::once(option.barrier_level())
         .chain(upper_barrier)
         .collect();
-    let breaks: Vec<_> = levels.iter().copied().chain([option.strike()]).collect();
+    let breaks: Vec<_> = levels
+        .iter()
+        .copied()
+        .chain(contract.digital.map(|d| d.strike()))
+        .collect();
     let edges = |current, events: bool| {
         let value = |asset| {
             if !events {
@@ -471,10 +483,7 @@ fn native(
         sample[0], scale,
     )?)?;
     let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift);
-    if !contract.double.map_or_else(
-        || option.at_spot_discontinuity(context, h),
-        |double| double.at_spot_discontinuity(context, h),
-    ) {
+    if !option.spot_discontinuity(context, h, contract.upper_barrier) {
         result.set(request, Greek::Delta, sample[1])?;
         result.set(request, Greek::Gamma, sample[2])?;
         if request.has(Greek::Speed)

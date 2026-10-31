@@ -1,5 +1,5 @@
 use crate::{
-    BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType, Date, Error, EuropeanOption,
+    BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType, Date, EuropeanOption,
     ObservationMode, ObservationSchedule, OptionContract, OptionType, PricingContext, RebateTiming,
     Result, Timestamp,
 };
@@ -87,7 +87,7 @@ impl DoubleBarrierOption {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] unless finite `0 < lower < upper`,
+    /// Returns [`crate::Error::InvalidInput`] unless finite `0 < lower < upper`,
     /// then reuses [`BarrierOption::new`] categories and validation order, including
     /// for at-hit knock-in rebates even if zero.
     ///
@@ -104,11 +104,7 @@ impl DoubleBarrierOption {
     /// # Ok(()) }
     /// ```
     pub fn new(terms: DoubleBarrierOptionTerms) -> Result<Self> {
-        if !terms.upper_barrier.is_finite() || terms.upper_barrier <= terms.lower_barrier {
-            return Err(Error::InvalidInput(
-                "double barriers require finite 0 < lower < upper".into(),
-            ));
-        }
+        super::monitoring::validate_upper(terms.lower_barrier, terms.upper_barrier)?;
         let mut lower = BarrierOptionTerms::new(
             terms.option_type,
             terms.strike,
@@ -220,14 +216,7 @@ impl DoubleBarrierOption {
         self.lower.vanilla()
     }
     pub(crate) fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
-        let (prior, touched, finished) = self.lower.state(context)?;
-        Ok((
-            prior,
-            touched
-                || self.lower.monitored(context.valuation_time())
-                    && context.spot_price() >= self.upper,
-            finished,
-        ))
+        self.lower.monitoring.state(context, Some(self.upper))
     }
     pub(crate) fn payoff_requires_touch(&self) -> bool {
         (self.observation_mode() == ObservationMode::Continuous
@@ -246,11 +235,9 @@ impl OptionContract for DoubleBarrierOption {
         self.expiry_date()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
-        self.lower.at_spot_discontinuity(context, radius)
-            || self.touch_state() != Some(BarrierTouchState::Touched)
-                && self.lower.monitored(context.valuation_time())
-                && context.spot_price() - radius <= self.upper
-                && self.upper <= context.spot_price() + radius
+        self.lower
+            .monitoring
+            .spot_discontinuity(context, radius, Some(self.upper))
     }
     fn time_stencil_available(
         &self,

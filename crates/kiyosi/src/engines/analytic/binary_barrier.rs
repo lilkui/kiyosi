@@ -92,7 +92,7 @@ impl Contract<'_> {
         if touched || finished {
             return self.digital.is_some() && knock_in == touched;
         }
-        !(!knock_in && self.digital.is_some() && self.monitoring.payoff_requires_touch())
+        !(!knock_in && self.payoff_requires_touch())
     }
     fn price(&self, context: &PricingContext) -> Result<f64> {
         let option = self.monitoring;
@@ -101,8 +101,8 @@ impl Contract<'_> {
         let dividend = model.dividend_yield()?;
         let valuation = context.valuation_time();
         validate_life(option, context)?;
-        validate_schedule(option, context)?;
-        let (prior, touched, finished) = option.state(context)?;
+        validate_schedule(option.observation_schedule(), context)?;
+        let (prior, touched, finished) = self.state(context)?;
         let t = valuation.years_until(option.expiry_date().start_of_day());
         let knock_in = option.barrier_type().is_knock_in();
         let at_hit = self.timing == SettlementTiming::AtHit;
@@ -118,7 +118,7 @@ impl Contract<'_> {
             }
             return self.vanilla(context, t);
         }
-        if self.digital.is_some() && option.payoff_requires_touch() {
+        if self.payoff_requires_touch() {
             return if knock_in {
                 self.vanilla(context, t)
             } else {

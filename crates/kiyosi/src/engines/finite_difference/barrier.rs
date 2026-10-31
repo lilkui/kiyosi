@@ -242,7 +242,7 @@ fn native_barrier(
     let terms = option.monitoring();
     let upper_barrier = option.upper_barrier();
     validate_life(terms, context)?;
-    validate_schedule(terms, context)?;
+    validate_schedule(terms.observation_schedule(), context)?;
     if let Some(value) = option.resolved_price(context)? {
         return PricingResult::new(value);
     }

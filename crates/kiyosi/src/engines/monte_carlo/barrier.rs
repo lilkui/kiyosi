@@ -159,7 +159,7 @@ impl MonteCarloBarrierEngine {
         };
         self.validate_applicability(context)?;
         validate_life(option, context)?;
-        validate_schedule(option, context)?;
+        validate_schedule(option.observation_schedule(), context)?;
         let time = context.valuation_time();
         let expiry = option.expiry_date().start_of_day();
         let radius =

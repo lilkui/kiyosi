@@ -1,6 +1,7 @@
+use super::monitoring::Monitoring;
 use crate::{
     Date, Error, EuropeanOption, ObservationSchedule, OptionContract, OptionType, PricingContext,
-    Result, Timestamp, TradingCalendar,
+    Result, Timestamp,
 };
 
 /// Direction and activation behavior; see [`BarrierOption::new`].
@@ -117,13 +118,9 @@ impl BarrierOptionTerms {
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarrierOption {
     vanilla: EuropeanOption,
-    barrier_level: f64,
-    barrier_type: BarrierType,
+    pub(crate) monitoring: Monitoring,
     rebate: f64,
     rebate_timing: RebateTiming,
-    observation_mode: ObservationMode,
-    schedule: ObservationSchedule,
-    touch_state: Option<BarrierTouchState>,
 }
 impl BarrierOption {
     /// Creates an owning contract after validating monitoring and payoff terms.
@@ -149,23 +146,14 @@ impl BarrierOption {
     /// # Ok(()) }
     /// ```
     pub fn new(terms: BarrierOptionTerms) -> Result<Self> {
-        if !terms.barrier_level.is_finite() || terms.barrier_level <= 0.0 {
-            return Err(Error::InvalidInput(
-                "barrier level must be finite and positive".into(),
-            ));
-        }
-        if (terms.observation_mode == ObservationMode::Continuous)
-            != terms.observation_dates.is_empty()
-        {
-            return Err(Error::InvalidInput(
-                "monitoring mode and dates disagree".into(),
-            ));
-        }
-        let schedule = ObservationSchedule::new(
-            terms.observation_dates,
+        let monitoring = Monitoring::new(
             terms.effective_date,
             terms.expiry_date,
-            &TradingCalendar::all_days(),
+            terms.barrier_level,
+            terms.barrier_type,
+            terms.observation_mode,
+            terms.observation_dates,
+            terms.touch_state,
         )?;
         let vanilla = EuropeanOption::new(
             terms.option_type,
@@ -185,13 +173,9 @@ impl BarrierOption {
         }
         Ok(Self {
             vanilla,
-            barrier_level: terms.barrier_level,
-            barrier_type: terms.barrier_type,
+            monitoring,
             rebate: terms.rebate,
             rebate_timing: terms.rebate_timing,
-            observation_mode: terms.observation_mode,
-            schedule,
-            touch_state: terms.touch_state,
         })
     }
     /// Returns an owning copy with replaced history, leaving the original unchanged.
@@ -214,8 +198,10 @@ impl BarrierOption {
     /// ```
     pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
-            touch_state,
-            ..self.clone()
+            vanilla: self.vanilla.clone(),
+            monitoring: self.monitoring.replace(touch_state),
+            rebate: self.rebate,
+            rebate_timing: self.rebate_timing,
         }
     }
     /// Returns the call-or-put direction; see [`Self::new`].
@@ -236,11 +222,11 @@ impl BarrierOption {
     }
     /// Returns the positive trigger level; see [`Self::new`].
     pub fn barrier_level(&self) -> f64 {
-        self.barrier_level
+        self.monitoring.barrier_level()
     }
     /// Returns direction and activation behavior; see [`Self::new`].
     pub fn barrier_type(&self) -> BarrierType {
-        self.barrier_type
+        self.monitoring.barrier_type()
     }
     /// Returns the nonnegative rebate; see [`Self::new`].
     pub fn rebate(&self) -> f64 {
@@ -252,83 +238,35 @@ impl BarrierOption {
     }
     /// Returns monitoring frequency; see [`Self::new`].
     pub fn observation_mode(&self) -> ObservationMode {
-        self.observation_mode
+        self.monitoring.observation_mode()
     }
     /// Borrows immutable schedule storage for the lifetime of the borrow; see [`Self::new`].
     pub fn observation_schedule(&self) -> &ObservationSchedule {
-        &self.schedule
+        self.monitoring.observation_schedule()
     }
     /// Borrows ordered dates from this owner; see [`Self::observation_schedule`].
     pub fn observation_dates(&self) -> &[Date] {
-        self.schedule.dates()
+        self.monitoring.observation_dates()
     }
     /// Returns prior history; see [`Self::replace`].
     pub fn touch_state(&self) -> Option<BarrierTouchState> {
-        self.touch_state
+        self.monitoring.touch_state()
     }
     /// Returns mean spacing in Actual/365 Fixed years, or zero for continuous monitoring.
     ///
     /// Scheduled spacing includes effective date to first fixing; see [`Self::new`].
     pub fn mean_observation_year_fraction(&self) -> f64 {
-        self.observation_dates().last().map_or(0.0, |&last| {
-            self.effective_date().days_until(last) as f64 / 365.0 / self.schedule.len() as f64
-        })
+        self.monitoring.mean_observation_year_fraction()
     }
     pub(crate) fn vanilla(&self) -> &EuropeanOption {
         &self.vanilla
     }
-    pub(crate) fn continuous(&self) -> bool {
-        self.observation_mode() == ObservationMode::Continuous
-    }
-    pub(crate) fn monitored(&self, time: Timestamp) -> bool {
-        time >= self.effective_date().start_of_day()
-            && time <= self.expiry_date().start_of_day()
-            && (self.continuous()
-                || self.observation_dates().binary_search(&time.date()).is_ok()
-                    && time == time.date().start_of_day())
-    }
-    pub(crate) fn prior(&self, time: Timestamp) -> Result<bool> {
-        let had = if self.continuous() {
-            time > self.effective_date().start_of_day()
-        } else {
-            self.observation_dates()[0].start_of_day() < time
-        };
-        if !had && self.touch_state() == Some(BarrierTouchState::Touched) {
-            return Err(Error::InvalidInput("touch predates monitoring".into()));
-        }
-        if had && self.touch_state().is_none() {
-            return Err(Error::InvalidInput(
-                "prior barrier touch state is required".into(),
-            ));
-        }
-        Ok(self.touch_state() == Some(BarrierTouchState::Touched))
-    }
     pub(crate) fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
-        let time = context.valuation_time();
-        let prior = self.prior(time)?;
-        let hit = if self.barrier_type().is_up() {
-            context.spot_price() >= self.barrier_level()
-        } else {
-            context.spot_price() <= self.barrier_level()
-        };
-        Ok((
-            prior,
-            prior || self.monitored(time) && hit,
-            time == self.expiry_date().start_of_day()
-                || !self.continuous()
-                    && self
-                        .observation_dates()
-                        .last()
-                        .is_some_and(|d| d.start_of_day() <= time),
-        ))
+        self.monitoring.state(context, None)
     }
     pub(crate) fn payoff_requires_touch(&self) -> bool {
-        (self.continuous() || self.observation_dates().last() == Some(&self.expiry_date()))
-            && if self.barrier_type().is_up() {
-                self.option_type() == OptionType::Call && self.strike() >= self.barrier_level()
-            } else {
-                self.option_type() == OptionType::Put && self.strike() <= self.barrier_level()
-            }
+        self.monitoring
+            .payoff_requires_touch(self.option_type(), self.strike())
     }
 }
 impl OptionContract for BarrierOption {
@@ -339,24 +277,15 @@ impl OptionContract for BarrierOption {
         self.expiry_date()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
-        self.touch_state() != Some(BarrierTouchState::Touched)
-            && self.monitored(context.valuation_time())
-            && context.spot_price() - radius <= self.barrier_level()
-            && self.barrier_level() <= context.spot_price() + radius
+        self.monitoring.at_spot_discontinuity(context, radius)
     }
     fn time_stencil_available(
         &self,
-        _context: &PricingContext,
+        context: &PricingContext,
         before: Timestamp,
         after: Timestamp,
     ) -> bool {
-        self.prior(before).is_ok()
-            && self.prior(after).is_ok()
-            && (self.continuous()
-                || self.touch_state() == Some(BarrierTouchState::Touched)
-                || !self
-                    .observation_dates()
-                    .iter()
-                    .any(|d| before <= d.start_of_day() && d.start_of_day() <= after))
+        self.monitoring
+            .time_stencil_available(context, before, after)
     }
 }

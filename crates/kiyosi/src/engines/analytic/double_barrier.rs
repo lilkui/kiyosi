@@ -46,7 +46,7 @@ impl AnalyticDoubleBarrierEngine {
     pub fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
         self.validate_applicability(context)?;
         validate_life(&option.lower, context)?;
-        validate_schedule(&option.lower, context)?;
+        validate_schedule(option.lower.observation_schedule(), context)?;
         if let Some(value) = resolved_price(option, context)? {
             return Ok(value);
         }

@@ -149,7 +149,7 @@ fn price(
 ) -> Result<f64> {
     flat_rates(context)?;
     validate_life(option, context)?;
-    validate_schedule(option, context)?;
+    validate_schedule(option.observation_schedule(), context)?;
     if let Some(value) = resolved_price(option, context)? {
         return Ok(value);
     }
