@@ -3,7 +3,9 @@ use crate::{Error, EuropeanOption, PricingContext, Result};
 /// Selects a price sensitivity and its reporting units.
 ///
 /// Spot derivatives are per spot unit, volatility/rate derivatives per percentage
-/// point, and time derivatives per calendar day of forward valuation time.
+/// point (squared for volga), and time derivatives per calendar day of forward
+/// valuation time. Volga is `d²P/dσ² / 10000`; dividend rho is `dP/dq / 100`
+/// for a parallel continuous dividend-yield shift with other inputs fixed.
 /// See [`GreeksRequest::all`] for a request example.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(usize)]
@@ -22,17 +24,21 @@ pub enum Greek {
     Color,
     /// Measures the price change per volatility percentage point.
     Vega,
+    /// Measures volatility curvature per squared volatility percentage point.
+    Volga,
     /// Measures the delta change per volatility percentage point.
     Vanna,
     /// Measures the gamma change per volatility percentage point.
     Zomma,
     /// Measures the price change per risk-free-rate percentage point.
     Rho,
+    /// Measures the price change per parallel dividend-yield percentage point.
+    DividendRho,
 }
 
 impl Greek {
     /// Lists every supported Greek in result-storage order.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 12] = [
         Self::Delta,
         Self::Gamma,
         Self::Speed,
@@ -40,9 +46,11 @@ impl Greek {
         Self::Charm,
         Self::Color,
         Self::Vega,
+        Self::Volga,
         Self::Vanna,
         Self::Zomma,
         Self::Rho,
+        Self::DividendRho,
     ];
     /// Returns the lowercase Python choice string for this Greek.
     ///
@@ -56,9 +64,11 @@ impl Greek {
             Self::Charm => "charm",
             Self::Color => "color",
             Self::Vega => "vega",
+            Self::Volga => "volga",
             Self::Vanna => "vanna",
             Self::Zomma => "zomma",
             Self::Rho => "rho",
+            Self::DividendRho => "dividend_rho",
         }
     }
 }
@@ -67,7 +77,7 @@ impl Greek {
 ///
 /// Empty requests fail at valuation; see [`Self::all`] for usage.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct GreeksRequest([bool; 10]);
+pub struct GreeksRequest([bool; Greek::ALL.len()]);
 impl GreeksRequest {
     /// Creates a request, ignoring duplicates; see [`Self::all`].
     pub fn new(greeks: impl IntoIterator<Item = Greek>) -> Self {
@@ -87,7 +97,7 @@ impl GreeksRequest {
     /// assert!(request.has(Greek::Delta));
     /// ```
     pub const fn all() -> Self {
-        Self([true; 10])
+        Self([true; Greek::ALL.len()])
     }
     /// Reports whether this Greek was requested; see [`Self::all`].
     pub fn has(self, greek: Greek) -> bool {
@@ -107,7 +117,7 @@ impl GreeksRequest {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PricingResult {
     price: f64,
-    values: [Option<f64>; 10],
+    values: [Option<f64>; Greek::ALL.len()],
 }
 impl PricingResult {
     /// Returns the finite price; see [`crate::AnalyticEuropeanEngine`].
@@ -136,7 +146,7 @@ impl PricingResult {
         ))
     }
     /// Borrows immutable Greek storage in [`Greek::ALL`] order.
-    pub fn values(&self) -> &[Option<f64>; 10] {
+    pub fn values(&self) -> &[Option<f64>; Greek::ALL.len()] {
         &self.values
     }
     pub(crate) fn new(price: f64) -> Result<Self> {
@@ -145,7 +155,7 @@ impl PricingResult {
         }
         Ok(Self {
             price,
-            values: [None; 10],
+            values: [None; Greek::ALL.len()],
         })
     }
     pub(crate) fn set(&mut self, request: GreeksRequest, greek: Greek, value: f64) -> Result<()> {
@@ -169,7 +179,7 @@ pub struct NumericalShiftSettings {
     pub spot_shift: f64,
     /// Sets the positive absolute volatility bump (default 0.0001 decimal units).
     pub volatility_shift: f64,
-    /// Sets the positive parallel rate bump (default 0.0001 decimal units).
+    /// Sets the positive risk-free and dividend rate bump (default 0.0001 decimal units).
     pub rate_shift: f64,
     /// Sets the positive time bump in calendar days (default 1).
     pub time_shift_days: i32,

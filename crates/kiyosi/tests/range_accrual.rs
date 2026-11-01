@@ -243,7 +243,10 @@ fn greeks_respect_observations_and_allow_pre_effective_time() {
     for greek in Greek::ALL {
         assert_eq!(
             result.has(greek),
-            matches!(greek, Greek::Vega | Greek::Rho),
+            matches!(
+                greek,
+                Greek::Vega | Greek::Volga | Greek::Rho | Greek::DividendRho
+            ),
             "{greek:?}"
         );
     }

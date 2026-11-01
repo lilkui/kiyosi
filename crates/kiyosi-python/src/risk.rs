@@ -30,7 +30,7 @@ pub(crate) fn greeks_request(greeks: &Bound<'_, PyAny>) -> PyResult<kiyosi::Gree
 /// Notes
 /// -----
 /// Unavailable or unrequested Greeks are None. Spot derivatives are per spot
-/// unit, volatility/rate derivatives per percentage point, and time
+/// unit, volatility/rate derivatives per percentage point (squared for volga), and time
 /// derivatives per calendar day of forward valuation time.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct PricingResult(pub kiyosi::PricingResult);
@@ -77,6 +77,11 @@ impl PricingResult {
     fn vega(&self) -> Option<f64> {
         self.0.get(kiyosi::Greek::Vega)
     }
+    /// Return volga per squared volatility percentage point, or None if unavailable.
+    #[getter]
+    fn volga(&self) -> Option<f64> {
+        self.0.get(kiyosi::Greek::Volga)
+    }
     /// Return vanna, or None if unrequested or unavailable.
     #[getter]
     fn vanna(&self) -> Option<f64> {
@@ -91,6 +96,11 @@ impl PricingResult {
     #[getter]
     fn rho(&self) -> Option<f64> {
         self.0.get(kiyosi::Greek::Rho)
+    }
+    /// Return dividend rho per yield percentage point, or None if unavailable.
+    #[getter]
+    fn dividend_rho(&self) -> Option<f64> {
+        self.0.get(kiyosi::Greek::DividendRho)
     }
     /// Return a requested Greek or raise when it is unavailable.
     ///

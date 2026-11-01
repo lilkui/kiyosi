@@ -23,6 +23,11 @@ finite fits with insufficient independent samples use a lower polynomial degree.
 their ``price_with_greeks`` methods accept only ``greeks`` as a request
 control. Engines that use numerical differences also accept bump
 settings.
+``volatility_shift`` controls the volatility bump for vega and volga;
+``rate_shift`` controls parallel bumps of both the risk-free and dividend-yield
+curves for rho and dividend_rho. Numerical volga requires a strictly positive
+lower volatility leg. Monte Carlo volga can amplify sampling and exercise noise;
+check convergence across bump sizes and simulation settings.
 
 ``MonteCarloBarrierEngine`` and ``MonteCarloDoubleBarrierEngine`` return only
 delta and gamma. Their only bump control is ``spot_shift``, used for barrier
@@ -77,6 +82,10 @@ True
 ... )
 >>> sensitivities.require("gamma") > 0
 True
+>>> round(sensitivities.require("volga"), 8)
+0.00023688
+>>> round(sensitivities.require("dividend_rho"), 6)
+-0.586851
 
 Recover the model volatility from its price using a chosen bracket:
 

@@ -29,11 +29,14 @@ failed initialization can be retried by a later call.
 For multiprocessing, use the `spawn` start method. Forking after the worker
 pool has initialized leaves it unusable in the child process.
 
-`Greek` accepts delta, gamma, speed, theta, charm, color, vega, vanna,
-zomma and rho. Spot derivatives use spot units, volatility and rate
-derivatives use percentage points, and time derivatives use calendar days
+`Greek` accepts delta, gamma, speed, theta, charm, color, vega, volga, vanna,
+zomma, rho and dividend_rho. Spot derivatives use spot units, volatility and rate
+derivatives use percentage points (squared for volga), and time derivatives use calendar days
 of forward valuation time. `PricingResult` leaves unavailable or
 unrequested sensitivities as None; `require` raises if one is absent.
+Volga is the second volatility derivative divided by 10000. Dividend rho is
+the sensitivity to a parallel shift of the continuous dividend-yield curve,
+divided by 100, holding other market inputs fixed.
 
 Calls are synchronous, without core cancellation or signal polling. Python
 signal handling, including `KeyboardInterrupt`, resumes when control

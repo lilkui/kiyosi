@@ -194,9 +194,11 @@ class AnalyticsTests(unittest.TestCase):
             "charm",
             "color",
             "vega",
+            "volga",
             "vanna",
             "zomma",
             "rho",
+            "dividend_rho",
         ):
             self.assertIsNone(getattr(result, name))
             with self.assertRaises(UnsupportedOperationError):

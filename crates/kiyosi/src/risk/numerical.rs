@@ -26,7 +26,9 @@ pub(crate) fn symmetric_shift(value: f64, requested: f64) -> f64 {
 /// stencils are unavailable.
 /// Time rolls stay within permitted valuation dates, curve coverage and neighboring knots, with
 /// right-hand differences at knots. Feasible bumped pricing errors fail the request.
-/// Vega/vanna/zomma/rho are per percentage point, time Greeks per calendar day.
+/// Vega/vanna/zomma/rho/dividend rho are per percentage point, volga per squared
+/// volatility percentage point, and time Greeks per calendar day.
+/// Dividend rho shifts the dividend curve in parallel using `settings.rate_shift`.
 /// [`crate::EuropeanOption`], [`crate::DigitalOption`] and [`crate::AmericanOption`] expose their inclusive
 /// life through [`OptionContract`]; engine/instrument support remains type checked.
 ///
@@ -255,9 +257,11 @@ pub(crate) fn complete_greeks(
     if v > 0.0
         && vol > v
         && (100.0 * v).is_finite()
-        && (want(Greek::Vega) || (spot_ok && (want(Greek::Vanna) || want(Greek::Zomma))))
+        && (want(Greek::Vega)
+            || want(Greek::Volga)
+            || (spot_ok && (want(Greek::Vanna) || want(Greek::Zomma))))
     {
-        let prices = if want(Greek::Vega) {
+        let prices = if want(Greek::Vega) || want(Greek::Volga) {
             Some((
                 price(spot, vol + v, 0.0, time)?,
                 price(spot, vol - v, 0.0, time)?,
@@ -267,6 +271,11 @@ pub(crate) fn complete_greeks(
         };
         if let Some((up, down)) = prices {
             result.set(request, Greek::Vega, (up - down) / (200.0 * v))?;
+            result.set(
+                request,
+                Greek::Volga,
+                ((up - p0) - (p0 - down)) / (100.0 * v) / (100.0 * v),
+            )?;
         }
         if spot_ok && (want(Greek::Vanna) || want(Greek::Zomma)) {
             let (high, low) = paired_derivatives(
@@ -288,6 +297,28 @@ pub(crate) fn complete_greeks(
             Greek::Rho,
             (price(spot, vol, r, time)? - price(spot, vol, -r, time)?) / (200.0 * r),
         )?;
+    }
+    if want(Greek::DividendRho) {
+        let dividend = model.dividend_curve().flat_rate().unwrap_or(0.0);
+        let q = symmetric_shift(dividend, settings.rate_shift);
+        if q > 0.0 && (200.0 * q).is_finite() {
+            let evaluate = |shift| -> Result<f64> {
+                let model = model.replace(BlackScholesMertonParameterChanges {
+                    dividend_yield: Some(model.dividend_curve().shifted(shift)?.into()),
+                    ..Default::default()
+                })?;
+                let shifted = context.replace(PricingContextChanges {
+                    model_parameters: Some(model),
+                    ..Default::default()
+                })?;
+                Ok(native(&shifted, GreeksRequest::default())?.price())
+            };
+            result.set(
+                request,
+                Greek::DividendRho,
+                (evaluate(q)? - evaluate(-q)?) / (200.0 * q),
+            )?;
+        }
     }
     if want(Greek::Theta) || want(Greek::Charm) || want(Greek::Color) {
         let mut lower = option
@@ -484,15 +515,18 @@ mod tests {
             })
             .unwrap();
         for (request, expected_calls) in [
+            (GreeksRequest::new([Greek::Volga]), 3),
+            (GreeksRequest::new([Greek::DividendRho]), 3),
+            (GreeksRequest::new([Greek::Vega, Greek::Volga]), 3),
             (
-                GreeksRequest::new([Greek::Vega, Greek::Vanna, Greek::Zomma]),
+                GreeksRequest::new([Greek::Vega, Greek::Volga, Greek::Vanna, Greek::Zomma]),
                 7,
             ),
             (
                 GreeksRequest::new([Greek::Theta, Greek::Charm, Greek::Color]),
                 7,
             ),
-            (GreeksRequest::all(), 19),
+            (GreeksRequest::all(), 21),
         ] {
             let calls = RefCell::new(Vec::new());
             let evaluate = |context: &PricingContext, _| {
@@ -507,7 +541,8 @@ mod tests {
                 PricingResult::new(
                     spot.powi(3) * (1.0 + model.volatility().powi(2))
                         + spot.powi(2) * days
-                        + model.risk_free_rate()?,
+                        + model.risk_free_rate()?
+                        + 3.0 * model.dividend_yield()?,
                 )
             };
             let result = complete_greeks(
@@ -531,12 +566,14 @@ mod tests {
                 (Greek::Gamma, 19.0),
                 (Greek::Speed, 7.5),
                 (Greek::Vega, 0.08),
+                (Greek::Volga, 0.0016),
                 (Greek::Vanna, 0.120625),
                 (Greek::Zomma, 0.12),
                 (Greek::Theta, 4.0),
                 (Greek::Charm, 4.0),
                 (Greek::Color, 2.0),
                 (Greek::Rho, 0.01),
+                (Greek::DividendRho, 0.03),
             ] {
                 if request.has(greek) {
                     assert!((result.require(greek).unwrap() - expected).abs() < 1e-12);

@@ -19,9 +19,11 @@ def price_differences(
         "charm",
         "color",
         "vega",
+        "volga",
         "vanna",
         "zomma",
         "rho",
+        "dividend_rho",
     ),
     *,
     spot_shift=0.01,
@@ -38,6 +40,7 @@ def price_differences(
     h = (spot + spot_shift) - spot
     v = (volatility + volatility_shift) - volatility
     r = (rate + rate_shift) - rate
+    q = (parameters.dividend_yield + rate_shift) - parameters.dividend_yield
     time = context.valuation_time
     start = datetime.combine(option.effective_date, datetime.min.time(), UTC)
     end = datetime.combine(option.expiry_date, datetime.min.time(), UTC)
@@ -48,13 +51,13 @@ def price_differences(
     days = (after - before).total_seconds() / 86400
 
     @cache
-    def price(ds=0, dv=0, dr=0, dt=timedelta()):
+    def price(ds=0, dv=0, dr=0, dt=timedelta(), dq=0):
         return engine.price(
             option,
             PricingContext(
                 model_parameters=BlackScholesMertonParameters(
                     risk_free_rate=rate + dr,
-                    dividend_yield=parameters.dividend_yield,
+                    dividend_yield=parameters.dividend_yield + dq,
                     volatility=volatility + dv,
                 ),
                 spot_price=spot + ds,
@@ -79,6 +82,7 @@ def price_differences(
             / (2 * h)
         ),
         "vega": lambda: (price(dv=v) - price(dv=-v)) / (200 * v),
+        "volga": lambda: (price(dv=v) - 2 * price() + price(dv=-v)) / (100 * v) ** 2,
         "vanna": lambda: (
             ((price(h, v) - price(-h, v)) - (price(h, -v) - price(-h, -v)))
             / h
@@ -87,6 +91,7 @@ def price_differences(
         ),
         "zomma": lambda: (curvature(v) / h / h - curvature(-v) / h / h) / (200 * v),
         "rho": lambda: (price(dr=r) - price(dr=-r)) / (200 * r),
+        "dividend_rho": lambda: (price(dq=q) - price(dq=-q)) / (200 * q),
         "theta": lambda: (price(dt=after) - price(dt=before)) / days,
         "charm": lambda: (spread(dt=after) - spread(dt=before)) / h / days / 2,
         "color": lambda: (curvature(dt=after) - curvature(dt=before)) / h / h / days,

@@ -100,6 +100,8 @@ fn analytic_greeks_and_volatility_recovery_use_public_api() {
     assert!((result.require(Greek::Delta).unwrap() - 0.586851146134764).abs() < 1e-12);
     assert!((result.require(Greek::Gamma).unwrap() - 0.0189505787550087).abs() < 1e-12);
     assert!((result.require(Greek::Vega).unwrap() - 0.379011575100175).abs() < 1e-12);
+    assert!((result.require(Greek::Volga).unwrap() - 0.000236882234437609).abs() < 1e-14);
+    assert!((result.require(Greek::DividendRho).unwrap() + 0.586851146134764).abs() < 1e-12);
     let recovered = implied_volatility(
         &AnalyticEuropeanEngine,
         &option,
@@ -143,6 +145,160 @@ fn numerical_greeks_are_stable_across_absolute_bumps() {
             );
         }
     }
+}
+
+#[test]
+fn volga_and_dividend_rho_preserve_units_curves_and_selectivity() {
+    let (call, original) = market();
+    let start = call.effective_date().start_of_day();
+    let end = call.expiry_date().start_of_day();
+    let middle = Date::new(2025, 7, 1).unwrap().start_of_day();
+    let curve = RateTermStructure::new(
+        start,
+        vec![middle, end],
+        vec![(-0.01_f64 * 181.0 / 365.0).exp(), (-0.03_f64).exp()],
+    )
+    .unwrap();
+    for dividend in [Rate::from(-0.02), Rate::from(curve)] {
+        let context = original
+            .replace(PricingContextChanges {
+                model_parameters: Some(
+                    original
+                        .model_parameters()
+                        .replace(BlackScholesMertonParameterChanges {
+                            dividend_yield: Some(dividend),
+                            ..Default::default()
+                        })
+                        .unwrap(),
+                ),
+                ..Default::default()
+            })
+            .unwrap();
+        let saved = context.clone();
+        for direction in [OptionType::Call, OptionType::Put] {
+            let option =
+                EuropeanOption::new(direction, 100.0, call.effective_date(), call.expiry_date())
+                    .unwrap();
+            let exact = AnalyticEuropeanEngine
+                .price_with_greeks(&option, &context, GreeksRequest::all())
+                .unwrap();
+            // A full year gives dividend rho = -spot * delta / 100.
+            assert!(
+                (exact.require(Greek::DividendRho).unwrap() + exact.require(Greek::Delta).unwrap())
+                    .abs()
+                    < 1e-12
+            );
+            for greek in [Greek::Volga, Greek::DividendRho] {
+                for bump in [0.00005, 0.0001] {
+                    let numeric = numerical_greeks(
+                        &AnalyticEuropeanEngine,
+                        &option,
+                        &context,
+                        GreeksRequest::new([greek]),
+                        NumericalShiftSettings {
+                            volatility_shift: bump,
+                            rate_shift: bump,
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+                    assert!(
+                        (numeric.require(greek).unwrap() - exact.require(greek).unwrap()).abs()
+                            < 1e-8,
+                        "{direction:?} {greek:?}"
+                    );
+                    assert!(
+                        Greek::ALL
+                            .into_iter()
+                            .filter(|&g| g != greek)
+                            .all(|g| !numeric.has(g))
+                    );
+                }
+            }
+        }
+        assert_eq!(context, saved);
+    }
+}
+
+#[test]
+fn volga_preserves_tiny_volatility_curvature() {
+    let (original, context) = market();
+    for (spot, sigma) in [(1e300, 1e-200), (1e160, f64::from_bits(1))] {
+        let option = EuropeanOption::new(
+            OptionType::Call,
+            spot,
+            original.effective_date(),
+            original.expiry_date(),
+        )
+        .unwrap();
+        let context = context
+            .replace(PricingContextChanges {
+                spot_price: Some(spot),
+                model_parameters: Some(BlackScholesMertonParameters::new(0.0, 0.0, sigma).unwrap()),
+                ..Default::default()
+            })
+            .unwrap();
+        let result = AnalyticEuropeanEngine
+            .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Volga]))
+            .unwrap();
+        // At zero carry the small-volatility limit is -S*sigma*phi(0)/40000.
+        let expected = -(spot * sigma) / (40000.0 * (2.0 * std::f64::consts::PI).sqrt());
+        assert!((result.require(Greek::Volga).unwrap() / expected - 1.0).abs() < 1e-12);
+    }
+}
+
+#[test]
+fn new_parameter_greeks_keep_unavailable_stencils_and_bump_errors() {
+    let (option, context) = market();
+    let request = GreeksRequest::new([Greek::Volga, Greek::DividendRho]);
+    let result = numerical_greeks(
+        &AnalyticEuropeanEngine,
+        &option,
+        &context,
+        request,
+        NumericalShiftSettings {
+            volatility_shift: 0.2,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(!result.has(Greek::Volga));
+    assert!(result.has(Greek::DividendRho));
+    let collapsed = numerical_greeks(
+        &AnalyticEuropeanEngine,
+        &option,
+        &context,
+        request,
+        NumericalShiftSettings {
+            rate_shift: f64::MIN_POSITIVE,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(collapsed.has(Greek::Volga));
+    assert!(!collapsed.has(Greek::DividendRho));
+    struct RejectDividendBump;
+    impl PricingEngine for RejectDividendBump {
+        fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
+            if context.model_parameters().dividend_yield()? > 0.02 {
+                return Err(Error::UnsupportedOperation(
+                    "bumped dividend is unsupported".into(),
+                ));
+            }
+            AnalyticEuropeanEngine.price(option, context)
+        }
+    }
+    assert!(matches!(
+        numerical_greeks(
+            &RejectDividendBump,
+            &option,
+            &context,
+            request,
+            Default::default()
+        ),
+        Err(Error::UnsupportedOperation(_))
+    ));
+    assert_eq!(context.model_parameters().dividend_yield().unwrap(), 0.02);
 }
 
 #[test]

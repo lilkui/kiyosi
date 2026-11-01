@@ -29,7 +29,18 @@ END = START + timedelta(days=360)
 
 KINDS = ("up_and_in", "up_and_out", "down_and_in", "down_and_out")
 
-OTHER_GREEKS = ("speed", "theta", "charm", "color", "vega", "vanna", "zomma", "rho")
+OTHER_GREEKS = (
+    "speed",
+    "theta",
+    "charm",
+    "color",
+    "vega",
+    "volga",
+    "vanna",
+    "zomma",
+    "rho",
+    "dividend_rho",
+)
 
 
 def market(spot=100, valuation=START, rate=0.03, volatility=0.2, dividend=0.01):

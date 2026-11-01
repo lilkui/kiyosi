@@ -44,9 +44,11 @@ GREEKS = (
     "charm",
     "color",
     "vega",
+    "volga",
     "vanna",
     "zomma",
     "rho",
+    "dividend_rho",
 )
 VANILLA = (EuropeanOption, AmericanOption)
 DIGITAL = (CashOrNothingOption, AssetOrNothingOption)

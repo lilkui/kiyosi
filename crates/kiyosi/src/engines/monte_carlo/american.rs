@@ -229,22 +229,32 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         let native = |context: &PricingContext, requested: GreeksRequest| {
             let mut result = PricingResult::new(engine.price(option, context)?)?;
             let rate = context.model_parameters().risk_free_rate()?;
-            let shift = crate::risk::numerical::symmetric_shift(rate, settings.rate_shift);
-            if requested.has(Greek::Rho)
-                && shift > 0.0
-                && context.valuation_time() != option.expiry_date().start_of_day()
-                && option.option_type() == OptionType::Call
-                && context.model_parameters().dividend_yield()? <= 0.0
-                && rate - shift < 0.0
-                && rate + shift >= 0.0
-            {
+            let dividend = context.model_parameters().dividend_yield()?;
+            for (greek, value) in [(Greek::Rho, rate), (Greek::DividendRho, dividend)] {
+                if !requested.has(greek)
+                    || context.valuation_time() == option.expiry_date().start_of_day()
+                    || option.option_type() != OptionType::Call
+                {
+                    continue;
+                }
+                let shift = crate::risk::numerical::symmetric_shift(value, settings.rate_shift);
+                let crosses_shortcut = if greek == Greek::Rho {
+                    dividend <= 0.0 && rate - shift < 0.0 && rate + shift >= 0.0
+                } else {
+                    rate >= 0.0 && dividend - shift <= 0.0 && dividend + shift > 0.0
+                };
+                if shift <= 0.0 || !(200.0 * shift).is_finite() || !crosses_shortcut {
+                    continue;
+                }
                 // Keep the exercise-grid estimator on both sides of the terminal shortcut boundary.
-                let evaluate = |rate: f64| {
+                let evaluate = |value: f64| {
                     let model =
                         context
                             .model_parameters()
                             .replace(BlackScholesMertonParameterChanges {
-                                risk_free_rate: Some(rate.into()),
+                                risk_free_rate: (greek == Greek::Rho).then_some(value.into()),
+                                dividend_yield: (greek == Greek::DividendRho)
+                                    .then_some(value.into()),
                                 ..Default::default()
                             })?;
                     let shifted = context.replace(PricingContextChanges {
@@ -255,8 +265,8 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
                 };
                 result.set(
                     requested,
-                    Greek::Rho,
-                    (evaluate(rate + shift)? - evaluate(rate - shift)?) / (200.0 * shift),
+                    greek,
+                    (evaluate(value + shift)? - evaluate(value - shift)?) / (200.0 * shift),
                 )?;
             }
             Ok(result)
@@ -330,4 +340,83 @@ fn solve_quadratic(samples: [[f64; 4]; 3]) -> Option<[f64; 3]> {
             .then_some(coefficients);
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{BlackScholesMertonParameters, Date, MonteCarloSettings};
+
+    #[test]
+    fn dividend_stencils_crossing_zero_keep_one_exercise_estimator() {
+        let start = Date::new(2025, 1, 1).unwrap();
+        let option = AmericanOption::new(
+            OptionType::Call,
+            100.0,
+            start,
+            Date::new(2026, 1, 1).unwrap(),
+        )
+        .unwrap();
+        let engine = MonteCarloVanillaEngine::with_step_count(
+            MonteCarloSettings {
+                path_count: 2048,
+                seed: Some(42),
+                ..Default::default()
+            },
+            7,
+        )
+        .unwrap();
+        let shift = 1.0 / 8192.0;
+        for rate in [0.0, 0.05] {
+            for dividend in [-shift / 2.0, 0.0, shift / 2.0, shift] {
+                let context = |dividend| {
+                    PricingContext::new(
+                        BlackScholesMertonParameters::new(rate, dividend, 0.2).unwrap(),
+                        100.0,
+                        start.into(),
+                    )
+                    .unwrap()
+                };
+                let result = engine
+                    .price_with_greeks(
+                        &option,
+                        &context(dividend),
+                        GreeksRequest::new([Greek::DividendRho]),
+                        NumericalShiftSettings {
+                            rate_shift: shift,
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+                let up = engine
+                    .american_price(&option, &context(dividend + shift), false)
+                    .unwrap();
+                let down = engine
+                    .american_price(&option, &context(dividend - shift), false)
+                    .unwrap();
+                assert!(
+                    (result.require(Greek::DividendRho).unwrap() - (up - down) / (200.0 * shift))
+                        .abs()
+                        < 1e-10
+                );
+                assert_eq!(
+                    result.price(),
+                    engine.price(&option, &context(dividend)).unwrap()
+                );
+                assert!(!result.has(Greek::Rho));
+                let unavailable = engine
+                    .price_with_greeks(
+                        &option,
+                        &context(dividend),
+                        GreeksRequest::new([Greek::DividendRho]),
+                        NumericalShiftSettings {
+                            rate_shift: f64::MAX,
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+                assert!(!unavailable.has(Greek::DividendRho));
+            }
+        }
+    }
 }

@@ -933,9 +933,11 @@ Greek: TypeAlias = Literal[
     "charm",
     "color",
     "vega",
+    "volga",
     "vanna",
     "zomma",
     "rho",
+    "dividend_rho",
 ]
 
 class PricingResult:
@@ -957,11 +959,15 @@ class PricingResult:
     @property
     def vega(self) -> float | None: ...
     @property
+    def volga(self) -> float | None: ...
+    @property
     def vanna(self) -> float | None: ...
     @property
     def zomma(self) -> float | None: ...
     @property
     def rho(self) -> float | None: ...
+    @property
+    def dividend_rho(self) -> float | None: ...
     def require(self, measure: Greek) -> float: ...
 
 @overload
