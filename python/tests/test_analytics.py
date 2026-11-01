@@ -136,7 +136,7 @@ class AnalyticsTests(unittest.TestCase):
                         expected,
                         delta=budget[name] + metadata[f"uncertainty_{name}"],
                     )
-            # Reuse the scalar oracle and unchanged numerical acceptance budgets.
+            # Numerical Greeks use the scalar oracle and per-scenario acceptance budgets.
             numeric_budget = scenario["numerical_tolerances"]
             bumps = (
                 (0.008, 0.01)

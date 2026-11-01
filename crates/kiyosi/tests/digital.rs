@@ -672,7 +672,7 @@ fn expiry_reaching_time_stencils_use_paired_scalar_fallback() {
     let actual = AnalyticDigitalEngine
         .price_with_greeks(&option, &context, request, Default::default())
         .unwrap();
-    // Existing scalar stencil: both legs use price differences when one reaches expiry.
+    // Both stencil legs use price differences when one reaches expiry.
     assert!((actual.require(Greek::Charm).unwrap() - 124.8761593919428).abs() < 1e-9);
     assert!((actual.require(Greek::Color).unwrap() - 50137.33821086929).abs() < 1e-7);
     let numeric = numerical_greeks(

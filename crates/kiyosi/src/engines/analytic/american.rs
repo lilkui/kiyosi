@@ -13,7 +13,7 @@ fn exponential_cdf(weight: f64, argument: f64) -> f64 {
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "Preserves the existing 2002 formula parameters"
+    reason = "matches the Bjerksund-Stensland 2002 formula parameters"
 )]
 fn phi(
     spot: f64,
@@ -105,7 +105,7 @@ fn exponential_bivariate_cdf(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "Preserves the existing 2002 formula parameters"
+    reason = "matches the Bjerksund-Stensland 2002 formula parameters"
 )]
 fn ksi(
     spot: f64,

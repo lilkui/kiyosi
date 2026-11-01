@@ -278,7 +278,7 @@ class EuropeanTests(unittest.TestCase):
         self.assertEqual(saved.volatility, 0.2)
 
     def test_extreme_numerical_regressions(self):
-        # Independent high-precision cases retained from the analytic suite.
+        # Independent high-precision references for tail prices and extreme scales.
         for direction, spot, strike, sigma, expected in (
             ("call", 100, 100.00000000013, 1e-13, 4.6459080591698985e-51),
             ("put", 100, 99.99999999987, 1e-13, 4.645908058131258e-51),

@@ -1,9 +1,11 @@
 """Price contracts, compute sensitivities, and solve implied parameters.
 
-All finite-difference engines support local-volatility price, delta and gamma
-for their product families, including American exercise, holding the absolute
-surface fixed. Other Greeks (including "all"), non-FD engines and inverse solves
-raise UnsupportedOperationError. Digital FD requires explicitly flat rates.
+Finite-difference engines support local volatility for European and American
+vanilla options, digitals, single and double barriers, binary barriers, touch
+and no-touch options, autocallable notes and accumulators. They provide price,
+delta and gamma, holding the absolute surface fixed. Other Greeks (including
+"all"), non-FD engines and inverse solves raise UnsupportedOperationError for
+this model. Digital FD requires explicitly flat risk-free and dividend rates.
 Delta/gamma are absent at expiry and unavailable event-crossing stencils.
 Surface coverage follows remaining stochastic evolution; rates must cover
 required discounting. Check time, space and boundary convergence for local-volatility

@@ -320,7 +320,7 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "matches the existing reflection-tail formula"
+    reason = "matches the reflection-tail formula"
 )]
 pub(crate) fn reflection_tail(
     amount: f64,

@@ -132,7 +132,7 @@ class DigitalTests(unittest.TestCase):
             )
             with ql.SavedSettings():
                 reference, uncertainty = oracle.reference(inputs, digital.STABILITY)
-            # Existing references omit time Greeks when a whole-day stencil reaches expiry.
+            # Reference time Greeks are unavailable when a whole-day stencil reaches expiry.
             smooth = (option.expiry_date - context.valuation_time.date()).days > 2
             names = (
                 tuple(reference.keys() - {"price"}) if smooth else ("delta", "gamma")
@@ -554,7 +554,7 @@ class DigitalTests(unittest.TestCase):
                             context,
                             "gamma",
                         )
-        # Existing independent high-precision tail regressions, r = q = -710.
+        # Independent high-precision tail references, r = q = -710.
         for direction, log_strike, expected in (
             ("call", 8, 8.923870780328184e-38),
             ("put", -8, -2.9638565030696756e-41),

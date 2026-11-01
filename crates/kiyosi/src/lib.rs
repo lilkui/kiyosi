@@ -15,9 +15,11 @@
 //!
 //! Local volatility uses [`LocalVolatilitySurface`] with fixed absolute time/spot
 //! nodes, bilinear sigma interpolation and flat price tails. Time extrapolation
-//! is rejected. All finite-difference engines support their existing product families
-//! with price, delta and gamma, including American exercise. Other Greeks, non-FD
-//! engines and inverse solves reject this model. Digital FD requires flat rates.
+//! is rejected. Finite-difference engines support this model for European and American
+//! vanilla options, digitals, single and double barriers, binary barriers, touch and
+//! no-touch options, autocallable notes and accumulators. They provide price and
+//! fixed-surface delta and gamma. Other Greeks, non-FD engines and inverse solves
+//! reject this model. Digital FD requires explicitly flat risk-free and dividend rates.
 //! Future coverage follows remaining stochastic evolution and required discounts;
 //! settled cashflows do not require volatility coverage through contractual expiry.
 //! [`ModelParameters`] selects the concrete model at the pricing entry point.

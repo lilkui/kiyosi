@@ -112,7 +112,7 @@ fn invalid_domain_values_are_rejected_before_construction() {
 fn analytic_regressions_retain_tail_prices_and_extreme_scales() {
     let start = Date::new(2025, 1, 1).unwrap();
     let end = Date::new(2026, 1, 1).unwrap();
-    // Independent high-precision references from the existing analytic regression cases.
+    // Independent high-precision references for tail prices and extreme scales.
     for (direction, spot, strike, sigma, expected, tolerance) in [
         (
             OptionType::Call,
@@ -251,7 +251,7 @@ fn time_scaled_subnormal_volatility_preserves_positive_value() {
     let context = PricingContext::new(model, 1e308, start.into()).unwrap();
     for direction in [OptionType::Call, OptionType::Put] {
         let option = EuropeanOption::new(direction, 1e308, start, end).unwrap();
-        // Existing small-width reference: S * sigma * sqrt(1/365) / sqrt(2*pi).
+        // Small-width reference: S * sigma * sqrt(1/365) / sqrt(2*pi).
         let expected = 1.031_687_789_452_394_2e-17;
         let actual = AnalyticEuropeanEngine.price(&option, &context).unwrap();
         assert!((actual / expected - 1.0).abs() < 2e-12, "{actual}");

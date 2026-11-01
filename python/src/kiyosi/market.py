@@ -8,7 +8,8 @@ LocalVolatilitySurface owns a rectangular table (rows=time, columns=absolute
 spot), interpolating sigma bilinearly with flat price tails and no time
 extrapolation. Context changes keep these absolute nodes fixed. All FD engines
 support LocalVolatilityParameters for price, delta and gamma; Digital FD requires
-flat rates. Non-FD engines, other Greeks and inverse solves remain unsupported.
+explicitly flat risk-free and dividend rates. Non-FD engines, other Greeks and
+inverse solves reject this model with UnsupportedOperationError.
 Model and context ``replace()`` methods expose named keyword-only fields.
 Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
 values; explicit ``None`` is rejected.
