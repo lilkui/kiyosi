@@ -260,7 +260,7 @@ class DigitalNumericalTests(unittest.TestCase):
                 pricing.MonteCarloDigitalEngine(**{field: True})
             with self.assertRaises(ValueError):
                 pricing.MonteCarloDigitalEngine(**{field: "unknown"})
-        for fields in ({"antithetic": 1}, {"unknown": 1}, {"backend": "cpu"}):
+        for fields in ({"antithetic": 1}, {"unknown": 1}):
             with self.assertRaises(TypeError):
                 pricing.MonteCarloDigitalEngine(**fields)
         for fields in (

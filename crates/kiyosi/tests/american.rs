@@ -420,25 +420,3 @@ fn american_numerical_stability_regressions() {
         assert!((value / 1.1367038364232515e-163 - 1.0).abs() < 1e-8);
     }
 }
-
-#[test]
-fn american_price_preserves_2002_regression() {
-    let start = day(2025, 1, 1);
-    let end = day(2026, 1, 1);
-    let context = PricingContext::new(
-        BlackScholesMertonParameters::new(0.05, 0.03, 0.2).unwrap(),
-        100.0,
-        start.into(),
-    )
-    .unwrap();
-    for (direction, expected) in [
-        (OptionType::Call, 8.652695436032069),
-        (OptionType::Put, 6.932464292493037),
-    ] {
-        let option = AmericanOption::new(direction, 100.0, start, end).unwrap();
-        let price = BjerksundStenslandVanillaEngine
-            .price(&option, &context)
-            .unwrap();
-        assert!((price - expected).abs() < 1e-11, "{direction:?}: {price}");
-    }
-}

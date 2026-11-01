@@ -48,7 +48,6 @@ build-frontend = "build[uv]"
 test-sources = [
     "Cargo.toml",
     "python/tests",
-    "crates/kiyosi/src/time/sse_holidays.rs",
     "tools/generate_sse_calendar.py",
 ]
 test-extras = ["test"]

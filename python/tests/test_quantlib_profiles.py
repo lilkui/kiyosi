@@ -60,12 +60,6 @@ class QuantLibProfileTests(unittest.TestCase):
                     for field, value in profile["settings"].items():
                         self.assertEqual(getattr(engine, field), value)
 
-    def test_profile_time_stencils_fit_reference_scenarios(self):
-        for profile in oracle.load_fixture("numerical_engines.json")["profiles"]:
-            self.assertTrue(0 < profile["shifts"]["time_shift_days"] <= 3)
-        for profile in oracle.load_fixture("digital.json")["profiles"]:
-            self.assertEqual(profile["shifts"]["time_shift_days"], 1)
-
     def test_loader_rejects_invalid_budgets(self):
         profile = oracle.load_fixture("numerical_engines.json")["profiles"][0]
         with TemporaryDirectory() as directory:

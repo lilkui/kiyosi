@@ -230,7 +230,6 @@ class AsianTests(unittest.TestCase):
                 ({}, TypeError),
                 ({"greeks": "Delta"}, ValueError),
                 ({"greeks": True}, TypeError),
-                ({"greeks": "delta", "all_greeks": True}, TypeError),
                 ({"greeks": "delta", "spot_shift": True}, TypeError),
                 ({"greeks": "delta", "time_shift_days": 1.5}, TypeError),
                 ({"greeks": "delta", "time_shift_days": 2**40}, OverflowError),

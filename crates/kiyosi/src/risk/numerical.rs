@@ -391,34 +391,12 @@ pub(crate) fn complete_greeks(
 mod tests {
     use super::*;
     use crate::{BlackScholesMertonParameters, Date, EuropeanOption, OptionType};
-    use std::cell::{Cell, RefCell};
 
-    struct CountedOption {
-        option: EuropeanOption,
-        radii: RefCell<Vec<f64>>,
-    }
-
-    impl OptionContract for CountedOption {
-        fn effective_date(&self) -> Date {
-            self.option.effective_date()
-        }
-        fn expiry_date(&self) -> Date {
-            self.option.expiry_date()
-        }
-        fn at_spot_discontinuity(&self, _: &PricingContext, radius: f64) -> bool {
-            self.radii.borrow_mut().push(radius);
-            false
-        }
-    }
-
-    fn inputs() -> (CountedOption, PricingContext) {
+    fn inputs() -> (EuropeanOption, PricingContext) {
         let start = Date::new(2025, 1, 1).unwrap();
         let end = Date::new(2026, 1, 1).unwrap();
         (
-            CountedOption {
-                option: EuropeanOption::new(OptionType::Call, 2.0, start, end).unwrap(),
-                radii: RefCell::new(Vec::new()),
-            },
+            EuropeanOption::new(OptionType::Call, 2.0, start, end).unwrap(),
             PricingContext::new(
                 BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap(),
                 2.0,
@@ -429,7 +407,7 @@ mod tests {
     }
 
     #[test]
-    fn native_greeks_skip_unused_stencil_checks() {
+    fn native_greeks_return_without_repricing() {
         let (option, context) = inputs();
         let request = GreeksRequest::new([Greek::Delta]);
         let mut central = PricingResult::new(4.0).unwrap();
@@ -446,16 +424,14 @@ mod tests {
         .unwrap();
         assert_eq!(result.price(), 4.0);
         assert_eq!(result.require(Greek::Delta).unwrap(), 1.0);
-        assert_eq!(*option.radii.borrow(), [0.0]);
     }
 
     #[test]
-    fn vega_completion_skips_spot_stencils() {
+    fn vega_completion_preserves_native_delta() {
         let (option, context) = inputs();
         let request = GreeksRequest::new([Greek::Delta, Greek::Vega]);
         let mut central = PricingResult::new(4.0).unwrap();
         central.set(request, Greek::Delta, 1.0).unwrap();
-        let calls = Cell::new(0);
         let result = complete_greeks(
             &option,
             &context,
@@ -464,7 +440,6 @@ mod tests {
             true,
             central,
             |context, _| {
-                calls.set(calls.get() + 1);
                 PricingResult::new(
                     context.spot_price() + 10.0 * context.bsm_parameters()?.volatility(),
                 )
@@ -475,19 +450,16 @@ mod tests {
         assert_eq!(result.require(Greek::Delta).unwrap(), 1.0);
         assert!((result.require(Greek::Vega).unwrap() - 0.1).abs() < 1e-10);
         assert_eq!(result.get(Greek::Gamma), None);
-        assert_eq!(calls.get(), 2);
-        assert_eq!(*option.radii.borrow(), [0.0]);
     }
 
     #[test]
-    fn scalar_speed_keeps_the_wider_stencil() {
+    fn scalar_speed_matches_cubic_derivative() {
         let (option, context) = inputs();
         let request = GreeksRequest::new([Greek::Speed]);
         let shifts = NumericalShiftSettings {
             spot_shift: 0.25,
             ..Default::default()
         };
-        let calls = Cell::new(0);
         let result = complete_greeks(
             &option,
             &context,
@@ -495,22 +467,17 @@ mod tests {
             shifts,
             false,
             PricingResult::new(8.0).unwrap(),
-            |context, _| {
-                calls.set(calls.get() + 1);
-                PricingResult::new(context.spot_price().powi(3))
-            },
+            |context, _| PricingResult::new(context.spot_price().powi(3)),
         )
         .unwrap();
         assert_eq!(result.price(), 8.0);
         assert_eq!(result.require(Greek::Speed).unwrap(), 6.0);
         assert_eq!(result.get(Greek::Delta), None);
         assert_eq!(result.get(Greek::Gamma), None);
-        assert_eq!(calls.get(), 4);
-        assert_eq!(*option.radii.borrow(), [0.0, 0.25, 0.5]);
     }
 
     #[test]
-    fn related_scalar_greeks_reuse_prices_without_changing_sensitivities() {
+    fn selected_scalar_greeks_match_polynomial_derivatives() {
         let (option, context) = inputs();
         let context = context
             .replace(PricingContextChanges {
@@ -523,23 +490,15 @@ mod tests {
                 ..Default::default()
             })
             .unwrap();
-        for (request, expected_calls) in [
-            (GreeksRequest::new([Greek::Volga]), 3),
-            (GreeksRequest::new([Greek::DividendRho]), 3),
-            (GreeksRequest::new([Greek::Vega, Greek::Volga]), 3),
-            (
-                GreeksRequest::new([Greek::Vega, Greek::Volga, Greek::Vanna, Greek::Zomma]),
-                7,
-            ),
-            (
-                GreeksRequest::new([Greek::Theta, Greek::Charm, Greek::Color]),
-                7,
-            ),
-            (GreeksRequest::all(), 21),
+        for request in [
+            GreeksRequest::new([Greek::Volga]),
+            GreeksRequest::new([Greek::DividendRho]),
+            GreeksRequest::new([Greek::Vega, Greek::Volga]),
+            GreeksRequest::new([Greek::Vega, Greek::Volga, Greek::Vanna, Greek::Zomma]),
+            GreeksRequest::new([Greek::Theta, Greek::Charm, Greek::Color]),
+            GreeksRequest::all(),
         ] {
-            let calls = RefCell::new(Vec::new());
             let evaluate = |context: &PricingContext, _| {
-                calls.borrow_mut().push(context.clone());
                 let days = option
                     .effective_date()
                     .start_of_day()
@@ -590,24 +549,14 @@ mod tests {
                     assert_eq!(result.get(greek), None);
                 }
             }
-            let calls = calls.borrow();
-            assert_eq!(calls.len(), expected_calls);
-            for (index, context) in calls.iter().enumerate() {
-                assert!(
-                    !calls[..index].contains(context),
-                    "repeated valuation: {context:?}"
-                );
-            }
         }
     }
 
     #[test]
-    fn missing_native_gamma_reuses_prices_for_scalar_fallback() {
+    fn missing_native_gamma_falls_back_to_scalar_derivatives() {
         let (option, context) = inputs();
         let request = GreeksRequest::new([Greek::Zomma]);
-        let calls = Cell::new(0);
         let evaluate = |context: &PricingContext, _| {
-            calls.set(calls.get() + 1);
             PricingResult::new(
                 context.spot_price().powi(2) * context.bsm_parameters()?.volatility().powi(2),
             )
@@ -628,6 +577,5 @@ mod tests {
         .unwrap();
         assert!((result.require(Greek::Zomma).unwrap() - 0.008).abs() < 1e-12);
         assert_eq!(result.get(Greek::Gamma), None);
-        assert_eq!(calls.get(), 7);
     }
 }

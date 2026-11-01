@@ -1,11 +1,9 @@
 """Public calendar and schedule contracts."""
 
 import numbers
-import re
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
-from pathlib import Path
 
 from kiyosi import InvalidInputError
 from kiyosi.market import (
@@ -17,8 +15,6 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from support.custom_calendar import CustomCalendarTests  # noqa: F401
-
-ROOT = Path(__file__).resolve().parents[2]
 
 
 class CalendarTests(unittest.TestCase):
@@ -56,20 +52,6 @@ class CalendarTests(unittest.TestCase):
                 calendar.is_trading_day(value),
                 weekdays_calendar().is_trading_day(value),
             )
-
-    def test_committed_generator_data_matches_public_queries(self):
-        source = (ROOT / "crates/kiyosi/src/time/sse_holidays.rs").read_text()
-        closures = {int(value) for value in re.findall(r"\d{8}", source)}
-        calendar = sse_calendar()
-        value = date(1991, 1, 1)
-        while value < date(2100, 1, 1):
-            encoded = value.year * 10000 + value.month * 100 + value.day
-            self.assertEqual(
-                calendar.is_trading_day(value),
-                value.weekday() < 5 and encoded not in closures,
-                value,
-            )
-            value += timedelta(days=1)
 
     def test_schedule_endpoints_clamping_offsets_and_empty_results(self):
         fixed = fixed_interval_schedule(

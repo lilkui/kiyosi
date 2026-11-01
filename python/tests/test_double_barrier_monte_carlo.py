@@ -372,7 +372,6 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         for fields in (
             {"antithetic": 1},
             {"unknown": 1},
-            {"backend": "cpu"},
             {"sampling": True},
         ):
             with self.assertRaises(TypeError):

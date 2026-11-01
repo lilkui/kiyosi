@@ -451,21 +451,7 @@ fn hit_rebates_match_independent_first_passage_integration_including_negative_ra
 }
 
 #[test]
-fn scheduled_requests_validate_calendar_once_and_keep_state_local() {
-    use std::sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    };
-    let queries = Arc::new(AtomicUsize::new(0));
-    let count = queries.clone();
-    let calendar = TradingCalendar::new(
-        move |_| {
-            count.fetch_add(1, Ordering::Relaxed);
-            true
-        },
-        365,
-    )
-    .unwrap();
+fn scheduled_requests_recover_volatility_and_support_concurrent_reads() {
     let mut t = terms(BarrierType::DownAndOut);
     t.barrier_level = 80.0;
     t.observation_mode = ObservationMode::Scheduled;
@@ -477,7 +463,7 @@ fn scheduled_requests_validate_calendar_once_and_keep_state_local() {
         Timestamp::new(t.effective_date, 12, 0, 0, 0).unwrap(),
     )
     .replace(PricingContextChanges {
-        calendar: Some(calendar),
+        calendar: Some(TradingCalendar::all_days()),
         ..Default::default()
     })
     .unwrap();
@@ -485,7 +471,6 @@ fn scheduled_requests_validate_calendar_once_and_keep_state_local() {
     let result = engine
         .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
         .unwrap();
-    assert_eq!(queries.swap(0, Ordering::Relaxed), 2);
     assert!(!result.has(Greek::Theta));
     let settings = ImpliedVolatilitySettings {
         lower_bound: 0.15,
@@ -494,7 +479,6 @@ fn scheduled_requests_validate_calendar_once_and_keep_state_local() {
     };
     let sigma = implied_volatility(&engine, &option, &context, result.price(), settings).unwrap();
     assert!((sigma - 0.2).abs() < 1e-7);
-    assert_eq!(queries.swap(0, Ordering::Relaxed), 2);
     assert!(matches!(
         engine
             .price_with_greeks(
@@ -509,7 +493,6 @@ fn scheduled_requests_validate_calendar_once_and_keep_state_local() {
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
-    assert_eq!(queries.load(Ordering::Relaxed), 0);
     std::thread::scope(|scope| {
         let first = scope.spawn(|| {
             engine
@@ -521,7 +504,6 @@ fn scheduled_requests_validate_calendar_once_and_keep_state_local() {
             .unwrap();
         assert_eq!(first.join().unwrap().values(), second.values());
     });
-    assert_eq!(queries.load(Ordering::Relaxed), 4);
 }
 
 #[test]

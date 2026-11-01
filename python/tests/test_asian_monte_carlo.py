@@ -427,7 +427,6 @@ class AsianMonteCarloTests(unittest.TestCase):
                 ({}, TypeError),
                 ({"greeks": "Delta"}, ValueError),
                 ({"greeks": True}, TypeError),
-                ({"greeks": "delta", "all_greeks": True}, TypeError),
                 ({"greeks": "delta", "spot_shift": True}, TypeError),
                 ({"greeks": "delta", "time_shift_days": 1.5}, TypeError),
                 ({"greeks": "delta", "time_shift_days": 2**40}, TypeError),
@@ -486,8 +485,11 @@ class AsianMonteCarloTests(unittest.TestCase):
             engine.price(wrong, market())
         with self.assertRaises(UnsupportedOperationError):
             pricing.implied_volatility(engine, wrong, market(), 5)
-        for settings in ({"backend": "cpu"}, {"sampling": "Sobol"}, {"sampling": None}):
-            with self.assertRaises((TypeError, ValueError)):
+        for settings, exception in (
+            ({"sampling": "Sobol"}, ValueError),
+            ({"sampling": None}, TypeError),
+        ):
+            with self.subTest(settings=settings), self.assertRaises(exception):
                 pricing.MonteCarloAsianEngine(**settings)
 
     def test_core_operations_release_the_gil(self):

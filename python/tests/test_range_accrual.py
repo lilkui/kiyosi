@@ -696,16 +696,8 @@ class RangeAccrualTests(unittest.TestCase):
             "delta",
             volatility_shift=0,
         )
-        for field in (
-            "path_count",
-            "seed",
-            "backend",
-            "thread_count",
-            "sampling",
-            "antithetic",
-        ):
-            with self.subTest(field=field), self.assertRaises(TypeError):
-                AnalyticRangeAccrualEngine(**{field: 1})
+        with self.assertRaises(TypeError):
+            AnalyticRangeAccrualEngine(unknown=1)
 
 
 if __name__ == "__main__":

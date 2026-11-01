@@ -104,7 +104,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                     MC(**{field: value})
         with self.assertRaises(OverflowError):
             MC(seed=-1)
-        for fields in ({"antithetic": 1}, {"sampling": 1}, {"backend": "cpu"}):
+        for fields in ({"antithetic": 1}, {"sampling": 1}, {"unknown": 1}):
             with self.assertRaises(TypeError):
                 MC(**fields)
         with self.assertRaises(ValueError):

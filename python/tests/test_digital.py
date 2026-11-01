@@ -285,10 +285,8 @@ class DigitalTests(unittest.TestCase):
             quote = self.engine.price(option, self.context)
             for changes in (
                 {},
-                {"all_greeks": 1},
                 {"greeks": True},
                 {"greeks": [1]},
-                {"greeks": "delta", "all_greeks": True},
             ):
                 with self.assertRaises(TypeError):
                     self.engine.price_with_greeks(option, self.context, **changes)

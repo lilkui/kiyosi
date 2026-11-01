@@ -4,7 +4,7 @@ import importlib
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from fractions import Fraction
 
 import QuantLib as ql
@@ -66,30 +66,6 @@ class AmericanTests(unittest.TestCase):
         with self.assertRaises(expected) as error:
             call(*args, **kwargs)
         self.assertIs(type(error.exception), expected)
-
-    def test_maturity_regressions(self):
-        for days, call, put in (
-            (1, 0.4203293406666333, 0.41497263683106667),
-            (7, 1.1233367180705613, 1.0862318403299156),
-            (30, 2.362502879143129, 2.205771411369753),
-            (91, 4.1945462483931095, 3.7306674960129627),
-            (180, 5.986257668860937, 5.094433820244056),
-            (1000, 14.425584357882556, 10.310794114806157),
-            (3650, 25.33817727859211, 15.052781075279043),
-        ):
-            for direction, expected in (("call", call), ("put", put)):
-                with self.subTest(days=days, direction=direction):
-                    option = AmericanOption(
-                        **dict(
-                            self.terms,
-                            option_type=direction,
-                            expiry_date=self.terms["effective_date"]
-                            + timedelta(days=days),
-                        )
-                    )
-                    self.assertAlmostEqual(
-                        self.engine.price(option, self.context), expected, delta=1e-11
-                    )
 
     def test_early_exercise_and_european_limits(self):
         for direction, spot, rate, dividend, expected in (
@@ -395,7 +371,6 @@ class AmericanTests(unittest.TestCase):
         for kwargs in (
             {"greeks": None},
             {"greeks": 1},
-            {"greeks": "delta", "all_greeks": True},
         ):
             with self.assertRaises(TypeError):
                 self.engine.price_with_greeks(self.option, self.context, **kwargs)

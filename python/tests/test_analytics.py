@@ -206,8 +206,6 @@ class AnalyticsTests(unittest.TestCase):
         for changes in (
             {},
             {"greeks": None},
-            {"all_greeks": 1},
-            {"greeks": "delta", "all_greeks": True},
             {"greeks": True},
             {"greeks": [1]},
         ):

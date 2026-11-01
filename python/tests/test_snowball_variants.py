@@ -62,7 +62,18 @@ class SnowballVariantTests(unittest.TestCase):
             knock_in_observation_mode="at_expiry",
         )
         engine = QuadratureAutocallableEngine()
-        self.assertTrue(engine.price(binary, market(80, date(2025, 2, 3))))
+        valuation = date(2025, 2, 3)
+        time = (END - valuation).days / 365
+        d2 = (math.log(80 / 110) + (0.04 - 0.01 - 0.3**2 / 2) * time) / (
+            0.3 * math.sqrt(time)
+        )
+        knock_out_probability = math.erfc(-d2 / math.sqrt(2)) / 2
+        expected = math.exp(-0.04 * time) * (
+            0.5 + (0.06 + 0.02 * knock_out_probability) * 90 / 365
+        )
+        self.assertAlmostEqual(
+            engine.price(binary, market(80, valuation)), expected, delta=1e-12
+        )
         for spot in (79.999, 80, 109, 110):
             for note in (binary, ternary):
                 coupon = (

@@ -96,13 +96,13 @@ class SnowballTests(unittest.TestCase):
         self.assertEqual(known.observations, note.observations)
         self.assertIsNone(note.barrier_state)
         self.assertEqual(known.replace(barrier_state=None), note)
-        for changes in (
-            {"barrier_state": True},
-            {"barrier_state": "unknown"},
-            {},
-            {"observations": []},
+        for changes, exception in (
+            ({"barrier_state": True}, TypeError),
+            ({"barrier_state": "unknown"}, ValueError),
+            ({}, TypeError),
+            ({"observations": []}, TypeError),
         ):
-            with self.assertRaises((TypeError, ValueError)):
+            with self.subTest(changes=changes), self.assertRaises(exception):
                 note.replace(**changes)
         self.assertEqual(
             note, contract(observations=[AutocallableObservation(END, 110)])

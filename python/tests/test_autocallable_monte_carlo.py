@@ -62,7 +62,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             ):
                 with self.subTest(field=field, value=value), self.assertRaises(error):
                     MC(**{field: value})
-        for fields in ({"antithetic": 1}, {"sampling": 1}, {"backend": "cpu"}):
+        for fields in ({"antithetic": 1}, {"sampling": 1}, {"unknown": 1}):
             with self.assertRaises(TypeError):
                 MC(**fields)
         with self.assertRaises(ValueError):
