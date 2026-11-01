@@ -63,6 +63,8 @@ pub struct FiniteDifferenceSettings {
     /// Sets a finite positive upper spot boundary, or uses the contract's automatic domain.
     ///
     /// Pricing requires the boundary to exceed spot, strike and any barrier level.
+    /// Automatic local-volatility domains use the maximum interpolated volatility
+    /// over the remaining stochastic horizon.
     /// Explicit domains need convergence checks.
     pub asset_upper_boundary: Option<f64>,
 }
@@ -147,7 +149,25 @@ fn diffusion_upper(
 ) -> f64 {
     let sigma = match context.model_parameters() {
         crate::ModelParameters::BlackScholesMerton(m) => m.volatility(),
-        crate::ModelParameters::LocalVolatility(m) => m.surface().maximum_volatility(),
+        crate::ModelParameters::LocalVolatility(m) => {
+            let surface = m.surface();
+            let start = context.valuation_time();
+            let offset = surface.times()[0].years_until(start);
+            let mut maximum: f64 = 0.0;
+            // Bilinear sigma peaks at a spot/time node or a clipped time endpoint.
+            for &spot in surface.spots() {
+                maximum = maximum
+                    .max(surface.at_year(offset, spot))
+                    .max(surface.at_year(offset + time, spot));
+            }
+            for (&node, row) in surface.times().iter().zip(surface.values()) {
+                let elapsed = start.years_until(node);
+                if elapsed > 0.0 && elapsed < time {
+                    maximum = row.iter().copied().fold(maximum, f64::max);
+                }
+            }
+            maximum
+        }
     };
     let drift = risk
         .ends()

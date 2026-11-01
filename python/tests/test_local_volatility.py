@@ -184,6 +184,41 @@ class LocalVolatilityTests(unittest.TestCase):
             m.replace(surface=None)
         self.assertEqual(m.replace(surface=Ellipsis), m)
 
+    def test_automatic_domains_ignore_surface_outside_remaining_horizon(self):
+        e = pricing.FiniteDifferenceVanillaEngine()
+        baseline = e.price_with_greeks(option(), context(), ["delta", "gamma"])
+        self.assertAlmostEqual(baseline.price, 9.227005508154036, delta=0.002)
+        for past, future in [(1.5, 0.2), (0.2, 1.5), (1.5, 1.5)]:
+            with self.subTest(past=past, future=future):
+                extended = LocalVolatilitySurface(
+                    times=[date(2024, 1, 1), START, END, date(2030, 1, 1)],
+                    spots=[80, 120],
+                    values=[[past] * 2, [0.2] * 2, [0.2] * 2, [future] * 2],
+                )
+                actual = e.price_with_greeks(
+                    option(), context(extended), ["delta", "gamma"]
+                )
+                for measure in ["price", "delta", "gamma"]:
+                    self.assertAlmostEqual(
+                        getattr(actual, measure),
+                        getattr(baseline, measure),
+                        delta=1e-12,
+                    )
+
+    def test_automatic_domains_preserve_interpolated_endpoint_volatility(self):
+        extended = LocalVolatilitySurface(
+            times=[START - timedelta(days=365), END + timedelta(days=365)],
+            spots=[80, 120],
+            values=[[0.2] * 2, [0.8] * 2],
+        )
+        clipped = surface(((0.4, 0.4), (0.6, 0.6)))
+        e = pricing.FiniteDifferenceVanillaEngine()
+        self.assertAlmostEqual(
+            e.price(option(), context(extended)),
+            e.price(option(), context(clipped)),
+            delta=1e-10,
+        )
+
     def test_constant_surface_prices_and_greeks_match_bsm(self):
         bsm = PricingContext(
             model_parameters=BlackScholesMertonParameters(

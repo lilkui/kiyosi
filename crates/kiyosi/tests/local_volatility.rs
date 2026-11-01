@@ -175,6 +175,69 @@ fn context_replacement_checks_coverage_and_preserves_absolute_surface() {
 }
 
 #[test]
+fn automatic_domains_ignore_surface_outside_remaining_horizon() {
+    let (start, end) = dates();
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
+    let engine = FiniteDifferenceVanillaEngine::default();
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    let baseline = engine
+        .price_with_greeks(
+            &option,
+            &context(surface(vec![vec![0.2; 2]; 2])),
+            request,
+            Default::default(),
+        )
+        .unwrap();
+    close(baseline.price(), 9.227005508154036, 0.002);
+    for (past, future) in [(1.5, 0.2), (0.2, 1.5), (1.5, 1.5)] {
+        let extended = LocalVolatilitySurface::new(
+            vec![
+                Date::new(2024, 1, 1).unwrap().into(),
+                start.into(),
+                end.into(),
+                Date::new(2030, 1, 1).unwrap().into(),
+            ],
+            vec![80.0, 120.0],
+            vec![vec![past; 2], vec![0.2; 2], vec![0.2; 2], vec![future; 2]],
+        )
+        .unwrap();
+        let actual = engine
+            .price_with_greeks(&option, &context(extended), request, Default::default())
+            .unwrap();
+        close(actual.price(), baseline.price(), 1e-12);
+        for greek in [Greek::Delta, Greek::Gamma] {
+            close(
+                actual.require(greek).unwrap(),
+                baseline.require(greek).unwrap(),
+                1e-12,
+            );
+        }
+    }
+}
+
+#[test]
+fn automatic_domains_preserve_interpolated_endpoint_volatility() {
+    let (start, end) = dates();
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
+    let extended = LocalVolatilitySurface::new(
+        vec![
+            Date::new(2024, 1, 2).unwrap().into(),
+            Date::new(2027, 1, 1).unwrap().into(),
+        ],
+        vec![80.0, 120.0],
+        vec![vec![0.2; 2], vec![0.8; 2]],
+    )
+    .unwrap();
+    let clipped = surface(vec![vec![0.4; 2], vec![0.6; 2]]);
+    let engine = FiniteDifferenceVanillaEngine::default();
+    close(
+        engine.price(&option, &context(extended)).unwrap(),
+        engine.price(&option, &context(clipped)).unwrap(),
+        1e-10,
+    );
+}
+
+#[test]
 fn constant_surface_matches_bsm_prices_and_native_greeks() {
     let c = context(surface(vec![vec![0.2; 2]; 2]));
     let bsm = PricingContext::new(

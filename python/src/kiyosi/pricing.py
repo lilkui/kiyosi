@@ -8,8 +8,9 @@ delta and gamma, holding the absolute surface fixed. Other Greeks (including
 this model. Digital FD requires explicitly flat risk-free and dividend rates.
 Delta/gamma are absent at expiry and unavailable event-crossing stencils.
 Surface coverage follows remaining stochastic evolution; rates must cover
-required discounting. Check time, space and boundary convergence for local-volatility
-domains, including automatically selected domains.
+required discounting. Automatic domains use the maximum interpolated local
+volatility over the remaining stochastic horizon. Check time, space and boundary
+convergence for local-volatility domains, including automatically selected domains.
 
 ``FiniteDifferenceScheme`` selects ``"explicit_euler"``, ``"implicit_euler"``,
 ``"crank_nicolson"`` (without time-step damping), or ``"rannacher"`` (the default).
