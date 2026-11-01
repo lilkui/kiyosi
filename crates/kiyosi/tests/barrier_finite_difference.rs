@@ -393,7 +393,7 @@ fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
         t.rebate_timing = timing;
         let option = BarrierOption::new(t.clone()).unwrap();
         let results: Vec<_> = [
-            (FiniteDifferenceScheme::CrankNicolson, 4),
+            (FiniteDifferenceScheme::Rannacher, 4),
             (FiniteDifferenceScheme::ImplicitEuler, 8),
         ]
         .into_iter()

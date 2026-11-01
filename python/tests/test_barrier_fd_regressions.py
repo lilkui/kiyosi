@@ -51,7 +51,7 @@ class BarrierFiniteDifferenceRegressionTests(unittest.TestCase):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         valuation = datetime(2025, 1, 1, 12, tzinfo=UTC)
         for scheme, up, timing, rebate, observes_expiry in product(
-            ("explicit_euler", "implicit_euler", "crank_nicolson"),
+            ("explicit_euler", "implicit_euler", "crank_nicolson", "rannacher"),
             (False, True),
             ("at_hit", "at_expiry"),
             (0, 2),

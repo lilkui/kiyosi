@@ -33,7 +33,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         engine = pricing.FiniteDifferenceAccumulatorEngine()
         self.assertEqual(engine.asset_step_count, 800)
         self.assertEqual(engine.time_step_count, 200)
-        self.assertEqual(engine.scheme, "crank_nicolson")
+        self.assertEqual(engine.scheme, "rannacher")
         self.assertIsNone(engine.asset_upper_boundary)
         for field in ("asset_step_count", "time_step_count"):
             for value in (True, 3.5, "800", None):

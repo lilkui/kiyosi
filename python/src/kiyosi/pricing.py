@@ -1,7 +1,11 @@
 """Price contracts, compute sensitivities, and solve implied parameters.
 
-``FiniteDifferenceScheme`` selects ``"explicit_euler"``, ``"implicit_euler"``
-or ``"crank_nicolson"`` (with initial damping). ``MonteCarloSampling`` selects
+``FiniteDifferenceScheme`` selects ``"explicit_euler"``, ``"implicit_euler"``,
+``"crank_nicolson"`` (without time-step damping), or ``"rannacher"`` (the default).
+Rannacher replaces each of the first two time intervals with two implicit Euler
+half-steps and restarts after scheduled barrier, accumulator and autocallable
+observations. Payoff averaging and spatial discretization apply independently
+of the time scheme. ``MonteCarloSampling`` selects
 ``"pseudo_random"`` or scrambled ``"sobol"``; a fixed seed reproduces draws
 across thread counts in the same build. Sobol estimates omit sampling error.
 Autocallable and accumulator ``price`` calls return the sample mean;
@@ -125,7 +129,9 @@ from ._native import (
 )
 
 CouponQuoteConvention = Literal["shift_maturity_coupon", "preserve_maturity_coupon"]
-FiniteDifferenceScheme = Literal["explicit_euler", "implicit_euler", "crank_nicolson"]
+FiniteDifferenceScheme = Literal[
+    "explicit_euler", "implicit_euler", "crank_nicolson", "rannacher"
+]
 MonteCarloSampling = Literal["pseudo_random", "sobol"]
 
 __all__ = [

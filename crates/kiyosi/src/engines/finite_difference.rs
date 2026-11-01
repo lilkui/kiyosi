@@ -24,9 +24,14 @@ pub enum FiniteDifferenceScheme {
     ExplicitEuler,
     /// Uses first-order implicit Euler.
     ImplicitEuler,
-    /// Uses Crank-Nicolson with two initial intervals replaced by implicit half-steps.
-    #[default]
+    /// Uses standard Crank-Nicolson without time-step damping.
     CrankNicolson,
+    /// Uses Crank-Nicolson with Rannacher time-step damping (the default).
+    ///
+    /// Replaces each of the first two intervals with two implicit Euler half-steps,
+    /// restarting after scheduled barrier, accumulator and autocallable observations.
+    #[default]
+    Rannacher,
 }
 
 impl FiniteDifferenceScheme {
@@ -34,7 +39,7 @@ impl FiniteDifferenceScheme {
         match self {
             Self::ExplicitEuler => 0.0,
             Self::ImplicitEuler => 1.0,
-            Self::CrankNicolson => 0.5,
+            Self::CrankNicolson | Self::Rannacher => 0.5,
         }
     }
 }
@@ -50,7 +55,7 @@ pub struct FiniteDifferenceSettings {
     pub asset_step_count: i32,
     /// Sets at least one time step; defaults to 200. Curve knots and barrier observations are added.
     pub time_step_count: i32,
-    /// Selects time marching; defaults to damped Crank-Nicolson.
+    /// Selects time marching; defaults to [`FiniteDifferenceScheme::Rannacher`].
     pub scheme: FiniteDifferenceScheme,
     /// Sets a finite positive upper spot boundary, or uses the contract's automatic domain.
     ///
@@ -220,7 +225,7 @@ fn native(
     let mut valid_carry_error = true;
     let mut damping = 2;
     for step in (0..time_grid.widths.len()).rev() {
-        for (current, dt, weight) in time_grid.substeps(step, theta, &mut damping) {
+        for (current, dt, weight) in time_grid.substeps(step, settings.scheme, &mut damping) {
             let carry = if payoff.payout.is_some() {
                 risk.rate(0.0)
             } else {

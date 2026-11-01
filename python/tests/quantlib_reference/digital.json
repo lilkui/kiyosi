@@ -19,7 +19,7 @@
       "settings": {
         "asset_step_count": 1602,
         "time_step_count": 1600,
-        "scheme": "crank_nicolson",
+        "scheme": "rannacher",
         "asset_upper_boundary": 400
       },
       "shifts": {

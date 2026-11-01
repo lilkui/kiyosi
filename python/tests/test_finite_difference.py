@@ -42,7 +42,7 @@ FACTORIES = (
     FiniteDifferenceBarrierEngine,
     FiniteDifferenceDoubleBarrierEngine,
 )
-SCHEMES = ("explicit_euler", "implicit_euler", "crank_nicolson")
+SCHEMES = ("explicit_euler", "implicit_euler", "crank_nicolson", "rannacher")
 
 
 def engine_for(kind, **settings):
@@ -103,7 +103,7 @@ class FiniteDifferenceTests(unittest.TestCase):
                     engine.scheme,
                     engine.asset_upper_boundary,
                 ),
-                (800, 200, "crank_nicolson", None),
+                (800, 200, "rannacher", None),
             )
             self.assertEqual(factory(asset_step_count=Index()).asset_step_count, 17)
             for count in (3, 10_001, 2**31 - 1):

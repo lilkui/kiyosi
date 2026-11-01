@@ -199,7 +199,7 @@ def rows():
                     "asset_step_count": 17600 if accumulator else 800,
                     "time_step_count": 800 if accumulator else 1600,
                     "asset_upper_boundary": 440 if accumulator else 400,
-                    "scheme": "crank_nicolson",
+                    "scheme": "rannacher",
                 }
             )
             yield {

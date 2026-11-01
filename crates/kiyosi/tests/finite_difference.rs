@@ -103,7 +103,7 @@ fn settings_validate_without_allocating_or_imposing_grid_caps() {
         (defaults.asset_step_count, defaults.time_step_count),
         (800, 200)
     );
-    assert_eq!(defaults.scheme, FiniteDifferenceScheme::CrankNicolson);
+    assert_eq!(defaults.scheme, FiniteDifferenceScheme::Rannacher);
     assert_eq!(defaults.asset_upper_boundary, None);
     for (assets, times) in [(3, 1), (10_001, 100_001), (i32::MAX, i32::MAX)] {
         let settings = FiniteDifferenceSettings {
@@ -175,6 +175,37 @@ fn check_damping<I: OptionContract, E: PricingEngine<I>>(
 }
 
 #[test]
+fn standard_crank_nicolson_matches_one_unsmoothed_step() {
+    let (start, end) = dates();
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
+    let context = market(100.0, 0.0, 0.0, 0.2);
+    let settings = FiniteDifferenceSettings {
+        asset_step_count: 3,
+        time_step_count: 1,
+        scheme: FiniteDifferenceScheme::CrankNicolson,
+        asset_upper_boundary: Some(300.0),
+    };
+    let actual = FiniteDifferenceVanillaEngine::new(settings)
+        .unwrap()
+        .price(&option, &context)
+        .unwrap();
+    let high = AnalyticEuropeanEngine
+        .price(&option, &market(300.0, 0.0, 0.0, 0.2))
+        .unwrap();
+    // Solve the two interior CN equations directly: [1.02, -0.01; -0.04, 1.08].
+    let expected = (1.08 + 0.01 * (100.0 + 0.04 * high)) / (1.02 * 1.08 - 0.0004);
+    assert!((actual - expected).abs() < 1e-12);
+    let damped = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        scheme: FiniteDifferenceScheme::Rannacher,
+        ..settings
+    })
+    .unwrap()
+    .price(&option, &context)
+    .unwrap();
+    assert!((actual - damped).abs() > 1e-4);
+}
+
+#[test]
 fn rannacher_startup_equals_implicit_half_steps_for_all_contracts() {
     let (start, end) = dates();
     let context = market(99.25, 0.12, 0.02, 0.3);
@@ -231,6 +262,7 @@ fn schemes_track_prices_and_stability_includes_drift() {
         FiniteDifferenceScheme::ExplicitEuler,
         FiniteDifferenceScheme::ImplicitEuler,
         FiniteDifferenceScheme::CrankNicolson,
+        FiniteDifferenceScheme::Rannacher,
     ] {
         let settings = FiniteDifferenceSettings {
             asset_step_count: 200,
@@ -703,6 +735,7 @@ fn low_volatility_drift_stabilization_converges_and_large_grids_are_supported() 
                 FiniteDifferenceScheme::ExplicitEuler,
                 FiniteDifferenceScheme::ImplicitEuler,
                 FiniteDifferenceScheme::CrankNicolson,
+                FiniteDifferenceScheme::Rannacher,
             ] {
                 let price = |count| {
                     FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {

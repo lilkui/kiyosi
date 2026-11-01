@@ -38,7 +38,12 @@ class AccumulatorFiniteDifferenceAccuracyTests(unittest.TestCase):
 
     def test_terminal_averaging_converges_against_analytic_prices_and_greeks(self):
         context = market(100.25, datetime(2025, 1, 3, 12, tzinfo=UTC))
-        for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
+        for scheme in (
+            "explicit_euler",
+            "implicit_euler",
+            "crank_nicolson",
+            "rannacher",
+        ):
             for knock_out in (99.7, 100, 100.3, 109.75, 110, 110.25):
                 with self.subTest(scheme=scheme, knock_out=knock_out):
                     option = contract(date(2025, 1, 6), knock_out)

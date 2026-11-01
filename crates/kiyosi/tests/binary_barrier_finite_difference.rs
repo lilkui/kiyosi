@@ -523,6 +523,7 @@ fn explicit_implicit_and_damped_schemes_preserve_supported_payoffs() {
             FiniteDifferenceScheme::ExplicitEuler,
             FiniteDifferenceScheme::ImplicitEuler,
             FiniteDifferenceScheme::CrankNicolson,
+            FiniteDifferenceScheme::Rannacher,
         ] {
             let engine = FiniteDifferenceBinaryBarrierEngine::new(FiniteDifferenceSettings {
                 asset_step_count: 100,
@@ -552,12 +553,12 @@ fn continuous_binary_domains_retain_configured_nodes_and_explicit_stability() {
         })
         .unwrap()
     };
-    let expected = make(400.0, FiniteDifferenceScheme::CrankNicolson)
+    let expected = make(400.0, FiniteDifferenceScheme::Rannacher)
         .price(&option, &market())
         .unwrap();
     for upper in [10_000.0, 1e9] {
         assert_eq!(
-            make(upper, FiniteDifferenceScheme::CrankNicolson)
+            make(upper, FiniteDifferenceScheme::Rannacher)
                 .price(&option, &market())
                 .unwrap(),
             expected

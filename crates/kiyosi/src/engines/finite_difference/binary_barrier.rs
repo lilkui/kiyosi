@@ -453,7 +453,7 @@ fn native(
             &space,
             &grid,
             sigma,
-            theta,
+            settings.scheme,
             [&risk, &dividend],
             if events && scheduled {
                 &observations

@@ -169,7 +169,7 @@ fn native(
     let mut stepper = Stepper::new(space.count);
     let mut damping: u32 = 2;
     for step in (0..grid.widths.len()).rev() {
-        for (current, dt, weight) in grid.substeps(step, theta, &mut damping) {
+        for (current, dt, weight) in grid.substeps(step, settings.scheme, &mut damping) {
             let middle = current + 0.5 * dt;
             let rate = risk.rate(middle);
             let q = dividend.rate(middle);

@@ -9,7 +9,7 @@ pub(super) fn march(
     space: &SpatialGrid,
     grid: &TimeGrid,
     sigma: f64,
-    theta: f64,
+    scheme: FiniteDifferenceScheme,
     [risk, dividend]: [&Curve; 2],
     observations: &[f64],
     edges: impl Fn(f64) -> [f64; 2],
@@ -19,7 +19,7 @@ pub(super) fn march(
     let mut stepper = Stepper::new(space.count);
     let mut damping: u32 = 2;
     for step in (0..grid.widths.len()).rev() {
-        for (current, dt, weight) in grid.substeps(step, theta, &mut damping) {
+        for (current, dt, weight) in grid.substeps(step, scheme, &mut damping) {
             let middle = current + 0.5 * dt;
             stepper.advance(
                 &values,

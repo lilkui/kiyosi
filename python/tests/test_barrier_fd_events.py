@@ -245,7 +245,7 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
                     scheme=scheme,
                     asset_upper_boundary=400,
                 ).price_with_greeks(contract, context(), ["delta", "gamma"])
-                for scheme, steps in (("crank_nicolson", 4), ("implicit_euler", 8))
+                for scheme, steps in (("rannacher", 4), ("implicit_euler", 8))
             ]
             for measure in MEASURES:
                 with self.subTest(up=up, timing=timing, measure=measure):
@@ -283,7 +283,12 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
             contract = option(
                 up, barrier, dates=(START + timedelta(days=180), END), timing=timing
             )
-            for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
+            for scheme in (
+                "explicit_euler",
+                "implicit_euler",
+                "crank_nicolson",
+                "rannacher",
+            ):
                 count = 200 if scheme == "explicit_euler" else 800
                 actual = pricing.FiniteDifferenceBarrierEngine(
                     asset_step_count=count,
@@ -303,7 +308,7 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
                             delta=limit * (800 / count) ** 2,
                         )
 
-                if scheme == "crank_nicolson":
+                if scheme == "rannacher":
                     previous = [math.inf] * 3
                     for steps in (16, 64, 256):
                         refined = pricing.FiniteDifferenceBarrierEngine(
@@ -390,7 +395,12 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
                 if hit
                 else 20 * math.exp(-0.04)
             )
-            for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
+            for scheme in (
+                "explicit_euler",
+                "implicit_euler",
+                "crank_nicolson",
+                "rannacher",
+            ):
                 actual = pricing.FiniteDifferenceBarrierEngine(
                     asset_step_count=800,
                     time_step_count=2000,

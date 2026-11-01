@@ -81,7 +81,7 @@ context = PricingContext(
 engine = FiniteDifferenceAutocallableEngine(
     asset_step_count=800,
     time_step_count=2000,
-    scheme="crank_nicolson",
+    scheme="rannacher",
 )
 price = engine.price(snowball, context)
 notional = 1_000_000

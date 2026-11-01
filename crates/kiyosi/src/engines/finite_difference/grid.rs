@@ -337,14 +337,14 @@ impl TimeGrid {
     pub fn substeps(
         &self,
         step: usize,
-        theta: f64,
+        scheme: FiniteDifferenceScheme,
         damping: &mut u32,
     ) -> impl Iterator<Item = (f64, f64, f64)> {
-        let damp = theta == 0.5 && *damping > 0;
+        let damp = scheme == FiniteDifferenceScheme::Rannacher && *damping > 0;
         *damping = damping.saturating_sub(1);
         let count = if damp { 2 } else { 1 };
         let dt = self.widths[step] / f64::from(count);
-        let weight = if damp { 1.0 } else { theta };
+        let weight = if damp { 1.0 } else { scheme.theta() };
         let start = self.times[step];
         (0..count).map(move |substep| {
             let current = start + dt * f64::from(count - substep - 1);
@@ -485,44 +485,54 @@ mod tests {
     }
 
     #[test]
-    fn substeps_damp_two_intervals_then_resume_crank_nicolson() {
+    fn rannacher_substeps_damp_two_intervals_and_restart_after_events() {
         let grid = TimeGrid {
             times: vec![0.0, 0.25, 0.5, 1.0],
             widths: vec![0.25, 0.25, 0.5],
         };
         let mut damping = 2;
         assert_eq!(
-            grid.substeps(2, 0.5, &mut damping).collect::<Vec<_>>(),
+            grid.substeps(2, FiniteDifferenceScheme::Rannacher, &mut damping)
+                .collect::<Vec<_>>(),
             vec![(0.75, 0.25, 1.0), (0.5, 0.25, 1.0)]
         );
         assert_eq!(
-            grid.substeps(1, 0.5, &mut damping).collect::<Vec<_>>(),
+            grid.substeps(1, FiniteDifferenceScheme::Rannacher, &mut damping)
+                .collect::<Vec<_>>(),
             vec![(0.375, 0.125, 1.0), (0.25, 0.125, 1.0)]
         );
         assert_eq!(
-            grid.substeps(0, 0.5, &mut damping).collect::<Vec<_>>(),
+            grid.substeps(0, FiniteDifferenceScheme::Rannacher, &mut damping)
+                .collect::<Vec<_>>(),
             vec![(0.0, 0.25, 0.5)]
         );
         damping = 2;
         assert_eq!(
-            grid.substeps(0, 0.5, &mut damping).collect::<Vec<_>>(),
+            grid.substeps(0, FiniteDifferenceScheme::Rannacher, &mut damping)
+                .collect::<Vec<_>>(),
             vec![(0.125, 0.125, 1.0), (0.0, 0.125, 1.0)]
         );
     }
 
     #[test]
-    fn substeps_keep_euler_intervals_whole() {
+    fn undamped_schemes_keep_intervals_whole_even_after_events() {
         let grid = TimeGrid {
             times: vec![0.0, 0.25, 0.5, 1.0],
             widths: vec![0.25, 0.25, 0.5],
         };
-        for theta in [0.0, 1.0] {
+        for (scheme, theta) in [
+            (FiniteDifferenceScheme::ExplicitEuler, 0.0),
+            (FiniteDifferenceScheme::ImplicitEuler, 1.0),
+            (FiniteDifferenceScheme::CrankNicolson, 0.5),
+        ] {
             let mut damping = 2;
             for step in (0..3).rev() {
                 assert_eq!(
-                    grid.substeps(step, theta, &mut damping).collect::<Vec<_>>(),
+                    grid.substeps(step, scheme, &mut damping)
+                        .collect::<Vec<_>>(),
                     vec![(grid.times[step], grid.widths[step], theta)]
                 );
+                damping = 2;
             }
         }
     }

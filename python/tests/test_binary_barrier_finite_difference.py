@@ -313,7 +313,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
     def test_continuous_domain_retains_configured_nodes_and_stability(self):
         option = touch(barrier_level=120)
 
-        def engine(upper, scheme="crank_nicolson"):
+        def engine(upper, scheme="rannacher"):
             return FiniteDifferenceBinaryBarrierEngine(
                 asset_step_count=800,
                 time_step_count=2000,
@@ -337,7 +337,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 engine.scheme,
                 engine.asset_upper_boundary,
             ),
-            (800, 200, "crank_nicolson", None),
+            (800, 200, "rannacher", None),
         )
         for name in ("asset_step_count", "time_step_count"):
             for value in (True, 2.5, 4.0):

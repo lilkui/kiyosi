@@ -13,6 +13,65 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class FiniteDifferenceRannacherTests(unittest.TestCase):
+    def test_standard_cn_matches_one_unsmoothed_step_with_payoff_averaging(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0.2
+        )
+        context = PricingContext(
+            model_parameters=parameters, spot_price=100, valuation_time=start
+        )
+        upper_context = PricingContext(
+            model_parameters=parameters, spot_price=300, valuation_time=start
+        )
+        terms = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_date": start,
+            "expiry_date": end,
+        }
+        for option, factory, analytic, rhs_low, rhs_high in (
+            (
+                EuropeanOption(**terms),
+                pricing.FiniteDifferenceVanillaEngine,
+                pricing.AnalyticEuropeanEngine,
+                1,
+                100,
+            ),
+            (
+                CashOrNothingOption(**terms, payout=10),
+                pricing.FiniteDifferenceDigitalEngine,
+                pricing.AnalyticDigitalEngine,
+                5,
+                9.8,
+            ),
+            (
+                AssetOrNothingOption(**terms),
+                pricing.FiniteDifferenceDigitalEngine,
+                pricing.AnalyticDigitalEngine,
+                63.25,
+                198.5,
+            ),
+        ):
+            with self.subTest(option=type(option).__name__):
+                settings = {
+                    "asset_step_count": 3,
+                    "time_step_count": 1,
+                    "asset_upper_boundary": 300,
+                }
+                high = analytic().price(option, upper_context)
+                # Solve the two interior CN equations, including averaged digital payoffs.
+                expected = (1.08 * rhs_low + 0.01 * (rhs_high + 0.04 * high)) / (
+                    1.02 * 1.08 - 0.0004
+                )
+                actual = factory(**settings, scheme="crank_nicolson").price(
+                    option, context
+                )
+                self.assertAlmostEqual(actual, expected, delta=1e-12)
+                damped = factory(**settings, scheme="rannacher").price(option, context)
+                self.assertGreater(abs(actual - damped), 1e-8)
+                self.assertEqual(factory(**settings).price(option, context), damped)
+
     def test_damping_still_rejects_oscillatory_prices(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         option = CashOrNothingOption(
@@ -81,7 +140,7 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
                         self.assertAlmostEqual(actual.delta, delta, delta=0.001)
                         self.assertAlmostEqual(actual.gamma, 0, delta=1e-8)
 
-    def test_short_cn_grids_match_implicit_half_steps(self):
+    def test_short_rannacher_grids_match_implicit_half_steps(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -119,6 +178,7 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
                             asset_step_count=400,
                             time_step_count=steps,
                             asset_upper_boundary=400,
+                            scheme="rannacher",
                         )
                         reference = factory(
                             asset_step_count=400,
@@ -137,7 +197,7 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
                         self.assertEqual(actual.delta, expected.delta)
                         self.assertEqual(actual.gamma, expected.gamma)
 
-    def test_coarse_cn_time_grids_track_analytic_greeks(self):
+    def test_coarse_rannacher_time_grids_track_analytic_greeks(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(

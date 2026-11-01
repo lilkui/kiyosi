@@ -264,7 +264,12 @@ class AutocallableRegressionTests(unittest.TestCase):
             )
             for kind, terms, engine_type in cases:
                 note = kind(**common, **terms)
-                for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
+                for scheme in (
+                    "explicit_euler",
+                    "implicit_euler",
+                    "crank_nicolson",
+                    "rannacher",
+                ):
                     with self.subTest(kind=kind, mode=mode, scheme=scheme):
                         engine = engine_type(
                             asset_step_count=32, time_step_count=64, scheme=scheme
@@ -376,7 +381,12 @@ class AutocallableRegressionTests(unittest.TestCase):
                         ),
                         scheme,
                     )
-                    for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson")
+                    for scheme in (
+                        "explicit_euler",
+                        "implicit_euler",
+                        "crank_nicolson",
+                        "rannacher",
+                    )
                 ]
                 engines.extend(
                     (
@@ -754,7 +764,12 @@ class AutocallableRegressionTests(unittest.TestCase):
                 1.02 * discount + 0.04 * digital,
             ),
         )
-        for scheme in ("crank_nicolson", "implicit_euler", "explicit_euler"):
+        for scheme in (
+            "crank_nicolson",
+            "rannacher",
+            "implicit_euler",
+            "explicit_euler",
+        ):
             for note, engine_type, expected in cases:
                 with self.subTest(scheme=scheme, note=type(note).__name__):
                     actual = engine_type(
@@ -788,7 +803,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             calendar=all_days_calendar(),
         )
         for engine in (
-            pricing.FiniteDifferenceAutocallableEngine(scheme="crank_nicolson"),
+            pricing.FiniteDifferenceAutocallableEngine(scheme="rannacher"),
             pricing.FiniteDifferenceAutocallableEngine(scheme="implicit_euler"),
         ):
             with self.subTest(engine=type(engine).__name__):

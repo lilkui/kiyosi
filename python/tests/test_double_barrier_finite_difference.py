@@ -678,7 +678,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 observation_mode="scheduled",
                 observation_dates=[FIRST],
             )
-            for scheme in ("crank_nicolson", "implicit_euler"):
+            for scheme in ("crank_nicolson", "rannacher", "implicit_euler"):
                 for index, count in enumerate((800, 1600, 3200)):
                     engine = pricing.FiniteDifferenceDoubleBarrierEngine(
                         asset_step_count=count,
@@ -706,7 +706,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         before = datetime.combine(FIRST, datetime.min.time(), UTC) - timedelta(
             seconds=1
         )
-        for scheme in ("crank_nicolson", "implicit_euler"):
+        for scheme in ("crank_nicolson", "rannacher", "implicit_euler"):
             engine = pricing.FiniteDifferenceDoubleBarrierEngine(
                 asset_step_count=800,
                 time_step_count=2000,

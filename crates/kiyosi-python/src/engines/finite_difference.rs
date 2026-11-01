@@ -19,6 +19,7 @@ fn scheme(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::FiniteDifferenceScheme> 
         "explicit_euler" => Ok(kiyosi::FiniteDifferenceScheme::ExplicitEuler),
         "implicit_euler" => Ok(kiyosi::FiniteDifferenceScheme::ImplicitEuler),
         "crank_nicolson" => Ok(kiyosi::FiniteDifferenceScheme::CrankNicolson),
+        "rannacher" => Ok(kiyosi::FiniteDifferenceScheme::Rannacher),
         _ => Err(PyValueError::new_err("unknown finite-difference scheme")),
     }
 }
@@ -38,7 +39,8 @@ macro_rules! fd_engine {
         ///     Positive time-step budget; event dates and curve knots are added.
         #[doc = concat!("    Read `", stringify!($name), "().time_step_count` for the engine's default.")]
         /// scheme : FiniteDifferenceScheme, optional
-        ///     Time-marching scheme; defaults to damped Crank-Nicolson.
+        ///     Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
+        ///     "crank_nicolson" uses standard Crank-Nicolson without time-step damping.
         /// asset_upper_boundary : float or None, optional
         ///     Finite positive upper spot boundary, or None (default) for the
         ///     automatic domain. Must exceed spot, strike and barriers at pricing.
@@ -106,6 +108,7 @@ macro_rules! fd_engine {
                         kiyosi::FiniteDifferenceScheme::ExplicitEuler => "explicit_euler",
                         kiyosi::FiniteDifferenceScheme::ImplicitEuler => "implicit_euler",
                         kiyosi::FiniteDifferenceScheme::CrankNicolson => "crank_nicolson",
+                        kiyosi::FiniteDifferenceScheme::Rannacher => "rannacher",
                     }
                 },
                 /// Return the explicit upper spot boundary, or None for automatic selection.

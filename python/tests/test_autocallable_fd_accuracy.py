@@ -337,7 +337,12 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 valuation_time=start,
                 calendar=calendar,
             )
-            for scheme in ("crank_nicolson", "implicit_euler", "explicit_euler"):
+            for scheme in (
+                "crank_nicolson",
+                "rannacher",
+                "implicit_euler",
+                "explicit_euler",
+            ):
                 with self.subTest(calendar=calendar, scheme=scheme):
                     engine = pricing.FiniteDifferenceAutocallableEngine(
                         asset_step_count=80,
