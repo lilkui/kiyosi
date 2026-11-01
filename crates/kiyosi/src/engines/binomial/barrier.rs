@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    BinomialSettings, Error, Greek, GreeksRequest, ImpliedVolatilitySettings,
+    NumericalShiftSettings, OptionContract, OptionType, PricingContext, PricingEngine,
+    PricingResult, Result, flat_rates, parameters, prepare_implied, scaled, time_step, unstable,
+};
 use crate::{AnalyticEuropeanEngine, BarrierOption, RebateTiming};
 
 /// Prices single-barrier vanilla contracts with a flat-rate CRR tree.
@@ -15,7 +19,7 @@ pub struct CoxRossRubinsteinBarrierEngine {
 impl CoxRossRubinsteinBarrierEngine {
     /// Creates an engine after validating its step count.
     ///
-    /// See [`CoxRossRubinsteinVanillaEngine::new`] for a settings example.
+    /// See [`CoxRossRubinsteinVanillaEngine::new`][crate::CoxRossRubinsteinVanillaEngine::new] for a settings example.
     ///
     /// # Errors
     ///
@@ -89,8 +93,13 @@ impl CoxRossRubinsteinBarrierEngine {
         self.native(option, context, request)
     }
 
+    #[expect(
+        clippy::cast_precision_loss,
+        clippy::cast_sign_loss,
+        reason = "Validated step counts and aligned in-life observations bound indices to the tree and fit exactly in f64."
+    )]
     fn native(
-        &self,
+        self,
         option: &BarrierOption,
         context: &PricingContext,
         request: GreeksRequest,

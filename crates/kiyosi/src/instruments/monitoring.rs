@@ -90,6 +90,10 @@ impl Monitoring {
     pub(crate) fn touch_state(&self) -> Option<BarrierTouchState> {
         self.touch_state
     }
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Day and observation counts are bounded by the supported calendar range and fit exactly in f64."
+    )]
     pub(crate) fn mean_observation_year_fraction(&self) -> f64 {
         self.observation_dates().last().map_or(0.0, |&last| {
             self.effective_date().days_until(last) as f64 / 365.0 / self.schedule.len() as f64

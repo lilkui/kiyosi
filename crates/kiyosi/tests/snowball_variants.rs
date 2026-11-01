@@ -263,13 +263,13 @@ fn fixed_coupon_variants_match_independent_terminal_digital_portfolios() {
 
 #[test]
 fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
-    fn check<T: AutocallableTerms + std::fmt::Debug>(note: AutocallableNote<T>) {
+    fn check<T: AutocallableTerms + std::fmt::Debug>(note: &AutocallableNote<T>) {
         let engine = QuadratureAutocallableEngine::default();
         let context = market(103.0, date(1, 1));
         let snapshot = note.clone();
         let result = engine
             .price_with_greeks(
-                &note,
+                note,
                 &context,
                 GreeksRequest::all(),
                 NumericalShiftSettings {
@@ -283,7 +283,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
         }
         let solved = implied_volatility(
             &engine,
-            &note,
+            note,
             &context,
             result.price(),
             ImpliedVolatilitySettings {
@@ -295,7 +295,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
         .unwrap();
         assert!((solved - 0.3).abs() < 1e-6);
         assert!(matches!(
-            implied_volatility(&engine, &note, &context, 10.0, Default::default()).unwrap_err(),
+            implied_volatility(&engine, note, &context, 10.0, Default::default()).unwrap_err(),
             Error::RootNotBracketed(_)
         ));
         let missing = note.replace(None).unwrap();
@@ -314,7 +314,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
         ));
         let at_expiry = engine
             .price_with_greeks(
-                &note,
+                note,
                 &market(110.0, date(4, 1)),
                 GreeksRequest::all(),
                 Default::default(),
@@ -323,14 +323,14 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
         for greek in Greek::ALL {
             assert!(!at_expiry.has(greek));
         }
-        assert_eq!(note, snapshot);
+        assert_eq!(*note, snapshot);
         assert_eq!(
             context.model_parameters().as_bsm().unwrap().volatility(),
             0.3
         );
     }
     check(
-        BinarySnowballOption::new(BinarySnowballTerms::new(
+        &BinarySnowballOption::new(BinarySnowballTerms::new(
             0.06,
             date(1, 1),
             date(4, 1),
@@ -341,7 +341,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
     let mut terms =
         TernarySnowballTerms::new(0.06, -0.02, 80.0, date(1, 1), date(4, 1), observations());
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    check(TernarySnowballOption::new(terms).unwrap());
+    check(&TernarySnowballOption::new(terms).unwrap());
 }
 
 #[test]

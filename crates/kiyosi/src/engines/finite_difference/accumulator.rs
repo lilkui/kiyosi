@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    Curve, Diffusion, FiniteDifferenceAccumulatorEngine, FiniteDifferenceSettings, Greek,
+    GreeksRequest, LocalDiffusion, NumericalShiftSettings, OptionContract, PricingContext,
+    PricingEngine, PricingResult, Result, SpatialGrid, analysis, diffusion, diffusion_upper,
+    local_volatility,
+};
 use crate::Accumulator;
 
 impl FiniteDifferenceAccumulatorEngine {
@@ -12,9 +17,9 @@ impl FiniteDifferenceAccumulatorEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] outside contract life or curve coverage,
+    /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside contract life or curve coverage,
     /// for non-trading expiry or knock-out dates, clipped domains or unstable explicit steps.
-    /// Numerical failures return [`Error::ComputationFailure`]. Inputs remain unchanged.
+    /// Numerical failures return [`Error::ComputationFailure`][crate::Error::ComputationFailure]. Inputs remain unchanged.
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         Ok(native(
             option,
@@ -37,7 +42,7 @@ impl FiniteDifferenceAccumulatorEngine {
     ///
     /// Validates requests and shifts, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors without changing inputs or settings.
-    /// Unsupported local-volatility Greeks return [`Error::UnsupportedOperation`]
+    /// Unsupported local-volatility Greeks return [`Error::UnsupportedOperation`][crate::Error::UnsupportedOperation]
     /// before settlement or expiry shortcuts.
     ///
     /// # Examples

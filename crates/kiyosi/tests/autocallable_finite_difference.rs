@@ -33,6 +33,30 @@ fn terminal_binary_matches_independent_cash_and_digital_portfolio() {
 
 #[test]
 fn daily_layers_and_all_variants_converge_to_quadrature() {
+    fn check<T: AutocallableTerms>(note: &AutocallableNote<T>, context: &PricingContext) {
+        let reference = QuadratureAutocallableEngine::new(QuadratureSettings {
+            asset_step_count: 1024,
+            ..Default::default()
+        })
+        .unwrap()
+        .price(note, context)
+        .unwrap();
+        for n in [800, 1600] {
+            let fd = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
+                asset_step_count: n,
+                time_step_count: 2000,
+                asset_upper_boundary: Some(400.0),
+                ..Default::default()
+            })
+            .unwrap();
+            let actual = fd.price(note, context).unwrap();
+            assert!(
+                (actual - reference).abs() < 1e-4,
+                "n={n} {actual} != {reference}"
+            );
+        }
+    }
+
     let start = date(1, 1);
     let end = date(4, 1);
     let observations = autocallable_observations(
@@ -81,29 +105,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
         );
         phoenix.knock_in_observation_mode = mode;
         phoenix.barrier_state = Some(AutocallableBarrierState::None);
-        fn check<T: AutocallableTerms>(note: &AutocallableNote<T>, context: &PricingContext) {
-            let reference = QuadratureAutocallableEngine::new(QuadratureSettings {
-                asset_step_count: 1024,
-                ..Default::default()
-            })
-            .unwrap()
-            .price(note, context)
-            .unwrap();
-            for n in [800, 1600] {
-                let fd = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
-                    asset_step_count: n,
-                    time_step_count: 2000,
-                    asset_upper_boundary: Some(400.0),
-                    ..Default::default()
-                })
-                .unwrap();
-                let actual = fd.price(note, context).unwrap();
-                assert!(
-                    (actual - reference).abs() < 1e-4,
-                    "n={n} {actual} != {reference}"
-                );
-            }
-        }
+
         check(&SnowballOption::new(snow).unwrap(), &context);
         check(&TernarySnowballOption::new(ternary).unwrap(), &context);
         check(&PhoenixOption::new(phoenix).unwrap(), &context);

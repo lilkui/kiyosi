@@ -378,7 +378,7 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
         &unseeded,
         &option,
         &context,
-        4.945810910532236,
+        4.945_810_910_532_236,
         ImpliedVolatilitySettings {
             lower_bound: 0.1,
             upper_bound: 0.3,

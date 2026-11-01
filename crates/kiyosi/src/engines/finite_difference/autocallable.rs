@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    Curve, Diffusion, FiniteDifferenceAutocallableEngine, FiniteDifferenceScheme,
+    FiniteDifferenceSettings, Greek, GreeksRequest, LocalDiffusion, NumericalShiftSettings,
+    OptionContract, PricingContext, PricingEngine, PricingResult, Result, SpatialGrid, TimeGrid,
+    analysis, diffusion, diffusion_upper, invalid_grid, local_volatility,
+};
 use crate::instruments::autocallable::Coupon;
 use crate::instruments::autocallable::pricing::{
     fixed_value, initial, validate, volatility_affects_price,
@@ -16,10 +21,10 @@ impl FiniteDifferenceAutocallableEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] outside life or curve coverage, for
+    /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or curve coverage, for
     /// non-trading observations or expiry, missing or impossible history, clipped
     /// grids, or unstable explicit steps. Numerical failures return
-    /// [`Error::ComputationFailure`]. Inputs remain unchanged.
+    /// [`Error::ComputationFailure`][crate::Error::ComputationFailure]. Inputs remain unchanged.
     pub fn price<T: AutocallableTerms>(
         &self,
         option: &AutocallableNote<T>,
@@ -47,7 +52,7 @@ impl FiniteDifferenceAutocallableEngine {
     ///
     /// Validates requests and shifts, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors without changing inputs or settings.
-    /// Unsupported local-volatility Greeks return [`Error::UnsupportedOperation`]
+    /// Unsupported local-volatility Greeks return [`Error::UnsupportedOperation`][crate::Error::UnsupportedOperation]
     /// before settlement or expiry shortcuts.
     ///
     /// # Examples
@@ -135,6 +140,12 @@ fn default_upper<T: AutocallableTerms>(
     )
 }
 
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    reason = "Grid counts are bounded by validated i32 settings; allocation intentionally floors nonnegative proportions."
+)]
 fn concentrate(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: f64) -> Result<()> {
     levels.retain(|&l| l > 0.0 && l < space.upper);
     levels.sort_by(f64::total_cmp);
@@ -213,6 +224,10 @@ fn concentrate(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: f64) -> Res
     Ok(())
 }
 
+#[expect(
+    clippy::float_cmp,
+    reason = "Event times are recomputed identically from the same timestamps and must match exactly."
+)]
 fn event<'a, T: AutocallableTerms>(
     note: &'a AutocallableNote<T>,
     time: f64,
@@ -281,6 +296,10 @@ fn native<T: AutocallableTerms>(
     }
 }
 
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Near-barrier step counts are bounded by the validated i32 grid size and fit exactly in f64."
+)]
 fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
     note: &AutocallableNote<T>,
     context: &PricingContext,

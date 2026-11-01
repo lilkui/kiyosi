@@ -3,6 +3,10 @@ use crate::{
     OptionContract, PricingContext, PricingContextChanges, PricingEngine, PricingResult, Result,
 };
 
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact equality verifies a representably symmetric finite-difference stencil."
+)]
 pub(crate) fn symmetric_shift(value: f64, requested: f64) -> f64 {
     // Reconstruct the bump so both stencil legs use the same representable distance.
     let high = value + requested;
@@ -91,6 +95,11 @@ pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     )
 }
 
+#[expect(
+    clippy::cast_precision_loss,
+    clippy::float_cmp,
+    reason = "Stencils require exactly representable shifts; elapsed microseconds intentionally round to fractional f64 days."
+)]
 pub(crate) fn complete_greeks(
     option: &impl OptionContract,
     context: &PricingContext,
@@ -477,6 +486,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "test times and counts are within exact f64 integer precision."
+    )]
     fn selected_scalar_greeks_match_polynomial_derivatives() {
         let (option, context) = inputs();
         let context = context
@@ -530,12 +543,12 @@ mod tests {
             .unwrap();
             assert_eq!(result.price(), 18.125);
             for (greek, expected) in [
-                (Greek::Delta, 23.078125),
+                (Greek::Delta, 23.078_125),
                 (Greek::Gamma, 19.0),
                 (Greek::Speed, 7.5),
                 (Greek::Vega, 0.08),
                 (Greek::Volga, 0.0016),
-                (Greek::Vanna, 0.120625),
+                (Greek::Vanna, 0.120_625),
                 (Greek::Zomma, 0.12),
                 (Greek::Theta, 4.0),
                 (Greek::Charm, 4.0),

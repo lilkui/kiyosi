@@ -403,7 +403,7 @@ fn hit_rebates_match_independent_first_passage_integration_including_negative_ra
             2.0 * fraction * distance / (sigma * (2.0 * std::f64::consts::PI * time).sqrt() * time)
                 * (-0.5 * z * z - rate * time).exp()
         };
-        let n = 131072;
+        let n = 131_072;
         let mut sum = density(1.0);
         for i in 1..n {
             sum += (if i % 2 == 0 { 2.0 } else { 4.0 }) * density(f64::from(i) / f64::from(n));
@@ -520,7 +520,7 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
         let scheduled = BarrierOption::new(t.clone()).unwrap();
         t.observation_mode = ObservationMode::Continuous;
         t.observation_dates.clear();
-        t.barrier_level *= (sign * 0.5825971579390107_f64 * 0.2).exp();
+        t.barrier_level *= (sign * 0.582_597_157_939_010_7_f64 * 0.2).exp();
         let continuous = BarrierOption::new(t.clone()).unwrap();
         let context = market(
             100.0,
@@ -620,73 +620,73 @@ fn quantlib_reference_prices_cover_direction_activation_and_rebate_timing() {
             BarrierType::UpAndIn,
             OptionType::Call,
             RebateTiming::AtExpiry,
-            12.232027467703755,
+            12.232_027_467_703_755,
         ),
         (
             BarrierType::UpAndIn,
             OptionType::Put,
             RebateTiming::AtExpiry,
-            4.368127409260037,
+            4.368_127_409_260_037,
         ),
         (
             BarrierType::UpAndOut,
             OptionType::Call,
             RebateTiming::AtHit,
-            3.7182304154240744,
+            3.718_230_415_424_074_4,
         ),
         (
             BarrierType::UpAndOut,
             OptionType::Call,
             RebateTiming::AtExpiry,
-            3.653584011955294,
+            3.653_584_011_955_294,
         ),
         (
             BarrierType::UpAndOut,
             OptionType::Put,
             RebateTiming::AtHit,
-            8.685205593263646,
+            8.685_205_593_263_646,
         ),
         (
             BarrierType::UpAndOut,
             OptionType::Put,
             RebateTiming::AtExpiry,
-            8.620559189794864,
+            8.620_559_189_794_864,
         ),
         (
             BarrierType::DownAndIn,
             OptionType::Call,
             RebateTiming::AtExpiry,
-            5.087560973330836,
+            5.087_560_973_330_836,
         ),
         (
             BarrierType::DownAndIn,
             OptionType::Put,
             RebateTiming::AtExpiry,
-            9.591264766055238,
+            9.591_264_766_055_238,
         ),
         (
             BarrierType::DownAndOut,
             OptionType::Call,
             RebateTiming::AtHit,
-            10.835112903397224,
+            10.835_112_903_397_224,
         ),
         (
             BarrierType::DownAndOut,
             OptionType::Call,
             RebateTiming::AtExpiry,
-            10.798050506328213,
+            10.798_050_506_328_213,
         ),
         (
             BarrierType::DownAndOut,
             OptionType::Put,
             RebateTiming::AtHit,
-            3.4344842300686764,
+            3.434_484_230_068_676_4,
         ),
         (
             BarrierType::DownAndOut,
             OptionType::Put,
             RebateTiming::AtExpiry,
-            3.3974218329996653,
+            3.397_421_832_999_665_3,
         ),
     ] {
         let mut t = terms(kind);

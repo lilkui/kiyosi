@@ -277,14 +277,14 @@ impl Accumulator {
         self.knock_out_observation_dates()
             .is_none_or(|dates| dates.binary_search(&date).is_ok())
     }
-    pub(crate) fn current_observation(&self, context: &PricingContext) -> bool {
+    pub(crate) fn current_observation(context: &PricingContext) -> bool {
         context.valuation_time().micros_since_midnight() == 0
             && context.calendar().is_trading_day(context.valuation_date())
     }
     pub(crate) fn initial(&self, context: &PricingContext) -> (f64, Option<f64>) {
         let mut quantity = self.accumulated_quantity();
         let spot = context.spot_price();
-        if self.current_observation(context) {
+        if Self::current_observation(context) {
             if self.observes_knock_out(context.valuation_date()) && self.is_knock_out(spot) {
                 return (quantity, Some(quantity * self.unit_payoff(spot)));
             }
@@ -305,8 +305,12 @@ impl Accumulator {
         (quantity, None)
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "An acceleration factor of exactly one removes payoff dependence on the strike."
+    )]
     pub(crate) fn volatility_affects_price(&self, context: &PricingContext) -> bool {
-        if self.current_observation(context)
+        if Self::current_observation(context)
             && self.observes_knock_out(context.valuation_date())
             && self.is_knock_out(context.spot_price())
         {
@@ -336,7 +340,7 @@ impl Accumulator {
             return future_knock_out || self.acceleration_factor() != 1.0;
         }
         let quantity = self.accumulated_quantity()
-            + if self.current_observation(context) {
+            + if Self::current_observation(context) {
                 self.purchase(context.spot_price())
             } else {
                 0.0
@@ -358,11 +362,15 @@ impl OptionContract for Accumulator {
     fn all_greeks_unavailable(&self, _context: &PricingContext) -> bool {
         false
     }
+    #[expect(
+        clippy::float_cmp,
+        reason = "An acceleration factor of exactly one removes the strike discontinuity."
+    )]
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         let spot = context.spot_price();
         let crosses = |level| spot - radius <= level && level <= spot + radius;
         let observes_knock_out = self.observes_knock_out(context.valuation_date());
-        self.current_observation(context)
+        Self::current_observation(context)
             && ((observes_knock_out && crosses(self.knock_out_level()))
                 || ((!observes_knock_out || !self.is_knock_out(spot))
                     && self.acceleration_factor() != 1.0

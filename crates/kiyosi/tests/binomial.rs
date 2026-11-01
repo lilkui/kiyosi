@@ -63,13 +63,13 @@ fn digital_tree_matches_one_step_cash_and_asset_payments() {
     for (option, price, delta) in [
         (
             DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap(),
-            5.0015369256733875,
-            0.2483410784407258,
+            5.001_536_925_673_387_5,
+            0.248_341_078_440_725_8,
         ),
         (
             DigitalOption::asset_or_nothing(OptionType::Call, 100.0, start, end).unwrap(),
-            61.08890996057412,
-            3.033244781719736,
+            61.088_909_960_574_12,
+            3.033_244_781_719_736,
         ),
     ] {
         let result = engine
@@ -400,10 +400,6 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
 
 #[test]
 fn implied_brackets_intersect_tree_domain_for_all_supported_contracts() {
-    let (start, end) = dates();
-    let vanilla = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 17 }).unwrap();
-    let digital = CoxRossRubinsteinDigitalEngine::new(BinomialSettings { step_count: 17 }).unwrap();
-    let context = market(100.0, 0.15, 0.0, 0.2);
     fn recover<I: OptionContract, E: PricingEngine<I>>(
         engine: &E,
         option: &I,
@@ -434,6 +430,12 @@ fn implied_brackets_intersect_tree_domain_for_all_supported_contracts() {
             Error::RootNotBracketed(_)
         ));
     }
+
+    let (start, end) = dates();
+    let vanilla = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 17 }).unwrap();
+    let digital = CoxRossRubinsteinDigitalEngine::new(BinomialSettings { step_count: 17 }).unwrap();
+    let context = market(100.0, 0.15, 0.0, 0.2);
+
     recover(
         &vanilla,
         &EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap(),
@@ -470,12 +472,12 @@ fn deterministic_endpoints_and_underflowed_tail_weights_remain_finite() {
                 DigitalOption::cash_or_nothing(direction, 100.0, 10.0, start, end).unwrap(),
                 DigitalOption::asset_or_nothing(direction, 100.0, start, end).unwrap(),
             ] {
-                let expected = if !pays {
-                    0.0
-                } else {
+                let expected = if pays {
                     option
                         .payout()
                         .map_or(100.0, |payout| payout * (-rate).exp())
+                } else {
+                    0.0
                 };
                 assert!((digital.price(&option, &context).unwrap() - expected).abs() < 1e-9);
             }
@@ -488,7 +490,7 @@ fn deterministic_endpoints_and_underflowed_tail_weights_remain_finite() {
     // Tail probabilities underflow individually, while their payoff-weighted sum is positive.
     let price = engine.price(&option, &context).unwrap();
     // Independently rolled back in the public Python contract test.
-    assert!((price / 2.249054371067649e-140 - 1.0).abs() < 1e-9);
+    assert!((price / 2.249_054_371_067_649e-140 - 1.0).abs() < 1e-9);
     assert_eq!(
         price,
         engine

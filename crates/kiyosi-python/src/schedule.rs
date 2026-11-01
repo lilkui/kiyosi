@@ -33,14 +33,12 @@ impl ObservationSchedule {
     }
     fn __getitem__<'py>(&self, py: Python<'py>, index: isize) -> PyResult<Bound<'py, PyDate>> {
         let index = if index < 0 {
-            index + self.0.len() as isize
+            self.0.len().checked_add_signed(index)
         } else {
-            index
+            Some(index.unsigned_abs())
         };
-        let date = self
-            .0
-            .dates()
-            .get(index as usize)
+        let date = index
+            .and_then(|index| self.0.dates().get(index))
             .ok_or_else(|| PyIndexError::new_err("schedule index out of range"))?;
         python_date(py, *date)
     }

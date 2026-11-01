@@ -138,7 +138,12 @@ pub(crate) fn timestamp(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Timestamp>
 }
 
 pub(crate) fn python_date(py: Python<'_>, date: kiyosi::Date) -> PyResult<Bound<'_, PyDate>> {
-    PyDate::new(py, date.year(), date.month() as u8, date.day() as u8)
+    PyDate::new(
+        py,
+        date.year(),
+        u8::try_from(date.month()).expect("month fits in u8"),
+        u8::try_from(date.day()).expect("day fits in u8"),
+    )
 }
 
 pub(crate) fn python_timestamp(

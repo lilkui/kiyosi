@@ -1,4 +1,6 @@
-use super::*;
+use super::{
+    Curve, Diffusion, FiniteDifferenceScheme, Result, SpatialGrid, TimeGrid, invalid_grid, unstable,
+};
 
 #[expect(
     clippy::too_many_arguments,
@@ -171,6 +173,10 @@ impl Stepper {
         self.apply(old, next, dt, theta, boundaries, 0)
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "Factorization cache keys must match exactly before reusing a matrix solve."
+    )]
     pub fn advance(
         &mut self,
         old: &[f64],
@@ -225,6 +231,10 @@ impl Stepper {
         self.apply(old, next, dt, theta, boundaries, active)
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "Theta equal to one selects the exact implicit Euler scheme."
+    )]
     fn apply(
         &mut self,
         old: &[f64],

@@ -120,7 +120,7 @@ fn divided_exprel(x: f64, y: f64) -> f64 {
         }
         sum
     } else if (x - y).abs() < 1e-5 {
-        let midpoint = (x + y) / 2.0;
+        let midpoint = f64::midpoint(x, y);
         ((midpoint - 1.0) * midpoint.exp() + 1.0) / (midpoint * midpoint)
     } else {
         (exprel(x) - exprel(y)) / (x - y)

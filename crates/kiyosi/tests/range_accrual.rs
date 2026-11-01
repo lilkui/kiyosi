@@ -40,6 +40,10 @@ fn add(date: Date, days: i64) -> Date {
     Date::new(next.year(), next.month(), next.day()).unwrap()
 }
 
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "test times and counts are within exact f64 integer precision."
+)]
 fn years(before: Timestamp, after: Timestamp) -> f64 {
     let days = (civil(after.date()) - civil(before.date())).num_days() as f64;
     (days
@@ -484,8 +488,8 @@ fn tiny_volatility_and_coupon_scaling_preserve_representable_prices() {
         (100.0, above, f64::from_bits(1), 0.5, 1),
         (below, 100.0, f64::from_bits(1), 0.5, 1),
         (below, above, f64::from_bits(1), 1.0, 1),
-        (below, 110.0, 1e-14, 0.6069959804126283, 1),
-        (90.0, above, 1e-14, 0.6069959804126285, 1),
+        (below, 110.0, 1e-14, 0.606_995_980_412_628_3, 1),
+        (90.0, above, 1e-14, 0.606_995_980_412_628_5, 1),
     ] {
         let option = RangeAccrualOption::new(RangeAccrualTerms {
             notional: 365.0 / f64::from(days),
@@ -523,7 +527,8 @@ fn tiny_volatility_and_coupon_scaling_preserve_representable_prices() {
     .unwrap();
     // Independent normal-tail constant: log P(Z > 40); the >41 tail is negligible here.
     let expected =
-        (1e300_f64.ln() + 1e100_f64.ln() - 365.0_f64.ln() - 0.04 / 365.0 - 804.6084420137538).exp();
+        (1e300_f64.ln() + 1e100_f64.ln() - 365.0_f64.ln() - 0.04 / 365.0 - 804.608_442_013_753_8)
+            .exp();
     assert!(
         (AnalyticRangeAccrualEngine
             .price(&option, &market(day(1), 100.0))

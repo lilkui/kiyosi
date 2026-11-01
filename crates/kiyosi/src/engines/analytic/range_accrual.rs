@@ -57,6 +57,11 @@ impl AnalyticRangeAccrualEngine {
     /// assert!((AnalyticRangeAccrualEngine.price(&option, &context)? - 240.0 / 365.0).abs() < 1e-12);
     /// # Ok(()) }
     /// ```
+    #[expect(
+        clippy::cast_precision_loss,
+        clippy::cast_sign_loss,
+        reason = "Hit counts are validated nonnegative; calendar-bounded observation counts fit exactly in f64."
+    )]
     pub fn price(&self, option: &RangeAccrualOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         let valuation = context.valuation_time();

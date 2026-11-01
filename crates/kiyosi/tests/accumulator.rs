@@ -365,7 +365,7 @@ fn discounted_low_tail_preserves_large_finite_quantities() {
     })
     .unwrap();
     let actual = engine.price(&option, &context).unwrap();
-    let reference = -1.326800799078903e302;
+    let reference = -1.326_800_799_078_903e302;
     assert!((actual / reference - 1.0).abs() < 1e-12);
     let smaller = Accumulator::new(AccumulatorTerms {
         daily_quantity: 1e305,
@@ -377,6 +377,10 @@ fn discounted_low_tail_preserves_large_finite_quantities() {
 }
 
 #[test]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "test counts are within exact f64 integer precision."
+)]
 fn spatial_and_domain_convergence_meet_accuracy_targets() {
     let engines = [
         QuadratureAccumulatorEngine::default(),
@@ -656,6 +660,10 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
 }
 
 #[test]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "test counts are within exact f64 integer precision."
+)]
 fn greeks_converge_under_spatial_refinement_and_smaller_bumps() {
     let normal = QuadratureAccumulatorEngine::default();
     let refined = QuadratureAccumulatorEngine::new(QuadratureSettings {

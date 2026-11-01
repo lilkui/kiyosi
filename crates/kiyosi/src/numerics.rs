@@ -3,7 +3,7 @@ use std::f64::consts::{FRAC_1_SQRT_2, PI};
 use crate::{Error, Result};
 
 const INF: f64 = f64::INFINITY;
-const LOG_DENSITY: f64 = -0.9189385332046727;
+const LOG_DENSITY: f64 = -0.918_938_533_204_672_7;
 
 pub(crate) fn checked(value: f64) -> Result<f64> {
     checked_with_scale(value, 0.0)

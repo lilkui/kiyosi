@@ -56,15 +56,15 @@ fn terminal_prices_converge_to_independent_references() {
     for (direction, vanilla, cash, asset) in [
         (
             OptionType::Call,
-            9.227005508154036,
-            4.945810910532236,
-            58.6851146134764,
+            9.227_005_508_154_036,
+            4.945_810_910_532_236,
+            58.685_114_613_476_4,
         ),
         (
             OptionType::Put,
-            6.330080627549918,
-            4.566483334474903,
-            39.33475271719913,
+            6.330_080_627_549_918,
+            4.566_483_334_474_903,
+            39.334_752_717_199_13,
         ),
     ] {
         let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
@@ -768,7 +768,7 @@ fn low_volatility_drift_stabilization_converges_and_large_grids_are_supported() 
             (engine
                 .price(&option, &market(100.0, 0.05, 0.02, 0.2))
                 .unwrap()
-                - 9.227005508154036)
+                - 9.227_005_508_154_036)
                 .abs()
                 < 0.03
         );

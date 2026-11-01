@@ -68,7 +68,7 @@ fn conditional_survival_prices_and_likelihood_greeks_match_analytic() {
     let context = market(0.04);
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
-            path_count: 131072,
+            path_count: 131_072,
             seed: Some(42),
             sampling,
             ..Default::default()
@@ -126,7 +126,7 @@ fn conditional_survival_prices_and_likelihood_greeks_match_analytic() {
 fn scheduled_likelihood_greeks_and_early_monitoring_match_quadrature() {
     let context = market(0.04);
     let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
-        path_count: 131072,
+        path_count: 131_072,
         seed: Some(42),
         sampling: MonteCarloSampling::Sobol,
         ..Default::default()
@@ -477,7 +477,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
 #[test]
 fn scheduled_hit_rebates_use_fixing_discount_and_expiry_is_not_an_extra_fixing() {
     let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
-        path_count: 131072,
+        path_count: 131_072,
         seed: Some(42),
         ..Default::default()
     })
@@ -523,7 +523,7 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
             ..Default::default()
         },
         MonteCarloSettings {
-            path_count: 10000001,
+            path_count: 10_000_001,
             ..Default::default()
         },
         MonteCarloSettings {

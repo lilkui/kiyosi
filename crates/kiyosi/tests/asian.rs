@@ -26,7 +26,7 @@ fn continuous_asian_prices_match_existing_independent_references() {
         (AnalyticGeometricAveragePriceEngine
             .price(&geometric, &market(start))
             .unwrap()
-            - 5.035867546515384)
+            - 5.035_867_546_515_384)
             .abs()
             < 1e-12
     );
@@ -34,7 +34,7 @@ fn continuous_asian_prices_match_existing_independent_references() {
         (TurnbullWakemanArithmeticAveragePriceEngine
             .price(&arithmetic, &market(start))
             .unwrap()
-            - 5.246501860362777)
+            - 5.246_501_860_362_777)
             .abs()
             < 1e-12
     );
@@ -295,9 +295,9 @@ fn seasoned_and_forward_geometric_prices_match_independent_regressions() {
         })
         .unwrap();
     for (averaging, realized, expected) in [
-        (start, 80.0, 0.005141652127146822),
-        (start, 120.0, 9.472410353379193),
-        (Date::new(2025, 10, 1).unwrap(), 0.0, 5.064920706779442),
+        (start, 80.0, 0.005_141_652_127_146_822),
+        (start, 120.0, 9.472_410_353_379_193),
+        (Date::new(2025, 10, 1).unwrap(), 0.0, 5.064_920_706_779_442),
     ] {
         let option = GeometricAveragePriceOption::new(
             OptionType::Call,
@@ -320,6 +320,10 @@ fn seasoned_and_forward_geometric_prices_match_independent_regressions() {
 }
 
 #[test]
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact comparisons select fixed test cases and payoff boundaries."
+)]
 fn arithmetic_solver_rejects_locked_payoffs_and_moments_handle_carry_singularities() {
     let (start, end) = dates();
     let engine = TurnbullWakemanArithmeticAveragePriceEngine;
@@ -352,10 +356,10 @@ fn arithmetic_solver_rejects_locked_payoffs_and_moments_handle_carry_singulariti
         }
     }
     for (dividend, expected) in [
-        (0.02, 4.097769938360),
-        (0.04, 3.624512942693),
-        (0.04 - 1e-6, 3.624535605482),
-        (0.04 + 1e-6, 3.624490280002),
+        (0.02, 4.097_769_938_360),
+        (0.04, 3.624_512_942_693),
+        (0.04 - 1e-6, 3.624_535_605_482),
+        (0.04 + 1e-6, 3.624_490_280_002),
     ] {
         let option =
             ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0)
@@ -526,14 +530,14 @@ fn tiny_variances_and_scaled_normal_tails_retain_representable_prices() {
                     .unwrap();
             // Independent 90-digit normal-tail references.
             let expected_geo = if call {
-                3.016612743105038e-48
+                3.016_612_743_105_038e-48
             } else {
-                1.6951408750594615e-48
+                1.695_140_875_059_461_5e-48
             } * scale;
             let expected_arith = if call {
-                3.859991844527151e-40
+                3.859_991_844_527_151e-40
             } else {
-                2.369019512512863e-42
+                2.369_019_512_512_863e-42
             } * scale;
             assert!(
                 (AnalyticGeometricAveragePriceEngine
@@ -564,11 +568,11 @@ fn arithmetic_affine_cashflows_and_adjusted_strike_overflow_keep_original_payoff
     // Independent high-precision discounted affine payoffs.
     for (elapsed, amount, rate, dividend, strike_fraction, expected) in [
         (2, 1e308, 0.0, 0.0, 0.25, 7.5e307),
-        (2, 1e308, 0.05, 0.05, 0.25, 7.134220683755355e307),
-        (2, 1e308, 2.0, 0.0, 0.25, 2.0050048747581985e307),
-        (1, 1e300, 750.0, 750.0, 0.25, 1.4262637226062548e-26),
-        (1, 1e-300, -750.0, -750.0, 0.25, 3.943870906091103e25),
-        (1, 100.0, 0.04, 0.01, 0.5, 48.76732432807474),
+        (2, 1e308, 0.05, 0.05, 0.25, 7.134_220_683_755_355e307),
+        (2, 1e308, 2.0, 0.0, 0.25, 2.005_004_874_758_198_5e307),
+        (1, 1e300, 750.0, 750.0, 0.25, 1.426_263_722_606_254_8e-26),
+        (1, 1e-300, -750.0, -750.0, 0.25, 3.943_870_906_091_103e25),
+        (1, 100.0, 0.04, 0.01, 0.5, 48.767_324_328_074_74),
     ] {
         let at = Date::new(2025 + elapsed, 1, 1).unwrap();
         let end = Date::new(2026 + elapsed, 1, 1).unwrap();

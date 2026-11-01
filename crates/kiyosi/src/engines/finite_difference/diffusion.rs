@@ -1,4 +1,4 @@
-use super::*;
+use super::{Curve, PricingContext, Result, SpatialGrid, Stepper, TimeGrid, local_volatility};
 use crate::{LocalVolatilitySurface, Timestamp};
 
 pub(super) trait Diffusion: Copy {

@@ -64,6 +64,10 @@ impl Default for ImpliedVolatilitySettings {
 /// assert!((sigma - 0.2).abs() < 1e-7);
 /// # Ok(()) }
 /// ```
+#[expect(
+    clippy::float_cmp,
+    reason = "Exactly distinct residuals are required for nonzero inverse-quadratic denominators."
+)]
 pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     engine: &E,
     option: &I,
@@ -167,12 +171,12 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
         d = c;
         c = b;
         fc = fb;
-        if (fa < 0.0) != (residual < 0.0) {
-            b = trial;
-            fb = residual;
-        } else {
+        if (fa < 0.0) == (residual < 0.0) {
             a = trial;
             fa = residual;
+        } else {
+            b = trial;
+            fb = residual;
         }
         if fa.abs() < fb.abs() {
             std::mem::swap(&mut a, &mut b);

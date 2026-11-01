@@ -140,6 +140,10 @@ impl AbsorbingDistribution {
         })
     }
     // Integrate asset^order against the killed density; complement avoids 1-survival cancellation.
+    #[expect(
+        clippy::float_cmp,
+        reason = "Exact endpoints select the absorbing boundary formulas."
+    )]
     fn moment(
         &self,
         order: i32,
@@ -404,6 +408,10 @@ impl AbsorbingDistribution {
         })
     }
 
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "The allocated integration panel count is well within exact f64 integer precision."
+    )]
     pub(super) fn hit_value(&self, amount: f64, rate: f64) -> Result<f64> {
         if rate == 0.0 {
             return self.cash_value(amount, rate, true);
@@ -487,6 +495,10 @@ impl AbsorbingDistribution {
         checked(result.total())
     }
 }
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact equality detects when subdivision cannot produce a distinct floating-point midpoint."
+)]
 fn integrate_exit(
     evaluate: &impl Fn(f64) -> Result<f64>,
     [left, right]: [f64; 2],

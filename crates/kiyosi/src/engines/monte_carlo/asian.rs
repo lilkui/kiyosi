@@ -168,6 +168,10 @@ impl MonteCarloAsianEngine {
         )
     }
 
+    #[expect(
+        clippy::cast_sign_loss,
+        reason = "The constructor validates positive step counts before converting them to dimensions."
+    )]
     fn native(
         &self,
         o: &AverageTerms,
@@ -570,6 +574,10 @@ fn positive_difference(a: f64, b: f64) -> f64 {
 }
 
 impl Parameters {
+    #[expect(
+        clippy::cast_sign_loss,
+        reason = "The constructor validates positive step counts before comparing them to path indices."
+    )]
     fn arithmetic(
         &self,
         normals: &[f64],

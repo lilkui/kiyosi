@@ -1,4 +1,4 @@
-use super::*;
+use super::{FiniteDifferenceScheme, FiniteDifferenceSettings, Result, invalid_grid};
 
 pub(super) struct SpatialGrid {
     pub upper: f64,
@@ -10,6 +10,11 @@ pub(super) struct SpatialGrid {
 }
 
 impl SpatialGrid {
+    #[expect(
+        clippy::cast_precision_loss,
+        clippy::cast_sign_loss,
+        reason = "Validated positive i32 grid counts fit usize and are exactly representable in f64."
+    )]
     pub fn new(
         settings: FiniteDifferenceSettings,
         upper: f64,
@@ -34,11 +39,20 @@ impl SpatialGrid {
         Ok(grid)
     }
 
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "The rounded grid count intentionally saturates before clamping to the validated grid size."
+    )]
     pub fn barrier_domain(&mut self, lower: f64, upper: f64) -> Result<()> {
         self.count = (((upper - lower) / self.spacing).ceil() as usize).clamp(3, self.count);
         self.uniform_domain(lower, upper)
     }
 
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Grid counts are bounded by validated i32 settings and fit exactly in f64."
+    )]
     pub fn uniform_domain(&mut self, lower: f64, upper: f64) -> Result<()> {
         self.lower = lower;
         self.upper = upper;
@@ -73,6 +87,10 @@ impl SpatialGrid {
         }
     }
 
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Grid indices are bounded by validated i32 settings and fit exactly in f64."
+    )]
     pub fn asset(&self, index: usize) -> f64 {
         if !self.nodes.is_empty() {
             return self.nodes[index];
@@ -93,6 +111,10 @@ impl SpatialGrid {
         }
     }
 
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Grid indices are bounded by validated i32 settings and fit exactly in f64."
+    )]
     pub fn coefficients(&self, index: usize, rate: f64, dividend: f64, sigma: f64) -> [f64; 3] {
         if !self.nodes.is_empty() {
             let asset = self.nodes[index];
@@ -129,6 +151,12 @@ impl SpatialGrid {
         ]
     }
 
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_precision_loss,
+        clippy::cast_sign_loss,
+        reason = "The floored index is clamped to the i32-bounded grid; its conversion to f64 is exact."
+    )]
     fn locate(&self, spot: f64) -> (usize, f64) {
         if !self.nodes.is_empty() {
             let index = self
@@ -189,6 +217,10 @@ impl SpatialGrid {
         }
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "Exact endpoint weights select one-sided formulas without mixing adjacent cells."
+    )]
     pub fn sample(&self, values: &[f64], curvature: &[f64], spot: f64) -> [f64; 3] {
         let (index, weight) = self.locate(spot);
         let h = self.width(index);
@@ -352,6 +384,10 @@ impl TimeGrid {
         })
     }
 
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Grid counts are bounded by validated i32 settings and fit exactly in f64."
+    )]
     pub fn validate_stability(
         &self,
         space: &SpatialGrid,
@@ -382,6 +418,10 @@ impl TimeGrid {
         Ok(())
     }
 
+    #[expect(
+        clippy::float_cmp,
+        reason = "Exact uniform-grid endpoints identify reusable step widths without merging nearby events."
+    )]
     pub fn with_events(
         time: f64,
         steps: i32,

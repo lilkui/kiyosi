@@ -181,9 +181,9 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
         assert_eq!(result.values().iter().flatten().count(), 1);
     }
     // Independent finite differences of the Bjerksund–Stensland 2002 approximation (spot h=0.01).
-    assert!((all.require(Greek::Delta).unwrap() - 0.5621718020461197).abs() < 1e-7);
-    assert!((all.require(Greek::Gamma).unwrap() - 0.018979671807509157).abs() < 1e-7);
-    assert!((all.require(Greek::Vega).unwrap() - 0.37957057743800166).abs() < 1e-7);
+    assert!((all.require(Greek::Delta).unwrap() - 0.562_171_802_046_119_7).abs() < 1e-7);
+    assert!((all.require(Greek::Gamma).unwrap() - 0.018_979_671_807_509_157).abs() < 1e-7);
+    assert!((all.require(Greek::Vega).unwrap() - 0.379_570_577_438_001_66).abs() < 1e-7);
     assert!(
         (implied_volatility(&engine, &option, &context, all.price(), Default::default()).unwrap()
             - 0.2)
@@ -417,6 +417,6 @@ fn american_numerical_stability_regressions() {
                 &market(if call { 1e300 } else { 1e304 }, 0.0, 0.0, 0.2),
             )
             .unwrap();
-        assert!((value / 1.1367038364232515e-163 - 1.0).abs() < 1e-8);
+        assert!((value / 1.136_703_836_423_251_5e-163 - 1.0).abs() < 1e-8);
     }
 }

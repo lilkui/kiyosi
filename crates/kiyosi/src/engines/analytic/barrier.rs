@@ -529,7 +529,7 @@ pub(crate) fn analytic_log_shift(option: &Monitoring, spot: f64, sigma: f64) -> 
     } else {
         // shortcut: BGK approximates scheduled monitoring; use a numerical engine for exact fixings.
         let shift = (if upper { 1.0 } else { -1.0 })
-            * 0.5825971579390107
+            * 0.582_597_157_939_010_7
             * sigma
             * option.mean_observation_year_fraction().sqrt();
         if option.observation_dates().last() != Some(&option.expiry_date()) {

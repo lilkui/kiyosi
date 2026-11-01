@@ -102,9 +102,7 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
     } else {
         -1.0
     };
-    let purchase = if !observed {
-        forward + (option.acceleration_factor() - 1.0) * digital(accelerated, option.strike())
-    } else {
+    let purchase = if observed {
         let barrier = digital(accelerated, option.knock_out_level());
         let conventional_order = if option.option_type() == OptionType::Call {
             option.knock_out_level() > option.strike()
@@ -116,6 +114,8 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
         } else {
             option.acceleration_factor() * barrier
         }
+    } else {
+        forward + (option.acceleration_factor() - 1.0) * digital(accelerated, option.strike())
     };
     sign * (option.accumulated_quantity() * forward + option.daily_quantity() * purchase)
 }
@@ -230,6 +230,10 @@ fn quadrature_tails_discount_to_the_next_knock_out_or_expiry() {
 }
 
 #[test]
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact comparisons select fixed test cases and payoff boundaries."
+)]
 fn sparse_knock_out_grid_covers_drift_back_inside_the_barrier() {
     let expiry = Date::new(2025, 2, 3).unwrap();
     let time: f64 = 32.5 / 365.0;

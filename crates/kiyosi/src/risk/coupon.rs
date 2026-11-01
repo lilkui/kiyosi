@@ -144,6 +144,10 @@ pub fn implied_coupon<E: PricingEngine<PhoenixOption> + ?Sized>(
     )
 }
 
+#[expect(
+    clippy::float_cmp,
+    reason = "Exactly equal coupon endpoints identify a collapsed bracket."
+)]
 fn solve<I, E: PricingEngine<I> + ?Sized>(
     engine: &E,
     option: &I,
@@ -215,10 +219,10 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
         (0.5 * observed - 0.5 * lower) / (0.5 * upper - 0.5 * lower)
     };
     let interpolate = |fraction| {
-        if (lo < 0.0) != (hi < 0.0) {
-            lo * (1.0 - fraction) + hi * fraction
-        } else {
+        if (lo < 0.0) == (hi < 0.0) {
             lo + (hi - lo) * fraction
+        } else {
+            lo * (1.0 - fraction) + hi * fraction
         }
     };
     let coupon = interpolate(fraction);
@@ -226,10 +230,10 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
         return Ok(coupon);
     }
     for _ in 0..s.max_iterations {
-        let mid = if (lo < 0.0) != (hi < 0.0) {
-            0.5 * lo + 0.5 * hi
-        } else {
+        let mid = if (lo < 0.0) == (hi < 0.0) {
             lo + 0.5 * (hi - lo)
+        } else {
+            0.5 * lo + 0.5 * hi
         };
         let value = residual(price(mid)?)?;
         if value.abs() <= s.price_tolerance || hi - lo <= s.parameter_tolerance {

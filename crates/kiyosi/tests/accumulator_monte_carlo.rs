@@ -115,7 +115,7 @@ fn simulated_cashflows_match_quadrature_with_sampling_error() {
             estimate.price()
         );
         let (lower, upper) = estimate.confidence_interval().unwrap();
-        assert!((upper - lower - 2.0 * 1.959963984540054 * error).abs() < 1e-12);
+        assert!((upper - lower - 2.0 * 1.959_963_984_540_054 * error).abs() < 1e-12);
     }
 }
 
@@ -335,7 +335,7 @@ fn antithetic_pair_uses_both_opposite_normals_and_exact_path_counts() {
     let opposite_spot = context.spot_price().powi(2)
         * (2.0 * (0.04 - 0.01 - 0.2 * 0.2 / 2.0) * time).exp()
         / first_spot;
-    let expected = (one + 3.0 * (opposite_spot - 100.0) * discount) / 2.0;
+    let expected = f64::midpoint(one, 3.0 * (opposite_spot - 100.0) * discount);
     let paired = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
         path_count: 2,
         antithetic: true,

@@ -21,8 +21,16 @@ fn cash_and_asset_prices_match_independent_quantlib_values() {
     let (start, end) = dates();
     let context = market(100.0, 0.05, 0.02, 0.2);
     for (direction, cash, asset) in [
-        (OptionType::Call, 4.945810910532236, 58.6851146134764),
-        (OptionType::Put, 4.566483334474903, 39.33475271719913),
+        (
+            OptionType::Call,
+            4.945_810_910_532_236,
+            58.685_114_613_476_4,
+        ),
+        (
+            OptionType::Put,
+            4.566_483_334_474_903,
+            39.334_752_717_199_13,
+        ),
     ] {
         let options = [
             (
@@ -162,7 +170,7 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
                     Error::UnsupportedOperation(_)
                 ));
                 for at in [
-                    Timestamp::new(Date::new(2024, 12, 31).unwrap(), 23, 59, 59, 999999).unwrap(),
+                    Timestamp::new(Date::new(2024, 12, 31).unwrap(), 23, 59, 59, 999_999).unwrap(),
                     Timestamp::new(end, 0, 0, 0, 1).unwrap(),
                 ] {
                     let outside = context
@@ -272,8 +280,16 @@ fn log_scaled_prices_survive_discount_and_settlement_overflow_and_underflow() {
         let context = market(amount, rate, rate, 0.2);
         let scale = (amount.ln() - rate).exp();
         for (direction, cash_probability, asset_probability) in [
-            (OptionType::Call, 0.460172162722971, 0.539827837277029),
-            (OptionType::Put, 0.539827837277029, 0.460172162722971),
+            (
+                OptionType::Call,
+                0.460_172_162_722_971,
+                0.539_827_837_277_029,
+            ),
+            (
+                OptionType::Put,
+                0.539_827_837_277_029,
+                0.460_172_162_722_971,
+            ),
         ] {
             for (option, probability) in [
                 (
@@ -308,6 +324,10 @@ fn log_scaled_prices_survive_discount_and_settlement_overflow_and_underflow() {
 }
 
 #[test]
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact comparisons select fixed test cases and payoff boundaries."
+)]
 fn selected_greeks_preserve_finite_results_and_tiny_volatility_gamma() {
     let (start, end) = dates();
     let option =
@@ -321,7 +341,9 @@ fn selected_greeks_preserve_finite_results_and_tiny_volatility_gamma() {
             Default::default(),
         )
         .unwrap();
-    assert!((selected.require(Greek::Delta).unwrap() / 1.984762737385059e300 - 1.0).abs() < 1e-12);
+    assert!(
+        (selected.require(Greek::Delta).unwrap() / 1.984_762_737_385_059e300 - 1.0).abs() < 1e-12
+    );
     assert_eq!(selected.get(Greek::Gamma), None);
     assert!(matches!(
         AnalyticDigitalEngine
@@ -338,7 +360,7 @@ fn selected_greeks_preserve_finite_results_and_tiny_volatility_gamma() {
         let context = market(100.0, 0.0, 0.0, sigma)
             .replace(PricingContextChanges {
                 valuation_time: Some(
-                    Timestamp::new(Date::new(2025, 12, 31).unwrap(), 23, 59, 59, 999999).unwrap(),
+                    Timestamp::new(Date::new(2025, 12, 31).unwrap(), 23, 59, 59, 999_999).unwrap(),
                 ),
                 ..Default::default()
             })
@@ -378,15 +400,15 @@ fn selected_greeks_preserve_finite_results_and_tiny_volatility_gamma() {
 #[test]
 fn speed_uses_native_gamma_at_large_price_scales() {
     let (start, end) = dates();
-    let context = market(100000.0, 0.05, 0.02, 0.2);
+    let context = market(100_000.0, 0.05, 0.02, 0.2);
     for (option, expected) in [
         (
-            DigitalOption::cash_or_nothing(OptionType::Call, 100000.0, 1e8, start, end).unwrap(),
-            -4.204659661267558e-6,
+            DigitalOption::cash_or_nothing(OptionType::Call, 100_000.0, 1e8, start, end).unwrap(),
+            -4.204_659_661_267_558e-6,
         ),
         (
-            DigitalOption::asset_or_nothing(OptionType::Call, 100000.0, start, end).unwrap(),
-            -4.631047683255255e-9,
+            DigitalOption::asset_or_nothing(OptionType::Call, 100_000.0, start, end).unwrap(),
+            -4.631_047_683_255_255e-9,
         ),
     ] {
         let result = AnalyticDigitalEngine
@@ -418,7 +440,7 @@ fn native_gamma_speed_needs_only_a_single_positive_spot_bump() {
             settings,
         )
         .unwrap();
-    assert!((result.require(Greek::Speed).unwrap() - -0.07172406990163582).abs() < 1e-14);
+    assert!((result.require(Greek::Speed).unwrap() - -0.071_724_069_901_635_82).abs() < 1e-14);
     assert_eq!(
         numerical_greeks(
             &AnalyticDigitalEngine,
@@ -442,65 +464,65 @@ fn itm_and_otm_native_greeks_match_quantlib() {
             80.0,
             false,
             OptionType::Call,
-            1.3628798953670263,
-            0.13441552679922802,
-            0.007272869269308953,
+            1.362_879_895_367_026_3,
+            0.134_415_526_799_228_02,
+            0.007_272_869_269_308_953,
         ),
         (
             80.0,
             false,
             OptionType::Put,
-            8.149414349640113,
-            -0.13441552679922802,
-            -0.007272869269308953,
+            8.149_414_349_640_113,
+            -0.134_415_526_799_228_02,
+            -0.007_272_869_269_308_953,
         ),
         (
             80.0,
             true,
             OptionType::Call,
-            15.159555075504228,
-            1.5336497064360832,
-            0.08953063354299304,
+            15.159_555_075_504_228,
+            1.533_649_706_436_083_2,
+            0.089_530_633_542_993_04,
         ),
         (
             80.0,
             true,
             OptionType::Put,
-            63.25633878903621,
-            -0.5534510331293278,
-            -0.08953063354299304,
+            63.256_338_789_036_21,
+            -0.553_451_033_129_327_8,
+            -0.089_530_633_542_993_04,
         ),
         (
             120.0,
             false,
             OptionType::Call,
-            7.913055660794069,
-            0.09958417269992391,
-            -0.004819906257017575,
+            7.913_055_660_794_069,
+            0.099_584_172_699_923_91,
+            -0.004_819_906_257_017_575,
         ),
         (
             120.0,
             false,
             OptionType::Put,
-            1.5992385842130703,
-            -0.09958417269992391,
-            0.004819906257017575,
+            1.599_238_584_213_070_3,
+            -0.099_584_172_699_923_91,
+            0.004_819_906_257_017_575,
         ),
         (
             120.0,
             true,
             OptionType::Call,
-            103.19170024752152,
-            1.8557725623952517,
-            -0.03990038151184874,
+            103.191_700_247_521_52,
+            1.855_772_562_395_251_7,
+            -0.039_900_381_511_848_74,
         ),
         (
             120.0,
             true,
             OptionType::Put,
-            14.43214054928911,
-            -0.8755738890884963,
-            0.03990038151184874,
+            14.432_140_549_289_11,
+            -0.875_573_889_088_496_3,
+            0.039_900_381_511_848_74,
         ),
     ] {
         let option = if asset {
@@ -526,8 +548,8 @@ fn itm_and_otm_native_greeks_match_quantlib() {
 fn asset_delta_retains_independent_high_precision_tail_values() {
     let (start, end) = dates();
     for (direction, log_strike, expected) in [
-        (OptionType::Call, 8.0_f64, 8.923870780328184e-38),
-        (OptionType::Put, -8.0_f64, -2.9638565030696756e-41),
+        (OptionType::Call, 8.0_f64, 8.923_870_780_328_184e-38),
+        (OptionType::Put, -8.0_f64, -2.963_856_503_069_675_6e-41),
     ] {
         for rate in [-710.0_f64, -700.0] {
             for spot in [1.0, 1e-200] {
@@ -673,8 +695,8 @@ fn expiry_reaching_time_stencils_use_paired_scalar_fallback() {
         .price_with_greeks(&option, &context, request, Default::default())
         .unwrap();
     // Both stencil legs use price differences when one reaches expiry.
-    assert!((actual.require(Greek::Charm).unwrap() - 124.8761593919428).abs() < 1e-9);
-    assert!((actual.require(Greek::Color).unwrap() - 50137.33821086929).abs() < 1e-7);
+    assert!((actual.require(Greek::Charm).unwrap() - 124.876_159_391_942_8).abs() < 1e-9);
+    assert!((actual.require(Greek::Color).unwrap() - 50_137.338_210_869_29).abs() < 1e-7);
     let numeric = numerical_greeks(
         &AnalyticDigitalEngine,
         &option,

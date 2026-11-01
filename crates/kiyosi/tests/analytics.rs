@@ -97,11 +97,11 @@ fn analytic_greeks_and_volatility_recovery_use_public_api() {
     let result = AnalyticEuropeanEngine
         .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
-    assert!((result.require(Greek::Delta).unwrap() - 0.586851146134764).abs() < 1e-12);
-    assert!((result.require(Greek::Gamma).unwrap() - 0.0189505787550087).abs() < 1e-12);
-    assert!((result.require(Greek::Vega).unwrap() - 0.379011575100175).abs() < 1e-12);
-    assert!((result.require(Greek::Volga).unwrap() - 0.000236882234437609).abs() < 1e-14);
-    assert!((result.require(Greek::DividendRho).unwrap() + 0.586851146134764).abs() < 1e-12);
+    assert!((result.require(Greek::Delta).unwrap() - 0.586_851_146_134_764).abs() < 1e-12);
+    assert!((result.require(Greek::Gamma).unwrap() - 0.018_950_578_755_008_7).abs() < 1e-12);
+    assert!((result.require(Greek::Vega).unwrap() - 0.379_011_575_100_175).abs() < 1e-12);
+    assert!((result.require(Greek::Volga).unwrap() - 0.000_236_882_234_437_609).abs() < 1e-14);
+    assert!((result.require(Greek::DividendRho).unwrap() + 0.586_851_146_134_764).abs() < 1e-12);
     let recovered = implied_volatility(
         &AnalyticEuropeanEngine,
         &option,
@@ -256,6 +256,24 @@ fn volga_preserves_tiny_volatility_curvature() {
 
 #[test]
 fn new_parameter_greeks_keep_unavailable_stencils_and_bump_errors() {
+    struct RejectDividendBump;
+    impl PricingEngine for RejectDividendBump {
+        fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
+            if context
+                .model_parameters()
+                .as_bsm()
+                .unwrap()
+                .dividend_yield()?
+                > 0.02
+            {
+                return Err(Error::UnsupportedOperation(
+                    "bumped dividend is unsupported".into(),
+                ));
+            }
+            AnalyticEuropeanEngine.price(option, context)
+        }
+    }
+
     let (option, context) = market();
     let request = GreeksRequest::new([Greek::Volga, Greek::DividendRho]);
     let result = numerical_greeks(
@@ -284,23 +302,7 @@ fn new_parameter_greeks_keep_unavailable_stencils_and_bump_errors() {
     .unwrap();
     assert!(collapsed.has(Greek::Volga));
     assert!(!collapsed.has(Greek::DividendRho));
-    struct RejectDividendBump;
-    impl PricingEngine for RejectDividendBump {
-        fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-            if context
-                .model_parameters()
-                .as_bsm()
-                .unwrap()
-                .dividend_yield()?
-                > 0.02
-            {
-                return Err(Error::UnsupportedOperation(
-                    "bumped dividend is unsupported".into(),
-                ));
-            }
-            AnalyticEuropeanEngine.price(option, context)
-        }
-    }
+
     assert!(matches!(
         numerical_greeks(
             &RejectDividendBump,
@@ -432,7 +434,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         engine: &impl PricingEngine<I>,
         option: &I,
         context: &PricingContext,
-        expected: PricingResult,
+        expected: &PricingResult,
     ) {
         let settings = NumericalShiftSettings {
             spot_shift: 0.0,
@@ -444,7 +446,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
             engine
                 .price_with_greeks(option, context, GreeksRequest::all(), settings)
                 .unwrap(),
-            expected,
+            *expected,
         );
     }
     let (option, context) = market();
@@ -453,7 +455,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         &AnalyticEuropeanEngine,
         &option,
         &context,
-        AnalyticEuropeanEngine
+        &AnalyticEuropeanEngine
             .price_with_greeks(&option, &context, request)
             .unwrap(),
     );
@@ -475,7 +477,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         &engine,
         &digital,
         &context,
-        engine
+        &engine
             .price_with_greeks(&digital, &context, request)
             .unwrap(),
     );
@@ -493,7 +495,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         &engine,
         &barrier,
         &context,
-        engine
+        &engine
             .price_with_greeks(&barrier, &context, request)
             .unwrap(),
     );
@@ -502,7 +504,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         &engine,
         &digital,
         &context,
-        engine
+        &engine
             .price_with_greeks(&digital, &context, request)
             .unwrap(),
     );
@@ -520,7 +522,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         &engine,
         &geometric,
         &context,
-        engine
+        &engine
             .price_with_greeks(&geometric, &context, request)
             .unwrap(),
     );
@@ -537,7 +539,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         &engine,
         &arithmetic,
         &context,
-        engine
+        &engine
             .price_with_greeks(&arithmetic, &context, request)
             .unwrap(),
     );
@@ -759,6 +761,23 @@ fn custom_engine_io_failures_propagate_through_solvers_and_greeks() {
 
 #[test]
 fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors() {
+    struct RejectBump;
+    impl PricingEngine for RejectBump {
+        fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
+            if context.spot_price() > 100.0 {
+                // A domain failure from a valid bumped context must propagate.
+                return EuropeanOption::new(
+                    OptionType::Call,
+                    -1.0,
+                    option.effective_date(),
+                    option.expiry_date(),
+                )
+                .map(|_| 0.0);
+            }
+            AnalyticEuropeanEngine.price(option, context)
+        }
+    }
+
     let (option, context) = market();
     let settings = NumericalShiftSettings {
         spot_shift: 200.0,
@@ -811,22 +830,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
     )
     .unwrap();
     assert!(huge_time.require(Greek::Theta).unwrap().is_finite());
-    struct RejectBump;
-    impl PricingEngine for RejectBump {
-        fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-            if context.spot_price() > 100.0 {
-                // A domain failure from a valid bumped context must propagate.
-                return EuropeanOption::new(
-                    OptionType::Call,
-                    -1.0,
-                    option.effective_date(),
-                    option.expiry_date(),
-                )
-                .map(|_| 0.0);
-            }
-            AnalyticEuropeanEngine.price(option, context)
-        }
-    }
+
     assert!(matches!(
         numerical_greeks(
             &RejectBump,
@@ -1066,7 +1070,7 @@ fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
     let delta = AnalyticEuropeanEngine
         .price_with_greeks(&tiny_option, &tiny, GreeksRequest::new([Greek::Delta]))
         .unwrap();
-    assert!((delta.require(Greek::Delta).unwrap() - 0.539827837277029).abs() < 1e-12);
+    assert!((delta.require(Greek::Delta).unwrap() - 0.539_827_837_277_029).abs() < 1e-12);
     assert!(matches!(
         AnalyticEuropeanEngine
             .price_with_greeks(&tiny_option, &tiny, GreeksRequest::all())

@@ -472,9 +472,9 @@ fn skew_binary_barriers_match_independent_quantlib_fd() {
             )
             .unwrap(),
             [
-                1.374253078380399,
-                -0.03153459338310659,
-                -0.004735134551215346,
+                1.374_253_078_380_399,
+                -0.031_534_593_383_106_59,
+                -0.004_735_134_551_215_346,
             ],
         ),
         (
@@ -487,7 +487,11 @@ fn skew_binary_barriers_match_independent_quantlib_fd() {
                 BarrierType::DownAndOut,
             ))
             .unwrap(),
-            [9.998057673962732, 0.17208502499169823, -0.03832453317215574],
+            [
+                9.998_057_673_962_732,
+                0.172_085_024_991_698_23,
+                -0.038_324_533_172_155_74,
+            ],
         ),
     ] {
         let actual = engine
@@ -531,8 +535,8 @@ fn skew_double_boundaries_match_independent_path_estimates() {
     // 65,536 QL antithetic pairs; budgets include measured sampling/monitoring
     // uncertainty. Python retains the raw nested-grid evidence in the JSON fixture.
     for (kind, expected, budget) in [
-        (DoubleBarrierType::KnockOut, 1.5485214761018784, 0.0593),
-        (DoubleBarrierType::KnockIn, 4.130639334741136, 0.115),
+        (DoubleBarrierType::KnockOut, 1.548_521_476_101_878_4, 0.0593),
+        (DoubleBarrierType::KnockIn, 4.130_639_334_741_136, 0.115),
     ] {
         let option = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(
             OptionType::Call,
@@ -551,8 +555,8 @@ fn skew_double_boundaries_match_independent_path_estimates() {
         assert!((value - expected).abs() < budget);
     }
     for (kind, expected) in [
-        (DoubleBarrierType::KnockOut, 5.64045379906648),
-        (DoubleBarrierType::KnockIn, 4.261400863972829),
+        (DoubleBarrierType::KnockOut, 5.640_453_799_066_48),
+        (DoubleBarrierType::KnockIn, 4.261_400_863_972_829),
     ] {
         let terms = DoubleTouchOptionTerms::new(start(), expiry, 85.0, 115.0, kind);
         let option = DoubleTouchOption::cash(terms, 10.0).unwrap();

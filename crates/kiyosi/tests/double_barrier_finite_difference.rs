@@ -350,18 +350,26 @@ fn one_two_and_early_fixings_match_independent_lognormal_integrals() {
         for timing in [RebateTiming::AtHit, RebateTiming::AtExpiry] {
             // Independent truncated lognormal moments and conditional Simpson integration.
             let expected = match (direction, timing) {
-                (OptionType::Call, RebateTiming::AtHit) => {
-                    [3.500902014735285, 3.271334905944365, 6.639938084779594]
-                }
-                (OptionType::Call, RebateTiming::AtExpiry) => {
-                    [3.500902014735285, 3.2651695299351875, 6.633772708770416]
-                }
-                (OptionType::Put, RebateTiming::AtHit) => {
-                    [3.7513175938487926, 3.6254035470561354, 5.417319947449319]
-                }
-                (OptionType::Put, RebateTiming::AtExpiry) => {
-                    [3.7513175938487926, 3.619238171046958, 5.411154571440141]
-                }
+                (OptionType::Call, RebateTiming::AtHit) => [
+                    3.500_902_014_735_285,
+                    3.271_334_905_944_365,
+                    6.639_938_084_779_594,
+                ],
+                (OptionType::Call, RebateTiming::AtExpiry) => [
+                    3.500_902_014_735_285,
+                    3.265_169_529_935_187_5,
+                    6.633_772_708_770_416,
+                ],
+                (OptionType::Put, RebateTiming::AtHit) => [
+                    3.751_317_593_848_792_6,
+                    3.625_403_547_056_135_4,
+                    5.417_319_947_449_319,
+                ],
+                (OptionType::Put, RebateTiming::AtExpiry) => [
+                    3.751_317_593_848_792_6,
+                    3.619_238_171_046_958,
+                    5.411_154_571_440_141,
+                ],
             };
             let mut t = terms(DoubleBarrierType::KnockOut, direction);
             t.lower_barrier = 80.125;
@@ -391,9 +399,9 @@ fn one_two_and_early_fixings_match_independent_lognormal_integrals() {
 fn narrow_interim_event_cells_remain_positive_and_converge() {
     let mut worst = [0.0_f64; 3];
     for (lower, upper, expected) in [
-        (80.05, 80.0501, 4.679426692850714e-6),
-        (80.24995, 80.25005, 4.9118628396575025e-6),
-        (80.74995, 80.75005, 5.5303622727065195e-6),
+        (80.05, 80.0501, 4.679_426_692_850_714e-6),
+        (80.24995, 80.25005, 4.911_862_839_657_502_5e-6),
+        (80.74995, 80.75005, 5.530_362_272_706_519_5e-6),
     ] {
         let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
         t.strike = 80.0;
@@ -460,7 +468,9 @@ fn continuous_grid_refinement_schemes_and_settings_preserve_contracts() {
             ..Default::default()
         })
         .unwrap();
-        assert!((engine.price(&option, &market(100.0)).unwrap() - 1.0838814592583166).abs() < 0.01);
+        assert!(
+            (engine.price(&option, &market(100.0)).unwrap() - 1.083_881_459_258_316_6).abs() < 0.01
+        );
     }
     let unstable = FiniteDifferenceDoubleBarrierEngine::new(FiniteDifferenceSettings {
         asset_step_count: 400,

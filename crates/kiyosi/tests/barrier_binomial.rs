@@ -66,6 +66,10 @@ fn is_up(kind: BarrierType) -> bool {
 }
 
 // Independent path enumeration also prices subtrees for node-Greek references.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "test times and counts are within exact f64 integer precision."
+)]
 fn enumerated(
     option: &BarrierOption,
     context: &PricingContext,
@@ -134,10 +138,14 @@ fn enumerated(
 }
 
 #[test]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "test counts are within exact f64 integer precision."
+)]
 fn prices_and_node_greeks_match_independent_paths_across_supported_terms() {
     for steps in [1, 2, 5] {
         let engine = CoxRossRubinsteinBarrierEngine::new(BinomialSettings {
-            step_count: steps as i32,
+            step_count: i32::try_from(steps).unwrap(),
         })
         .unwrap();
         for kind in KINDS {

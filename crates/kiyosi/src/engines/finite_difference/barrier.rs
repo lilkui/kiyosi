@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    Curve, Diffusion, FiniteDifferenceBarrierEngine, FiniteDifferenceDoubleBarrierEngine,
+    FiniteDifferenceSettings, Greek, GreeksRequest, LocalDiffusion, NumericalShiftSettings,
+    OptionContract, OptionType, Payoff, PricingContext, PricingEngine, PricingResult, Result,
+    SpatialGrid, black_scholes_arguments, diffusion, diffusion_upper, local_volatility, scaled,
+    step, weighted_cdf,
+};
 use crate::engines::analytic::barrier::resolved_price;
 use crate::instruments::monitoring::{validate_life, validate_schedule};
 use crate::{BarrierOption, DoubleBarrierOption, ObservationMode, RebateTiming};
@@ -14,10 +20,10 @@ impl FiniteDifferenceBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] outside life or required curve/surface coverage, for
+    /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve/surface coverage, for
     /// non-trading observations, missing or impossible history, clipped or
     /// degenerate grids, or unstable explicit steps. Numerical failures return
-    /// [`Error::ComputationFailure`]. Inputs remain unchanged.
+    /// [`Error::ComputationFailure`][crate::Error::ComputationFailure]. Inputs remain unchanged.
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         Ok(native_barrier(
             option,
@@ -38,7 +44,7 @@ impl FiniteDifferenceBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Rejects other local-volatility Greeks with [`Error::UnsupportedOperation`],
+    /// Rejects other local-volatility Greeks with [`Error::UnsupportedOperation`][crate::Error::UnsupportedOperation],
     /// including at expiry. Validates requests and shifts before pricing. Propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors; feasible bumped failures fail the operation.
     /// Inputs and immutable engine settings remain unchanged on success and failure.
@@ -196,7 +202,7 @@ impl FiniteDifferenceDoubleBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Rejects other local-volatility Greeks with [`Error::UnsupportedOperation`],
+    /// Rejects other local-volatility Greeks with [`Error::UnsupportedOperation`][crate::Error::UnsupportedOperation],
     /// including at expiry. Validates requests and shifts before pricing, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors. Inputs remain unchanged on success and failure.
     ///
@@ -346,6 +352,11 @@ fn local_resolved(
     Ok(None)
 }
 
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "Barrier positions intentionally round and saturate to nonnegative indices before capping at the grid size."
+)]
 fn native_with_model<D: Diffusion>(
     option: &impl Contract,
     context: &PricingContext,

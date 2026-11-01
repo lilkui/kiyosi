@@ -60,7 +60,7 @@ fn arithmetic_retains_conditioned_integration_and_converges() {
         antithetic: true,
         ..Default::default()
     };
-    for (spot, expected) in [(1.9, 0.193174), (2.0, 0.246416), (2.1, 0.306220)] {
+    for (spot, expected) in [(1.9, 0.193_174), (2.0, 0.246_416), (2.1, 0.306_220)] {
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(0.05, 0.0, 0.5).unwrap(),
             spot,
@@ -278,7 +278,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
     .unwrap();
     for (valuation, history, rejects) in [
         (
-            Timestamp::new(date(3, 31), 23, 59, 59, 999999).unwrap(),
+            Timestamp::new(date(3, 31), 23, 59, 59, 999_999).unwrap(),
             100.0,
             true,
         ),
@@ -556,20 +556,24 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
 }
 
 #[test]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the random word contains only 52 bits."
+)]
 fn conditioned_arithmetic_agrees_with_independent_raw_path_statistics() {
     // Independent raw trapezoids use a different generator and do not condition any interval.
     let mut state = 1977_u64;
     let mut uniform = || {
         state = state
-            .wrapping_mul(2862933555777941757)
-            .wrapping_add(3037000493);
-        ((state >> 12) as f64 + 0.5) / 4503599627370496.0
+            .wrapping_mul(2_862_933_555_777_941_757)
+            .wrapping_add(3_037_000_493);
+        ((state >> 12) as f64 + 0.5) / 4_503_599_627_370_496.0
     };
     let mut normal = || (-2.0 * uniform().ln()).sqrt() * (std::f64::consts::TAU * uniform()).cos();
     let start = date(1, 1);
     let end = Date::new(2026, 1, 1).unwrap();
     let steps = 32;
-    let paths = 131072;
+    let paths = 131_072;
     for (averaging, valuation, history) in [
         (start, start, 0.0),
         (date(5, 1), start, 0.0),
@@ -776,6 +780,6 @@ fn node_curve_affine_history_preserves_the_fused_accrual_residual() {
     })
     .unwrap();
     // Exact residual of the binary64 elapsed weight times history minus rounded strike.
-    let expected = 2.0487666640489847e291;
+    let expected = 2.048_766_664_048_984_7e291;
     assert!((engine.price(&option, &context).unwrap() / expected - 1.0).abs() < 1e-12);
 }

@@ -196,6 +196,7 @@ impl BarrierOption {
     /// assert_eq!(option.touch_state(), None);
     /// # Ok(()) }
     /// ```
+    #[must_use]
     pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
             vanilla: self.vanilla.clone(),

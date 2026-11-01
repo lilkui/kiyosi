@@ -224,8 +224,8 @@ fn flat_and_parallel_shifted_curves_preserve_coverage_and_ownership() {
     assert!(flat.is_flat());
     assert_eq!(flat.reference_time(), None);
     assert_eq!(flat.max_time(), None);
-    assert!(flat.nodes().is_empty());
-    assert!(flat.factors().is_empty());
+    assert_eq!(flat.nodes(), []);
+    assert_eq!(flat.factors(), [] as [f64; 0]);
     assert!((flat.factor(before, reference).unwrap() - 0.03_f64.exp()).abs() < 1e-14);
     let dated = RateTermStructure::flat(-0.03, Some(reference)).unwrap();
     assert!(matches!(
@@ -263,7 +263,7 @@ fn distant_microsecond_nodes_remain_distinct_and_pricing_rejects_unresolved_hori
         PricingContext,
     };
     let origin = at(1, 1, 1);
-    let first = Timestamp::new(Date::new(9997, 12, 31).unwrap(), 23, 59, 59, 999999).unwrap();
+    let first = Timestamp::new(Date::new(9997, 12, 31).unwrap(), 23, 59, 59, 999_999).unwrap();
     let second = at(9998, 1, 1);
     let curve = RateTermStructure::new(
         origin,
@@ -379,7 +379,7 @@ fn context_validation_timing_replacement_and_concurrent_owned_values() {
     let changed = context
         .replace(PricingContextChanges {
             spot_price: Some(105.0),
-            valuation_time: Some(Timestamp::new(start.date(), 12, 30, 1, 123456).unwrap()),
+            valuation_time: Some(Timestamp::new(start.date(), 12, 30, 1, 123_456).unwrap()),
             ..Default::default()
         })
         .unwrap();

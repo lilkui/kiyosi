@@ -152,6 +152,10 @@ impl SnowballPresetTerms {
     /// assert_eq!(note.observations()[0].coupon_rate, 0.05);
     /// # Ok(()) }
     /// ```
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Observation indices are bounded by the supported calendar range and fit exactly in f64."
+    )]
     pub fn expand(self, preset: SnowballPreset) -> Result<SnowballOption> {
         let observations = self
             .observation_dates
@@ -177,7 +181,7 @@ impl SnowballPresetTerms {
         match preset {
             SnowballPreset::Standard => {}
             SnowballPreset::European => {
-                terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry
+                terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
             }
             SnowballPreset::StepDown {
                 knock_out_level_decrement,

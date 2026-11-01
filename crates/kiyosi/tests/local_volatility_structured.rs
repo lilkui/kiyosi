@@ -498,7 +498,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
         .unwrap()
         .price(&acc, &local)
         .unwrap();
-    assert!((price - (-209.7001122945956)).abs() < 3.1);
+    assert!((price - (-209.700_112_294_595_6)).abs() < 3.1);
     let binary = BinarySnowballOption::new(BinarySnowballTerms::new(
         0.06,
         start,
@@ -506,19 +506,19 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
         observations.clone(),
     ))
     .unwrap();
-    assert!((engine.price(&binary, &local).unwrap() - 1.0057449007548795).abs() < 0.000114);
+    assert!((engine.price(&binary, &local).unwrap() - 1.005_744_900_754_879_5).abs() < 0.000_114);
     for (mode, snow_ref, ternary_ref, phoenix_ref) in [
         (
             KnockInObservationMode::EveryTradingDay,
-            0.9609325753800867,
-            1.0000474115745979,
-            0.9657946996141008,
+            0.960_932_575_380_086_7,
+            1.000_047_411_574_597_9,
+            0.965_794_699_614_100_8,
         ),
         (
             KnockInObservationMode::AtExpiry,
-            0.9664325018643236,
-            1.0022395227440681,
-            0.968664092694738,
+            0.966_432_501_864_323_6,
+            1.002_239_522_744_068_1,
+            0.968_664_092_694_738,
         ),
     ] {
         let mut snow = SnowballTerms::new(

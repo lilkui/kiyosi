@@ -101,7 +101,8 @@ impl MonteCarloSettings {
         if !(1..=10_000_000).contains(&self.path_count) || self.thread_count < 0 {
             return Err(Error::InvalidInput("invalid Monte Carlo settings".into()));
         }
-        if self.sampling == MonteCarloSampling::Sobol && !(self.path_count as u32).is_power_of_two()
+        if self.sampling == MonteCarloSampling::Sobol
+            && !self.path_count.unsigned_abs().is_power_of_two()
         {
             return Err(Error::InvalidInput(
                 "Sobol path count must be a power of two".into(),
@@ -173,6 +174,7 @@ mod tests {
     }
 
     #[test]
+    #[expect(clippy::cast_sign_loss, reason = "test counts are nonnegative.")]
     fn statistics_mode_preserves_samples_and_mean_reductions() {
         for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
             for path_count in [1, 2, 256, 257, 512] {
@@ -229,8 +231,9 @@ mod tests {
     }
 
     #[test]
+    #[expect(clippy::cast_sign_loss, reason = "test counts are nonnegative.")]
     fn parallel_blocks_reuse_a_private_pool_and_respect_each_calls_cap() {
-        let available = thread::available_parallelism().map_or(1, |count| count.get());
+        let available = thread::available_parallelism().map_or(1, std::num::NonZero::get);
         let pool = worker_pool(available).unwrap();
         assert!(Arc::ptr_eq(&pool, &worker_pool(available).unwrap()));
         let external = rayon::ThreadPoolBuilder::new()
@@ -668,6 +671,10 @@ impl PricingEngine for MonteCarloVanillaEngine {
     }
 }
 
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Sample counts are bounded by the validated path limit of ten million and fit exactly in f64."
+)]
 fn estimate(
     settings: MonteCarloSettings,
     sample: Moments,
@@ -692,7 +699,7 @@ fn estimate(
         None
     };
     let confidence_interval = standard_error.map(|error| {
-        let half_width = 1.959963984540054 * error;
+        let half_width = 1.959_963_984_540_054 * error;
         (price - half_width, price + half_width)
     });
     if confidence_interval.is_some_and(|(lower, upper)| !lower.is_finite() || !upper.is_finite()) {
@@ -726,6 +733,10 @@ pub(crate) fn path_means<const N: usize>(
     Ok(means)
 }
 
+#[expect(
+    clippy::cast_sign_loss,
+    reason = "Settings validate positive path counts before allocating sample buffers."
+)]
 fn path_samples<const N: usize>(
     settings: MonteCarloSettings,
     dimensions: usize,
@@ -810,25 +821,26 @@ fn sample_normal(
 ) -> f64 {
     if let Some(cursor) = cursor {
         cursor.normal()
+    } else if let Some(value) = spare.take() {
+        value
     } else {
-        match spare.take() {
-            Some(value) => value,
-            None => {
-                let radius = (-2.0 * generator.uniform().ln()).sqrt();
-                let (sin, cos) = (TAU * generator.uniform()).sin_cos();
-                *spare = Some(radius * sin);
-                radius * cos
-            }
-        }
+        let radius = (-2.0 * generator.uniform().ln()).sqrt();
+        let (sin, cos) = (TAU * generator.uniform()).sin_cos();
+        *spare = Some(radius * sin);
+        radius * cos
     }
 }
 
+#[expect(
+    clippy::cast_sign_loss,
+    reason = "Settings validate nonnegative thread counts before selecting workers."
+)]
 fn run_blocks<T: Send>(
     partials: &mut [T],
     thread_count: i32,
     simulate: impl Fn(usize) -> T + Sync,
 ) -> Result<()> {
-    let available = thread::available_parallelism().map_or(1, |count| count.get());
+    let available = thread::available_parallelism().map_or(1, std::num::NonZero::get);
     let workers = if thread_count == 0 {
         available
     } else {
@@ -861,7 +873,9 @@ fn run_blocks<T: Send>(
 
 fn worker_pool(available: usize) -> Result<Arc<rayon::ThreadPool>> {
     static POOL: Mutex<Option<Arc<rayon::ThreadPool>>> = Mutex::new(None);
-    let mut shared = POOL.lock().unwrap_or_else(|error| error.into_inner());
+    let mut shared = POOL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some(pool) = &*shared {
         return Ok(Arc::clone(pool));
     }
@@ -925,6 +939,10 @@ struct Moments {
 }
 
 impl Moments {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Sample counts are bounded by the validated path limit of ten million and fit exactly in f64."
+    )]
     fn add(&mut self, value: f64, variance: bool) {
         // Normalize before accumulating so finite prices survive overflowing sums and squares.
         if value.abs() > self.scale {
@@ -948,6 +966,10 @@ impl Moments {
         }
     }
 
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Sample counts are bounded by the validated path limit of ten million and fit exactly in f64."
+    )]
     fn merge(&mut self, other: Self, variance: bool) {
         if self.count == 0 {
             *self = other;
@@ -993,16 +1015,24 @@ impl Pcg32 {
         result.next();
         result
     }
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "PCG XSH-RR intentionally retains the low 32 bits before rotation."
+    )]
     fn next(&mut self) -> u32 {
         let previous = self.state;
         self.state = previous
-            .wrapping_mul(6364136223846793005)
+            .wrapping_mul(6_364_136_223_846_793_005)
             .wrapping_add(self.increment);
         (((previous >> 18 ^ previous) >> 27) as u32).rotate_right((previous >> 59) as u32)
     }
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "The random word contains 52 bits and converts exactly to f64."
+    )]
     fn uniform(&mut self) -> f64 {
         let bits = (u64::from(self.next()) << 20) | u64::from(self.next() >> 12);
         // The half-unit offset keeps Box-Muller inputs strictly inside (0, 1).
-        (bits as f64 + 0.5) / 4503599627370496.0
+        (bits as f64 + 0.5) / 4_503_599_627_370_496.0
     }
 }

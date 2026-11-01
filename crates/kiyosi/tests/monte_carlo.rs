@@ -46,8 +46,8 @@ fn terminal_prices_match_analytic_references_and_ignore_validated_steps() {
     assert_eq!(defaults.thread_count, 0);
     assert_eq!(defaults.seed, None);
     for (direction, expected) in [
-        (OptionType::Call, 9.227005508154036),
-        (OptionType::Put, 6.330080627549918),
+        (OptionType::Call, 9.227_005_508_154_036),
+        (OptionType::Put, 6.330_080_627_549_918),
     ] {
         let option = contract(direction);
         let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
@@ -149,7 +149,7 @@ fn sampling_statistics_report_uncertainty_and_single_path_unavailability() {
     assert!(error > 0.04 && error < 0.05, "{error}");
     let (lower, upper) = estimate.confidence_interval().unwrap();
     assert!(lower < estimate.price() && upper > estimate.price());
-    assert!((upper - lower - 2.0 * 1.959963984540054 * error).abs() < 1e-12);
+    assert!((upper - lower - 2.0 * 1.959_963_984_540_054 * error).abs() < 1e-12);
     let one = MonteCarloVanillaEngine::new(MonteCarloSettings {
         path_count: 1,
         ..engine.settings()
@@ -231,7 +231,7 @@ fn analyses_share_one_seed_and_solvers_recover_seeded_quotes() {
         let quote = if seed.is_some() {
             engine.price(&option, &market()).unwrap()
         } else {
-            9.227005508154036
+            9.227_005_508_154_036
         };
         let volatility = implied_volatility(&engine, &option, &market(), quote, settings).unwrap();
         if seed.is_some() {
@@ -556,14 +556,15 @@ fn confidence_intervals_and_standard_errors_agree_with_independent_distribution(
             let result = engine.price_with_statistics(&option, &market()).unwrap();
             // Independent BSM moments (plain) and normal-density quadrature (paired).
             let (observations, deviation) = if antithetic {
-                (4096.0_f64, 7.286842354)
+                (4096.0_f64, 7.286_842_354)
             } else {
-                (8192.0_f64, 13.831466750894657)
+                (8192.0_f64, 13.831_466_750_894_657)
             };
             let standard_error = result.standard_error().unwrap();
             assert!((standard_error * observations.sqrt() / deviation - 1.0).abs() < 0.12);
             let (lower, upper) = result.confidence_interval().unwrap();
-            covered += usize::from(lower <= 9.227005508154036 && upper >= 9.227005508154036);
+            covered +=
+                usize::from(lower <= 9.227_005_508_154_036 && upper >= 9.227_005_508_154_036);
             estimates.push(result.price());
         }
         assert!(
@@ -571,7 +572,7 @@ fn confidence_intervals_and_standard_errors_agree_with_independent_distribution(
             "only {covered} of 32 intervals cover the analytic price"
         );
         let mean = estimates.iter().sum::<f64>() / 32.0;
-        assert!((mean - 9.227005508154036).abs() < 0.1);
+        assert!((mean - 9.227_005_508_154_036).abs() < 0.1);
     }
 }
 
@@ -728,7 +729,7 @@ fn sobol_path_validation_and_seeded_single_point_preserve_existing_contract() {
         )
         .unwrap();
         // Independent SciPy ndtri reference.
-        let first = -0.10364940758940244_f64;
+        let first = -0.103_649_407_589_402_44_f64;
         let expected = (-0.05_f64).exp() * (100.0 * (0.01 + 0.2 * first).exp() - 90.0);
         assert!((engine.price(&option, &market()).unwrap() - expected).abs() < 1e-11);
         let pair = MonteCarloVanillaEngine::new(MonteCarloSettings {

@@ -184,6 +184,13 @@ fn scaled(value: f64, exponent: f64) -> f64 {
 }
 
 // Relative binomial weights start at the mode, preserving underflowed tail probabilities.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::float_cmp,
+    reason = "Exact probability endpoints select degenerate trees; bounded node counts fit f64 and the mode is intentionally floored."
+)]
 fn european_levels(values: &[f64], p: f64, discount: f64, level: usize) -> (f64, [f64; 3]) {
     let steps = values.len() - 1;
     let log_discount = discount.ln();
@@ -263,6 +270,11 @@ fn european_levels(values: &[f64], p: f64, discount: f64, level: usize) -> (f64,
     )
 }
 
+#[expect(
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    reason = "Validated positive i32 step counts bound tree indices and fit exactly in f64."
+)]
 fn native(
     option: &impl OptionContract,
     payoff: Payoff,
@@ -533,7 +545,7 @@ impl CoxRossRubinsteinDigitalEngine {
     }
 
     fn native(
-        &self,
+        self,
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
@@ -573,6 +585,10 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
     }
 }
 
+#[expect(
+    clippy::float_cmp,
+    reason = "Exactly collapsed up/down factors make the tree unrepresentable."
+)]
 fn parameters(context: &PricingContext, dt: f64) -> Result<(f64, f64, f64, f64, f64)> {
     let (rate, dividend) = flat_rates(context)?;
     let width = context.bsm_parameters()?.volatility() * dt.sqrt();

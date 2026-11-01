@@ -136,6 +136,10 @@ struct PreparedCurve {
     deviation: f64,
     discount: f64,
 }
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Observation indices are bounded by the supported calendar range and fit exactly in f64."
+)]
 fn price(
     option: &Accumulator,
     context: &PricingContext,

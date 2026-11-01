@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    Error, FiniteDifferenceSettings, Greek, GreeksRequest, LocalDiffusion, OptionContract, Payoff,
+    PricingContext, PricingResult, Result,
+};
 use crate::{LocalVolatilityParameters, ModelParameters};
 
 pub(super) fn validate_request(context: &PricingContext, request: GreeksRequest) -> Result<()> {
@@ -38,6 +41,6 @@ pub(super) fn price(
 pub(super) fn local_model(context: &PricingContext) -> Option<&LocalVolatilityParameters> {
     match context.model_parameters() {
         ModelParameters::LocalVolatility(m) => Some(m),
-        _ => None,
+        ModelParameters::BlackScholesMerton(_) => None,
     }
 }

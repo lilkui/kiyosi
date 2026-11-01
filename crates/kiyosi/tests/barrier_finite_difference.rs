@@ -80,24 +80,24 @@ fn scheduled_events_match_independent_two_fixing_integrals_and_time_convergence(
             // Conditional analytic payoffs integrated over the first fixing's normal density.
             let expected = match (up, timing) {
                 (true, RebateTiming::AtHit) => [
-                    1.4554158324974538,
-                    0.040123419859492415,
-                    -0.0018575837515300004,
+                    1.455_415_832_497_453_8,
+                    0.040_123_419_859_492_415,
+                    -0.001_857_583_751_530_000_4,
                 ],
                 (true, RebateTiming::AtExpiry) => [
-                    1.4450612046575544,
-                    0.03921123536516191,
-                    -0.0018895460854650987,
+                    1.445_061_204_657_554_4,
+                    0.039_211_235_365_161_91,
+                    -0.001_889_546_085_465_098_7,
                 ],
                 (false, RebateTiming::AtHit) => [
-                    1.3756950644643724,
-                    -0.04356103943840228,
-                    -0.000799252307714937,
+                    1.375_695_064_464_372_4,
+                    -0.043_561_039_438_402_28,
+                    -0.000_799_252_307_714_937,
                 ],
                 (false, RebateTiming::AtExpiry) => [
-                    1.3672793398072463,
-                    -0.04274689847083124,
-                    -0.000853236609543728,
+                    1.367_279_339_807_246_3,
+                    -0.042_746_898_470_831_24,
+                    -0.000_853_236_609_543_728,
                 ],
             };
             let mut refinements = Vec::new();
@@ -125,7 +125,7 @@ fn scheduled_events_match_independent_two_fixing_integrals_and_time_convergence(
                 for i in 0..3 {
                     let error = (actual[i] - expected[i]).abs();
                     if steps == 2000 {
-                        assert!(error < [0.0008, 0.00003, 0.000003][i]);
+                        assert!(error < [0.0008, 0.00003, 0.000_003][i]);
                     }
                 }
                 refinements.push(actual);

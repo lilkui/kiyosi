@@ -188,7 +188,7 @@ fn automatic_domains_ignore_surface_outside_remaining_horizon() {
             Default::default(),
         )
         .unwrap();
-    close(baseline.price(), 9.227005508154036, 0.002);
+    close(baseline.price(), 9.227_005_508_154_036, 0.002);
     for (past, future) in [(1.5, 0.2), (0.2, 1.5), (1.5, 1.5)] {
         let extended = LocalVolatilitySurface::new(
             vec![
@@ -711,7 +711,11 @@ fn american_and_digital_skew_match_frozen_independent_references() {
                 .unwrap()
                 .price_with_greeks(&american, &local, request, Default::default())
                 .unwrap(),
-            [8.36092765271177, -0.4862228008557096, 0.016624005388366895],
+            [
+                8.360_927_652_711_77,
+                -0.486_222_800_855_709_6,
+                0.016_624_005_388_366_895,
+            ],
         ),
         (
             FiniteDifferenceDigitalEngine::new(settings)
@@ -719,9 +723,9 @@ fn american_and_digital_skew_match_frozen_independent_references() {
                 .price_with_greeks(&cash, &local, request, Default::default())
                 .unwrap(),
             [
-                5.390974151168607,
-                0.15947913068917802,
-                -0.000587304384771014,
+                5.390_974_151_168_607,
+                0.159_479_130_689_178_02,
+                -0.000_587_304_384_771_014,
             ],
         ),
         (
@@ -730,9 +734,9 @@ fn american_and_digital_skew_match_frozen_independent_references() {
                 .price_with_greeks(&asset, &local, request, Default::default())
                 .unwrap(),
             [
-                33.10838469770408,
-                -1.1297556110920681,
-                -0.009360268511100315,
+                33.108_384_697_704_08,
+                -1.129_755_611_092_068_1,
+                -0.009_360_268_511_100_315,
             ],
         ),
     ] {
@@ -809,7 +813,7 @@ fn all_existing_schemes_support_local_volatility() {
             asset_upper_boundary: Some(400.0),
         })
         .unwrap();
-        close(e.price(&option, &c).unwrap(), 9.227005508154036, 0.015);
+        close(e.price(&option, &c).unwrap(), 9.227_005_508_154_036, 0.015);
     }
 }
 
@@ -851,30 +855,30 @@ fn skewed_prices_match_frozen_independent_quantlib_reference() {
         (
             70.0,
             OptionType::Call,
-            1.569872379641753,
-            0.1461106985057415,
-            0.009280650483754862,
+            1.569_872_379_641_753,
+            0.146_110_698_505_741_5,
+            0.009_280_650_483_754_862,
         ),
         (
             100.0,
             OptionType::Call,
-            11.001747461841767,
-            0.5151635413397592,
-            0.015233318213016668,
+            11.001_747_461_841_767,
+            0.515_163_541_339_759_2,
+            0.015_233_318_213_016_668,
         ),
         (
             140.0,
             OptionType::Call,
-            42.36913398112566,
-            0.9527405403527488,
-            0.002700002133963205,
+            42.369_133_981_125_66,
+            0.952_740_540_352_748_8,
+            0.002_700_002_133_963_205,
         ),
         (
             100.0,
             OptionType::Put,
-            8.104816263669061,
-            -0.46503569580517934,
-            0.01523331237043073,
+            8.104_816_263_669_061,
+            -0.465_035_695_805_179_34,
+            0.015_233_312_370_430_73,
         ),
     ];
     for (spot, direction, price, delta, gamma) in fixtures {

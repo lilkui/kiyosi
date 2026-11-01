@@ -60,7 +60,7 @@ impl Date {
 
     pub(crate) fn add_days(self, days: i64) -> Result<Self> {
         let shifted = if days >= 0 {
-            self.0.checked_add_days(Days::new(days as u64))
+            self.0.checked_add_days(Days::new(days.unsigned_abs()))
         } else {
             self.0.checked_sub_days(Days::new(days.unsigned_abs()))
         };
@@ -90,7 +90,7 @@ impl Timestamp {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] unless hour is 0..=23, minute and second
-    /// are 0..=59, and microsecond is 0..=999_999.
+    /// are 0..=59, and microsecond is `0..=999_999`.
     ///
     /// # Examples
     ///
@@ -116,6 +116,11 @@ impl Timestamp {
     ///
     /// See [`Self::new`] for construction. This uses calendar-day boundaries,
     /// rather than truncating negative timestamps toward zero.
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::missing_panics_doc,
+        reason = "Timestamp construction restricts day counts to valid supported dates that fit i32, so conversion cannot panic."
+    )]
     pub fn date(self) -> Date {
         // Construction limits the day count to chrono's supported range.
         Date(
@@ -129,6 +134,10 @@ impl Timestamp {
         self.0.rem_euclid(MICROS_PER_DAY) as u64
     }
 
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Elapsed microseconds intentionally round to fractional f64 years."
+    )]
     pub(crate) fn years_until(self, end: Self) -> f64 {
         (end.0 - self.0) as f64 / (365.0 * MICROS_PER_DAY as f64)
     }

@@ -38,7 +38,7 @@ fn binary_price_and_uncertainty_match_an_independent_terminal_portfolio() {
     let error = estimate.standard_error().unwrap();
     assert!((estimate.price() - expected).abs() < 4.0 * error);
     let (lower, upper) = estimate.confidence_interval().unwrap();
-    assert!((upper - lower - 2.0 * 1.959963984540054 * error).abs() < 1e-14);
+    assert!((upper - lower - 2.0 * 1.959_963_984_540_054 * error).abs() < 1e-14);
 }
 
 #[test]
@@ -470,6 +470,29 @@ fn sobol_dimension_limit_applies_only_to_remaining_simulation_dates() {
 
 #[test]
 fn daily_monitoring_and_all_variants_agree_with_quadrature() {
+    fn check<T: AutocallableTerms>(note: &AutocallableNote<T>, context: &PricingContext) {
+        let reference = QuadratureAutocallableEngine::new(QuadratureSettings {
+            asset_step_count: 1024,
+            ..Default::default()
+        })
+        .unwrap()
+        .price(note, context)
+        .unwrap();
+        let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+            path_count: 65536,
+            seed: Some(42),
+            antithetic: true,
+            ..Default::default()
+        })
+        .unwrap();
+        let actual = engine.price_with_statistics(note, context).unwrap();
+        assert!(
+            (actual.price() - reference).abs() < 4.0 * actual.standard_error().unwrap() + 1e-5,
+            "{} != {reference}",
+            actual.price()
+        );
+    }
+
     let start = date(1, 1);
     let end = date(4, 1);
     let observations = autocallable_observations(
@@ -518,28 +541,7 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
         );
         phoenix.knock_in_observation_mode = mode;
         phoenix.barrier_state = Some(AutocallableBarrierState::None);
-        fn check<T: AutocallableTerms>(note: &AutocallableNote<T>, context: &PricingContext) {
-            let reference = QuadratureAutocallableEngine::new(QuadratureSettings {
-                asset_step_count: 1024,
-                ..Default::default()
-            })
-            .unwrap()
-            .price(note, context)
-            .unwrap();
-            let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
-                path_count: 65536,
-                seed: Some(42),
-                antithetic: true,
-                ..Default::default()
-            })
-            .unwrap();
-            let actual = engine.price_with_statistics(note, context).unwrap();
-            assert!(
-                (actual.price() - reference).abs() < 4.0 * actual.standard_error().unwrap() + 1e-5,
-                "{} != {reference}",
-                actual.price()
-            );
-        }
+
         check(&SnowballOption::new(snow).unwrap(), &context);
         check(&TernarySnowballOption::new(ternary).unwrap(), &context);
         check(&PhoenixOption::new(phoenix).unwrap(), &context);

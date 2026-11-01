@@ -187,6 +187,11 @@ impl PricingEngine<BarrierOption> for BarrierPricer {
 fn invalid_transition() -> Error {
     Error::ComputationFailure("quadrature transition is not representable".into())
 }
+#[expect(
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    reason = "Validated positive i32 panel counts and their indices fit usize and convert exactly to f64."
+)]
 fn continuous_price(
     option: &BarrierOption,
     context: &PricingContext,
@@ -362,13 +367,13 @@ fn event_limit(
         } else {
             -1.0
         };
-        return Ok(if (sign > 0.0) != high {
-            [0.0; 2]
-        } else {
+        return Ok(if (sign > 0.0) == high {
             [
                 -sign * scaled(option.strike(), -rate * remaining),
                 sign * (-dividend * remaining).exp(),
             ]
+        } else {
+            [0.0; 2]
         });
     }
     let discount =
@@ -592,14 +597,14 @@ fn scheduled_price(
             }
             return Ok(value);
         }
-        if !layer.cells.is_empty() {
+        if layer.cells.is_empty() {
+            values.fill(0.0);
+        } else {
             transitions.get(time, &nodes, drift, deviation).integrate(
                 &layer.cells,
                 discount,
                 &mut values,
             );
-        } else {
-            values.fill(0.0);
         }
         for (value, &node) in values.iter_mut().zip(&nodes) {
             *value += integrate_terminal(

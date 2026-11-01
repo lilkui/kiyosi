@@ -439,7 +439,10 @@ impl PhoenixOption {
 }
 
 mod sealed {
-    use super::*;
+    use super::{
+        AutocallableBarrierState, AutocallableObservation, Date, KnockInObservationMode,
+        PhoenixCoupon,
+    };
     pub trait Terms {
         fn view(&self) -> View<'_>;
         fn set_history(&mut self, state: Option<AutocallableBarrierState>);
@@ -656,6 +659,10 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         };
         rate * previous.start_of_day().years_until(record.date.into())
     }
+    #[expect(
+        clippy::float_cmp,
+        reason = "Exactly matching redemption terms determine whether knock-in changes the payoff."
+    )]
     pub(crate) fn knock_in_affects_payoff(&self) -> bool {
         let t = self.view();
         t.knock_in.is_some_and(|ki| match ki.redemption {

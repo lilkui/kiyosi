@@ -380,9 +380,9 @@ fn first_hit_and_scheduled_prices_retain_scaled_tails() {
         let ratio = (if up { 8.0_f64 } else { -8.0_f64 }).exp();
         for amount in [1e200, 1e300] {
             let expected = if up {
-                1.3325295301744355e-51
+                1.332_529_530_174_435_5e-51
             } else {
-                3.9722145459424451e-48
+                3.972_214_545_942_445_1e-48
             } * (amount / 1e300);
             for timing in [SettlementTiming::AtHit, SettlementTiming::AtExpiry] {
                 let mut t = touch(kind);
@@ -415,8 +415,8 @@ fn first_hit_and_scheduled_prices_retain_scaled_tails() {
     }
     for scale in [1.0, 1e306] {
         for (kind, expected) in [
-            (BarrierType::UpAndIn, 0.25739250301126404),
-            (BarrierType::UpAndOut, 0.742607496988736),
+            (BarrierType::UpAndIn, 0.257_392_503_011_264_04),
+            (BarrierType::UpAndOut, 0.742_607_496_988_736),
         ] {
             let mut t = touch(kind);
             t.barrier_level = 170.0 * scale;
@@ -667,6 +667,10 @@ fn overflowing_reflection_and_extreme_first_hit_discounts_remain_finite() {
 }
 
 #[test]
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact comparisons select fixed test cases and payoff boundaries."
+)]
 fn settled_binaries_delegate_extreme_digital_prices_and_strict_strike_boundaries() {
     let engine = AnalyticBinaryBarrierEngine;
     for direction in [OptionType::Call, OptionType::Put] {

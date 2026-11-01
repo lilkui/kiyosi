@@ -59,15 +59,15 @@ fn continuous_prices_and_shared_sample_greeks_match_independent_references() {
     for (direction, price, delta, gamma) in [
         (
             OptionType::Call,
-            1.0838814592583166,
-            -0.009437716341942348,
-            -0.006614552070516311,
+            1.083_881_459_258_316_6,
+            -0.009_437_716_341_942_348,
+            -0.006_614_552_070_516_311,
         ),
         (
             OptionType::Put,
-            1.5760435147766145,
-            -0.031725540191196444,
-            -0.008683048910995694,
+            1.576_043_514_776_614_5,
+            -0.031_725_540_191_196_444,
+            -0.008_683_048_910_995_694,
         ),
     ] {
         let option =
@@ -144,7 +144,7 @@ fn pseudo_random_prices_and_likelihood_greeks_match_across_seeds() {
                 .unwrap();
             for seed in [17, 42, 103] {
                 let engine = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
-                    path_count: 131072,
+                    path_count: 131_072,
                     seed: Some(seed),
                     antithetic: true,
                     ..Default::default()
@@ -179,7 +179,11 @@ fn pseudo_random_prices_and_likelihood_greeks_match_across_seeds() {
 #[test]
 fn image_and_spectral_series_and_extreme_bands_match_analytic() {
     let engine = engine();
-    for sigma in [0.20273255202675663, 0.20273255608140772, 0.3040988310811233] {
+    for sigma in [
+        0.202_732_552_026_756_63,
+        0.202_732_556_081_407_72,
+        0.304_098_831_081_123_3,
+    ] {
         let context = market()
             .replace(PricingContextChanges {
                 model_parameters: Some(
@@ -460,6 +464,10 @@ fn thread_and_sampling_contracts_preserve_exact_samples_and_pairing() {
 }
 
 #[test]
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact comparisons select fixed test cases and payoff boundaries."
+)]
 fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampling() {
     let engine = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
         path_count: 1,

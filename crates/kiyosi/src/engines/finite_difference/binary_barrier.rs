@@ -1,9 +1,15 @@
-use super::*;
+use super::{
+    Curve, Diffusion, FiniteDifferenceBinaryBarrierEngine, FiniteDifferenceDoubleTouchEngine,
+    FiniteDifferenceSettings, Greek, GreeksRequest, LocalDiffusion, NumericalShiftSettings,
+    OptionContract, OptionType, Payoff, PricingContext, PricingEngine, PricingResult, Result,
+    SpatialGrid, TimeGrid, black_scholes_arguments, diffusion, diffusion_upper, local_volatility,
+    scaled, step, unstable, weighted_cdf,
+};
 use crate::instruments::binary_barrier::Contract;
 use crate::instruments::monitoring::{validate_life, validate_schedule};
 use crate::numerics::checked;
 use crate::{
-    AnalyticDigitalEngine, BinaryBarrierOption, DoubleTouchOption, ObservationMode,
+    AnalyticDigitalEngine, BinaryBarrierOption, DigitalOption, DoubleTouchOption, ObservationMode,
     SettlementTiming, TouchOption,
 };
 
@@ -18,9 +24,9 @@ impl FiniteDifferenceBinaryBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] outside life or required curve coverage,
+    /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve coverage,
     /// for non-trading observations, missing or impossible history, invalid grids,
-    /// or unstable explicit steps. Returns [`Error::ComputationFailure`] for
+    /// or unstable explicit steps. Returns [`Error::ComputationFailure`][crate::Error::ComputationFailure] for
     /// numerical failures. Inputs remain unchanged.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
@@ -34,7 +40,7 @@ impl FiniteDifferenceBinaryBarrierEngine {
     /// Stencils crossing observations or barriers leave affected measures absent.
     /// All Greeks are absent at expiry or a current barrier equality without a prior touch.
     /// Local volatility supports only fixed-surface delta/gamma; other requests return
-    /// [`Error::UnsupportedOperation`] before settlement or expiry shortcuts.
+    /// [`Error::UnsupportedOperation`][crate::Error::UnsupportedOperation] before settlement or expiry shortcuts.
     ///
     /// # Errors
     ///
@@ -80,7 +86,7 @@ macro_rules! binary_pricing {
             }
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
                 Ok(native(
-                    option.contract(),
+                    &option.contract(),
                     context,
                     self.settings,
                     GreeksRequest::default(),
@@ -113,9 +119,9 @@ macro_rules! binary_pricing {
                     request,
                     shifts,
                     true,
-                    native(option.contract(), context, settings, request, shifts)?,
+                    native(&option.contract(), context, settings, request, shifts)?,
                     |context, request| {
-                        native(option.contract(), context, settings, request, shifts)
+                        native(&option.contract(), context, settings, request, shifts)
                     },
                 )
             }
@@ -140,10 +146,10 @@ impl FiniteDifferenceDoubleTouchEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] outside life or required curve coverage,
+    /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve coverage,
     /// for non-trading observations, unknown or impossible history, invalid grids,
     /// or unstable explicit steps. Numerical failures return
-    /// [`Error::ComputationFailure`]. Inputs remain unchanged.
+    /// [`Error::ComputationFailure`][crate::Error::ComputationFailure]. Inputs remain unchanged.
     pub fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
         <Self as PricingEngine<DoubleTouchOption>>::price(self, option, context)
     }
@@ -153,7 +159,7 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// Stencils crossing either boundary or an observation omit affected measures.
     /// All Greeks are absent at expiry or current boundary equality without a prior touch.
     /// Local volatility supports only fixed-surface delta/gamma; unsupported Greeks
-    /// return [`Error::UnsupportedOperation`] even for settled contracts.
+    /// return [`Error::UnsupportedOperation`][crate::Error::UnsupportedOperation] even for settled contracts.
     ///
     /// # Errors
     ///
@@ -195,7 +201,7 @@ fn default_upper(contract: &Contract<'_>, context: &PricingContext) -> f64 {
     let relevant = context.spot_price().max(
         contract
             .digital
-            .map_or(contract.monitoring.barrier_level(), |d| d.strike()),
+            .map_or(contract.monitoring.barrier_level(), DigitalOption::strike),
     );
     (4.0 * relevant).max(
         contract
@@ -206,7 +212,7 @@ fn default_upper(contract: &Contract<'_>, context: &PricingContext) -> f64 {
 }
 
 fn native(
-    contract: Contract<'_>,
+    contract: &Contract<'_>,
     context: &PricingContext,
     settings: FiniteDifferenceSettings,
     request: GreeksRequest,
@@ -233,8 +239,13 @@ fn native(
     }
 }
 
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "Barrier positions intentionally round and saturate to nonnegative indices before capping at the grid size."
+)]
 fn native_with_diffusion<D: Diffusion>(
-    contract: Contract<'_>,
+    contract: &Contract<'_>,
     context: &PricingContext,
     settings: FiniteDifferenceSettings,
     request: GreeksRequest,
@@ -297,9 +308,8 @@ fn native_with_diffusion<D: Diffusion>(
                     shifts,
                 )?
                 .0);
-            } else {
-                AnalyticDigitalEngine.price(digital, context)?
             }
+            AnalyticDigitalEngine.price(digital, context)?
         } else {
             let model = context.model_parameters();
             let curve = if contract.payout.is_some() {
@@ -330,12 +340,12 @@ fn native_with_diffusion<D: Diffusion>(
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), horizon)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), horizon)?;
     let upper = settings.asset_upper_boundary.unwrap_or_else(|| {
-        let upper = default_upper(&contract, context);
+        let upper = default_upper(contract, context);
         if D::LOCAL {
             let relevant = spot.max(
                 contract
                     .digital
-                    .map_or(option.barrier_level(), |digital| digital.strike()),
+                    .map_or(option.barrier_level(), DigitalOption::strike),
             );
             upper.max(diffusion_upper(relevant, context, time, &risk, &dividend))
         } else {
@@ -349,7 +359,7 @@ fn native_with_diffusion<D: Diffusion>(
         spot.max(
             contract
                 .digital
-                .map_or(option.barrier_level(), |d| d.strike()),
+                .map_or(option.barrier_level(), DigitalOption::strike),
         )
         .max(upper_barrier.unwrap_or(option.barrier_level())),
     )?;
@@ -465,7 +475,7 @@ fn native_with_diffusion<D: Diffusion>(
     let breaks: Vec<_> = levels
         .iter()
         .copied()
-        .chain(contract.digital.map(|d| d.strike()))
+        .chain(contract.digital.map(DigitalOption::strike))
         .collect();
     let edges = |current, events: bool| {
         let value = |asset| {
@@ -553,7 +563,7 @@ fn native_with_diffusion<D: Diffusion>(
     };
     let mut values = if D::LOCAL && knock_in && contract.digital.is_some() {
         local_digital_knock_in(
-            &contract,
+            contract,
             settings,
             &space,
             &grid,
@@ -597,6 +607,11 @@ fn native_with_diffusion<D: Diffusion>(
 #[expect(
     clippy::too_many_arguments,
     reason = "shared grids, diffusion and event inputs"
+)]
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "Barrier positions intentionally round and saturate to nonnegative indices before capping at the grid size."
 )]
 fn local_digital_knock_in<D: Diffusion>(
     contract: &Contract<'_>,

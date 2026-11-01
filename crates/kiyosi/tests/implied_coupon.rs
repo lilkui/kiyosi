@@ -65,33 +65,6 @@ fn binary_quote_recovers_schedule_shift_and_maturity_conventions() {
 
 #[test]
 fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
-    let engine = QuadratureAutocallableEngine::new(QuadratureSettings {
-        asset_step_count: 64,
-        ..Default::default()
-    })
-    .unwrap();
-    let context = market(100.0, date(1, 1));
-    let records = binary().observations().to_vec();
-    let snowball = SnowballOption::new(SnowballTerms::new(
-        0.06,
-        100.0,
-        80.0,
-        100.0,
-        60.0,
-        date(1, 1),
-        date(4, 1),
-        records.clone(),
-    ))
-    .unwrap();
-    let ternary = TernarySnowballOption::new(TernarySnowballTerms::new(
-        0.06,
-        -0.2,
-        80.0,
-        date(1, 1),
-        date(4, 1),
-        records,
-    ))
-    .unwrap();
     fn recover<T: SnowballCouponTerms + std::fmt::Debug>(
         engine: &QuadratureAutocallableEngine,
         note: &AutocallableNote<T>,
@@ -134,6 +107,35 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
         }
         assert_eq!(*note, original);
     }
+
+    let engine = QuadratureAutocallableEngine::new(QuadratureSettings {
+        asset_step_count: 64,
+        ..Default::default()
+    })
+    .unwrap();
+    let context = market(100.0, date(1, 1));
+    let records = binary().observations().to_vec();
+    let snowball = SnowballOption::new(SnowballTerms::new(
+        0.06,
+        100.0,
+        80.0,
+        100.0,
+        60.0,
+        date(1, 1),
+        date(4, 1),
+        records.clone(),
+    ))
+    .unwrap();
+    let ternary = TernarySnowballOption::new(TernarySnowballTerms::new(
+        0.06,
+        -0.2,
+        80.0,
+        date(1, 1),
+        date(4, 1),
+        records,
+    ))
+    .unwrap();
+
     recover(&engine, &snowball, &context);
     recover(&engine, &binary(), &context);
     recover(&engine, &ternary, &context);

@@ -164,6 +164,7 @@ impl BinaryBarrierOption {
     /// See [`crate::BarrierOption::replace`] for an example and time consistency rules.
     ///
     /// Preserves the validated monitoring and payoff terms.
+    #[must_use]
     pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
             monitoring: self.monitoring.replace(touch_state),
@@ -323,6 +324,7 @@ impl TouchOption {
     /// See [`crate::BarrierOption::replace`] for examples and time consistency rules.
     ///
     /// Preserves the validated monitoring and payoff terms.
+    #[must_use]
     pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
             monitoring: self.monitoring.replace(touch_state),
@@ -413,7 +415,7 @@ impl Contract<'_> {
         if touched || finished {
             return self.digital.is_some() && knock_in == touched;
         }
-        !(!knock_in && self.payoff_requires_touch())
+        knock_in || !self.payoff_requires_touch()
     }
     pub(crate) fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
         self.monitoring.state(context, self.upper_barrier)

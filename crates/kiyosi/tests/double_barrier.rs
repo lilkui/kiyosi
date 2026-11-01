@@ -29,15 +29,15 @@ fn continuous_prices_and_greeks_match_independent_quantlib_regressions() {
     for (direction, price, delta, gamma) in [
         (
             OptionType::Call,
-            1.0838814592583166,
-            -0.009437716341942348,
-            -0.006614552070516311,
+            1.083_881_459_258_316_6,
+            -0.009_437_716_341_942_348,
+            -0.006_614_552_070_516_311,
         ),
         (
             OptionType::Put,
-            1.5760435147766145,
-            -0.031725540191196444,
-            -0.008683048910995694,
+            1.576_043_514_776_614_5,
+            -0.031_725_540_191_196_444,
+            -0.008_683_048_910_995_694,
         ),
     ] {
         let option =
@@ -161,6 +161,10 @@ fn construction_validates_boundaries_schedules_and_rebates_in_core() {
 }
 
 #[test]
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact comparisons select fixed test cases and payoff boundaries."
+)]
 fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows() {
     let engine = AnalyticDoubleBarrierEngine;
     let start = day(2025, 1, 1);
@@ -333,9 +337,9 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
 fn image_spectral_switch_and_band_limits_preserve_independent_values() {
     let engine = AnalyticDoubleBarrierEngine;
     for (sigma, expected) in [
-        (0.20273255202675663, 1.045594059652574),
-        (0.20273255608140772, 1.0455940036319245),
-        (0.3040988310811233, 0.21271328442609105),
+        (0.202_732_552_026_756_63, 1.045_594_059_652_574),
+        (0.202_732_556_081_407_72, 1.045_594_003_631_924_5),
+        (0.304_098_831_081_123_3, 0.212_713_284_426_091_05),
     ] {
         let option =
             DoubleBarrierOption::new(terms(OptionType::Call, DoubleBarrierType::KnockOut)).unwrap();

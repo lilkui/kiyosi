@@ -253,9 +253,9 @@ fn skewed_single_barriers_match_independent_quantlib_reference() {
             OptionType::Call,
             120.0,
             [
-                1.0284272718275992,
-                -0.022116708290671667,
-                -0.0036661235836258047,
+                1.028_427_271_827_599_2,
+                -0.022_116_708_290_671_667,
+                -0.003_666_123_583_625_804_7,
             ],
         ),
         (
@@ -263,9 +263,9 @@ fn skewed_single_barriers_match_independent_quantlib_reference() {
             OptionType::Put,
             80.0,
             [
-                0.7325916984605984,
+                0.732_591_698_460_598_4,
                 0.011_564_760_173_786_65,
-                -0.002903110093466621,
+                -0.002_903_110_093_466_621,
             ],
         ),
     ] {
@@ -283,7 +283,7 @@ fn skewed_single_barriers_match_independent_quantlib_reference() {
         ]
         .into_iter()
         .zip(expected)
-        .zip([0.0005, 0.00003, 0.000003])
+        .zip([0.0005, 0.00003, 0.000_003])
         {
             assert!(
                 (actual - expected).abs() < tolerance,

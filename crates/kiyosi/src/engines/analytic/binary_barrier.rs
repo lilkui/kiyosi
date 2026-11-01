@@ -2,8 +2,8 @@ use crate::engines::analytic::barrier::{analytic_log_shift, hit_value, reflectio
 use crate::instruments::monitoring::{validate_life, validate_schedule};
 use crate::numerics::{checked, log_ratio, scaled_cash, scaled_cdf, standardize};
 use crate::{
-    AnalyticDigitalEngine, GreeksRequest, NumericalShiftSettings, OptionContract, OptionType,
-    PricingContext, PricingEngine, PricingResult, Result,
+    AnalyticDigitalEngine, DigitalOption, GreeksRequest, NumericalShiftSettings, OptionContract,
+    OptionType, PricingContext, PricingEngine, PricingResult, Result,
 };
 use crate::{BinaryBarrierOption, SettlementTiming, TouchOption};
 
@@ -154,9 +154,11 @@ impl Contract<'_> {
                 ))
             };
         }
-        let strike = self.digital.map_or(option.barrier_level(), |d| d.strike());
+        let strike = self
+            .digital
+            .map_or(option.barrier_level(), DigitalOption::strike);
         let strike_above = log_ratio(strike, option.barrier_level()) > shift;
-        let direction = self.digital.map(|d| d.option_type());
+        let direction = self.digital.map(DigitalOption::option_type);
         let call = direction == Some(OptionType::Call);
         let carry = rate - dividend;
         let width = sigma * t.sqrt();

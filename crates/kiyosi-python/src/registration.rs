@@ -119,7 +119,7 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         "NonConvergenceError",
         py.get_type::<error::NonConvergenceError>(),
     )?;
-    let names = kiyosi::Greek::ALL.map(|g| g.name());
+    let names = kiyosi::Greek::ALL.map(kiyosi::Greek::name);
     module.add(
         "Greek",
         py.import("typing")?

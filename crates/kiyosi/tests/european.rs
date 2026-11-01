@@ -10,8 +10,8 @@ fn european_call_and_put_match_independent_bsm_prices() {
     let parameters = BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap();
     let context = PricingContext::new(parameters, 100.0, start.into()).unwrap();
     for (direction, expected) in [
-        (OptionType::Call, 9.227005508154036),
-        (OptionType::Put, 6.330080627549918),
+        (OptionType::Call, 9.227_005_508_154_036),
+        (OptionType::Put, 6.330_080_627_549_918),
     ] {
         let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
         let price = AnalyticEuropeanEngine.price(&option, &context).unwrap();
@@ -25,7 +25,7 @@ fn valuation_uses_microseconds_and_expiry_is_midnight() {
     let end = Date::new(2026, 1, 1).unwrap();
     let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap();
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
-    let at = Timestamp::new(start, 12, 9, 10, 123456).unwrap();
+    let at = Timestamp::new(start, 12, 9, 10, 123_456).unwrap();
     assert_eq!(at.date(), start);
     assert_eq!(at.micros_since_midnight(), 43_750_123_456);
     let context = PricingContext::new(model.clone(), 110.0, at).unwrap();
@@ -68,7 +68,10 @@ fn invalid_domain_values_are_rejected_before_construction() {
     }
     for year in [-32767, -1, 0, 1600, 2500, 9999, 32767] {
         let day = Date::new(year, 1, 1).unwrap();
-        assert_eq!(Timestamp::new(day, 23, 59, 59, 999999).unwrap().date(), day);
+        assert_eq!(
+            Timestamp::new(day, 23, 59, 59, 999_999).unwrap().date(),
+            day
+        );
     }
     let start = Date::new(2025, 1, 1).unwrap();
     let end = Date::new(2026, 1, 1).unwrap();
@@ -117,7 +120,7 @@ fn analytic_regressions_retain_tail_prices_and_extreme_scales() {
         (
             OptionType::Call,
             100.0,
-            100.00000000013,
+            100.000_000_000_13,
             1e-13,
             4.645_908_059_169_899e-51,
             1e-10,
@@ -125,33 +128,33 @@ fn analytic_regressions_retain_tail_prices_and_extreme_scales() {
         (
             OptionType::Put,
             100.0,
-            99.99999999987,
+            99.999_999_999_87,
             1e-13,
-            4.645908058131258e-51,
+            4.645_908_058_131_258e-51,
             1e-10,
         ),
         (
             OptionType::Call,
             100.0,
-            100.00099900499002,
+            100.000_999_004_990_02,
             1e-6,
-            8.276374696508508e-29,
+            8.276_374_696_508_508e-29,
             1e-10,
         ),
         (
             OptionType::Call,
             100.0,
-            100.00100100501001,
+            100.001_001_005_010_01,
             1e-6,
-            6.749830430787083e-29,
+            6.749_830_430_787_083e-29,
             1e-10,
         ),
         (
             OptionType::Put,
             100.0,
-            99.99700004499955,
+            99.997_000_044_999_55,
             1e-6,
-            1.6319322561070434e-203,
+            1.631_932_256_107_043_4e-203,
             1e-10,
         ),
         (
@@ -159,7 +162,7 @@ fn analytic_regressions_retain_tail_prices_and_extreme_scales() {
             1e300,
             1e304,
             0.2,
-            1.1367038364232515e-163,
+            1.136_703_836_423_251_5e-163,
             1e-8,
         ),
         (
@@ -167,7 +170,7 @@ fn analytic_regressions_retain_tail_prices_and_extreme_scales() {
             1e304,
             1e300,
             0.2,
-            1.1367038364232515e-163,
+            1.136_703_836_423_251_5e-163,
             1e-8,
         ),
         (
@@ -175,7 +178,7 @@ fn analytic_regressions_retain_tail_prices_and_extreme_scales() {
             100.0,
             100.0,
             1e-200,
-            3.989422804014327e-199,
+            3.989_422_804_014_327e-199,
             2e-12,
         ),
         (
@@ -183,7 +186,7 @@ fn analytic_regressions_retain_tail_prices_and_extreme_scales() {
             100.0,
             100.0,
             1e-200,
-            3.989422804014327e-199,
+            3.989_422_804_014_327e-199,
             2e-12,
         ),
     ] {
@@ -197,8 +200,8 @@ fn analytic_regressions_retain_tail_prices_and_extreme_scales() {
         );
     }
     for (direction, expected) in [
-        (OptionType::Call, 98.01986733067552),
-        (OptionType::Put, 95.1229424500714),
+        (OptionType::Call, 98.019_867_330_675_52),
+        (OptionType::Put, 95.122_942_450_071_4),
     ] {
         let model = BlackScholesMertonParameters::new(0.05, 0.02, 1e308).unwrap();
         let context = PricingContext::new(model, 100.0, start.into()).unwrap();

@@ -216,6 +216,10 @@ fn native(
     }
 }
 
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact scheme and stencil weights select the digital discontinuity correction."
+)]
 fn native_model<D: Diffusion>(
     option: &impl OptionContract,
     payoff: Payoff,
@@ -285,7 +289,7 @@ fn native_model<D: Diffusion>(
         if left >= right {
             0.0
         } else {
-            (right - left) / space.spacing * payoff.payout.unwrap_or(0.5 * (left + right))
+            (right - left) / space.spacing * payoff.payout.unwrap_or(f64::midpoint(left, right))
         }
     };
     let mut old: Vec<_> = (0..=space.count)

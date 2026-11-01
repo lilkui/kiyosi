@@ -59,8 +59,8 @@ impl AnalyticDigitalEngine {
             request,
             settings,
             true,
-            self.native(option, context, request)?,
-            |context, request| self.native(option, context, request),
+            Self::native(option, context, request)?,
+            |context, request| Self::native(option, context, request),
         )
     }
 
@@ -87,13 +87,10 @@ impl AnalyticDigitalEngine {
     /// ```
     pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
-        Ok(self
-            .native(option, context, GreeksRequest::default())?
-            .price())
+        Ok(Self::native(option, context, GreeksRequest::default())?.price())
     }
 
     pub(crate) fn native(
-        &self,
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,

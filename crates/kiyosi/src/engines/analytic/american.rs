@@ -53,16 +53,16 @@ struct BivariateQuadrature {
 
 fn bivariate_quadrature(correlation: f64) -> BivariateQuadrature {
     let abscissas = [
-        0.07652652113349733,
-        0.22778585114164508,
-        0.37370608871541956,
-        0.5108670019508271,
-        0.636053680726515,
-        0.7463319064601508,
-        0.8391169718222188,
+        0.076_526_521_133_497_33,
+        0.227_785_851_141_645_08,
+        0.373_706_088_715_419_56,
+        0.510_867_001_950_827_1,
+        0.636_053_680_726_515,
+        0.746_331_906_460_150_8,
+        0.839_116_971_822_218_8,
         0.912_234_428_251_326,
-        0.9639719272779138,
-        0.9931285991850949,
+        0.963_971_927_277_913_8,
+        0.993_128_599_185_094_9,
     ];
     let angle = correlation.asin();
     let points = std::array::from_fn(|index| {
@@ -81,19 +81,19 @@ fn exponential_bivariate_cdf(
     sign: f64,
 ) -> f64 {
     let weights = [
-        0.15275338713072585,
-        0.14917298647260375,
-        0.14209610931838205,
-        0.13168863844917663,
-        0.11819453196151842,
-        0.10193011981724044,
-        0.08327674157670475,
-        0.06267204833410906,
-        0.04060142980038694,
-        0.01761400713915212,
+        0.152_753_387_130_725_85,
+        0.149_172_986_472_603_75,
+        0.142_096_109_318_382_05,
+        0.131_688_638_449_176_63,
+        0.118_194_531_961_518_42,
+        0.101_930_119_817_240_44,
+        0.083_276_741_576_704_75,
+        0.062_672_048_334_109_06,
+        0.040_601_429_800_386_94,
+        0.017_614_007_139_152_12,
     ];
     let product = first * second;
-    let half_sum = 0.5 * (first * first + second * second);
+    let half_sum = f64::midpoint(first * first, second * second);
     let mut integral = 0.0;
     for (index, &(sine, denominator)) in quadrature.points.iter().enumerate() {
         integral += weights[index / 2]
@@ -179,6 +179,9 @@ fn bjerksund_call(
     volatility: f64,
     european_value: f64,
 ) -> Result<f64> {
+    static QUADRATURE: LazyLock<BivariateQuadrature> =
+        LazyLock::new(|| bivariate_quadrature((0.5 * (5.0_f64.sqrt() - 1.0)).sqrt()));
+
     if time == 0.0 {
         return Ok((spot - strike).max(0.0));
     }
@@ -218,8 +221,7 @@ fn bjerksund_call(
     if spot >= outer {
         return Ok(spot - strike);
     }
-    static QUADRATURE: LazyLock<BivariateQuadrature> =
-        LazyLock::new(|| bivariate_quadrature((0.5 * (5.0_f64.sqrt() - 1.0)).sqrt()));
+
     let quadrature = &QUADRATURE;
     // Normalize powers so alpha and spot^beta never overflow separately.
     Ok((outer - strike) * (beta * (spot.ln() - outer.ln())).exp()

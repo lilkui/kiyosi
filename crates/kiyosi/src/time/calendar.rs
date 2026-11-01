@@ -174,6 +174,10 @@ impl TradingCalendar {
     /// # Panics
     ///
     /// Propagates panics from a custom predicate supplied to [`Self::new`].
+    #[expect(
+        clippy::cast_possible_wrap,
+        reason = "Validated calendar months and days fit in i32."
+    )]
     pub fn is_trading_day(&self, date: Date) -> bool {
         match &self.kind {
             CalendarKind::AllDays => true,

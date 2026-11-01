@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    AutocallableBarrierState, AutocallableNote, AutocallableTerms, Coupon, Date, Error,
+    PricingContext, Result,
+};
 
 pub(crate) struct Initial {
     pub knocked_in: bool,
@@ -116,6 +119,10 @@ pub(crate) fn volatility_affects_price<T: AutocallableTerms>(
     state.settlement.is_none() && fixed_value(note, context, state.knocked_in).is_none()
 }
 
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact payoff terms and exactly recoverable discounted payments determine whether valuation is constant."
+)]
 pub(crate) fn fixed_value<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     context: &PricingContext,

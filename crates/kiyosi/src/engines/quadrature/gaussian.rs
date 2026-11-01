@@ -1,5 +1,5 @@
 use crate::numerics::{Sum, log_interval_mass, scaled_cash};
-const LOG_DENSITY: f64 = -0.9189385332046727;
+const LOG_DENSITY: f64 = -0.918_938_533_204_672_7;
 
 pub(super) fn scaled(amount: f64, exponent: f64) -> f64 {
     amount.signum() * scaled_cash(amount.abs(), exponent)
@@ -110,6 +110,10 @@ impl IntervalMoments {
 }
 
 // Moments of u=(x-left)/(right-left), conditional on x lying in this cell.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Series orders are below 28 and convert exactly to f64."
+)]
 pub(super) fn cell_moments(left: f64, right: f64, mean: f64, deviation: f64) -> IntervalMoments {
     let width = right - left;
     let center = (left.midpoint(right) - mean) / deviation;
@@ -135,7 +139,7 @@ pub(super) fn cell_moments(left: f64, right: f64, mean: f64, deviation: f64) -> 
         (
             -0.5 * center * center + LOG_DENSITY + half.ln() + integrals[0].ln(),
             [
-                0.5 * (1.0 + first),
+                f64::midpoint(1.0, first),
                 0.25 * (1.0 + 2.0 * first + second),
                 0.125 * (1.0 + 3.0 * first + 3.0 * second + third),
             ],
@@ -184,6 +188,10 @@ pub(super) fn cell_moments(left: f64, right: f64, mean: f64, deviation: f64) -> 
     }
 }
 
+#[expect(
+    clippy::cast_sign_loss,
+    reason = "Callers pass positive grid sizes from validated quadrature settings."
+)]
 pub(super) fn integration_nodes(
     lower: f64,
     upper: f64,
@@ -370,6 +378,10 @@ pub(super) fn integrate_curve(
 pub(super) struct TransitionCache(Vec<(f64, Transition)>);
 
 impl TransitionCache {
+    #[expect(
+        clippy::float_cmp,
+        reason = "Transition cache durations must match exactly before reusing an integration matrix."
+    )]
     pub fn get(&mut self, time: f64, nodes: &[f64], drift: f64, deviation: f64) -> &Transition {
         let index = if let Some(index) = self.0.iter().position(|(duration, _)| *duration == time) {
             index

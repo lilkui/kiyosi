@@ -92,6 +92,10 @@ impl ObservationSchedule {
     /// Returns [`Error::InvalidInput`] for reversed life or a nonpositive first
     /// offset. Propagates date-range errors.
     /// See [`Self::fixed_interval`] for schedule construction.
+    #[expect(
+        clippy::cast_possible_wrap,
+        reason = "Validated calendar months fit in i32."
+    )]
     pub fn monthly(
         start: Date,
         end: Date,

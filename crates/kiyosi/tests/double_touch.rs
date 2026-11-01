@@ -32,17 +32,17 @@ fn analytic_cashflows_match_series_pde_and_payout_scaling() {
         (
             DoubleBarrierType::KnockIn,
             SettlementTiming::AtExpiry,
-            0.6031839700294364,
+            0.603_183_970_029_436_4,
         ),
         (
             DoubleBarrierType::KnockIn,
             SettlementTiming::AtHit,
-            0.6119415209961093,
+            0.611_941_520_996_109_3,
         ),
         (
             DoubleBarrierType::KnockOut,
             SettlementTiming::AtExpiry,
-            0.36726156351907174,
+            0.367_261_563_519_071_74,
         ),
     ] {
         for payout in [1.0, 7.5] {
@@ -91,14 +91,14 @@ fn analytic_discount_and_payout_scaling_preserve_representable_prices() {
         (
             -800.0,
             1e-300,
-            1.6945880848984272e47,
+            1.694_588_084_898_427_2e47,
             1.031_786_487_214_204e47,
             Some(1.550_613_852_825_589e44),
         ),
         (
             800.0,
             1e300,
-            2.2797808602039585e-48,
+            2.279_780_860_203_958_5e-48,
             1.388_093_723_973_642e-48,
             None,
         ),
@@ -201,10 +201,10 @@ fn analytic_exit_density_series_and_discounted_peaks_match_independent_values() 
     t.settlement_timing = SettlementTiming::AtHit;
     let option = DoubleTouchOption::cash(t.clone(), 1.0).unwrap();
     for (sigma, rate, expected) in [
-        (0.25, 0.03, 0.7962522770799105),
-        (0.25, -0.03, 0.8206530429588949),
-        (0.6, 0.03, 0.9965839085659609),
-        (0.6, -0.03, 1.0033859591743404),
+        (0.25, 0.03, 0.796_252_277_079_910_5),
+        (0.25, -0.03, 0.820_653_042_958_894_9),
+        (0.6, 0.03, 0.996_583_908_565_960_9),
+        (0.6, -0.03, 1.003_385_959_174_340_4),
     ] {
         let context = market(100.0)
             .replace(PricingContextChanges {
@@ -623,9 +623,9 @@ fn continuous_touch_cashflows_match_independent_series_and_converge() {
     let at_hit = DoubleTouchOption::cash(at_hit, 1.0).unwrap();
     // Absorbing log-Brownian sine series, independent of the finite-difference solver.
     for (option, expected) in [
-        (&one, 0.6031839700294364),
-        (&at_hit, 0.6119415209961093),
-        (&no, 0.36726156351907174),
+        (&one, 0.603_183_970_029_436_4),
+        (&at_hit, 0.611_941_520_996_109_3),
+        (&no, 0.367_261_563_519_071_74),
     ] {
         let price = fine.price(option, &market(100.0)).unwrap();
         assert!((price - expected).abs() < 1e-5, "{price} != {expected}");
@@ -661,7 +661,7 @@ fn cash_terms_defaults_validation_and_owning_history() {
         assert_eq!(option.settlement_timing(), SettlementTiming::AtExpiry);
         assert_eq!(option.observation_mode(), ObservationMode::Continuous);
         assert_eq!(option.touch_state(), None);
-        assert!(option.observation_dates().is_empty());
+        assert_eq!(option.observation_dates(), []);
         let known = option.replace(Some(BarrierTouchState::Untouched));
         assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
         assert_eq!(option.touch_state(), None);
@@ -738,6 +738,10 @@ fn cash_terms_defaults_validation_and_owning_history() {
 }
 
 #[test]
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact comparisons select fixed test cases and payoff boundaries."
+)]
 fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
     let engine = FiniteDifferenceDoubleTouchEngine::new(FiniteDifferenceSettings {
         asset_upper_boundary: Some(1.0),
@@ -821,15 +825,27 @@ fn scheduled_one_two_and_early_fixings_match_independent_integrals() {
     for (dates, expected) in [
         (
             vec![terms(DoubleBarrierType::KnockIn).expiry_date],
-            [0.30489754927956764, 0.30489754927956764, 0.6655479842689406],
+            [
+                0.304_897_549_279_567_64,
+                0.304_897_549_279_567_64,
+                0.665_547_984_268_940_6,
+            ],
         ),
         (
             vec![first, Date::new(2026, 1, 1).unwrap()],
-            [0.355769695628499, 0.3580627743006117, 0.6146758379200091],
+            [
+                0.355_769_695_628_499,
+                0.358_062_774_300_611_7,
+                0.614_675_837_920_009_1,
+            ],
         ),
         (
             vec![first],
-            [0.14966244109876742, 0.15195551977088007, 0.8207830924497408],
+            [
+                0.149_662_441_098_767_42,
+                0.151_955_519_770_880_07,
+                0.820_783_092_449_740_8,
+            ],
         ),
     ] {
         for (index, (kind, timing)) in [

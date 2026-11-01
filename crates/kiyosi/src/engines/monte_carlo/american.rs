@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    BLOCK_SIZE, Error, EuropeanOption, GreeksRequest, Moments, MonteCarloSampling,
+    MonteCarloVanillaEngine, NumericalShiftSettings, OptionType, Pcg32, PricingContext,
+    PricingEngine, PricingResult, Result, run_blocks, sample_normal, scaled_value, sobol, unstable,
+};
 use crate::{AmericanOption, BlackScholesMertonParameterChanges, Greek, PricingContextChanges};
 
 impl MonteCarloVanillaEngine {
@@ -30,6 +34,11 @@ impl MonteCarloVanillaEngine {
         0.08 * context.spot_price()
     }
 
+    #[expect(
+        clippy::cast_precision_loss,
+        clippy::cast_sign_loss,
+        reason = "Validated positive i32 path and step counts bound the buffers and fit exactly in f64."
+    )]
     fn american_price(
         &self,
         option: &AmericanOption,

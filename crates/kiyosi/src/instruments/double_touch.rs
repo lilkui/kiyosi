@@ -174,6 +174,7 @@ impl DoubleTouchOption {
     ///
     /// Preserves validated monitoring terms without reconstructing the contract.
     /// The original value remains unchanged.
+    #[must_use]
     pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
             monitoring: self.monitoring.replace(touch_state),
