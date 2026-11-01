@@ -488,6 +488,7 @@ impl MonteCarloVanillaEngine {
     where
         Self: PricingEngine<I>,
     {
+        context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request, settings)
     }
 
@@ -538,6 +539,7 @@ impl MonteCarloVanillaEngine {
     where
         Self: PricingEngine<I>,
     {
+        context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price(self, option, context)
     }
 
@@ -575,6 +577,7 @@ impl MonteCarloVanillaEngine {
         option: &EuropeanOption,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
+        context.bsm_parameters()?;
         let (sample, pairs, log_discount) = self.sample(option, context, true)?;
         estimate(
             self.settings,
@@ -591,7 +594,7 @@ impl MonteCarloVanillaEngine {
         context: &PricingContext,
         statistics: bool,
     ) -> Result<(Moments, Moments, f64)> {
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         let rate = model.risk_free_rate()?;
         let dividend = model.dividend_yield()?;
         let valuation = context.valuation_time();
@@ -644,8 +647,9 @@ impl MonteCarloVanillaEngine {
 
 impl PricingEngine for MonteCarloVanillaEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.model_parameters().risk_free_rate()?;
-        context.model_parameters().dividend_yield()?;
+        context.bsm_parameters()?;
+        context.bsm_parameters()?.risk_free_rate()?;
+        context.bsm_parameters()?.dividend_yield()?;
         Ok(())
     }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine + '_>>> {
@@ -658,6 +662,7 @@ impl PricingEngine for MonteCarloVanillaEngine {
         })))
     }
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         let (sample, _, log_discount) = self.sample(option, context, false)?;
         scaled_value(sample.scale, sample.mean, log_discount)
     }

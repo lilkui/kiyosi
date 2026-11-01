@@ -9,6 +9,6 @@ pub use barrier::{QuadratureBarrierEngine, QuadratureSettings};
 use crate::{PricingContext, Result};
 
 fn flat_rates(context: &PricingContext) -> Result<(f64, f64)> {
-    let model = context.model_parameters();
+    let model = context.bsm_parameters()?;
     Ok((model.risk_free_rate()?, model.dividend_yield()?))
 }

@@ -65,6 +65,7 @@ impl MonteCarloDoubleBarrierEngine {
     ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Ok(self
             .engine
             .native(
@@ -130,6 +131,7 @@ impl MonteCarloDoubleBarrierEngine {
         request: GreeksRequest,
         spot_shift: f64,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         self.validate_applicability(context)?;
         request.validate()?;
         let settings = NumericalShiftSettings {
@@ -144,6 +146,7 @@ impl MonteCarloDoubleBarrierEngine {
 
 impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        context.bsm_parameters()?;
         self.engine.validate_applicability(context)
     }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<DoubleBarrierOption> + '_>>> {
@@ -154,6 +157,7 @@ impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
         Ok(Some(Box::new(Self::new(settings.with_resolved_seed()?)?)))
     }
     fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
     fn price_with_greeks(
@@ -163,6 +167,7 @@ impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         Self::price_with_greeks(self, option, context, request, settings.spot_shift)
     }
     fn volatility_affects_price(

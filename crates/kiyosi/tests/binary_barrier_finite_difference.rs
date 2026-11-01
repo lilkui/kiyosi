@@ -307,7 +307,7 @@ fn early_scheduled_at_hit_horizon_and_resolved_flows_use_only_required_curves() 
     let model = BlackScholesMertonParameters::new(curve.clone(), curve, 0.2).unwrap();
     let ctx = market()
         .replace(PricingContextChanges {
-            model_parameters: Some(model),
+            model_parameters: Some(model.into()),
             ..Default::default()
         })
         .unwrap();

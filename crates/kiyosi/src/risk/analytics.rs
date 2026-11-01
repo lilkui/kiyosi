@@ -217,13 +217,14 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// Checks engine applicability before numerical requests or implied-volatility validation.
     ///
     /// Coupon solves validate their settings and endpoint replacements before pricing.
-    /// The default accepts the context. See
+    /// The default requires BSM; engines supporting another model override it. See
     /// [`crate::MonteCarloVanillaEngine::price_with_greeks`] for flat-rate restrictions.
     ///
     /// # Errors
     ///
     /// Returns engine-specific errors for unsupported market representations.
-    fn validate_applicability(&self, _context: &PricingContext) -> Result<()> {
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        context.bsm_parameters()?;
         Ok(())
     }
 

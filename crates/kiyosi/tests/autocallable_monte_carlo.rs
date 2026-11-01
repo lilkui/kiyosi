@@ -415,11 +415,14 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
             model_parameters: Some(
                 context
                     .model_parameters()
+                    .as_bsm()
+                    .unwrap()
                     .replace(BlackScholesMertonParameterChanges {
                         risk_free_rate: Some(Rate::Curve(node)),
                         ..Default::default()
                     })
-                    .unwrap(),
+                    .unwrap()
+                    .into(),
             ),
             ..Default::default()
         })

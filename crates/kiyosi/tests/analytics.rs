@@ -165,11 +165,14 @@ fn volga_and_dividend_rho_preserve_units_curves_and_selectivity() {
                 model_parameters: Some(
                     original
                         .model_parameters()
+                        .as_bsm()
+                        .unwrap()
                         .replace(BlackScholesMertonParameterChanges {
                             dividend_yield: Some(dividend),
                             ..Default::default()
                         })
-                        .unwrap(),
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -234,7 +237,11 @@ fn volga_preserves_tiny_volatility_curvature() {
         let context = context
             .replace(PricingContextChanges {
                 spot_price: Some(spot),
-                model_parameters: Some(BlackScholesMertonParameters::new(0.0, 0.0, sigma).unwrap()),
+                model_parameters: Some(
+                    BlackScholesMertonParameters::new(0.0, 0.0, sigma)
+                        .unwrap()
+                        .into(),
+                ),
                 ..Default::default()
             })
             .unwrap();
@@ -280,7 +287,13 @@ fn new_parameter_greeks_keep_unavailable_stencils_and_bump_errors() {
     struct RejectDividendBump;
     impl PricingEngine for RejectDividendBump {
         fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
-            if context.model_parameters().dividend_yield()? > 0.02 {
+            if context
+                .model_parameters()
+                .as_bsm()
+                .unwrap()
+                .dividend_yield()?
+                > 0.02
+            {
                 return Err(Error::UnsupportedOperation(
                     "bumped dividend is unsupported".into(),
                 ));
@@ -298,7 +311,15 @@ fn new_parameter_greeks_keep_unavailable_stencils_and_bump_errors() {
         ),
         Err(Error::UnsupportedOperation(_))
     ));
-    assert_eq!(context.model_parameters().dividend_yield().unwrap(), 0.02);
+    assert_eq!(
+        context
+            .model_parameters()
+            .as_bsm()
+            .unwrap()
+            .dividend_yield()
+            .unwrap(),
+        0.02
+    );
 }
 
 #[test]
@@ -549,6 +570,8 @@ fn solver_categories_bounds_and_failure_state_are_stable() {
     ] {
         let model = context
             .model_parameters()
+            .as_bsm()
+            .unwrap()
             .replace(BlackScholesMertonParameterChanges {
                 volatility: Some(vol),
                 ..Default::default()
@@ -556,7 +579,7 @@ fn solver_categories_bounds_and_failure_state_are_stable() {
             .unwrap();
         let market = context
             .replace(PricingContextChanges {
-                model_parameters: Some(model),
+                model_parameters: Some(model.into()),
                 ..Default::default()
             })
             .unwrap();
@@ -675,7 +698,7 @@ fn non_finite_solver_values_and_pricing_errors_report_computation_failure() {
     let model = BlackScholesMertonParameters::new(-1000.0, 0.0, 0.2).unwrap();
     let market = context
         .replace(PricingContextChanges {
-            model_parameters: Some(model),
+            model_parameters: Some(model.into()),
             ..Default::default()
         })
         .unwrap();
@@ -819,7 +842,11 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
     let extreme = context
         .replace(PricingContextChanges {
             spot_price: Some(1.0),
-            model_parameters: Some(BlackScholesMertonParameters::new(0.0, -709.5, 0.2).unwrap()),
+            model_parameters: Some(
+                BlackScholesMertonParameters::new(0.0, -709.5, 0.2)
+                    .unwrap()
+                    .into(),
+            ),
             ..Default::default()
         })
         .unwrap();
@@ -856,6 +883,8 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
     .unwrap();
     let model = original
         .model_parameters()
+        .as_bsm()
+        .unwrap()
         .replace(BlackScholesMertonParameterChanges {
             risk_free_rate: Some(curve.into()),
             ..Default::default()
@@ -863,7 +892,7 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
         .unwrap();
     let context = original
         .replace(PricingContextChanges {
-            model_parameters: Some(model),
+            model_parameters: Some(model.into()),
             valuation_time: Some(middle),
             ..Default::default()
         })
@@ -940,6 +969,8 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
     let short = RateTermStructure::new(start, vec![middle], vec![0.99]).unwrap();
     let model = original
         .model_parameters()
+        .as_bsm()
+        .unwrap()
         .replace(BlackScholesMertonParameterChanges {
             dividend_yield: Some(short.into()),
             ..Default::default()
@@ -947,7 +978,7 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
         .unwrap();
     let invalid = original
         .replace(PricingContextChanges {
-            model_parameters: Some(model),
+            model_parameters: Some(model.into()),
             ..Default::default()
         })
         .unwrap();
@@ -993,7 +1024,11 @@ fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
     let huge = context
         .replace(PricingContextChanges {
             spot_price: Some(1e300),
-            model_parameters: Some(BlackScholesMertonParameters::new(0.0, 0.0, 0.2).unwrap()),
+            model_parameters: Some(
+                BlackScholesMertonParameters::new(0.0, 0.0, 0.2)
+                    .unwrap()
+                    .into(),
+            ),
             ..Default::default()
         })
         .unwrap();
@@ -1013,7 +1048,11 @@ fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
     let tiny = context
         .replace(PricingContextChanges {
             spot_price: Some(1e-300),
-            model_parameters: Some(BlackScholesMertonParameters::new(0.0, 0.0, 0.2).unwrap()),
+            model_parameters: Some(
+                BlackScholesMertonParameters::new(0.0, 0.0, 0.2)
+                    .unwrap()
+                    .into(),
+            ),
             ..Default::default()
         })
         .unwrap();

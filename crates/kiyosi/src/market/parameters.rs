@@ -23,7 +23,7 @@ impl From<RateTermStructure> for Rate {
     }
 }
 impl Rate {
-    fn into_curve(self) -> Result<RateTermStructure> {
+    pub(super) fn into_curve(self) -> Result<RateTermStructure> {
         match self {
             Self::Flat(rate) => RateTermStructure::flat(rate, None),
             Self::Curve(curve) => Ok(curve),
@@ -152,13 +152,67 @@ impl BlackScholesMertonParameters {
     }
 }
 
+/// Selects a concrete pricing model at the valuation boundary.
+///
+/// Numerical engines dispatch before entering their hot loops. See
+/// [`crate::LocalVolatilityParameters::new`] for a local-volatility context example.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ModelParameters {
+    /// Supplies BSM parameters; see [`BlackScholesMertonParameters::new`].
+    BlackScholesMerton(BlackScholesMertonParameters),
+    /// Supplies local volatility; see [`crate::LocalVolatilityParameters::new`].
+    LocalVolatility(crate::LocalVolatilityParameters),
+}
+
+impl From<BlackScholesMertonParameters> for ModelParameters {
+    fn from(value: BlackScholesMertonParameters) -> Self {
+        Self::BlackScholesMerton(value)
+    }
+}
+impl From<crate::LocalVolatilityParameters> for ModelParameters {
+    fn from(value: crate::LocalVolatilityParameters) -> Self {
+        Self::LocalVolatility(value)
+    }
+}
+impl ModelParameters {
+    /// Borrows BSM parameters without changing the model.
+    ///
+    /// See [`BlackScholesMertonParameters::new`] for a BSM example.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::UnsupportedOperation`] for a local-volatility model.
+    pub fn as_bsm(&self) -> Result<&BlackScholesMertonParameters> {
+        match self {
+            Self::BlackScholesMerton(model) => Ok(model),
+            Self::LocalVolatility(_) => Err(Error::UnsupportedOperation(
+                "operation requires the BSM model".into(),
+            )),
+        }
+    }
+    /// Borrows the risk-free curve; see [`PricingContext::new`] for an example.
+    pub fn risk_free_curve(&self) -> &RateTermStructure {
+        match self {
+            Self::BlackScholesMerton(m) => m.risk_free_curve(),
+            Self::LocalVolatility(m) => m.risk_free_curve(),
+        }
+    }
+    /// Borrows the dividend curve; see [`PricingContext::new`] for an example.
+    pub fn dividend_curve(&self) -> &RateTermStructure {
+        match self {
+            Self::BlackScholesMerton(m) => m.dividend_curve(),
+            Self::LocalVolatility(m) => m.dividend_curve(),
+        }
+    }
+}
+
 /// Selects context replacements; absent fields retain their values.
 ///
 /// See [`PricingContext::replace`].
 #[derive(Clone, Debug, Default)]
 pub struct PricingContextChanges {
     /// Replaces the model parameters.
-    pub model_parameters: Option<BlackScholesMertonParameters>,
+    pub model_parameters: Option<ModelParameters>,
     /// Replaces the positive spot price.
     pub spot_price: Option<f64>,
     /// Replaces the valuation instant.
@@ -172,7 +226,7 @@ pub struct PricingContextChanges {
 /// Contract-life validation occurs at pricing time; see [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct PricingContext {
-    model_parameters: BlackScholesMertonParameters,
+    model_parameters: ModelParameters,
     spot_price: f64,
     valuation_time: Timestamp,
     calendar: TradingCalendar,
@@ -196,7 +250,7 @@ impl PricingContext {
     /// # Ok(()) }
     /// ```
     pub fn new(
-        model_parameters: BlackScholesMertonParameters,
+        model_parameters: impl Into<ModelParameters>,
         spot_price: f64,
         valuation_time: Timestamp,
     ) -> Result<Self> {
@@ -213,14 +267,15 @@ impl PricingContext {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for a non-finite or nonpositive spot,
-    /// then for valuation outside either curve's coverage.
+    /// then for valuation outside either curve or the local-volatility surface coverage.
     /// See [`Self::new`] for a construction example.
     pub fn with_calendar(
-        model_parameters: BlackScholesMertonParameters,
+        model_parameters: impl Into<ModelParameters>,
         spot_price: f64,
         valuation_time: Timestamp,
         calendar: TradingCalendar,
     ) -> Result<Self> {
+        let model_parameters = model_parameters.into();
         finite(spot_price, true)?;
         model_parameters
             .risk_free_curve()
@@ -228,6 +283,9 @@ impl PricingContext {
         model_parameters
             .dividend_curve()
             .validate_time(valuation_time)?;
+        if let ModelParameters::LocalVolatility(model) = &model_parameters {
+            model.surface().validate_time(valuation_time)?;
+        }
         Ok(Self {
             model_parameters,
             spot_price,
@@ -255,9 +313,15 @@ impl PricingContext {
         )
     }
 
-    /// Borrows the model parameters; see [`Self::new`].
-    pub fn model_parameters(&self) -> &BlackScholesMertonParameters {
+    /// Borrows the concrete model selection; see [`Self::new`].
+    ///
+    /// Match [`ModelParameters`] or use [`ModelParameters::as_bsm`] before reading
+    /// BSM fields. Python returns an owned instance of the concrete model type.
+    pub fn model_parameters(&self) -> &ModelParameters {
         &self.model_parameters
+    }
+    pub(crate) fn bsm_parameters(&self) -> Result<&BlackScholesMertonParameters> {
+        self.model_parameters.as_bsm()
     }
     /// Returns the positive spot price; see [`Self::new`].
     pub fn spot_price(&self) -> f64 {

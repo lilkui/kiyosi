@@ -196,7 +196,7 @@ impl RateTermStructure {
     }
 }
 
-fn rate(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Rate> {
+pub(crate) fn rate(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Rate> {
     if let Ok(curve) = value.extract::<PyRef<'_, RateTermStructure>>() {
         Ok(curve.0.clone().into())
     } else {
@@ -313,8 +313,8 @@ impl BlackScholesMertonParameters {
 ///
 /// Parameters
 /// ----------
-/// model_parameters : BlackScholesMertonParameters
-///     Validated BSM rates and volatility.
+/// model_parameters : BlackScholesMertonParameters or LocalVolatilityParameters
+///     Validated rates and BSM volatility or a local-volatility surface.
 /// spot_price : float
 ///     Positive finite underlying spot price.
 /// valuation_time : datetime.date or datetime.datetime
@@ -327,7 +327,8 @@ impl BlackScholesMertonParameters {
 /// ------
 /// InvalidInputError
 ///     If spot_price is nonpositive/non-finite or valuation_time is outside
-///     either rate curve. Contract-life checks occur at pricing.
+///     either rate curve or the local-volatility surface. Contract-life and
+///     expiry coverage checks occur at pricing.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PricingContext(pub(crate) kiyosi::PricingContext);
@@ -337,13 +338,13 @@ impl PricingContext {
     #[new]
     #[pyo3(signature = (*, model_parameters, spot_price, valuation_time, calendar = TradingCalendar::default()))]
     fn new(
-        model_parameters: &BlackScholesMertonParameters,
+        model_parameters: &Bound<'_, PyAny>,
         spot_price: &Bound<'_, PyAny>,
         valuation_time: &Bound<'_, PyAny>,
         calendar: TradingCalendar,
     ) -> PyResult<Self> {
         Ok(Self(domain(kiyosi::PricingContext::with_calendar(
-            model_parameters.0.clone(),
+            model_parameters_value(model_parameters)?,
             real(spot_price)?,
             timestamp(valuation_time)?,
             calendar.0,
@@ -353,8 +354,8 @@ impl PricingContext {
     ///
     /// Parameters
     /// ----------
-    /// model_parameters : BlackScholesMertonParameters, optional
-    ///     Validated BSM rates and volatility.
+    /// model_parameters : BlackScholesMertonParameters or LocalVolatilityParameters, optional
+    ///     Validated rates and BSM volatility or a local-volatility surface.
     /// spot_price : float, optional
     ///     Positive finite underlying spot price.
     /// valuation_time : datetime.date or datetime.datetime, optional
@@ -381,14 +382,7 @@ impl PricingContext {
         #[pyo3(from_py_with = supplied)] calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let update = kiyosi::PricingContextChanges {
-            model_parameters: model_parameters
-                .map(|value| -> PyResult<_> {
-                    Ok(value
-                        .extract::<PyRef<'_, BlackScholesMertonParameters>>()?
-                        .0
-                        .clone())
-                })
-                .transpose()?,
+            model_parameters: model_parameters.map(model_parameters_value).transpose()?,
             spot_price: spot_price.map(real).transpose()?,
             valuation_time: valuation_time.map(timestamp).transpose()?,
             calendar: calendar
@@ -399,8 +393,17 @@ impl PricingContext {
     }
     /// Return an owned copy of the model parameters.
     #[getter]
-    fn model_parameters(&self) -> BlackScholesMertonParameters {
-        BlackScholesMertonParameters(self.0.model_parameters().clone())
+    fn model_parameters(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match self.0.model_parameters() {
+            kiyosi::ModelParameters::BlackScholesMerton(m) => {
+                Ok(Py::new(py, BlackScholesMertonParameters(m.clone()))?.into_any())
+            }
+            kiyosi::ModelParameters::LocalVolatility(m) => Ok(Py::new(
+                py,
+                crate::local_volatility::LocalVolatilityParameters(m.clone()),
+            )?
+            .into_any()),
+        }
     }
     /// Return positive finite underlying spot price.
     #[getter]
@@ -421,5 +424,28 @@ impl PricingContext {
     #[getter]
     fn calendar(&self) -> TradingCalendar {
         TradingCalendar(self.0.calendar().clone())
+    }
+}
+
+fn model_parameters_value(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::ModelParameters> {
+    if let Ok(m) = value.extract::<PyRef<'_, BlackScholesMertonParameters>>() {
+        return Ok(m.0.clone().into());
+    }
+    if let Ok(m) = value.extract::<PyRef<'_, crate::local_volatility::LocalVolatilityParameters>>()
+    {
+        return Ok(m.0.clone().into());
+    }
+    Err(pyo3::exceptions::PyTypeError::new_err(
+        "expected BlackScholesMertonParameters or LocalVolatilityParameters",
+    ))
+}
+
+pub(crate) fn python_rate(
+    py: Python<'_>,
+    curve: &kiyosi::RateTermStructure,
+) -> PyResult<Py<PyAny>> {
+    match curve.flat_rate() {
+        Some(rate) => Ok(rate.into_pyobject(py)?.into_any().unbind()),
+        None => Ok(Py::new(py, RateTermStructure(curve.clone()))?.into_any()),
     }
 }

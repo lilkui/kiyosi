@@ -173,7 +173,10 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
             .unwrap();
             assert!((solved - 0.2).abs() < 1e-6);
             assert_eq!(a.realized_average(), history);
-            assert_eq!(context.model_parameters().volatility(), 0.2);
+            assert_eq!(
+                context.model_parameters().as_bsm().unwrap().volatility(),
+                0.2
+            );
         }
     }
 }

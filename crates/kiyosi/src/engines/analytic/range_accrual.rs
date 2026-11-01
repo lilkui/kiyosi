@@ -29,6 +29,7 @@ impl AnalyticRangeAccrualEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, settings)
     }
     /// Prices the coupon, using spot for a current observation and explicit prior hit history.
@@ -57,6 +58,7 @@ impl AnalyticRangeAccrualEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &RangeAccrualOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         let valuation = context.valuation_time();
         let expiry = option.expiry_date().start_of_day();
         if valuation > expiry {
@@ -98,7 +100,7 @@ impl AnalyticRangeAccrualEngine {
         let term = option.effective_date().start_of_day().years_until(expiry);
         let mut scale = option.notional().ln() + option.annual_coupon_rate().ln() + term.ln()
             - (dates.len() as f64).ln();
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         if future < dates.len() {
             model
                 .risk_free_curve()
@@ -145,6 +147,7 @@ impl AnalyticRangeAccrualEngine {
 
 impl PricingEngine<RangeAccrualOption> for AnalyticRangeAccrualEngine {
     fn price(&self, option: &RangeAccrualOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
     fn volatility_affects_price(

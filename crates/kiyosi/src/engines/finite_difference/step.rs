@@ -63,6 +63,57 @@ impl Stepper {
         }
     }
 
+    pub fn new_local(count: usize) -> Self {
+        let size = count - 1;
+        Self {
+            factors: vec![Factors {
+                key: [0.0; 4],
+                coefficients: vec![[0.0; 3]; size],
+                upper: vec![0.0; size],
+                multipliers: vec![0.0; size],
+                diagonal: vec![0.0; size],
+                inverse: vec![0.0; size],
+            }],
+            rhs: vec![0.0; size],
+            active: 0,
+        }
+    }
+
+    pub fn advance_local(
+        &mut self,
+        old: &[f64],
+        next: &mut [f64],
+        coefficients: impl Fn(usize) -> [f64; 3],
+        [dt, theta]: [f64; 2],
+        boundaries: [f64; 2],
+    ) -> Result<()> {
+        let factors = &mut self.factors[0];
+        let size = factors.coefficients.len();
+        for i in 0..size {
+            let [a, b, c] = coefficients(i + 1);
+            if [a, b, c].iter().any(|v| !v.is_finite()) {
+                return Err(unstable());
+            }
+            if theta == 0.0 && -dt * b > 1.0 {
+                return Err(invalid_grid("explicit finite-difference grid is unstable"));
+            }
+            factors.coefficients[i] = [a, b, c];
+            if theta != 0.0 {
+                factors.upper[i] = -theta * dt * c;
+                factors.diagonal[i] = 1.0 - theta * dt * b;
+                if i > 0 {
+                    factors.multipliers[i] = -theta * dt * a / factors.diagonal[i - 1];
+                    factors.diagonal[i] -= factors.multipliers[i] * factors.upper[i - 1];
+                }
+                if !factors.diagonal[i].is_finite() || factors.diagonal[i] == 0.0 {
+                    return Err(unstable());
+                }
+                factors.inverse[i] = 1.0 / factors.diagonal[i];
+            }
+        }
+        self.apply(old, next, dt, theta, boundaries, 0)
+    }
+
     pub fn advance(
         &mut self,
         old: &[f64],
@@ -114,6 +165,20 @@ impl Stepper {
                 self.active
             }
         };
+        self.apply(old, next, dt, theta, boundaries, active)
+    }
+
+    fn apply(
+        &mut self,
+        old: &[f64],
+        next: &mut [f64],
+        dt: f64,
+        theta: f64,
+        boundaries: [f64; 2],
+        active: usize,
+    ) -> Result<()> {
+        let count = next.len() - 1;
+        let size = count - 1;
         let factors = &self.factors[active];
         next[0] = boundaries[0];
         next[count] = boundaries[1];

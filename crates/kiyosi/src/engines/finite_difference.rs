@@ -11,6 +11,7 @@ mod autocallable;
 mod barrier;
 mod binary_barrier;
 mod grid;
+mod local_volatility;
 mod step;
 use grid::{Curve, SpatialGrid, TimeGrid};
 use step::Stepper;
@@ -108,8 +109,9 @@ fn time_to_expiry(option: &impl OptionContract, context: &PricingContext) -> Res
 }
 
 fn flat_rates(context: &PricingContext) -> Result<()> {
-    context.model_parameters().risk_free_rate()?;
-    context.model_parameters().dividend_yield()?;
+    context.bsm_parameters()?;
+    context.bsm_parameters()?.risk_free_rate()?;
+    context.bsm_parameters()?.dividend_yield()?;
     Ok(())
 }
 
@@ -134,7 +136,10 @@ fn diffusion_upper(
     risk: &Curve,
     dividend: &Curve,
 ) -> f64 {
-    let sigma = context.model_parameters().volatility();
+    let sigma = match context.model_parameters() {
+        crate::ModelParameters::BlackScholesMerton(m) => m.volatility(),
+        crate::ModelParameters::LocalVolatility(m) => m.surface().maximum_volatility(),
+    };
     let drift = risk
         .ends()
         .chain(dividend.ends())
@@ -159,12 +164,13 @@ fn native(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<(PricingResult, Option<f64>)> {
+    context.bsm_parameters()?;
     let time = time_to_expiry(option, context)?;
     let spot = context.spot_price();
     if time == 0.0 {
         return Ok((PricingResult::new(payoff.value(spot))?, None));
     }
-    let model = context.model_parameters();
+    let model = context.bsm_parameters()?;
     let sigma = model.volatility();
     let expiry = option.expiry_date().start_of_day();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
@@ -496,6 +502,12 @@ engine_settings!(
 impl FiniteDifferenceVanillaEngine {
     /// Prices a supported vanilla contract, returning intrinsic value at expiry.
     ///
+    /// Local volatility supports European price, delta and gamma only, holding the
+    /// absolute surface fixed. Time knots are inserted; sigma is evaluated at
+    /// substep midpoints. Time coverage and explicit-step stability are validated.
+    /// Local-volatility boundaries use European asymptotics; automatic domains
+    /// use the surface maximum volatility and require domain convergence checks.
+    /// Unsupported combinations return [`Error::UnsupportedOperation`], even at expiry.
     /// Accepts flat or node curves. American automatic domains expand with volatility
     /// and maturity and use sinh coordinates; European grids remain uniform in spot.
     /// See [`Self::price_with_greeks`] for an example.
@@ -516,7 +528,10 @@ impl FiniteDifferenceVanillaEngine {
 
     /// Returns spline delta/gamma and fixed-grid speed, completing other Greeks numerically.
     ///
-    /// Bumped contexts share the central spatial domain. All Greeks are absent at expiry.
+    /// Local-volatility requests support only delta and gamma; a request containing
+    /// another Greek fails with [`Error::UnsupportedOperation`]. Unsupported requests
+    /// are rejected at expiry too. Bumped contexts share the central spatial domain.
+    /// All Greeks are absent at expiry.
     /// Uses [`NumericalShiftSettings`] for bumps; unavailable stencils leave Greeks absent.
     ///
     /// # Errors
@@ -557,7 +572,22 @@ impl FiniteDifferenceVanillaEngine {
 macro_rules! vanilla_pricing {
     ($option:ty, $american:literal) => {
         impl PricingEngine<$option> for FiniteDifferenceVanillaEngine {
+            fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+                local_volatility::applicable(context, $american)
+            }
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
+                local_volatility::applicable(context, $american)?;
+                if let Some(model) = local_volatility::local_model(context) {
+                    return Ok(local_volatility::price(
+                        option,
+                        Payoff::vanilla(option.option_type(), option.strike(), false),
+                        context,
+                        model,
+                        self.settings,
+                        GreeksRequest::default(),
+                    )?
+                    .price());
+                }
                 Ok(native(
                     option,
                     Payoff::vanilla(option.option_type(), option.strike(), $american),
@@ -576,6 +606,19 @@ macro_rules! vanilla_pricing {
                 request: GreeksRequest,
                 settings: NumericalShiftSettings,
             ) -> Result<PricingResult> {
+                local_volatility::applicable(context, $american)?;
+                if let Some(model) = local_volatility::local_model(context) {
+                    request.validate()?;
+                    settings.validate()?;
+                    return local_volatility::price(
+                        option,
+                        Payoff::vanilla(option.option_type(), option.strike(), false),
+                        context,
+                        model,
+                        self.settings,
+                        request,
+                    );
+                }
                 let payoff = Payoff::vanilla(option.option_type(), option.strike(), $american);
                 analysis(
                     option,

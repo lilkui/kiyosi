@@ -203,6 +203,50 @@ class BlackScholesMertonParameters:
     @property
     def volatility(self) -> float: ...
 
+class LocalVolatilitySurface:
+    def __init__(
+        self,
+        *,
+        times: Iterable[date | datetime],
+        spots: Iterable[float],
+        values: Iterable[Iterable[float]],
+    ) -> None: ...
+    @property
+    def times(self) -> list[datetime]: ...
+    @property
+    def spots(self) -> list[float]: ...
+    @property
+    def values(self) -> list[list[float]]: ...
+    @property
+    def maximum_volatility(self) -> float: ...
+    def volatility(self, time: date | datetime, spot: float) -> float: ...
+
+class LocalVolatilityParameters:
+    def __init__(
+        self,
+        *,
+        risk_free_rate: float | RateTermStructure,
+        dividend_yield: float | RateTermStructure,
+        surface: LocalVolatilitySurface,
+    ) -> None: ...
+    def replace(
+        self,
+        *,
+        risk_free_rate: float | RateTermStructure | EllipsisType = ...,
+        dividend_yield: float | RateTermStructure | EllipsisType = ...,
+        surface: LocalVolatilitySurface | EllipsisType = ...,
+    ) -> LocalVolatilityParameters: ...
+    @property
+    def surface(self) -> LocalVolatilitySurface: ...
+    @property
+    def risk_free_rate(self) -> float | RateTermStructure: ...
+    @property
+    def dividend_yield(self) -> float | RateTermStructure: ...
+    @property
+    def risk_free_curve(self) -> RateTermStructure: ...
+    @property
+    def dividend_curve(self) -> RateTermStructure: ...
+
 class TradingCalendar:
     def __new__(cls, _token: Never, /) -> Self: ...
     @property
@@ -252,7 +296,7 @@ class PricingContext:
     def __init__(
         self,
         *,
-        model_parameters: BlackScholesMertonParameters,
+        model_parameters: BlackScholesMertonParameters | LocalVolatilityParameters,
         spot_price: float,
         valuation_time: date | datetime,
         calendar: TradingCalendar = ...,
@@ -260,13 +304,17 @@ class PricingContext:
     def replace(
         self,
         *,
-        model_parameters: BlackScholesMertonParameters | EllipsisType = ...,
+        model_parameters: BlackScholesMertonParameters
+        | LocalVolatilityParameters
+        | EllipsisType = ...,
         spot_price: float | EllipsisType = ...,
         valuation_time: date | datetime | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> PricingContext: ...
     @property
-    def model_parameters(self) -> BlackScholesMertonParameters: ...
+    def model_parameters(
+        self,
+    ) -> BlackScholesMertonParameters | LocalVolatilityParameters: ...
     @property
     def spot_price(self) -> float: ...
     @property

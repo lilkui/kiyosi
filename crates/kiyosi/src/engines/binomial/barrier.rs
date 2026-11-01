@@ -60,6 +60,7 @@ impl CoxRossRubinsteinBarrierEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Ok(self
             .native(option, context, GreeksRequest::default())?
             .price())
@@ -82,6 +83,7 @@ impl CoxRossRubinsteinBarrierEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         flat_rates(context)?;
         request.validate()?;
         self.native(option, context, request)
@@ -256,9 +258,11 @@ impl CoxRossRubinsteinBarrierEngine {
 
 impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        context.bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
     fn price_with_greeks(
@@ -268,6 +272,7 @@ impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
         request: GreeksRequest,
         _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         Self::price_with_greeks(self, option, context, request)
     }
     fn prepare_implied_volatility(

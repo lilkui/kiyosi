@@ -71,6 +71,7 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     observed_price: f64,
     settings: ImpliedVolatilitySettings,
 ) -> Result<f64> {
+    context.bsm_parameters()?;
     engine.validate_applicability(context)?;
     let s = settings;
     if !observed_price.is_finite()
@@ -94,13 +95,13 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     let s = engine.prepare_implied_volatility(option, context, s)?;
     let evaluate = |volatility| -> Result<f64> {
         let model = context
-            .model_parameters()
+            .bsm_parameters()?
             .replace(BlackScholesMertonParameterChanges {
                 volatility: Some(volatility),
                 ..Default::default()
             })?;
         let shifted = context.replace(PricingContextChanges {
-            model_parameters: Some(model),
+            model_parameters: Some(model.into()),
             ..Default::default()
         })?;
         let residual = engine.price(option, &shifted)? - observed_price;

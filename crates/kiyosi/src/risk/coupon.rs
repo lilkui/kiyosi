@@ -152,6 +152,7 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
     s: ImpliedCouponSettings,
     replace: &impl Fn(&I, f64) -> Result<I>,
 ) -> Result<f64> {
+    context.bsm_parameters()?;
     if !observed.is_finite()
         || !s.lower_bound.is_finite()
         || !s.upper_bound.is_finite()

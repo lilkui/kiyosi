@@ -60,7 +60,9 @@ fn prepared_scheduled_prices_match_scalar_after_spot_and_model_changes() {
         let model = spot
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(-0.02, 0.01, 0.35).unwrap(),
+                    BlackScholesMertonParameters::new(-0.02, 0.01, 0.35)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -353,7 +355,7 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
         let model = BlackScholesMertonParameters::new(0.04, 0.01, sigma).unwrap();
         let invalid = context
             .replace(PricingContextChanges {
-                model_parameters: Some(model),
+                model_parameters: Some(model.into()),
                 ..Default::default()
             })
             .unwrap();
@@ -385,6 +387,8 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
     .unwrap();
     let model = context
         .model_parameters()
+        .as_bsm()
+        .unwrap()
         .replace(BlackScholesMertonParameterChanges {
             risk_free_rate: Some(curve.into()),
             ..Default::default()
@@ -392,7 +396,7 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
         .unwrap();
     let nodes = context
         .replace(PricingContextChanges {
-            model_parameters: Some(model),
+            model_parameters: Some(model.into()),
             ..Default::default()
         })
         .unwrap();
@@ -479,7 +483,10 @@ fn greeks_sensitivities_and_solving_share_scalar_semantics() {
         solve(&option, &context, -1.0).unwrap_err(),
         Error::RootNotBracketed(_)
     ));
-    assert_eq!(context.model_parameters().volatility(), 0.2);
+    assert_eq!(
+        context.model_parameters().as_bsm().unwrap().volatility(),
+        0.2
+    );
 }
 
 #[test]

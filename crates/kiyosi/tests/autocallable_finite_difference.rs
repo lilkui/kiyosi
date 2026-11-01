@@ -207,7 +207,10 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
         Error::UnsupportedOperation(_)
     ));
     assert_eq!(note, original);
-    assert_eq!(context.model_parameters().volatility(), 0.2);
+    assert_eq!(
+        context.model_parameters().as_bsm().unwrap().volatility(),
+        0.2
+    );
 }
 
 #[test]
@@ -293,11 +296,14 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
         .replace(PricingContextChanges {
             model_parameters: Some(
                 ctx.model_parameters()
+                    .as_bsm()
+                    .unwrap()
                     .replace(BlackScholesMertonParameterChanges {
                         risk_free_rate: Some(curve.into()),
                         ..Default::default()
                     })
-                    .unwrap(),
+                    .unwrap()
+                    .into(),
             ),
             ..Default::default()
         })
@@ -311,11 +317,14 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
         .replace(PricingContextChanges {
             model_parameters: Some(
                 ctx.model_parameters()
+                    .as_bsm()
+                    .unwrap()
                     .replace(BlackScholesMertonParameterChanges {
                         risk_free_rate: Some(short.into()),
                         ..Default::default()
                     })
-                    .unwrap(),
+                    .unwrap()
+                    .into(),
             ),
             ..Default::default()
         })

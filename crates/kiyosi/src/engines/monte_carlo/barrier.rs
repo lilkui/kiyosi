@@ -71,6 +71,7 @@ impl MonteCarloBarrierEngine {
     ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Ok(self
             .native(
                 Contract::Single(option),
@@ -130,6 +131,7 @@ impl MonteCarloBarrierEngine {
         request: GreeksRequest,
         spot_shift: f64,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         self.validate_applicability(context)?;
         request.validate()?;
         let settings = NumericalShiftSettings {
@@ -195,7 +197,7 @@ impl MonteCarloBarrierEngine {
             result.set(request, Greek::Gamma, 0.0)?;
             return Ok(result);
         }
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         let rate = model.risk_free_rate()?;
         let dividend = model.dividend_yield()?;
         let sigma = model.volatility();
@@ -457,8 +459,9 @@ impl MonteCarloBarrierEngine {
 
 impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.model_parameters().risk_free_rate()?;
-        context.model_parameters().dividend_yield()?;
+        context.bsm_parameters()?;
+        context.bsm_parameters()?.risk_free_rate()?;
+        context.bsm_parameters()?.dividend_yield()?;
         Ok(())
     }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<BarrierOption> + '_>>> {
@@ -470,6 +473,7 @@ impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
         })))
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
     fn price_with_greeks(
@@ -479,6 +483,7 @@ impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         Self::price_with_greeks(self, option, context, request, settings.spot_shift)
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {

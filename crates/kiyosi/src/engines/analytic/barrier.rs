@@ -41,6 +41,7 @@ impl AnalyticBarrierEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         price(option, context, None)
     }
     /// Computes requested scalar numerical Greeks with shared bump defaults.
@@ -58,6 +59,7 @@ impl AnalyticBarrierEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, settings)
     }
 }
@@ -66,8 +68,9 @@ fn price(
     context: &PricingContext,
     schedule: Option<&std::cell::OnceCell<ScheduleValidation>>,
 ) -> Result<f64> {
-    context.model_parameters().risk_free_rate()?;
-    context.model_parameters().dividend_yield()?;
+    context.bsm_parameters()?;
+    context.bsm_parameters()?.risk_free_rate()?;
+    context.bsm_parameters()?.dividend_yield()?;
     validate_life(option, context)?;
     let cached = schedule
         .and_then(|schedule| schedule.get())
@@ -117,7 +120,7 @@ pub(super) fn resolved_price_with_state(
         checked(scaled_cash(
             option.rebate(),
             context
-                .model_parameters()
+                .bsm_parameters()?
                 .risk_free_curve()
                 .log_factor(time, option.expiry_date().start_of_day())?,
         ))
@@ -145,11 +148,13 @@ pub(super) fn resolved_price_with_state(
 }
 impl PricingEngine<BarrierOption> for AnalyticBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.model_parameters().risk_free_rate()?;
-        context.model_parameters().dividend_yield()?;
+        context.bsm_parameters()?;
+        context.bsm_parameters()?.risk_free_rate()?;
+        context.bsm_parameters()?.dividend_yield()?;
         Ok(())
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<BarrierOption> + '_>>> {
@@ -166,9 +171,11 @@ struct ScheduleValidation {
 struct BarrierPricer(std::cell::OnceCell<ScheduleValidation>);
 impl PricingEngine<BarrierOption> for BarrierPricer {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        context.bsm_parameters()?;
         AnalyticBarrierEngine.validate_applicability(context)
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         price(option, context, Some(&self.0))
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
@@ -181,7 +188,7 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
         .valuation_time()
         .years_until(option.expiry_date().start_of_day());
     let spot = context.spot_price();
-    let model = context.model_parameters();
+    let model = context.bsm_parameters()?;
     let rate = model.risk_free_rate()?;
     let dividend = model.dividend_yield()?;
     let sigma = model.volatility();

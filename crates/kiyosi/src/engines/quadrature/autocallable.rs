@@ -80,6 +80,7 @@ impl QuadratureAutocallableEngine {
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<f64> {
+        context.bsm_parameters()?;
         price(option, context, self.settings, None)
     }
     /// Computes requested scalar sensitivities using shared core bump defaults.
@@ -99,14 +100,17 @@ impl QuadratureAutocallableEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, shifts)
     }
 }
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for QuadratureAutocallableEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        context.bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AutocallableNote<T>> + '_>>> {
@@ -129,9 +133,11 @@ struct Request<T: AutocallableTerms> {
 }
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for Request<T> {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        context.bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         let mut curve = self.curve.borrow_mut();
         price(option, context, self.settings, Some(&mut curve))
     }
@@ -306,6 +312,7 @@ fn price<T: AutocallableTerms>(
     settings: QuadratureSettings,
     prepared: Option<&mut Option<PreparedCurve<T>>>,
 ) -> Result<f64> {
+    context.bsm_parameters()?;
     let (rate, dividend) = flat_rates(context)?;
     validate(note, context)?;
     let state = initial(note, context);
@@ -339,7 +346,7 @@ fn price<T: AutocallableTerms>(
     let dates = future_event_dates(note, context, layers)?;
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *note
-            && c.model == *context.model_parameters()
+            && context.bsm_parameters().is_ok_and(|m| c.model == *m)
             && c.valuation == context.valuation_time()
             && c.knocked_in == state.knocked_in
             && c.dates == dates
@@ -374,7 +381,7 @@ fn price<T: AutocallableTerms>(
     }
     breaks.sort_by(f64::total_cmp);
     breaks.dedup();
-    let sigma = context.model_parameters().volatility();
+    let sigma = context.bsm_parameters()?.volatility();
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
     let horizon = context
         .valuation_time()
@@ -457,7 +464,7 @@ fn price<T: AutocallableTerms>(
             if let Some(prepared) = prepared {
                 *prepared = Some(PreparedCurve {
                     option: note.clone(),
-                    model: context.model_parameters().clone(),
+                    model: context.bsm_parameters()?.clone(),
                     valuation: context.valuation_time(),
                     knocked_in: state.knocked_in,
                     nodes,

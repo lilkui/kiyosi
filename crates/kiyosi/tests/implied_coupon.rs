@@ -547,6 +547,8 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         RateTermStructure::new(date(1, 1).into(), vec![date(4, 1).into()], vec![0.99]).unwrap();
     let model = context
         .model_parameters()
+        .as_bsm()
+        .unwrap()
         .replace(BlackScholesMertonParameterChanges {
             risk_free_rate: Some(curve.into()),
             ..Default::default()
@@ -554,7 +556,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         .unwrap();
     let curved = context
         .replace(PricingContextChanges {
-            model_parameters: Some(model),
+            model_parameters: Some(model.into()),
             ..Default::default()
         })
         .unwrap();

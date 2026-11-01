@@ -59,6 +59,7 @@ impl QuadratureAccumulatorEngine {
     /// ([`Error::InvalidInput`]). Non-finite results or unrepresentable grids
     /// and transitions return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         price(option, context, self.settings, None)
     }
     /// Computes requested scalar Greeks with shared core bump defaults; see [`Self::new`].
@@ -78,14 +79,17 @@ impl QuadratureAccumulatorEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, shifts)
     }
 }
 impl PricingEngine<Accumulator> for QuadratureAccumulatorEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        context.bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<Accumulator> + '_>>> {
@@ -108,9 +112,11 @@ struct Request {
 }
 impl PricingEngine<Accumulator> for Request {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        context.bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         let mut curve = self.curve.borrow_mut();
         price(option, context, self.settings, Some(&mut curve))
     }
@@ -136,6 +142,7 @@ fn price(
     settings: QuadratureSettings,
     prepared: Option<&mut Option<PreparedCurve>>,
 ) -> Result<f64> {
+    context.bsm_parameters()?;
     let (rate, dividend) = flat_rates(context)?;
     option.validate_pricing(context)?;
     let horizon = context
@@ -155,7 +162,7 @@ fn price(
     let dates = option.future_observation_dates(context)?;
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *option
-            && c.model == *context.model_parameters()
+            && context.bsm_parameters().is_ok_and(|m| c.model == *m)
             && c.valuation == context.valuation_time()
             && c.dates == dates
     }) {
@@ -173,7 +180,7 @@ fn price(
         OptionType::Put => -1.0,
     };
     let knocks_out = |point: f64| sign * point >= sign * knock_out;
-    let sigma = context.model_parameters().volatility();
+    let sigma = context.bsm_parameters()?.volatility();
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
     let transition = |time: f64| -> Result<(f64, f64, f64)> {
         let drift = drift_rate * time;
@@ -336,7 +343,7 @@ fn price(
             if let Some(prepared) = prepared {
                 *prepared = Some(PreparedCurve {
                     option: option.clone(),
-                    model: context.model_parameters().clone(),
+                    model: context.bsm_parameters()?.clone(),
                     valuation: context.valuation_time(),
                     dates,
                     nodes,

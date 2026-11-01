@@ -20,7 +20,11 @@ pub(crate) fn symmetric_shift(value: f64, requested: f64) -> f64 {
     }
 }
 
-/// Computes numerical price sensitivities for scalar engines.
+/// Computes BSM numerical price sensitivities for scalar engines.
+///
+/// Local volatility returns [`crate::Error::UnsupportedOperation`]; use
+/// [`crate::FiniteDifferenceVanillaEngine::price_with_greeks`] for native
+/// fixed-surface delta and gamma.
 ///
 /// Uses rounded symmetric absolute bumps; collapsed, asymmetric or nonpositive
 /// stencils are unavailable.
@@ -62,6 +66,7 @@ pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     request: GreeksRequest,
     settings: NumericalShiftSettings,
 ) -> Result<PricingResult> {
+    context.bsm_parameters()?;
     engine.validate_applicability(context)?;
     request.validate()?;
     settings.validate()?;
@@ -106,7 +111,7 @@ pub(crate) fn complete_greeks(
     if !Greek::ALL.into_iter().any(want) {
         return Ok(result);
     }
-    let model = context.model_parameters();
+    let model = context.bsm_parameters()?;
     let spot = context.spot_price();
     let vol = model.volatility();
     let rate = model.risk_free_curve().flat_rate().unwrap_or(0.0);
@@ -146,7 +151,7 @@ pub(crate) fn complete_greeks(
             ..Default::default()
         })?;
         context.replace(PricingContextChanges {
-            model_parameters: Some(parameters),
+            model_parameters: Some(parameters.into()),
             spot_price: Some(spot),
             valuation_time: Some(valuation_time),
             ..Default::default()
@@ -308,7 +313,7 @@ pub(crate) fn complete_greeks(
                     ..Default::default()
                 })?;
                 let shifted = context.replace(PricingContextChanges {
-                    model_parameters: Some(model),
+                    model_parameters: Some(model.into()),
                     ..Default::default()
                 })?;
                 Ok(native(&shifted, GreeksRequest::default())?.price())
@@ -461,7 +466,7 @@ mod tests {
             |context, _| {
                 calls.set(calls.get() + 1);
                 PricingResult::new(
-                    context.spot_price() + 10.0 * context.model_parameters().volatility(),
+                    context.spot_price() + 10.0 * context.bsm_parameters()?.volatility(),
                 )
             },
         )
@@ -509,7 +514,11 @@ mod tests {
         let (option, context) = inputs();
         let context = context
             .replace(PricingContextChanges {
-                model_parameters: Some(BlackScholesMertonParameters::new(0.125, 0.0, 0.5).unwrap()),
+                model_parameters: Some(
+                    BlackScholesMertonParameters::new(0.125, 0.0, 0.5)
+                        .unwrap()
+                        .into(),
+                ),
                 valuation_time: Some(Date::new(2025, 1, 3).unwrap().into()),
                 ..Default::default()
             })
@@ -537,7 +546,7 @@ mod tests {
                     .micros_until(context.valuation_time()) as f64
                     / 86_400_000_000.0;
                 let spot = context.spot_price();
-                let model = context.model_parameters();
+                let model = context.bsm_parameters()?;
                 PricingResult::new(
                     spot.powi(3) * (1.0 + model.volatility().powi(2))
                         + spot.powi(2) * days
@@ -600,7 +609,7 @@ mod tests {
         let evaluate = |context: &PricingContext, _| {
             calls.set(calls.get() + 1);
             PricingResult::new(
-                context.spot_price().powi(2) * context.model_parameters().volatility().powi(2),
+                context.spot_price().powi(2) * context.bsm_parameters()?.volatility().powi(2),
             )
         };
         let result = complete_greeks(

@@ -43,6 +43,7 @@ impl AnalyticBinaryBarrierEngine {
     where
         Self: PricingEngine<I>,
     {
+        context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price(self, option, context)
     }
     /// Computes requested numerical Greeks with shared bump defaults; see [`Self::price`].
@@ -63,6 +64,7 @@ impl AnalyticBinaryBarrierEngine {
     where
         Self: PricingEngine<I>,
     {
+        context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, settings)
     }
 }
@@ -72,7 +74,7 @@ impl Contract<'_> {
         if let Some(digital) = self.digital {
             AnalyticDigitalEngine.price(digital, context)
         } else {
-            let model = context.model_parameters();
+            let model = context.bsm_parameters()?;
             checked(scaled_cash(
                 self.payout.unwrap_or(context.spot_price()),
                 -if self.payout.is_some() {
@@ -84,8 +86,9 @@ impl Contract<'_> {
         }
     }
     fn price(&self, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         let option = self.monitoring;
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         let rate = model.risk_free_rate()?;
         let dividend = model.dividend_yield()?;
         let valuation = context.valuation_time();
@@ -232,11 +235,13 @@ macro_rules! pricing_engine {
     ($contract:ty) => {
         impl PricingEngine<$contract> for AnalyticBinaryBarrierEngine {
             fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-                context.model_parameters().risk_free_rate()?;
-                context.model_parameters().dividend_yield()?;
+                context.bsm_parameters()?;
+                context.bsm_parameters()?.risk_free_rate()?;
+                context.bsm_parameters()?.dividend_yield()?;
                 Ok(())
             }
             fn price(&self, option: &$contract, context: &PricingContext) -> Result<f64> {
+                context.bsm_parameters()?;
                 option.contract().price(context)
             }
             fn volatility_affects_price(

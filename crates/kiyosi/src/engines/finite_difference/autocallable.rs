@@ -23,6 +23,7 @@ impl FiniteDifferenceAutocallableEngine {
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<f64> {
+        context.bsm_parameters()?;
         Ok(native(
             option,
             context,
@@ -70,6 +71,7 @@ impl FiniteDifferenceAutocallableEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         analysis(option, context, self.settings, request, shifts, native)
     }
 }
@@ -77,6 +79,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
     for FiniteDifferenceAutocallableEngine
 {
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn price_with_greeks(
@@ -86,6 +89,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         self.price_with_greeks(option, context, request, shifts)
     }
     fn volatility_affects_price(
@@ -257,6 +261,7 @@ fn native<T: AutocallableTerms>(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<(PricingResult, Option<f64>)> {
+    context.bsm_parameters()?;
     validate(note, context)?;
     let state = initial(note, context);
     let h = crate::risk::numerical::symmetric_shift(context.spot_price(), shifts.spot_shift);
@@ -276,7 +281,7 @@ fn native<T: AutocallableTerms>(
     let t = note.view();
     let daily = t.daily_knock_in();
     let layered = daily && !state.knocked_in && note.knock_in_affects_payoff();
-    let model = context.model_parameters();
+    let model = context.bsm_parameters()?;
     let expiry = note.expiry_date().start_of_day();
     let time = context.valuation_time().years_until(expiry);
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;

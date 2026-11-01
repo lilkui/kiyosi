@@ -43,6 +43,7 @@ impl AnalyticEuropeanEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         request.validate()?;
         let mut result = PricingResult::new(self.price(option, context)?)?;
         let valuation = context.valuation_time();
@@ -51,7 +52,7 @@ impl AnalyticEuropeanEngine {
         if time == 0.0 {
             return Ok(result);
         }
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         let spot = context.spot_price();
         let strike = option.strike();
         let sigma = model.volatility();
@@ -191,6 +192,7 @@ impl AnalyticEuropeanEngine {
     /// coverage, and [`Error::ComputationFailure`] for non-finite results.
     /// Inputs remain unchanged.
     pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         let valuation = context.valuation_time();
         let expiry = option.expiry_date().start_of_day();
         if valuation < option.effective_date().start_of_day() || valuation > expiry {
@@ -198,7 +200,7 @@ impl AnalyticEuropeanEngine {
                 "valuation must be within the contract life".into(),
             ));
         }
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         model
             .risk_free_curve()
             .validate_horizon(valuation, expiry)?;
@@ -229,6 +231,7 @@ impl AnalyticEuropeanEngine {
 
 impl PricingEngine for AnalyticEuropeanEngine {
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         AnalyticEuropeanEngine::price(self, option, context)
     }
     fn price_with_greeks(
@@ -238,6 +241,7 @@ impl PricingEngine for AnalyticEuropeanEngine {
         request: GreeksRequest,
         _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         Self::price_with_greeks(self, option, context, request)
     }
 }

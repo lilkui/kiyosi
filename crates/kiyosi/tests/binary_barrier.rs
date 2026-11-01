@@ -344,6 +344,8 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
     .unwrap();
     let model = context
         .model_parameters()
+        .as_bsm()
+        .unwrap()
         .replace(BlackScholesMertonParameterChanges {
             risk_free_rate: Some(curve.into()),
             ..Default::default()
@@ -351,7 +353,7 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
         .unwrap();
     let curves = context
         .replace(PricingContextChanges {
-            model_parameters: Some(model),
+            model_parameters: Some(model.into()),
             ..Default::default()
         })
         .unwrap();
@@ -359,7 +361,10 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
         engine.price(&option, &curves).unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    assert_eq!(context.model_parameters().volatility(), 0.2);
+    assert_eq!(
+        context.model_parameters().as_bsm().unwrap().volatility(),
+        0.2
+    );
     assert_eq!(option.payout(), Some(10.0));
 }
 

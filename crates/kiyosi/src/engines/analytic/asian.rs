@@ -46,6 +46,7 @@ impl AnalyticGeometricAveragePriceEngine {
         option: &GeometricAveragePriceOption,
         context: &PricingContext,
     ) -> Result<f64> {
+        context.bsm_parameters()?;
         let o = &option.0;
         let tau = o.validate(context)?;
         if tau == 0.0 {
@@ -62,7 +63,7 @@ impl AnalyticGeometricAveragePriceEngine {
         let lead = valuation.years_until(start).max(0.0);
         let future = valuation.max(start).years_until(expiry);
         let weight = future / period;
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         let sigma = model.volatility();
         let mut times = vec![valuation, start.max(valuation), expiry];
         for curve in [model.risk_free_curve(), model.dividend_curve()] {
@@ -178,12 +179,13 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
         option: &ArithmeticAveragePriceOption,
         context: &PricingContext,
     ) -> Result<f64> {
+        context.bsm_parameters()?;
         let o = &option.0;
         let tau = o.validate(context)?;
         if tau == 0.0 {
             return o.settlement(context);
         }
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         if !model.risk_free_curve().is_flat() || !model.dividend_curve().is_flat() {
             return Err(Error::UnsupportedOperation(
                 "Turnbull-Wakeman requires flat rates".into(),
@@ -313,6 +315,7 @@ macro_rules! asian_analytics {
                 request: GreeksRequest,
                 settings: NumericalShiftSettings,
             ) -> Result<PricingResult> {
+                context.bsm_parameters()?;
                 crate::numerical_greeks(self, option, context, request, settings)
             }
         }
@@ -328,6 +331,7 @@ asian_analytics!(
 );
 impl PricingEngine<GeometricAveragePriceOption> for AnalyticGeometricAveragePriceEngine {
     fn price(&self, option: &GeometricAveragePriceOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
 }
@@ -337,6 +341,7 @@ impl PricingEngine<ArithmeticAveragePriceOption> for TurnbullWakemanArithmeticAv
         option: &ArithmeticAveragePriceOption,
         context: &PricingContext,
     ) -> Result<f64> {
+        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
     fn volatility_affects_price(

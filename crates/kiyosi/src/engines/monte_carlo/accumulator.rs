@@ -76,6 +76,7 @@ impl MonteCarloAccumulatorEngine {
     ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         let (sample, _, _) = self.sample(option, context, false)?;
         scaled_value(sample.scale, sample.mean, 0.0)
     }
@@ -108,6 +109,7 @@ impl MonteCarloAccumulatorEngine {
         option: &Accumulator,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
+        context.bsm_parameters()?;
         let (sample, pairs, known) = self.sample(option, context, true)?;
         estimate(self.settings, sample, pairs, 0.0, known)
     }
@@ -118,7 +120,7 @@ impl MonteCarloAccumulatorEngine {
         context: &PricingContext,
         statistics: bool,
     ) -> Result<(Moments, Moments, bool)> {
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         let rate = model.risk_free_rate()?;
         let dividend = model.dividend_yield()?;
         option.validate_pricing(context)?;
@@ -214,14 +216,16 @@ impl MonteCarloAccumulatorEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, shifts)
     }
 }
 
 impl PricingEngine<Accumulator> for MonteCarloAccumulatorEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.model_parameters().risk_free_rate()?;
-        context.model_parameters().dividend_yield()?;
+        context.bsm_parameters()?;
+        context.bsm_parameters()?.risk_free_rate()?;
+        context.bsm_parameters()?.dividend_yield()?;
         Ok(())
     }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<Accumulator> + '_>>> {
@@ -233,6 +237,7 @@ impl PricingEngine<Accumulator> for MonteCarloAccumulatorEngine {
         })))
     }
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {

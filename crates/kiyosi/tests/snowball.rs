@@ -283,7 +283,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     )
     .unwrap();
     assert!((solved - 0.3).abs() < 1e-6);
-    assert_eq!(ctx.model_parameters().volatility(), 0.3);
+    assert_eq!(ctx.model_parameters().as_bsm().unwrap().volatility(), 0.3);
     let mut t = terms();
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     t.barrier_state = Some(AutocallableBarrierState::None);

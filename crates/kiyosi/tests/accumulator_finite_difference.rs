@@ -39,7 +39,7 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
         AnalyticDigitalEngine.price(&asset, context).unwrap()
             - AnalyticDigitalEngine.price(&cash, context).unwrap()
     };
-    let model = context.model_parameters();
+    let model = context.model_parameters().as_bsm().unwrap();
     let end = option.expiry_date().into();
     let holding = option.accumulated_quantity()
         * (context.spot_price()
@@ -382,11 +382,14 @@ fn spline_and_mixed_greeks_match_independent_public_repricing() {
                         model_parameters: Some(
                             context
                                 .model_parameters()
+                                .as_bsm()
+                                .unwrap()
                                 .replace(BlackScholesMertonParameterChanges {
                                     volatility: Some(center + sign * bump),
                                     ..Default::default()
                                 })
-                                .unwrap(),
+                                .unwrap()
+                                .into(),
                         ),
                         ..Default::default()
                     })
@@ -469,11 +472,14 @@ fn node_curves_price_fixed_holdings_and_only_future_cashflows_require_coverage()
             model_parameters: Some(
                 context
                     .model_parameters()
+                    .as_bsm()
+                    .unwrap()
                     .replace(BlackScholesMertonParameterChanges {
                         risk_free_rate: Some(short.into()),
                         ..Default::default()
                     })
-                    .unwrap(),
+                    .unwrap()
+                    .into(),
             ),
             ..Default::default()
         })

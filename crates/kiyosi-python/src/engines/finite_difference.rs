@@ -60,7 +60,11 @@ macro_rules! fd_engine {
         /// also accepts TouchOption. The autocallable engine accepts all snowball
         /// variants and PhoenixOption. Other engines accept their named product.
         /// Digital pricing requires explicitly flat rates; other families accept
-        /// deterministic rate curves.
+        /// deterministic rate curves. Local volatility supports European vanilla
+        /// price, delta and gamma only. Other products, engines, Greeks (including
+        /// "all") and inverse solves raise UnsupportedOperationError. Sigma uses
+        /// fixed absolute surface coordinates; Greeks are absent at expiry.
+        /// Automatic local-volatility domains require convergence checks.
         #[pyclass(frozen, module = "kiyosi._native")]
         pub(crate) struct $name(pub(crate) kiyosi::$name);
 

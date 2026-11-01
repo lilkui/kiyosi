@@ -17,11 +17,11 @@ impl AverageTerms {
     pub(crate) fn coverage(&self, context: &PricingContext) -> Result<()> {
         let expiry = self.terms.expiry_date().start_of_day();
         context
-            .model_parameters()
+            .bsm_parameters()?
             .risk_free_curve()
             .validate_horizon(context.valuation_time(), expiry)?;
         context
-            .model_parameters()
+            .bsm_parameters()?
             .dividend_curve()
             .validate_horizon(context.valuation_time(), expiry)
     }

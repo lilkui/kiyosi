@@ -587,6 +587,8 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
     for risk_free in [false, true] {
         let model = context
             .model_parameters()
+            .as_bsm()
+            .unwrap()
             .replace(BlackScholesMertonParameterChanges {
                 risk_free_rate: risk_free.then(|| curve.clone().into()),
                 dividend_yield: (!risk_free).then(|| curve.clone().into()),
@@ -595,7 +597,7 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
             .unwrap();
         let curved = context
             .replace(PricingContextChanges {
-                model_parameters: Some(model),
+                model_parameters: Some(model.into()),
                 ..Default::default()
             })
             .unwrap();

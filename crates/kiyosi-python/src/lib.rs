@@ -5,6 +5,7 @@ mod conversions;
 mod engines;
 mod error;
 mod instruments;
+mod local_volatility;
 mod market;
 mod registration;
 mod risk;

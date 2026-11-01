@@ -620,11 +620,14 @@ fn digital_analysis_preserves_settings_solver_and_curve_horizon_failures() {
                 model_parameters: Some(
                     context
                         .model_parameters()
+                        .as_bsm()
+                        .unwrap()
                         .replace(BlackScholesMertonParameterChanges {
                             dividend_yield: Some(curve.into()),
                             ..Default::default()
                         })
-                        .unwrap(),
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -644,7 +647,10 @@ fn digital_analysis_preserves_settings_solver_and_curve_horizon_failures() {
             .unwrap_err(),
             Error::InvalidInput(_)
         ));
-        assert_eq!(context.model_parameters().volatility(), 0.2);
+        assert_eq!(
+            context.model_parameters().as_bsm().unwrap().volatility(),
+            0.2
+        );
         assert_eq!(
             AnalyticDigitalEngine.price(&option, &context).unwrap(),
             quote

@@ -198,7 +198,10 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
     .unwrap();
     assert!((sigma - 0.2).abs() < 1e-7);
     assert_eq!(engine.price(&option, &context).unwrap(), result.price());
-    assert_eq!(context.model_parameters().volatility(), 0.2);
+    assert_eq!(
+        context.model_parameters().as_bsm().unwrap().volatility(),
+        0.2
+    );
 }
 
 #[test]
@@ -217,7 +220,9 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
     let context = market(150.0)
         .replace(PricingContextChanges {
             model_parameters: Some(
-                BlackScholesMertonParameters::new(curve.clone(), curve, 1e-12).unwrap(),
+                BlackScholesMertonParameters::new(curve.clone(), curve, 1e-12)
+                    .unwrap()
+                    .into(),
             ),
             ..Default::default()
         })
@@ -243,7 +248,11 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
         RateTermStructure::new(t.effective_date.into(), vec![first.into()], vec![0.99]).unwrap();
     let uncovered = context
         .replace(PricingContextChanges {
-            model_parameters: Some(BlackScholesMertonParameters::new(short, 0.0, 0.2).unwrap()),
+            model_parameters: Some(
+                BlackScholesMertonParameters::new(short, 0.0, 0.2)
+                    .unwrap()
+                    .into(),
+            ),
             ..Default::default()
         })
         .unwrap();

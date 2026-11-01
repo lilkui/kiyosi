@@ -203,11 +203,14 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                 .replace(PricingContextChanges {
                     model_parameters: Some(
                         base.model_parameters()
+                            .as_bsm()
+                            .unwrap()
                             .replace(BlackScholesMertonParameterChanges {
                                 risk_free_rate: Some(curve.into()),
                                 ..Default::default()
                             })
-                            .unwrap(),
+                            .unwrap()
+                            .into(),
                     ),
                     ..Default::default()
                 })

@@ -333,7 +333,10 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
             assert_eq!(unavailable.get(Greek::Gamma), None);
             assert_eq!(unavailable.price(), all.price());
             assert_eq!(engine.price(&put, &context).unwrap(), all.price());
-            assert_eq!(context.model_parameters().volatility(), 0.2);
+            assert_eq!(
+                context.model_parameters().as_bsm().unwrap().volatility(),
+                0.2
+            );
         }
     }
     let unseeded = MonteCarloVanillaEngine::with_step_count(
@@ -445,6 +448,8 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
         RateTermStructure::new(put.effective_date().into(), vec![expiry], vec![0.95]).unwrap();
     let model = context
         .model_parameters()
+        .as_bsm()
+        .unwrap()
         .replace(BlackScholesMertonParameterChanges {
             risk_free_rate: Some(curve.into()),
             ..Default::default()
@@ -452,7 +457,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
         .unwrap();
     let node = context
         .replace(PricingContextChanges {
-            model_parameters: Some(model),
+            model_parameters: Some(model.into()),
             valuation_time: Some(expiry),
             ..Default::default()
         })
@@ -498,5 +503,8 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
         Error::ComputationFailure(_)
     ));
     assert_eq!(engine.price(&put, &context).unwrap(), price);
-    assert_eq!(context.model_parameters().volatility(), 0.2);
+    assert_eq!(
+        context.model_parameters().as_bsm().unwrap().volatility(),
+        0.2
+    );
 }

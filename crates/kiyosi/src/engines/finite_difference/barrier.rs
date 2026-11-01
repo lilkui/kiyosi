@@ -18,6 +18,7 @@ impl FiniteDifferenceBarrierEngine {
     /// degenerate grids, or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Ok(native_barrier(
             option,
             context,
@@ -65,12 +66,14 @@ impl FiniteDifferenceBarrierEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         analysis(option, context, self.settings, request, shifts)
     }
 }
 
 impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn price_with_greeks(
@@ -80,6 +83,7 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         self.price_with_greeks(option, context, request, shifts)
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
@@ -155,6 +159,7 @@ impl FiniteDifferenceDoubleBarrierEngine {
     /// including rejection of boundaries that do not exceed spot, strike and both barriers.
     /// Inputs and engine settings remain unchanged on every outcome.
     pub fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Ok(native_barrier(
             option,
             context,
@@ -200,11 +205,13 @@ impl FiniteDifferenceDoubleBarrierEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         analysis(option, context, self.settings, request, shifts)
     }
 }
 impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine {
     fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn price_with_greeks(
@@ -214,6 +221,7 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         self.price_with_greeks(option, context, request, shifts)
     }
     fn volatility_affects_price(
@@ -238,6 +246,7 @@ fn native_barrier(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<PricingResult> {
+    context.bsm_parameters()?;
     let terms = option.monitoring();
     let upper_barrier = option.upper_barrier();
     validate_life(terms, context)?;
@@ -248,7 +257,7 @@ fn native_barrier(
     let time = context
         .valuation_time()
         .years_until(option.expiry_date().start_of_day());
-    let model = context.model_parameters();
+    let model = context.bsm_parameters()?;
     let expiry = option.expiry_date().start_of_day();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;

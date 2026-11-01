@@ -262,7 +262,10 @@ macro_rules! contract_tests {
                     .unwrap();
                 assert!(result.values().iter().all(Option::is_some));
                 assert_eq!(option.realized_average(), 0.0);
-                assert_eq!(context.model_parameters().volatility(), 0.2);
+                assert_eq!(
+                    context.model_parameters().as_bsm().unwrap().volatility(),
+                    0.2
+                );
             }
         }
     };
@@ -283,7 +286,11 @@ fn seasoned_and_forward_geometric_prices_match_independent_regressions() {
     let (start, end) = dates();
     let context = market(Date::new(2025, 7, 1).unwrap())
         .replace(PricingContextChanges {
-            model_parameters: Some(BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap()),
+            model_parameters: Some(
+                BlackScholesMertonParameters::new(0.05, 0.02, 0.2)
+                    .unwrap()
+                    .into(),
+            ),
             ..Default::default()
         })
         .unwrap();
@@ -425,7 +432,11 @@ fn arithmetic_solver_prices_only_the_requested_volatility_bracket() {
     let quote = engine.price(&option, &market(start)).unwrap();
     let context = market(start)
         .replace(PricingContextChanges {
-            model_parameters: Some(BlackScholesMertonParameters::new(0.04, 0.01, 100.0).unwrap()),
+            model_parameters: Some(
+                BlackScholesMertonParameters::new(0.04, 0.01, 100.0)
+                    .unwrap()
+                    .into(),
+            ),
             ..Default::default()
         })
         .unwrap();

@@ -446,11 +446,14 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
             model_parameters: Some(
                 context
                     .model_parameters()
+                    .as_bsm()
+                    .unwrap()
                     .replace(BlackScholesMertonParameterChanges {
                         risk_free_rate: Some(curve.into()),
                         ..Default::default()
                     })
-                    .unwrap(),
+                    .unwrap()
+                    .into(),
             ),
             ..Default::default()
         })

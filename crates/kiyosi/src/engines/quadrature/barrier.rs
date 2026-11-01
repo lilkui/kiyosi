@@ -100,6 +100,7 @@ impl QuadratureBarrierEngine {
     /// missing or impossible history, checked in that order. Unrepresentable grids,
     /// transitions or results return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         price(option, context, self.settings, None)
     }
 
@@ -120,6 +121,7 @@ impl QuadratureBarrierEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, settings)
     }
 }
@@ -131,9 +133,11 @@ impl PricingEngine<BarrierOption> for QuadratureBarrierEngine {
         })))
     }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        context.bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
@@ -147,6 +151,7 @@ fn price(
     settings: QuadratureSettings,
     prepared: Option<&mut Option<PreparedCurve>>,
 ) -> Result<f64> {
+    context.bsm_parameters()?;
     flat_rates(context)?;
     validate_life(option, context)?;
     validate_schedule(option.observation_schedule(), context)?;
@@ -166,9 +171,11 @@ struct BarrierPricer {
 }
 impl PricingEngine<BarrierOption> for BarrierPricer {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        context.bsm_parameters()?;
         flat_rates(context).map(|_| ())
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         let mut prepared = self.prepared.borrow_mut();
         price(option, context, self.settings, Some(&mut prepared))
     }
@@ -189,7 +196,7 @@ fn continuous_price(
     let time = context
         .valuation_time()
         .years_until(option.expiry_date().start_of_day());
-    let sigma = context.model_parameters().volatility();
+    let sigma = context.bsm_parameters()?.volatility();
     let width = sigma * time.sqrt();
     let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
     let barrier = log_ratio(option.barrier_level(), context.spot_price());
@@ -489,7 +496,7 @@ fn scheduled_price(
     };
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref) {
         if curve.option == *option
-            && curve.model == *context.model_parameters()
+            && curve.model == *context.bsm_parameters()?
             && curve.valuation == context.valuation_time()
         {
             return evaluate(
@@ -508,7 +515,7 @@ fn scheduled_price(
         .filter(|date| date.start_of_day() > context.valuation_time())
         .collect();
     let (rate, dividend) = flat_rates(context)?;
-    let sigma = context.model_parameters().volatility();
+    let sigma = context.bsm_parameters()?.volatility();
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
     let horizon = context
         .valuation_time()
@@ -574,7 +581,7 @@ fn scheduled_price(
             if let Some(prepared) = prepared {
                 *prepared = Some(PreparedCurve {
                     option: option.clone(),
-                    model: context.model_parameters().clone(),
+                    model: context.bsm_parameters()?.clone(),
                     valuation: context.valuation_time(),
                     nodes,
                     layer,

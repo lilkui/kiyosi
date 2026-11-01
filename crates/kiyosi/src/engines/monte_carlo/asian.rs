@@ -128,6 +128,7 @@ impl MonteCarloAsianEngine {
     where
         Self: PricingEngine<I>,
     {
+        context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price(self, option, context)
     }
 
@@ -157,6 +158,7 @@ impl MonteCarloAsianEngine {
     where
         Self: PricingEngine<I>,
     {
+        context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price_with_greeks(
             self,
             option,
@@ -177,7 +179,7 @@ impl MonteCarloAsianEngine {
         if tau == 0.0 {
             return PricingResult::new(o.settlement(context)?);
         }
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         if geometric && (!model.risk_free_curve().is_flat() || !model.dividend_curve().is_flat()) {
             return Err(Error::UnsupportedOperation(
                 "geometric Asian Monte Carlo requires flat rates".into(),
@@ -415,6 +417,7 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         })
     }
     fn price(&self, option: &GeometricAveragePriceOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Ok(self
             .native(&option.0, context, true, GreeksRequest::default())?
             .price())
@@ -426,6 +429,7 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         request: GreeksRequest,
         _shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         request.validate()?;
         self.native(&option.0, context, true, request)
     }
@@ -449,6 +453,7 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         option: &ArithmeticAveragePriceOption,
         context: &PricingContext,
     ) -> Result<f64> {
+        context.bsm_parameters()?;
         Ok(self
             .native(&option.0, context, false, GreeksRequest::default())?
             .price())
@@ -460,6 +465,7 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         request: GreeksRequest,
         _shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         request.validate()?;
         self.native(&option.0, context, false, request)
     }
@@ -501,7 +507,7 @@ fn curve_log_factor(
 }
 
 fn log_average_forward(context: &PricingContext, lead: f64, future: f64) -> Result<f64> {
-    let model = context.model_parameters();
+    let model = context.bsm_parameters()?;
     let valuation = context.valuation_time();
     let mut times = vec![lead, lead + future];
     for curve in [model.risk_free_curve(), model.dividend_curve()] {

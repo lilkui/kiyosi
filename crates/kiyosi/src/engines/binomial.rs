@@ -80,6 +80,7 @@ impl CoxRossRubinsteinVanillaEngine {
     where
         Self: PricingEngine<I>,
     {
+        context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price(self, option, context)
     }
 
@@ -118,12 +119,13 @@ impl CoxRossRubinsteinVanillaEngine {
     where
         Self: PricingEngine<I>,
     {
+        context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request, settings)
     }
 }
 
 fn flat_rates(context: &PricingContext) -> Result<(f64, f64)> {
-    let model = context.model_parameters();
+    let model = context.bsm_parameters()?;
     Ok((model.risk_free_rate()?, model.dividend_yield()?))
 }
 
@@ -395,6 +397,7 @@ macro_rules! vanilla_pricing {
     ($option:ty, $american:expr) => {
         impl PricingEngine<$option> for CoxRossRubinsteinVanillaEngine {
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
+                context.bsm_parameters()?;
                 Ok(native(
                     option,
                     Payoff::vanilla(option.option_type(), option.strike(), $american),
@@ -411,6 +414,7 @@ macro_rules! vanilla_pricing {
                 request: GreeksRequest,
                 settings: NumericalShiftSettings,
             ) -> Result<PricingResult> {
+                context.bsm_parameters()?;
                 flat_rates(context)?;
                 request.validate()?;
                 settings.validate()?;
@@ -483,6 +487,7 @@ impl CoxRossRubinsteinDigitalEngine {
     ///
     /// Reuses [`CoxRossRubinsteinVanillaEngine::price`] errors and validation order.
     pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Ok(self
             .native(option, context, GreeksRequest::default())?
             .price())
@@ -521,6 +526,7 @@ impl CoxRossRubinsteinDigitalEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         flat_rates(context)?;
         request.validate()?;
         self.native(option, context, request)
@@ -544,6 +550,7 @@ impl CoxRossRubinsteinDigitalEngine {
 
 impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
     fn price_with_greeks(
@@ -553,6 +560,7 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
         request: GreeksRequest,
         _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         Self::price_with_greeks(self, option, context, request)
     }
     fn prepare_implied_volatility(
@@ -567,7 +575,7 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
 
 fn parameters(context: &PricingContext, dt: f64) -> Result<(f64, f64, f64, f64, f64)> {
     let (rate, dividend) = flat_rates(context)?;
-    let width = context.model_parameters().volatility() * dt.sqrt();
+    let width = context.bsm_parameters()?.volatility() * dt.sqrt();
     let up = width.exp();
     let down = 1.0 / up;
     let discount = (-rate * dt).exp();

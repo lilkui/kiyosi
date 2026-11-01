@@ -77,7 +77,7 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
         AnalyticDigitalEngine.price(&asset, context).unwrap()
             - AnalyticDigitalEngine.price(&cash, context).unwrap()
     };
-    let model = context.model_parameters();
+    let model = context.model_parameters().as_bsm().unwrap();
     let expiry = option.expiry_date().into();
     let forward = context.spot_price()
         * model

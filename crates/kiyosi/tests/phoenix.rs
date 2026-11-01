@@ -196,7 +196,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     )
     .unwrap();
     assert!((sigma - 0.3).abs() < 1e-6);
-    assert_eq!(ctx.model_parameters().volatility(), 0.3);
+    assert_eq!(ctx.model_parameters().as_bsm().unwrap().volatility(), 0.3);
     let ctx = market(90.0, date(2, 3));
     let result = engine
         .price_with_greeks(&note, &ctx, GreeksRequest::all(), Default::default())
@@ -238,7 +238,11 @@ fn unconditional_coupon_tails_match_a_two_date_cashflow_portfolio() {
     let note = PhoenixOption::new(t).unwrap();
     let ctx = market(100.0, date(1, 1))
         .replace(PricingContextChanges {
-            model_parameters: Some(BlackScholesMertonParameters::new(0.04, 0.01, 2.0).unwrap()),
+            model_parameters: Some(
+                BlackScholesMertonParameters::new(0.04, 0.01, 2.0)
+                    .unwrap()
+                    .into(),
+            ),
             ..Default::default()
         })
         .unwrap();

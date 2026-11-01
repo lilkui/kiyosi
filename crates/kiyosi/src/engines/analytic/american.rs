@@ -280,8 +280,8 @@ pub struct BjerksundStenslandVanillaEngine;
 
 impl BjerksundStenslandVanillaEngine {
     fn require_flat(context: &PricingContext) -> Result<()> {
-        context.model_parameters().risk_free_rate()?;
-        context.model_parameters().dividend_yield()?;
+        context.bsm_parameters()?.risk_free_rate()?;
+        context.bsm_parameters()?.dividend_yield()?;
         Ok(())
     }
 
@@ -313,6 +313,7 @@ impl BjerksundStenslandVanillaEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Self::require_flat(context)?;
         let valuation = context.valuation_time();
         let expiry = option.expiry_date().start_of_day();
@@ -322,7 +323,7 @@ impl BjerksundStenslandVanillaEngine {
             ));
         }
         let time = valuation.years_until(expiry);
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         let (rate, dividend) = (model.risk_free_rate()?, model.dividend_yield()?);
         let call = option.option_type() == OptionType::Call;
         if time > 0.0 && (if call { rate } else { dividend }) < 0.0 {
@@ -394,6 +395,7 @@ impl BjerksundStenslandVanillaEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         Self::require_flat(context)?;
         numerical_greeks(self, option, context, request, settings)
     }
@@ -401,6 +403,7 @@ impl BjerksundStenslandVanillaEngine {
 
 impl PricingEngine<AmericanOption> for BjerksundStenslandVanillaEngine {
     fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
     fn price_with_greeks(
@@ -410,6 +413,7 @@ impl PricingEngine<AmericanOption> for BjerksundStenslandVanillaEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         Self::price_with_greeks(self, option, context, request, settings)
     }
 }

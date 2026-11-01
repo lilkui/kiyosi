@@ -183,7 +183,9 @@ fn image_and_spectral_series_and_extreme_bands_match_analytic() {
         let context = market()
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(0.04, 0.01, sigma).unwrap(),
+                    BlackScholesMertonParameters::new(0.04, 0.01, sigma)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -231,7 +233,9 @@ fn continuous_rebates_and_tiny_volatility_hits_keep_values_and_derivatives() {
         let context = market()
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(rate, rate - 0.02, 0.2).unwrap(),
+                    BlackScholesMertonParameters::new(rate, rate - 0.02, 0.2)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -281,7 +285,8 @@ fn continuous_rebates_and_tiny_volatility_hits_keep_values_and_derivatives() {
                             if up { 0.01 } else { 0.07 },
                             1e-12,
                         )
-                        .unwrap(),
+                        .unwrap()
+                        .into(),
                     ),
                     ..Default::default()
                 })
@@ -673,7 +678,10 @@ fn solver_pins_request_samples_and_rejects_fixed_cashflows() {
         ));
     }
     assert_eq!(engine.price(&option, &context).unwrap(), quote);
-    assert_eq!(context.model_parameters().volatility(), 0.2);
+    assert_eq!(
+        context.model_parameters().as_bsm().unwrap().volatility(),
+        0.2
+    );
 }
 
 #[test]
@@ -716,7 +724,9 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
         let curved = context
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(rate, dividend, 0.2).unwrap(),
+                    BlackScholesMertonParameters::new(rate, dividend, 0.2)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -787,7 +797,9 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
         let extreme = context
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(rate, rate, sigma).unwrap(),
+                    BlackScholesMertonParameters::new(rate, rate, sigma)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -799,7 +811,11 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
     }
     let tiny = context
         .replace(PricingContextChanges {
-            model_parameters: Some(BlackScholesMertonParameters::new(0.04, 0.01, 1e-200).unwrap()),
+            model_parameters: Some(
+                BlackScholesMertonParameters::new(0.04, 0.01, 1e-200)
+                    .unwrap()
+                    .into(),
+            ),
             ..Default::default()
         })
         .unwrap();

@@ -57,7 +57,11 @@ fn analytic_cashflows_match_series_pde_and_payout_scaling() {
     for rate in [-0.01, 0.0, 0.04] {
         let context = market(100.0)
             .replace(PricingContextChanges {
-                model_parameters: Some(BlackScholesMertonParameters::new(rate, 0.02, 0.2).unwrap()),
+                model_parameters: Some(
+                    BlackScholesMertonParameters::new(rate, 0.02, 0.2)
+                        .unwrap()
+                        .into(),
+                ),
                 ..Default::default()
             })
             .unwrap();
@@ -102,7 +106,9 @@ fn analytic_discount_and_payout_scaling_preserve_representable_prices() {
         let context = market(100.0)
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(rate, rate - 0.02, 0.2).unwrap(),
+                    BlackScholesMertonParameters::new(rate, rate - 0.02, 0.2)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -166,7 +172,9 @@ fn analytic_early_at_hit_payments_avoid_negative_rate_cancellation() {
             let context = market(100.0)
                 .replace(PricingContextChanges {
                     model_parameters: Some(
-                        BlackScholesMertonParameters::new(rate, dividend, sigma).unwrap(),
+                        BlackScholesMertonParameters::new(rate, dividend, sigma)
+                            .unwrap()
+                            .into(),
                     ),
                     ..Default::default()
                 })
@@ -201,7 +209,9 @@ fn analytic_exit_density_series_and_discounted_peaks_match_independent_values() 
         let context = market(100.0)
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(rate, 0.01, sigma).unwrap(),
+                    BlackScholesMertonParameters::new(rate, 0.01, sigma)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -217,7 +227,9 @@ fn analytic_exit_density_series_and_discounted_peaks_match_independent_values() 
         let context = market(100.0)
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(800.0, 799.98, 0.2).unwrap(),
+                    BlackScholesMertonParameters::new(800.0, 799.98, 0.2)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -238,7 +250,9 @@ fn analytic_exit_density_series_and_discounted_peaks_match_independent_values() 
         let context = market(100.0)
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(rate, rate - 0.02, 0.2).unwrap(),
+                    BlackScholesMertonParameters::new(rate, rate - 0.02, 0.2)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -260,7 +274,11 @@ fn analytic_exit_density_series_and_discounted_peaks_match_independent_values() 
     t.settlement_timing = SettlementTiming::AtHit;
     let context = market(100.0)
         .replace(PricingContextChanges {
-            model_parameters: Some(BlackScholesMertonParameters::new(1e-10, 0.03, 0.01).unwrap()),
+            model_parameters: Some(
+                BlackScholesMertonParameters::new(1e-10, 0.03, 0.01)
+                    .unwrap()
+                    .into(),
+            ),
             ..Default::default()
         })
         .unwrap();
@@ -412,6 +430,8 @@ fn analytic_node_curves_reject_even_resolved_payments_and_failures_preserve_inpu
     for risk_free in [false, true] {
         let model = market(120.0)
             .model_parameters()
+            .as_bsm()
+            .unwrap()
             .replace(BlackScholesMertonParameterChanges {
                 risk_free_rate: risk_free.then(|| curve.clone().into()),
                 dividend_yield: (!risk_free).then(|| curve.clone().into()),
@@ -420,7 +440,7 @@ fn analytic_node_curves_reject_even_resolved_payments_and_failures_preserve_inpu
             .unwrap();
         let curved = market(120.0)
             .replace(PricingContextChanges {
-                model_parameters: Some(model),
+                model_parameters: Some(model.into()),
                 ..Default::default()
             })
             .unwrap();
@@ -453,7 +473,9 @@ fn analytic_node_curves_reject_even_resolved_payments_and_failures_preserve_inpu
     let enormous = market(100.0)
         .replace(PricingContextChanges {
             model_parameters: Some(
-                BlackScholesMertonParameters::new(0.03, 0.01, f64::MAX).unwrap(),
+                BlackScholesMertonParameters::new(0.03, 0.01, f64::MAX)
+                    .unwrap()
+                    .into(),
             ),
             ..Default::default()
         })
@@ -541,7 +563,8 @@ fn analytic_tiny_volatility_preserves_drift_hit_timing_and_narrow_band_survival(
             .replace(PricingContextChanges {
                 model_parameters: Some(
                     BlackScholesMertonParameters::new(0.04, if up { 0.01 } else { 0.07 }, 1e-12)
-                        .unwrap(),
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -568,7 +591,11 @@ fn analytic_tiny_volatility_preserves_drift_hit_timing_and_narrow_band_survival(
     assert!(engine.price(&option, &market(100.0)).unwrap() < 1e-100);
     let still = market(100.0)
         .replace(PricingContextChanges {
-            model_parameters: Some(BlackScholesMertonParameters::new(0.03, 0.03, 1e-12).unwrap()),
+            model_parameters: Some(
+                BlackScholesMertonParameters::new(0.03, 0.03, 1e-12)
+                    .unwrap()
+                    .into(),
+            ),
             ..Default::default()
         })
         .unwrap();
@@ -997,7 +1024,9 @@ fn node_curves_and_early_at_hit_horizons_match_digital_cash_portfolios() {
         let ctx = market(125.0)
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(curve.clone(), 0.01, 0.2).unwrap(),
+                    BlackScholesMertonParameters::new(curve.clone(), 0.01, 0.2)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -1051,7 +1080,11 @@ fn narrow_band_tiny_volatility_and_grid_validation() {
     assert!(engine.price(&option, &market(100.0)).unwrap() < 1e-8);
     let still = market(100.0)
         .replace(PricingContextChanges {
-            model_parameters: Some(BlackScholesMertonParameters::new(0.03, 0.03, 1e-12).unwrap()),
+            model_parameters: Some(
+                BlackScholesMertonParameters::new(0.03, 0.03, 1e-12)
+                    .unwrap()
+                    .into(),
+            ),
             ..Default::default()
         })
         .unwrap();

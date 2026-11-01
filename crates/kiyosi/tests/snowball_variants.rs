@@ -324,7 +324,10 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
             assert!(!at_expiry.has(greek));
         }
         assert_eq!(note, snapshot);
-        assert_eq!(context.model_parameters().volatility(), 0.3);
+        assert_eq!(
+            context.model_parameters().as_bsm().unwrap().volatility(),
+            0.3
+        );
     }
     check(
         BinarySnowballOption::new(BinarySnowballTerms::new(

@@ -56,6 +56,7 @@ impl MonteCarloDigitalEngine {
     ///
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Ok(self
             .native(option, context, GreeksRequest::default())?
             .price())
@@ -103,6 +104,7 @@ impl MonteCarloDigitalEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         self.validate_applicability(context)?;
         request.validate()?;
         self.native(option, context, request)
@@ -137,7 +139,7 @@ impl MonteCarloDigitalEngine {
                 0.0
             });
         }
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         let rate = model.risk_free_rate()?;
         let dividend = model.dividend_yield()?;
         let sigma = model.volatility();
@@ -206,8 +208,9 @@ impl MonteCarloDigitalEngine {
 
 impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.model_parameters().risk_free_rate()?;
-        context.model_parameters().dividend_yield()?;
+        context.bsm_parameters()?;
+        context.bsm_parameters()?.risk_free_rate()?;
+        context.bsm_parameters()?.dividend_yield()?;
         Ok(())
     }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<DigitalOption> + '_>>> {
@@ -219,6 +222,7 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         })))
     }
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Self::price(self, option, context)
     }
     fn price_with_greeks(
@@ -228,6 +232,7 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         request: GreeksRequest,
         _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         Self::price_with_greeks(self, option, context, request)
     }
 }

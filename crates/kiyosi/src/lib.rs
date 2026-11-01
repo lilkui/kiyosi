@@ -1,4 +1,4 @@
-//! Prices derivatives under the Black–Scholes–Merton model.
+//! Prices derivatives under BSM and European vanilla options under local volatility.
 //!
 //! Supports vanilla and exotic options, autocallable notes and accumulators with
 //! analytic, binomial, quadrature, finite-difference and Monte Carlo engines.
@@ -12,6 +12,12 @@
 //! Annual rates and volatility use decimal units. Rate curves use Actual/365
 //! Fixed time; [`TradingCalendar::trading_year_fraction`] uses its own day-count
 //! basis. [`Greek`] documents sensitivity reporting units.
+//!
+//! Local volatility uses [`LocalVolatilitySurface`] with fixed absolute time/spot
+//! nodes, bilinear sigma interpolation and flat price tails. Time extrapolation
+//! is rejected. [`FiniteDifferenceVanillaEngine`] supports European price, delta
+//! and gamma; other built-in combinations and inverse solves reject this model.
+//! [`ModelParameters`] selects the concrete model at the pricing entry point.
 //!
 //! # Concurrency and errors
 //!
@@ -127,8 +133,9 @@ pub use instruments::vanilla::{
     OptionContract, OptionType,
 };
 pub use market::{
-    BlackScholesMertonParameterChanges, BlackScholesMertonParameters, PricingContext,
-    PricingContextChanges, Rate, RateTermStructure,
+    BlackScholesMertonParameterChanges, BlackScholesMertonParameters,
+    LocalVolatilityParameterChanges, LocalVolatilityParameters, LocalVolatilitySurface,
+    ModelParameters, PricingContext, PricingContextChanges, Rate, RateTermStructure,
 };
 pub use risk::analytics::{
     Greek, GreeksRequest, NumericalShiftSettings, PricingEngine, PricingResult,

@@ -24,6 +24,7 @@ impl FiniteDifferenceBinaryBarrierEngine {
     where
         Self: PricingEngine<I>,
     {
+        context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price(self, option, context)
     }
 
@@ -64,6 +65,7 @@ impl FiniteDifferenceBinaryBarrierEngine {
     where
         Self: PricingEngine<I>,
     {
+        context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request, shifts)
     }
 }
@@ -72,6 +74,7 @@ macro_rules! binary_pricing {
     ($engine:ty, $option:ty) => {
         impl PricingEngine<$option> for $engine {
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
+                context.bsm_parameters()?;
                 Ok(native(
                     option.contract(),
                     context,
@@ -88,6 +91,7 @@ macro_rules! binary_pricing {
                 request: GreeksRequest,
                 shifts: NumericalShiftSettings,
             ) -> Result<PricingResult> {
+                context.bsm_parameters()?;
                 request.validate()?;
                 shifts.validate()?;
                 let mut settings = self.settings;
@@ -133,6 +137,7 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         <Self as PricingEngine<DoubleTouchOption>>::price(self, option, context)
     }
 
@@ -171,6 +176,7 @@ impl FiniteDifferenceDoubleTouchEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         <Self as PricingEngine<DoubleTouchOption>>::price_with_greeks(
             self, option, context, request, shifts,
         )
@@ -198,6 +204,7 @@ fn native(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<PricingResult> {
+    context.bsm_parameters()?;
     let option = contract.monitoring;
     validate_life(option, context)?;
     validate_schedule(option.observation_schedule(), context)?;
@@ -240,7 +247,7 @@ fn native(
         let value = if let Some(digital) = contract.digital {
             AnalyticDigitalEngine.price(digital, context)?
         } else {
-            let model = context.model_parameters();
+            let model = context.bsm_parameters()?;
             let curve = if contract.payout.is_some() {
                 model.risk_free_curve()
             } else {
@@ -265,7 +272,7 @@ fn native(
         expiry
     };
     let time = context.valuation_time().years_until(horizon);
-    let model = context.model_parameters();
+    let model = context.bsm_parameters()?;
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), horizon)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), horizon)?;
     let upper = settings

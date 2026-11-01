@@ -437,6 +437,8 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
         RateTermStructure::new(option.effective_date().into(), vec![expiry], vec![0.95]).unwrap();
     let model = context
         .model_parameters()
+        .as_bsm()
+        .unwrap()
         .replace(BlackScholesMertonParameterChanges {
             risk_free_rate: Some(curve.into()),
             ..Default::default()
@@ -444,7 +446,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
         .unwrap();
     let node_context = context
         .replace(PricingContextChanges {
-            model_parameters: Some(model),
+            model_parameters: Some(model.into()),
             valuation_time: Some(expiry),
             ..Default::default()
         })
@@ -971,7 +973,11 @@ fn antithetic_companion_failures_preserve_engine_and_inputs() {
     let option = contract(OptionType::Call);
     let context = market()
         .replace(PricingContextChanges {
-            model_parameters: Some(BlackScholesMertonParameters::new(0.5, 0.0, 1.0).unwrap()),
+            model_parameters: Some(
+                BlackScholesMertonParameters::new(0.5, 0.0, 1.0)
+                    .unwrap()
+                    .into(),
+            ),
             spot_price: Some(1.7e308),
             ..Default::default()
         })

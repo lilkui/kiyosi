@@ -78,7 +78,7 @@ fn enumerated(
     let days = f64::from(option.expiry_date().day() - time.date().day())
         - time.micros_since_midnight() as f64 / 86_400_000_000.0;
     let dt = days / 365.0 / steps as f64;
-    let model = context.model_parameters();
+    let model = context.model_parameters().as_bsm().unwrap();
     let jump = model.volatility() * dt.sqrt();
     let rate = model.risk_free_rate().unwrap();
     let p = (((rate - model.dividend_yield().unwrap()) * dt).exp() - (-jump).exp())
@@ -510,11 +510,14 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
             model_parameters: Some(
                 context
                     .model_parameters()
+                    .as_bsm()
+                    .unwrap()
                     .replace(BlackScholesMertonParameterChanges {
                         volatility: Some(sigma),
                         ..Default::default()
                     })
-                    .unwrap(),
+                    .unwrap()
+                    .into(),
             ),
             ..Default::default()
         })
@@ -571,5 +574,8 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
         Error::UnsupportedOperation(_)
     ));
     assert_eq!(engine.price(&option, &context).unwrap(), quote);
-    assert_eq!(context.model_parameters().volatility(), 0.2);
+    assert_eq!(
+        context.model_parameters().as_bsm().unwrap().volatility(),
+        0.2
+    );
 }

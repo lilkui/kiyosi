@@ -124,7 +124,7 @@ fn pricing_consumes_both_curves_and_replacement_is_transactional() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(rolled.model_parameters(), &model);
+    assert_eq!(rolled.model_parameters().as_bsm().unwrap(), &model);
     assert_eq!(rolled.valuation_time(), middle);
 }
 
@@ -365,7 +365,7 @@ fn context_validation_timing_replacement_and_concurrent_owned_values() {
     let short_model = Model::new(short, 0.0, 0.2).unwrap();
     let short_context = context
         .replace(PricingContextChanges {
-            model_parameters: Some(short_model),
+            model_parameters: Some(short_model.into()),
             ..Default::default()
         })
         .unwrap();
@@ -384,7 +384,7 @@ fn context_validation_timing_replacement_and_concurrent_owned_values() {
         })
         .unwrap();
     assert_eq!(changed.calendar(), context.calendar());
-    assert_eq!(changed.model_parameters(), &model);
+    assert_eq!(changed.model_parameters().as_bsm().unwrap(), &model);
     assert_eq!(context.spot_price(), 100.0);
     std::thread::scope(|scope| {
         let first = scope.spawn(|| AnalyticEuropeanEngine.price(&call, &context).unwrap());
@@ -399,5 +399,12 @@ fn context_validation_timing_replacement_and_concurrent_owned_values() {
     });
     drop(context);
     drop(model);
-    assert_eq!(changed.model_parameters().risk_free_curve(), &risk);
+    assert_eq!(
+        changed
+            .model_parameters()
+            .as_bsm()
+            .unwrap()
+            .risk_free_curve(),
+        &risk
+    );
 }

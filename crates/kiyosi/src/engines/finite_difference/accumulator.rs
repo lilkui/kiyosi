@@ -14,6 +14,7 @@ impl FiniteDifferenceAccumulatorEngine {
     /// for non-trading expiry or knock-out dates, clipped domains or unstable explicit steps.
     /// Numerical failures return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Ok(native(
             option,
             context,
@@ -59,12 +60,14 @@ impl FiniteDifferenceAccumulatorEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         analysis(option, context, self.settings, request, shifts, native)
     }
 }
 
 impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn price_with_greeks(
@@ -74,6 +77,7 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         self.price_with_greeks(option, context, request, shifts)
     }
     fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
@@ -108,6 +112,7 @@ fn native(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<(PricingResult, Option<f64>)> {
+    context.bsm_parameters()?;
     option.validate_pricing(context)?;
     let (quantity, settlement) = option.initial(context);
     if let Some(value) = settlement {
@@ -115,7 +120,7 @@ fn native(
     }
     let expiry = option.expiry_date().start_of_day();
     let time = context.valuation_time().years_until(expiry);
-    let model = context.model_parameters();
+    let model = context.bsm_parameters()?;
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
     let sigma = model.volatility();

@@ -48,6 +48,7 @@ impl AnalyticDoubleTouchEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.validate_applicability(context)?;
         validate_life(option, context)?;
         validate_schedule(option.observation_schedule(), context)?;
@@ -56,7 +57,7 @@ impl AnalyticDoubleTouchEngine {
         if prior && at_hit {
             return Ok(0.0);
         }
-        let rate = context.model_parameters().risk_free_rate()?;
+        let rate = context.bsm_parameters()?.risk_free_rate()?;
         if touched || finished {
             if touched != option.is_one_touch() {
                 return Ok(0.0);
@@ -108,17 +109,20 @@ impl AnalyticDoubleTouchEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, settings)
     }
 }
 
 impl PricingEngine<DoubleTouchOption> for AnalyticDoubleTouchEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.model_parameters().risk_free_rate()?;
-        context.model_parameters().dividend_yield()?;
+        context.bsm_parameters()?;
+        context.bsm_parameters()?.risk_free_rate()?;
+        context.bsm_parameters()?.dividend_yield()?;
         Ok(())
     }
     fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn volatility_affects_price(

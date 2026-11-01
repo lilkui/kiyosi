@@ -50,6 +50,7 @@ impl AnalyticDigitalEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         request.validate()?;
         settings.validate()?;
         crate::risk::numerical::complete_greeks(
@@ -85,6 +86,7 @@ impl AnalyticDigitalEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         Ok(self
             .native(option, context, GreeksRequest::default())?
             .price())
@@ -117,7 +119,7 @@ impl AnalyticDigitalEngine {
                 0.0
             });
         }
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         model
             .risk_free_curve()
             .validate_horizon(valuation, expiry)?;
@@ -181,6 +183,7 @@ impl AnalyticDigitalEngine {
 
 impl PricingEngine<DigitalOption> for AnalyticDigitalEngine {
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         AnalyticDigitalEngine::price(self, option, context)
     }
     fn price_with_greeks(
@@ -190,6 +193,7 @@ impl PricingEngine<DigitalOption> for AnalyticDigitalEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         Self::price_with_greeks(self, option, context, request, settings)
     }
 }

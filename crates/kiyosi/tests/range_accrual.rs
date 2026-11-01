@@ -52,7 +52,7 @@ fn years(before: Timestamp, after: Timestamp) -> f64 {
 fn reference(option: &RangeAccrualOption, context: &PricingContext) -> f64 {
     let mut hits = f64::from(option.realized_hit_count().unwrap_or(0));
     let mut count = 0;
-    let model = context.model_parameters();
+    let model = context.model_parameters().as_bsm().unwrap();
     let valuation = context.valuation_time();
     let mut date = add(option.effective_date(), 1);
     loop {
@@ -128,7 +128,9 @@ fn exact_marginals_match_flat_negative_and_node_curves_and_recover_volatility() 
         let context = market(day(1), 100.0)
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(rate, dividend, 0.2).unwrap(),
+                    BlackScholesMertonParameters::new(rate, dividend, 0.2)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -161,7 +163,10 @@ fn exact_marginals_match_flat_negative_and_node_curves_and_recover_volatility() 
     )
     .unwrap();
     assert!((sigma - 0.2).abs() < 1e-8);
-    assert_eq!(context.model_parameters().volatility(), 0.2);
+    assert_eq!(
+        context.model_parameters().as_bsm().unwrap().volatility(),
+        0.2
+    );
 }
 
 #[test]
@@ -181,7 +186,9 @@ fn numerical_greeks_match_independent_payoff_reference() {
         let context = market(add(day(1), -3), 99.0)
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(rate, -0.01, 0.2).unwrap(),
+                    BlackScholesMertonParameters::new(rate, -0.01, 0.2)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -404,7 +411,9 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
         let context = market(day(1), 100.0)
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(risk, dividend, 0.2).unwrap(),
+                    BlackScholesMertonParameters::new(risk, dividend, 0.2)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -489,7 +498,11 @@ fn tiny_volatility_and_coupon_scaling_preserve_representable_prices() {
         .unwrap();
         let context = market(day(1), 100.0)
             .replace(PricingContextChanges {
-                model_parameters: Some(BlackScholesMertonParameters::new(0.0, 0.0, vol).unwrap()),
+                model_parameters: Some(
+                    BlackScholesMertonParameters::new(0.0, 0.0, vol)
+                        .unwrap()
+                        .into(),
+                ),
                 ..Default::default()
             })
             .unwrap();
@@ -601,7 +614,10 @@ fn request_and_solver_errors_preserve_inputs() {
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
     assert_eq!(option, RangeAccrualOption::new(terms()).unwrap());
-    assert_eq!(context.model_parameters().volatility(), 0.2);
+    assert_eq!(
+        context.model_parameters().as_bsm().unwrap().volatility(),
+        0.2
+    );
 }
 
 #[test]
@@ -610,7 +626,7 @@ fn full_term_coupon_uses_calendar_days_and_one_expiry_discount() {
     let model = BlackScholesMertonParameters::new(0.8, 0.8, 1e-9).unwrap();
     let context = market(day(1), 100.0)
         .replace(PricingContextChanges {
-            model_parameters: Some(model),
+            model_parameters: Some(model.into()),
             ..Default::default()
         })
         .unwrap();
@@ -708,7 +724,9 @@ fn unresolvable_curve_knots_fail_before_pricing_future_observations() {
         let context = market(day(1), 100.0)
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(risk, dividend, 0.2).unwrap(),
+                    BlackScholesMertonParameters::new(risk, dividend, 0.2)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })

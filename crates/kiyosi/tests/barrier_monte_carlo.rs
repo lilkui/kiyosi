@@ -567,7 +567,9 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
         let curved = context
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(rate, dividend, 0.2).unwrap(),
+                    BlackScholesMertonParameters::new(rate, dividend, 0.2)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -633,7 +635,9 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
         let extreme = context
             .replace(PricingContextChanges {
                 model_parameters: Some(
-                    BlackScholesMertonParameters::new(rate, 0.01, sigma).unwrap(),
+                    BlackScholesMertonParameters::new(rate, 0.01, sigma)
+                        .unwrap()
+                        .into(),
                 ),
                 ..Default::default()
             })
@@ -644,7 +648,10 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
         ));
     }
     assert_eq!(engine.price(&option, &context).unwrap(), quote);
-    assert_eq!(context.model_parameters().volatility(), 0.2);
+    assert_eq!(
+        context.model_parameters().as_bsm().unwrap().volatility(),
+        0.2
+    );
 }
 
 #[test]

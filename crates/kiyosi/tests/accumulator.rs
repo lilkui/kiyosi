@@ -35,7 +35,7 @@ impl PricingEngine<Accumulator> for TerminalReference {
             Ok(AnalyticDigitalEngine.price(&asset, context)?
                 - AnalyticDigitalEngine.price(&cash, context)?)
         };
-        let model = context.model_parameters();
+        let model = context.model_parameters().as_bsm().unwrap();
         let fixed = option.accumulated_quantity()
             * (context.spot_price()
                 * model
@@ -604,7 +604,11 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
         RateTermStructure::new(day(1, 1).into(), vec![day(2, 3).into()], vec![0.99]).unwrap();
     let curved = boundary
         .replace(PricingContextChanges {
-            model_parameters: Some(BlackScholesMertonParameters::new(curve, 0.01, 0.2).unwrap()),
+            model_parameters: Some(
+                BlackScholesMertonParameters::new(curve, 0.01, 0.2)
+                    .unwrap()
+                    .into(),
+            ),
             ..Default::default()
         })
         .unwrap();

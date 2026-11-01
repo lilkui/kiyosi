@@ -42,6 +42,7 @@ impl AnalyticDoubleBarrierEngine {
     /// # Ok(()) }
     /// ```
     pub fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.validate_applicability(context)?;
         validate_life(&option.lower, context)?;
         validate_schedule(option.lower.observation_schedule(), context)?;
@@ -71,16 +72,19 @@ impl AnalyticDoubleBarrierEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, settings)
     }
 }
 impl PricingEngine<DoubleBarrierOption> for AnalyticDoubleBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.model_parameters().risk_free_rate()?;
-        context.model_parameters().dividend_yield()?;
+        context.bsm_parameters()?;
+        context.bsm_parameters()?.risk_free_rate()?;
+        context.bsm_parameters()?.dividend_yield()?;
         Ok(())
     }
     fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn volatility_affects_price(
@@ -124,7 +128,7 @@ impl AbsorbingDistribution {
         expiry: Date,
         context: &PricingContext,
     ) -> Result<Self> {
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         let sigma = model.volatility();
         Ok(Self {
             initial: log_ratio(context.spot_price(), lower),
@@ -533,7 +537,7 @@ fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Res
         option.expiry_date(),
         context,
     )?;
-    let rate = context.model_parameters().risk_free_rate()?;
+    let rate = context.bsm_parameters()?.risk_free_rate()?;
     let discount = -rate * density.time;
     let call = option.option_type() == OptionType::Call;
     let strike = log_ratio(option.strike(), option.lower_barrier());
@@ -582,10 +586,7 @@ pub(crate) fn hit_value(option: &DoubleBarrierOption, context: &PricingContext) 
         option.expiry_date(),
         context,
     )?
-    .hit_value(
-        option.rebate(),
-        context.model_parameters().risk_free_rate()?,
-    )
+    .hit_value(option.rebate(), context.bsm_parameters()?.risk_free_rate()?)
 }
 
 #[cfg(test)]

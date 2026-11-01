@@ -36,7 +36,7 @@ impl MonteCarloVanillaEngine {
         context: &PricingContext,
         terminal_only: bool,
     ) -> Result<f64> {
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         let rate = model.risk_free_rate()?;
         let dividend = model.dividend_yield()?;
         let valuation = context.valuation_time();
@@ -195,6 +195,7 @@ impl MonteCarloVanillaEngine {
 
 impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        context.bsm_parameters()?;
         <Self as PricingEngine<EuropeanOption>>::validate_applicability(self, context)
     }
 
@@ -209,6 +210,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
     }
 
     fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.american_price(option, context, true)
     }
 
@@ -219,6 +221,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         <Self as PricingEngine<AmericanOption>>::validate_applicability(self, context)?;
         request.validate()?;
         settings.validate()?;
@@ -228,8 +231,8 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         };
         let native = |context: &PricingContext, requested: GreeksRequest| {
             let mut result = PricingResult::new(engine.price(option, context)?)?;
-            let rate = context.model_parameters().risk_free_rate()?;
-            let dividend = context.model_parameters().dividend_yield()?;
+            let rate = context.bsm_parameters()?.risk_free_rate()?;
+            let dividend = context.bsm_parameters()?.dividend_yield()?;
             for (greek, value) in [(Greek::Rho, rate), (Greek::DividendRho, dividend)] {
                 if !requested.has(greek)
                     || context.valuation_time() == option.expiry_date().start_of_day()
@@ -250,7 +253,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
                 let evaluate = |value: f64| {
                     let model =
                         context
-                            .model_parameters()
+                            .bsm_parameters()?
                             .replace(BlackScholesMertonParameterChanges {
                                 risk_free_rate: (greek == Greek::Rho).then_some(value.into()),
                                 dividend_yield: (greek == Greek::DividendRho)
@@ -258,7 +261,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
                                 ..Default::default()
                             })?;
                     let shifted = context.replace(PricingContextChanges {
-                        model_parameters: Some(model),
+                        model_parameters: Some(model.into()),
                         ..Default::default()
                     })?;
                     engine.american_price(option, &shifted, false)

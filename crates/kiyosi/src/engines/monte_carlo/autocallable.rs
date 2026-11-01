@@ -85,6 +85,7 @@ impl MonteCarloAutocallableEngine {
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<f64> {
+        context.bsm_parameters()?;
         let (sample, _, _) = self.sample(option, context, false)?;
         scaled_value(sample.scale, sample.mean, 0.0)
     }
@@ -121,6 +122,7 @@ impl MonteCarloAutocallableEngine {
         note: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
+        context.bsm_parameters()?;
         let (sample, pairs, known) = self.sample(note, context, true)?;
         estimate(self.settings, sample, pairs, 0.0, known)
     }
@@ -131,7 +133,7 @@ impl MonteCarloAutocallableEngine {
         context: &PricingContext,
         statistics: bool,
     ) -> Result<(Moments, Moments, bool)> {
-        let model = context.model_parameters();
+        let model = context.bsm_parameters()?;
         let rate = model.risk_free_rate()?;
         let dividend = model.dividend_yield()?;
         validate(note, context)?;
@@ -244,14 +246,16 @@ impl MonteCarloAutocallableEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, shifts)
     }
 }
 
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAutocallableEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-        context.model_parameters().risk_free_rate()?;
-        context.model_parameters().dividend_yield()?;
+        context.bsm_parameters()?;
+        context.bsm_parameters()?.risk_free_rate()?;
+        context.bsm_parameters()?.dividend_yield()?;
         Ok(())
     }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<AutocallableNote<T>> + '_>>> {
@@ -263,6 +267,7 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAuto
         })))
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
+        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn volatility_affects_price(
