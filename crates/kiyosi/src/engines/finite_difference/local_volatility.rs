@@ -1,9 +1,15 @@
 use super::*;
 use crate::{LocalVolatilityParameters, ModelParameters};
 
-pub(super) fn applicable(context: &PricingContext, american: bool) -> Result<()> {
-    if american {
-        context.bsm_parameters()?;
+pub(super) fn validate_request(context: &PricingContext, request: GreeksRequest) -> Result<()> {
+    if local_model(context).is_some()
+        && Greek::ALL
+            .into_iter()
+            .any(|g| request.has(g) && !matches!(g, Greek::Delta | Greek::Gamma))
+    {
+        return Err(Error::UnsupportedOperation(
+            "local volatility supports only delta and gamma".into(),
+        ));
     }
     Ok(())
 }
@@ -16,77 +22,17 @@ pub(super) fn price(
     settings: FiniteDifferenceSettings,
     request: GreeksRequest,
 ) -> Result<PricingResult> {
-    if Greek::ALL
-        .into_iter()
-        .any(|g| request.has(g) && !matches!(g, Greek::Delta | Greek::Gamma))
-    {
-        return Err(Error::UnsupportedOperation(
-            "local volatility supports only delta and gamma".into(),
-        ));
-    }
-    let time = time_to_expiry(option, context)?;
-    let expiry = option.expiry_date().start_of_day();
-    let surface = model.surface();
-    surface.validate_time(expiry)?;
-    let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
-    let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
-    let spot = context.spot_price();
-    if time == 0.0 {
-        return PricingResult::new(payoff.value(spot));
-    }
-    let relevant = spot.max(payoff.strike);
-    let upper = settings
-        .asset_upper_boundary
-        .unwrap_or_else(|| diffusion_upper(relevant, context, time, &risk, &dividend));
-    let space = SpatialGrid::new(settings, upper, 0.0, relevant)?;
-    let offset = surface.times()[0].years_until(context.valuation_time());
-    let knots: Vec<_> = surface
-        .times()
-        .iter()
-        .filter(|&&t| t > context.valuation_time() && t < expiry)
-        .map(|&t| context.valuation_time().years_until(t))
-        .collect();
-    let time_grid = TimeGrid::with_events(time, settings.time_step_count, &risk, &dividend, &knots);
-    let mut old: Vec<_> = (0..=space.count)
-        .map(|i| payoff.value(space.asset(i)))
-        .collect();
-    let mut next = vec![0.0; old.len()];
-    let mut stepper = Stepper::new_local(space.count);
-    let mut damping = 2;
-    for step in (0..time_grid.widths.len()).rev() {
-        for (current, dt, theta) in time_grid.substeps(step, settings.scheme, &mut damping) {
-            let middle = current + 0.5 * dt;
-            let rate = risk.rate(middle);
-            let q = dividend.rate(middle);
-            let dr = scaled(payoff.strike, risk.log_factor(current, time));
-            let dq = scaled(upper, dividend.log_factor(current, time));
-            let edges = if payoff.sign > 0.0 {
-                [0.0, dq - dr]
-            } else {
-                [dr, 0.0]
-            };
-            stepper.advance_local(
-                &old,
-                &mut next,
-                |i| {
-                    let sigma = surface.at_year(offset + middle, space.asset(i));
-                    space.coefficients(i, rate, q, sigma)
-                },
-                [dt, theta],
-                edges,
-            )?;
-            std::mem::swap(&mut old, &mut next);
-        }
-    }
-    let curvature = space.curvature(&old);
-    let sample = space.sample(&old, &curvature, spot);
-    let scale = scaled(spot, dividend.log_factor(0.0, time))
-        .max(scaled(payoff.strike, risk.log_factor(0.0, time)));
-    let price = crate::numerics::checked_with_scale(sample[0], scale)?;
-    let mut result = PricingResult::new(price)?;
-    result.set(request, Greek::Delta, sample[1])?;
-    result.set(request, Greek::Gamma, sample[2])?;
-    Ok(result)
+    validate_request(context, request)?;
+    Ok(super::native_model(
+        option,
+        payoff,
+        context,
+        settings,
+        request,
+        Default::default(),
+        LocalDiffusion::new(context, model.surface()),
+    )?
+    .0)
 }
 
 pub(super) fn local_model(context: &PricingContext) -> Option<&LocalVolatilityParameters> {

@@ -335,24 +335,46 @@ class LocalVolatilityTests(unittest.TestCase):
         finally:
             ql.Settings.instance().evaluationDate = previous_date
 
-    def test_unsupported_product_engine_matrix_including_terminal_shortcuts(self):
-        for contract, names, _ in terminal_cases():
+    def test_product_engine_matrix_including_terminal_shortcuts(self):
+        for contract, names, terminal_price in terminal_cases():
             for name in names:
-                if (
-                    type(contract) is EuropeanOption
-                    and name == "FiniteDifferenceVanillaEngine"
-                ):
-                    continue
                 for time in [START, END]:
-                    with (
-                        self.subTest(
-                            product=type(contract).__name__, engine=name, time=time
-                        ),
-                        self.assertRaises(UnsupportedOperationError),
+                    with self.subTest(
+                        product=type(contract).__name__, engine=name, time=time
                     ):
-                        getattr(pricing, name)().price(
-                            contract, context().replace(valuation_time=time)
+                        e = getattr(pricing, name)()
+                        c = context().replace(valuation_time=time, spot_price=105)
+                        if not name.startswith("FiniteDifference"):
+                            with self.assertRaises(UnsupportedOperationError):
+                                e.price(contract, c)
+                            continue
+                        bsm = c.replace(
+                            model_parameters=BlackScholesMertonParameters(
+                                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+                            )
                         )
+                        result = e.price_with_greeks(contract, c, ["delta", "gamma"])
+                        expected = e.price_with_greeks(
+                            contract, bsm, ["delta", "gamma"]
+                        )
+                        self.assertAlmostEqual(
+                            result.price, expected.price, delta=0.002
+                        )
+                        for greek in ["delta", "gamma"]:
+                            a, b = getattr(result, greek), getattr(expected, greek)
+                            if b is None:
+                                self.assertIsNone(a)
+                            else:
+                                self.assertAlmostEqual(a, b, delta=0.0002)
+                        if time == END:
+                            self.assertAlmostEqual(
+                                result.price, terminal_price, delta=1e-10
+                            )
+                            self.assertIsNone(result.delta)
+                            self.assertIsNone(result.gamma)
+                        for request in ["all", ["delta", "vega"], "theta"]:
+                            with self.assertRaises(UnsupportedOperationError):
+                                e.price_with_greeks(contract, c, request)
 
     def test_unsupported_greeks_solvers_expiry_and_coverage(self):
         c = context()

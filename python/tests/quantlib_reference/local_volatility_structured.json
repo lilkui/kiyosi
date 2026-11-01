@@ -1,0 +1,444 @@
+{
+  "reference": {
+    "quantlib_version": "1.43",
+    "pairs": 262144,
+    "substeps_per_day": 4,
+    "time_steps": 360,
+    "seed": 2718,
+    "spot": 101.0,
+    "control_put_prices": [
+      3.9331444542857117,
+      3.9331420902143046
+    ],
+    "results": {
+      "accumulator": {
+        "price": -209.7001122945956,
+        "standard_error": 0.463883994376924,
+        "raw_price": -209.99485460424356,
+        "control_beta": -132.09878306159405,
+        "control_reference_error": 0.0003122909559458982
+      },
+      "snowball_daily": {
+        "price": 0.9609325753800867,
+        "standard_error": 1.4643122399200943e-05,
+        "raw_price": 0.9609095780969205,
+        "control_beta": -0.010307014027286052,
+        "control_reference_error": 2.4366517154273182e-08
+      },
+      "snowball_terminal": {
+        "price": 0.9664325018643236,
+        "standard_error": 1.8545435856296777e-05,
+        "raw_price": 0.9664067077957839,
+        "control_beta": -0.01156048844285923,
+        "control_reference_error": 2.7329820179635283e-08
+      },
+      "binary_snowball": {
+        "price": 1.0057449007548795,
+        "standard_error": 2.282408072648163e-06,
+        "raw_price": 1.005744819488033,
+        "control_beta": -3.642249922956708e-05,
+        "control_reference_error": 8.610538900299077e-11
+      },
+      "ternary_daily": {
+        "price": 1.0000474115745979,
+        "standard_error": 4.685268026261979e-06,
+        "raw_price": 1.0000471572675,
+        "control_beta": -0.0001139763687060884,
+        "control_reference_error": 2.6944827434080214e-10
+      },
+      "ternary_terminal": {
+        "price": 1.0022395227440681,
+        "standard_error": 4.24013147149437e-06,
+        "raw_price": 1.0022379693731132,
+        "control_beta": -0.0006961959857432621,
+        "control_reference_error": 1.645857023619099e-09
+      },
+      "phoenix_daily": {
+        "price": 0.9657946996141008,
+        "standard_error": 1.3211436332173649e-05,
+        "raw_price": 0.965770145896908,
+        "control_beta": -0.011004582832624425,
+        "control_reference_error": 2.6015619621444162e-08
+      },
+      "phoenix_terminal": {
+        "price": 0.968664092694738,
+        "standard_error": 1.7227512738903405e-05,
+        "raw_price": 0.9686383010688004,
+        "control_beta": -0.011559393707677642,
+        "control_reference_error": 2.7327232147494166e-08
+      }
+    }
+  },
+  "time_refinement": [
+    {
+      "pairs": 65536,
+      "coarse_substeps_per_day": 2,
+      "fine_substeps_per_day": 4,
+      "seed": 31415,
+      "results": {
+        "accumulator": {
+          "fine_minus_coarse": 0.02174045555059758,
+          "standard_error": 0.05180171827759879
+        },
+        "snowball_daily": {
+          "fine_minus_coarse": 7.201689527995478e-07,
+          "standard_error": 3.7338275479607346e-06
+        },
+        "snowball_terminal": {
+          "fine_minus_coarse": 1.471856573791926e-06,
+          "standard_error": 6.082616831660524e-06
+        },
+        "binary_snowball": {
+          "fine_minus_coarse": 3.8665207194596166e-07,
+          "standard_error": 4.2779491272928586e-07
+        },
+        "ternary_daily": {
+          "fine_minus_coarse": 8.523413886163013e-07,
+          "standard_error": 1.3201564580862956e-06
+        },
+        "ternary_terminal": {
+          "fine_minus_coarse": 9.454792519503692e-07,
+          "standard_error": 1.18271282645644e-06
+        },
+        "phoenix_daily": {
+          "fine_minus_coarse": 6.586266115773893e-07,
+          "standard_error": 2.9746906797471926e-06
+        },
+        "phoenix_terminal": {
+          "fine_minus_coarse": 1.2985487965689045e-06,
+          "standard_error": 5.3473982249276605e-06
+        }
+      }
+    },
+    {
+      "pairs": 65536,
+      "coarse_substeps_per_day": 4,
+      "fine_substeps_per_day": 8,
+      "seed": 31415,
+      "results": {
+        "accumulator": {
+          "fine_minus_coarse": 0.06490507568260848,
+          "standard_error": 0.04295299625240358
+        },
+        "snowball_daily": {
+          "fine_minus_coarse": 1.4343809676484896e-06,
+          "standard_error": 3.0156472029136922e-06
+        },
+        "snowball_terminal": {
+          "fine_minus_coarse": 1.3295967235124599e-05,
+          "standard_error": 4.786327443535777e-06
+        },
+        "binary_snowball": {
+          "fine_minus_coarse": 5.258373135084479e-07,
+          "standard_error": 3.507402908810199e-07
+        },
+        "ternary_daily": {
+          "fine_minus_coarse": 1.1778023568469233e-06,
+          "standard_error": 1.0543165786205914e-06
+        },
+        "ternary_terminal": {
+          "fine_minus_coarse": 3.1336974868623496e-06,
+          "standard_error": 9.329821788226458e-07
+        },
+        "phoenix_daily": {
+          "fine_minus_coarse": 1.4824483641196045e-06,
+          "standard_error": 2.4409730239872483e-06
+        },
+        "phoenix_terminal": {
+          "fine_minus_coarse": 1.099696047557721e-05,
+          "standard_error": 4.238172555712338e-06
+        }
+      }
+    }
+  ],
+  "sensitivities": {
+    "fine": {
+      "pairs": 65536,
+      "substeps_per_day": 4,
+      "seed": 2718,
+      "spot": 103.0,
+      "results": {
+        "delta_1": {
+          "accumulator": {
+            "value": 48.363441007424356,
+            "standard_error": 0.277117610769094
+          },
+          "snowball_daily": {
+            "value": 0.004394933270211531,
+            "standard_error": 1.6190311394067703e-05
+          },
+          "snowball_terminal": {
+            "value": 0.003966012217794645,
+            "standard_error": 2.282256376795698e-05
+          },
+          "binary_snowball": {
+            "value": -4.827585312549686e-05,
+            "standard_error": 2.058851911398164e-06
+          },
+          "ternary_daily": {
+            "value": 0.000466543686453616,
+            "standard_error": 5.397688807972588e-06
+          },
+          "ternary_terminal": {
+            "value": 0.0002799419772637935,
+            "standard_error": 4.04554380277031e-06
+          },
+          "phoenix_daily": {
+            "value": 0.004128352442921315,
+            "standard_error": 1.54655141171358e-05
+          },
+          "phoenix_terminal": {
+            "value": 0.003923353441532474,
+            "standard_error": 2.109997950586857e-05
+          }
+        },
+        "gamma_1": {
+          "accumulator": {
+            "value": -7.8859046598372,
+            "standard_error": 0.6221143754290486
+          },
+          "snowball_daily": {
+            "value": -0.00040883321929432515,
+            "standard_error": 3.374091223351505e-05
+          },
+          "snowball_terminal": {
+            "value": -0.00042435238306066047,
+            "standard_error": 4.488157201855115e-05
+          },
+          "binary_snowball": {
+            "value": -2.3958285232209816e-05,
+            "standard_error": 4.2554028918610365e-06
+          },
+          "ternary_daily": {
+            "value": -5.236533354911354e-05,
+            "standard_error": 1.1318864505019868e-05
+          },
+          "ternary_terminal": {
+            "value": -5.171336850577414e-05,
+            "standard_error": 8.894812696127327e-06
+          },
+          "phoenix_daily": {
+            "value": -0.0004293827665079214,
+            "standard_error": 2.7342939172215702e-05
+          },
+          "phoenix_terminal": {
+            "value": -0.00044568428832628365,
+            "standard_error": 3.976182171752252e-05
+          }
+        },
+        "delta_2": {
+          "accumulator": {
+            "value": 48.28613115217492,
+            "standard_error": 0.17761356257514962
+          },
+          "snowball_daily": {
+            "value": 0.00439130353147034,
+            "standard_error": 1.0783483706628628e-05
+          },
+          "snowball_terminal": {
+            "value": 0.003965773371544948,
+            "standard_error": 1.616043074936305e-05
+          },
+          "binary_snowball": {
+            "value": -4.9931048674067456e-05,
+            "standard_error": 1.4145483622139072e-06
+          },
+          "ternary_daily": {
+            "value": 0.0004634681384892025,
+            "standard_error": 3.7146576544341604e-06
+          },
+          "ternary_terminal": {
+            "value": 0.00027835663511273167,
+            "standard_error": 2.551524089490463e-06
+          },
+          "phoenix_daily": {
+            "value": 0.004130685357040306,
+            "standard_error": 1.1718075857002863e-05
+          },
+          "phoenix_terminal": {
+            "value": 0.003927289001166447,
+            "standard_error": 1.5465865705232064e-05
+          }
+        },
+        "gamma_2": {
+          "accumulator": {
+            "value": -7.690482319108172,
+            "standard_error": 0.224909329366813
+          },
+          "snowball_daily": {
+            "value": -0.00037397316479004353,
+            "standard_error": 1.2051760465207565e-05
+          },
+          "snowball_terminal": {
+            "value": -0.00037651841589415527,
+            "standard_error": 1.593913402342506e-05
+          },
+          "binary_snowball": {
+            "value": -2.0433098684630785e-05,
+            "standard_error": 1.524419960022137e-06
+          },
+          "ternary_daily": {
+            "value": -4.341486646231563e-05,
+            "standard_error": 4.0785215059476626e-06
+          },
+          "ternary_terminal": {
+            "value": -4.0248179108959765e-05,
+            "standard_error": 3.1552981610484957e-06
+          },
+          "phoenix_daily": {
+            "value": -0.00040107919127600105,
+            "standard_error": 9.92927464741849e-06
+          },
+          "phoenix_terminal": {
+            "value": -0.00040742446720414867,
+            "standard_error": 1.4201541861410659e-05
+          }
+        }
+      }
+    },
+    "coarse": {
+      "pairs": 32768,
+      "substeps_per_day": 2,
+      "seed": 31415,
+      "spot": 103.0,
+      "results": {
+        "delta_1": {
+          "accumulator": {
+            "value": 48.65767857297647,
+            "standard_error": 0.3914416068438263
+          },
+          "snowball_daily": {
+            "value": 0.00436928066507688,
+            "standard_error": 2.248957958112824e-05
+          },
+          "snowball_terminal": {
+            "value": 0.003901537667737054,
+            "standard_error": 3.178691933863916e-05
+          },
+          "binary_snowball": {
+            "value": -4.968811989003292e-05,
+            "standard_error": 2.9209673641377956e-06
+          },
+          "ternary_daily": {
+            "value": 0.0004612661983607026,
+            "standard_error": 7.649882004819504e-06
+          },
+          "ternary_terminal": {
+            "value": 0.00026884337271248403,
+            "standard_error": 5.662722601866119e-06
+          },
+          "phoenix_daily": {
+            "value": 0.004103973059181299,
+            "standard_error": 2.1565780888696263e-05
+          },
+          "phoenix_terminal": {
+            "value": 0.0038671374526190938,
+            "standard_error": 2.942711068074238e-05
+          }
+        },
+        "gamma_1": {
+          "accumulator": {
+            "value": -7.007515103267127,
+            "standard_error": 0.8801652727842889
+          },
+          "snowball_daily": {
+            "value": -0.0003783109050332542,
+            "standard_error": 4.692835033112687e-05
+          },
+          "snowball_terminal": {
+            "value": -0.0003853370627642961,
+            "standard_error": 6.218514465670461e-05
+          },
+          "binary_snowball": {
+            "value": -1.1764251722270867e-06,
+            "standard_error": 6.0368601136870685e-06
+          },
+          "ternary_daily": {
+            "value": -7.509799878958748e-06,
+            "standard_error": 1.6046081693845558e-05
+          },
+          "ternary_terminal": {
+            "value": -2.2411858012407257e-05,
+            "standard_error": 1.2386425772521004e-05
+          },
+          "phoenix_daily": {
+            "value": -0.0004362938057399971,
+            "standard_error": 3.804861963052753e-05
+          },
+          "phoenix_terminal": {
+            "value": -0.00042543749371090655,
+            "standard_error": 5.522717366300456e-05
+          }
+        },
+        "delta_2": {
+          "accumulator": {
+            "value": 48.38453319503593,
+            "standard_error": 0.25023844761597325
+          },
+          "snowball_daily": {
+            "value": 0.004374601851150079,
+            "standard_error": 1.5073528946740006e-05
+          },
+          "snowball_terminal": {
+            "value": 0.003918287241373597,
+            "standard_error": 2.2659006130117157e-05
+          },
+          "binary_snowball": {
+            "value": -4.9853471997004624e-05,
+            "standard_error": 2.011267892027097e-06
+          },
+          "ternary_daily": {
+            "value": 0.000457701314242047,
+            "standard_error": 5.244741790544195e-06
+          },
+          "ternary_terminal": {
+            "value": 0.00027026136428221967,
+            "standard_error": 3.5862063392113892e-06
+          },
+          "phoenix_daily": {
+            "value": 0.004114867528032783,
+            "standard_error": 1.641564841754069e-05
+          },
+          "phoenix_terminal": {
+            "value": 0.0038834808582082904,
+            "standard_error": 2.1685379616194395e-05
+          }
+        },
+        "gamma_2": {
+          "accumulator": {
+            "value": -7.191415834841622,
+            "standard_error": 0.3171377262432735
+          },
+          "snowball_daily": {
+            "value": -0.00037485194660747783,
+            "standard_error": 1.6897133368363483e-05
+          },
+          "snowball_terminal": {
+            "value": -0.000374245693385291,
+            "standard_error": 2.2233486985922662e-05
+          },
+          "binary_snowball": {
+            "value": -1.5901691750275146e-05,
+            "standard_error": 2.176548555077636e-06
+          },
+          "ternary_daily": {
+            "value": -3.52277983920991e-05,
+            "standard_error": 5.761869727729072e-06
+          },
+          "ternary_terminal": {
+            "value": -3.592633236710635e-05,
+            "standard_error": 4.4138418708888514e-06
+          },
+          "phoenix_daily": {
+            "value": -0.00041611101896568215,
+            "standard_error": 1.3925972014470323e-05
+          },
+          "phoenix_terminal": {
+            "value": -0.00041466652497349556,
+            "standard_error": 1.981307412461456e-05
+          }
+        }
+      }
+    }
+  }
+}

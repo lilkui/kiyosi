@@ -347,11 +347,335 @@ fn unsupported_models_requests_and_solves_fail_even_at_expiry() {
             ),
             Err(Error::UnsupportedOperation(_))
         ));
-        let american = AmericanOption::new(OptionType::Call, 100.0, dates().0, dates().1).unwrap();
-        assert!(matches!(
-            FiniteDifferenceVanillaEngine::default().price(&american, &c),
-            Err(Error::UnsupportedOperation(_))
-        ));
+    }
+}
+
+#[test]
+fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
+    let settings = FiniteDifferenceSettings {
+        asset_step_count: 800,
+        time_step_count: 800,
+        asset_upper_boundary: Some(400.0),
+        ..Default::default()
+    };
+    let vanilla = FiniteDifferenceVanillaEngine::new(settings).unwrap();
+    let digital = FiniteDifferenceDigitalEngine::new(settings).unwrap();
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    for (r, q) in [(0.05, 0.02), (-0.03, -0.01), (0.02, 0.08)] {
+        let bsm = PricingContext::new(
+            BlackScholesMertonParameters::new(r, q, 0.2).unwrap(),
+            100.0,
+            dates().0.into(),
+        )
+        .unwrap();
+        let local = bsm
+            .replace(PricingContextChanges {
+                model_parameters: Some(
+                    LocalVolatilityParameters::new(r, q, surface(vec![vec![0.2; 2]; 2]))
+                        .unwrap()
+                        .into(),
+                ),
+                ..Default::default()
+            })
+            .unwrap();
+        for direction in [OptionType::Call, OptionType::Put] {
+            let american = AmericanOption::new(direction, 100.0, dates().0, dates().1).unwrap();
+            let a = vanilla
+                .price_with_greeks(&american, &local, request, Default::default())
+                .unwrap();
+            let b = vanilla
+                .price_with_greeks(&american, &bsm, request, Default::default())
+                .unwrap();
+            for (actual, expected) in [
+                (a.price(), b.price()),
+                (
+                    a.require(Greek::Delta).unwrap(),
+                    b.require(Greek::Delta).unwrap(),
+                ),
+                (
+                    a.require(Greek::Gamma).unwrap(),
+                    b.require(Greek::Gamma).unwrap(),
+                ),
+            ] {
+                close(actual, expected, 1e-7);
+            }
+            for option in [
+                DigitalOption::cash_or_nothing(direction, 100.0, 10.0, dates().0, dates().1)
+                    .unwrap(),
+                DigitalOption::asset_or_nothing(direction, 100.0, dates().0, dates().1).unwrap(),
+            ] {
+                let a = digital
+                    .price_with_greeks(&option, &local, request, Default::default())
+                    .unwrap();
+                let b = digital
+                    .price_with_greeks(&option, &bsm, request, Default::default())
+                    .unwrap();
+                close(a.price(), b.price(), 1e-7);
+                close(
+                    a.require(Greek::Delta).unwrap(),
+                    b.require(Greek::Delta).unwrap(),
+                    1e-7,
+                );
+                close(
+                    a.require(Greek::Gamma).unwrap(),
+                    b.require(Greek::Gamma).unwrap(),
+                    1e-7,
+                );
+                let terminal = local
+                    .replace(PricingContextChanges {
+                        valuation_time: Some(dates().1.into()),
+                        spot_price: Some(110.0),
+                        ..Default::default()
+                    })
+                    .unwrap();
+                let result = digital
+                    .price_with_greeks(&option, &terminal, request, Default::default())
+                    .unwrap();
+                let expected = if direction == OptionType::Call {
+                    option.payout().unwrap_or(110.0)
+                } else {
+                    0.0
+                };
+                assert_eq!(result.price(), expected);
+                assert!(!result.has(Greek::Delta));
+                assert!(!result.has(Greek::Gamma));
+                assert!(matches!(
+                    digital.price_with_greeks(
+                        &option,
+                        &terminal,
+                        GreeksRequest::all(),
+                        Default::default()
+                    ),
+                    Err(Error::UnsupportedOperation(_))
+                ));
+            }
+            let terminal = local
+                .replace(PricingContextChanges {
+                    valuation_time: Some(dates().1.into()),
+                    spot_price: Some(110.0),
+                    ..Default::default()
+                })
+                .unwrap();
+            let result = vanilla
+                .price_with_greeks(&american, &terminal, request, Default::default())
+                .unwrap();
+            assert_eq!(
+                result.price(),
+                if direction == OptionType::Call {
+                    10.0
+                } else {
+                    0.0
+                }
+            );
+            assert!(!result.has(Greek::Delta));
+            assert!(!result.has(Greek::Gamma));
+            assert!(matches!(
+                vanilla.price_with_greeks(
+                    &american,
+                    &terminal,
+                    GreeksRequest::all(),
+                    Default::default()
+                ),
+                Err(Error::UnsupportedOperation(_))
+            ));
+        }
+    }
+}
+
+#[test]
+fn local_digital_keeps_flat_rate_restriction_before_terminal_shortcuts() {
+    let curve =
+        RateTermStructure::new(dates().0.into(), vec![dates().1.into()], vec![0.95]).unwrap();
+    let model =
+        LocalVolatilityParameters::new(curve, 0.02, surface(vec![vec![0.2; 2]; 2])).unwrap();
+    let c = PricingContext::new(model, 110.0, dates().1.into()).unwrap();
+    let option =
+        DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, dates().0, dates().1)
+            .unwrap();
+    assert!(matches!(
+        FiniteDifferenceDigitalEngine::default().price(&option, &c),
+        Err(Error::UnsupportedOperation(_))
+    ));
+    assert!(matches!(
+        <FiniteDifferenceDigitalEngine as PricingEngine<DigitalOption>>::validate_applicability(
+            &FiniteDifferenceDigitalEngine::default(),
+            &c
+        ),
+        Err(Error::UnsupportedOperation(_))
+    ));
+}
+
+#[test]
+fn every_fd_engine_keeps_schemes_coverage_and_explicit_stability_contracts() {
+    let (start, end) = dates();
+    let local = context(surface(vec![vec![0.2; 2]; 2]));
+    let bsm = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap(),
+        100.0,
+        start.into(),
+    )
+    .unwrap();
+    let short = context(
+        LocalVolatilitySurface::new(
+            vec![start.into(), Date::new(2025, 1, 2).unwrap().into()],
+            vec![80.0, 120.0],
+            vec![vec![0.2; 2]; 2],
+        )
+        .unwrap(),
+    );
+    macro_rules! check {
+        ($engine:ty, $option:expr) => {{
+            let option = $option;
+            for scheme in [
+                FiniteDifferenceScheme::ExplicitEuler,
+                FiniteDifferenceScheme::ImplicitEuler,
+                FiniteDifferenceScheme::CrankNicolson,
+                FiniteDifferenceScheme::Rannacher,
+            ] {
+                let engine = <$engine>::new(FiniteDifferenceSettings {
+                    asset_step_count: 80,
+                    time_step_count: 16000,
+                    scheme,
+                    asset_upper_boundary: Some(400.0),
+                })
+                .unwrap();
+                close(
+                    engine.price(&option, &local).unwrap(),
+                    engine.price(&option, &bsm).unwrap(),
+                    1e-6,
+                );
+            }
+            assert!(matches!(
+                <$engine>::default().price(&option, &short),
+                Err(Error::InvalidInput(_))
+            ));
+            let unstable = <$engine>::new(FiniteDifferenceSettings {
+                time_step_count: 1,
+                scheme: FiniteDifferenceScheme::ExplicitEuler,
+                ..Default::default()
+            })
+            .unwrap();
+            assert!(matches!(
+                unstable.price(&option, &local),
+                Err(Error::InvalidInput(_))
+            ));
+        }};
+    }
+    check!(
+        FiniteDifferenceVanillaEngine,
+        AmericanOption::new(OptionType::Put, 100.0, start, end).unwrap()
+    );
+    check!(
+        FiniteDifferenceDigitalEngine,
+        DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap()
+    );
+    check!(
+        FiniteDifferenceBarrierEngine,
+        BarrierOption::new(BarrierOptionTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            120.0,
+            BarrierType::UpAndOut
+        ))
+        .unwrap()
+    );
+    check!(
+        FiniteDifferenceDoubleBarrierEngine,
+        DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            80.0,
+            120.0,
+            DoubleBarrierType::KnockOut
+        ))
+        .unwrap()
+    );
+    check!(
+        FiniteDifferenceBinaryBarrierEngine,
+        TouchOption::cash(
+            TouchOptionTerms::new(start, end, 120.0, BarrierType::UpAndIn),
+            10.0
+        )
+        .unwrap()
+    );
+    check!(
+        FiniteDifferenceDoubleTouchEngine,
+        DoubleTouchOption::cash(
+            DoubleTouchOptionTerms::new(start, end, 80.0, 120.0, DoubleBarrierType::KnockOut),
+            10.0
+        )
+        .unwrap()
+    );
+    check!(
+        FiniteDifferenceAccumulatorEngine,
+        Accumulator::new(AccumulatorTerms::new(100.0, 120.0, 1.0, 2.0, start, end)).unwrap()
+    );
+    check!(
+        FiniteDifferenceAutocallableEngine,
+        BinarySnowballOption::new(BinarySnowballTerms::new(
+            0.06,
+            start,
+            end,
+            autocallable_observations(&[end], &[120.0], Some(&[0.08]), None).unwrap()
+        ))
+        .unwrap()
+    );
+}
+
+#[test]
+fn american_and_digital_skew_match_frozen_independent_references() {
+    // QuantLib 1.43, 3200 time/space nodes. Python measures reference refinement.
+    let local = context(surface(vec![vec![0.3, 0.15], vec![0.35, 0.2]]));
+    let settings = FiniteDifferenceSettings {
+        asset_step_count: 1600,
+        time_step_count: 1600,
+        asset_upper_boundary: Some(400.0),
+        ..Default::default()
+    };
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    let american = AmericanOption::new(OptionType::Put, 100.0, dates().0, dates().1).unwrap();
+    let cash = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, dates().0, dates().1)
+        .unwrap();
+    let asset =
+        DigitalOption::asset_or_nothing(OptionType::Put, 100.0, dates().0, dates().1).unwrap();
+    for (actual, expected) in [
+        (
+            FiniteDifferenceVanillaEngine::new(settings)
+                .unwrap()
+                .price_with_greeks(&american, &local, request, Default::default())
+                .unwrap(),
+            [8.36092765271177, -0.4862228008557096, 0.016624005388366895],
+        ),
+        (
+            FiniteDifferenceDigitalEngine::new(settings)
+                .unwrap()
+                .price_with_greeks(&cash, &local, request, Default::default())
+                .unwrap(),
+            [
+                5.390974151168607,
+                0.15947913068917802,
+                -0.000587304384771014,
+            ],
+        ),
+        (
+            FiniteDifferenceDigitalEngine::new(settings)
+                .unwrap()
+                .price_with_greeks(&asset, &local, request, Default::default())
+                .unwrap(),
+            [
+                33.10838469770408,
+                -1.1297556110920681,
+                -0.009360268511100315,
+            ],
+        ),
+    ] {
+        close(actual.price(), expected[0], 0.002);
+        close(actual.require(Greek::Delta).unwrap(), expected[1], 0.0002);
+        close(actual.require(Greek::Gamma).unwrap(), expected[2], 0.00003);
     }
 }
 

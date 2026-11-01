@@ -8,10 +8,12 @@ use crate::{
 };
 
 impl FiniteDifferenceBinaryBarrierEngine {
-    /// Prices a binary barrier or single touch with flat or node curves.
+    /// Prices a binary barrier or single touch with BSM or local volatility.
     ///
     /// Continuous barriers are exact grid edges; scheduled observations project event cells.
     /// Prior at-hit payments have no remaining value; resolved cash flows use exact discounts.
+    /// Accepts flat or node rate curves. Local volatility requires surface coverage only
+    /// through the remaining stochastic horizon, including the last at-hit observation.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
@@ -24,7 +26,6 @@ impl FiniteDifferenceBinaryBarrierEngine {
     where
         Self: PricingEngine<I>,
     {
-        context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price(self, option, context)
     }
 
@@ -32,6 +33,8 @@ impl FiniteDifferenceBinaryBarrierEngine {
     ///
     /// Stencils crossing observations or barriers leave affected measures absent.
     /// All Greeks are absent at expiry or a current barrier equality without a prior touch.
+    /// Local volatility supports only fixed-surface delta/gamma; other requests return
+    /// [`Error::UnsupportedOperation`] before settlement or expiry shortcuts.
     ///
     /// # Errors
     ///
@@ -65,7 +68,6 @@ impl FiniteDifferenceBinaryBarrierEngine {
     where
         Self: PricingEngine<I>,
     {
-        context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request, shifts)
     }
 }
@@ -73,8 +75,10 @@ impl FiniteDifferenceBinaryBarrierEngine {
 macro_rules! binary_pricing {
     ($engine:ty, $option:ty) => {
         impl PricingEngine<$option> for $engine {
+            fn validate_applicability(&self, _: &PricingContext) -> Result<()> {
+                Ok(())
+            }
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
-                context.bsm_parameters()?;
                 Ok(native(
                     option.contract(),
                     context,
@@ -91,17 +95,19 @@ macro_rules! binary_pricing {
                 request: GreeksRequest,
                 shifts: NumericalShiftSettings,
             ) -> Result<PricingResult> {
-                context.bsm_parameters()?;
                 request.validate()?;
                 shifts.validate()?;
+                local_volatility::validate_request(context, request)?;
                 let mut settings = self.settings;
-                if settings.asset_upper_boundary.is_none() {
+                if settings.asset_upper_boundary.is_none()
+                    && local_volatility::local_model(context).is_none()
+                {
                     let upper = default_upper(&option.contract(), context);
                     if upper.is_finite() {
                         settings.asset_upper_boundary = Some(upper);
                     }
                 }
-                crate::risk::numerical::complete_greeks(
+                super::complete_greeks(
                     option,
                     context,
                     request,
@@ -128,6 +134,8 @@ impl FiniteDifferenceDoubleTouchEngine {
     ///
     /// Fits continuous boundaries exactly and projects scheduled events simultaneously.
     /// Prior at-hit payments have zero remaining value; resolved cash uses exact discounts.
+    /// Accepts BSM or local volatility with flat or node rate curves. Surface coverage
+    /// follows the remaining stochastic horizon, not a previously settled payment.
     /// See [`DoubleTouchOption::cash`] for construction and pricing.
     ///
     /// # Errors
@@ -137,7 +145,6 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         <Self as PricingEngine<DoubleTouchOption>>::price(self, option, context)
     }
 
@@ -145,6 +152,8 @@ impl FiniteDifferenceDoubleTouchEngine {
     ///
     /// Stencils crossing either boundary or an observation omit affected measures.
     /// All Greeks are absent at expiry or current boundary equality without a prior touch.
+    /// Local volatility supports only fixed-surface delta/gamma; unsupported Greeks
+    /// return [`Error::UnsupportedOperation`] even for settled contracts.
     ///
     /// # Errors
     ///
@@ -176,7 +185,6 @@ impl FiniteDifferenceDoubleTouchEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
         <Self as PricingEngine<DoubleTouchOption>>::price_with_greeks(
             self, option, context, request, shifts,
         )
@@ -204,7 +212,35 @@ fn native(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<PricingResult> {
-    context.bsm_parameters()?;
+    local_volatility::validate_request(context, request)?;
+    match context.model_parameters() {
+        crate::ModelParameters::BlackScholesMerton(model) => native_with_diffusion(
+            contract,
+            context,
+            settings,
+            request,
+            shifts,
+            model.volatility(),
+        ),
+        crate::ModelParameters::LocalVolatility(model) => native_with_diffusion(
+            contract,
+            context,
+            settings,
+            request,
+            shifts,
+            LocalDiffusion::new(context, model.surface()),
+        ),
+    }
+}
+
+fn native_with_diffusion<D: Diffusion>(
+    contract: Contract<'_>,
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    request: GreeksRequest,
+    shifts: NumericalShiftSettings,
+    diffusion: D,
+) -> Result<PricingResult> {
     let option = contract.monitoring;
     validate_life(option, context)?;
     validate_schedule(option.observation_schedule(), context)?;
@@ -245,9 +281,27 @@ fn native(
             return PricingResult::new(contract.payout.unwrap_or(spot));
         }
         let value = if let Some(digital) = contract.digital {
-            AnalyticDigitalEngine.price(digital, context)?
+            if D::LOCAL {
+                let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift);
+                let request = if option.spot_discontinuity(context, h, contract.upper_barrier) {
+                    GreeksRequest::default()
+                } else {
+                    request
+                };
+                return Ok(super::native(
+                    digital,
+                    Payoff::digital(digital),
+                    context,
+                    settings,
+                    request,
+                    shifts,
+                )?
+                .0);
+            } else {
+                AnalyticDigitalEngine.price(digital, context)?
+            }
         } else {
-            let model = context.bsm_parameters()?;
+            let model = context.model_parameters();
             let curve = if contract.payout.is_some() {
                 model.risk_free_curve()
             } else {
@@ -272,12 +326,22 @@ fn native(
         expiry
     };
     let time = context.valuation_time().years_until(horizon);
-    let model = context.bsm_parameters()?;
+    let model = context.model_parameters();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), horizon)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), horizon)?;
-    let upper = settings
-        .asset_upper_boundary
-        .unwrap_or_else(|| default_upper(&contract, context));
+    let upper = settings.asset_upper_boundary.unwrap_or_else(|| {
+        let upper = default_upper(&contract, context);
+        if D::LOCAL {
+            let relevant = spot.max(
+                contract
+                    .digital
+                    .map_or(option.barrier_level(), |digital| digital.strike()),
+            );
+            upper.max(diffusion_upper(relevant, context, time, &risk, &dividend))
+        } else {
+            upper
+        }
+    });
     let mut space = SpatialGrid::new(
         settings,
         upper,
@@ -302,16 +366,25 @@ fn native(
         .filter(|date| date.start_of_day() > context.valuation_time())
         .map(|date| context.valuation_time().years_until(date.start_of_day()))
         .collect();
-    let grid = TimeGrid::with_events(
-        time,
+    let grid = diffusion::time_grid(
+        context,
+        horizon,
         settings.time_step_count,
         &risk,
         &dividend,
         &observations,
-    );
-    let sigma = model.volatility();
+    )?;
     let theta = settings.scheme.theta();
-    grid.validate_stability(&space, sigma, theta, scheduled, &risk, &dividend)?;
+    if !D::LOCAL {
+        grid.validate_stability(
+            &space,
+            diffusion.sigma(0.0, 0.0),
+            theta,
+            scheduled,
+            &risk,
+            &dividend,
+        )?;
+    }
     let knocked = |asset| {
         upper_barrier.is_some_and(|upper| asset >= upper)
             || if up {
@@ -346,11 +419,18 @@ fn native(
                     0.0
                 };
             }
+            if D::LOCAL {
+                return if sign > 0.0 {
+                    scaled(contract.payout.unwrap_or(asset), log)
+                } else {
+                    0.0
+                };
+            }
             let (d1, d2) = black_scholes_arguments(
                 asset,
                 digital.strike(),
                 dividend.log_factor(current, time) - risk.log_factor(current, time),
-                sigma,
+                diffusion.sigma(0.0, 0.0),
                 tau.sqrt(),
             );
             weighted_cdf(
@@ -459,7 +539,7 @@ fn native(
             values,
             &space,
             &grid,
-            sigma,
+            diffusion,
             settings.scheme,
             [&risk, &dividend],
             if events && scheduled {
@@ -471,8 +551,21 @@ fn native(
             observe,
         )
     };
-    let mut values = march(true)?;
-    if contract.digital.is_some() && knock_in {
+    let mut values = if D::LOCAL && knock_in && contract.digital.is_some() {
+        local_digital_knock_in(
+            &contract,
+            settings,
+            &space,
+            &grid,
+            diffusion,
+            [&risk, &dividend],
+            &observations,
+            upper,
+        )?
+    } else {
+        march(true)?
+    };
+    if contract.digital.is_some() && knock_in && !D::LOCAL {
         for (value, vanilla) in values.iter_mut().zip(march(false)?) {
             *value = vanilla - *value;
         }
@@ -499,4 +592,103 @@ fn native(
         }
     }
     Ok(result)
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "shared grids, diffusion and event inputs"
+)]
+fn local_digital_knock_in<D: Diffusion>(
+    contract: &Contract<'_>,
+    settings: FiniteDifferenceSettings,
+    space: &SpatialGrid,
+    grid: &TimeGrid,
+    diffusion: D,
+    [risk, dividend]: [&Curve; 2],
+    observations: &[f64],
+    upper: f64,
+) -> Result<Vec<f64>> {
+    let digital = contract.digital.ok_or_else(unstable)?;
+    let payoff = Payoff::digital(digital);
+    let full = SpatialGrid::new(settings, upper, 0.0, digital.strike())?;
+    let time = *grid.times.last().ok_or_else(unstable)?;
+    let scheduled = contract.monitoring.observation_mode() == ObservationMode::Scheduled;
+    let level = contract.monitoring.barrier_level();
+    let knocked = |asset| {
+        if contract.monitoring.barrier_type().is_up() {
+            asset >= level
+        } else {
+            asset <= level
+        }
+    };
+    let breaks = [level, digital.strike()];
+    let continuation = (0..=full.count)
+        .map(|i| {
+            super::barrier::project(&full, &[digital.strike()], i, |asset| payoff.value(asset))
+        })
+        .collect();
+    let values = (0..=space.count)
+        .map(|i| {
+            super::barrier::project(space, &breaks, i, |asset| {
+                if (!scheduled || observations.contains(&time)) && knocked(asset) {
+                    payoff.value(asset)
+                } else {
+                    0.0
+                }
+            })
+        })
+        .collect();
+    let full_edges = |current| {
+        let discount = if contract.payout.is_some() {
+            risk.log_factor(current, time)
+        } else {
+            dividend.log_factor(current, time)
+        };
+        if digital.option_type() == OptionType::Call {
+            [0.0, scaled(contract.payout.unwrap_or(upper), discount)]
+        } else {
+            [scaled(contract.payout.unwrap_or(0.0), discount), 0.0]
+        }
+    };
+    let edges = |current, continuation: &[f64]| {
+        let value = |asset| {
+            if knocked(asset) && (!scheduled || observations.iter().any(|&t| t >= current)) {
+                full.linear(continuation, asset)
+            } else {
+                0.0
+            }
+        };
+        [value(space.asset(0)), value(space.upper)]
+    };
+    let observe = |values: &mut [f64], continuation: &[f64], _| {
+        let cut = ((level / space.spacing).round() as usize).min(space.count);
+        let projected = values[cut]
+            + super::barrier::project(space, &breaks, cut, |asset| {
+                if knocked(asset) {
+                    full.linear(continuation, asset) - space.linear(values, asset)
+                } else {
+                    0.0
+                }
+            });
+        for (i, value) in values.iter_mut().enumerate() {
+            if knocked(space.asset(i)) {
+                *value = full.linear(continuation, space.asset(i));
+            }
+        }
+        values[cut] = projected;
+    };
+    step::march_with_continuation(
+        values,
+        space,
+        continuation,
+        &full,
+        grid,
+        diffusion,
+        settings.scheme,
+        [risk, dividend],
+        if scheduled { observations } else { &[] },
+        full_edges,
+        edges,
+        observe,
+    )
 }

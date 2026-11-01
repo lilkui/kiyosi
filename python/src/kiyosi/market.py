@@ -6,8 +6,9 @@ trading-year fractions. ``BusinessDayConvention`` accepts ``"following"``
 or ``"preceding"``, including the supplied date when it is open.
 LocalVolatilitySurface owns a rectangular table (rows=time, columns=absolute
 spot), interpolating sigma bilinearly with flat price tails and no time
-extrapolation. Context changes keep these absolute nodes fixed. Only European
-vanilla FD price, delta and gamma support LocalVolatilityParameters.
+extrapolation. Context changes keep these absolute nodes fixed. All FD engines
+support LocalVolatilityParameters for price, delta and gamma; Digital FD requires
+flat rates. Non-FD engines, other Greeks and inverse solves remain unsupported.
 Model and context ``replace()`` methods expose named keyword-only fields.
 Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
 values; explicit ``None`` is rejected.

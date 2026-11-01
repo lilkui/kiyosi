@@ -382,10 +382,6 @@ impl TimeGrid {
         Ok(())
     }
 
-    pub fn new(time: f64, steps: i32, risk: &Curve, dividend: &Curve) -> Self {
-        Self::with_events(time, steps, risk, dividend, &[])
-    }
-
     pub fn with_events(
         time: f64,
         steps: i32,

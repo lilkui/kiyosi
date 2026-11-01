@@ -6,6 +6,8 @@ impl FiniteDifferenceAccumulatorEngine {
     ///
     /// Applies a current midnight event exactly once, with inclusive knock-out and
     /// direction-dependent acceleration. Supports flat and node rate curves.
+    /// Accepts BSM or local volatility; surface coverage is required only for
+    /// remaining stochastic evolution, after immediate settlement is resolved.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
@@ -14,7 +16,6 @@ impl FiniteDifferenceAccumulatorEngine {
     /// for non-trading expiry or knock-out dates, clipped domains or unstable explicit steps.
     /// Numerical failures return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         Ok(native(
             option,
             context,
@@ -30,11 +31,14 @@ impl FiniteDifferenceAccumulatorEngine {
     ///
     /// Fixes the central upper domain for bumped prices. Expiry Greeks and stencils
     /// crossing current thresholds or trading events are unavailable.
+    /// Local volatility supports only delta and gamma with the absolute surface fixed.
     ///
     /// # Errors
     ///
     /// Validates requests and shifts, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors without changing inputs or settings.
+    /// Unsupported local-volatility Greeks return [`Error::UnsupportedOperation`]
+    /// before settlement or expiry shortcuts.
     ///
     /// # Examples
     ///
@@ -60,14 +64,15 @@ impl FiniteDifferenceAccumulatorEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
         analysis(option, context, self.settings, request, shifts, native)
     }
 }
 
 impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
+    fn validate_applicability(&self, _: &PricingContext) -> Result<()> {
+        Ok(())
+    }
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn price_with_greeks(
@@ -77,7 +82,6 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
         self.price_with_greeks(option, context, request, shifts)
     }
     fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
@@ -112,18 +116,44 @@ fn native(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<(PricingResult, Option<f64>)> {
-    context.bsm_parameters()?;
+    local_volatility::validate_request(context, request)?;
+    match context.model_parameters() {
+        crate::ModelParameters::BlackScholesMerton(model) => native_with_diffusion(
+            option,
+            context,
+            settings,
+            request,
+            shifts,
+            model.volatility(),
+        ),
+        crate::ModelParameters::LocalVolatility(model) => native_with_diffusion(
+            option,
+            context,
+            settings,
+            request,
+            shifts,
+            LocalDiffusion::new(context, model.surface()),
+        ),
+    }
+}
+
+fn native_with_diffusion<D: Diffusion>(
+    option: &Accumulator,
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    request: GreeksRequest,
+    shifts: NumericalShiftSettings,
+    diffusion: D,
+) -> Result<(PricingResult, Option<f64>)> {
     option.validate_pricing(context)?;
     let (quantity, settlement) = option.initial(context);
     if let Some(value) = settlement {
         return Ok((PricingResult::new(value)?, None));
     }
     let expiry = option.expiry_date().start_of_day();
-    let time = context.valuation_time().years_until(expiry);
-    let model = context.bsm_parameters()?;
+    let model = context.model_parameters();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
-    let sigma = model.volatility();
     let upper = match settings.asset_upper_boundary {
         Some(value) => value,
         None => default_upper(option, context, &risk, &dividend),
@@ -142,9 +172,24 @@ fn native(
         .iter()
         .map(|date| context.valuation_time().years_until((*date).into()))
         .collect();
-    let grid = TimeGrid::with_events(time, settings.time_step_count, &risk, &dividend, &trading);
-    let theta = settings.scheme.theta();
-    grid.validate_stability(&space, sigma, theta, true, &risk, &dividend)?;
+    let grid = diffusion::time_grid(
+        context,
+        expiry,
+        settings.time_step_count,
+        &risk,
+        &dividend,
+        &trading,
+    )?;
+    if !D::LOCAL {
+        grid.validate_stability(
+            &space,
+            diffusion.sigma(0.0, 0.0),
+            settings.scheme.theta(),
+            true,
+            &risk,
+            &dividend,
+        )?;
+    }
     let count = if option.accrues(context) { 2 } else { 1 };
     let mut layers = [vec![0.0; space.count + 1], vec![0.0; space.count + 1]];
     let mut next = layers.clone();
@@ -171,7 +216,7 @@ fn native(
         *slope = value[0];
         *intercept = value[1];
     }
-    let mut stepper = Stepper::new(space.count);
+    let mut stepper = diffusion.stepper(space.count);
     let mut damping: u32 = 2;
     for step in (0..grid.widths.len()).rev() {
         for (current, dt, weight) in grid.substeps(step, settings.scheme, &mut damping) {
@@ -186,11 +231,12 @@ fn native(
                     values[0] * (-rate * dt).exp(),
                     slope * upper * (-q * dt).exp() + intercept * (-rate * dt).exp(),
                 ];
-                stepper.advance(
+                diffusion.advance(
+                    &mut stepper,
                     values,
                     &mut next[layer],
                     &space,
-                    sigma,
+                    middle,
                     [dt, weight, rate, q],
                     boundaries,
                 )?;

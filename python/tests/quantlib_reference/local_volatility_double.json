@@ -1,0 +1,500 @@
+{
+  "coarse": {
+    "quantlib_version": "1.43",
+    "pairs": 65536,
+    "seed": 947,
+    "substeps_per_day": 8,
+    "time_steps": 720,
+    "results": {
+      "continuous_1": {
+        "call_out": {
+          "price": 1.6189584584814485,
+          "standard_error": 0.007611059572577164
+        },
+        "call_in": {
+          "price": 4.0564608005725695,
+          "standard_error": 0.018815490181628796
+        },
+        "put_out": {
+          "price": 1.5663003786122613,
+          "standard_error": 0.007493258038632529
+        },
+        "put_in": {
+          "price": 2.3753178305442275,
+          "standard_error": 0.015348789630831496
+        },
+        "touch_expiry": {
+          "price": 4.105954763724115,
+          "standard_error": 0.01695594651152059
+        },
+        "no_touch": {
+          "price": 5.795899899315194,
+          "standard_error": 0.01695594651153746
+        },
+        "touch_hit": {
+          "price": 4.122343084044063,
+          "standard_error": 0.0170268299300584
+        }
+      },
+      "continuous_2": {
+        "call_out": {
+          "price": 1.6489503871080238,
+          "standard_error": 0.007671789602217609
+        },
+        "call_in": {
+          "price": 4.026468871945997,
+          "standard_error": 0.018849424672679846
+        },
+        "put_out": {
+          "price": 1.5879237209777133,
+          "standard_error": 0.007543208698160697
+        },
+        "put_in": {
+          "price": 2.353694488178774,
+          "standard_error": 0.015341247170121893
+        },
+        "touch_expiry": {
+          "price": 4.047633903434605,
+          "standard_error": 0.016934962822820677
+        },
+        "no_touch": {
+          "price": 5.854220759604703,
+          "standard_error": 0.016934962822838698
+        },
+        "touch_hit": {
+          "price": 4.063654086964319,
+          "standard_error": 0.017005182138430414
+        }
+      },
+      "continuous_4": {
+        "call_out": {
+          "price": 1.6916945563958048,
+          "standard_error": 0.007764641432216963
+        },
+        "call_in": {
+          "price": 3.983724702658222,
+          "standard_error": 0.018892356223892966
+        },
+        "put_out": {
+          "price": 1.6186037151899975,
+          "standard_error": 0.007613993059579941
+        },
+        "put_in": {
+          "price": 2.32301449396649,
+          "standard_error": 0.015328706159741898
+        },
+        "touch_expiry": {
+          "price": 3.9676315834260687,
+          "standard_error": 0.016902488244147612
+        },
+        "no_touch": {
+          "price": 5.934223079613239,
+          "standard_error": 0.016902488244167155
+        },
+        "touch_hit": {
+          "price": 3.9831585988631426,
+          "standard_error": 0.01697175171079129
+        }
+      },
+      "continuous_8": {
+        "call_out": {
+          "price": 1.7509828895076074,
+          "standard_error": 0.00788099991044376
+        },
+        "call_in": {
+          "price": 3.9244363695464126,
+          "standard_error": 0.018951277802774277
+        },
+        "put_out": {
+          "price": 1.6638139009845885,
+          "standard_error": 0.0077123697156200105
+        },
+        "put_in": {
+          "price": 2.277804308171896,
+          "standard_error": 0.015309180013750825
+        },
+        "touch_expiry": {
+          "price": 3.8529540368982516,
+          "standard_error": 0.016843611256013042
+        },
+        "no_touch": {
+          "price": 6.048900626141056,
+          "standard_error": 0.016843611256034945
+        },
+        "touch_hit": {
+          "price": 3.8677694451854667,
+          "standard_error": 0.016911397648770553
+        }
+      },
+      "scheduled": {
+        "call_out": {
+          "price": 2.4314782588645683,
+          "standard_error": 0.008799735546640394
+        },
+        "call_in": {
+          "price": 3.2439410001894498,
+          "standard_error": 0.01936260171604212
+        },
+        "put_out": {
+          "price": 2.163902832650256,
+          "standard_error": 0.008606494322372853
+        },
+        "put_in": {
+          "price": 1.7777153765062377,
+          "standard_error": 0.014883488470207193
+        },
+        "touch_expiry": {
+          "price": 2.653448052860914,
+          "standard_error": 0.015475133879017538
+        },
+        "no_touch": {
+          "price": 7.2484066101783915,
+          "standard_error": 0.015475133879041095
+        },
+        "touch_hit": {
+          "price": 2.6594872503830618,
+          "standard_error": 0.01551174491813275
+        }
+      },
+      "monitoring_1_2": {
+        "call_out": {
+          "price": 0.02999192862657346,
+          "standard_error": 0.001550884714666103
+        },
+        "call_in": {
+          "price": -0.02999192862657346,
+          "standard_error": 0.001550884714666103
+        },
+        "put_out": {
+          "price": 0.02162334236545105,
+          "standard_error": 0.001335921537392925
+        },
+        "put_in": {
+          "price": -0.02162334236545105,
+          "standard_error": 0.001335921537392925
+        },
+        "touch_expiry": {
+          "price": -0.05832086028949806,
+          "standard_error": 0.002086630021999009
+        },
+        "no_touch": {
+          "price": 0.05832086028949806,
+          "standard_error": 0.002086630021999009
+        },
+        "touch_hit": {
+          "price": -0.05868899707978219,
+          "standard_error": 0.002092851001001137
+        }
+      },
+      "monitoring_2_4": {
+        "call_out": {
+          "price": 0.04274416928777966,
+          "standard_error": 0.0018905626571029679
+        },
+        "call_in": {
+          "price": -0.04274416928777966,
+          "standard_error": 0.0018905626571029679
+        },
+        "put_out": {
+          "price": 0.030679994212282468,
+          "standard_error": 0.0015998922957554112
+        },
+        "put_in": {
+          "price": -0.030679994212282468,
+          "standard_error": 0.0015998922957554112
+        },
+        "touch_expiry": {
+          "price": -0.08000232000852142,
+          "standard_error": 0.002440825856926193
+        },
+        "no_touch": {
+          "price": 0.08000232000852142,
+          "standard_error": 0.002440825856926193
+        },
+        "touch_hit": {
+          "price": -0.08049548810119522,
+          "standard_error": 0.0024474515201706824
+        }
+      },
+      "monitoring_4_8": {
+        "call_out": {
+          "price": 0.059288333111803405,
+          "standard_error": 0.002206086137580301
+        },
+        "call_in": {
+          "price": -0.059288333111803405,
+          "standard_error": 0.002206086137580301
+        },
+        "put_out": {
+          "price": 0.04521018579459354,
+          "standard_error": 0.0019341630346492616
+        },
+        "put_in": {
+          "price": -0.04521018579459354,
+          "standard_error": 0.0019341630346492616
+        },
+        "touch_expiry": {
+          "price": -0.11467754652779573,
+          "standard_error": 0.002911049493526466
+        },
+        "no_touch": {
+          "price": 0.11467754652779573,
+          "standard_error": 0.002911049493526466
+        },
+        "touch_hit": {
+          "price": -0.1153891536777202,
+          "standard_error": 0.0029192067514841207
+        }
+      }
+    }
+  },
+  "fine": {
+    "quantlib_version": "1.43",
+    "pairs": 65536,
+    "seed": 947,
+    "substeps_per_day": 16,
+    "time_steps": 1440,
+    "results": {
+      "continuous_1": {
+        "call_out": {
+          "price": 1.6022649239882043,
+          "standard_error": 0.007588946226784633
+        },
+        "call_in": {
+          "price": 4.0768958868548095,
+          "standard_error": 0.01877824873192274
+        },
+        "put_out": {
+          "price": 1.5604120976743499,
+          "standard_error": 0.007473429446471642
+        },
+        "put_in": {
+          "price": 2.3849791797121904,
+          "standard_error": 0.015336084607942788
+        },
+        "touch_expiry": {
+          "price": 4.155436840783218,
+          "standard_error": 0.016970755059089786
+        },
+        "no_touch": {
+          "price": 5.746417822256091,
+          "standard_error": 0.01697075505910561
+        },
+        "touch_hit": {
+          "price": 4.172055554783257,
+          "standard_error": 0.017042013365396156
+        }
+      },
+      "continuous_2": {
+        "call_out": {
+          "price": 1.624526188991413,
+          "standard_error": 0.007637425450855449
+        },
+        "call_in": {
+          "price": 4.054634621851603,
+          "standard_error": 0.01880304864952136
+        },
+        "put_out": {
+          "price": 1.5777386900855088,
+          "standard_error": 0.007512981278076072
+        },
+        "put_in": {
+          "price": 2.367652587301035,
+          "standard_error": 0.015330675088004958
+        },
+        "touch_expiry": {
+          "price": 4.111545105254455,
+          "standard_error": 0.016959509846401447
+        },
+        "no_touch": {
+          "price": 5.790309557784854,
+          "standard_error": 0.01695950984641817
+        },
+        "touch_hit": {
+          "price": 4.127909391414072,
+          "standard_error": 0.01703034424379805
+        }
+      },
+      "continuous_4": {
+        "call_out": {
+          "price": 1.6583215002012495,
+          "standard_error": 0.007709458924878391
+        },
+        "call_in": {
+          "price": 4.020839310641765,
+          "standard_error": 0.01883947786844136
+        },
+        "put_out": {
+          "price": 1.6003448634498825,
+          "standard_error": 0.007566144467122853
+        },
+        "put_in": {
+          "price": 2.3450464139366676,
+          "standard_error": 0.015321791896367572
+        },
+        "touch_expiry": {
+          "price": 4.049220351706729,
+          "standard_error": 0.016941812088114933
+        },
+        "no_touch": {
+          "price": 5.852634311332579,
+          "standard_error": 0.01694181208813289
+        },
+        "touch_hit": {
+          "price": 4.065230760177985,
+          "standard_error": 0.017012065900176856
+        }
+      },
+      "continuous_8": {
+        "call_out": {
+          "price": 1.6981777248081793,
+          "standard_error": 0.007792495938354713
+        },
+        "call_in": {
+          "price": 3.980983086034828,
+          "standard_error": 0.018880367612824602
+        },
+        "put_out": {
+          "price": 1.6349184329158515,
+          "standard_error": 0.007647103442414653
+        },
+        "put_in": {
+          "price": 2.310472844470696,
+          "standard_error": 0.015306042158606183
+        },
+        "touch_expiry": {
+          "price": 3.969520212321454,
+          "standard_error": 0.016893862562219107
+        },
+        "no_touch": {
+          "price": 5.932334450717854,
+          "standard_error": 0.01689386256223871
+        },
+        "touch_hit": {
+          "price": 3.9850440067505333,
+          "standard_error": 0.016963167895562684
+        }
+      },
+      "scheduled": {
+        "call_out": {
+          "price": 2.4418614629577937,
+          "standard_error": 0.008823584836001363
+        },
+        "call_in": {
+          "price": 3.2372993478851986,
+          "standard_error": 0.019348145655418543
+        },
+        "put_out": {
+          "price": 2.1882905926658625,
+          "standard_error": 0.008613734109167232
+        },
+        "put_in": {
+          "price": 1.7571006847206954,
+          "standard_error": 0.014853285701264537
+        },
+        "touch_expiry": {
+          "price": 2.640680921528106,
+          "standard_error": 0.015408925358556027
+        },
+        "no_touch": {
+          "price": 7.2611737415111985,
+          "standard_error": 0.01540892535857952
+        },
+        "touch_hit": {
+          "price": 2.646732320281283,
+          "standard_error": 0.015445742088585441
+        }
+      },
+      "monitoring_1_2": {
+        "call_out": {
+          "price": 0.02226126500320788,
+          "standard_error": 0.0013498273717362735
+        },
+        "call_in": {
+          "price": -0.02226126500320788,
+          "standard_error": 0.0013498273717362735
+        },
+        "put_out": {
+          "price": 0.017326592411158685,
+          "standard_error": 0.0011907329176172505
+        },
+        "put_in": {
+          "price": -0.017326592411158685,
+          "standard_error": 0.0011907329176172505
+        },
+        "touch_expiry": {
+          "price": -0.043891735528754285,
+          "standard_error": 0.0018128602613394947
+        },
+        "no_touch": {
+          "price": 0.043891735528754285,
+          "standard_error": 0.0018128602613394947
+        },
+        "touch_hit": {
+          "price": -0.04414616336921089,
+          "standard_error": 0.001817856950405753
+        }
+      },
+      "monitoring_2_4": {
+        "call_out": {
+          "price": 0.03379531120983529,
+          "standard_error": 0.0016653778884223357
+        },
+        "call_in": {
+          "price": -0.03379531120983529,
+          "standard_error": 0.0016653778884223357
+        },
+        "put_out": {
+          "price": 0.022606173364369864,
+          "standard_error": 0.0013748201052363148
+        },
+        "put_in": {
+          "price": -0.022606173364369864,
+          "standard_error": 0.0013748201052363148
+        },
+        "touch_expiry": {
+          "price": -0.06232475354771492,
+          "standard_error": 0.0021561848948436005
+        },
+        "no_touch": {
+          "price": 0.06232475354771492,
+          "standard_error": 0.0021561848948436005
+        },
+        "touch_hit": {
+          "price": -0.06267863123610622,
+          "standard_error": 0.00216203633783593
+        }
+      },
+      "monitoring_4_8": {
+        "call_out": {
+          "price": 0.03985622460692787,
+          "standard_error": 0.0018159211238572609
+        },
+        "call_in": {
+          "price": -0.03985622460692787,
+          "standard_error": 0.0018159211238572609
+        },
+        "put_out": {
+          "price": 0.03457356946597119,
+          "standard_error": 0.0017088596093416094
+        },
+        "put_in": {
+          "price": -0.03457356946597119,
+          "standard_error": 0.0017088596093416094
+        },
+        "touch_expiry": {
+          "price": -0.07970013938525977,
+          "standard_error": 0.0024339524035806616
+        },
+        "no_touch": {
+          "price": 0.07970013938525977,
+          "standard_error": 0.0024339524035806616
+        },
+        "touch_hit": {
+          "price": -0.08018675342749418,
+          "standard_error": 0.002440497154372708
+        }
+      }
+    }
+  }
+}

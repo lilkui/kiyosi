@@ -7,18 +7,18 @@ impl FiniteDifferenceBarrierEngine {
     /// Prices a single barrier with continuous or scheduled monitoring and flat or node curves.
     ///
     /// Resolves current observations against actual spot before building a grid.
-    /// Prior at-hit rebates are already paid; resolved vanilla payoffs use analytic pricing.
+    /// Prior at-hit rebates are already paid; resolved vanilla payoffs use the selected model.
+    /// Local volatility supports price and fixed-surface delta/gamma only.
     /// Continuous barriers are exact domain edges; scheduled dates are inserted unchanged.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] outside life or curve coverage, for
+    /// Returns [`Error::InvalidInput`] outside life or required curve/surface coverage, for
     /// non-trading observations, missing or impossible history, clipped or
     /// degenerate grids, or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         Ok(native_barrier(
             option,
             context,
@@ -31,13 +31,15 @@ impl FiniteDifferenceBarrierEngine {
 
     /// Returns spline delta/gamma and fixed-grid speed, completing other Greeks numerically.
     ///
-    /// Uses [`NumericalShiftSettings`] for all bumps and fixes the central spatial domain.
+    /// Uses [`NumericalShiftSettings`] for bumps and fixes the central BSM spatial domain.
+    /// Local volatility accepts only delta/gamma, holding the absolute surface fixed.
     /// Stencils crossing observations or barriers leave affected Greeks absent; all are
     /// absent at expiry or a current barrier equality without a prior touch.
     ///
     /// # Errors
     ///
-    /// Validates requests and shifts before pricing. Propagates [`Self::price`] and
+    /// Rejects other local-volatility Greeks with [`Error::UnsupportedOperation`],
+    /// including at expiry. Validates requests and shifts before pricing. Propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors; feasible bumped failures fail the operation.
     /// Inputs and immutable engine settings remain unchanged on success and failure.
     ///
@@ -66,14 +68,15 @@ impl FiniteDifferenceBarrierEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
         analysis(option, context, self.settings, request, shifts)
     }
 }
 
 impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
+    fn validate_applicability(&self, _: &PricingContext) -> Result<()> {
+        Ok(())
+    }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn price_with_greeks(
@@ -83,7 +86,6 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
         self.price_with_greeks(option, context, request, shifts)
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
@@ -97,6 +99,8 @@ trait Contract: OptionContract {
         None
     }
     fn resolved_price(&self, context: &PricingContext) -> Result<Option<f64>>;
+    fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)>;
+    fn payoff_requires_touch(&self) -> bool;
 }
 impl Contract for BarrierOption {
     fn monitoring(&self) -> &BarrierOption {
@@ -104,6 +108,12 @@ impl Contract for BarrierOption {
     }
     fn resolved_price(&self, context: &PricingContext) -> Result<Option<f64>> {
         resolved_price(self, context)
+    }
+    fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
+        self.state(context)
+    }
+    fn payoff_requires_touch(&self) -> bool {
+        self.payoff_requires_touch()
     }
 }
 impl Contract for DoubleBarrierOption {
@@ -116,6 +126,12 @@ impl Contract for DoubleBarrierOption {
     fn resolved_price(&self, context: &PricingContext) -> Result<Option<f64>> {
         crate::engines::analytic::double_barrier::resolved_price(self, context)
     }
+    fn state(&self, context: &PricingContext) -> Result<(bool, bool, bool)> {
+        self.state(context)
+    }
+    fn payoff_requires_touch(&self) -> bool {
+        self.payoff_requires_touch()
+    }
 }
 
 fn analysis(
@@ -127,14 +143,15 @@ fn analysis(
 ) -> Result<PricingResult> {
     request.validate()?;
     shifts.validate()?;
+    local_volatility::validate_request(context, request)?;
     let mut settings = settings;
-    if settings.asset_upper_boundary.is_none() {
+    if settings.asset_upper_boundary.is_none() && local_volatility::local_model(context).is_none() {
         let upper = default_upper(option, context);
         if upper.is_finite() {
             settings.asset_upper_boundary = Some(upper);
         }
     }
-    crate::risk::numerical::complete_greeks(
+    super::complete_greeks(
         option,
         context,
         request,
@@ -151,6 +168,7 @@ impl FiniteDifferenceDoubleBarrierEngine {
     /// Fits both continuous edges exactly, using all configured asset steps between them.
     /// Projects scheduled boundary events simultaneously on the full spatial grid.
     /// Resolves current touches and known history before grid validation.
+    /// Local volatility supports price and fixed-surface delta/gamma only.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
@@ -159,7 +177,6 @@ impl FiniteDifferenceDoubleBarrierEngine {
     /// including rejection of boundaries that do not exceed spot, strike and both barriers.
     /// Inputs and engine settings remain unchanged on every outcome.
     pub fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         Ok(native_barrier(
             option,
             context,
@@ -172,13 +189,15 @@ impl FiniteDifferenceDoubleBarrierEngine {
 
     /// Returns spline delta/gamma and fixed-grid speed, completing other Greeks numerically.
     ///
-    /// Fixes the central spatial domain for bumps. Stencils crossing either boundary or
+    /// Fixes the central BSM spatial domain for bumps. Local volatility accepts only
+    /// fixed-surface delta/gamma. Stencils crossing either boundary or
     /// an observation omit affected measures; all are absent at expiry or current boundary
     /// equality without a prior touch.
     ///
     /// # Errors
     ///
-    /// Validates requests and shifts before pricing, then propagates [`Self::price`] and
+    /// Rejects other local-volatility Greeks with [`Error::UnsupportedOperation`],
+    /// including at expiry. Validates requests and shifts before pricing, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors. Inputs remain unchanged on success and failure.
     ///
     /// # Examples
@@ -205,13 +224,14 @@ impl FiniteDifferenceDoubleBarrierEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
         analysis(option, context, self.settings, request, shifts)
     }
 }
 impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine {
+    fn validate_applicability(&self, _: &PricingContext) -> Result<()> {
+        Ok(())
+    }
     fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn price_with_greeks(
@@ -221,7 +241,6 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
         self.price_with_greeks(option, context, request, shifts)
     }
     fn volatility_affects_price(
@@ -246,24 +265,127 @@ fn native_barrier(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<PricingResult> {
-    context.bsm_parameters()?;
+    local_volatility::validate_request(context, request)?;
+    if let Some(model) = local_volatility::local_model(context) {
+        native_with_model(
+            option,
+            context,
+            settings,
+            request,
+            shifts,
+            LocalDiffusion::new(context, model.surface()),
+        )
+    } else {
+        native_with_model(
+            option,
+            context,
+            settings,
+            request,
+            shifts,
+            context.bsm_parameters()?.volatility(),
+        )
+    }
+}
+
+fn local_resolved(
+    option: &impl Contract,
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    request: GreeksRequest,
+    shifts: NumericalShiftSettings,
+) -> Result<Option<PricingResult>> {
+    let terms = option.monitoring();
+    let (prior, touched, finished) = option.state(context)?;
+    let knock_in = terms.barrier_type().is_knock_in();
+    let cash = || {
+        if terms.rebate() == 0.0 {
+            return Ok(0.0);
+        }
+        crate::numerics::checked(scaled(
+            terms.rebate(),
+            context
+                .model_parameters()
+                .risk_free_curve()
+                .log_factor(context.valuation_time(), terms.expiry_date().start_of_day())?,
+        ))
+    };
+    if touched && !knock_in {
+        return if terms.rebate_timing() == RebateTiming::AtHit {
+            PricingResult::new(if prior { 0.0 } else { terms.rebate() }).map(Some)
+        } else {
+            PricingResult::new(cash()?).map(Some)
+        };
+    }
+    if !touched && finished && knock_in {
+        return PricingResult::new(cash()?).map(Some);
+    }
+    let fixed = terms.rebate() == 0.0 && option.payoff_requires_touch();
+    if fixed && !knock_in {
+        return PricingResult::new(0.0).map(Some);
+    }
+    if touched || finished || fixed {
+        let h = crate::risk::numerical::symmetric_shift(context.spot_price(), shifts.spot_shift);
+        let request =
+            if option.all_greeks_unavailable(context) || option.at_spot_discontinuity(context, h) {
+                GreeksRequest::default()
+            } else {
+                request
+            };
+        return Ok(Some(
+            super::native(
+                terms.vanilla(),
+                Payoff::vanilla(terms.option_type(), terms.strike(), false),
+                context,
+                settings,
+                request,
+                shifts,
+            )?
+            .0,
+        ));
+    }
+    Ok(None)
+}
+
+fn native_with_model<D: Diffusion>(
+    option: &impl Contract,
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    request: GreeksRequest,
+    shifts: NumericalShiftSettings,
+    volatility: D,
+) -> Result<PricingResult> {
     let terms = option.monitoring();
     let upper_barrier = option.upper_barrier();
     validate_life(terms, context)?;
     validate_schedule(terms.observation_schedule(), context)?;
-    if let Some(value) = option.resolved_price(context)? {
+    if D::LOCAL {
+        if let Some(result) = local_resolved(option, context, settings, request, shifts)? {
+            return Ok(result);
+        }
+    } else if let Some(value) = option.resolved_price(context)? {
         return PricingResult::new(value);
     }
     let time = context
         .valuation_time()
         .years_until(option.expiry_date().start_of_day());
-    let model = context.bsm_parameters()?;
+    let model = context.model_parameters();
     let expiry = option.expiry_date().start_of_day();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
-    let upper = settings
-        .asset_upper_boundary
-        .unwrap_or_else(|| default_upper(option, context));
+    let upper = settings.asset_upper_boundary.unwrap_or_else(|| {
+        let default = default_upper(option, context);
+        if D::LOCAL {
+            default.max(diffusion_upper(
+                context.spot_price().max(terms.strike()),
+                context,
+                time,
+                &risk,
+                &dividend,
+            ))
+        } else {
+            default
+        }
+    });
     let mut space = SpatialGrid::new(
         settings,
         upper,
@@ -291,16 +413,25 @@ fn native_barrier(
         .filter(|date| date.start_of_day() > context.valuation_time())
         .map(|date| context.valuation_time().years_until(date.start_of_day()))
         .collect();
-    let grid = TimeGrid::with_events(
-        time,
+    let grid = diffusion::time_grid(
+        context,
+        expiry,
         settings.time_step_count,
         &risk,
         &dividend,
         &observations,
-    );
-    let sigma = model.volatility();
+    )?;
     let theta = settings.scheme.theta();
-    grid.validate_stability(&space, sigma, theta, scheduled, &risk, &dividend)?;
+    if !D::LOCAL {
+        grid.validate_stability(
+            &space,
+            volatility.sigma(0.0, 0.0),
+            theta,
+            scheduled,
+            &risk,
+            &dividend,
+        )?;
+    }
     let sign = if terms.option_type() == OptionType::Call {
         1.0
     } else {
@@ -340,7 +471,20 @@ fn native_barrier(
                     scaled(terms.strike(), r)
                 };
             }
-            let (d1, d2) = black_scholes_arguments(asset, terms.strike(), q - r, sigma, tau.sqrt());
+            if D::LOCAL {
+                return if sign > 0.0 {
+                    scaled(asset, q) - scaled(terms.strike(), r)
+                } else {
+                    0.0
+                };
+            }
+            let (d1, d2) = black_scholes_arguments(
+                asset,
+                terms.strike(),
+                q - r,
+                volatility.sigma(0.0, 0.0),
+                tau.sqrt(),
+            );
             sign * (weighted_cdf(asset, q, sign * d1) - weighted_cdf(terms.strike(), r, sign * d2))
         };
         [value(space.asset(0)), value(space.upper)]
@@ -428,7 +572,7 @@ fn native_barrier(
             values,
             &space,
             &grid,
-            sigma,
+            volatility,
             settings.scheme,
             [&risk, &dividend],
             if events && scheduled {
@@ -446,8 +590,103 @@ fn native_barrier(
             |values, current| observe(values, current, false),
         )
     };
-    let mut values = march(initial.clone(), true)?;
-    if terms.barrier_type().is_knock_in() {
+    let local_in = D::LOCAL && terms.barrier_type().is_knock_in();
+    let mut values = if local_in {
+        // Evolve activation directly to avoid cancellation between independently meshed prices.
+        let full_space = SpatialGrid::new(
+            settings,
+            upper,
+            0.0,
+            context.spot_price().max(terms.strike()),
+        )?;
+        let continuation: Vec<_> = (0..=full_space.count)
+            .map(|i| payoff(full_space.asset(i)))
+            .collect();
+        let mut unactivated = vec![terms.rebate(); space.count + 1];
+        let observe_in = |values: &mut [f64], vanilla: &[f64], _: f64| {
+            let projected: Vec<_> = levels
+                .iter()
+                .map(|level| {
+                    let cut = ((level / space.spacing).round() as usize).min(space.count);
+                    let average = project(&space, &breaks, cut, |asset| {
+                        if upper_barrier.is_some() {
+                            if knocked(asset) {
+                                full_space.linear(vanilla, asset)
+                            } else {
+                                space.linear(values, asset)
+                            }
+                        } else if knocked(asset) {
+                            full_space.linear(vanilla, asset) - space.linear(values, asset)
+                        } else {
+                            0.0
+                        }
+                    });
+                    (
+                        cut,
+                        if upper_barrier.is_some() {
+                            average
+                        } else {
+                            values[cut] + average
+                        },
+                    )
+                })
+                .collect();
+            for (i, value) in values.iter_mut().enumerate() {
+                if knocked(space.asset(i)) {
+                    *value = full_space.linear(vanilla, space.asset(i));
+                }
+            }
+            for (cut, value) in projected {
+                values[cut] = value;
+            }
+        };
+        if scheduled && observations.contains(&time) {
+            observe_in(&mut unactivated, &continuation, time);
+        } else if !scheduled {
+            for i in [0, space.count] {
+                if knocked(space.asset(i)) {
+                    unactivated[i] = payoff(space.asset(i));
+                }
+            }
+        }
+        step::march_with_continuation(
+            unactivated,
+            &space,
+            continuation,
+            &full_space,
+            &grid,
+            volatility,
+            settings.scheme,
+            [&risk, &dividend],
+            if scheduled { &observations } else { &[] },
+            |current| {
+                let cash = scaled(terms.strike(), risk.log_factor(current, time));
+                if sign > 0.0 {
+                    [
+                        0.0,
+                        scaled(upper, dividend.log_factor(current, time)) - cash,
+                    ]
+                } else {
+                    [cash, 0.0]
+                }
+            },
+            |current, vanilla| {
+                let remaining = !scheduled || observations.iter().any(|&event| event >= current);
+                let edge = |asset| {
+                    if remaining && knocked(asset) {
+                        full_space.linear(vanilla, asset)
+                    } else {
+                        rebate_at(current)
+                    }
+                };
+                [edge(space.asset(0)), edge(space.upper)]
+            },
+            observe_in,
+        )?
+    } else {
+        march(initial.clone(), true)?
+    };
+    if terms.barrier_type().is_knock_in() && !local_in {
         let vanilla = march(initial, false)?;
         let cash = scaled(terms.rebate(), risk.log_factor(0.0, time));
         for (value, vanilla) in values.iter_mut().zip(vanilla) {

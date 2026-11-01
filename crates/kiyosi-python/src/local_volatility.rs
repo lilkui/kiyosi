@@ -119,7 +119,8 @@ impl LocalVolatilitySurface {
 /// ------
 /// InvalidInputError
 ///     If a scalar rate is non-finite. Coverage is checked by the context
-///     and pricing; the first release supports European vanilla FD only.
+///     and pricing over required remaining horizons. All FD product families
+///     support price, delta and gamma; Digital FD requires flat rates.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct LocalVolatilityParameters(pub(crate) kiyosi::LocalVolatilityParameters);

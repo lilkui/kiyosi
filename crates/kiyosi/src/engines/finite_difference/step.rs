@@ -4,11 +4,11 @@ use super::*;
     clippy::too_many_arguments,
     reason = "explicit grid, model and barrier event inputs"
 )]
-pub(super) fn march(
+pub(super) fn march<D: Diffusion>(
     mut values: Vec<f64>,
     space: &SpatialGrid,
     grid: &TimeGrid,
-    sigma: f64,
+    diffusion: D,
     scheme: FiniteDifferenceScheme,
     [risk, dividend]: [&Curve; 2],
     observations: &[f64],
@@ -16,16 +16,17 @@ pub(super) fn march(
     observe: impl Fn(&mut [f64], f64),
 ) -> Result<Vec<f64>> {
     let mut next = vec![0.0; values.len()];
-    let mut stepper = Stepper::new(space.count);
+    let mut stepper = diffusion.stepper(space.count);
     let mut damping: u32 = 2;
     for step in (0..grid.widths.len()).rev() {
         for (current, dt, weight) in grid.substeps(step, scheme, &mut damping) {
             let middle = current + 0.5 * dt;
-            stepper.advance(
+            diffusion.advance(
+                &mut stepper,
                 &values,
                 &mut next,
                 space,
-                sigma,
+                middle,
                 [dt, weight, risk.rate(middle), dividend.rate(middle)],
                 edges(current),
             )?;
@@ -46,6 +47,62 @@ struct Factors {
     multipliers: Vec<f64>,
     diagonal: Vec<f64>,
     inverse: Vec<f64>,
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "two domains share diffusion, time grid and event rules"
+)]
+pub(super) fn march_with_continuation<D: Diffusion>(
+    mut values: Vec<f64>,
+    space: &SpatialGrid,
+    mut continuation: Vec<f64>,
+    full_space: &SpatialGrid,
+    grid: &TimeGrid,
+    diffusion: D,
+    scheme: FiniteDifferenceScheme,
+    [risk, dividend]: [&Curve; 2],
+    observations: &[f64],
+    full_edges: impl Fn(f64) -> [f64; 2],
+    edges: impl Fn(f64, &[f64]) -> [f64; 2],
+    observe: impl Fn(&mut [f64], &[f64], f64),
+) -> Result<Vec<f64>> {
+    let mut next = vec![0.0; values.len()];
+    let mut next_continuation = vec![0.0; continuation.len()];
+    let mut stepper = diffusion.stepper(space.count);
+    let mut full_stepper = diffusion.stepper(full_space.count);
+    let mut damping = 2;
+    for step in (0..grid.widths.len()).rev() {
+        for (current, dt, weight) in grid.substeps(step, scheme, &mut damping) {
+            let middle = current + 0.5 * dt;
+            let key = [dt, weight, risk.rate(middle), dividend.rate(middle)];
+            diffusion.advance(
+                &mut full_stepper,
+                &continuation,
+                &mut next_continuation,
+                full_space,
+                middle,
+                key,
+                full_edges(current),
+            )?;
+            diffusion.advance(
+                &mut stepper,
+                &values,
+                &mut next,
+                space,
+                middle,
+                key,
+                edges(current, &next_continuation),
+            )?;
+            std::mem::swap(&mut continuation, &mut next_continuation);
+            std::mem::swap(&mut values, &mut next);
+        }
+        if observations.contains(&grid.times[step]) {
+            observe(&mut values, &continuation, grid.times[step]);
+            damping = 2;
+        }
+    }
+    Ok(values)
 }
 
 pub(super) struct Stepper {

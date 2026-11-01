@@ -1,10 +1,13 @@
 """Price contracts, compute sensitivities, and solve implied parameters.
 
-Local volatility supports European vanilla finite-difference price, delta and
-gamma, holding the absolute surface fixed. Other Greeks (including "all"),
-products, engines and inverse solves raise UnsupportedOperationError. Native
-FD delta/gamma are absent at expiry. Check time, space and boundary convergence
-for automatic local-volatility domains.
+All finite-difference engines support local-volatility price, delta and gamma
+for their product families, including American exercise, holding the absolute
+surface fixed. Other Greeks (including "all"), non-FD engines and inverse solves
+raise UnsupportedOperationError. Digital FD requires explicitly flat rates.
+Delta/gamma are absent at expiry and unavailable event-crossing stencils.
+Surface coverage follows remaining stochastic evolution; rates must cover
+required discounting. Check time, space and boundary convergence for local-volatility
+domains, including automatically selected domains.
 
 ``FiniteDifferenceScheme`` selects ``"explicit_euler"``, ``"implicit_euler"``,
 ``"crank_nicolson"`` (without time-step damping), or ``"rannacher"`` (the default).

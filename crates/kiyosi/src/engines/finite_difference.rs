@@ -10,9 +10,11 @@ mod accumulator;
 mod autocallable;
 mod barrier;
 mod binary_barrier;
+mod diffusion;
 mod grid;
 mod local_volatility;
 mod step;
+use diffusion::{Diffusion, LocalDiffusion};
 use grid::{Curve, SpatialGrid, TimeGrid};
 use step::Stepper;
 
@@ -54,7 +56,7 @@ impl FiniteDifferenceScheme {
 pub struct FiniteDifferenceSettings {
     /// Sets at least three spatial steps; defaults to 800.
     pub asset_step_count: i32,
-    /// Sets at least one time step; defaults to 200. Curve knots and barrier observations are added.
+    /// Sets at least one time step; defaults to 200. Curve/surface knots and observations are added.
     pub time_step_count: i32,
     /// Selects time marching; defaults to [`FiniteDifferenceScheme::Rannacher`].
     pub scheme: FiniteDifferenceScheme,
@@ -109,9 +111,16 @@ fn time_to_expiry(option: &impl OptionContract, context: &PricingContext) -> Res
 }
 
 fn flat_rates(context: &PricingContext) -> Result<()> {
-    context.bsm_parameters()?;
-    context.bsm_parameters()?.risk_free_rate()?;
-    context.bsm_parameters()?.dividend_yield()?;
+    for curve in [
+        context.model_parameters().risk_free_curve(),
+        context.model_parameters().dividend_curve(),
+    ] {
+        if !curve.is_flat() {
+            return Err(Error::UnsupportedOperation(
+                "digital finite differences require explicitly flat rates".into(),
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -164,29 +173,79 @@ fn native(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<(PricingResult, Option<f64>)> {
-    context.bsm_parameters()?;
+    local_volatility::validate_request(context, request)?;
+    match context.model_parameters() {
+        crate::ModelParameters::BlackScholesMerton(model) => native_model(
+            option,
+            payoff,
+            context,
+            settings,
+            request,
+            shifts,
+            model.volatility(),
+        ),
+        crate::ModelParameters::LocalVolatility(model) => native_model(
+            option,
+            payoff,
+            context,
+            settings,
+            request,
+            shifts,
+            LocalDiffusion::new(context, model.surface()),
+        ),
+    }
+}
+
+fn native_model<D: Diffusion>(
+    option: &impl OptionContract,
+    payoff: Payoff,
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    request: GreeksRequest,
+    shifts: NumericalShiftSettings,
+    diffusion: D,
+) -> Result<(PricingResult, Option<f64>)> {
     let time = time_to_expiry(option, context)?;
     let spot = context.spot_price();
     if time == 0.0 {
         return Ok((PricingResult::new(payoff.value(spot))?, None));
     }
-    let model = context.bsm_parameters()?;
-    let sigma = model.volatility();
+    let model = context.model_parameters();
     let expiry = option.expiry_date().start_of_day();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
-    let upper = settings
-        .asset_upper_boundary
-        .unwrap_or_else(|| automatic_upper(payoff, context, time, &risk, &dividend));
+    let upper = settings.asset_upper_boundary.unwrap_or_else(|| {
+        if D::LOCAL {
+            diffusion_upper(spot.max(payoff.strike), context, time, &risk, &dividend)
+        } else {
+            automatic_upper(payoff, context, time, &risk, &dividend)
+        }
+    });
     let space = SpatialGrid::new(
         settings,
         upper,
         if payoff.american { payoff.strike } else { 0.0 },
         spot.max(payoff.strike),
     )?;
-    let time_grid = TimeGrid::new(time, settings.time_step_count, &risk, &dividend);
+    let time_grid = diffusion::time_grid(
+        context,
+        expiry,
+        settings.time_step_count,
+        &risk,
+        &dividend,
+        &[],
+    )?;
     let theta = settings.scheme.theta();
-    time_grid.validate_stability(&space, sigma, theta, !payoff.american, &risk, &dividend)?;
+    if !D::LOCAL {
+        time_grid.validate_stability(
+            &space,
+            diffusion.sigma(0.0, 0.0),
+            theta,
+            !payoff.american,
+            &risk,
+            &dividend,
+        )?;
+    }
     let terminal = |asset| {
         if !payoff.digital {
             return payoff.value(asset);
@@ -224,7 +283,7 @@ fn native(
         Vec::new()
     };
     let mut next = vec![0.0; old.len()];
-    let mut stepper = Stepper::new(space.count);
+    let mut stepper = diffusion.stepper(space.count);
     let mut previous_boundary_time = time;
     let mut put_boundary = payoff.strike;
     let mut log_carry_error = 0.0;
@@ -233,9 +292,9 @@ fn native(
     for step in (0..time_grid.widths.len()).rev() {
         for (current, dt, weight) in time_grid.substeps(step, settings.scheme, &mut damping) {
             let carry = if payoff.payout.is_some() {
-                risk.rate(0.0)
+                risk.rate(if D::LOCAL { current + 0.5 * dt } else { 0.0 })
             } else {
-                dividend.rate(0.0)
+                dividend.rate(if D::LOCAL { current + 0.5 * dt } else { 0.0 })
             };
             if payoff.digital && theta == 0.5 && (weight != 0.5 || carry < 0.0) {
                 let exponent = carry * dt;
@@ -253,27 +312,52 @@ fn native(
             let q = dividend.rate(middle);
             let risk_log = risk.log_factor(time - tau, time);
             let dividend_log = dividend.log_factor(time - tau, time);
-            let (d1, d2) = black_scholes_arguments(
-                upper,
-                payoff.strike,
-                dividend_log - risk_log,
-                sigma,
-                tau.sqrt(),
-            );
-            let high = if payoff.digital {
-                if let Some(amount) = payoff.payout {
-                    weighted_cdf(amount, risk_log, payoff.sign * d2)
+            let high = if D::LOCAL {
+                let continuation = if payoff.digital {
+                    if payoff.sign > 0.0 {
+                        scaled(
+                            payoff.payout.unwrap_or(upper),
+                            if payoff.payout.is_some() {
+                                risk_log
+                            } else {
+                                dividend_log
+                            },
+                        )
+                    } else {
+                        0.0
+                    }
                 } else {
-                    weighted_cdf(upper, dividend_log, payoff.sign * d1)
-                }
-            } else {
-                let continuation = payoff.sign
-                    * (weighted_cdf(upper, dividend_log, payoff.sign * d1)
-                        - weighted_cdf(payoff.strike, risk_log, payoff.sign * d2));
+                    (payoff.sign * (scaled(upper, dividend_log) - scaled(payoff.strike, risk_log)))
+                        .max(0.0)
+                };
                 if payoff.american {
                     continuation.max(payoff.value(upper))
                 } else {
                     continuation
+                }
+            } else {
+                let (d1, d2) = black_scholes_arguments(
+                    upper,
+                    payoff.strike,
+                    dividend_log - risk_log,
+                    diffusion.sigma(0.0, 0.0),
+                    tau.sqrt(),
+                );
+                if payoff.digital {
+                    if let Some(amount) = payoff.payout {
+                        weighted_cdf(amount, risk_log, payoff.sign * d2)
+                    } else {
+                        weighted_cdf(upper, dividend_log, payoff.sign * d1)
+                    }
+                } else {
+                    let continuation = payoff.sign
+                        * (weighted_cdf(upper, dividend_log, payoff.sign * d1)
+                            - weighted_cdf(payoff.strike, risk_log, payoff.sign * d2));
+                    if payoff.american {
+                        continuation.max(payoff.value(upper))
+                    } else {
+                        continuation
+                    }
                 }
             };
             let low = if payoff.sign > 0.0 || (payoff.digital && payoff.payout.is_none()) {
@@ -288,11 +372,12 @@ fn native(
             } else {
                 scaled(payoff.payout.unwrap_or(payoff.strike), risk_log)
             };
-            stepper.advance(
+            diffusion.advance(
+                &mut stepper,
                 &old,
                 &mut next,
                 &space,
-                sigma,
+                middle,
                 [dt, weight, rate, q],
                 [low, high],
             )?;
@@ -373,6 +458,61 @@ fn native(
     Ok((result, Some(upper)))
 }
 
+fn complete_greeks(
+    option: &impl OptionContract,
+    context: &PricingContext,
+    request: GreeksRequest,
+    shifts: NumericalShiftSettings,
+    native_spot_greeks: bool,
+    mut result: PricingResult,
+    native: impl Fn(&PricingContext, GreeksRequest) -> Result<PricingResult>,
+) -> Result<PricingResult> {
+    if local_volatility::local_model(context).is_none() {
+        return crate::risk::numerical::complete_greeks(
+            option,
+            context,
+            request,
+            shifts,
+            native_spot_greeks,
+            result,
+            native,
+        );
+    }
+    local_volatility::validate_request(context, request)?;
+    if context.valuation_time() == option.expiry_date().start_of_day()
+        || option.all_greeks_unavailable(context)
+    {
+        return Ok(result);
+    }
+    let missing_delta = request.has(Greek::Delta) && !result.has(Greek::Delta);
+    let missing_gamma = request.has(Greek::Gamma) && !result.has(Greek::Gamma);
+    let spot = context.spot_price();
+    let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift);
+    if (missing_delta || missing_gamma)
+        && h > 0.0
+        && spot > h
+        && !option.at_spot_discontinuity(context, h)
+    {
+        let price = |spot| -> Result<f64> {
+            let shifted = context.replace(crate::PricingContextChanges {
+                spot_price: Some(spot),
+                ..Default::default()
+            })?;
+            Ok(native(&shifted, GreeksRequest::default())?.price())
+        };
+        let up = price(spot + h)?;
+        let down = price(spot - h)?;
+        if missing_delta {
+            result.set(request, Greek::Delta, (up - down) / h / 2.0)?;
+        }
+        if missing_gamma {
+            let gamma = ((up - result.price()) - (result.price() - down)) / h / h;
+            result.set(request, Greek::Gamma, gamma)?;
+        }
+    }
+    Ok(result)
+}
+
 fn analysis<I: OptionContract>(
     option: &I,
     context: &PricingContext,
@@ -389,9 +529,10 @@ fn analysis<I: OptionContract>(
 ) -> Result<PricingResult> {
     request.validate()?;
     shifts.validate()?;
+    local_volatility::validate_request(context, request)?;
     let (result, upper) = native(option, context, settings, request, shifts)?;
     settings.asset_upper_boundary = upper.or(settings.asset_upper_boundary);
-    crate::risk::numerical::complete_greeks(
+    complete_greeks(
         option,
         context,
         request,
@@ -502,10 +643,10 @@ engine_settings!(
 impl FiniteDifferenceVanillaEngine {
     /// Prices a supported vanilla contract, returning intrinsic value at expiry.
     ///
-    /// Local volatility supports European price, delta and gamma only, holding the
+    /// Local volatility supports European and American price, delta and gamma, holding the
     /// absolute surface fixed. Time knots are inserted; sigma is evaluated at
     /// substep midpoints. Time coverage and explicit-step stability are validated.
-    /// Local-volatility boundaries use European asymptotics; automatic domains
+    /// Local-volatility boundaries use asymptotic values with American exercise where applicable; automatic domains
     /// use the surface maximum volatility and require domain convergence checks.
     /// Unsupported combinations return [`Error::UnsupportedOperation`], even at expiry.
     /// Accepts flat or node curves. American automatic domains expand with volatility
@@ -572,15 +713,14 @@ impl FiniteDifferenceVanillaEngine {
 macro_rules! vanilla_pricing {
     ($option:ty, $american:literal) => {
         impl PricingEngine<$option> for FiniteDifferenceVanillaEngine {
-            fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
-                local_volatility::applicable(context, $american)
+            fn validate_applicability(&self, _context: &PricingContext) -> Result<()> {
+                Ok(())
             }
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
-                local_volatility::applicable(context, $american)?;
                 if let Some(model) = local_volatility::local_model(context) {
                     return Ok(local_volatility::price(
                         option,
-                        Payoff::vanilla(option.option_type(), option.strike(), false),
+                        Payoff::vanilla(option.option_type(), option.strike(), $american),
                         context,
                         model,
                         self.settings,
@@ -606,13 +746,12 @@ macro_rules! vanilla_pricing {
                 request: GreeksRequest,
                 settings: NumericalShiftSettings,
             ) -> Result<PricingResult> {
-                local_volatility::applicable(context, $american)?;
                 if let Some(model) = local_volatility::local_model(context) {
                     request.validate()?;
                     settings.validate()?;
                     return local_volatility::price(
                         option,
-                        Payoff::vanilla(option.option_type(), option.strike(), false),
+                        Payoff::vanilla(option.option_type(), option.strike(), $american),
                         context,
                         model,
                         self.settings,
@@ -641,6 +780,7 @@ impl FiniteDifferenceDigitalEngine {
     /// Prices a digital using cell-averaged terminal payoffs, settling strictly in the money at expiry.
     ///
     /// Rejects node curves before life validation, including at expiry.
+    /// Accepts BSM or local volatility, with cell-averaged digital payoffs in both models.
     /// See [`FiniteDifferenceVanillaEngine::price_with_greeks`] for context construction.
     ///
     /// # Errors
@@ -679,6 +819,8 @@ impl FiniteDifferenceDigitalEngine {
     /// Returns spline spot Greeks and numerical completion with the shared central domain.
     ///
     /// All expiry Greeks are absent. See [`Self::price`] for a pricing example.
+    /// Local volatility supports only delta and gamma with the absolute surface fixed;
+    /// other Greeks return [`Error::UnsupportedOperation`] before expiry shortcuts.
     ///
     /// # Errors
     ///
@@ -707,6 +849,9 @@ impl FiniteDifferenceDigitalEngine {
 }
 
 impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        flat_rates(context)
+    }
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         Self::price(self, option, context)
     }

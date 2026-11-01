@@ -10,6 +10,8 @@ impl FiniteDifferenceAutocallableEngine {
     ///
     /// Accepts flat or node curves, retains daily knock-in layers and projects future events.
     /// Current events use actual spot with strict knock-in and inclusive knock-out/coupon levels.
+    /// Accepts BSM or local volatility. Surface coverage is required only for remaining
+    /// stochastic evolution, after settlement and fixed cashflows are resolved.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
@@ -23,7 +25,6 @@ impl FiniteDifferenceAutocallableEngine {
         option: &AutocallableNote<T>,
         context: &PricingContext,
     ) -> Result<f64> {
-        context.bsm_parameters()?;
         Ok(native(
             option,
             context,
@@ -39,12 +40,15 @@ impl FiniteDifferenceAutocallableEngine {
     ///
     /// Native delta/gamma do not require feasible spot bumps; speed requires a symmetric
     /// in-domain stencil. Fixes the central upper domain for bumps. Expiry Greeks and event-crossing stencils
-    /// are absent; vega and rho remain available at current thresholds.
+    /// are absent; BSM vega and rho remain available at current thresholds.
+    /// Local volatility supports only delta and gamma with the absolute surface fixed.
     ///
     /// # Errors
     ///
     /// Validates requests and shifts, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors without changing inputs or settings.
+    /// Unsupported local-volatility Greeks return [`Error::UnsupportedOperation`]
+    /// before settlement or expiry shortcuts.
     ///
     /// # Examples
     ///
@@ -71,15 +75,16 @@ impl FiniteDifferenceAutocallableEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
         analysis(option, context, self.settings, request, shifts, native)
     }
 }
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
     for FiniteDifferenceAutocallableEngine
 {
+    fn validate_applicability(&self, _: &PricingContext) -> Result<()> {
+        Ok(())
+    }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
-        context.bsm_parameters()?;
         self.price(option, context)
     }
     fn price_with_greeks(
@@ -89,7 +94,6 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        context.bsm_parameters()?;
         self.price_with_greeks(option, context, request, shifts)
     }
     fn volatility_affects_price(
@@ -261,7 +265,30 @@ fn native<T: AutocallableTerms>(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<(PricingResult, Option<f64>)> {
-    context.bsm_parameters()?;
+    local_volatility::validate_request(context, request)?;
+    match context.model_parameters() {
+        crate::ModelParameters::BlackScholesMerton(model) => {
+            native_with_diffusion(note, context, settings, request, shifts, model.volatility())
+        }
+        crate::ModelParameters::LocalVolatility(model) => native_with_diffusion(
+            note,
+            context,
+            settings,
+            request,
+            shifts,
+            LocalDiffusion::new(context, model.surface()),
+        ),
+    }
+}
+
+fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
+    note: &AutocallableNote<T>,
+    context: &PricingContext,
+    settings: FiniteDifferenceSettings,
+    request: GreeksRequest,
+    shifts: NumericalShiftSettings,
+    diffusion: D,
+) -> Result<(PricingResult, Option<f64>)> {
     validate(note, context)?;
     let state = initial(note, context);
     let h = crate::risk::numerical::symmetric_shift(context.spot_price(), shifts.spot_shift);
@@ -281,12 +308,11 @@ fn native<T: AutocallableTerms>(
     let t = note.view();
     let daily = t.daily_knock_in();
     let layered = daily && !state.knocked_in && note.knock_in_affects_payoff();
-    let model = context.bsm_parameters()?;
+    let model = context.model_parameters();
     let expiry = note.expiry_date().start_of_day();
     let time = context.valuation_time().years_until(expiry);
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
-    let sigma = model.volatility();
     let mut observations: Vec<_> = note
         .observations()
         .iter()
@@ -309,19 +335,30 @@ fn native<T: AutocallableTerms>(
         }
     }
     observations.extend_from_slice(&trading);
-    let mut grid = TimeGrid::with_events(
-        time,
+    let mut grid = diffusion::time_grid(
+        context,
+        expiry,
         settings.time_step_count,
         &risk,
         &dividend,
         &observations,
-    );
-    let nearest = observations
+    )?;
+    let mut nearest = observations
         .iter()
         .copied()
         .chain(risk.ends())
         .chain(dividend.ends())
         .fold(time, f64::min);
+    if let Some(model) = local_volatility::local_model(context) {
+        // Preserve surface knots when refining the interval nearest valuation.
+        nearest = model
+            .surface()
+            .times()
+            .iter()
+            .filter(|&&t| t > context.valuation_time() && t < expiry)
+            .map(|&t| context.valuation_time().years_until(t))
+            .fold(nearest, f64::min);
+    }
     let near_steps = if layered { 64 } else { 128 };
     let intervals = grid.times.partition_point(|&v| v < nearest);
     if intervals < near_steps {
@@ -369,15 +406,16 @@ fn native<T: AutocallableTerms>(
             highest(note) * (0.001 * (nearest * 365.0).min(1.0).sqrt()).max(64.0 * f64::EPSILON);
         concentrate(&mut space, levels, scale)?;
     }
-    let theta = settings.scheme.theta();
-    grid.validate_stability(
-        &space,
-        sigma,
-        theta,
-        space.scale == 0.0 && space.nodes.is_empty(),
-        &risk,
-        &dividend,
-    )?;
+    if !D::LOCAL {
+        grid.validate_stability(
+            &space,
+            diffusion.sigma(0.0, 0.0),
+            settings.scheme.theta(),
+            space.scale == 0.0 && space.nodes.is_empty(),
+            &risk,
+            &dividend,
+        )?;
+    }
     let size = space.count + 1;
     let mut alive = vec![0.0; size];
     let mut knocked = vec![0.0; size];
@@ -413,7 +451,7 @@ fn native<T: AutocallableTerms>(
         alive[i] = value[0];
         knocked[i] = value[1];
     }
-    let mut stepper = Stepper::new(space.count);
+    let mut stepper = diffusion.stepper(space.count);
     let mut damping: u32 = 2;
     for step in (0..grid.widths.len()).rev() {
         for (current, dt, weight) in grid.substeps(step, settings.scheme, &mut damping) {
@@ -422,21 +460,23 @@ fn native<T: AutocallableTerms>(
             let q = dividend.rate(middle);
             let key = [dt, weight, rate, q];
             let discount = (-rate * dt).exp();
-            stepper.advance(
+            diffusion.advance(
+                &mut stepper,
                 &alive,
                 &mut next_alive,
                 &space,
-                sigma,
+                middle,
                 key,
                 [alive[0] * discount, alive[size - 1] * discount],
             )?;
             std::mem::swap(&mut alive, &mut next_alive);
             if layered {
-                stepper.advance(
+                diffusion.advance(
+                    &mut stepper,
                     &knocked,
                     &mut next_knocked,
                     &space,
-                    sigma,
+                    middle,
                     key,
                     [knocked[0] * discount, knocked[size - 1] * discount],
                 )?;

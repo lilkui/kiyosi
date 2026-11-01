@@ -1,4 +1,4 @@
-//! Prices derivatives under BSM and European vanilla options under local volatility.
+//! Prices derivatives under BSM and local volatility.
 //!
 //! Supports vanilla and exotic options, autocallable notes and accumulators with
 //! analytic, binomial, quadrature, finite-difference and Monte Carlo engines.
@@ -15,8 +15,11 @@
 //!
 //! Local volatility uses [`LocalVolatilitySurface`] with fixed absolute time/spot
 //! nodes, bilinear sigma interpolation and flat price tails. Time extrapolation
-//! is rejected. [`FiniteDifferenceVanillaEngine`] supports European price, delta
-//! and gamma; other built-in combinations and inverse solves reject this model.
+//! is rejected. All finite-difference engines support their existing product families
+//! with price, delta and gamma, including American exercise. Other Greeks, non-FD
+//! engines and inverse solves reject this model. Digital FD requires flat rates.
+//! Future coverage follows remaining stochastic evolution and required discounts;
+//! settled cashflows do not require volatility coverage through contractual expiry.
 //! [`ModelParameters`] selects the concrete model at the pricing entry point.
 //!
 //! # Concurrency and errors
