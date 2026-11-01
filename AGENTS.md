@@ -40,6 +40,11 @@ Kiyosi is a Rust library for derivatives pricing, with Python as its primary use
 - Validate numerical results with appropriate tolerances and statistical criteria. Use existing tests, independent QuantLib comparisons and convergence checks as applicable; allow floating-point rounding and random-sequence variation within those criteria.
 - Optimize measured hot paths while preserving pricing accuracy, numerical stability, validation and safety contracts. Verify performance changes with correctness tests and relevant benchmarks.
 
+## Testing
+
+- Test required behavior and contracts; avoid tests whose sole purpose is to prevent a return to a previous implementation.
+- Add tests only when they provide meaningful behavioral coverage beyond the existing suite.
+
 ## Completion checklist
 
 - Format and lint modified code using repository-selected rules: rustfmt and Clippy for Rust, Ruff for Python.
