@@ -63,6 +63,10 @@ numerical_greeks_methods!(
 );
 
 impl AnalyticBinaryBarrierEngine {
+    #[expect(
+        clippy::unused_self,
+        reason = "uniform instance API for pricing engines"
+    )]
     pub(crate) fn evaluate(
         &self,
         py: Python<'_>,

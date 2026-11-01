@@ -44,6 +44,10 @@ impl ObservationSchedule {
             .ok_or_else(|| PyIndexError::new_err("schedule index out of range"))?;
         python_date(py, *date)
     }
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "PyO3 extracts an owned PyRef guard"
+    )]
     fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, PyAny>> {
         // SAFETY: slf is live under the GIL and has a sequence slot from __getitem__.
         // PySeqIter_New returns a new reference (or null) and retains the schedule.
@@ -84,6 +88,10 @@ impl ObservationSchedule {
 /// merges collisions and stops before crossing end; end need not appear.
 #[pyfunction]
 #[pyo3(signature = (*, start, end, interval_days, calendar=TradingCalendar::default()))]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts an owned calendar and supplies its default"
+)]
 pub(crate) fn fixed_interval_schedule(
     start: &Bound<'_, PyAny>,
     end: &Bound<'_, PyAny>,
@@ -130,6 +138,10 @@ pub(crate) fn fixed_interval_schedule(
 /// merges collisions and stops before crossing end; end need not appear.
 #[pyfunction]
 #[pyo3(signature = (*, start, end, first_observation_month, calendar=TradingCalendar::default()))]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "PyO3 extracts an owned calendar and supplies its default"
+)]
 pub(crate) fn monthly_schedule(
     start: &Bound<'_, PyAny>,
     end: &Bound<'_, PyAny>,

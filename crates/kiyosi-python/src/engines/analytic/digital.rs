@@ -64,6 +64,14 @@ numerical_greeks_methods!(
 );
 
 impl AnalyticDigitalEngine {
+    #[expect(
+        clippy::unused_self,
+        reason = "uniform instance API for pricing engines"
+    )]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "retain the extracted Python borrow during evaluation"
+    )]
     pub(crate) fn evaluate(
         &self,
         py: Python<'_>,

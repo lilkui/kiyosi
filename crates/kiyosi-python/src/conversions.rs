@@ -40,6 +40,10 @@ where
 pub(crate) const OMITTED: Option<&Bound<'_, PyAny>> = None;
 
 // Ellipsis marks omission; None remains an explicitly supplied value.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "PyO3 from_py_with callbacks return PyResult"
+)]
 pub(crate) fn supplied<'a, 'py>(
     value: &'a Bound<'py, PyAny>,
 ) -> PyResult<Option<&'a Bound<'py, PyAny>>> {

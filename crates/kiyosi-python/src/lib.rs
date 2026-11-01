@@ -1,5 +1,10 @@
 //! Python representation adapters; all domain validation lives in kiyosi.
 
+#![expect(
+    clippy::doc_markdown,
+    reason = "Python docstrings use NumPy conventions rather than Rust Markdown"
+)]
+
 mod calendar;
 mod conversions;
 mod engines;

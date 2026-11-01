@@ -41,6 +41,14 @@ impl AnalyticEuropeanEngine {
     /// KiyosiError
     ///     If requests, pricing or requested derivatives fail.
     #[pyo3(signature = (instrument, context, greeks))]
+    #[expect(
+        clippy::unused_self,
+        reason = "uniform instance API for pricing engines"
+    )]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "PyO3 extracts an owned PyRef guard"
+    )]
     fn price_with_greeks(
         &self,
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
@@ -88,6 +96,14 @@ impl AnalyticEuropeanEngine {
 }
 
 impl AnalyticEuropeanEngine {
+    #[expect(
+        clippy::unused_self,
+        reason = "uniform instance API for pricing engines"
+    )]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "retain the extracted Python borrow during evaluation"
+    )]
     pub(crate) fn evaluate(
         &self,
         py: Python<'_>,

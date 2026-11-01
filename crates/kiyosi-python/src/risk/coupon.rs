@@ -126,6 +126,10 @@ pub(crate) fn implied_coupon(
     )
 }
 
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "own the engine snapshot for the detached solve"
+)]
 fn solve_coupon<E>(
     py: Python<'_>,
     engine: E,

@@ -7,6 +7,9 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 libm = "0.2"

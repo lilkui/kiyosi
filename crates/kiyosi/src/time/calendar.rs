@@ -265,4 +265,8 @@ pub(crate) fn validate_range(start: Date, end: Date) -> Result<()> {
     Ok(())
 }
 
+#[expect(
+    clippy::unreadable_literal,
+    reason = "generated calendar data uses compact YYYYMMDD integers"
+)]
 const SSE_HOLIDAYS: &[i32] = include!("sse_holidays.rs");

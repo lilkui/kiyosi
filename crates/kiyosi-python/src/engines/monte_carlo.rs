@@ -378,6 +378,10 @@ sampling_settings!(
     ///     If domain validation or numerical pricing fails.
     /// OSError
     ///     If system entropy or worker creation fails.
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "PyO3 extracts an owned PyRef guard"
+    )]
     fn price_with_statistics(
         &self,
         py: Python<'_>,
@@ -605,6 +609,10 @@ sampling_settings!(
     /// -----
     /// System entropy and worker-creation failures raise OSError.
     #[pyo3(signature = (instrument, context, greeks))]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "PyO3 extracts an owned instrument borrow guard"
+    )]
     fn price_with_greeks(
         &self,
         py: Python<'_>,
@@ -938,6 +946,10 @@ impl MonteCarloVanillaEngine {
 }
 
 impl MonteCarloDigitalEngine {
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "retain the extracted Python borrow during evaluation"
+    )]
     pub(crate) fn evaluate(
         &self,
         py: Python<'_>,
