@@ -27,7 +27,7 @@ Kiyosi 是一个用 Rust 编写的衍生品定价库，提供 Python API。它�
 
 ## 安装
 
-需要 **Python 3.11+**：
+需要 **Python 3.12+**：
 
 ```bash
 python -m pip install kiyosi

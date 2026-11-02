@@ -89,9 +89,9 @@ jobs:
               ).split()
               assert identifiers, platform
               for identifier in identifiers:
-                  abi, platform_tag = identifier.split("-", 1)
+                  _, platform_tag = identifier.split("-", 1)
                   platform_tag = platform_tag.replace("manylinux_", "manylinux*_")
-                  pattern = f"kiyosi-{version}-{abi}-{abi}-{platform_tag}.whl"
+                  pattern = f"kiyosi-{version}-cp312-abi3-{platform_tag}.whl"
                   matches = list(distributions.glob(pattern))
                   assert len(matches) == 1, (pattern, matches)
                   expected_wheels.update(matches)

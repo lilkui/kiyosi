@@ -17,4 +17,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 kiyosi = { path = "../kiyosi" }
-pyo3 = { version = "0.30.1", features = ["extension-module"] }
+pyo3 = { version = "0.30.1", features = ["extension-module", "abi3-py312"] }

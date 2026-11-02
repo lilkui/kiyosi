@@ -27,7 +27,7 @@ Kiyosi is a Rust derivatives pricing library with a Python API. It supports pric
 
 ## Installation
 
-Requires **Python 3.11+**:
+Requires **Python 3.12+**:
 
 ```bash
 python -m pip install kiyosi
