@@ -14,6 +14,8 @@ use crate::risk;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+pub(crate) mod heston;
+
 fn scheme(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::FiniteDifferenceScheme> {
     match value.extract::<&str>()? {
         "explicit_euler" => Ok(kiyosi::FiniteDifferenceScheme::ExplicitEuler),

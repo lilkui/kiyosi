@@ -25,9 +25,11 @@
 //! [`ModelParameters`] selects the concrete model at the pricing entry point.
 //! [`HestonParameters`] supplies constant risk-neutral variance parameters and
 //! deterministic rate curves. [`AnalyticHestonEuropeanEngine`] supports European call/put
-//! prices only, including zero variance parameters, correlation endpoints and
-//! Feller violations. Other engines, Greeks and inverse solves reject Heston.
-//! See [`AnalyticHestonEuropeanEngine::new`] for an example and integration controls.
+//! prices by Fourier integration; [`FiniteDifferenceHestonVanillaEngine`] supports
+//! European and American call/put prices with fixed MCS/IT grids. Both accept zero
+//! variance parameters, correlation endpoints and Feller violations. Other engines,
+//! Greeks and inverse solves reject Heston. See each engine's constructor for
+//! examples, numerical controls and convergence responsibilities.
 //!
 //! # Concurrency and errors
 //!
@@ -98,6 +100,9 @@ pub use engines::analytic::range_accrual::AnalyticRangeAccrualEngine;
 pub use engines::binomial::{
     BinomialSettings, CoxRossRubinsteinBarrierEngine, CoxRossRubinsteinDigitalEngine,
     CoxRossRubinsteinVanillaEngine,
+};
+pub use engines::finite_difference::heston::{
+    FiniteDifferenceHestonVanillaEngine, HestonFiniteDifferenceSettings,
 };
 pub use engines::finite_difference::{
     FiniteDifferenceAccumulatorEngine, FiniteDifferenceAutocallableEngine,

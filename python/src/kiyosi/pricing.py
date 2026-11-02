@@ -75,6 +75,21 @@ accuracy guarantees; check convergence for tail prices. Budget exhaustion or
 insufficient numerical resolution raises ``NonConvergenceError``. Expiry and
 deterministic-variance branches consume no integration budget.
 
+``FiniteDifferenceHestonVanillaEngine`` prices European and American calls/puts
+with the same Heston model domain using MCS ADI and IT American splitting.
+Controls are ``asset_step_count=400``, ``variance_step_count=100``,
+``time_step_count=400``, ``asset_upper_boundary=None`` and
+``variance_upper_boundary=None``. Counts specify intervals; spatial counts are
+at least 3 and the base time count is at least 1. Curve knots are added.
+Optional finite positive bounds must cover spot/strike or initial variance
+when the corresponding grid is required. Zero vol-of-vol uses its actual
+deterministic variance path; absorbing zero variance retains optimal American
+exercise, including between curve nodes. Greeks and inverse solves are unsupported.
+Fixed-grid completion carries no error estimate: check spatial/time refinement
+and domain enlargement separately. Numerical failures raise
+``ComputationFailureError``. See ``docs/heston-finite-difference.md`` for usage
+and documented acceptance scenarios.
+
 ``CouponQuoteConvention`` controls whether a snowball's maturity coupon
 shifts with observation coupons (``"shift_maturity_coupon"``) or stays fixed
 (``"preserve_maturity_coupon"``). Phoenix coupon solves omit this choice;
@@ -152,6 +167,7 @@ from ._native import (
     FiniteDifferenceDigitalEngine,
     FiniteDifferenceDoubleBarrierEngine,
     FiniteDifferenceDoubleTouchEngine,
+    FiniteDifferenceHestonVanillaEngine,
     FiniteDifferenceVanillaEngine,
     MonteCarloAccumulatorEngine,
     MonteCarloAsianEngine,
@@ -198,6 +214,7 @@ __all__ = [
     "FiniteDifferenceDigitalEngine",
     "FiniteDifferenceDoubleBarrierEngine",
     "FiniteDifferenceDoubleTouchEngine",
+    "FiniteDifferenceHestonVanillaEngine",
     "FiniteDifferenceScheme",
     "FiniteDifferenceVanillaEngine",
     "MonteCarloAccumulatorEngine",

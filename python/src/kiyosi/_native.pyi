@@ -704,6 +704,36 @@ class FiniteDifferenceBinaryBarrierEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
+class FiniteDifferenceHestonVanillaEngine:
+    def __init__(
+        self,
+        *,
+        asset_step_count: int = ...,
+        variance_step_count: int = ...,
+        time_step_count: int = ...,
+        asset_upper_boundary: float | None = None,
+        variance_upper_boundary: float | None = None,
+    ) -> None: ...
+    @property
+    def asset_step_count(self) -> int: ...
+    @property
+    def variance_step_count(self) -> int: ...
+    @property
+    def time_step_count(self) -> int: ...
+    @property
+    def asset_upper_boundary(self) -> float | None: ...
+    @property
+    def variance_upper_boundary(self) -> float | None: ...
+    def price(
+        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: EuropeanOption | AmericanOption,
+        context: PricingContext,
+        greeks: Greek | Literal["all"] | Iterable[Greek],
+    ) -> Never: ...
+
 class FiniteDifferenceVanillaEngine:
     def __init__(
         self,

@@ -1,0 +1,21 @@
+{
+  "quantlib_version": "1.43",
+  "scheme": "Hundsdorfer-Verwer with American payoff projection",
+  "inputs": {
+    "valuation": "2025-01-01", "expiry": "2026-01-01",
+    "spot": 100, "strike": 100, "option_type": "put",
+    "risk_free_rate": 0.05, "dividend_yield": 0.02,
+    "initial_variance": 0.04, "long_run_variance": 0.04,
+    "mean_reversion_speed": 1.5, "vol_of_vol": 0.3, "correlation": -0.7
+  },
+  "grids": [
+    {"time": 400, "asset": 400, "variance": 200},
+    {"time": 800, "asset": 800, "variance": 400},
+    {"time": 1600, "asset": 1600, "variance": 800}
+  ],
+  "raw_prices": [6.449056109973752, 6.449869717110558, 6.450212361992343],
+  "extrapolation_order": 1,
+  "extrapolated_prices": [6.450683324247365, 6.450555006874128],
+  "price": 6.450555006874128,
+  "refinement_uncertainty": 0.00012831737323626413
+}

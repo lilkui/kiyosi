@@ -12,6 +12,11 @@ from kiyosi.market import (
     all_days_calendar,
 )
 
+HESTON_ENGINES = (
+    "AnalyticHestonEuropeanEngine",
+    "FiniteDifferenceHestonVanillaEngine",
+)
+
 
 def terminal_cases():
     dates = {"effective_date": date(2025, 1, 1), "expiry_date": date(2026, 1, 1)}
@@ -37,6 +42,7 @@ def terminal_cases():
             (
                 "AnalyticEuropeanEngine",
                 "AnalyticHestonEuropeanEngine",
+                "FiniteDifferenceHestonVanillaEngine",
                 "CoxRossRubinsteinVanillaEngine",
                 "FiniteDifferenceVanillaEngine",
                 "MonteCarloVanillaEngine",
@@ -49,6 +55,7 @@ def terminal_cases():
                 "BjerksundStenslandVanillaEngine",
                 "CoxRossRubinsteinVanillaEngine",
                 "FiniteDifferenceVanillaEngine",
+                "FiniteDifferenceHestonVanillaEngine",
                 "MonteCarloVanillaEngine",
             ),
             5,
@@ -246,7 +253,7 @@ class SupportMatrixTests(unittest.TestCase):
         context = self.context_for("AnalyticHestonEuropeanEngine")
         for instrument, supported, _ in self.cases:
             for name in supported:
-                if name == "AnalyticHestonEuropeanEngine":
+                if name in HESTON_ENGINES:
                     continue
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
                     with self.assertRaises(UnsupportedOperationError):
@@ -261,7 +268,7 @@ class SupportMatrixTests(unittest.TestCase):
                         )
 
     def context_for(self, name):
-        if name == "AnalyticHestonEuropeanEngine":
+        if name in HESTON_ENGINES:
             return self.context.replace(
                 model_parameters=HestonParameters(
                     risk_free_rate=0.04,
@@ -287,7 +294,7 @@ class SupportMatrixTests(unittest.TestCase):
                         engine.price(instrument, expired)
                     with self.assertRaises(
                         UnsupportedOperationError
-                        if name == "AnalyticHestonEuropeanEngine"
+                        if name in HESTON_ENGINES
                         else InvalidInputError
                     ):
                         pricing.implied_volatility(engine, instrument, expired, 1)
@@ -315,7 +322,7 @@ class SupportMatrixTests(unittest.TestCase):
                 context = self.context_for(name)
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
                     self.assertAlmostEqual(engine.price(instrument, context), expected)
-                    if name == "AnalyticHestonEuropeanEngine":
+                    if name in HESTON_ENGINES:
                         with self.assertRaises(UnsupportedOperationError):
                             engine.price_with_greeks(instrument, context, ["delta"])
                     else:

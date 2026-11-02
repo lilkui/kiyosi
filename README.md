@@ -11,8 +11,8 @@ Kiyosi 是一个用 Rust 编写的衍生品定价库，提供 Python API。它�
 
 | 金融产品 | 定价算法 |
 | --- | --- |
-| 欧式香草期权 | BSM 解析解、Heston Fourier 积分、CRR、FD、MC |
-| 美式香草期权 | Bjerksund–Stensland 2002 近似、CRR、FD、最小二乘 MC |
+| 欧式香草期权 | BSM 解析解、Heston Fourier 积分与二维 FD、CRR、FD、MC |
+| 美式香草期权 | Bjerksund–Stensland 2002 近似、Heston 二维 FD、CRR、FD、最小二乘 MC |
 | 数字期权（现金或资产支付） | 解析解、CRR、FD、MC |
 | 几何平均亚式期权 | 连续平均解析解、MC |
 | 算术平均亚式期权 | Turnbull–Wakeman 连续平均近似、MC |

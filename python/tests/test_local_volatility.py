@@ -16,7 +16,7 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
 )
-from test_support_matrix import terminal_cases
+from test_support_matrix import HESTON_ENGINES, terminal_cases
 
 START, END = date(2025, 1, 1), date(2026, 1, 1)
 
@@ -379,7 +379,10 @@ class LocalVolatilityTests(unittest.TestCase):
                     ):
                         e = getattr(pricing, name)()
                         c = context().replace(valuation_time=time, spot_price=105)
-                        if not name.startswith("FiniteDifference"):
+                        if (
+                            not name.startswith("FiniteDifference")
+                            or name in HESTON_ENGINES
+                        ):
                             with self.assertRaises(UnsupportedOperationError):
                                 e.price(contract, c)
                             continue

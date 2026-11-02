@@ -10,14 +10,18 @@ from kiyosi.market import (
     RateTermStructure,
 )
 from test_local_volatility import END, START, context, surface
-from test_support_matrix import terminal_cases
+from test_support_matrix import HESTON_ENGINES, terminal_cases
 
 
 def representatives():
     found = set()
     for contract, names, _ in terminal_cases():
         for name in names:
-            if name.startswith("FiniteDifference") and name not in found:
+            if (
+                name.startswith("FiniteDifference")
+                and name not in HESTON_ENGINES
+                and name not in found
+            ):
                 found.add(name)
                 yield contract, name
 

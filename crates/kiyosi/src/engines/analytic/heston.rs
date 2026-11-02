@@ -245,7 +245,7 @@ fn nonconvergence() -> Error {
     Error::NonConvergence("Heston integration did not reach the requested price accuracy".into())
 }
 
-fn integrated_variance(model: &HestonParameters, time: f64) -> f64 {
+pub(crate) fn integrated_variance(model: &HestonParameters, time: f64) -> f64 {
     let rate = model.mean_reversion_speed();
     let x = rate * time;
     if x < 0.01 {

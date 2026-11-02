@@ -78,6 +78,7 @@ pricing_classes!(
         engines::quadrature::QuadratureAutocallableEngine,
         engines::quadrature::QuadratureAccumulatorEngine,
         engines::finite_difference::FiniteDifferenceVanillaEngine,
+        engines::finite_difference::heston::FiniteDifferenceHestonVanillaEngine,
         engines::finite_difference::FiniteDifferenceDigitalEngine,
         engines::finite_difference::FiniteDifferenceBarrierEngine,
         engines::finite_difference::FiniteDifferenceDoubleBarrierEngine,

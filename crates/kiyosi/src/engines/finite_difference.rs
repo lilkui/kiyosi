@@ -12,6 +12,7 @@ mod barrier;
 mod binary_barrier;
 mod diffusion;
 mod grid;
+pub(crate) mod heston;
 mod local_volatility;
 mod step;
 use diffusion::{Diffusion, LocalDiffusion};
