@@ -47,12 +47,12 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     monthly_schedule,
-    weekdays_calendar,
+    sse_calendar,
 )
 from kiyosi.pricing import FiniteDifferenceAutocallableEngine
 
-start, end = date(2025, 1, 2), date(2026, 1, 2)
-calendar = weekdays_calendar()
+start, end = date(2025, 1, 2), date(2026, 1, 5)
+calendar = sse_calendar()
 observations = monthly_schedule(
     start=start,
     end=end,
@@ -80,7 +80,7 @@ context = PricingContext(
 )
 engine = FiniteDifferenceAutocallableEngine(
     asset_step_count=800,
-    time_step_count=2000,
+    time_step_count=400,
     scheme="rannacher",
 )
 price = engine.price(snowball, context)

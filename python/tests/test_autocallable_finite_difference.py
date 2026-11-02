@@ -22,7 +22,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
 
     def test_engine_defaults_and_representation_errors(self):
         engine = FD()
-        self.assertEqual((engine.asset_step_count, engine.time_step_count), (800, 2000))
+        self.assertEqual((engine.asset_step_count, engine.time_step_count), (800, 400))
         self.assertEqual(engine.scheme, "rannacher")
         self.assertIsNone(engine.asset_upper_boundary)
         for field in ("asset_step_count", "time_step_count"):

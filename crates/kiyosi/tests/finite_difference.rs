@@ -97,6 +97,66 @@ fn terminal_prices_converge_to_independent_references() {
 }
 
 #[test]
+fn coarse_automatic_grids_resolve_short_and_annual_payoffs_and_spot_greeks() {
+    let (start, annual) = dates();
+    let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 200,
+        time_step_count: 50,
+        ..Default::default()
+    })
+    .unwrap();
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    for end in [Date::new(2025, 1, 2).unwrap(), annual] {
+        for direction in [OptionType::Call, OptionType::Put] {
+            let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
+            for spot in [99.875, 100.0, 100.125] {
+                let context = market(spot, 0.05, 0.02, 0.2);
+                let expected = AnalyticEuropeanEngine
+                    .price_with_greeks(&option, &context, request)
+                    .unwrap();
+                let actual = engine
+                    .price_with_greeks(&option, &context, request, Default::default())
+                    .unwrap();
+                assert!((actual.price() - expected.price()).abs() < 0.002);
+                for (greek, tolerance) in [(Greek::Delta, 1e-4), (Greek::Gamma, 3e-4)] {
+                    assert!(
+                        (actual.require(greek).unwrap() - expected.require(greek).unwrap()).abs()
+                            < tolerance,
+                        "{direction:?} {end:?} {spot} {greek:?}"
+                    );
+                }
+                assert_eq!(actual.price(), engine.price(&option, &context).unwrap());
+            }
+        }
+    }
+}
+
+#[test]
+fn automatic_mesh_policy_is_preserved_for_bumped_greeks() {
+    let (start, end) = dates();
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
+    let context = market(100.0, 0.05, 0.02, 0.2);
+    let engine = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
+        asset_step_count: 200,
+        time_step_count: 50,
+        ..Default::default()
+    })
+    .unwrap();
+    let request = GreeksRequest::new([Greek::Vega, Greek::Volga]);
+    let actual = engine
+        .price_with_greeks(&option, &context, request, Default::default())
+        .unwrap();
+    let expected =
+        numerical_greeks(&engine, &option, &context, request, Default::default()).unwrap();
+    for greek in [Greek::Vega, Greek::Volga] {
+        assert!(
+            (actual.require(greek).unwrap() - expected.require(greek).unwrap()).abs() < 1e-8,
+            "{greek:?}"
+        );
+    }
+}
+
+#[test]
 fn settings_validate_without_allocating_or_imposing_grid_caps() {
     let defaults = FiniteDifferenceSettings::default();
     assert_eq!(

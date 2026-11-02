@@ -192,6 +192,7 @@ fn native(
     settings: FiniteDifferenceSettings,
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
+    concentrate: bool,
 ) -> Result<(PricingResult, Option<f64>)> {
     local_volatility::validate_request(context, request)?;
     match context.model_parameters() {
@@ -202,6 +203,7 @@ fn native(
             settings,
             request,
             shifts,
+            concentrate,
             model.volatility(),
         ),
         crate::ModelParameters::LocalVolatility(model) => native_model(
@@ -211,6 +213,7 @@ fn native(
             settings,
             request,
             shifts,
+            concentrate,
             LocalDiffusion::new(context, model.surface()),
         ),
     }
@@ -218,7 +221,8 @@ fn native(
 
 #[expect(
     clippy::float_cmp,
-    reason = "Exact scheme and stencil weights select the digital discontinuity correction."
+    clippy::too_many_arguments,
+    reason = "Explicit payoff, grid policy, model and stencil inputs; exact weights select the digital correction."
 )]
 fn native_model<D: Diffusion>(
     option: &impl OptionContract,
@@ -227,6 +231,7 @@ fn native_model<D: Diffusion>(
     settings: FiniteDifferenceSettings,
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
+    concentrate: bool,
     diffusion: D,
 ) -> Result<(PricingResult, Option<f64>)> {
     let time = time_to_expiry(option, context)?;
@@ -245,12 +250,22 @@ fn native_model<D: Diffusion>(
             automatic_upper(payoff, context, time, &risk, &dividend)
         }
     });
-    let space = SpatialGrid::new(
+    let mut space = SpatialGrid::new(
         settings,
         upper,
         if payoff.american { payoff.strike } else { 0.0 },
         spot.max(payoff.strike),
     )?;
+    if !payoff.american
+        && (!payoff.digital || D::LOCAL)
+        && concentrate
+        && settings.scheme != FiniteDifferenceScheme::ExplicitEuler
+    {
+        let scale = payoff.strike * (0.1 * diffusion.sigma(0.0, spot) * time.sqrt()).max(1e-4);
+        if scale > 0.0 && scale.is_finite() {
+            grid::concentrate(&mut space, vec![payoff.strike], scale)?;
+        }
+    }
     let time_grid = diffusion::time_grid(
         context,
         expiry,
@@ -270,30 +285,35 @@ fn native_model<D: Diffusion>(
             &dividend,
         )?;
     }
-    let terminal = |asset| {
-        if !payoff.digital {
-            return payoff.value(asset);
-        }
-        let low = asset - 0.5 * space.spacing;
-        let high = asset + 0.5 * space.spacing;
-        let left = if payoff.sign > 0.0 {
-            low.max(payoff.strike)
-        } else {
-            low
-        };
-        let right = if payoff.sign > 0.0 {
-            high
-        } else {
-            high.min(payoff.strike)
-        };
-        if left >= right {
-            0.0
-        } else {
-            (right - left) / space.spacing * payoff.payout.unwrap_or(f64::midpoint(left, right))
-        }
-    };
     let mut old: Vec<_> = (0..=space.count)
-        .map(|i| terminal(space.asset(i)))
+        .map(|i| {
+            if !space.nodes.is_empty() {
+                return autocallable::project(&space, &[payoff.strike], i, |asset| {
+                    [payoff.value(asset), 0.0]
+                })[0];
+            }
+            let asset = space.asset(i);
+            if !payoff.digital {
+                return payoff.value(asset);
+            }
+            let low = asset - 0.5 * space.spacing;
+            let high = asset + 0.5 * space.spacing;
+            let left = if payoff.sign > 0.0 {
+                low.max(payoff.strike)
+            } else {
+                low
+            };
+            let right = if payoff.sign > 0.0 {
+                high
+            } else {
+                high.min(payoff.strike)
+            };
+            if left >= right {
+                0.0
+            } else {
+                (right - left) / space.spacing * payoff.payout.unwrap_or(f64::midpoint(left, right))
+            }
+        })
         .collect();
     let can_exercise = payoff.american
         && (!model.risk_free_curve().is_flat()
@@ -628,7 +648,7 @@ engine_settings!(
 
 engine_settings!(
     FiniteDifferenceVanillaEngine,
-    "Prices European and American vanilla contracts with uniform or sinh finite-difference grids."
+    "Prices European and American vanilla contracts with uniform or concentrated finite-difference grids."
 );
 engine_settings!(
     FiniteDifferenceDigitalEngine,
@@ -657,9 +677,9 @@ engine_settings!(
 
 engine_settings!(
     FiniteDifferenceAutocallableEngine,
-    "Prices snowball variants and Phoenix notes with event-projected finite differences; defaults to 800 asset and 2,000 time steps.",
+    "Prices snowball variants and Phoenix notes with event-projected finite differences; defaults to 800 asset and 400 time steps.",
     FiniteDifferenceSettings {
-        time_step_count: 2000,
+        time_step_count: 400,
         ..Default::default()
     }
 );
@@ -674,7 +694,9 @@ impl FiniteDifferenceVanillaEngine {
     /// use the surface maximum volatility and require domain convergence checks.
     /// Unsupported combinations return [`Error::UnsupportedOperation`], even at expiry.
     /// Accepts flat or node curves. American automatic domains expand with volatility
-    /// and maturity and use sinh coordinates; European grids remain uniform in spot.
+    /// and maturity and use sinh coordinates. With automatic domains, non-explicit
+    /// European grids concentrate nodes around the strike and average the payoff kink.
+    /// Explicit upper boundaries retain uniform European spot grids.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
@@ -759,6 +781,7 @@ macro_rules! vanilla_pricing {
                     self.settings,
                     GreeksRequest::default(),
                     Default::default(),
+                    self.settings.asset_upper_boundary.is_none(),
                 )?
                 .0
                 .price())
@@ -790,7 +813,15 @@ macro_rules! vanilla_pricing {
                     request,
                     settings,
                     |option, context, settings, request, shifts| {
-                        native(option, payoff, context, settings, request, shifts)
+                        native(
+                            option,
+                            payoff,
+                            context,
+                            settings,
+                            request,
+                            shifts,
+                            self.settings.asset_upper_boundary.is_none(),
+                        )
                     },
                 )
             }
@@ -805,6 +836,8 @@ impl FiniteDifferenceDigitalEngine {
     ///
     /// Rejects node curves before life validation, including at expiry.
     /// Accepts BSM or local volatility, with cell-averaged digital payoffs in both models.
+    /// Local-volatility automatic domains concentrate nodes around the strike for
+    /// non-explicit schemes. BSM and explicit upper boundaries retain uniform spot grids.
     /// See [`FiniteDifferenceVanillaEngine::price_with_greeks`] for context construction.
     ///
     /// # Errors
@@ -835,6 +868,7 @@ impl FiniteDifferenceDigitalEngine {
             self.settings,
             GreeksRequest::default(),
             Default::default(),
+            self.settings.asset_upper_boundary.is_none(),
         )?
         .0
         .price())
@@ -866,7 +900,15 @@ impl FiniteDifferenceDigitalEngine {
             request,
             shifts,
             |option, context, settings, request, shifts| {
-                native(option, payoff, context, settings, request, shifts)
+                native(
+                    option,
+                    payoff,
+                    context,
+                    settings,
+                    request,
+                    shifts,
+                    self.settings.asset_upper_boundary.is_none(),
+                )
             },
         )
     }

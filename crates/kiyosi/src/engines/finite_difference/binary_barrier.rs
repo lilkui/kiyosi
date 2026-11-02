@@ -306,6 +306,7 @@ fn native_with_diffusion<D: Diffusion>(
                     settings,
                     request,
                     shifts,
+                    false,
                 )?
                 .0);
             }

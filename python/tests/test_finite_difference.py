@@ -54,6 +54,65 @@ def engine_for(kind, **settings):
 
 
 class FiniteDifferenceTests(unittest.TestCase):
+    def test_coarse_automatic_grids_resolve_short_and_annual_payoffs_and_spot_greeks(
+        self,
+    ):
+        engine = FiniteDifferenceVanillaEngine(asset_step_count=200, time_step_count=50)
+        for end in (START + timedelta(days=1), END):
+            for direction in ("call", "put"):
+                option = EuropeanOption(
+                    option_type=direction,
+                    strike=100,
+                    effective_date=START,
+                    expiry_date=end,
+                )
+                for spot in (99.875, 100, 100.125):
+                    with self.subTest(end=end, direction=direction, spot=spot):
+                        context = market(spot=spot, rate=0.05, dividend=0.02, sigma=0.2)
+                        expected = AnalyticEuropeanEngine().price_with_greeks(
+                            option, context, ["delta", "gamma"]
+                        )
+                        actual = engine.price_with_greeks(
+                            option, context, ["delta", "gamma"]
+                        )
+                        for name, tolerance in (
+                            ("price", 0.002),
+                            ("delta", 1e-4),
+                            ("gamma", 3e-4),
+                        ):
+                            self.assertAlmostEqual(
+                                getattr(actual, name),
+                                getattr(expected, name),
+                                delta=tolerance,
+                            )
+                        self.assertEqual(actual.price, engine.price(option, context))
+
+    def test_automatic_mesh_policy_is_preserved_for_bumped_greeks(self):
+        engine = FiniteDifferenceVanillaEngine(asset_step_count=200, time_step_count=50)
+        option = EuropeanOption(
+            option_type="call", strike=100, effective_date=START, expiry_date=END
+        )
+        context = market(spot=100, rate=0.05, dividend=0.02, sigma=0.2)
+        names = ["vega", "volga"]
+        shift = 0.01
+        actual = engine.price_with_greeks(
+            option, context, names, volatility_shift=shift
+        )
+        low, high = (
+            engine.price(
+                option, market(spot=100, rate=0.05, dividend=0.02, sigma=sigma)
+            )
+            for sigma in (0.2 - shift, 0.2 + shift)
+        )
+        self.assertAlmostEqual(
+            actual.vega, (high - low) / (2 * shift * 100), delta=1e-8
+        )
+        self.assertAlmostEqual(
+            actual.volga,
+            (high + low - 2 * actual.price) / (shift**2 * 10000),
+            delta=1e-8,
+        )
+
     def test_materially_negative_prices_fail_instead_of_being_clipped(self):
         for scale in (1e-100, 1.0, 1e100):
             with self.subTest(scale=scale):

@@ -16,8 +16,15 @@ convergence for local-volatility domains, including automatically selected domai
 ``"crank_nicolson"`` (without time-step damping), or ``"rannacher"`` (the default).
 Rannacher replaces each of the first two time intervals with two implicit Euler
 half-steps and restarts after scheduled barrier, accumulator and autocallable
-observations. Payoff averaging and spatial discretization apply independently
-of the time scheme. ``MonteCarloSampling`` selects
+observations. Automatic European vanilla and local-volatility digital domains
+concentrate spatial nodes around the strike for non-explicit schemes; BSM
+digitals and explicit upper boundaries retain uniform spot grids.
+Concentrated vanilla grids average the payoff kink;
+digital terminal payoffs are cell-averaged on either grid. American grids retain
+their sinh coordinates. Autocallable engines default to 800 spatial and 400
+time steps; observations and damping can add substeps. Check convergence before
+reducing grid counts further.
+``MonteCarloSampling`` selects
 ``"pseudo_random"`` or scrambled ``"sobol"``; a fixed seed reproduces draws
 across thread counts in the same build. Sobol estimates omit sampling error.
 Autocallable and accumulator ``price`` calls return the sample mean;

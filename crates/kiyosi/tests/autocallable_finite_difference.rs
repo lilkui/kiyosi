@@ -220,7 +220,7 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
     let defaults = FiniteDifferenceAutocallableEngine::default().settings();
     assert_eq!(
         (defaults.asset_step_count, defaults.time_step_count),
-        (800, 2000)
+        (800, 400)
     );
     assert_eq!(
         FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings::default())

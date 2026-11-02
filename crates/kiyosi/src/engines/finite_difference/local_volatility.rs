@@ -33,6 +33,7 @@ pub(super) fn price(
         settings,
         request,
         Default::default(),
+        settings.asset_upper_boundary.is_none(),
         LocalDiffusion::new(context, model.surface()),
     )?
     .0)

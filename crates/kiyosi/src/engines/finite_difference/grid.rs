@@ -308,6 +308,90 @@ impl SpatialGrid {
     }
 }
 
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    reason = "Grid counts are bounded by validated i32 settings; allocation intentionally floors nonnegative proportions."
+)]
+pub(super) fn concentrate(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: f64) -> Result<()> {
+    levels.retain(|&l| l > 0.0 && l < space.upper);
+    levels.sort_by(f64::total_cmp);
+    let gap = scale * (space.upper / scale).asinh() / space.count as f64;
+    let mut previous = 0.0;
+    levels.retain(|&l| {
+        if l - previous < gap || space.upper - l < gap {
+            false
+        } else {
+            previous = l;
+            true
+        }
+    });
+    if levels.is_empty() {
+        return Ok(());
+    }
+    let mut segments = vec![(0.0, levels[0], false, 1_usize, 0.0)];
+    for pair in levels.windows(2) {
+        let middle = pair[0].midpoint(pair[1]);
+        segments.push((pair[0], middle, true, 1, 0.0));
+        segments.push((middle, pair[1], false, 1, 0.0));
+    }
+    segments.push((levels[levels.len() - 1], space.upper, true, 1, 0.0));
+    if segments.len() > space.count {
+        return Ok(());
+    }
+    let width = |a: f64, b: f64| ((b - a) / scale).asinh();
+    let total: f64 = segments.iter().map(|&(a, b, _, _, _)| width(a, b)).sum();
+    let available = space.count - segments.len();
+    let mut allocated = 0;
+    for (a, b, _, steps, remainder) in &mut segments {
+        let count = available as f64 * width(*a, *b) / total;
+        *steps += count as usize;
+        *remainder = count.fract();
+        allocated += count as usize;
+    }
+    for _ in allocated..available {
+        let mut best = 0;
+        for i in 1..segments.len() {
+            if segments[i].4 > segments[best].4 {
+                best = i;
+            }
+        }
+        segments[best].3 += 1;
+        segments[best].4 = -1.0;
+    }
+    let mut spacing = total / space.count as f64;
+    for &(a, b, _, steps, _) in &segments {
+        if steps > 1 {
+            spacing = spacing.min(width(a, b) / (steps as f64 - 0.5));
+        }
+    }
+    let mut nodes = vec![0.0];
+    for (a, b, from_left, steps, _) in segments {
+        for i in 1..=steps {
+            let x = spacing * if from_left { i } else { steps - i } as f64;
+            let value = if i == steps {
+                b
+            } else if from_left {
+                a + scale * x.sinh()
+            } else {
+                b - scale * x.sinh()
+            };
+            if value > nodes[nodes.len() - 1] {
+                nodes.push(value);
+            }
+        }
+    }
+    if nodes.iter().any(|n| !n.is_finite()) {
+        return Err(invalid_grid("concentrated grid is not representable"));
+    }
+    space.count = nodes.len() - 1;
+    space.spacing = 1.0;
+    space.scale = 0.0;
+    space.nodes = nodes;
+    Ok(())
+}
+
 pub(super) struct Curve {
     segments: Vec<(f64, f64)>,
 }
