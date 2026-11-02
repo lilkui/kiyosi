@@ -33,6 +33,65 @@ const KINDS: [BarrierType; 4] = [
 ];
 
 #[test]
+fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
+    let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
+        path_count: 32,
+        seed: Some(42),
+        ..Default::default()
+    })
+    .unwrap();
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    for (spot, shift) in [(0.005, 0.01), (100.0, f64::MIN_POSITIVE)] {
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(0.04, 0.01, 1.0).unwrap(),
+            spot,
+            day(1, 1).into(),
+        )
+        .unwrap();
+        let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
+        t.strike = 5.0 * spot;
+        t.barrier_level = t.strike;
+        t.rebate = 1.0;
+        t.rebate_timing = RebateTiming::AtHit;
+        let option = BarrierOption::new(t.clone()).unwrap();
+        let result = engine
+            .price_with_greeks(&option, &context, request, shift)
+            .unwrap();
+        assert_eq!(result.price(), engine.price(&option, &context).unwrap());
+        for greek in [Greek::Delta, Greek::Gamma] {
+            assert!(!result.has(greek));
+            assert!(matches!(
+                result.require(greek),
+                Err(Error::UnsupportedOperation(_))
+            ));
+        }
+        let settings = NumericalShiftSettings {
+            spot_shift: 1e-4 * spot,
+            ..Default::default()
+        };
+        let expected = AnalyticBarrierEngine
+            .price_with_greeks(&option, &context, request, settings)
+            .unwrap();
+        let actual = engine
+            .price_with_greeks(&option, &context, request, settings.spot_shift)
+            .unwrap();
+        assert_eq!(actual, expected);
+
+        t.strike = spot;
+        t.rebate = 0.0;
+        let option = BarrierOption::new(t).unwrap();
+        assert_eq!(
+            engine
+                .price_with_greeks(&option, &context, request, shift)
+                .unwrap(),
+            engine
+                .price_with_greeks(&option, &context, request, settings.spot_shift)
+                .unwrap()
+        );
+    }
+}
+
+#[test]
 fn native_greeks_validate_only_the_spot_shift() {
     let option = BarrierOption::new(terms(BarrierType::DownAndOut, OptionType::Call)).unwrap();
     let context = market(0.04);

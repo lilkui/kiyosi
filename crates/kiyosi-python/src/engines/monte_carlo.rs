@@ -73,6 +73,8 @@ macro_rules! sampling_settings {
             ///     Greek names or "all" to request every measure; duplicates are ignored.
             /// spot_shift : float, optional
             ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+            ///     Continuous at-hit rebates require distinct, positive bumped spots;
+            ///     otherwise delta and gamma are None for the whole contract.
             ///
             /// Returns
             /// -------

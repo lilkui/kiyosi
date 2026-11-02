@@ -23,6 +23,57 @@ fn market() -> PricingContext {
 }
 
 #[test]
+fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
+    let mut t = terms(OptionType::Call, DoubleBarrierType::KnockOut);
+    t.strike = 1.2e16;
+    t.lower_barrier = 8e15;
+    t.upper_barrier = t.strike;
+    t.rebate = 1.0;
+    t.rebate_timing = RebateTiming::AtHit;
+    let option = DoubleBarrierOption::new(t).unwrap();
+    let context = market()
+        .replace(PricingContextChanges {
+            spot_price: Some(1e16),
+            ..Default::default()
+        })
+        .unwrap();
+    let engine = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
+        path_count: 32,
+        seed: Some(42),
+        ..Default::default()
+    })
+    .unwrap();
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    let result = engine
+        .price_with_greeks(
+            &option,
+            &context,
+            request,
+            NumericalShiftSettings::default().spot_shift,
+        )
+        .unwrap();
+    assert_eq!(result.price(), engine.price(&option, &context).unwrap());
+    for greek in [Greek::Delta, Greek::Gamma] {
+        assert!(!result.has(greek));
+        assert!(matches!(
+            result.require(greek),
+            Err(Error::UnsupportedOperation(_))
+        ));
+    }
+    let settings = NumericalShiftSettings {
+        spot_shift: 1e12,
+        ..Default::default()
+    };
+    let expected = AnalyticDoubleBarrierEngine
+        .price_with_greeks(&option, &context, request, settings)
+        .unwrap();
+    let actual = engine
+        .price_with_greeks(&option, &context, request, settings.spot_shift)
+        .unwrap();
+    assert_eq!(actual, expected);
+}
+
+#[test]
 fn native_greeks_validate_only_the_spot_shift() {
     let option =
         DoubleBarrierOption::new(terms(OptionType::Call, DoubleBarrierType::KnockOut)).unwrap();

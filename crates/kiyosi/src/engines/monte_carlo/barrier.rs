@@ -90,6 +90,8 @@ impl MonteCarloBarrierEngine {
     /// controls that availability and numerical derivatives of the analytic
     /// continuous at-hit rebate. Other numerical bump settings are unused by the
     /// [`PricingEngine::price_with_greeks`] adapter.
+    /// Unavailable rebate stencils leave the contract's delta/gamma absent; see
+    /// [`crate::numerical_greeks`] for stencil requirements.
     /// Near-expiry likelihood estimates can have substantial sampling error.
     ///
     /// # Errors
@@ -169,7 +171,7 @@ impl MonteCarloBarrierEngine {
             Contract::Single(option) => option.at_spot_discontinuity(context, radius),
             Contract::Double(option) => option.at_spot_discontinuity(context, radius),
         };
-        let request = GreeksRequest::new(
+        let mut request = GreeksRequest::new(
             [Greek::Delta, Greek::Gamma]
                 .into_iter()
                 .filter(|&g| request.has(g) && time != expiry && !discontinuity),
@@ -450,6 +452,11 @@ impl MonteCarloBarrierEngine {
                 if let Some(value) = derivatives.get(Greek::Gamma) {
                     values[2] += value;
                 }
+                request = GreeksRequest::new(
+                    [Greek::Delta, Greek::Gamma]
+                        .into_iter()
+                        .filter(|&greek| derivatives.has(greek)),
+                );
             }
         }
         let mut result = PricingResult::new(values[0])?;

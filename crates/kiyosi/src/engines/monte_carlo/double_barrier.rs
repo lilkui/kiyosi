@@ -84,6 +84,8 @@ impl MonteCarloDoubleBarrierEngine {
     /// `spot_shift` controls that availability and numerical derivatives of
     /// continuous at-hit rebates. Other numerical bump settings are unused by the
     /// [`PricingEngine::price_with_greeks`] adapter.
+    /// Unavailable rebate stencils leave the contract's delta/gamma absent; see
+    /// [`crate::numerical_greeks`] for stencil requirements.
     /// Near-expiry likelihood estimates can have substantial sampling error.
     /// Scalar numerical analysis is available through [`crate::numerical_greeks`].
     ///

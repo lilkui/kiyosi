@@ -81,6 +81,9 @@ check convergence across bump sizes and simulation settings.
 ``MonteCarloBarrierEngine`` and ``MonteCarloDoubleBarrierEngine`` return only
 delta and gamma. Their only bump control is ``spot_shift``, used for barrier
 availability checks and numerical derivatives of continuous at-hit rebates.
+For these rebates, an unavailable numerical stencil leaves delta and gamma
+as None for the whole contract. Choose a spot bump that gives distinct,
+positive spots on both sides of the valuation spot.
 
 Pass ``greeks="all"`` to request every measure, a Greek name for one measure,
 or an iterable of names for a selection. The ``greeks`` argument is required;

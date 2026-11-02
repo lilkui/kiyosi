@@ -25,6 +25,31 @@ from test_double_barrier_finite_difference import (
 
 
 class DoubleBarrierMonteCarloTests(unittest.TestCase):
+    def test_at_hit_rebate_greeks_require_a_usable_spot_stencil(self):
+        option = contract(
+            strike=1.2e16,
+            lower_barrier=8e15,
+            upper_barrier=1.2e16,
+            rebate=1,
+            rebate_timing="at_hit",
+        )
+        context = market(1e16)
+        engine = pricing.MonteCarloDoubleBarrierEngine(path_count=32, seed=42)
+        result = engine.price_with_greeks(option, context, ("delta", "gamma"))
+        self.assertEqual(result.price, engine.price(option, context))
+        for name in ("delta", "gamma"):
+            self.assertIsNone(getattr(result, name))
+            with self.assertRaises(UnsupportedOperationError):
+                result.require(name)
+        actual = engine.price_with_greeks(
+            option, context, ("delta", "gamma"), spot_shift=1e12
+        )
+        expected = pricing.AnalyticDoubleBarrierEngine().price_with_greeks(
+            option, context, ("delta", "gamma"), spot_shift=1e12
+        )
+        self.assertEqual(actual.delta, expected.delta)
+        self.assertEqual(actual.gamma, expected.gamma)
+
     def assert_rejection(self, expected_error, operation, *args, **kwargs):
         with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)

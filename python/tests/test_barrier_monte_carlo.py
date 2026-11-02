@@ -18,6 +18,45 @@ from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, optio
 
 
 class BarrierMonteCarloTests(unittest.TestCase):
+    def test_at_hit_rebate_greeks_require_a_usable_spot_stencil(self):
+        engine = pricing.MonteCarloBarrierEngine(path_count=32, seed=42)
+        for spot, shift in ((0.005, 0.01), (100, 1e-300)):
+            context = market(spot, rate=0.04, volatility=1)
+            contract = option(
+                "up_and_out",
+                strike=5 * spot,
+                barrier_level=5 * spot,
+                rebate=1,
+                rebate_timing="at_hit",
+            )
+            with self.subTest(spot=spot, shift=shift):
+                result = engine.price_with_greeks(
+                    contract, context, ("delta", "gamma"), spot_shift=shift
+                )
+                self.assertEqual(result.price, engine.price(contract, context))
+                for name in ("delta", "gamma"):
+                    self.assertIsNone(getattr(result, name))
+                    with self.assertRaises(UnsupportedOperationError):
+                        result.require(name)
+                controls = {"spot_shift": 1e-4 * spot}
+                actual = engine.price_with_greeks(
+                    contract, context, ("delta", "gamma"), **controls
+                )
+                expected = pricing.AnalyticBarrierEngine().price_with_greeks(
+                    contract, context, ("delta", "gamma"), **controls
+                )
+                self.assertEqual(actual.delta, expected.delta)
+                self.assertEqual(actual.gamma, expected.gamma)
+                contract = option("up_and_out", strike=spot, barrier_level=5 * spot)
+                actual = engine.price_with_greeks(
+                    contract, context, ("delta", "gamma"), spot_shift=shift
+                )
+                expected = engine.price_with_greeks(
+                    contract, context, ("delta", "gamma"), **controls
+                )
+                self.assertEqual(actual.delta, expected.delta)
+                self.assertEqual(actual.gamma, expected.gamma)
+
     def assert_rejection(self, expected_error, operation, *args, **kwargs):
         with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)
