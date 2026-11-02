@@ -74,6 +74,45 @@ fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
 }
 
 #[test]
+fn tiny_volatility_payoffs_match_the_vanilla_limit() {
+    let sigma = 1e-17;
+    let engine = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {
+        path_count: 32768,
+        seed: Some(42),
+        sampling: MonteCarloSampling::Sobol,
+        ..Default::default()
+    })
+    .unwrap();
+    for spot in [1.0, 1e16] {
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(0.0, 0.0, sigma).unwrap(),
+            spot,
+            Date::new(2025, 1, 1).unwrap().into(),
+        )
+        .unwrap();
+        let expected = spot * sigma / std::f64::consts::TAU.sqrt();
+        for direction in [OptionType::Call, OptionType::Put] {
+            for mode in [ObservationMode::Continuous, ObservationMode::Scheduled] {
+                let mut t = terms(direction, DoubleBarrierType::KnockOut);
+                t.strike = spot;
+                t.lower_barrier = 0.8 * spot;
+                t.upper_barrier = 1.2 * spot;
+                t.observation_mode = mode;
+                if mode == ObservationMode::Scheduled {
+                    t.observation_dates = vec![t.expiry_date];
+                }
+                let option = DoubleBarrierOption::new(t).unwrap();
+                let actual = engine.price(&option, &context).unwrap();
+                assert!(
+                    (actual - expected).abs() < 1e-3 * expected,
+                    "{spot} {direction:?} {mode:?}: {actual} != {expected}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn native_greeks_validate_only_the_spot_shift() {
     let option =
         DoubleBarrierOption::new(terms(OptionType::Call, DoubleBarrierType::KnockOut)).unwrap();

@@ -25,6 +25,29 @@ from test_double_barrier_finite_difference import (
 
 
 class DoubleBarrierMonteCarloTests(unittest.TestCase):
+    def test_tiny_volatility_payoffs_match_the_vanilla_limit(self):
+        sigma = 1e-17
+        engine = pricing.MonteCarloDoubleBarrierEngine(
+            path_count=32768, seed=42, sampling="sobol"
+        )
+        for spot, direction, mode in product(
+            (1, 1e16), ("call", "put"), ("continuous", "scheduled")
+        ):
+            option = contract(
+                option_type=direction,
+                strike=spot,
+                lower_barrier=0.8 * spot,
+                upper_barrier=1.2 * spot,
+                observation_mode=mode,
+                observation_dates=[END] if mode == "scheduled" else [],
+            )
+            context = market(spot, rate=0, dividend=0, volatility=sigma)
+            expected = spot * sigma / math.sqrt(math.tau)
+            with self.subTest(spot=spot, direction=direction, mode=mode):
+                self.assertAlmostEqual(
+                    engine.price(option, context), expected, delta=1e-3 * expected
+                )
+
     def test_at_hit_rebate_greeks_require_a_usable_spot_stencil(self):
         option = contract(
             strike=1.2e16,

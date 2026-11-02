@@ -31,6 +31,8 @@ Autocallable and accumulator ``price`` calls return the sample mean;
 ``price_with_statistics`` also computes and validates sampling uncertainty.
 Future Monte Carlo barrier, knock-in, knock-out, coupon and acceleration tests
 retain log-price movements even when the simulated spot rounds to a threshold.
+Single- and double-barrier Monte Carlo payoffs also retain movements when
+terminal spot rounds to the strike.
 Current observations continue to use the supplied spot.
 
 Autocallable quadrature extends its spatial domain for forward drift and the

@@ -4,6 +4,7 @@ import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from itertools import product
 
 from kiyosi import (
     ComputationFailureError,
@@ -18,6 +19,31 @@ from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, optio
 
 
 class BarrierMonteCarloTests(unittest.TestCase):
+    def test_tiny_volatility_payoffs_match_the_vanilla_limit(self):
+        sigma = 1e-17
+        end = START + timedelta(days=365)
+        engine = pricing.MonteCarloBarrierEngine(
+            path_count=32768, seed=42, sampling="sobol"
+        )
+        for spot, direction, mode in product(
+            (1, 1e16), ("call", "put"), ("continuous", "scheduled")
+        ):
+            contract = option(
+                "down_and_out",
+                direction,
+                strike=spot,
+                barrier_level=0.8 * spot,
+                expiry_date=end,
+                observation_mode=mode,
+                observation_dates=[end] if mode == "scheduled" else [],
+            )
+            context = market(spot, rate=0, dividend=0, volatility=sigma)
+            expected = spot * sigma / math.sqrt(math.tau)
+            with self.subTest(spot=spot, direction=direction, mode=mode):
+                self.assertAlmostEqual(
+                    engine.price(contract, context), expected, delta=1e-3 * expected
+                )
+
     def test_at_hit_rebate_greeks_require_a_usable_spot_stencil(self):
         engine = pricing.MonteCarloBarrierEngine(path_count=32, seed=42)
         for spot, shift in ((0.005, 0.01), (100, 1e-300)):

@@ -11,6 +11,7 @@ use std::f64::consts::PI;
 /// Continuous monitoring uses one terminal draw and an image/spectral
 /// Brownian-bridge survival series. Scheduled monitoring uses original fixing
 /// dates and an unobserved expiry leg when needed.
+/// Near-strike payoffs retain movements even when terminal spot rounds to strike.
 /// Sampling, exact path counts and thread reproducibility follow
 /// [`MonteCarloBarrierEngine`]. Shared and distinct instances permit concurrent
 /// calls with request-owned samples and shared workers. See [`Self::price_with_greeks`].

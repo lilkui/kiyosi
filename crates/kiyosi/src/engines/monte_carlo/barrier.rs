@@ -22,6 +22,7 @@ pub(super) enum Contract<'a> {
 /// simulated spot rounds to the barrier. Sampling, exact path counts and
 /// thread reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
 /// instances support concurrent calls with request-owned samples and shared workers.
+/// Near-strike payoffs retain movements even when terminal spot rounds to strike.
 /// Returns likelihood-ratio delta/gamma; scalar numerical analysis is available
 /// through [`crate::numerical_greeks`]. See [`Self::price_with_greeks`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -239,6 +240,7 @@ impl MonteCarloBarrierEngine {
             previous = next;
         }
         let spot = context.spot_price();
+        let moneyness = log_ratio(spot, option.strike());
         let barrier = log_ratio(option.barrier_level(), spot);
         let upper_return = upper.map(|upper| log_ratio(upper, spot));
         let up = option.barrier_type().is_up();
@@ -283,7 +285,13 @@ impl MonteCarloBarrierEngine {
                 }
             }
             let asset = scaled_value(spot, 1.0, terminal)?;
-            let intrinsic = (sign * (asset - option.strike())).max(0.0);
+            let distance = moneyness + terminal;
+            let payoff = if distance.abs() < 0.5 {
+                option.strike() * distance.exp_m1()
+            } else {
+                asset - option.strike()
+            };
+            let intrinsic = (sign * payoff).max(0.0);
             let weighted = |amount: f64, log_weight: f64| {
                 scaled_value(amount.abs(), amount.signum(), log_discount + log_weight)
             };

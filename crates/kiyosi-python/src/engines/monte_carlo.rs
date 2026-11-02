@@ -792,6 +792,7 @@ sampling_settings!(
 /// does not reserve workers. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
 /// Monitoring uses continuous survival or the original fixing dates.
+/// Near-strike payoffs retain movements even when terminal spot rounds to strike.
 /// Only delta and gamma are returned.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloBarrierEngine(pub(crate) kiyosi::MonteCarloBarrierEngine);
@@ -832,6 +833,7 @@ sampling_settings!(@barrier MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierO
 /// does not reserve workers. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
 /// Monitoring uses continuous survival or the original fixing dates.
+/// Near-strike payoffs retain movements even when terminal spot rounds to strike.
 /// Only delta and gamma are returned.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloDoubleBarrierEngine(pub(crate) kiyosi::MonteCarloDoubleBarrierEngine);
