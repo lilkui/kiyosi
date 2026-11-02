@@ -3,6 +3,7 @@ use super::{estimate, path_samples, scaled_value, unstable};
 use crate::instruments::autocallable::pricing::{
     fixed_value, future_event_dates, initial, validate, volatility_affects_price,
 };
+use crate::numerics::log_ratio;
 use crate::{
     AutocallableNote, AutocallableTerms, GreeksRequest, NumericalShiftSettings, PricingContext,
     PricingEngine, PricingResult, Result,
@@ -12,7 +13,8 @@ use crate::{
 ///
 /// Uses exact lognormal transitions on trading days when knock-in matters, or
 /// remaining observation dates and expiry otherwise. Time is Actual/365 Fixed.
-/// Current events precede simulation.
+/// Current events precede simulation. Future knock-in, knock-out and coupon tests
+/// preserve log-price movements even when the simulated spot rounds to a threshold.
 /// Complete normal vectors are drawn before evaluating each path, so early
 /// knock-out cannot shift later paths. Sampling, antithetic counts and thread
 /// reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
@@ -154,6 +156,9 @@ impl MonteCarloAutocallableEngine {
         let dates = future_event_dates(note, context, daily)?;
         let mut previous = valuation;
         let sigma = model.volatility();
+        let initial_spot = context.spot_price();
+        let knock_in = terms.knock_in.map(|ki| log_ratio(ki.level, initial_spot));
+        let below_knock_in = |log_return| knock_in.is_some_and(|level| log_return < level);
         let mut steps = Vec::with_capacity(dates.len());
         let mut next = note
             .observations()
@@ -170,27 +175,42 @@ impl MonteCarloAutocallableEngine {
             if record.is_some() {
                 next += 1;
             }
+            let record = record.map(|record| {
+                (
+                    record,
+                    log_ratio(record.knock_out_level, initial_spot),
+                    log_ratio(record.coupon_barrier_level, initial_spot),
+                    note.period_coupon(record),
+                )
+            });
             steps.push((drift, diffusion, log_discount, record));
             previous = date.into();
         }
         let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
         let ([moments], [pairs]) =
             path_samples(self.settings, steps.len(), statistics, |normals| {
-                let mut spot = context.spot_price();
+                let mut spot = initial_spot;
+                let mut log_return = 0.0;
                 let mut knocked_in = state.knocked_in;
                 let mut coupons = state.coupon;
                 for ((drift, diffusion, log_discount, record), normal) in steps.iter().zip(normals)
                 {
-                    spot *= diffusion.mul_add(*normal, *drift).exp();
+                    // Keep threshold decisions before rounding the simulated spot.
+                    log_return += diffusion.mul_add(*normal, *drift);
+                    spot = scaled_value(initial_spot, 1.0, log_return)?;
                     if !spot.is_finite() || spot <= 0.0 {
                         return Err(unstable());
                     }
                     if daily {
-                        knocked_in |= terms.below_knock_in(spot);
+                        knocked_in |= below_knock_in(log_return);
                     }
-                    if let Some(record) = record {
-                        let coupon = note.observation_coupon(record, spot);
-                        if spot >= record.knock_out_level {
+                    if let Some((record, knock_out, coupon_barrier, period_coupon)) = *record {
+                        let coupon = if log_return >= coupon_barrier {
+                            period_coupon
+                        } else {
+                            0.0
+                        };
+                        if log_return >= knock_out {
                             let value = coupons
                                 + scaled_value(
                                     1.0,
@@ -206,7 +226,7 @@ impl MonteCarloAutocallableEngine {
                         coupons += scaled_value(1.0, coupon, *log_discount)?;
                     }
                 }
-                knocked_in |= terms.below_knock_in(spot);
+                knocked_in |= below_knock_in(log_return);
                 let value = coupons
                     + scaled_value(1.0, note.terminal(spot, knocked_in), terminal_log_discount)?;
                 if value.is_finite() {

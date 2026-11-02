@@ -18,7 +18,8 @@ pub(super) enum Contract<'a> {
 ///
 /// Continuous monitoring uses one terminal draw and Brownian-bridge survival;
 /// scheduled monitoring uses original fixing dates and an unobserved expiry leg
-/// when needed. Sampling, exact path counts and
+/// when needed. Future barrier tests preserve log-price movements even when the
+/// simulated spot rounds to the barrier. Sampling, exact path counts and
 /// thread reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
 /// instances support concurrent calls with request-owned samples and shared workers.
 /// Returns likelihood-ratio delta/gamma; scalar numerical analysis is available
@@ -237,6 +238,7 @@ impl MonteCarloBarrierEngine {
         }
         let spot = context.spot_price();
         let barrier = log_ratio(option.barrier_level(), spot);
+        let upper_return = upper.map(|upper| log_ratio(upper, spot));
         let up = option.barrier_type().is_up();
         let knock_in = option.barrier_type().is_knock_in();
         let at_hit = option.rebate_timing() == RebateTiming::AtHit;
@@ -259,12 +261,12 @@ impl MonteCarloBarrierEngine {
                     return Err(unstable());
                 }
                 if observe
-                    && (if let Some(upper) = upper {
-                        asset <= option.barrier_level() || asset >= upper
+                    && (if let Some(upper) = upper_return {
+                        terminal <= barrier || terminal >= upper
                     } else if up {
-                        asset >= option.barrier_level()
+                        terminal >= barrier
                     } else {
-                        asset <= option.barrier_level()
+                        terminal <= barrier
                     })
                 {
                     touched = true;
@@ -330,9 +332,9 @@ impl MonteCarloBarrierEngine {
                 )
             } else if continuous {
                 let live = if up {
-                    asset < option.barrier_level()
+                    terminal < barrier
                 } else {
-                    asset > option.barrier_level()
+                    terminal > barrier
                 };
                 let slope = if live {
                     2.0 * ((barrier - terminal).abs() / steps[0].1) / steps[0].1

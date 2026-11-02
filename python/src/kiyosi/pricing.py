@@ -29,6 +29,9 @@ reducing grid counts further.
 across thread counts in the same build. Sobol estimates omit sampling error.
 Autocallable and accumulator ``price`` calls return the sample mean;
 ``price_with_statistics`` also computes and validates sampling uncertainty.
+Future Monte Carlo barrier, knock-in, knock-out, coupon and acceleration tests
+retain log-price movements even when the simulated spot rounds to a threshold.
+Current observations continue to use the supplied spot.
 
 Autocallable quadrature extends its spatial domain for forward drift and the
 backward movement of event boundaries. Check spatial resolution and integration

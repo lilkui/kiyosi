@@ -1,7 +1,8 @@
 use super::{Moments, estimate, path_samples, scaled_value, unstable};
+use crate::numerics::log_ratio;
 use crate::{
     Accumulator, GreeksRequest, MonteCarloEstimate, MonteCarloSettings, NumericalShiftSettings,
-    PricingContext, PricingEngine, PricingResult, Result,
+    OptionType, PricingContext, PricingEngine, PricingResult, Result,
 };
 
 /// Prices accumulators with exact lognormal transitions between trading dates.
@@ -10,6 +11,8 @@ use crate::{
 /// before accumulation and direction-dependent acceleration. Accrued units settle
 /// at knock-out or expiry. History follows [`Accumulator`]; zero prior quantity
 /// means none. Uses flat BSM rates and Actual/365 Fixed time.
+/// Future knock-out, acceleration and near-strike settlements retain log-price
+/// movements even when the simulated spot rounds to a threshold.
 /// Draws complete normal vectors before evaluating paths,
 /// so early termination never shifts later draws. Sampling and thread
 /// reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
@@ -138,6 +141,22 @@ impl MonteCarloAccumulatorEngine {
         }
         let valuation = context.valuation_time();
         let sigma = model.volatility();
+        let initial_spot = context.spot_price();
+        let strike = log_ratio(option.strike(), initial_spot);
+        let knock_out = log_ratio(option.knock_out_level(), initial_spot);
+        let sign = if option.option_type() == OptionType::Call {
+            1.0
+        } else {
+            -1.0
+        };
+        let unit_payoff = |spot, log_return: f64| {
+            let distance = log_return - strike;
+            if distance.abs() < 0.5 {
+                sign * option.strike() * distance.exp_m1()
+            } else {
+                option.unit_payoff(spot)
+            }
+        };
         let mut previous = valuation;
         let mut steps = Vec::new();
         for date in option.future_observation_dates(context)? {
@@ -159,29 +178,36 @@ impl MonteCarloAccumulatorEngine {
         let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
         let ([moments], [pairs]) =
             path_samples(self.settings, steps.len(), statistics, |normals| {
-                let mut spot = context.spot_price();
+                let mut spot = initial_spot;
+                let mut log_return = 0.0;
                 let mut quantity = quantity;
                 for ((drift, diffusion, log_discount, observe), normal) in steps.iter().zip(normals)
                 {
-                    spot *= diffusion.mul_add(*normal, *drift).exp();
+                    log_return += diffusion.mul_add(*normal, *drift);
+                    spot = scaled_value(initial_spot, 1.0, log_return)?;
                     if !spot.is_finite() || spot <= 0.0 {
                         return Err(unstable());
                     }
-                    if *observe && option.is_knock_out(spot) {
+                    if *observe && sign * log_return >= sign * knock_out {
                         return Ok([scaled_value(
                             quantity,
-                            option.unit_payoff(spot),
+                            unit_payoff(spot, log_return),
                             *log_discount,
                         )?]);
                     }
-                    quantity += option.purchase(spot);
+                    quantity += option.daily_quantity()
+                        * if sign * log_return < sign * strike {
+                            option.acceleration_factor()
+                        } else {
+                            1.0
+                        };
                     if !quantity.is_finite() {
                         return Err(unstable());
                     }
                 }
                 Ok([scaled_value(
                     quantity,
-                    option.unit_payoff(spot),
+                    unit_payoff(spot, log_return),
                     terminal_log_discount,
                 )?])
             })?;
