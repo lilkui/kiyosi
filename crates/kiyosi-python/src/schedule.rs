@@ -1,9 +1,9 @@
 use crate::calendar::TradingCalendar;
 use crate::conversions::{check_integer, date, integer, python_date};
 use crate::error::domain;
-use pyo3::exceptions::PyIndexError;
+use pyo3::exceptions::{PyIndexError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::PyDate;
+use pyo3::types::{PyBool, PyDate};
 
 /// Immutable ordered observation dates with sequence access.
 ///
@@ -11,7 +11,7 @@ use pyo3::types::PyDate;
 /// -----
 /// Use fixed_interval_schedule or monthly_schedule. The dates property
 /// returns a copy; iteration retains the schedule owner. Integer indexing
-/// accepts negative indices and raises IndexError outside the sequence.
+/// accepts negative indices, rejects bool, and raises IndexError outside the sequence.
 /// Slices are not supported. len(schedule) counts observations.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -31,7 +31,15 @@ impl ObservationSchedule {
     fn __len__(&self) -> usize {
         self.0.len()
     }
-    fn __getitem__<'py>(&self, py: Python<'py>, index: isize) -> PyResult<Bound<'py, PyDate>> {
+    fn __getitem__<'py>(
+        &self,
+        py: Python<'py>,
+        index: &Bound<'_, PyAny>,
+    ) -> PyResult<Bound<'py, PyDate>> {
+        if index.is_instance_of::<PyBool>() {
+            return Err(PyTypeError::new_err("schedule index must not be bool"));
+        }
+        let index = index.extract::<isize>()?;
         let index = if index < 0 {
             self.0.len().checked_add_signed(index)
         } else {

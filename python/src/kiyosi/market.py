@@ -4,6 +4,8 @@ Rates and volatility use annual decimal units (0.05 means 5%). Rate curves
 use Actual/365 Fixed time; a calendar's trading-day basis applies only to
 trading-year fractions. ``BusinessDayConvention`` accepts ``"following"``
 or ``"preceding"``, including the supplied date when it is open.
+Observation schedules accept integer indices, including negative positions,
+and reject boolean indices with TypeError. Out-of-range indices raise IndexError.
 LocalVolatilitySurface owns a rectangular table (rows=time, columns=absolute
 spot), interpolating sigma bilinearly with flat price tails and no time
 extrapolation. Context changes keep these absolute nodes fixed. All FD engines

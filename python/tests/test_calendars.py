@@ -174,6 +174,24 @@ class CalendarTests(unittest.TestCase):
             with self.assertRaises(StopIteration):
                 next(first)
 
+    def test_schedule_indices_reject_booleans_and_nonintegers(self):
+        schedule = fixed_interval_schedule(
+            start=date(2025, 1, 1),
+            end=date(2025, 1, 5),
+            interval_days=1,
+            calendar=all_days_calendar(),
+        )
+
+        class Index:
+            def __index__(self):
+                return -1
+
+        self.assertEqual(schedule[Index()], date(2025, 1, 5))
+        for index in (True, False, 1.0, 1.5, "1", None, slice(None)):
+            with self.subTest(index=index), self.assertRaises(TypeError):
+                _ = schedule[index]
+        self.assertEqual(list(schedule), [date(2025, 1, i) for i in range(2, 6)])
+
     def test_validation_errors_and_order(self):
         start, end = date(2025, 1, 1), date(2025, 2, 1)
         for factory, field, minimum in (
