@@ -30,6 +30,10 @@ across thread counts in the same build. Sobol estimates omit sampling error.
 Autocallable and accumulator ``price`` calls return the sample mean;
 ``price_with_statistics`` also computes and validates sampling uncertainty.
 
+Autocallable quadrature extends its spatial domain for forward drift and the
+backward movement of event boundaries. Check spatial resolution and integration
+extent convergence separately, especially for low volatility and daily monitoring.
+
 ``QuadratureVanillaEngine`` prices European and American calls/puts with flat-rate
 BSM parameters. Controls are ``asset_step_count=512`` (at least 4),
 ``time_step_count=200`` (at least 1) and ``integration_standard_deviations=8``

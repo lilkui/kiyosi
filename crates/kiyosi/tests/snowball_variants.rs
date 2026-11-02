@@ -16,6 +16,72 @@ fn observations() -> Vec<AutocallableObservation> {
 }
 
 #[test]
+fn quadrature_covers_drift_into_future_knock_out() {
+    let end = Date::new(2026, 1, 1).unwrap();
+    let note = BinarySnowballOption::new(BinarySnowballTerms::new(
+        0.0,
+        date(1, 1),
+        end,
+        autocallable_observations(&[date(6, 30), end], &[110.0; 2], Some(&[0.2; 2]), None).unwrap(),
+    ))
+    .unwrap();
+    let context = PricingContext::with_calendar(
+        BlackScholesMertonParameters::new(0.05, 0.0, 0.001).unwrap(),
+        106.0,
+        date(1, 1).into(),
+        TradingCalendar::all_days(),
+    )
+    .unwrap();
+    let engine = QuadratureAutocallableEngine::default();
+    let expected = 1.2 * (-0.05_f64).exp();
+    let price = engine.price(&note, &context).unwrap();
+    assert!((price - expected).abs() < 1e-7, "{price} != {expected}");
+    let coupon = implied_snowball_coupon(
+        &engine,
+        &note,
+        &context,
+        expected,
+        CouponQuoteConvention::PreserveMaturityCoupon,
+        ImpliedCouponSettings::default(),
+    )
+    .unwrap();
+    assert!((coupon - 0.2).abs() < 1e-7, "{coupon}");
+}
+
+#[test]
+fn quadrature_covers_drift_below_future_knock_out() {
+    let end = Date::new(2026, 1, 1).unwrap();
+    let note = SnowballOption::new(SnowballTerms::new(
+        0.0,
+        100.0,
+        80.0,
+        100.0,
+        0.0,
+        date(1, 1),
+        end,
+        autocallable_observations(&[end], &[110.0], Some(&[0.2]), None).unwrap(),
+    ))
+    .unwrap();
+    let context = PricingContext::with_calendar(
+        BlackScholesMertonParameters::new(0.0, 0.05, 0.005).unwrap(),
+        115.0,
+        date(1, 1).into(),
+        TradingCalendar::all_days(),
+    )
+    .unwrap();
+    let price = QuadratureAutocallableEngine::new(QuadratureSettings {
+        asset_step_count: 2048,
+        ..Default::default()
+    })
+    .unwrap()
+    .price(&note, &context)
+    .unwrap();
+    let d2 = ((115.0_f64 / 110.0).ln() - 0.05 - 0.5 * 0.005_f64.powi(2)) / 0.005;
+    let expected = 1.0 + 0.1 * libm::erfc(-d2 / std::f64::consts::SQRT_2);
+    assert!((price - expected).abs() < 1e-4, "{price} != {expected}");
+}
+
+#[test]
 fn binary_history_replacement_preserves_terms_and_rejects_knock_in() {
     let terms = BinarySnowballTerms::new(-0.02, date(1, 1), date(4, 1), observations());
     let note = BinarySnowballOption::new(terms.clone()).unwrap();

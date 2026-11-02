@@ -18,6 +18,8 @@ use crate::{
 ///
 /// Retains separate intact and knocked-in continuation layers for daily monitoring.
 /// Preserves cash and asset payments below the spatial grid, including zero-lower-strike losses.
+/// Extends the spatial domain for forward drift and the backward movement of event boundaries.
+/// Spatial resolution and integration extent require separate convergence checks.
 /// Owns immutable settings; shared and distinct instances support concurrent pricing.
 /// See [`Self::new`] for an example.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -417,8 +419,10 @@ fn price<T: AutocallableTerms>(
         );
     }
     let extent = settings.integration_standard_deviations * sigma * horizon.sqrt();
-    let lower = 0.0_f64.min(breaks[0]) + (drift_rate * horizon).min(0.0) - extent;
-    let upper = 0.0_f64.max(breaks[breaks.len() - 1]) + (drift_rate * horizon).max(0.0) + extent;
+    // Cover forward paths and the backward movement of future event boundaries.
+    let drift_extent = (drift_rate * horizon).abs();
+    let lower = 0.0_f64.min(breaks[0]) - drift_extent - extent;
+    let upper = 0.0_f64.max(breaks[breaks.len() - 1]) + drift_extent + extent;
     let nodes = integration_nodes(lower, upper, settings.asset_step_count, &breaks)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let terminal_in = if layers {

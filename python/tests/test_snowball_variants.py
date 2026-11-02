@@ -17,16 +17,71 @@ from kiyosi.instruments import (
     SnowballOption,
     TernarySnowballOption,
 )
-from kiyosi.market import RateTermStructure
+from kiyosi.market import RateTermStructure, all_days_calendar
 from kiyosi.pricing import (
     MonteCarloAutocallableEngine,
     QuadratureAutocallableEngine,
+    implied_coupon,
     implied_volatility,
 )
 from test_snowball import END, START, autocallable_observations, market, structured
 
 
 class SnowballVariantTests(unittest.TestCase):
+    def test_quadrature_covers_drift_into_future_knock_out(self):
+        end = date(2026, 1, 1)
+        note = BinarySnowballOption(
+            maturity_coupon_rate=0,
+            effective_date=START,
+            expiry_date=end,
+            observations=autocallable_observations(
+                [date(2025, 6, 30), end], [110, 110], knock_out_coupon_rates=[0.2, 0.2]
+            ),
+        )
+        context = market(
+            106, volatility=0.001, rate=0.05, dividend=0, calendar=all_days_calendar()
+        )
+        engine = QuadratureAutocallableEngine()
+        expected = 1.2 * math.exp(-0.05)
+        self.assertAlmostEqual(engine.price(note, context), expected, delta=1e-7)
+        self.assertAlmostEqual(
+            implied_coupon(
+                engine,
+                note,
+                context,
+                expected,
+                quote_convention="preserve_maturity_coupon",
+            ),
+            0.2,
+            delta=1e-7,
+        )
+
+    def test_quadrature_covers_drift_below_future_knock_out(self):
+        end = date(2026, 1, 1)
+        note = SnowballOption(
+            maturity_coupon_rate=0,
+            initial_spot=100,
+            knock_in_level=80,
+            upper_strike=100,
+            lower_strike=0,
+            effective_date=START,
+            expiry_date=end,
+            knock_in_observation_mode="every_trading_day",
+            observations=autocallable_observations(
+                [end], [110], knock_out_coupon_rates=[0.2]
+            ),
+        )
+        context = market(
+            115, volatility=0.005, rate=0, dividend=0.05, calendar=all_days_calendar()
+        )
+        d2 = (math.log(115 / 110) - 0.05 - 0.5 * 0.005**2) / 0.005
+        expected = 1 + 0.1 * math.erfc(-d2 / math.sqrt(2))
+        self.assertAlmostEqual(
+            QuadratureAutocallableEngine(asset_step_count=2048).price(note, context),
+            expected,
+            delta=1e-4,
+        )
+
     def test_history_replacement_preserves_terms_and_rejects_binary_knock_in(self):
         for kind in (BinarySnowballOption, TernarySnowballOption):
             note = self.fixed(kind)
