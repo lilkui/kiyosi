@@ -10,7 +10,7 @@ use crate::{
     PricingContext, PricingEngine, PricingResult, Result,
 };
 
-/// Configures adaptive Heston Fourier integration; see [`AnalyticHestonEngine::new`].
+/// Configures adaptive Heston Fourier integration; see [`AnalyticHestonEuropeanEngine::new`].
 ///
 /// The target price error is `absolute_tolerance + relative_tolerance * abs(price)`.
 /// Numerical error estimates do not guarantee accuracy for every valid model.
@@ -39,7 +39,7 @@ impl Default for HestonIntegrationSettings {
 }
 
 impl HestonIntegrationSettings {
-    /// Validates tolerances and the evaluation budget; see [`AnalyticHestonEngine::new`].
+    /// Validates tolerances and the evaluation budget; see [`AnalyticHestonEuropeanEngine::new`].
     ///
     /// # Errors
     ///
@@ -71,11 +71,11 @@ impl HestonIntegrationSettings {
 /// calls on shared instances, with request-local integration state.
 /// See [`Self::new`] for a complete example.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct AnalyticHestonEngine {
+pub struct AnalyticHestonEuropeanEngine {
     settings: HestonIntegrationSettings,
 }
 
-impl AnalyticHestonEngine {
+impl AnalyticHestonEuropeanEngine {
     /// Creates an engine after validating its integration settings.
     ///
     /// # Errors
@@ -85,14 +85,14 @@ impl AnalyticHestonEngine {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{AnalyticHestonEngine, Date, EuropeanOption, HestonParameters,
+    /// use kiyosi::{AnalyticHestonEuropeanEngine, Date, EuropeanOption, HestonParameters,
     ///     HestonIntegrationSettings, OptionType, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?;
     /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?)?;
     /// let model = HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.5, 0.3, -0.7)?;
     /// let context = PricingContext::new(model, 100.0, start.into())?;
-    /// let engine = AnalyticHestonEngine::new(HestonIntegrationSettings::default())?;
+    /// let engine = AnalyticHestonEuropeanEngine::new(HestonIntegrationSettings::default())?;
     /// assert_eq!(engine.settings().max_evaluations, 10_000);
     /// assert!(engine.price(&option, &context)? > 0.0);
     /// # Ok(()) }
@@ -219,7 +219,7 @@ impl AnalyticHestonEngine {
     }
 }
 
-impl PricingEngine for AnalyticHestonEngine {
+impl PricingEngine for AnalyticHestonEuropeanEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.model_parameters().as_heston()?;
         Ok(())

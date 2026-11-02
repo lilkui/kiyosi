@@ -36,7 +36,7 @@ def terminal_cases():
             ins.EuropeanOption(**vanilla),
             (
                 "AnalyticEuropeanEngine",
-                "AnalyticHestonEngine",
+                "AnalyticHestonEuropeanEngine",
                 "CoxRossRubinsteinVanillaEngine",
                 "FiniteDifferenceVanillaEngine",
                 "MonteCarloVanillaEngine",
@@ -243,10 +243,10 @@ class SupportMatrixTests(unittest.TestCase):
         )
 
     def test_heston_model_is_rejected_by_other_engines_even_at_expiry(self):
-        context = self.context_for("AnalyticHestonEngine")
+        context = self.context_for("AnalyticHestonEuropeanEngine")
         for instrument, supported, _ in self.cases:
             for name in supported:
-                if name == "AnalyticHestonEngine":
+                if name == "AnalyticHestonEuropeanEngine":
                     continue
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
                     with self.assertRaises(UnsupportedOperationError):
@@ -261,7 +261,7 @@ class SupportMatrixTests(unittest.TestCase):
                         )
 
     def context_for(self, name):
-        if name == "AnalyticHestonEngine":
+        if name == "AnalyticHestonEuropeanEngine":
             return self.context.replace(
                 model_parameters=HestonParameters(
                     risk_free_rate=0.04,
@@ -287,7 +287,7 @@ class SupportMatrixTests(unittest.TestCase):
                         engine.price(instrument, expired)
                     with self.assertRaises(
                         UnsupportedOperationError
-                        if name == "AnalyticHestonEngine"
+                        if name == "AnalyticHestonEuropeanEngine"
                         else InvalidInputError
                     ):
                         pricing.implied_volatility(engine, instrument, expired, 1)
@@ -315,7 +315,7 @@ class SupportMatrixTests(unittest.TestCase):
                 context = self.context_for(name)
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
                     self.assertAlmostEqual(engine.price(instrument, context), expected)
-                    if name == "AnalyticHestonEngine":
+                    if name == "AnalyticHestonEuropeanEngine":
                         with self.assertRaises(UnsupportedOperationError):
                             engine.price_with_greeks(instrument, context, ["delta"])
                     else:

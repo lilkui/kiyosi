@@ -21,7 +21,7 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
 )
-from kiyosi.pricing import AnalyticEuropeanEngine, AnalyticHestonEngine
+from kiyosi.pricing import AnalyticEuropeanEngine, AnalyticHestonEuropeanEngine
 
 START = date(2025, 1, 1)
 END = date(2026, 1, 1)
@@ -127,7 +127,7 @@ class HestonTests(unittest.TestCase):
         self.assertAlmostEqual(expected, 6.270413576726258e-7, delta=1e-20)
         for kind in ("call", "put"):
             with self.subTest(kind=kind):
-                actual = AnalyticHestonEngine().price(
+                actual = AnalyticHestonEuropeanEngine().price(
                     option(option_type=kind), context(parameters)
                 )
                 self.assertAlmostEqual(actual, expected, delta=expected * 1e-10)
@@ -149,12 +149,14 @@ class HestonTests(unittest.TestCase):
         for kind in ("call", "put"):
             with self.subTest(kind=kind):
                 self.assertEqual(
-                    AnalyticHestonEngine().price(option(option_type=kind), snapshot),
+                    AnalyticHestonEuropeanEngine().price(
+                        option(option_type=kind), snapshot
+                    ),
                     100,
                 )
 
     def test_absorbing_variance_preserves_small_discounted_payoffs(self):
-        engine = AnalyticHestonEngine(
+        engine = AnalyticHestonEuropeanEngine(
             absolute_tolerance=0, relative_tolerance=1e-8, max_evaluations=1
         )
         for kind, risk, dividend in (("call", 1e-18, 0), ("put", 0, 1e-18)):
@@ -188,7 +190,7 @@ class HestonTests(unittest.TestCase):
         )
         for tolerance, budget in ((1e-8, 10_000), (1e-12, 100_000)):
             with self.subTest(tolerance=tolerance):
-                actual = AnalyticHestonEngine(
+                actual = AnalyticHestonEuropeanEngine(
                     absolute_tolerance=tolerance,
                     relative_tolerance=tolerance,
                     max_evaluations=budget,
@@ -198,8 +200,8 @@ class HestonTests(unittest.TestCase):
                 )
 
     def test_prices_match_converged_quantlib_references(self):
-        engine = AnalyticHestonEngine()
-        refined = AnalyticHestonEngine(
+        engine = AnalyticHestonEuropeanEngine()
+        refined = AnalyticHestonEuropeanEngine(
             absolute_tolerance=1e-11, relative_tolerance=1e-11, max_evaluations=40_000
         )
         for parameters in (
@@ -244,7 +246,7 @@ class HestonTests(unittest.TestCase):
             ),
         ):
             with self.subTest(price=expected):
-                engine = AnalyticHestonEngine()
+                engine = AnalyticHestonEuropeanEngine()
                 call = engine.price(option(), context(parameters))
                 put = engine.price(option(option_type="put"), context(parameters))
                 self.assertAlmostEqual(call, expected, delta=1e-8 + 1e-8 * expected)
@@ -262,7 +264,7 @@ class HestonTests(unittest.TestCase):
         self.assertAlmostEqual(
             reference(model(), contract, 1e-10), expected, delta=2e-14
         )
-        actual = AnalyticHestonEngine(
+        actual = AnalyticHestonEuropeanEngine(
             absolute_tolerance=0, relative_tolerance=1e-8, max_evaluations=40_000
         ).price(contract, context())
         self.assertGreater(actual, 0)
@@ -281,7 +283,7 @@ class HestonTests(unittest.TestCase):
         )
         for changes in cases:
             with self.subTest(changes=changes):
-                actual = AnalyticHestonEngine().price(
+                actual = AnalyticHestonEuropeanEngine().price(
                     option(), context(model(**changes))
                 )
                 limits = []
@@ -295,7 +297,7 @@ class HestonTests(unittest.TestCase):
                 self.assertAlmostEqual(actual, limits[1], delta=1e-8)
 
     def test_deterministic_and_absorbing_variance_need_no_integral(self):
-        engine = AnalyticHestonEngine(max_evaluations=1)
+        engine = AnalyticHestonEuropeanEngine(max_evaluations=1)
         for v0, theta, kappa in (
             (0.04, 0.04, 1.5),
             (0.09, 0.01, 2),
@@ -338,7 +340,7 @@ class HestonTests(unittest.TestCase):
         expected = 9.227005508154036
         for xi in (1e-8, 1e-10, 1e-100):
             with self.subTest(xi=xi):
-                price = AnalyticHestonEngine().price(
+                price = AnalyticHestonEuropeanEngine().price(
                     option(), context(model(vol_of_vol=xi))
                 )
                 self.assertAlmostEqual(price, expected, delta=1e-8)
@@ -387,7 +389,7 @@ class HestonTests(unittest.TestCase):
             original.initial_variance = 0.09
 
     def test_numerical_controls_native_conversions_and_failure_state(self):
-        engine = AnalyticHestonEngine()
+        engine = AnalyticHestonEuropeanEngine()
         self.assertEqual(
             (
                 engine.absolute_tolerance,
@@ -398,7 +400,7 @@ class HestonTests(unittest.TestCase):
         )
         for name in ("absolute_tolerance", "relative_tolerance"):
             self.assertIs(
-                inspect.signature(AnalyticHestonEngine).parameters[name].kind,
+                inspect.signature(AnalyticHestonEuropeanEngine).parameters[name].kind,
                 inspect.Parameter.KEYWORD_ONLY,
             )
             for value in (-1, math.inf, math.nan):
@@ -406,15 +408,15 @@ class HestonTests(unittest.TestCase):
                     self.subTest(name=name, value=value),
                     self.assertRaises(InvalidInputError),
                 ):
-                    AnalyticHestonEngine(**{name: value})
+                    AnalyticHestonEuropeanEngine(**{name: value})
             with self.assertRaises(TypeError):
-                AnalyticHestonEngine(**{name: True})
+                AnalyticHestonEuropeanEngine(**{name: True})
         for controls in (
             {"absolute_tolerance": 0, "relative_tolerance": 0},
             {"max_evaluations": 0},
         ):
             with self.subTest(controls=controls), self.assertRaises(InvalidInputError):
-                AnalyticHestonEngine(**controls)
+                AnalyticHestonEuropeanEngine(**controls)
         for value, error in (
             (True, TypeError),
             (1.5, TypeError),
@@ -422,10 +424,10 @@ class HestonTests(unittest.TestCase):
             (1 << 100, OverflowError),
         ):
             with self.subTest(value=value), self.assertRaises(error):
-                AnalyticHestonEngine(max_evaluations=value)
+                AnalyticHestonEuropeanEngine(max_evaluations=value)
         snapshot = context()
         saved = snapshot.model_parameters
-        limited = AnalyticHestonEngine(max_evaluations=1)
+        limited = AnalyticHestonEuropeanEngine(max_evaluations=1)
         for _ in range(2):
             with self.assertRaises(NonConvergenceError):
                 limited.price(option(), snapshot)
@@ -434,13 +436,13 @@ class HestonTests(unittest.TestCase):
         self.assertAlmostEqual(
             engine.price(option(), snapshot), 9.01127840754174, delta=1e-7
         )
-        absolute_only = AnalyticHestonEngine(relative_tolerance=0)
+        absolute_only = AnalyticHestonEuropeanEngine(relative_tolerance=0)
         self.assertAlmostEqual(
             absolute_only.price(option(), snapshot), 9.01127840754174, delta=1e-8
         )
 
     def test_time_expiry_and_unsupported_operations(self):
-        engine = AnalyticHestonEngine(max_evaluations=1)
+        engine = AnalyticHestonEuropeanEngine(max_evaluations=1)
         terminal = context(spot_price=110, valuation_time=END)
         self.assertEqual(engine.price(option(), terminal), 10)
         self.assertEqual(engine.price(option(option_type="put"), terminal), 0)
@@ -472,10 +474,10 @@ class HestonTests(unittest.TestCase):
         parameters = model(risk_free_rate=risk, dividend_yield=dividend)
         self.assertIsInstance(parameters.risk_free_rate, RateTermStructure)
         self.assertEqual(parameters.risk_free_curve.factors, risk.factors)
-        actual = AnalyticHestonEngine().price(option(), context(parameters))
+        actual = AnalyticHestonEuropeanEngine().price(option(), context(parameters))
         self.assertAlmostEqual(actual, 9.01127840754174, delta=1e-7)
         with self.assertRaises(InvalidInputError):
-            AnalyticHestonEngine().price(
+            AnalyticHestonEuropeanEngine().price(
                 option(expiry_date=END + timedelta(days=1)), context(parameters)
             )
         with self.assertRaises(InvalidInputError):
@@ -484,12 +486,12 @@ class HestonTests(unittest.TestCase):
     def test_nonfinite_computation_has_its_own_error_category(self):
         parameters = model(initial_variance=1e308, long_run_variance=1e308)
         with self.assertRaises(ComputationFailureError):
-            AnalyticHestonEngine().price(
+            AnalyticHestonEuropeanEngine().price(
                 option(expiry_date=date(2027, 1, 1)), context(parameters)
             )
 
     def test_shared_engine_supports_concurrent_independent_requests(self):
-        engine = AnalyticHestonEngine()
+        engine = AnalyticHestonEuropeanEngine()
         snapshots = [context(spot_price=spot) for spot in (80, 100, 120)]
         snapshots.append(snapshots[1])
         expected = [engine.price(option(), snapshot) for snapshot in snapshots]

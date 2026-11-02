@@ -27,7 +27,7 @@ fn heston_matches_quantlib_and_put_call_parity() {
         ),
     ] {
         let context = context(model);
-        let engine = AnalyticHestonEngine::default();
+        let engine = AnalyticHestonEuropeanEngine::default();
         let call = engine.price(&option(OptionType::Call), &context).unwrap();
         let put = engine.price(&option(OptionType::Put), &context).unwrap();
         assert!(
@@ -40,7 +40,7 @@ fn heston_matches_quantlib_and_put_call_parity() {
 
 #[test]
 fn deterministic_variance_and_absorbing_zero_have_independent_prices() {
-    let engine = AnalyticHestonEngine::new(HestonIntegrationSettings {
+    let engine = AnalyticHestonEuropeanEngine::new(HestonIntegrationSettings {
         max_evaluations: 1,
         ..Default::default()
     })
@@ -152,11 +152,11 @@ fn settings_validation_budget_and_request_state_are_explicit() {
         },
     ] {
         assert!(matches!(
-            AnalyticHestonEngine::new(settings),
+            AnalyticHestonEuropeanEngine::new(settings),
             Err(Error::InvalidInput(_))
         ));
     }
-    let engine = AnalyticHestonEngine::new(HestonIntegrationSettings {
+    let engine = AnalyticHestonEuropeanEngine::new(HestonIntegrationSettings {
         max_evaluations: 1,
         ..Default::default()
     })
@@ -170,7 +170,7 @@ fn settings_validation_budget_and_request_state_are_explicit() {
     assert_eq!(engine.settings().max_evaluations, 1);
     assert_eq!(context, saved);
     assert!(
-        (AnalyticHestonEngine::default()
+        (AnalyticHestonEuropeanEngine::default()
             .price(&option(OptionType::Call), &context)
             .unwrap()
             - 9.011_278_407_541_74)
@@ -231,7 +231,7 @@ fn zero_variance_parameters_and_correlation_endpoints_match_independent_limits()
         ),
     ] {
         let context = context(model().replace(changes).unwrap());
-        let actual = AnalyticHestonEngine::default()
+        let actual = AnalyticHestonEuropeanEngine::default()
             .price(&option(OptionType::Call), &context)
             .unwrap();
         assert!((actual - expected).abs() < 1e-8, "{actual} != {expected}");
@@ -240,7 +240,7 @@ fn zero_variance_parameters_and_correlation_endpoints_match_independent_limits()
 
 #[test]
 fn relative_tail_accuracy_convergence_and_monetary_scaling() {
-    let tight = AnalyticHestonEngine::new(HestonIntegrationSettings {
+    let tight = AnalyticHestonEuropeanEngine::new(HestonIntegrationSettings {
         absolute_tolerance: 0.0,
         relative_tolerance: 1e-8,
         max_evaluations: 40_000,
@@ -264,7 +264,7 @@ fn relative_tail_accuracy_convergence_and_monetary_scaling() {
         let actual = tight.price(&option, &context).unwrap() / scale;
         assert!((actual - 9.011_278_407_541_74).abs() < 1e-7);
     }
-    let coarse = AnalyticHestonEngine::default()
+    let coarse = AnalyticHestonEuropeanEngine::default()
         .price(&option(OptionType::Call), &context(model()))
         .unwrap();
     let fine = tight
@@ -297,7 +297,7 @@ fn curves_life_and_expiry_reuse_european_contracts() {
         Err(Error::UnsupportedOperation(_))
     ));
     let context = context(parameters);
-    let engine = AnalyticHestonEngine::default();
+    let engine = AnalyticHestonEuropeanEngine::default();
     assert!(
         (engine.price(&option(OptionType::Call), &context).unwrap() - 9.011_278_407_541_74).abs()
             < 1e-7
@@ -344,7 +344,7 @@ fn curves_life_and_expiry_reuse_european_contracts() {
 #[test]
 fn unsupported_requests_and_invalid_computations_preserve_categories() {
     fn send_sync<T: Send + Sync>() {}
-    let engine = AnalyticHestonEngine::default();
+    let engine = AnalyticHestonEuropeanEngine::default();
     let context = context(model());
     let option = option(OptionType::Call);
     let request = GreeksRequest::new([Greek::Delta]);
@@ -405,7 +405,7 @@ fn unsupported_requests_and_invalid_computations_preserve_categories() {
         Err(Error::ComputationFailure(_))
     ));
     send_sync::<HestonParameters>();
-    send_sync::<AnalyticHestonEngine>();
+    send_sync::<AnalyticHestonEuropeanEngine>();
 }
 
 #[test]
@@ -417,7 +417,7 @@ fn small_vol_of_vol_converges_to_bsm_without_cancellation() {
                 ..Default::default()
             })
             .unwrap();
-        let price = AnalyticHestonEngine::default()
+        let price = AnalyticHestonEuropeanEngine::default()
             .price(&option(OptionType::Call), &context(parameters))
             .unwrap();
         assert!((price - 9.227_005_508_154_036).abs() < 1e-8);
@@ -426,7 +426,7 @@ fn small_vol_of_vol_converges_to_bsm_without_cancellation() {
 
 #[test]
 fn absorbing_variance_preserves_small_discounted_payoff_differences() {
-    let engine = AnalyticHestonEngine::new(HestonIntegrationSettings {
+    let engine = AnalyticHestonEuropeanEngine::new(HestonIntegrationSettings {
         absolute_tolerance: 0.0,
         relative_tolerance: 1e-8,
         max_evaluations: 1,
@@ -458,7 +458,7 @@ fn rare_large_variance_does_not_hide_the_fourier_tail() {
             max_evaluations: 100_000,
         },
     ] {
-        let actual = AnalyticHestonEngine::new(settings)
+        let actual = AnalyticHestonEuropeanEngine::new(settings)
             .unwrap()
             .price(&option(OptionType::Call), &context)
             .unwrap();
@@ -479,7 +479,7 @@ fn subnormal_reversion_preserves_long_run_variance_growth() {
     let context = context(parameters);
     let expected = 6.270_413_576_726_258e-7;
     for kind in [OptionType::Call, OptionType::Put] {
-        let actual = AnalyticHestonEngine::default()
+        let actual = AnalyticHestonEuropeanEngine::default()
             .price(&option(kind), &context)
             .unwrap();
         assert!(
@@ -498,7 +498,7 @@ fn reversion_growth_avoids_intermediate_product_overflow() {
     // is finite (about 5e290); both ATM prices approach 100.
     for kind in [OptionType::Call, OptionType::Put] {
         assert_eq!(
-            AnalyticHestonEngine::default()
+            AnalyticHestonEuropeanEngine::default()
                 .price(&option(kind), &context)
                 .unwrap(),
             100.0

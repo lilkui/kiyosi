@@ -62,7 +62,7 @@ precede Greek-name parsing. Monte Carlo vanilla spot bumps default by product:
 0.01 for European options and 8% of spot for American options. Explicit
 ``None`` selects the automatic bump for either product.
 
-``AnalyticHestonEngine`` prices European calls/puts with ``HestonParameters``
+``AnalyticHestonEuropeanEngine`` prices European calls/puts with ``HestonParameters``
 using adaptive Fourier integration and a deterministic-variance control variate.
 It supports deterministic rate/dividend curves, zero parameters and correlation
 endpoints without imposing the Feller condition. Greeks and inverse solves
@@ -139,7 +139,7 @@ from ._native import (
     AnalyticDoubleTouchEngine,
     AnalyticEuropeanEngine,
     AnalyticGeometricAveragePriceEngine,
-    AnalyticHestonEngine,
+    AnalyticHestonEuropeanEngine,
     AnalyticRangeAccrualEngine,
     BjerksundStenslandVanillaEngine,
     CoxRossRubinsteinBarrierEngine,
@@ -184,7 +184,7 @@ __all__ = [
     "AnalyticDoubleTouchEngine",
     "AnalyticEuropeanEngine",
     "AnalyticGeometricAveragePriceEngine",
-    "AnalyticHestonEngine",
+    "AnalyticHestonEuropeanEngine",
     "AnalyticRangeAccrualEngine",
     "BjerksundStenslandVanillaEngine",
     "CouponQuoteConvention",

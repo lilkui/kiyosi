@@ -38,10 +38,10 @@ fn evaluation_count(value: &Bound<'_, PyAny>) -> PyResult<usize> {
 /// Greeks and inverse solves raise UnsupportedOperationError. Pricing releases
 /// the GIL for core computation, with independent state for concurrent calls.
 #[pyclass(frozen, module = "kiyosi._native")]
-pub(crate) struct AnalyticHestonEngine(pub(crate) kiyosi::AnalyticHestonEngine);
+pub(crate) struct AnalyticHestonEuropeanEngine(pub(crate) kiyosi::AnalyticHestonEuropeanEngine);
 
 #[pymethods]
-impl AnalyticHestonEngine {
+impl AnalyticHestonEuropeanEngine {
     #[new]
     #[pyo3(signature = (*, absolute_tolerance=kiyosi::HestonIntegrationSettings::default().absolute_tolerance, relative_tolerance=kiyosi::HestonIntegrationSettings::default().relative_tolerance, max_evaluations=kiyosi::HestonIntegrationSettings::default().max_evaluations))]
     fn new(
@@ -49,7 +49,7 @@ impl AnalyticHestonEngine {
         #[pyo3(from_py_with = real)] relative_tolerance: f64,
         #[pyo3(from_py_with = evaluation_count)] max_evaluations: usize,
     ) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::AnalyticHestonEngine::new(
+        Ok(Self(domain(kiyosi::AnalyticHestonEuropeanEngine::new(
             kiyosi::HestonIntegrationSettings {
                 absolute_tolerance,
                 relative_tolerance,
@@ -151,7 +151,7 @@ impl AnalyticHestonEngine {
     }
 }
 
-impl AnalyticHestonEngine {
+impl AnalyticHestonEuropeanEngine {
     #[expect(
         clippy::needless_pass_by_value,
         reason = "retain the Python borrow during core evaluation"

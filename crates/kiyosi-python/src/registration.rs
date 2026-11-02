@@ -61,7 +61,7 @@ pricing_classes!(
     @engines
     [
         analytic::european::AnalyticEuropeanEngine,
-        analytic::heston::AnalyticHestonEngine,
+        analytic::heston::AnalyticHestonEuropeanEngine,
         analytic::american::BjerksundStenslandVanillaEngine,
         analytic::digital::AnalyticDigitalEngine,
         analytic::asian::AnalyticGeometricAveragePriceEngine,

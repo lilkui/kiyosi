@@ -17,7 +17,7 @@ values; explicit ``None`` is rejected.
 HestonParameters owns constant risk-neutral variance parameters and deterministic
 rate curves. Initial variance is at valuation (20% volatility means 0.04).
 Variance parameters are finite and nonnegative; correlation includes [-1, 1].
-The Feller condition is not required. AnalyticHestonEngine supports European
+The Feller condition is not required. AnalyticHestonEuropeanEngine supports European
 prices only; other engines, Greeks and inverse solves reject this model.
 
 Examples

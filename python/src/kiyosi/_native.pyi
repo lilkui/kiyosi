@@ -381,7 +381,7 @@ class AnalyticEuropeanEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
     ) -> PricingResult: ...
 
-class AnalyticHestonEngine:
+class AnalyticHestonEuropeanEngine:
     def __init__(
         self,
         *,

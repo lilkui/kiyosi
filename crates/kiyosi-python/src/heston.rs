@@ -27,7 +27,7 @@ use pyo3::prelude::*;
 ///
 /// Notes
 /// -----
-/// Zero parameters and Feller violations are accepted. Only AnalyticHestonEngine
+/// Zero parameters and Feller violations are accepted. Only AnalyticHestonEuropeanEngine
 /// supports this model, for European prices. Greeks and inverse solves are unsupported.
 /// Numeric conversion rejects booleans. Replacement validates in Rust before
 /// returning a new owned model; the original is unchanged on failure.
