@@ -20,6 +20,65 @@ fn market(rate: f64, dividend: f64, volatility: f64, spot: f64) -> PricingContex
 }
 
 #[test]
+fn american_path_storage_limit_rejects_large_grids_before_sampling() {
+    let put = option(OptionType::Put, 100.0);
+    let context = market(0.05, 0.0, 0.2, 100.0);
+    for antithetic in [false, true] {
+        let engine = MonteCarloVanillaEngine::with_step_count(
+            MonteCarloSettings {
+                path_count: 15_001,
+                seed: Some(42),
+                antithetic,
+                ..Default::default()
+            },
+            10_000,
+        )
+        .unwrap();
+        assert!(matches!(
+            engine.price(&put, &context),
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(matches!(
+            engine.price_with_greeks(
+                &put,
+                &context,
+                GreeksRequest::new([Greek::Delta]),
+                Default::default()
+            ),
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(matches!(
+            implied_volatility(&engine, &put, &context, 1.0, Default::default()),
+            Err(Error::InvalidInput(_))
+        ));
+        let expiry = context
+            .replace(PricingContextChanges {
+                valuation_time: Some(put.expiry_date().start_of_day()),
+                spot_price: Some(90.0),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(engine.price(&put, &expiry).unwrap(), 10.0);
+        let european = EuropeanOption::new(
+            OptionType::Call,
+            100.0,
+            put.effective_date(),
+            put.expiry_date(),
+        )
+        .unwrap();
+        let expected = engine.price(&european, &context).unwrap();
+        assert!(expected > 0.0);
+        assert_eq!(
+            engine
+                .price(&option(OptionType::Call, 100.0), &context)
+                .unwrap(),
+            expected
+        );
+        assert_eq!(engine.settings().seed, Some(42));
+    }
+}
+
+#[test]
 fn nonfinite_continuation_regressions_fail_without_changing_the_engine() {
     let context = market(-0.1, 0.0, 0.2, 100.0);
     let engine = MonteCarloVanillaEngine::with_step_count(

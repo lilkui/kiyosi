@@ -5,6 +5,8 @@ use super::{
 };
 use crate::{AmericanOption, BlackScholesMertonParameterChanges, Greek, PricingContextChanges};
 
+const MAX_PATH_VALUES: usize = 1024 * 1024 * 1024 / size_of::<f64>();
+
 impl MonteCarloVanillaEngine {
     /// Returns the American default absolute spot bump, 8% of spot.
     ///
@@ -79,6 +81,22 @@ impl MonteCarloVanillaEngine {
             return Ok(self.price(option.vanilla(), context)?.max(immediate));
         }
         let intervals = self.step_count as usize - 1;
+        let paths = self.settings.path_count as usize;
+        let samples = if self.settings.antithetic {
+            paths.div_ceil(2)
+        } else {
+            paths
+        };
+        let reserved_paths = samples * if self.settings.antithetic { 2 } else { 1 };
+        if reserved_paths
+            .checked_mul(intervals)
+            .is_none_or(|count| count > MAX_PATH_VALUES)
+        {
+            return Err(Error::InvalidInput(
+                "American Monte Carlo path storage exceeds 1 GiB; reduce path_count or step_count"
+                    .into(),
+            ));
+        }
         let dt = time / intervals as f64;
         let sigma = model.volatility();
         let drift = (rate - dividend - 0.5 * sigma * sigma) * dt;
@@ -88,12 +106,6 @@ impl MonteCarloVanillaEngine {
             return Err(unstable());
         }
         let seed = self.settings.resolved_seed()?;
-        let paths = self.settings.path_count as usize;
-        let samples = if self.settings.antithetic {
-            paths.div_ceil(2)
-        } else {
-            paths
-        };
         let sobol = if self.settings.sampling == MonteCarloSampling::Sobol {
             Some(sobol::SobolSequence::new(intervals, seed)?)
         } else {

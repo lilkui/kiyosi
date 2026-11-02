@@ -59,6 +59,12 @@ prices; only rounding-sized negative results may be clipped to zero.
 Coarse numerical grids may require refinement before pricing succeeds.
 American Monte Carlo also rejects non-finite continuation regressions;
 finite fits with insufficient independent samples use a lower polynomial degree.
+American exercise-grid pricing limits retained path storage to 1 GiB per call.
+Storage is ``8 * path_count * (step_count - 1)`` bytes, with odd antithetic
+path counts rounded up to the next even count for reserved capacity; other
+buffers are additional. Larger grids raise ``InvalidInputError`` before sampling.
+Reduce either count to fit. Expiry and terminal-only American calls (nonpositive
+dividends and nonnegative rates) do not allocate this grid or apply this limit.
 
 ``AnalyticEuropeanEngine``, ``CoxRossRubinsteinDigitalEngine``,
 ``CoxRossRubinsteinBarrierEngine``, ``MonteCarloDigitalEngine`` and

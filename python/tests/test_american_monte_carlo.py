@@ -31,6 +31,38 @@ def contract(direction="put", strike=100):
 
 
 class AmericanMonteCarloTests(unittest.TestCase):
+    def test_path_storage_limit_rejects_large_grids_before_sampling(self):
+        context = market(rate=0.05, dividend=0)
+        put = contract()
+        for antithetic in (False, True):
+            with self.subTest(antithetic=antithetic):
+                engine = MonteCarloVanillaEngine(
+                    path_count=15_001, step_count=10_000, seed=42, antithetic=antithetic
+                )
+                self.assert_rejection(InvalidInputError, engine.price, put, context)
+                self.assert_rejection(
+                    InvalidInputError, engine.price_with_greeks, put, context, "delta"
+                )
+                self.assert_rejection(
+                    InvalidInputError, implied_volatility, engine, put, context, 1
+                )
+                self.assertEqual(
+                    engine.price(
+                        put, context.replace(valuation_time=END, spot_price=90)
+                    ),
+                    10,
+                )
+                european = EuropeanOption(
+                    option_type="call",
+                    strike=100,
+                    effective_date=START,
+                    expiry_date=END,
+                )
+                expected = engine.price(european, context)
+                self.assertGreater(expected, 0)
+                self.assertEqual(engine.price(contract("call"), context), expected)
+                self.assertEqual(engine.seed, 42)
+
     def test_nonfinite_continuation_regressions_preserve_engine_reuse(self):
         context = market(rate=-0.1, dividend=0, sigma=0.2, spot=100)
         engine = MonteCarloVanillaEngine(path_count=128, step_count=5, seed=42)

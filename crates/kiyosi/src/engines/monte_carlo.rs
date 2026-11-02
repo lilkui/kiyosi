@@ -430,6 +430,8 @@ impl MonteCarloVanillaEngine {
     ///
     /// European pricing samples the terminal distribution and does not use this grid.
     /// American pricing before expiry requires at least three points.
+    /// American exercise-grid pricing limits retained path storage to 1 GiB per call;
+    /// see [`Self::price`] for the size calculation and validation timing.
     ///
     /// # Errors
     ///
@@ -499,6 +501,11 @@ impl MonteCarloVanillaEngine {
     ///
     /// Near-strike payoffs retain small movements even when terminal spot rounds to strike.
     /// Calls complete synchronously without cancellation or signal polling.
+    /// American exercise grids retain `path_count * (step_count - 1)` values of
+    /// eight bytes each, rounding odd antithetic path counts up to the next even
+    /// count for reserved capacity. Retained path storage is limited to 1 GiB per
+    /// call, excluding other buffers. Expiry and terminal-only American calls
+    /// (nonpositive dividends and nonnegative rates) do not allocate this grid.
     ///
     /// # Errors
     ///
@@ -510,6 +517,8 @@ impl MonteCarloVanillaEngine {
     /// in [`Error::Io`].
     /// American pricing before expiry returns [`Error::InvalidInput`]
     /// for fewer than three grid points, after life validation.
+    /// Exercise-grid pricing also returns [`Error::InvalidInput`] when retained
+    /// path storage would exceed 1 GiB, before entropy, worker or path allocation.
     /// Non-finite American regression matrices, coefficients or continuation values
     /// return [`Error::ComputationFailure`]; finite rank-deficient fits reduce their degree.
     ///
