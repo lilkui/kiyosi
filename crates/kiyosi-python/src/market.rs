@@ -275,22 +275,12 @@ impl BlackScholesMertonParameters {
     /// Return the scalar risk-free rate or an owned node curve.
     #[getter]
     fn risk_free_rate(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let curve = self.0.risk_free_curve();
-        if let Some(rate) = curve.flat_rate() {
-            Ok(rate.into_pyobject(py)?.into_any().unbind())
-        } else {
-            Ok(Py::new(py, RateTermStructure(curve.clone()))?.into_any())
-        }
+        python_rate(py, self.0.risk_free_curve())
     }
     /// Return the scalar dividend yield or an owned node curve.
     #[getter]
     fn dividend_yield(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let curve = self.0.dividend_curve();
-        if let Some(rate) = curve.flat_rate() {
-            Ok(rate.into_pyobject(py)?.into_any().unbind())
-        } else {
-            Ok(Py::new(py, RateTermStructure(curve.clone()))?.into_any())
-        }
+        python_rate(py, self.0.dividend_curve())
     }
     /// Return an owned copy of the risk-free curve.
     #[getter]
