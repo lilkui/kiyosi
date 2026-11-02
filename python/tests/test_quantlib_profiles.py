@@ -50,7 +50,11 @@ class QuantLibProfileTests(unittest.TestCase):
             ("american.json", numerical | {"BjerksundStenslandVanillaEngine"}),
             (
                 "digital.json",
-                {"AnalyticDigitalEngine", "FiniteDifferenceDigitalEngine"},
+                {
+                    "AnalyticDigitalEngine",
+                    "QuadratureDigitalEngine",
+                    "FiniteDifferenceDigitalEngine",
+                },
             ),
         ):
             profiles = oracle.load_fixture(name)["profiles"]

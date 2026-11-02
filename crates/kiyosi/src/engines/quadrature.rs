@@ -5,6 +5,8 @@ pub use autocallable::QuadratureAutocallableEngine;
 mod barrier;
 pub(crate) mod gaussian;
 pub use barrier::{QuadratureBarrierEngine, QuadratureSettings};
+mod digital;
+pub use digital::QuadratureDigitalEngine;
 mod vanilla;
 pub use vanilla::{QuadratureVanillaEngine, QuadratureVanillaSettings};
 

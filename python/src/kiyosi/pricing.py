@@ -41,6 +41,14 @@ fixed-grid completion has no error estimate. Numerical Greeks use shared bump
 defaults; higher derivatives near exercise boundaries also require bump checks.
 See ``docs/design/vanilla-quadrature.md`` for usage and acceptance scenarios.
 
+``QuadratureDigitalEngine`` prices European cash-or-nothing and asset-or-nothing
+calls/puts under flat-rate BSM. It uses Simpson integration with
+``asset_step_count=512`` and ``integration_standard_deviations=8``; the extent
+is centered on the payment-weighted normal density and omitted tails are zero.
+Check step-count, extent and numerical Greek bump convergence separately;
+completion provides no error estimate. Equality at expiry pays zero.
+See ``docs/design/digital-quadrature.md`` for usage and accuracy checks.
+
 Pricing raises ``ComputationFailureError`` for materially negative option
 prices; only rounding-sized negative results may be clipped to zero.
 Coarse numerical grids may require refinement before pricing succeeds.
@@ -192,6 +200,7 @@ from ._native import (
     QuadratureAccumulatorEngine,
     QuadratureAutocallableEngine,
     QuadratureBarrierEngine,
+    QuadratureDigitalEngine,
     QuadratureVanillaEngine,
     TurnbullWakemanArithmeticAveragePriceEngine,
     implied_coupon,
@@ -242,6 +251,7 @@ __all__ = [
     "QuadratureAccumulatorEngine",
     "QuadratureAutocallableEngine",
     "QuadratureBarrierEngine",
+    "QuadratureDigitalEngine",
     "QuadratureVanillaEngine",
     "TurnbullWakemanArithmeticAveragePriceEngine",
     "implied_coupon",

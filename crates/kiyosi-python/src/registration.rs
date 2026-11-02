@@ -76,6 +76,7 @@ pricing_classes!(
         engines::binomial::CoxRossRubinsteinBarrierEngine,
         engines::quadrature::QuadratureBarrierEngine,
         engines::quadrature::QuadratureVanillaEngine,
+        engines::quadrature::QuadratureDigitalEngine,
         engines::quadrature::QuadratureAutocallableEngine,
         engines::quadrature::QuadratureAccumulatorEngine,
         engines::finite_difference::FiniteDifferenceVanillaEngine,

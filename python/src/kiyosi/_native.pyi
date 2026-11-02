@@ -473,6 +473,34 @@ class QuadratureBarrierEngine:
         time_shift_days: int = ...,
     ) -> PricingResult: ...
 
+class QuadratureDigitalEngine:
+    def __init__(
+        self,
+        *,
+        asset_step_count: int = ...,
+        integration_standard_deviations: float = ...,
+    ) -> None: ...
+    @property
+    def asset_step_count(self) -> int: ...
+    @property
+    def integration_standard_deviations(self) -> float: ...
+    def price(
+        self,
+        instrument: CashOrNothingOption | AssetOrNothingOption,
+        context: PricingContext,
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: CashOrNothingOption | AssetOrNothingOption,
+        context: PricingContext,
+        greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
 class QuadratureVanillaEngine:
     def __init__(
         self,
@@ -1279,6 +1307,7 @@ def implied_volatility(
 @overload
 def implied_volatility(
     engine: AnalyticDigitalEngine
+    | QuadratureDigitalEngine
     | MonteCarloDigitalEngine
     | CoxRossRubinsteinDigitalEngine
     | FiniteDifferenceDigitalEngine,

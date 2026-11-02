@@ -2,7 +2,7 @@ use crate::conversions::{integer, real};
 use crate::engines::ScalarRequest;
 use crate::engines::binomial::{VanillaInstrument, with_vanilla};
 use crate::error::domain;
-use crate::instruments::{accumulator::Accumulator, autocallable, barrier::BarrierOption};
+use crate::instruments::{accumulator::Accumulator, autocallable, barrier::BarrierOption, digital};
 use crate::market::PricingContext;
 use crate::risk;
 use pyo3::prelude::*;
@@ -159,6 +159,24 @@ quadrature_engine!(
     with_vanilla,
     QuadratureVanillaSettings,
     time_step_count,
+);
+
+quadrature_engine!(
+    /// See Also
+    /// --------
+    /// CashOrNothingOption : Supported European cash payment.
+    /// AssetOrNothingOption : Supported European asset payment.
+    ///
+    /// Notes
+    /// -----
+    /// Uses Simpson integration on the paying side of the strike under flat-rate
+    /// BSM. The extent is centered on the payment-weighted normal density;
+    /// omitted tails are zero. Equality at expiry pays zero.
+    /// Check step-count and extent convergence separately; completion provides
+    /// no error estimate. Numerical Greeks also require bump convergence checks.
+    QuadratureDigitalEngine,
+    digital::DigitalInstrument<'_>,
+    digital::with_digital,
 );
 
 quadrature_engine!(

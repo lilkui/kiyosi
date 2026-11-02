@@ -10,6 +10,14 @@
   "payout": 10,
   "profiles": [
     {
+      "engine": "QuadratureDigitalEngine",
+      "settings": {
+        "asset_step_count": 2048,
+        "integration_standard_deviations": 8
+      },
+      "boundary_settings": {}
+    },
+    {
       "engine": "AnalyticDigitalEngine",
       "settings": {},
       "boundary_settings": {}

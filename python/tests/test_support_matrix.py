@@ -26,6 +26,7 @@ def terminal_cases():
     )
     cash_digital = (
         "AnalyticDigitalEngine",
+        "QuadratureDigitalEngine",
         "CoxRossRubinsteinDigitalEngine",
         "FiniteDifferenceDigitalEngine",
         "MonteCarloDigitalEngine",
