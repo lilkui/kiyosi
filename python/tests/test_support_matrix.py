@@ -44,6 +44,7 @@ def terminal_cases():
                 "AnalyticHestonEuropeanEngine",
                 "FiniteDifferenceHestonVanillaEngine",
                 "CoxRossRubinsteinVanillaEngine",
+                "QuadratureVanillaEngine",
                 "FiniteDifferenceVanillaEngine",
                 "MonteCarloVanillaEngine",
             ),
@@ -53,6 +54,7 @@ def terminal_cases():
             ins.AmericanOption(**vanilla),
             (
                 "BjerksundStenslandVanillaEngine",
+                "QuadratureVanillaEngine",
                 "CoxRossRubinsteinVanillaEngine",
                 "FiniteDifferenceVanillaEngine",
                 "FiniteDifferenceHestonVanillaEngine",

@@ -30,6 +30,17 @@ across thread counts in the same build. Sobol estimates omit sampling error.
 Autocallable and accumulator ``price`` calls return the sample mean;
 ``price_with_statistics`` also computes and validates sampling uncertainty.
 
+``QuadratureVanillaEngine`` prices European and American calls/puts with flat-rate
+BSM parameters. Controls are ``asset_step_count=512`` (at least 4),
+``time_step_count=200`` (at least 1) and ``integration_standard_deviations=8``
+(finite and positive). European pricing uses composite Simpson integration;
+American pricing uses Gaussian backward induction with exercise at valuation,
+uniform time points and expiry. The time count specifies intervals and is ignored
+for European pricing. Check time, space and extent convergence separately;
+fixed-grid completion has no error estimate. Numerical Greeks use shared bump
+defaults; higher derivatives near exercise boundaries also require bump checks.
+See ``docs/design/vanilla-quadrature.md`` for usage and acceptance scenarios.
+
 Pricing raises ``ComputationFailureError`` for materially negative option
 prices; only rounding-sized negative results may be clipped to zero.
 Coarse numerical grids may require refinement before pricing succeeds.
@@ -181,6 +192,7 @@ from ._native import (
     QuadratureAccumulatorEngine,
     QuadratureAutocallableEngine,
     QuadratureBarrierEngine,
+    QuadratureVanillaEngine,
     TurnbullWakemanArithmeticAveragePriceEngine,
     implied_coupon,
     implied_volatility,
@@ -230,6 +242,7 @@ __all__ = [
     "QuadratureAccumulatorEngine",
     "QuadratureAutocallableEngine",
     "QuadratureBarrierEngine",
+    "QuadratureVanillaEngine",
     "TurnbullWakemanArithmeticAveragePriceEngine",
     "implied_coupon",
     "implied_volatility",

@@ -40,6 +40,7 @@ class QuantLibProfileTests(unittest.TestCase):
 
     def test_reference_profiles_cover_expected_engines(self):
         numerical = {
+            "QuadratureVanillaEngine",
             "CoxRossRubinsteinVanillaEngine",
             "FiniteDifferenceVanillaEngine",
             "MonteCarloVanillaEngine",

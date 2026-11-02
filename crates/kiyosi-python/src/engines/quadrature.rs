@@ -1,5 +1,6 @@
 use crate::conversions::{integer, real};
 use crate::engines::ScalarRequest;
+use crate::engines::binomial::{VanillaInstrument, with_vanilla};
 use crate::error::domain;
 use crate::instruments::{accumulator::Accumulator, autocallable, barrier::BarrierOption};
 use crate::market::PricingContext;
@@ -12,12 +13,17 @@ macro_rules! quadrature_engine {
     };
     ($(#[$doc:meta])* $name:ident, $instrument:ty,
      $with:path $(,)?) => {
+        quadrature_engine!($(#[$doc])* $name, $instrument, $with, QuadratureSettings);
+    };
+    ($(#[$doc:meta])* $name:ident, $instrument:ty,
+     $with:path, $settings:ident $(, $time:ident)? $(,)?) => {
         /// Flat-rate quadrature pricing with immutable integration settings.
         ///
         /// Parameters
         /// ----------
         /// asset_step_count : int, optional
         ///     Spatial grid budget, at least 4; defaults to 512.
+        $(#[doc = concat!(stringify!($time), " : int, optional\n    American exercise intervals, at least 1; defaults to 200. Ignored for European pricing.")])?
         /// integration_standard_deviations : float, optional
         ///     Positive finite integration extent in standard deviations; defaults to 8.
         ///
@@ -26,6 +32,7 @@ macro_rules! quadrature_engine {
         /// InvalidInputError
         ///     If asset_step_count is below 4 or integration_standard_deviations
         ///     is nonpositive or non-finite.
+        $(#[doc = concat!("    Also raised if ", stringify!($time), " is below 1.")])?
         ///
         $(#[$doc])*
         #[pyclass(frozen, module = "kiyosi._native")]
@@ -44,14 +51,16 @@ macro_rules! quadrature_engine {
             engine_methods!(
                 $name,
                 #[new]
-                #[pyo3(signature = (*, asset_step_count=kiyosi::QuadratureSettings::default().asset_step_count, integration_standard_deviations=kiyosi::QuadratureSettings::default().integration_standard_deviations))]
+                #[pyo3(signature = (*, asset_step_count=kiyosi::$settings::default().asset_step_count, $($time=kiyosi::$settings::default().$time,)? integration_standard_deviations=kiyosi::$settings::default().integration_standard_deviations))]
                 fn new(
                     #[pyo3(from_py_with = integer)] asset_step_count: i32,
+                    $(#[pyo3(from_py_with = integer)] $time: i32,)?
                     #[pyo3(from_py_with = real)] integration_standard_deviations: f64,
                 ) -> PyResult<Self> {
                     Ok(Self(domain(kiyosi::$name::new(
-                        kiyosi::QuadratureSettings {
+                        kiyosi::$settings {
                             asset_step_count,
+                            $($time,)?
                             integration_standard_deviations,
                         },
                     ))?))
@@ -61,6 +70,13 @@ macro_rules! quadrature_engine {
                 fn asset_step_count(&self) -> i32 {
                     self.0.settings().asset_step_count
                 },
+                $(
+                    /// Returns the configured American exercise interval count.
+                    #[getter]
+                    fn $time(&self) -> i32 {
+                        self.0.settings().$time
+                    },
+                )?
                 /// Returns the integration extent in standard deviations.
                 #[getter]
                 fn integration_standard_deviations(&self) -> f64 {
@@ -70,9 +86,12 @@ macro_rules! quadrature_engine {
                     format!(
                         concat!(
                             stringify!($name),
-                            "(asset_step_count={}, integration_standard_deviations={})"
+                            "(asset_step_count={}",
+                            $(concat!(", ", stringify!($time), "={}"),)?
+                            ", integration_standard_deviations={})"
                         ),
                         self.asset_step_count(),
+                        $(self.$time(),)?
                         self.integration_standard_deviations()
                     )
                 },
@@ -121,6 +140,26 @@ macro_rules! quadrature_engine {
         }
     };
 }
+
+quadrature_engine!(
+    /// See Also
+    /// --------
+    /// EuropeanOption : Supported contract.
+    /// AmericanOption : Supported contract.
+    ///
+    /// Notes
+    /// -----
+    /// Uses Simpson integration for European options and cubic Gaussian backward
+    /// induction for American options. Requires flat-rate BSM parameters.
+    /// Check spatial, time and integration-extent convergence separately;
+    /// fixed-grid completion does not estimate error. Higher Greeks near exercise
+    /// boundaries also require bump convergence checks.
+    QuadratureVanillaEngine,
+    VanillaInstrument<'_>,
+    with_vanilla,
+    QuadratureVanillaSettings,
+    time_step_count,
+);
 
 quadrature_engine!(
     /// See Also

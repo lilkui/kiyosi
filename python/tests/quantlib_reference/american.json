@@ -153,6 +153,24 @@
   ],
   "profiles": [
     {
+      "engine": "QuadratureVanillaEngine",
+      "shifts": {
+        "spot_shift": 0.5,
+        "volatility_shift": 0.002
+      },
+      "settings": {
+        "asset_step_count": 768,
+        "time_step_count": 800,
+        "integration_standard_deviations": 10.0
+      },
+      "tolerances": {
+        "price": 0.01
+      },
+      "numerical_tolerances": {
+        "price": 0.01
+      }
+    },
+    {
       "engine": "CoxRossRubinsteinVanillaEngine",
       "settings": {
         "step_count": 800

@@ -4,7 +4,7 @@ from collections.abc import Iterable, Iterator
 from datetime import date, datetime
 from datetime import date as _Date
 from types import EllipsisType
-from typing import Literal, Never, Self, TypeAlias, overload
+from typing import Literal, Never, Self, overload
 
 from . import pricing as _pricing
 
@@ -464,6 +464,35 @@ class QuadratureBarrierEngine:
     def price_with_greeks(
         self,
         instrument: BarrierOption,
+        context: PricingContext,
+        greeks: Greek | Literal["all"] | Iterable[Greek],
+        *,
+        spot_shift: float = ...,
+        volatility_shift: float = ...,
+        rate_shift: float = ...,
+        time_shift_days: int = ...,
+    ) -> PricingResult: ...
+
+class QuadratureVanillaEngine:
+    def __init__(
+        self,
+        *,
+        asset_step_count: int = ...,
+        time_step_count: int = ...,
+        integration_standard_deviations: float = ...,
+    ) -> None: ...
+    @property
+    def asset_step_count(self) -> int: ...
+    @property
+    def time_step_count(self) -> int: ...
+    @property
+    def integration_standard_deviations(self) -> float: ...
+    def price(
+        self, instrument: EuropeanOption | AmericanOption, context: PricingContext
+    ) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
@@ -1072,7 +1101,7 @@ class MonteCarloAsianEngine:
         greeks: Greek | Literal["all"] | Iterable[Greek],
     ) -> PricingResult: ...
 
-Greek: TypeAlias = Literal[
+type Greek = Literal[
     "delta",
     "gamma",
     "speed",
@@ -1278,7 +1307,9 @@ def implied_volatility(
 ) -> float: ...
 @overload
 def implied_volatility(
-    engine: CoxRossRubinsteinVanillaEngine | FiniteDifferenceVanillaEngine,
+    engine: CoxRossRubinsteinVanillaEngine
+    | FiniteDifferenceVanillaEngine
+    | QuadratureVanillaEngine,
     instrument: EuropeanOption | AmericanOption,
     context: PricingContext,
     observed_price: float,
