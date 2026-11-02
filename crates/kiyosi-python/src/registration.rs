@@ -61,6 +61,7 @@ pricing_classes!(
     @engines
     [
         analytic::european::AnalyticEuropeanEngine,
+        analytic::heston::AnalyticHestonEngine,
         analytic::american::BjerksundStenslandVanillaEngine,
         analytic::digital::AnalyticDigitalEngine,
         analytic::asian::AnalyticGeometricAveragePriceEngine,
@@ -205,6 +206,7 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     )?)?;
     module.add_class::<engines::monte_carlo::MonteCarloEstimate>()?;
     module.add_class::<BlackScholesMertonParameters>()?;
+    module.add_class::<crate::heston::HestonParameters>()?;
     module.add_class::<crate::local_volatility::LocalVolatilitySurface>()?;
     module.add_class::<crate::local_volatility::LocalVolatilityParameters>()?;
     module.add_class::<market::RateTermStructure>()?;

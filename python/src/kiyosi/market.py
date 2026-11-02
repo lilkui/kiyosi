@@ -14,6 +14,12 @@ Model and context ``replace()`` methods expose named keyword-only fields.
 Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
 values; explicit ``None`` is rejected.
 
+HestonParameters owns constant risk-neutral variance parameters and deterministic
+rate curves. Initial variance is at valuation (20% volatility means 0.04).
+Variance parameters are finite and nonnegative; correlation includes [-1, 1].
+The Feller condition is not required. AnalyticHestonEngine supports European
+prices only; other engines, Greeks and inverse solves reject this model.
+
 Examples
 --------
 Build monthly observations from a month-end anchor. February is clamped
@@ -49,6 +55,7 @@ from typing import Literal
 
 from ._native import (
     BlackScholesMertonParameters,
+    HestonParameters,
     LocalVolatilityParameters,
     LocalVolatilitySurface,
     ObservationSchedule,
@@ -68,6 +75,7 @@ BusinessDayConvention = Literal["following", "preceding"]
 __all__ = [
     "BlackScholesMertonParameters",
     "BusinessDayConvention",
+    "HestonParameters",
     "LocalVolatilityParameters",
     "LocalVolatilitySurface",
     "ObservationSchedule",

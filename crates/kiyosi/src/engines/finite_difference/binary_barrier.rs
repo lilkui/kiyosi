@@ -81,8 +81,8 @@ impl FiniteDifferenceBinaryBarrierEngine {
 macro_rules! binary_pricing {
     ($engine:ty, $option:ty) => {
         impl PricingEngine<$option> for $engine {
-            fn validate_applicability(&self, _: &PricingContext) -> Result<()> {
-                Ok(())
+            fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+                local_volatility::validate_model(context)
             }
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
                 Ok(native(
@@ -220,6 +220,9 @@ fn native(
 ) -> Result<PricingResult> {
     local_volatility::validate_request(context, request)?;
     match context.model_parameters() {
+        crate::ModelParameters::Heston(_) => Err(crate::Error::UnsupportedOperation(
+            "finite differences do not support Heston".into(),
+        )),
         crate::ModelParameters::BlackScholesMerton(model) => native_with_diffusion(
             contract,
             context,
@@ -340,7 +343,9 @@ fn native_with_diffusion<D: Diffusion>(
     let model = context.model_parameters();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), horizon)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), horizon)?;
-    let upper = settings.asset_upper_boundary.unwrap_or_else(|| {
+    let upper = if let Some(upper) = settings.asset_upper_boundary {
+        upper
+    } else {
         let upper = default_upper(contract, context);
         if D::LOCAL {
             let relevant = spot.max(
@@ -348,11 +353,11 @@ fn native_with_diffusion<D: Diffusion>(
                     .digital
                     .map_or(option.barrier_level(), DigitalOption::strike),
             );
-            upper.max(diffusion_upper(relevant, context, time, &risk, &dividend))
+            upper.max(diffusion_upper(relevant, context, time, &risk, &dividend)?)
         } else {
             upper
         }
-    });
+    };
     let mut space = SpatialGrid::new(
         settings,
         upper,

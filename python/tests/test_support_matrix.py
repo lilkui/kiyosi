@@ -7,6 +7,7 @@ from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
 from kiyosi import instruments as ins
 from kiyosi.market import (
     BlackScholesMertonParameters,
+    HestonParameters,
     PricingContext,
     all_days_calendar,
 )
@@ -35,6 +36,7 @@ def terminal_cases():
             ins.EuropeanOption(**vanilla),
             (
                 "AnalyticEuropeanEngine",
+                "AnalyticHestonEngine",
                 "CoxRossRubinsteinVanillaEngine",
                 "FiniteDifferenceVanillaEngine",
                 "MonteCarloVanillaEngine",
@@ -240,15 +242,54 @@ class SupportMatrixTests(unittest.TestCase):
             set(self.engines), {name for _, names, _ in self.cases for name in names}
         )
 
-    def test_scalar_operations_preserve_expired_contract_errors(self):
-        expired = self.context.replace(valuation_time=date(2026, 1, 2))
+    def test_heston_model_is_rejected_by_other_engines_even_at_expiry(self):
+        context = self.context_for("AnalyticHestonEngine")
         for instrument, supported, _ in self.cases:
             for name in supported:
+                if name == "AnalyticHestonEngine":
+                    continue
+                with self.subTest(instrument=type(instrument).__name__, engine=name):
+                    with self.assertRaises(UnsupportedOperationError):
+                        self.engines[name].price(instrument, context)
+                    with self.assertRaises(UnsupportedOperationError):
+                        self.engines[name].price_with_greeks(
+                            instrument, context, "delta"
+                        )
+                    with self.assertRaises(UnsupportedOperationError):
+                        pricing.implied_volatility(
+                            self.engines[name], instrument, context, 1
+                        )
+
+    def context_for(self, name):
+        if name == "AnalyticHestonEngine":
+            return self.context.replace(
+                model_parameters=HestonParameters(
+                    risk_free_rate=0.04,
+                    dividend_yield=0.01,
+                    initial_variance=0.04,
+                    long_run_variance=0.04,
+                    mean_reversion_speed=1.5,
+                    vol_of_vol=0.3,
+                    correlation=-0.7,
+                )
+            )
+        return self.context
+
+    def test_scalar_operations_preserve_expired_contract_errors(self):
+        for instrument, supported, _ in self.cases:
+            for name in supported:
+                expired = self.context_for(name).replace(
+                    valuation_time=date(2026, 1, 2)
+                )
                 engine = self.engines[name]
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
                     with self.assertRaises(InvalidInputError):
                         engine.price(instrument, expired)
-                    with self.assertRaises(InvalidInputError):
+                    with self.assertRaises(
+                        UnsupportedOperationError
+                        if name == "AnalyticHestonEngine"
+                        else InvalidInputError
+                    ):
                         pricing.implied_volatility(engine, instrument, expired, 1)
         self.assertEqual(self.context.valuation_time.date(), date(2026, 1, 1))
 
@@ -271,15 +312,18 @@ class SupportMatrixTests(unittest.TestCase):
         for instrument, supported, expected in self.cases:
             for name in supported:
                 engine = self.engines[name]
+                context = self.context_for(name)
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
-                    self.assertAlmostEqual(
-                        engine.price(instrument, self.context), expected
-                    )
-                    result = engine.price_with_greeks(
-                        instrument, self.context, ["delta"]
-                    )
-                    self.assertAlmostEqual(result.price, expected)
-                    self.assertIsNone(result.delta)
+                    self.assertAlmostEqual(engine.price(instrument, context), expected)
+                    if name == "AnalyticHestonEngine":
+                        with self.assertRaises(UnsupportedOperationError):
+                            engine.price_with_greeks(instrument, context, ["delta"])
+                    else:
+                        result = engine.price_with_greeks(
+                            instrument, context, ["delta"]
+                        )
+                        self.assertAlmostEqual(result.price, expected)
+                        self.assertIsNone(result.delta)
                     with self.assertRaises(UnsupportedOperationError) as error:
                         pricing.implied_volatility(
                             engine, instrument, self.context, expected

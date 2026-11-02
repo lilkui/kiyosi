@@ -11,7 +11,7 @@ Kiyosi is a Rust derivatives pricing library with a Python API. It supports pric
 
 | Product | Pricing algorithms |
 | --- | --- |
-| European vanilla options | BSM closed form, CRR, FD, MC |
+| European vanilla options | BSM closed form, Heston Fourier integration, CRR, FD, MC |
 | American vanilla options | Bjerksund–Stensland 2002 approximation, CRR, FD, least-squares MC |
 | Cash-or-nothing and asset-or-nothing digitals | Closed form, CRR, FD, MC |
 | Geometric-average Asian options | Continuous-average closed form, MC |

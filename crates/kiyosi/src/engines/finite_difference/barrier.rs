@@ -79,8 +79,8 @@ impl FiniteDifferenceBarrierEngine {
 }
 
 impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
-    fn validate_applicability(&self, _: &PricingContext) -> Result<()> {
-        Ok(())
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        local_volatility::validate_model(context)
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
@@ -234,8 +234,8 @@ impl FiniteDifferenceDoubleBarrierEngine {
     }
 }
 impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine {
-    fn validate_applicability(&self, _: &PricingContext) -> Result<()> {
-        Ok(())
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        local_volatility::validate_model(context)
     }
     fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
@@ -384,7 +384,9 @@ fn native_with_model<D: Diffusion>(
     let expiry = option.expiry_date().start_of_day();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
-    let upper = settings.asset_upper_boundary.unwrap_or_else(|| {
+    let upper = if let Some(upper) = settings.asset_upper_boundary {
+        upper
+    } else {
         let default = default_upper(option, context);
         if D::LOCAL {
             default.max(diffusion_upper(
@@ -393,11 +395,11 @@ fn native_with_model<D: Diffusion>(
                 time,
                 &risk,
                 &dividend,
-            ))
+            )?)
         } else {
             default
         }
-    });
+    };
     let mut space = SpatialGrid::new(
         settings,
         upper,

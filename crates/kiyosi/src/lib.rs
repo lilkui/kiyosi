@@ -1,4 +1,4 @@
-//! Prices derivatives under BSM and local volatility.
+//! Prices derivatives under BSM, local volatility and Heston stochastic variance.
 //!
 //! Supports vanilla and exotic options, autocallable notes and accumulators with
 //! analytic, binomial, quadrature, finite-difference and Monte Carlo engines.
@@ -23,6 +23,11 @@
 //! Future coverage follows remaining stochastic evolution and required discounts;
 //! settled cashflows do not require volatility coverage through contractual expiry.
 //! [`ModelParameters`] selects the concrete model at the pricing entry point.
+//! [`HestonParameters`] supplies constant risk-neutral variance parameters and
+//! deterministic rate curves. [`AnalyticHestonEngine`] supports European call/put
+//! prices only, including zero variance parameters, correlation endpoints and
+//! Feller violations. Other engines, Greeks and inverse solves reject Heston.
+//! See [`AnalyticHestonEngine::new`] for an example and integration controls.
 //!
 //! # Concurrency and errors
 //!
@@ -88,6 +93,7 @@ pub use engines::analytic::digital::AnalyticDigitalEngine;
 pub use engines::analytic::double_barrier::AnalyticDoubleBarrierEngine;
 pub use engines::analytic::double_touch::AnalyticDoubleTouchEngine;
 pub use engines::analytic::european::AnalyticEuropeanEngine;
+pub use engines::analytic::heston::{AnalyticHestonEngine, HestonIntegrationSettings};
 pub use engines::analytic::range_accrual::AnalyticRangeAccrualEngine;
 pub use engines::binomial::{
     BinomialSettings, CoxRossRubinsteinBarrierEngine, CoxRossRubinsteinDigitalEngine,
@@ -138,9 +144,10 @@ pub use instruments::vanilla::{
     OptionContract, OptionType,
 };
 pub use market::{
-    BlackScholesMertonParameterChanges, BlackScholesMertonParameters,
-    LocalVolatilityParameterChanges, LocalVolatilityParameters, LocalVolatilitySurface,
-    ModelParameters, PricingContext, PricingContextChanges, Rate, RateTermStructure,
+    BlackScholesMertonParameterChanges, BlackScholesMertonParameters, HestonParameterChanges,
+    HestonParameters, LocalVolatilityParameterChanges, LocalVolatilityParameters,
+    LocalVolatilitySurface, ModelParameters, PricingContext, PricingContextChanges, Rate,
+    RateTermStructure,
 };
 pub use risk::analytics::{
     Greek, GreeksRequest, NumericalShiftSettings, PricingEngine, PricingResult,

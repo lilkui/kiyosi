@@ -113,6 +113,7 @@ fn time_to_expiry(option: &impl OptionContract, context: &PricingContext) -> Res
 }
 
 fn flat_rates(context: &PricingContext) -> Result<()> {
+    local_volatility::validate_model(context)?;
     for curve in [
         context.model_parameters().risk_free_curve(),
         context.model_parameters().dividend_curve(),
@@ -132,10 +133,10 @@ fn automatic_upper(
     time: f64,
     risk: &Curve,
     dividend: &Curve,
-) -> f64 {
+) -> Result<f64> {
     let relevant = context.spot_price().max(payoff.strike);
     if !payoff.american {
-        return 4.0 * relevant;
+        return Ok(4.0 * relevant);
     }
     diffusion_upper(relevant, context, time, risk, dividend)
 }
@@ -146,8 +147,13 @@ fn diffusion_upper(
     time: f64,
     risk: &Curve,
     dividend: &Curve,
-) -> f64 {
+) -> Result<f64> {
     let sigma = match context.model_parameters() {
+        crate::ModelParameters::Heston(_) => {
+            return Err(Error::UnsupportedOperation(
+                "finite differences do not support Heston".into(),
+            ));
+        }
         crate::ModelParameters::BlackScholesMerton(m) => m.volatility(),
         crate::ModelParameters::LocalVolatility(m) => {
             let surface = m.surface();
@@ -178,11 +184,11 @@ fn diffusion_upper(
         })
         .fold(0.0, f64::max);
     let width = 4.0 * sigma * time.sqrt() + drift;
-    if width <= 4.0_f64.ln() {
+    Ok(if width <= 4.0_f64.ln() {
         4.0 * relevant
     } else {
         (relevant.ln() + width).exp()
-    }
+    })
 }
 
 fn native(
@@ -196,6 +202,9 @@ fn native(
 ) -> Result<(PricingResult, Option<f64>)> {
     local_volatility::validate_request(context, request)?;
     match context.model_parameters() {
+        crate::ModelParameters::Heston(_) => Err(Error::UnsupportedOperation(
+            "finite differences do not support Heston".into(),
+        )),
         crate::ModelParameters::BlackScholesMerton(model) => native_model(
             option,
             payoff,
@@ -243,13 +252,13 @@ fn native_model<D: Diffusion>(
     let expiry = option.expiry_date().start_of_day();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
-    let upper = settings.asset_upper_boundary.unwrap_or_else(|| {
-        if D::LOCAL {
-            diffusion_upper(spot.max(payoff.strike), context, time, &risk, &dividend)
-        } else {
-            automatic_upper(payoff, context, time, &risk, &dividend)
+    let upper = match settings.asset_upper_boundary {
+        Some(upper) => upper,
+        None if D::LOCAL => {
+            diffusion_upper(spot.max(payoff.strike), context, time, &risk, &dividend)?
         }
-    });
+        None => automatic_upper(payoff, context, time, &risk, &dividend)?,
+    };
     let mut space = SpatialGrid::new(
         settings,
         upper,
@@ -759,8 +768,8 @@ impl FiniteDifferenceVanillaEngine {
 macro_rules! vanilla_pricing {
     ($option:ty, $american:literal) => {
         impl PricingEngine<$option> for FiniteDifferenceVanillaEngine {
-            fn validate_applicability(&self, _context: &PricingContext) -> Result<()> {
-                Ok(())
+            fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+                local_volatility::validate_model(context)
             }
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
                 if let Some(model) = local_volatility::local_model(context) {

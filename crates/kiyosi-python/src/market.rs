@@ -313,8 +313,8 @@ impl BlackScholesMertonParameters {
 ///
 /// Parameters
 /// ----------
-/// model_parameters : BlackScholesMertonParameters or LocalVolatilityParameters
-///     Validated rates and BSM volatility or a local-volatility surface.
+/// model_parameters : BlackScholesMertonParameters, LocalVolatilityParameters or HestonParameters
+///     Validated rates and the selected volatility or variance model.
 /// spot_price : float
 ///     Positive finite underlying spot price.
 /// valuation_time : datetime.date or datetime.datetime
@@ -354,8 +354,8 @@ impl PricingContext {
     ///
     /// Parameters
     /// ----------
-    /// model_parameters : BlackScholesMertonParameters or LocalVolatilityParameters, optional
-    ///     Validated rates and BSM volatility or a local-volatility surface.
+    /// model_parameters : BlackScholesMertonParameters, LocalVolatilityParameters or HestonParameters, optional
+    ///     Validated rates and the selected volatility or variance model.
     /// spot_price : float, optional
     ///     Positive finite underlying spot price.
     /// valuation_time : datetime.date or datetime.datetime, optional
@@ -395,6 +395,9 @@ impl PricingContext {
     #[getter]
     fn model_parameters(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match self.0.model_parameters() {
+            kiyosi::ModelParameters::Heston(m) => {
+                Ok(Py::new(py, crate::heston::HestonParameters(m.clone()))?.into_any())
+            }
             kiyosi::ModelParameters::BlackScholesMerton(m) => {
                 Ok(Py::new(py, BlackScholesMertonParameters(m.clone()))?.into_any())
             }
@@ -428,6 +431,9 @@ impl PricingContext {
 }
 
 fn model_parameters_value(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::ModelParameters> {
+    if let Ok(m) = value.extract::<PyRef<'_, crate::heston::HestonParameters>>() {
+        return Ok(m.0.clone().into());
+    }
     if let Ok(m) = value.extract::<PyRef<'_, BlackScholesMertonParameters>>() {
         return Ok(m.0.clone().into());
     }
@@ -436,7 +442,7 @@ fn model_parameters_value(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::ModelPar
         return Ok(m.0.clone().into());
     }
     Err(pyo3::exceptions::PyTypeError::new_err(
-        "expected BlackScholesMertonParameters or LocalVolatilityParameters",
+        "expected BlackScholesMertonParameters, LocalVolatilityParameters or HestonParameters",
     ))
 }
 

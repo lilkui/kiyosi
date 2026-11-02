@@ -162,6 +162,8 @@ pub enum ModelParameters {
     BlackScholesMerton(BlackScholesMertonParameters),
     /// Supplies local volatility; see [`crate::LocalVolatilityParameters::new`].
     LocalVolatility(crate::LocalVolatilityParameters),
+    /// Supplies stochastic variance; see [`crate::HestonParameters::new`].
+    Heston(crate::HestonParameters),
 }
 
 impl From<BlackScholesMertonParameters> for ModelParameters {
@@ -174,18 +176,36 @@ impl From<crate::LocalVolatilityParameters> for ModelParameters {
         Self::LocalVolatility(value)
     }
 }
+impl From<crate::HestonParameters> for ModelParameters {
+    fn from(value: crate::HestonParameters) -> Self {
+        Self::Heston(value)
+    }
+}
 impl ModelParameters {
+    /// Borrows Heston parameters without changing the model; see [`crate::HestonParameters::new`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::UnsupportedOperation`] for other models.
+    pub fn as_heston(&self) -> Result<&crate::HestonParameters> {
+        match self {
+            Self::Heston(model) => Ok(model),
+            _ => Err(Error::UnsupportedOperation(
+                "operation requires the Heston model".into(),
+            )),
+        }
+    }
     /// Borrows BSM parameters without changing the model.
     ///
     /// See [`BlackScholesMertonParameters::new`] for a BSM example.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for a local-volatility model.
+    /// Returns [`Error::UnsupportedOperation`] for a non-BSM model.
     pub fn as_bsm(&self) -> Result<&BlackScholesMertonParameters> {
         match self {
             Self::BlackScholesMerton(model) => Ok(model),
-            Self::LocalVolatility(_) => Err(Error::UnsupportedOperation(
+            Self::LocalVolatility(_) | Self::Heston(_) => Err(Error::UnsupportedOperation(
                 "operation requires the BSM model".into(),
             )),
         }
@@ -195,6 +215,7 @@ impl ModelParameters {
         match self {
             Self::BlackScholesMerton(m) => m.risk_free_curve(),
             Self::LocalVolatility(m) => m.risk_free_curve(),
+            Self::Heston(m) => m.risk_free_curve(),
         }
     }
     /// Borrows the dividend curve; see [`PricingContext::new`] for an example.
@@ -202,6 +223,7 @@ impl ModelParameters {
         match self {
             Self::BlackScholesMerton(m) => m.dividend_curve(),
             Self::LocalVolatility(m) => m.dividend_curve(),
+            Self::Heston(m) => m.dividend_curve(),
         }
     }
 }

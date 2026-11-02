@@ -74,8 +74,8 @@ impl FiniteDifferenceAccumulatorEngine {
 }
 
 impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
-    fn validate_applicability(&self, _: &PricingContext) -> Result<()> {
-        Ok(())
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        local_volatility::validate_model(context)
     }
     fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
@@ -99,7 +99,7 @@ fn default_upper(
     context: &PricingContext,
     risk: &Curve,
     dividend: &Curve,
-) -> f64 {
+) -> Result<f64> {
     diffusion_upper(
         option
             .strike()
@@ -123,6 +123,9 @@ fn native(
 ) -> Result<(PricingResult, Option<f64>)> {
     local_volatility::validate_request(context, request)?;
     match context.model_parameters() {
+        crate::ModelParameters::Heston(_) => Err(crate::Error::UnsupportedOperation(
+            "finite differences do not support Heston".into(),
+        )),
         crate::ModelParameters::BlackScholesMerton(model) => native_with_diffusion(
             option,
             context,
@@ -161,7 +164,7 @@ fn native_with_diffusion<D: Diffusion>(
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
     let upper = match settings.asset_upper_boundary {
         Some(value) => value,
-        None => default_upper(option, context, &risk, &dividend),
+        None => default_upper(option, context, &risk, &dividend)?,
     };
     let space = SpatialGrid::new(
         settings,

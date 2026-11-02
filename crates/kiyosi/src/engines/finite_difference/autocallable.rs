@@ -86,8 +86,8 @@ impl FiniteDifferenceAutocallableEngine {
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
     for FiniteDifferenceAutocallableEngine
 {
-    fn validate_applicability(&self, _: &PricingContext) -> Result<()> {
-        Ok(())
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        local_volatility::validate_model(context)
     }
     fn price(&self, option: &AutocallableNote<T>, context: &PricingContext) -> Result<f64> {
         self.price(option, context)
@@ -128,7 +128,7 @@ fn default_upper<T: AutocallableTerms>(
     context: &PricingContext,
     risk: &Curve,
     dividend: &Curve,
-) -> f64 {
+) -> Result<f64> {
     diffusion_upper(
         highest(note).max(context.spot_price()),
         context,
@@ -198,6 +198,9 @@ fn native<T: AutocallableTerms>(
 ) -> Result<(PricingResult, Option<f64>)> {
     local_volatility::validate_request(context, request)?;
     match context.model_parameters() {
+        crate::ModelParameters::Heston(_) => Err(crate::Error::UnsupportedOperation(
+            "finite differences do not support Heston".into(),
+        )),
         crate::ModelParameters::BlackScholesMerton(model) => {
             native_with_diffusion(note, context, settings, request, shifts, model.volatility())
         }
@@ -307,7 +310,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
     }
     let upper = match settings.asset_upper_boundary {
         Some(upper) => upper,
-        None => default_upper(note, context, &risk, &dividend),
+        None => default_upper(note, context, &risk, &dividend)?,
     };
     let mut space = SpatialGrid::new(
         settings,

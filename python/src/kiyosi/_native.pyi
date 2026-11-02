@@ -203,6 +203,48 @@ class BlackScholesMertonParameters:
     @property
     def volatility(self) -> float: ...
 
+class HestonParameters:
+    def __init__(
+        self,
+        *,
+        risk_free_rate: float | RateTermStructure,
+        dividend_yield: float | RateTermStructure,
+        initial_variance: float,
+        long_run_variance: float,
+        mean_reversion_speed: float,
+        vol_of_vol: float,
+        correlation: float,
+    ) -> None: ...
+    def replace(
+        self,
+        *,
+        risk_free_rate: float | RateTermStructure | EllipsisType = ...,
+        dividend_yield: float | RateTermStructure | EllipsisType = ...,
+        initial_variance: float | EllipsisType = ...,
+        long_run_variance: float | EllipsisType = ...,
+        mean_reversion_speed: float | EllipsisType = ...,
+        vol_of_vol: float | EllipsisType = ...,
+        correlation: float | EllipsisType = ...,
+    ) -> HestonParameters: ...
+    @property
+    def risk_free_rate(self) -> float | RateTermStructure: ...
+    @property
+    def dividend_yield(self) -> float | RateTermStructure: ...
+    @property
+    def risk_free_curve(self) -> RateTermStructure: ...
+    @property
+    def dividend_curve(self) -> RateTermStructure: ...
+    @property
+    def initial_variance(self) -> float: ...
+    @property
+    def long_run_variance(self) -> float: ...
+    @property
+    def mean_reversion_speed(self) -> float: ...
+    @property
+    def vol_of_vol(self) -> float: ...
+    @property
+    def correlation(self) -> float: ...
+
 class LocalVolatilitySurface:
     def __init__(
         self,
@@ -296,7 +338,9 @@ class PricingContext:
     def __init__(
         self,
         *,
-        model_parameters: BlackScholesMertonParameters | LocalVolatilityParameters,
+        model_parameters: BlackScholesMertonParameters
+        | LocalVolatilityParameters
+        | HestonParameters,
         spot_price: float,
         valuation_time: date | datetime,
         calendar: TradingCalendar = ...,
@@ -306,6 +350,7 @@ class PricingContext:
         *,
         model_parameters: BlackScholesMertonParameters
         | LocalVolatilityParameters
+        | HestonParameters
         | EllipsisType = ...,
         spot_price: float | EllipsisType = ...,
         valuation_time: date | datetime | EllipsisType = ...,
@@ -314,7 +359,9 @@ class PricingContext:
     @property
     def model_parameters(
         self,
-    ) -> BlackScholesMertonParameters | LocalVolatilityParameters: ...
+    ) -> (
+        BlackScholesMertonParameters | LocalVolatilityParameters | HestonParameters
+    ): ...
     @property
     def spot_price(self) -> float: ...
     @property
@@ -333,6 +380,28 @@ class AnalyticEuropeanEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
     ) -> PricingResult: ...
+
+class AnalyticHestonEngine:
+    def __init__(
+        self,
+        *,
+        absolute_tolerance: float = ...,
+        relative_tolerance: float = ...,
+        max_evaluations: int = ...,
+    ) -> None: ...
+    @property
+    def absolute_tolerance(self) -> float: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def max_evaluations(self) -> int: ...
+    def price(self, instrument: EuropeanOption, context: PricingContext) -> float: ...
+    def price_with_greeks(
+        self,
+        instrument: EuropeanOption,
+        context: PricingContext,
+        greeks: Greek | Literal["all"] | Iterable[Greek],
+    ) -> Never: ...
 
 class BjerksundStenslandVanillaEngine:
     def __init__(self) -> None: ...

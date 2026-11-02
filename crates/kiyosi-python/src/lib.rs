@@ -9,6 +9,7 @@ mod calendar;
 mod conversions;
 mod engines;
 mod error;
+mod heston;
 mod instruments;
 mod local_volatility;
 mod market;

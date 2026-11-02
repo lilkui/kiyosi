@@ -62,6 +62,19 @@ precede Greek-name parsing. Monte Carlo vanilla spot bumps default by product:
 0.01 for European options and 8% of spot for American options. Explicit
 ``None`` selects the automatic bump for either product.
 
+``AnalyticHestonEngine`` prices European calls/puts with ``HestonParameters``
+using adaptive Fourier integration and a deterministic-variance control variate.
+It supports deterministic rate/dividend curves, zero parameters and correlation
+endpoints without imposing the Feller condition. Greeks and inverse solves
+raise ``UnsupportedOperationError``. Integration controls are
+``absolute_tolerance=1e-8`` (price units), ``relative_tolerance=1e-8`` and
+``max_evaluations=10000`` (a total characteristic-function budget, including the
+control variate and tail). Tolerances are finite and nonnegative, at least one
+positive; the budget is a positive integer. Error estimates are not universal
+accuracy guarantees; check convergence for tail prices. Budget exhaustion or
+insufficient numerical resolution raises ``NonConvergenceError``. Expiry and
+deterministic-variance branches consume no integration budget.
+
 ``CouponQuoteConvention`` controls whether a snowball's maturity coupon
 shifts with observation coupons (``"shift_maturity_coupon"``) or stays fixed
 (``"preserve_maturity_coupon"``). Phoenix coupon solves omit this choice;
@@ -126,6 +139,7 @@ from ._native import (
     AnalyticDoubleTouchEngine,
     AnalyticEuropeanEngine,
     AnalyticGeometricAveragePriceEngine,
+    AnalyticHestonEngine,
     AnalyticRangeAccrualEngine,
     BjerksundStenslandVanillaEngine,
     CoxRossRubinsteinBarrierEngine,
@@ -170,6 +184,7 @@ __all__ = [
     "AnalyticDoubleTouchEngine",
     "AnalyticEuropeanEngine",
     "AnalyticGeometricAveragePriceEngine",
+    "AnalyticHestonEngine",
     "AnalyticRangeAccrualEngine",
     "BjerksundStenslandVanillaEngine",
     "CouponQuoteConvention",
