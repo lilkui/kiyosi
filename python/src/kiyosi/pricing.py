@@ -43,7 +43,6 @@ uniform time points and expiry. The time count specifies intervals and is ignore
 for European pricing. Check time, space and extent convergence separately;
 fixed-grid completion has no error estimate. Numerical Greeks use shared bump
 defaults; higher derivatives near exercise boundaries also require bump checks.
-See ``docs/design/vanilla-quadrature.md`` for usage and acceptance scenarios.
 
 ``QuadratureDigitalEngine`` prices European cash-or-nothing and asset-or-nothing
 calls/puts under flat-rate BSM. It uses Simpson integration with
@@ -51,7 +50,6 @@ calls/puts under flat-rate BSM. It uses Simpson integration with
 is centered on the payment-weighted normal density and omitted tails are zero.
 Check step-count, extent and numerical Greek bump convergence separately;
 completion provides no error estimate. Equality at expiry pays zero.
-See ``docs/design/digital-quadrature.md`` for usage and accuracy checks.
 
 Pricing raises ``ComputationFailureError`` for materially negative option
 prices; only rounding-sized negative results may be clipped to zero.
@@ -110,8 +108,10 @@ deterministic variance path; absorbing zero variance retains optimal American
 exercise, including between curve nodes. Greeks and inverse solves are unsupported.
 Fixed-grid completion carries no error estimate: check spatial/time refinement
 and domain enlargement separately. Numerical failures raise
-``ComputationFailureError``. See ``docs/heston-finite-difference.md`` for usage
-and documented acceptance scenarios.
+``ComputationFailureError``.
+
+For convergence checks across numerical engines, see the engine comparison guide:
+https://lilkui.github.io/kiyosi/guide/engines.html#compare-methods-carefully.
 
 ``CouponQuoteConvention`` controls whether a snowball's maturity coupon
 shifts with observation coupons (``"shift_maturity_coupon"``) or stays fixed
