@@ -517,7 +517,7 @@ dates, stages may have no observations, and rates need not decrease."
 ///     Positive upper terminal settlement strike.
 /// lower_strike : float
 ///     Nonnegative lower terminal strike, at most the upper strike.
-/// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
+/// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
 ///     Observe knock-in on every trading day or only at expiry.
 /// effective_midnight_utc : datetime.date
 ///     Contract starts at 00:00 UTC on this date.
@@ -542,7 +542,7 @@ pub(crate) struct SnowballOption(pub kiyosi::SnowballOption);
 snowball_properties! {
     SnowballOption,
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_midnight_utc, expiry_midnight_utc, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
+    #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), effective_midnight_utc, expiry_midnight_utc, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         maturity_coupon_rate: &Bound<'_, PyAny>,
@@ -550,7 +550,7 @@ snowball_properties! {
         knock_in_level: &Bound<'_, PyAny>,
         upper_strike: &Bound<'_, PyAny>,
         lower_strike: &Bound<'_, PyAny>,
-        knock_in_observation_mode: &Bound<'_, PyAny>,
+        #[pyo3(from_py_with = mode)] knock_in_observation_mode: kiyosi::KnockInObservationMode,
         effective_midnight_utc: &Bound<'_, PyAny>,
         expiry_midnight_utc: &Bound<'_, PyAny>,
         observations: &Bound<'_, PyAny>,
@@ -567,7 +567,7 @@ snowball_properties! {
             date(expiry_midnight_utc)?,
             records(observations)?,
         );
-        terms.knock_in_observation_mode = mode(knock_in_observation_mode)?;
+        terms.knock_in_observation_mode = knock_in_observation_mode;
         if let Some(value) = barrier_state {
             terms.barrier_state = state(value)?;
         }
@@ -736,7 +736,7 @@ snowball_properties! {
 ///     Knocked-in maturity coupon, at most the intact maturity coupon.
 /// knock_in_level : float
 ///     Positive strict downside threshold.
-/// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
+/// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
 ///     Observe knock-in on every trading day or only at expiry.
 /// effective_midnight_utc : datetime.date
 ///     Contract starts at 00:00 UTC on this date.
@@ -761,13 +761,13 @@ pub(crate) struct TernarySnowballOption(pub kiyosi::TernarySnowballOption);
 snowball_properties! {
     TernarySnowballOption,
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation_mode, effective_midnight_utc, expiry_midnight_utc, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
+    #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), effective_midnight_utc, expiry_midnight_utc, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         maturity_coupon_rate: &Bound<'_, PyAny>,
         minimum_coupon_rate: &Bound<'_, PyAny>,
         knock_in_level: &Bound<'_, PyAny>,
-        knock_in_observation_mode: &Bound<'_, PyAny>,
+        #[pyo3(from_py_with = mode)] knock_in_observation_mode: kiyosi::KnockInObservationMode,
         effective_midnight_utc: &Bound<'_, PyAny>,
         expiry_midnight_utc: &Bound<'_, PyAny>,
         observations: &Bound<'_, PyAny>,
@@ -782,7 +782,7 @@ snowball_properties! {
             date(expiry_midnight_utc)?,
             records(observations)?,
         );
-        terms.knock_in_observation_mode = mode(knock_in_observation_mode)?;
+        terms.knock_in_observation_mode = knock_in_observation_mode;
         if let Some(value) = barrier_state {
             terms.barrier_state = state(value)?;
         }
@@ -861,7 +861,7 @@ snowball_properties! {
 ///     Positive upper terminal settlement strike.
 /// lower_strike : float
 ///     Nonnegative lower terminal strike, at most the upper strike.
-/// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
+/// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
 ///     Observe knock-in on every trading day or only at expiry.
 /// effective_midnight_utc : datetime.date
 ///     Contract starts at 00:00 UTC on this date.
@@ -896,7 +896,7 @@ pub(crate) struct PhoenixOption(pub kiyosi::PhoenixOption);
 autocallable_properties! {
     PhoenixOption,
     #[new]
-    #[pyo3(signature = (*, coupon_rate=crate::conversions::OMITTED, coupon_per_period=crate::conversions::OMITTED, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_midnight_utc, expiry_midnight_utc, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
+    #[pyo3(signature = (*, coupon_rate=crate::conversions::OMITTED, coupon_per_period=crate::conversions::OMITTED, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), effective_midnight_utc, expiry_midnight_utc, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         #[pyo3(from_py_with = supplied)] coupon_rate: Option<&Bound<'_, PyAny>>,
@@ -905,7 +905,7 @@ autocallable_properties! {
         knock_in_level: &Bound<'_, PyAny>,
         upper_strike: &Bound<'_, PyAny>,
         lower_strike: &Bound<'_, PyAny>,
-        knock_in_observation_mode: &Bound<'_, PyAny>,
+        #[pyo3(from_py_with = mode)] knock_in_observation_mode: kiyosi::KnockInObservationMode,
         effective_midnight_utc: &Bound<'_, PyAny>,
         expiry_midnight_utc: &Bound<'_, PyAny>,
         observations: &Bound<'_, PyAny>,
@@ -930,7 +930,7 @@ autocallable_properties! {
             records(observations)?,
         );
         terms.coupon = coupon;
-        terms.knock_in_observation_mode = mode(knock_in_observation_mode)?;
+        terms.knock_in_observation_mode = knock_in_observation_mode;
         if let Some(value) = barrier_state {
             terms.barrier_state = state(value)?;
         }

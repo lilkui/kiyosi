@@ -444,6 +444,54 @@ class PackageTests(unittest.TestCase):
                             default is None,
                         )
 
+    def test_autocallable_monitoring_defaults_match_explicit_daily_monitoring(self):
+        start, end = date(2025, 1, 2), date(2026, 1, 2)
+        common = {
+            "knock_in_level": 80,
+            "effective_midnight_utc": start,
+            "expiry_midnight_utc": end,
+            "observations": [instruments.AutocallableObservation(end, 110)],
+        }
+        for cls, extra in (
+            (
+                instruments.SnowballOption,
+                {
+                    "maturity_coupon_rate": 0.1,
+                    "initial_spot": 100,
+                    "upper_strike": 100,
+                    "lower_strike": 0,
+                },
+            ),
+            (
+                instruments.PhoenixOption,
+                {
+                    "coupon_rate": 0.1, "initial_spot": 100, "upper_strike": 100, "lower_strike": 0
+                },
+            ),
+            (
+                instruments.TernarySnowballOption,
+                {"maturity_coupon_rate": 0.1, "minimum_coupon_rate": 0.02},
+            ),
+        ):
+            with self.subTest(contract=cls.__name__):
+                note = cls(**common, **extra)
+                self.assertEqual(note.knock_in_observation_mode, "every_trading_day")
+                default = (
+                    inspect.signature(cls)
+                    .parameters["knock_in_observation_mode"]
+                    .default
+                )
+                self.assertEqual(default, "every_trading_day")
+                self.assertEqual(
+                    note, cls(**common, **extra, knock_in_observation_mode=default)
+                )
+                self.assertNotEqual(
+                    note, cls(**common, **extra, knock_in_observation_mode="at_expiry")
+                )
+                for invalid in (None, True, "invalid"):
+                    with self.assertRaises((TypeError, ValueError)):
+                        cls(**common, **extra, knock_in_observation_mode=invalid)
+
     def test_factory_only_contracts_reject_direct_construction(self):
         for cls in (
             instruments.BinaryBarrierOption,

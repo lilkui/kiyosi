@@ -52,6 +52,13 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
             kiyosi::OptionType::Put => "put",
         },
     )?;
+    defaults.set_item(
+        "knock_in_observation_mode",
+        match kiyosi::KnockInObservationMode::default() {
+            kiyosi::KnockInObservationMode::EveryTradingDay => "every_trading_day",
+            kiyosi::KnockInObservationMode::AtExpiry => "at_expiry",
+        },
+    )?;
     module.add("_signature_defaults", defaults)?;
     let solvers = PyDict::new(py);
     macro_rules! solver {

@@ -24,6 +24,8 @@ For autocallables, ``barrier_state=None`` means unknown history;
 ``barrier_state="no_event"`` records known absence of prior events. Accumulators
 use ``accumulated_quantity=None`` for unknown history and require an explicit
 quantity after a strictly prior trading-date observation; zero means no outstanding units.
+Plain snowball, Phoenix and ternary snowball constructors default knock-in
+monitoring to ``"every_trading_day"``, matching Rust terms.
 
 ``BinaryBarrierOption``, ``TouchOption`` and ``DoubleTouchOption`` are factory-only
 result types; construct them with the corresponding cash/asset factory functions.
