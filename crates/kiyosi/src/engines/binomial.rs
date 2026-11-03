@@ -415,7 +415,7 @@ macro_rules! vanilla_pricing {
                     Payoff::vanilla(option.option_type(), option.strike(), $american),
                     context,
                     self.settings,
-                    GreeksRequest::default(),
+                    GreeksRequest::new([]),
                 )?
                 .price())
             }
@@ -501,7 +501,7 @@ impl CoxRossRubinsteinDigitalEngine {
     pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         Ok(self
-            .native(option, context, GreeksRequest::default())?
+            .native(option, context, GreeksRequest::new([]))?
             .price())
     }
 

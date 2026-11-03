@@ -423,7 +423,7 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
     fn price(&self, option: &GeometricAveragePriceOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         Ok(self
-            .native(&option.0, context, true, GreeksRequest::default())?
+            .native(&option.0, context, true, GreeksRequest::new([]))?
             .price())
     }
     fn price_with_greeks(
@@ -459,7 +459,7 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
     ) -> Result<f64> {
         context.bsm_parameters()?;
         Ok(self
-            .native(&option.0, context, false, GreeksRequest::default())?
+            .native(&option.0, context, false, GreeksRequest::new([]))?
             .price())
     }
     fn price_with_greeks(

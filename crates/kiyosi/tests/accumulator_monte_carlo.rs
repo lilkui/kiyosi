@@ -419,7 +419,7 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
             .price_with_greeks(
                 &option,
                 &context,
-                GreeksRequest::default(),
+                GreeksRequest::new([]),
                 Default::default()
             )
             .unwrap_err(),
@@ -464,12 +464,7 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &curved,
-                GreeksRequest::default(),
-                Default::default()
-            )
+            .price_with_greeks(&option, &curved, GreeksRequest::new([]), Default::default())
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));

@@ -551,7 +551,7 @@ fn node_curves_align_time_steps_and_keep_optimal_intermediate_exercise() {
             .price_with_greeks(
                 &digital,
                 &context,
-                GreeksRequest::default(),
+                GreeksRequest::new([]),
                 Default::default()
             )
             .unwrap_err(),
@@ -633,7 +633,7 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
             .price_with_greeks(
                 &option,
                 &context,
-                GreeksRequest::default(),
+                GreeksRequest::new([]),
                 Default::default()
             )
             .unwrap_err(),

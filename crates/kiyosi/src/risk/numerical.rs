@@ -167,7 +167,7 @@ pub(crate) fn complete_greeks(
         })
     };
     let price = |s, vol, r, t| -> Result<f64> {
-        Ok(native(&shifted(s, vol, r, t)?, GreeksRequest::default())?.price())
+        Ok(native(&shifted(s, vol, r, t)?, GreeksRequest::new([]))?.price())
     };
     let spot_samples = |vol, t, center| -> Result<(f64, f64, f64)> {
         Ok((
@@ -325,7 +325,7 @@ pub(crate) fn complete_greeks(
                     model_parameters: Some(model.into()),
                     ..Default::default()
                 })?;
-                Ok(native(&shifted, GreeksRequest::default())?.price())
+                Ok(native(&shifted, GreeksRequest::new([]))?.price())
             };
             result.set(
                 request,

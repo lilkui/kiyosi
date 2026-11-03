@@ -72,7 +72,7 @@ impl MonteCarloDoubleBarrierEngine {
             .native(
                 Contract::Double(option),
                 context,
-                GreeksRequest::default(),
+                GreeksRequest::new([]),
                 Default::default(),
             )?
             .price())

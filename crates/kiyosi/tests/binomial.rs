@@ -330,7 +330,7 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
             .price_with_greeks(
                 &option,
                 &nonflat,
-                GreeksRequest::default(),
+                GreeksRequest::new([]),
                 Default::default()
             )
             .unwrap_err(),
@@ -338,7 +338,7 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
     ));
     assert!(matches!(
         digital
-            .price_with_greeks(&cash, &nonflat, GreeksRequest::default())
+            .price_with_greeks(&cash, &nonflat, GreeksRequest::new([]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));

@@ -573,12 +573,7 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
         .unwrap();
     assert!(matches!(
         AnalyticBarrierEngine
-            .price_with_greeks(
-                &option,
-                &curved,
-                GreeksRequest::default(),
-                Default::default()
-            )
+            .price_with_greeks(&option, &curved, GreeksRequest::new([]), Default::default())
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));

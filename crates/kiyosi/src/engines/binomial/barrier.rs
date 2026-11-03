@@ -66,7 +66,7 @@ impl CoxRossRubinsteinBarrierEngine {
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         Ok(self
-            .native(option, context, GreeksRequest::default())?
+            .native(option, context, GreeksRequest::new([]))?
             .price())
     }
 
@@ -111,7 +111,7 @@ impl CoxRossRubinsteinBarrierEngine {
         let request = if context.valuation_time() == option.expiry_date().start_of_day()
             || option.at_spot_discontinuity(context, 0.0)
         {
-            GreeksRequest::default()
+            GreeksRequest::new([])
         } else {
             GreeksRequest::new(
                 [Greek::Delta, Greek::Gamma]

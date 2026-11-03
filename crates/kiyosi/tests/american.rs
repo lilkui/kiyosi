@@ -224,7 +224,7 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
             .price_with_greeks(
                 &option,
                 &context,
-                GreeksRequest::default(),
+                GreeksRequest::new([]),
                 Default::default()
             )
             .unwrap_err(),
@@ -344,7 +344,7 @@ fn american_applicability_and_error_order_are_preserved() {
                     .price_with_greeks(
                         &option,
                         &context,
-                        GreeksRequest::default(),
+                        GreeksRequest::new([]),
                         Default::default()
                     )
                     .unwrap_err(),

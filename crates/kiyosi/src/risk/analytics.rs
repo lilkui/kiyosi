@@ -82,13 +82,14 @@ impl Greek {
 
 /// Selects price sensitivities, ignoring duplicates.
 ///
-/// Empty requests fail at valuation; see [`Self::all`] for usage.
-#[derive(Clone, Copy, Debug, Default)]
+/// Select measures explicitly with [`Self::new`] or [`Self::all`].
+/// Empty requests fail at valuation.
+#[derive(Clone, Copy, Debug)]
 pub struct GreeksRequest([bool; Greek::ALL.len()]);
 impl GreeksRequest {
     /// Creates a request, ignoring duplicates; see [`Self::all`].
     pub fn new(greeks: impl IntoIterator<Item = Greek>) -> Self {
-        let mut result = Self::default();
+        let mut result = Self([false; Greek::ALL.len()]);
         for greek in greeks {
             result.0[greek as usize] = true;
         }

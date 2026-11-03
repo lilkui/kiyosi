@@ -55,7 +55,7 @@ fn numerical_greeks_validate_before_preparation_and_prepare_only_once() {
     };
     let request = GreeksRequest::new([Greek::Delta]);
     for (request, settings) in [
-        (GreeksRequest::default(), NumericalShiftSettings::default()),
+        (GreeksRequest::new([]), NumericalShiftSettings::default()),
         (
             request,
             NumericalShiftSettings {
@@ -372,7 +372,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
         .unwrap();
     assert!(matches!(
         AnalyticEuropeanEngine
-            .price_with_greeks(&option, &outside, GreeksRequest::default())
+            .price_with_greeks(&option, &outside, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));

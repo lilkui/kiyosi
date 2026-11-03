@@ -189,7 +189,7 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
             ));
             assert!(matches!(
                 engine
-                    .price_with_greeks(&option, &outside, GreeksRequest::default())
+                    .price_with_greeks(&option, &outside, GreeksRequest::new([]))
                     .unwrap_err(),
                 Error::InvalidInput(_)
             ));
@@ -217,7 +217,7 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                 .unwrap();
             assert!(matches!(
                 engine
-                    .price_with_greeks(&option, &node, GreeksRequest::default())
+                    .price_with_greeks(&option, &node, GreeksRequest::new([]))
                     .unwrap_err(),
                 Error::UnsupportedOperation(_)
             ));
@@ -226,7 +226,7 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                     &engine,
                     &option,
                     &node,
-                    GreeksRequest::default(),
+                    GreeksRequest::new([]),
                     Default::default()
                 )
                 .unwrap_err(),

@@ -230,7 +230,7 @@ macro_rules! contract_tests {
                         .price_with_greeks(
                             &option,
                             &context,
-                            GreeksRequest::default(),
+                            GreeksRequest::new([]),
                             Default::default()
                         )
                         .unwrap_err(),

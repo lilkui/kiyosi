@@ -29,7 +29,7 @@ impl FiniteDifferenceBarrierEngine {
             option,
             context,
             self.settings,
-            GreeksRequest::default(),
+            GreeksRequest::new([]),
             Default::default(),
         )?
         .price())
@@ -187,7 +187,7 @@ impl FiniteDifferenceDoubleBarrierEngine {
             option,
             context,
             self.settings,
-            GreeksRequest::default(),
+            GreeksRequest::new([]),
             Default::default(),
         )?
         .price())
@@ -333,7 +333,7 @@ fn local_resolved(
         let h = crate::risk::numerical::symmetric_shift(context.spot_price(), shifts.spot_shift);
         let request =
             if option.all_greeks_unavailable(context) || option.at_spot_discontinuity(context, h) {
-                GreeksRequest::default()
+                GreeksRequest::new([])
             } else {
                 request
             };

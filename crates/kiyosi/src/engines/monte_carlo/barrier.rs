@@ -78,7 +78,7 @@ impl MonteCarloBarrierEngine {
             .native(
                 Contract::Single(option),
                 context,
-                GreeksRequest::default(),
+                GreeksRequest::new([]),
                 Default::default(),
             )?
             .price())

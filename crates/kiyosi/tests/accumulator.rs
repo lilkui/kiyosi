@@ -618,12 +618,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
         .unwrap();
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &curved,
-                GreeksRequest::default(),
-                Default::default()
-            )
+            .price_with_greeks(&option, &curved, GreeksRequest::new([]), Default::default())
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
@@ -632,7 +627,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
             .price_with_greeks(
                 &option,
                 &boundary,
-                GreeksRequest::default(),
+                GreeksRequest::new([]),
                 Default::default()
             )
             .unwrap_err(),

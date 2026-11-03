@@ -547,7 +547,7 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
             .price_with_greeks(
                 &option,
                 &context,
-                GreeksRequest::default(),
+                GreeksRequest::new([]),
                 Default::default(),
             )
             .unwrap_err(),
@@ -611,12 +611,7 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
         ));
         assert!(matches!(
             engine
-                .price_with_greeks(
-                    &option,
-                    &curved,
-                    GreeksRequest::default(),
-                    Default::default(),
-                )
+                .price_with_greeks(&option, &curved, GreeksRequest::new([]), Default::default(),)
                 .unwrap_err(),
             Error::UnsupportedOperation(_)
         ));

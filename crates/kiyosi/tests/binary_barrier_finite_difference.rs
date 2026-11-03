@@ -392,7 +392,7 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(&option, &ctx, GreeksRequest::default(), Default::default())
+            .price_with_greeks(&option, &ctx, GreeksRequest::new([]), Default::default())
             .unwrap_err(),
         Error::InvalidInput(_)
     ));

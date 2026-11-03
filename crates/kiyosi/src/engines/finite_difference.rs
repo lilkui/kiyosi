@@ -552,7 +552,7 @@ fn complete_greeks(
                 spot_price: Some(spot),
                 ..Default::default()
             })?;
-            Ok(native(&shifted, GreeksRequest::default())?.price())
+            Ok(native(&shifted, GreeksRequest::new([]))?.price())
         };
         let up = price(spot + h)?;
         let down = price(spot - h)?;
@@ -780,7 +780,7 @@ macro_rules! vanilla_pricing {
                         context,
                         model,
                         self.settings,
-                        GreeksRequest::default(),
+                        GreeksRequest::new([]),
                     )?
                     .price());
                 }
@@ -789,7 +789,7 @@ macro_rules! vanilla_pricing {
                     Payoff::vanilla(option.option_type(), option.strike(), $american),
                     context,
                     self.settings,
-                    GreeksRequest::default(),
+                    GreeksRequest::new([]),
                     Default::default(),
                     self.settings.asset_upper_boundary.is_none(),
                 )?
@@ -876,7 +876,7 @@ impl FiniteDifferenceDigitalEngine {
             Payoff::digital(option),
             context,
             self.settings,
-            GreeksRequest::default(),
+            GreeksRequest::new([]),
             Default::default(),
             self.settings.asset_upper_boundary.is_none(),
         )?

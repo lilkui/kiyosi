@@ -188,7 +188,7 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
                             .price_with_greeks(
                                 &option,
                                 &outside,
-                                GreeksRequest::default(),
+                                GreeksRequest::new([]),
                                 Default::default()
                             )
                             .unwrap_err(),

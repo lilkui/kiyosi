@@ -461,7 +461,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
             .price_with_greeks(
                 &option,
                 &node_context,
-                GreeksRequest::default(),
+                GreeksRequest::new([]),
                 Default::default()
             )
             .unwrap_err(),
@@ -472,7 +472,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
             &engine,
             &option,
             &node_context,
-            GreeksRequest::default(),
+            GreeksRequest::new([]),
             Default::default()
         )
         .unwrap_err(),
@@ -499,7 +499,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
             .price_with_greeks(
                 &option,
                 &context,
-                GreeksRequest::default(),
+                GreeksRequest::new([]),
                 Default::default()
             )
             .unwrap_err(),

@@ -89,7 +89,7 @@ macro_rules! binary_pricing {
                     &option.contract(),
                     context,
                     self.settings,
-                    GreeksRequest::default(),
+                    GreeksRequest::new([]),
                     Default::default(),
                 )?
                 .price())
@@ -298,7 +298,7 @@ fn native_with_diffusion<D: Diffusion>(
             if D::LOCAL {
                 let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift);
                 let request = if option.spot_discontinuity(context, h, contract.upper_barrier) {
-                    GreeksRequest::default()
+                    GreeksRequest::new([])
                 } else {
                     request
                 };

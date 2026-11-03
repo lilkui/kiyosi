@@ -838,7 +838,7 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
                 .price_with_greeks(
                     &option,
                     &curved,
-                    GreeksRequest::default(),
+                    GreeksRequest::new([]),
                     NumericalShiftSettings::default().spot_shift,
                 )
                 .unwrap_err(),
@@ -855,7 +855,7 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
             .price_with_greeks(
                 &option,
                 &context,
-                GreeksRequest::default(),
+                GreeksRequest::new([]),
                 NumericalShiftSettings::default().spot_shift,
             )
             .unwrap_err(),

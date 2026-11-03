@@ -221,7 +221,7 @@ fn invalid_controls_and_unsupported_curves_keep_error_categories() {
                 engine.price_with_greeks(
                     option,
                     &context,
-                    GreeksRequest::default(),
+                    GreeksRequest::new([]),
                     Default::default()
                 ),
                 Err(Error::UnsupportedOperation(_))
@@ -230,12 +230,7 @@ fn invalid_controls_and_unsupported_curves_keep_error_categories() {
     }
     let context = market(100.0, 0.05, 0.02, 0.2);
     assert!(matches!(
-        engine.price_with_greeks(
-            option,
-            &context,
-            GreeksRequest::default(),
-            Default::default()
-        ),
+        engine.price_with_greeks(option, &context, GreeksRequest::new([]), Default::default()),
         Err(Error::InvalidInput(_))
     ));
     assert!(matches!(

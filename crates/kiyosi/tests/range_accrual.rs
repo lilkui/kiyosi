@@ -560,7 +560,7 @@ fn request_and_solver_errors_preserve_inputs() {
     let shifts = NumericalShiftSettings::default();
     assert!(matches!(
         engine
-            .price_with_greeks(&option, &context, GreeksRequest::default(), shifts)
+            .price_with_greeks(&option, &context, GreeksRequest::new([]), shifts)
             .unwrap_err(),
         Error::InvalidInput(_)
     ));

@@ -345,7 +345,7 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
             .price_with_greeks(
                 &option,
                 &context,
-                GreeksRequest::default(),
+                GreeksRequest::new([]),
                 Default::default()
             )
             .unwrap_err(),
@@ -406,12 +406,7 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &nodes,
-                GreeksRequest::default(),
-                Default::default()
-            )
+            .price_with_greeks(&option, &nodes, GreeksRequest::new([]), Default::default())
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));

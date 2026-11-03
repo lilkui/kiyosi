@@ -315,7 +315,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
                 assert!(result.unwrap() >= 0.0);
             }
         }
-        let invalid = engine.price_with_greeks(&a, &context, GreeksRequest::default());
+        let invalid = engine.price_with_greeks(&a, &context, GreeksRequest::new([]));
         assert!(matches!(invalid.unwrap_err(), Error::InvalidInput(_)));
         assert_eq!(a.realized_average(), history);
     }

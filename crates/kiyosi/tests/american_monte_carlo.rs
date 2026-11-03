@@ -527,7 +527,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(&put, &node, GreeksRequest::default(), Default::default())
+            .price_with_greeks(&put, &node, GreeksRequest::new([]), Default::default())
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
@@ -537,7 +537,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(&put, &context, GreeksRequest::default(), Default::default())
+            .price_with_greeks(&put, &context, GreeksRequest::new([]), Default::default())
             .unwrap_err(),
         Error::InvalidInput(_)
     ));

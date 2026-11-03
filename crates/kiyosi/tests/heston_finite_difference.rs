@@ -305,7 +305,7 @@ fn settings_and_unsupported_sensitivities_have_structured_errors() {
         FiniteDifferenceHestonVanillaEngine::default().price_with_greeks(
             &option,
             &context(0.3, -0.7),
-            GreeksRequest::default(),
+            GreeksRequest::new([]),
             Default::default()
         ),
         Err(Error::UnsupportedOperation(_))

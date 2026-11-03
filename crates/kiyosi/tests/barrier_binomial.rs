@@ -387,7 +387,7 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
     assert!(matches!(
         engine
-            .price_with_greeks(&unknown, &hit, GreeksRequest::default())
+            .price_with_greeks(&unknown, &hit, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -412,7 +412,7 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(&unknown, &nonflat, GreeksRequest::default())
+            .price_with_greeks(&unknown, &nonflat, GreeksRequest::new([]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));

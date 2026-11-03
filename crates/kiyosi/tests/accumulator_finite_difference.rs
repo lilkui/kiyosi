@@ -216,7 +216,7 @@ fn validation_order_domains_and_failures_preserve_engine_and_inputs() {
             .price_with_greeks(
                 &weekend,
                 &market(100.0, day(1, 1).into()),
-                GreeksRequest::default(),
+                GreeksRequest::new([]),
                 Default::default()
             )
             .unwrap_err(),

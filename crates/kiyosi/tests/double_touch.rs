@@ -972,7 +972,7 @@ fn greeks_iv_failures_and_concurrency_preserve_inputs() {
         ));
         assert!(matches!(
             engine
-                .price_with_greeks(&option, &ctx, GreeksRequest::default(), Default::default())
+                .price_with_greeks(&option, &ctx, GreeksRequest::new([]), Default::default())
                 .unwrap_err(),
             Error::InvalidInput(_)
         ));

@@ -25,7 +25,7 @@ impl FiniteDifferenceAccumulatorEngine {
             option,
             context,
             self.settings,
-            GreeksRequest::default(),
+            GreeksRequest::new([]),
             Default::default(),
         )?
         .0
