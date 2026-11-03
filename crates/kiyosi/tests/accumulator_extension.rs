@@ -7,7 +7,7 @@ fn day(date: u32) -> Date {
 fn terms(direction: OptionType, dates: Option<Vec<Date>>) -> AccumulatorTerms {
     AccumulatorTerms {
         option_type: direction,
-        accumulated_quantity: 3.0,
+        accumulated_quantity: Some(3.0),
         knock_out_observation_dates: dates,
         ..AccumulatorTerms::new(
             100.0,
@@ -117,7 +117,7 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
     } else {
         forward + (option.acceleration_factor() - 1.0) * digital(accelerated, option.strike())
     };
-    sign * (option.accumulated_quantity() * forward + option.daily_quantity() * purchase)
+    sign * (option.accumulated_quantity().unwrap() * forward + option.daily_quantity() * purchase)
 }
 
 #[test]
@@ -153,7 +153,7 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
         t.effective_midnight_utc = day(6);
         t.daily_quantity = 0.25;
         t.acceleration_factor = 0.5;
-        t.accumulated_quantity = 0.5;
+        t.accumulated_quantity = Some(0.5);
         let option = Accumulator::new(t).unwrap();
         let spot = if direction == OptionType::Call {
             90.0
@@ -243,7 +243,7 @@ fn sparse_knock_out_grid_covers_drift_back_inside_the_barrier() {
     ] {
         let option = Accumulator::new(AccumulatorTerms {
             option_type: direction,
-            accumulated_quantity: 3.0,
+            accumulated_quantity: Some(3.0),
             knock_out_observation_dates: Some(vec![day(15)]),
             ..AccumulatorTerms::new(100.0, barrier, 1.0, 1.0, day(1), expiry)
         })
@@ -318,6 +318,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             let option = Accumulator::new(AccumulatorTerms {
                 option_type: direction,
                 knock_out_observation_dates: dates,
+                accumulated_quantity: Some(0.0),
                 ..AccumulatorTerms::new(100.0, barrier, 1.0, 0.0, day(1), day(3))
             })
             .unwrap();
@@ -351,6 +352,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
         let option = Accumulator::new(AccumulatorTerms {
             option_type: direction,
             knock_out_observation_dates: Some(vec![day(3)]),
+            accumulated_quantity: Some(0.0),
             ..AccumulatorTerms::new(100.0, barrier, 1.0, 0.0, day(1), day(3))
         })
         .unwrap();
@@ -406,7 +408,7 @@ fn zero_multiplier_with_inverted_barrier_still_accrues_on_non_knock_out_dates() 
         let mut t = terms(direction, Some(Vec::new()));
         t.knock_out_level = barrier;
         t.acceleration_factor = 0.0;
-        t.accumulated_quantity = 0.0;
+        t.accumulated_quantity = Some(0.0);
         let option = Accumulator::new(t).unwrap();
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(0.0, 0.0, 1e-8).unwrap(),
@@ -461,14 +463,14 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
         updated.knock_out_observation_dates(),
         Some([day(2), day(6)].as_slice())
     );
-    assert_eq!(updated.accumulated_quantity(), 0.25);
-    assert_eq!(option.accumulated_quantity(), 3.0);
+    assert_eq!(updated.accumulated_quantity().unwrap(), 0.25);
+    assert_eq!(option.accumulated_quantity().unwrap(), 3.0);
     for invalid in [-1.0, f64::NAN, f64::INFINITY] {
         assert!(matches!(
             updated.replace_history(invalid),
             Err(Error::InvalidInput(_))
         ));
-        assert_eq!(updated.accumulated_quantity(), 0.25);
+        assert_eq!(updated.accumulated_quantity().unwrap(), 0.25);
     }
     let weekend = Accumulator::new(terms(OptionType::Put, Some(vec![day(4)]))).unwrap();
     let weekday_context = market(100.25, Timestamp::new(day(1), 12, 0, 0, 0).unwrap(), 0.2);

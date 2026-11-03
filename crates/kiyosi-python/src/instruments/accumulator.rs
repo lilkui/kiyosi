@@ -19,8 +19,9 @@ use pyo3::types::{PyDate, PyList};
 ///     Contract starts at 00:00 UTC on this date.
 /// expiry_midnight_utc : datetime.date
 ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
-/// accumulated_quantity : float, optional
-///     Caller-asserted outstanding quantity strictly before valuation.
+/// accumulated_quantity : float or None, optional
+///     Outstanding quantity strictly before valuation. None means unknown; zero means no units.
+///     Explicit history is required after any prior trading-date observation.
 /// option_type : {'call', 'put'}, optional
 ///     Call accumulates purchases (the default); put accumulates sales.
 /// knock_out_observation_dates : iterable of date or None, optional
@@ -52,7 +53,7 @@ pub(crate) struct Accumulator(pub(crate) kiyosi::Accumulator);
 #[pymethods]
 impl Accumulator {
     #[new]
-    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_midnight_utc, expiry_midnight_utc, accumulated_quantity=kiyosi::AccumulatorTerms::DEFAULT_ACCUMULATED_QUANTITY, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_dates=None))]
+    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_midnight_utc, expiry_midnight_utc, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_dates=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         strike: &Bound<'_, PyAny>,
@@ -61,7 +62,7 @@ impl Accumulator {
         acceleration_factor: &Bound<'_, PyAny>,
         effective_midnight_utc: &Bound<'_, PyAny>,
         expiry_midnight_utc: &Bound<'_, PyAny>,
-        #[pyo3(from_py_with = real)] accumulated_quantity: f64,
+        accumulated_quantity: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = direction)] option_type: kiyosi::OptionType,
         knock_out_observation_dates: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
@@ -73,7 +74,7 @@ impl Accumulator {
             date(effective_midnight_utc)?,
             date(expiry_midnight_utc)?,
         );
-        terms.accumulated_quantity = accumulated_quantity;
+        terms.accumulated_quantity = accumulated_quantity.map(real).transpose()?;
         terms.option_type = option_type;
         terms.knock_out_observation_dates = knock_out_observation_dates.map(dates).transpose()?;
         Ok(Self(domain(kiyosi::Accumulator::new(terms))?))
@@ -82,8 +83,9 @@ impl Accumulator {
     ///
     /// Parameters
     /// ----------
-    /// accumulated_quantity : float, optional
-    ///     Caller-asserted outstanding quantity strictly before valuation.
+    /// accumulated_quantity : float or None, optional
+    ///     Outstanding quantity strictly before valuation. None means unknown; zero means no units.
+    ///     Explicit history is required after any prior trading-date observation.
     ///
     /// Returns
     /// -------
@@ -99,10 +101,11 @@ impl Accumulator {
         &self,
         #[pyo3(from_py_with = supplied)] accumulated_quantity: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        let quantity = accumulated_quantity
-            .map(real)
-            .transpose()?
-            .unwrap_or(self.0.accumulated_quantity());
+        let quantity = match accumulated_quantity {
+            Some(value) if value.is_none() => None,
+            Some(value) => Some(real(value)?),
+            None => self.0.accumulated_quantity(),
+        };
         Ok(Self(domain(self.0.replace_history(quantity))?))
     }
     /// Returns call for purchases or put for sales.
@@ -146,7 +149,7 @@ impl Accumulator {
     }
     /// Return caller-asserted outstanding quantity strictly before valuation.
     #[getter]
-    fn accumulated_quantity(&self) -> f64 {
+    fn accumulated_quantity(&self) -> Option<f64> {
         self.0.accumulated_quantity()
     }
     /// Return inclusive first contract date.
@@ -165,12 +168,13 @@ impl Accumulator {
             None => "None".into(),
         };
         Ok(format!(
-            "Accumulator(strike={:?}, knock_out_level={:?}, daily_quantity={:?}, acceleration_factor={:?}, accumulated_quantity={:?}, effective_midnight_utc={}, expiry_midnight_utc={}, option_type={:?}, knock_out_observation_dates={})",
+            "Accumulator(strike={:?}, knock_out_level={:?}, daily_quantity={:?}, acceleration_factor={:?}, accumulated_quantity={}, effective_midnight_utc={}, expiry_midnight_utc={}, option_type={:?}, knock_out_observation_dates={})",
             self.strike(),
             self.knock_out_level(),
             self.daily_quantity(),
             self.acceleration_factor(),
-            self.accumulated_quantity(),
+            self.accumulated_quantity()
+                .map_or_else(|| "None".into(), |value| format!("{value:?}")),
             self.effective_midnight_utc(py)?.repr()?,
             self.expiry_midnight_utc(py)?.repr()?,
             self.option_type(),

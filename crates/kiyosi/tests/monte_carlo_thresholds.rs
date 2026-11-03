@@ -141,12 +141,13 @@ fn accumulator_thresholds_preserve_knock_out_and_accelerated_settlements() {
         ] {
             let mut terms = AccumulatorTerms::new(strike, 100.0, 1.0, 1.0, start, end);
             terms.option_type = direction;
-            terms.accumulated_quantity = 1.0;
+            terms.accumulated_quantity = Some(1.0);
             let option = Accumulator::new(terms).unwrap();
             assert!((engine.price(&option, &context).unwrap() - 15.0).abs() < 1e-12);
 
             let mut terms =
                 AccumulatorTerms::new(100.0, barrier, 1.0 / volatility, 2.0, start, end);
+            terms.accumulated_quantity = Some(0.0);
             terms.option_type = direction;
             let option = Accumulator::new(terms).unwrap();
             let vanilla = EuropeanOption::new(direction, 100.0, start, end).unwrap();

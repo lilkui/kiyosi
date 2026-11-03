@@ -4,7 +4,10 @@ fn day(month: u32, date: u32) -> Date {
     Date::new(2025, month, date).unwrap()
 }
 fn terms(end: Date) -> AccumulatorTerms {
-    AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end)
+    AccumulatorTerms {
+        accumulated_quantity: Some(0.0),
+        ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end)
+    }
 }
 fn market(spot: f64, at: Timestamp, sigma: f64, rate: f64, dividend: f64) -> PricingContext {
     PricingContext::new(
@@ -36,7 +39,7 @@ impl PricingEngine<Accumulator> for TerminalReference {
                 - AnalyticDigitalEngine.price(&cash, context)?)
         };
         let model = context.model_parameters().as_bsm().unwrap();
-        let fixed = option.accumulated_quantity()
+        let fixed = option.accumulated_quantity().unwrap()
             * (context.spot_price()
                 * model.dividend_curve().factor(
                     context.valuation_time(),
@@ -69,7 +72,7 @@ fn single_observation_matches_terminal_digital_portfolio_without_grid_error() {
             let option = Accumulator::new(AccumulatorTerms {
                 knock_out_level: knock_out,
                 acceleration_factor: acceleration,
-                accumulated_quantity: 3.0,
+                accumulated_quantity: Some(3.0),
                 ..terms(day(1, 6))
             })
             .unwrap();
@@ -98,16 +101,16 @@ fn single_observation_matches_terminal_digital_portfolio_without_grid_error() {
 #[test]
 fn history_replacement_owns_validated_values_and_preserves_terms() {
     let option = Accumulator::new(terms(day(2, 3))).unwrap();
-    assert_eq!(option.accumulated_quantity(), 0.0);
+    assert_eq!(option.accumulated_quantity().unwrap(), 0.0);
     let seasoned = option.replace_history(3.0).unwrap();
-    assert_eq!(seasoned.accumulated_quantity(), 3.0);
+    assert_eq!(seasoned.accumulated_quantity().unwrap(), 3.0);
     assert_eq!(seasoned.replace_history(0.0).unwrap(), option);
     for invalid in [-1.0, f64::NAN, f64::INFINITY] {
         assert!(matches!(
             seasoned.replace_history(invalid).unwrap_err(),
             Error::InvalidInput(_)
         ));
-        assert_eq!(seasoned.accumulated_quantity(), 3.0);
+        assert_eq!(seasoned.accumulated_quantity().unwrap(), 3.0);
     }
     assert_eq!(option.strike(), 100.0);
     assert_eq!(option.knock_out_level(), 110.0);
@@ -127,7 +130,7 @@ fn validation_categories_and_order_preserve_accepted_degenerate_terms() {
                 1 => t.knock_out_level = invalid,
                 2 => t.daily_quantity = invalid,
                 3 => t.acceleration_factor = invalid,
-                _ => t.accumulated_quantity = invalid,
+                _ => t.accumulated_quantity = Some(invalid),
             }
             assert!(matches!(
                 Accumulator::new(t).unwrap_err(),
@@ -254,7 +257,7 @@ fn two_observations_match_independent_conditional_terminal_portfolio() {
     for ko in [95.0, 100.0, 110.0] {
         let option = Accumulator::new(AccumulatorTerms {
             knock_out_level: ko,
-            accumulated_quantity: 3.0,
+            accumulated_quantity: Some(3.0),
             ..terms(day(1, 3))
         })
         .unwrap();
@@ -427,7 +430,7 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
         let option = Accumulator::new(AccumulatorTerms {
             knock_out_level: ko,
             acceleration_factor: acceleration,
-            accumulated_quantity: 3.0,
+            accumulated_quantity: Some(3.0),
             ..terms(end)
         })
         .unwrap();
@@ -685,7 +688,7 @@ fn greeks_converge_under_spatial_refinement_and_smaller_bumps() {
         let option = Accumulator::new(AccumulatorTerms {
             knock_out_level: ko,
             acceleration_factor: acceleration,
-            accumulated_quantity: 3.0,
+            accumulated_quantity: Some(3.0),
             ..terms(end)
         })
         .unwrap();
@@ -736,5 +739,65 @@ fn greeks_converge_under_spatial_refinement_and_smaller_bumps() {
                 );
             }
         }
+    }
+}
+
+#[test]
+fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
+    let engine = QuadratureAccumulatorEngine::default();
+    for start in [day(1, 2), day(1, 4)] {
+        let option = Accumulator::new(AccumulatorTerms::new(
+            90.0,
+            150.0,
+            1.0,
+            2.0,
+            start,
+            day(1, 7),
+        ))
+        .unwrap();
+        assert_eq!(option.accumulated_quantity(), None);
+        let first = if start == day(1, 4) { day(1, 6) } else { start };
+        let current = market(100.0, first.start_of_day(), 0.2, 0.0, 0.0);
+        assert!(engine.price(&option, &current).is_ok());
+        let prior = current
+            .replace(PricingContextChanges {
+                valuation_time: Some(Timestamp::new(first, 12, 0, 0, 0).unwrap()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(matches!(
+            engine.price(&option, &prior),
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(
+            engine
+                .price(&option.replace_history(0.0).unwrap(), &prior)
+                .is_ok()
+        );
+        let expiry = market(100.0, day(1, 7).start_of_day(), 0.2, 0.0, 0.0);
+        assert!(matches!(
+            engine.price(&option, &expiry),
+            Err(Error::InvalidInput(_))
+        ));
+        assert_eq!(
+            engine
+                .price(&option.replace_history(0.0).unwrap(), &expiry)
+                .unwrap(),
+            10.0
+        );
+        assert_eq!(
+            engine
+                .price(&option.replace_history(10.0).unwrap(), &expiry)
+                .unwrap(),
+            110.0
+        );
+        assert_eq!(
+            option
+                .replace_history(10.0)
+                .unwrap()
+                .replace_history(None)
+                .unwrap(),
+            option
+        );
     }
 }

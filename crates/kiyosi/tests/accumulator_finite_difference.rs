@@ -5,7 +5,7 @@ fn day(month: u32, date: u32) -> Date {
 }
 fn option(end: Date) -> Accumulator {
     Accumulator::new(AccumulatorTerms {
-        accumulated_quantity: 3.0,
+        accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end)
     })
     .unwrap()
@@ -41,7 +41,7 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
     };
     let model = context.model_parameters().as_bsm().unwrap();
     let end = option.expiry_midnight_utc().into();
-    let holding = option.accumulated_quantity()
+    let holding = option.accumulated_quantity().unwrap()
         * (context.spot_price()
             * model
                 .dividend_curve()
@@ -159,9 +159,13 @@ fn settlement_thresholds_history_replacement_and_expiry_greeks_are_exact() {
             Error::InvalidInput(_)
         ));
     }
-    assert_eq!(option.accumulated_quantity(), 3.0);
+    assert_eq!(option.accumulated_quantity().unwrap(), 3.0);
     assert_eq!(
-        option.replace_history(0.25).unwrap().accumulated_quantity(),
+        option
+            .replace_history(0.25)
+            .unwrap()
+            .accumulated_quantity()
+            .unwrap(),
         0.25
     );
 }
@@ -460,7 +464,7 @@ fn node_curves_price_fixed_holdings_and_only_future_cashflows_require_coverage()
     let context = PricingContext::new(model, 100.0, day(1, 1).into()).unwrap();
     let option = Accumulator::new(AccumulatorTerms {
         daily_quantity: 0.0,
-        accumulated_quantity: 2.0,
+        accumulated_quantity: Some(2.0),
         ..AccumulatorTerms::new(100.0, 399.0, 0.0, 1.0, day(1, 1), end)
     })
     .unwrap();
@@ -513,7 +517,7 @@ fn node_curves_price_fixed_holdings_and_only_future_cashflows_require_coverage()
 #[test]
 fn speed_propagates_nonfinite_shifted_prices_without_changing_inputs() {
     let option = Accumulator::new(AccumulatorTerms {
-        accumulated_quantity: f64::MAX,
+        accumulated_quantity: Some(f64::MAX),
         ..AccumulatorTerms::new(100.0, 110.0, 0.0, 2.0, day(1, 1), day(1, 6))
     })
     .unwrap();
@@ -551,7 +555,7 @@ fn speed_propagates_nonfinite_shifted_prices_without_changing_inputs() {
         Error::ComputationFailure(_)
     ));
     assert_eq!(engine.price(&option, &context).unwrap(), quote);
-    assert_eq!(option.accumulated_quantity(), f64::MAX);
+    assert_eq!(option.accumulated_quantity().unwrap(), f64::MAX);
     assert_eq!(context.spot_price(), 100.0);
 }
 
@@ -613,7 +617,7 @@ fn implied_volatility_recovers_quotes_and_preserves_solver_failures_and_identifi
     for quantity in [0.0, 3.0] {
         let option = Accumulator::new(AccumulatorTerms {
             daily_quantity: 0.0,
-            accumulated_quantity: quantity,
+            accumulated_quantity: Some(quantity),
             ..AccumulatorTerms::new(100.0, 110.0, 0.0, 2.0, day(1, 1), day(1, 6))
         })
         .unwrap();

@@ -212,10 +212,18 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             effective_midnight_utc=START,
             expiry_midnight_utc=date(2025, 1, 6),
         )
-        self.assertEqual(
-            engine.price(omitted, market(90, omitted.expiry_midnight_utc)), -20
+        self.assert_rejection(
+            InvalidInputError,
+            lambda: engine.price(omitted, market(90, omitted.expiry_midnight_utc)),
         )
-        self.assertEqual(omitted.accumulated_quantity, 0)
+        self.assertEqual(
+            engine.price(
+                omitted.replace_history(accumulated_quantity=0),
+                market(90, omitted.expiry_midnight_utc),
+            ),
+            -20,
+        )
+        self.assertIsNone(omitted.accumulated_quantity)
 
     def test_shared_greeks_scalar_bumps_and_implied_volatility(self):
         note = contract(date(2025, 1, 6))

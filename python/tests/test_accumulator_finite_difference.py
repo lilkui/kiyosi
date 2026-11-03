@@ -121,7 +121,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                 option.replace_history,
                 accumulated_quantity=value,
             )
-        for value in (None, True, "3"):
+        for value in (True, "3"):
             with self.assertRaises(TypeError):
                 option.replace_history(accumulated_quantity=value)
         self.assertEqual(option.accumulated_quantity, 3)

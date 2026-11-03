@@ -105,6 +105,60 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             operation(*args, **kwargs)
         self.assertIs(type(error.exception), expected_error)
 
+    def test_unknown_history_requires_an_explicit_quantity_after_prior_observations(
+        self,
+    ):
+        for start, first in (
+            (date(2025, 1, 2), date(2025, 1, 2)),
+            (date(2025, 1, 4), date(2025, 1, 6)),
+        ):
+            option = Accumulator(
+                strike=90,
+                knock_out_level=150,
+                daily_quantity=1,
+                acceleration_factor=2,
+                effective_midnight_utc=start,
+                expiry_midnight_utc=date(2025, 1, 7),
+            )
+            for engine in (
+                pricing.QuadratureAccumulatorEngine(),
+                pricing.FiniteDifferenceAccumulatorEngine(),
+                pricing.MonteCarloAccumulatorEngine(path_count=64, seed=42),
+            ):
+                with self.subTest(start=start, engine=type(engine).__name__):
+                    self.assertIsNone(option.accumulated_quantity)
+                    current = market(spot=100, valuation=first, rate=0, dividend=0)
+                    self.assertTrue(math.isfinite(engine.price(option, current)))
+                    prior = current.replace(
+                        valuation_time=datetime.combine(first, time(12), UTC)
+                    )
+                    self.assert_rejection(
+                        InvalidInputError, engine.price, option, prior
+                    )
+                    self.assertTrue(
+                        math.isfinite(
+                            engine.price(
+                                option.replace_history(accumulated_quantity=0), prior
+                            )
+                        )
+                    )
+                    expiry = current.replace(valuation_time=option.expiry_midnight_utc)
+                    self.assert_rejection(
+                        InvalidInputError, engine.price, option, expiry
+                    )
+                    self.assertEqual(
+                        engine.price(
+                            option.replace_history(accumulated_quantity=0), expiry
+                        ),
+                        10,
+                    )
+                    self.assertEqual(
+                        engine.price(
+                            option.replace_history(accumulated_quantity=10), expiry
+                        ),
+                        110,
+                    )
+
     def test_contract_history_protocols_validation_and_ownership(self):
         fields = {
             "strike": 100,
@@ -115,7 +169,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             "expiry_midnight_utc": date(2025, 2, 3),
         }
         option = Accumulator(**fields)
-        self.assertEqual(option.accumulated_quantity, 0)
+        self.assertIsNone(option.accumulated_quantity)
         self.assertEqual(option.strike, 100)
         self.assertEqual(option.knock_out_level, 110)
         self.assertEqual(option.daily_quantity, 1)
@@ -124,7 +178,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         self.assertEqual(option.expiry_midnight_utc, fields["expiry_midnight_utc"])
         updated = option.replace_history(accumulated_quantity=3)
         self.assertEqual(updated.accumulated_quantity, 3)
-        self.assertEqual(updated.replace_history(accumulated_quantity=0), option)
+        self.assertEqual(updated.replace_history(accumulated_quantity=None), option)
         for replacement in (
             updated.replace_history(),
             updated.replace_history(accumulated_quantity=Ellipsis),
@@ -142,7 +196,9 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             "acceleration_factor",
             "accumulated_quantity",
         ):
-            for value in (True, False, None, "3", 1 + 2j, object()):
+            for value in (True, False, "3", 1 + 2j, object()) + (
+                () if field == "accumulated_quantity" else (None,)
+            ):
                 with (
                     self.subTest(field=field, value=value),
                     self.assertRaises(TypeError),
@@ -156,7 +212,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                     Accumulator,
                     **(fields | {field: value}),
                 )
-        for value in (None, True, "3", object()):
+        for value in (True, "3", object()):
             with self.assertRaises(TypeError):
                 updated.replace_history(accumulated_quantity=value)
         for value in (-1, math.nan, math.inf):

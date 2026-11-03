@@ -98,7 +98,7 @@ fn constant_surface_matches_accumulator_directions_schedules_and_rate_curves() {
             for schedule in [None, Some(vec![date(2, 3), end]), Some(vec![])] {
                 let option = Accumulator::new(AccumulatorTerms {
                     option_type: direction,
-                    accumulated_quantity: 3.0,
+                    accumulated_quantity: Some(3.0),
                     knock_out_observation_dates: schedule,
                     ..AccumulatorTerms::new(
                         100.0,
@@ -209,7 +209,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
     let live = PricingContext::new(short.clone(), 101.0, start.into()).unwrap();
     let settled = PricingContext::new(short, 120.0, start.into()).unwrap();
     let acc = Accumulator::new(AccumulatorTerms {
-        accumulated_quantity: 3.0,
+        accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, end)
     })
     .unwrap();
@@ -332,7 +332,7 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
         None
     );
     let acc = Accumulator::new(AccumulatorTerms {
-        accumulated_quantity: 3.0,
+        accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, end)
     })
     .unwrap();
@@ -445,7 +445,7 @@ fn skewed_multievent_prices_supply_fixed_surface_delta_and_gamma() {
     let start = date(1, 1);
     let end = date(4, 1);
     let acc = Accumulator::new(AccumulatorTerms {
-        accumulated_quantity: 3.0,
+        accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, end)
     })
     .unwrap();
@@ -502,7 +502,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
     // Frozen QL path means and five-SE + measured time-bias + FD budgets;
     // Python verifies the full evidence in local_volatility_structured.json.
     let acc = Accumulator::new(AccumulatorTerms {
-        accumulated_quantity: 3.0,
+        accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, end)
     })
     .unwrap();

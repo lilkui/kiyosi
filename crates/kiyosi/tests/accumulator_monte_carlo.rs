@@ -6,7 +6,7 @@ fn day(month: u32, day: u32) -> Date {
 
 fn option(end: Date) -> Accumulator {
     Accumulator::new(AccumulatorTerms {
-        accumulated_quantity: 3.0,
+        accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end)
     })
     .unwrap()
@@ -45,7 +45,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
     let start = day(1, 1);
     let end = day(1, 2);
     let option = Accumulator::new(AccumulatorTerms {
-        accumulated_quantity: 1.0,
+        accumulated_quantity: Some(1.0),
         ..AccumulatorTerms::new(100.0, 200.0, 0.0, 1.0, start, end)
     })
     .unwrap();
@@ -315,7 +315,7 @@ fn antithetic_pair_uses_both_opposite_normals_and_exact_path_counts() {
     let start = day(1, 3);
     let end = day(1, 6);
     let option = Accumulator::new(AccumulatorTerms {
-        accumulated_quantity: 3.0,
+        accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 1e300, 0.0, 2.0, start, end)
     })
     .unwrap();
@@ -469,7 +469,7 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
         Error::UnsupportedOperation(_)
     ));
     assert_eq!(engine.price(&option, &context).unwrap(), 30.0);
-    assert_eq!(option.accumulated_quantity(), 3.0);
+    assert_eq!(option.accumulated_quantity().unwrap(), 3.0);
 }
 
 #[test]
@@ -507,7 +507,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
     let fixed = Accumulator::new(AccumulatorTerms {
-        accumulated_quantity: 3.0,
+        accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 0.0, 2.0, day(1, 1), day(1, 6))
     })
     .unwrap();

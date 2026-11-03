@@ -16,8 +16,8 @@ pub struct AccumulatorTerms {
     pub daily_quantity: f64,
     /// Nonnegative finite multiplier strictly below strike for calls, above for puts.
     pub acceleration_factor: f64,
-    /// Caller-asserted quantity strictly before valuation; zero means none.
-    pub accumulated_quantity: f64,
+    /// Caller-asserted quantity strictly before valuation; `None` means unknown.
+    pub accumulated_quantity: Option<f64>,
     /// First contract date, included in trading-date observations.
     pub effective_midnight_utc: Date,
     /// Final observation and settlement date, at midnight UTC.
@@ -29,10 +29,10 @@ impl AccumulatorTerms {
     /// Supplies the accumulator direction; see [`Self::new`].
     pub const DEFAULT_OPTION_TYPE: OptionType = OptionType::Call;
 
-    /// Supplies zero accrued quantity; see [`Self::new`].
-    pub const DEFAULT_ACCUMULATED_QUANTITY: f64 = 0.0;
+    /// Supplies unknown accrued quantity; see [`Self::new`].
+    pub const DEFAULT_ACCUMULATED_QUANTITY: Option<f64> = None;
 
-    /// Creates call terms with zero history and daily knock-out; see [`Accumulator::new`].
+    /// Creates call terms with unknown history and daily knock-out; see [`Accumulator::new`].
     pub fn new(
         strike: f64,
         knock_out_level: f64,
@@ -66,7 +66,8 @@ impl AccumulatorTerms {
 /// puts at or below it; knock-out adds no units that day. A non-knock-out expiry
 /// accumulates normally before settlement. Prices exclude previously settled cash flows;
 /// callers must not value already terminated contracts. History is caller asserted,
-/// with no unknown sentinel or inferred quantity/date consistency restrictions.
+/// and is required after any strictly prior trading-date observation. `None` means unknown;
+/// an explicit zero records no outstanding units. No quantity is inferred from elapsed dates.
 /// Shared reads and owning replacements support concurrent use; see [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct Accumulator {
@@ -94,8 +95,8 @@ impl Accumulator {
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
     ///     Date::new(2025, 1, 1)?, Date::new(2025, 2, 3)?))?;
     /// let seasoned = option.replace_history(3.0)?;
-    /// assert_eq!(seasoned.accumulated_quantity(), 3.0);
-    /// assert_eq!(option.accumulated_quantity(), 0.0);
+    /// assert_eq!(seasoned.accumulated_quantity(), Some(3.0));
+    /// assert_eq!(option.accumulated_quantity(), None);
     /// let end = Date::new(2025, 2, 3)?;
     /// let mut terms = AccumulatorTerms::new(100.0, 90.0, 1.0, 2.0,
     ///     Date::new(2025, 1, 1)?, end);
@@ -112,7 +113,7 @@ impl Accumulator {
         if [
             terms.daily_quantity,
             terms.acceleration_factor,
-            terms.accumulated_quantity,
+            terms.accumulated_quantity.unwrap_or(0.0),
         ]
         .iter()
         .any(|v| !v.is_finite() || *v < 0.0)
@@ -134,14 +135,16 @@ impl Accumulator {
         }
         Ok(Self { terms })
     }
-    /// Returns an owning replacement of accrued quantity; see [`Self::new`].
+    /// Returns an owning replacement of accrued quantity; `None` restores unknown history.
+    ///
+    /// See [`Self::new`].
     ///
     /// # Errors
     ///
     /// Reuses [`Self::new`] validation, preserving the original on success and failure.
-    pub fn replace_history(&self, accumulated_quantity: f64) -> Result<Self> {
+    pub fn replace_history(&self, accumulated_quantity: impl Into<Option<f64>>) -> Result<Self> {
         Self::new(AccumulatorTerms {
-            accumulated_quantity,
+            accumulated_quantity: accumulated_quantity.into(),
             ..self.terms.clone()
         })
     }
@@ -172,8 +175,8 @@ impl Accumulator {
     pub fn acceleration_factor(&self) -> f64 {
         self.terms.acceleration_factor
     }
-    /// Returns caller-asserted prior quantity; see [`Self::new`].
-    pub fn accumulated_quantity(&self) -> f64 {
+    /// Returns caller-asserted prior quantity, or `None` for unknown history; see [`Self::new`].
+    pub fn accumulated_quantity(&self) -> Option<f64> {
         self.terms.accumulated_quantity
     }
     /// Returns the inclusive first observation date; see [`Self::new`].
@@ -207,6 +210,16 @@ impl Accumulator {
         }) {
             return Err(Error::InvalidInput(
                 "knock-out observation date is not a trading day".into(),
+            ));
+        }
+        let calendar = context.calendar();
+        let has_prior = calendar
+            .trading_days_between(self.effective_midnight_utc(), valuation.date())?
+            > 0
+            || valuation.micros_since_midnight() > 0 && calendar.is_trading_day(valuation.date());
+        if has_prior && self.accumulated_quantity().is_none() {
+            return Err(Error::InvalidInput(
+                "prior accumulated quantity is required".into(),
             ));
         }
         Ok(())
@@ -285,7 +298,7 @@ impl Accumulator {
             && context.calendar().is_trading_day(context.valuation_date())
     }
     pub(crate) fn initial(&self, context: &PricingContext) -> (f64, Option<f64>) {
-        let mut quantity = self.accumulated_quantity();
+        let mut quantity = self.accumulated_quantity().unwrap_or(0.0);
         let spot = context.spot_price();
         if Self::current_observation(context) {
             if self.observes_knock_out(context.valuation_date()) && self.is_knock_out(spot) {
@@ -342,7 +355,7 @@ impl Accumulator {
         if future_accumulation {
             return future_knock_out || self.acceleration_factor() != 1.0;
         }
-        let quantity = self.accumulated_quantity()
+        let quantity = self.accumulated_quantity().unwrap_or(0.0)
             + if Self::current_observation(context) {
                 self.purchase(context.spot_price())
             } else {

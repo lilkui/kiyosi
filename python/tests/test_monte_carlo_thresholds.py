@@ -156,6 +156,7 @@ class MonteCarloThresholdTests(unittest.TestCase):
                         knock_out_level=barrier,
                         daily_quantity=1 / volatility,
                         acceleration_factor=2,
+                        accumulated_quantity=0,
                     )
                     vanilla = ins.EuropeanOption(**common, strike=100)
                     expected = (
