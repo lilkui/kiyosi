@@ -433,9 +433,25 @@ class PackageTests(unittest.TestCase):
                 for name, default in zip(keywords, arguments.kw_defaults):
                     parameter = signature.parameters[name]
                     self.assertIs(parameter.kind, inspect.Parameter.KEYWORD_ONLY)
-                    self.assertEqual(
-                        parameter.default is inspect.Parameter.empty, default is None
-                    )
+                    if factory is instruments.PhoenixOption and name in (
+                        "coupon_rate",
+                        "coupon_per_period",
+                    ):
+                        self.assertIs(parameter.default, Ellipsis)
+                    else:
+                        self.assertEqual(
+                            parameter.default is inspect.Parameter.empty,
+                            default is None,
+                        )
+
+    def test_factory_only_contracts_reject_direct_construction(self):
+        for cls in (
+            instruments.BinaryBarrierOption,
+            instruments.TouchOption,
+            instruments.DoubleTouchOption,
+        ):
+            with self.subTest(contract=cls.__name__), self.assertRaises(TypeError):
+                cls()
 
     def test_engine_constructors_expose_keyword_only_signatures(self):
         package = Path(kiyosi.__file__).parent

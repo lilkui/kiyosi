@@ -1657,6 +1657,7 @@ class AnalyticDoubleTouchEngine:
     ) -> PricingResult: ...
 
 class BinaryBarrierOption:
+    def __new__(cls, _token: Never, /) -> Self: ...
     def replace_history(
         self,
         *,
@@ -1692,6 +1693,7 @@ class BinaryBarrierOption:
     def strike(self) -> float: ...
 
 class TouchOption:
+    def __new__(cls, _token: Never, /) -> Self: ...
     def replace_history(
         self,
         *,
@@ -1795,6 +1797,7 @@ class AnalyticBinaryBarrierEngine:
     ) -> PricingResult: ...
 
 class DoubleTouchOption:
+    def __new__(cls, _token: Never, /) -> Self: ...
     def replace_history(
         self,
         *,
@@ -1968,11 +1971,29 @@ class SnowballOption:
 
 class PhoenixOption:
     def with_coupon(self, coupon: float) -> Self: ...
+    @overload
     def __init__(
         self,
         *,
-        coupon_rate: float = ...,
-        coupon_per_period: float = ...,
+        coupon_rate: float,
+        coupon_per_period: EllipsisType = ...,
+        initial_spot: float,
+        knock_in_level: float,
+        upper_strike: float,
+        lower_strike: float,
+        knock_in_observation_mode: Literal["every_trading_day", "at_expiry"],
+        effective_midnight_utc: date,
+        expiry_midnight_utc: date,
+        observations: Iterable[AutocallableObservation],
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
+        principal_ratio: float = ...,
+    ) -> None: ...
+    @overload
+    def __init__(
+        self,
+        *,
+        coupon_rate: EllipsisType = ...,
+        coupon_per_period: float,
         initial_spot: float,
         knock_in_level: float,
         upper_strike: float,

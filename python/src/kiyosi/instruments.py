@@ -23,6 +23,9 @@ that require a value.
 For autocallables, ``barrier_state=None`` means unknown history;
 ``barrier_state="no_event"`` records known absence of prior events.
 
+``BinaryBarrierOption``, ``TouchOption`` and ``DoubleTouchOption`` are factory-only
+result types; construct them with the corresponding cash/asset factory functions.
+
 ``fixed_coupon_note`` and ``digital_coupon_note`` return Phoenix contracts
 with fixed ``coupon_per_period`` and expiry-only knock-in. Explicit Phoenix
 construction requires exactly one of annual ``coupon_rate`` or fixed
