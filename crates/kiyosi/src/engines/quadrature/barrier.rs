@@ -7,12 +7,15 @@ use crate::{
     PricingEngine, PricingResult, RebateTiming, Result,
 };
 
-/// Configures the spatial budget and integration extent for event-date quadrature.
+/// Configures the spatial resolution and integration extent for event-date quadrature.
 ///
 /// Check spatial and domain convergence separately; see [`QuadratureBarrierEngine::new`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct QuadratureSettings {
-    /// Sets the asset grid budget (at least four); continuous integration rounds up to even panels.
+    /// Sets the base number of asset intervals (at least four).
+    ///
+    /// Scheduled integration may insert event boundaries. Continuous integration
+    /// rounds up to an even number of Simpson panels.
     pub asset_step_count: i32,
     /// Sets the finite positive integration extent in standard deviations.
     pub integration_standard_deviations: f64,
@@ -26,7 +29,7 @@ impl Default for QuadratureSettings {
     }
 }
 impl QuadratureSettings {
-    /// Validates the spatial budget and extent. See [`QuadratureBarrierEngine::new`].
+    /// Validates the spatial resolution and extent. See [`QuadratureBarrierEngine::new`].
     ///
     /// # Errors
     ///
@@ -45,7 +48,7 @@ impl QuadratureSettings {
 
 /// Prices single-barrier contracts by flat-rate quadrature with exact observation dates.
 ///
-/// Uses Simpson integration for continuous monitoring and cubic Gaussian integration
+/// Uses Simpson integration for continuous monitoring and Gaussian integration of piecewise cubic interpolants
 /// between scheduled observations, including schedules ending before expiry.
 /// Owns its settings; shared instances support concurrent pricing. See [`Self::new`].
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -53,7 +56,7 @@ pub struct QuadratureBarrierEngine {
     settings: QuadratureSettings,
 }
 impl QuadratureBarrierEngine {
-    /// Creates an engine after validating the spatial budget and extent.
+    /// Creates an engine after validating the spatial resolution and extent.
     ///
     /// # Errors
     ///
@@ -95,8 +98,8 @@ impl QuadratureBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves. Returns
-    /// [`Error::InvalidInput`] outside life, for non-trading fixings, or for
+    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves. Returns
+    /// [`Error::InvalidInput`] outside life, for nontrading fixings, or for
     /// missing or impossible history, checked in that order. Unrepresentable grids,
     /// transitions or results return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {

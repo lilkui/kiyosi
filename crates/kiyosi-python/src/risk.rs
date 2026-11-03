@@ -32,6 +32,13 @@ pub(crate) fn greeks_request(greeks: &Bound<'_, PyAny>) -> PyResult<kiyosi::Gree
 /// Unavailable or unrequested Greeks are None. Spot derivatives are per spot
 /// unit, volatility/rate derivatives per percentage point (squared for volga), and time
 /// derivatives per calendar day of forward valuation time.
+/// Rho shifts the risk-free curve in parallel; dividend rho shifts the dividend-yield
+/// curve in parallel, holding other market inputs fixed. Vega is the first volatility
+/// derivative divided by 100; volga is the second divided by 10000.
+/// Vanna is the spot-volatility cross derivative divided by 100; zomma is the
+/// volatility derivative of gamma divided by 100. Theta, charm and color are
+/// the valuation-time derivatives of price, delta and gamma, respectively,
+/// with the market curves held fixed. Positive time increments advance valuation.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct PricingResult(pub kiyosi::PricingResult);
 

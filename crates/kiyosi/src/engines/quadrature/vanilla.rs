@@ -121,7 +121,7 @@ impl QuadratureVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for other models or node curves,
+    /// Returns [`Error::UnsupportedOperation`] for other models or node-based rate curves,
     /// before life validation. Returns [`Error::InvalidInput`] outside inclusive
     /// contract life, and [`Error::ComputationFailure`] for unrepresentable grids,
     /// transitions, tails or prices. Inputs and engine settings remain unchanged.

@@ -1,4 +1,4 @@
-"""American regression Monte Carlo through the installed public API."""
+"""American least-squares Monte Carlo through the installed public API."""
 
 import importlib
 import math

@@ -37,8 +37,9 @@ macro_rules! numerical_greeks_methods {
             /// volatility_shift : float, optional
             ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
             /// rate_shift : float, optional
-            ///     Positive finite parallel risk-free-rate bump in decimal units;
-            ///     defaults to 0.0001.
+            ///     Positive finite parallel rate bump in decimal units; defaults to 0.0001.
+            ///     Applied separately to the risk-free curve for rho and the dividend-yield
+            ///     curve for dividend rho.
             /// time_shift_days : int, optional
             ///     Positive forward/backward time bump in calendar days; defaults to 1.
             ///     All bumps are validated even when analytic Greeks are available.

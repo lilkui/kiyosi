@@ -5,7 +5,9 @@ use crate::risk;
 use pyo3::prelude::*;
 
 analytic_engine!(
-    /// Prices geometric continuous-average contracts with deterministic rate curves.
+    /// Prices continuously monitored geometric average-price Asian options.
+    ///
+    /// Supports deterministic risk-free-rate and dividend-yield curves.
     ///
     /// See Also
     /// --------
@@ -14,9 +16,10 @@ analytic_engine!(
     GeometricAveragePriceOption
 );
 analytic_engine!(
-    /// Approximates arithmetic continuous-average prices with flat rates before expiry.
+    /// Approximates continuously monitored arithmetic average-price Asian option prices.
     ///
-    /// Uses Levy-compatible moments.
+    /// Requires flat rates before expiry. Uses the Turnbull-Wakeman
+    /// (Levy-compatible) lognormal moment-matching approximation.
     ///
     /// See Also
     /// --------

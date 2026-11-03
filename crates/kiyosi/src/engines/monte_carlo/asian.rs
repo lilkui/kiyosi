@@ -132,7 +132,7 @@ impl MonteCarloAsianEngine {
         <Self as PricingEngine<I>>::price(self, option, context)
     }
 
-    /// Returns requested native delta/gamma from the price's shared normal draws.
+    /// Returns requested delta and gamma directly from the price's shared normal draws.
     ///
     /// Other Greeks and all expiry Greeks remain absent. No numerical bumps are
     /// required. For scalar differences and history-boundary stencil rules, use

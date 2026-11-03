@@ -5,7 +5,14 @@ use crate::{Error, EuropeanOption, PricingContext, Result};
 /// Spot derivatives are per spot unit, volatility/rate derivatives per percentage
 /// point (squared for volga), and time derivatives per calendar day of forward
 /// valuation time. Volga is `d²P/dσ² / 10000`; dividend rho is `dP/dq / 100`
-/// for a parallel continuous dividend-yield shift with other inputs fixed.
+/// for a parallel continuously compounded dividend-yield shift with other inputs fixed.
+/// Risk-free rho likewise uses a parallel shift of the risk-free curve.
+/// Theta, charm and color differentiate with respect to valuation time, so their
+/// signs correspond to advancing valuation with the market curves held fixed.
+///
+/// With price `P`, spot `S` and decimal volatility `σ`, delta, gamma and speed
+/// are the first, second and third spot derivatives. Vega is `∂P/∂σ / 100`,
+/// vanna is `∂²P/(∂S∂σ) / 100`, and zomma is `∂³P/(∂S²∂σ) / 100`.
 /// See [`GreeksRequest::all`] for a request example.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(usize)]
@@ -24,13 +31,13 @@ pub enum Greek {
     Color,
     /// Measures the price change per volatility percentage point.
     Vega,
-    /// Measures volatility curvature per squared volatility percentage point.
+    /// Measures the second volatility derivative per squared volatility percentage point.
     Volga,
     /// Measures the delta change per volatility percentage point.
     Vanna,
     /// Measures the gamma change per volatility percentage point.
     Zomma,
-    /// Measures the price change per risk-free-rate percentage point.
+    /// Measures the price change per percentage point of parallel risk-free-rate shift.
     Rho,
     /// Measures the price change per parallel dividend-yield percentage point.
     DividendRho,
@@ -228,7 +235,7 @@ pub trait PricingEngine<I = EuropeanOption> {
         Ok(())
     }
 
-    /// Prepares request-local state for numerical Greeks and implied-parameter solves.
+    /// Prepares request-local state for numerical Greeks and implied-parameter solvers.
     ///
     /// Returns `None` when this engine already evaluates one consistent price
     /// function, as deterministic engines do by default. A returned engine must
@@ -255,7 +262,8 @@ pub trait PricingEngine<I = EuropeanOption> {
 
     /// Returns requested sensitivities, using scalar differences unless overridden.
     ///
-    /// Settings configure numerical differences; native-only overrides ignore them.
+    /// Settings configure numerical differences; methods that compute all Greeks
+    /// directly ignore them.
     ///
     /// See [`crate::CoxRossRubinsteinVanillaEngine::price_with_greeks`] for an example.
     ///

@@ -1,4 +1,4 @@
-"""Price derivatives with validated Rust contracts and engines.
+"""Price derivatives with Rust pricing models and engines.
 
 Notes
 -----
@@ -31,11 +31,11 @@ pool has initialized leaves it unusable in the child process.
 
 `Greek` accepts delta, gamma, speed, theta, charm, color, vega, volga, vanna,
 zomma, rho and dividend_rho. Spot derivatives use spot units, volatility and rate
-derivatives use percentage points (squared for volga), and time derivatives use calendar days
-of forward valuation time. `PricingResult` leaves unavailable or
+derivatives use percentage points (squared for volga), and time derivatives use
+calendar days of forward valuation time. `PricingResult` leaves unavailable or
 unrequested sensitivities as None; `require` raises if one is absent.
 Volga is the second volatility derivative divided by 10000. Dividend rho is
-the sensitivity to a parallel shift of the continuous dividend-yield curve,
+the sensitivity to a parallel shift of the continuously compounded dividend-yield curve,
 divided by 100, holding other market inputs fixed.
 
 Calls are synchronous, without core cancellation or signal polling. Python

@@ -27,8 +27,8 @@ pub(crate) fn symmetric_shift(value: f64, requested: f64) -> f64 {
 /// Computes BSM numerical price sensitivities for scalar engines.
 ///
 /// Local volatility returns [`crate::Error::UnsupportedOperation`]; use
-/// [`crate::FiniteDifferenceVanillaEngine::price_with_greeks`] for native
-/// fixed-surface delta and gamma.
+/// [`crate::FiniteDifferenceVanillaEngine::price_with_greeks`] for delta and gamma
+/// computed directly with the local-volatility surface held fixed.
 ///
 /// Uses rounded symmetric absolute bumps; collapsed, asymmetric or nonpositive
 /// stencils are unavailable.

@@ -6,7 +6,7 @@ use crate::{
 
 /// Prices European cash-or-nothing and asset-or-nothing contracts by terminal sampling.
 ///
-/// Uses flat BSM rates, standardized strict exercise tests and likelihood-ratio
+/// Uses flat BSM rates, strict in-the-money tests in standardized normal coordinates and likelihood-ratio
 /// delta/gamma. Other engine Greeks remain absent; scalar numerical sensitivities
 /// are available through [`crate::numerical_greeks`].
 /// Sampling, exact path counts, thread caps and reproducibility follow
@@ -43,7 +43,7 @@ impl MonteCarloDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves before life
+    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves before life
     /// validation, [`Error::InvalidInput`] outside the inclusive life,
     /// and [`Error::ComputationFailure`] for non-finite parameters, samples or
     /// results. Inputs remain unchanged on success and failure.

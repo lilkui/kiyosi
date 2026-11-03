@@ -1,8 +1,9 @@
 """Regenerate the cached Heston American reference (several minutes).
 
 Run from python/tests with: python -m quantlib_reference.heston_fd
-QuantLib uses HV stepping and its American payoff projection, independently of
-Kiyosi's MCS/IT implementation. First-order extrapolation removes the leading
+QuantLib uses Hundsdorfer-Verwer time stepping and its American payoff
+projection, independently of Kiyosi's modified Craig-Sneyd scheme and
+Ikonen-Toivanen splitting. First-order extrapolation removes the leading
 exercise-time discretization error; consecutive extrapolates estimate uncertainty.
 """
 

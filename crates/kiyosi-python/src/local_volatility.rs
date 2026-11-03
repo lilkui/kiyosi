@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 /// spots : iterable of float
 ///     At least two strictly increasing positive finite prices.
 /// values : iterable of iterable of float
-///     Rectangular positive finite annual volatilities (20% is 0.2).
+///     Rectangular positive finite annualized volatilities (20% is 0.2).
 ///
 /// Raises
 /// ------
@@ -21,8 +21,9 @@ use pyo3::prelude::*;
 ///
 /// Notes
 /// -----
-/// Sigma interpolates bilinearly on time and absolute price using Actual/365
-/// Fixed. Time extrapolation is rejected; price tails use endpoint volatility.
+/// Local volatility interpolates bilinearly in time and absolute spot price,
+/// using Actual/365 Fixed year fractions. Time extrapolation is rejected;
+/// extrapolation in the spot dimension holds the nearest endpoint volatility constant.
 /// Inputs are copied. Properties return owned copies; spot changes and time
 /// rolls never translate the surface. Native conversion errors reject booleans,
 /// naive datetimes and invalid iterable elements.
@@ -78,7 +79,7 @@ impl LocalVolatilitySurface {
     fn values(&self) -> Vec<Vec<f64>> {
         self.0.values().map(<[f64]>::to_vec).collect()
     }
-    /// Return the largest supplied annual volatility.
+    /// Return the largest supplied annualized volatility.
     #[getter]
     fn maximum_volatility(&self) -> f64 {
         self.0.maximum_volatility()
@@ -90,17 +91,17 @@ impl LocalVolatilitySurface {
     /// time : datetime.date or datetime.datetime
     ///     Covered query instant.
     /// spot : float
-    ///     Positive finite underlying price; price tails are flat.
+    ///     Positive finite underlying price; extrapolation holds endpoint volatility constant.
     ///
     /// Returns
     /// -------
     /// float
-    ///     Annual local volatility in decimal units.
+    ///     Annualized local volatility in decimal units.
     ///
     /// Raises
     /// ------
     /// InvalidInputError
-    ///     If time is outside coverage or spot is nonpositive/non-finite.
+    ///     If time is outside coverage or spot is nonpositive or non-finite.
     fn volatility(&self, time: &Bound<'_, PyAny>, spot: &Bound<'_, PyAny>) -> PyResult<f64> {
         domain(self.0.volatility(timestamp(time)?, real(spot)?))
     }
@@ -118,9 +119,13 @@ impl LocalVolatilitySurface {
 /// Raises
 /// ------
 /// InvalidInputError
-///     If a scalar rate is non-finite. Coverage is checked by the context
-///     and pricing over required remaining horizons. All FD product families
-///     support price, delta and gamma; Digital FD requires flat rates.
+///     If a scalar rate is non-finite.
+///
+/// Notes
+/// -----
+/// Surface and curve coverage are checked by the context and during pricing
+/// over the required remaining horizons. The one-dimensional finite-difference
+/// engines support price, delta and gamma; digital pricing requires explicitly flat rates.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct LocalVolatilityParameters(pub(crate) kiyosi::LocalVolatilityParameters);
@@ -192,12 +197,12 @@ impl LocalVolatilityParameters {
     fn dividend_curve(&self) -> RateTermStructure {
         RateTermStructure(self.0.dividend_curve().clone())
     }
-    /// Return a scalar risk-free rate or an owned node curve.
+    /// Return a scalar risk-free rate or an owned node-based rate curve.
     #[getter]
     fn risk_free_rate(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         crate::market::python_rate(py, self.0.risk_free_curve())
     }
-    /// Return a scalar dividend yield or an owned node curve.
+    /// Return a scalar dividend yield or an owned node-based rate curve.
     #[getter]
     fn dividend_yield(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         crate::market::python_rate(py, self.0.dividend_curve())

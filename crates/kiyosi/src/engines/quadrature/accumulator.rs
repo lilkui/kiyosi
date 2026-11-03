@@ -47,7 +47,7 @@ impl QuadratureAccumulatorEngine {
     pub fn settings(&self) -> QuadratureSettings {
         self.settings
     }
-    /// Prices outstanding cashflows, applying a current midnight trading event once.
+    /// Prices outstanding cash flows, applying a current midnight trading event once.
     ///
     /// Observes knock-out only on the contract's specified dates, before accumulation.
     /// Acceleration and settlement follow the contract's direction. See [`Self::new`].

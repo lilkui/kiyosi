@@ -624,7 +624,7 @@ macro_rules! engine_settings {
             /// # Errors
             ///
             /// Returns [`Error::InvalidInput`] for fewer than three asset steps,
-            /// nonpositive time steps or a nonpositive/non-finite explicit upper boundary.
+            /// nonpositive time steps or a nonpositive or non-finite explicit upper boundary.
             /// Validation precedes storing settings; no grid is allocated here.
             /// See [`Self::price_with_greeks`] for engine-specific usage.
             ///
@@ -703,7 +703,7 @@ impl FiniteDifferenceVanillaEngine {
     /// Local-volatility boundaries use asymptotic values with American exercise where applicable; automatic domains
     /// use the surface maximum volatility and require domain convergence checks.
     /// Unsupported combinations return [`Error::UnsupportedOperation`], even at expiry.
-    /// Accepts flat or node curves. American automatic domains expand with volatility
+    /// Accepts flat or node-based rate curves. American automatic domains expand with volatility
     /// and maturity and use sinh coordinates. With automatic domains, non-explicit
     /// European grids concentrate nodes around the strike and average the payoff kink.
     /// Explicit upper boundaries retain uniform European spot grids.
@@ -844,7 +844,7 @@ vanilla_pricing!(AmericanOption, true);
 impl FiniteDifferenceDigitalEngine {
     /// Prices a digital using cell-averaged terminal payoffs, settling strictly in the money at expiry.
     ///
-    /// Rejects node curves before life validation, including at expiry.
+    /// Rejects node-based rate curves before life validation, including at expiry.
     /// Accepts BSM or local volatility, with cell-averaged digital payoffs in both models.
     /// Local-volatility automatic domains concentrate nodes around the strike for
     /// non-explicit schemes. BSM and explicit upper boundaries retain uniform spot grids.
@@ -852,7 +852,7 @@ impl FiniteDifferenceDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves, then reuses
+    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves, then reuses
     /// [`FiniteDifferenceVanillaEngine::price`] errors. Payoff-bound violations return
     /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     ///

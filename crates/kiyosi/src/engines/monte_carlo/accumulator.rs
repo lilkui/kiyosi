@@ -17,7 +17,7 @@ use crate::{
 /// so early termination never shifts later draws. Sampling and thread
 /// reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
 /// instances permit concurrent calls with request-owned buffers and shared workers.
-/// Greeks and implied-volatility solves pin one request-local seed; solver
+/// Greeks and implied-volatility solvers pin one request-local seed; solver
 /// tolerances constrain the sampled curve, not its statistical error.
 /// See [`Self::new`] for an example.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -84,7 +84,7 @@ impl MonteCarloAccumulatorEngine {
         scaled_value(sample.scale, sample.mean, 0.0)
     }
 
-    /// Returns a price with optional standard error and asymptotic 95% interval.
+    /// Returns a price with optional standard error and asymptotic 95% confidence interval.
     ///
     /// Uncertainty follows [`MonteCarloEstimate`]; known pseudorandom settlements
     /// have zero uncertainty. Sobol uses one dimension per future trading date.

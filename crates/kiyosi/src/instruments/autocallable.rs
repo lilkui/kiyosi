@@ -23,7 +23,7 @@ pub enum KnockInObservationMode {
 pub enum AutocallableBarrierState {
     /// Records known absence of prior events, distinct from unknown history.
     None,
-    /// Records a settled knock-out; no remaining cashflows are valued.
+    /// Records a settled knock-out; no remaining cash flows are valued.
     KnockedOut,
     /// Records an earlier downside breach.
     KnockedIn,
@@ -115,7 +115,7 @@ pub fn autocallable_observations(
 /// Supplies basic snowball terms; see [`Self::new`] and [`SnowballOption::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct SnowballTerms {
-    /// Sets the finite annual maturity coupon when no knock-in occurs.
+    /// Sets the finite annual maturity coupon rate when no knock-in occurs.
     pub maturity_coupon_rate: f64,
     /// Sets the positive reference spot used to normalize downside losses.
     pub initial_spot: f64,
@@ -253,13 +253,14 @@ impl PhoenixTerms {
 /// Owns validated basic snowball terms; see [`Self::new`].
 ///
 /// Pays principal plus accrued annual coupon on knock-out, otherwise principal
-/// plus maturity coupon if intact, or a capped downside loss after knock-in.
+/// plus maturity coupon if no knock-in occurs, or principal less a capped downside
+/// loss after knock-in.
 pub type SnowballOption = AutocallableNote<SnowballTerms>;
 
 /// Supplies binary snowball terms; see [`Self::new`] and [`BinarySnowballOption::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinarySnowballTerms {
-    /// Sets the finite annual coupon paid at maturity if no knock-out occurs.
+    /// Sets the finite annual coupon rate used at maturity if no knock-out occurs.
     pub maturity_coupon_rate: f64,
     /// Records prior events; knock-in is rejected because this product has no knock-in barrier.
     pub barrier_state: Option<AutocallableBarrierState>,
@@ -302,9 +303,9 @@ pub type BinarySnowballOption = AutocallableNote<BinarySnowballTerms>;
 /// Supplies ternary snowball terms; see [`Self::new`] and [`TernarySnowballOption::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct TernarySnowballTerms {
-    /// Sets the finite annual coupon paid at maturity if no knock-out occurs.
+    /// Sets the finite annual coupon rate used at maturity if no knock-out occurs.
     pub maturity_coupon_rate: f64,
-    /// Sets the finite annual coupon after knock-in, at most the maturity coupon.
+    /// Sets the finite annual coupon rate after knock-in, at most the maturity coupon rate.
     pub minimum_coupon_rate: f64,
     /// Sets the positive strict downside threshold.
     pub knock_in_level: f64,
@@ -347,7 +348,7 @@ impl TernarySnowballTerms {
     }
 }
 
-/// Owns a ternary snowball with fixed intact and knocked-in maturity coupons.
+/// Owns a ternary snowball with separate maturity coupon rates before and after knock-in.
 ///
 /// Pays principal plus the accrued observation coupon on knock-out, otherwise
 /// principal plus the accrued maturity or minimum coupon according to knock-in. See [`Self::new`] for construction.

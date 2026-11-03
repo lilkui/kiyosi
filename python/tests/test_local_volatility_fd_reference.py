@@ -1,4 +1,4 @@
-"""Independent local-volatility FD references and discretization checks."""
+"""Independent local-volatility finite-difference references and discretization checks."""
 
 import itertools
 import unittest
@@ -88,7 +88,7 @@ def values(result):
 
 @cache
 def reference(kind, direction, time, space, spot=100, dividend=0.02, mesher_vol=0.5):
-    """Explicit LV process; Black volatility only configures the independent mesher."""
+    """Explicit local-volatility process; Black volatility configures only the independent mesh."""
     start, end = ql.Date(1, 1, 2025), ql.Date(1, 1, 2026)
     ql.Settings.instance().evaluationDate = start
     dc = ql.Actual365Fixed()

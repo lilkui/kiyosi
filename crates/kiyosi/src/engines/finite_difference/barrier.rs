@@ -10,18 +10,18 @@ use crate::instruments::monitoring::{validate_life, validate_schedule};
 use crate::{BarrierOption, DoubleBarrierOption, ObservationMode, RebateTiming};
 
 impl FiniteDifferenceBarrierEngine {
-    /// Prices a single barrier with continuous or scheduled monitoring and flat or node curves.
+    /// Prices a single barrier with continuous or scheduled monitoring and flat or node-based rate curves.
     ///
     /// Resolves current observations against actual spot before building a grid.
     /// Prior at-hit rebates are already paid; resolved vanilla payoffs use the selected model.
-    /// Local volatility supports price and fixed-surface delta/gamma only.
+    /// Local volatility supports price, delta and gamma, holding the surface fixed.
     /// Continuous barriers are exact domain edges; scheduled dates are inserted unchanged.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve/surface coverage, for
-    /// non-trading observations, missing or impossible history, clipped or
+    /// nontrading observations, missing or impossible history, clipped or
     /// degenerate grids, or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`][crate::Error::ComputationFailure]. Inputs remain unchanged.
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
@@ -169,12 +169,12 @@ fn analysis(
 }
 
 impl FiniteDifferenceDoubleBarrierEngine {
-    /// Prices double barriers with continuous or scheduled monitoring and flat or node curves.
+    /// Prices double barriers with continuous or scheduled monitoring and flat or node-based rate curves.
     ///
     /// Fits both continuous edges exactly, using all configured asset steps between them.
     /// Projects scheduled boundary events simultaneously on the full spatial grid.
     /// Resolves current touches and known history before grid validation.
-    /// Local volatility supports price and fixed-surface delta/gamma only.
+    /// Local volatility supports price, delta and gamma, holding the surface fixed.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
@@ -196,8 +196,8 @@ impl FiniteDifferenceDoubleBarrierEngine {
     /// Returns spline delta/gamma and fixed-grid speed, completing other Greeks numerically.
     ///
     /// Fixes the central BSM spatial domain for bumps. Local volatility accepts only
-    /// fixed-surface delta/gamma. Stencils crossing either boundary or
-    /// an observation omit affected measures; all are absent at expiry or current boundary
+    /// delta and gamma with the local-volatility surface held fixed. Stencils crossing
+    /// either boundary or an observation omit affected measures; all are absent at expiry or current boundary
     /// equality without a prior touch.
     ///
     /// # Errors

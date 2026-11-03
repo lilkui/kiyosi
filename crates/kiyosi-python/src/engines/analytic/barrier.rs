@@ -5,7 +5,9 @@ use crate::risk;
 use pyo3::prelude::*;
 
 analytic_engine!(
-    /// Flat-rate single-barrier analytics with BGK scheduled monitoring.
+    /// Analytic single-barrier pricing with flat rates.
+    ///
+    /// Scheduled monitoring uses the Broadie-Glasserman-Kou (BGK) continuity correction.
     ///
     /// See Also
     /// --------

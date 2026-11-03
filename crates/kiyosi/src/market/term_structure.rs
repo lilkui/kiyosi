@@ -1,9 +1,11 @@
 use crate::{Error, Result, Timestamp, error::finite};
 
-/// Owns an immutable continuous-rate curve using Actual/365 Fixed.
+/// Owns an immutable term structure of continuously compounded rates.
 ///
-/// Node factors interpolate linearly in log space from an implicit factor of one
-/// at the reference. Dated curves reject queries before their reference; node
+/// Uses the Actual/365 Fixed day-count convention and log-linear interpolation
+/// of discount factors, starting from an implicit factor of one at the reference
+/// time. This gives piecewise constant instantaneous forward rates.
+/// Dated curves reject queries before their reference; node-based rate
 /// curves also reject queries after their final node. Negative rates are allowed.
 /// See [`Self::flat`] and [`Self::new`] for construction.
 #[derive(Clone, Debug, PartialEq)]
@@ -51,7 +53,7 @@ impl RateTermStructure {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for empty or mismatched sequences,
-    /// unordered nodes, nonpositive/non-finite factors or non-finite forwards.
+    /// unordered nodes, nonpositive or non-finite factors or non-finite forwards.
     ///
     /// # Examples
     ///
@@ -101,13 +103,15 @@ impl RateTermStructure {
         })
     }
 
-    /// Reports whether the curve is explicitly flat; constant node curves are not flat.
+    /// Reports whether the curve uses the explicit flat-rate representation.
     ///
+    /// Curves supplied as discount-factor nodes return `false`, even if their
+    /// implied forward rates are constant.
     /// See [`Self::flat`] and [`Self::new`] for the two representations.
     pub fn is_flat(&self) -> bool {
         self.rate.is_some()
     }
-    /// Returns the explicitly configured flat rate, or `None` for node curves.
+    /// Returns the explicitly configured flat rate, or `None` for node-based rate curves.
     ///
     /// See [`Self::shifted`] for a flat-rate replacement example.
     pub fn flat_rate(&self) -> Option<f64> {
@@ -214,7 +218,7 @@ impl RateTermStructure {
     }
     /// Returns the right-hand instantaneous forward rate.
     ///
-    /// The last node uses its left interval; see [`Self::new`] for a node curve.
+    /// The last node uses its left interval; see [`Self::new`] for a node-based rate curve.
     ///
     /// # Errors
     ///

@@ -1,4 +1,4 @@
-//! Prices derivatives under BSM, local volatility and Heston stochastic variance.
+//! Prices derivatives under Black-Scholes-Merton (BSM), local-volatility and Heston models.
 //!
 //! Supports vanilla and exotic options, autocallable notes and accumulators with
 //! analytic, binomial, quadrature, finite-difference and Monte Carlo engines.
@@ -9,27 +9,31 @@
 //! contract. [`PricingEngine`] also supports [`numerical_greeks`] and the implied
 //! parameter solvers. Contract constructors validate terms; pricing validates
 //! valuation dates, calendar consistency and required prior history.
-//! Annual rates and volatility use decimal units. Rate curves use Actual/365
-//! Fixed time; [`TradingCalendar::trading_year_fraction`] uses its own day-count
+//! Annual rates and annualized volatility use decimal units. Rates and dividend
+//! yields are continuously compounded. Rate curves use the Actual/365 Fixed
+//! day-count convention; [`TradingCalendar::trading_year_fraction`] uses its own
 //! basis. [`Greek`] documents sensitivity reporting units.
 //!
 //! Local volatility uses [`LocalVolatilitySurface`] with fixed absolute time/spot
-//! nodes, bilinear sigma interpolation and flat price tails. Time extrapolation
-//! is rejected. Finite-difference engines support this model for European and American
-//! vanilla options, digitals, single and double barriers, binary barriers, touch and
-//! no-touch options, autocallable notes and accumulators. They provide price and
-//! fixed-surface delta and gamma. Other Greeks, non-FD engines and inverse solves
-//! reject this model. Digital FD requires explicitly flat risk-free and dividend rates.
+//! nodes, bilinear interpolation of local volatility and constant extrapolation
+//! in the spot dimension. Time extrapolation is rejected. Finite-difference
+//! engines support this model for European and American vanilla options, digitals,
+//! single and double barriers, binary barriers, touch and
+//! no-touch options, autocallable notes and accumulators. They provide price,
+//! delta and gamma with the surface held fixed. Other Greeks, other engine families
+//! and implied-parameter solvers reject this model. Digital pricing requires
+//! explicitly flat risk-free rates and dividend yields.
 //! Future coverage follows remaining stochastic evolution and required discounts;
-//! settled cashflows do not require volatility coverage through contractual expiry.
+//! settled cash flows do not require volatility coverage through contractual expiry.
 //! [`ModelParameters`] selects the concrete model at the pricing entry point.
 //! [`HestonParameters`] supplies constant risk-neutral variance parameters and
 //! deterministic rate curves. [`AnalyticHestonEuropeanEngine`] supports European call/put
 //! prices by Fourier integration; [`FiniteDifferenceHestonVanillaEngine`] supports
-//! European and American call/put prices with fixed MCS/IT grids. Both accept zero
-//! variance parameters, correlation endpoints and Feller violations. Other engines,
-//! Greeks and inverse solves reject Heston. See each engine's constructor for
-//! examples, numerical controls and convergence responsibilities.
+//! European and American call and put prices using the modified Craig-Sneyd scheme
+//! with Ikonen-Toivanen splitting for American exercise. Both accept zero variance
+//! parameters, correlation endpoints and violations of the Feller condition.
+//! Other engines, Greeks and implied-parameter solvers reject Heston.
+//! See each engine's constructor for examples, numerical controls and convergence checks.
 //!
 //! # Concurrency and errors
 //!

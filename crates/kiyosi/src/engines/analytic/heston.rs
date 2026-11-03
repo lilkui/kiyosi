@@ -67,7 +67,7 @@ impl HestonIntegrationSettings {
 /// Zero variance parameters
 /// and correlation endpoints are valid, without imposing the Feller condition.
 /// Supports deterministic rate/dividend curves and prices only; Greeks and
-/// inverse solves are unsupported. Owns its settings and supports concurrent
+/// implied-parameter solvers are unsupported. Owns its settings and supports concurrent
 /// calls on shared instances, with request-local integration state.
 /// See [`Self::new`] for a complete example.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

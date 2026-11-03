@@ -5,22 +5,24 @@ use crate::{
     Result,
 };
 
-/// Prices continuous geometric averages under BSM with deterministic rate curves.
+/// Prices continuously monitored geometric average-price Asian options under BSM.
 ///
+/// Supports deterministic risk-free-rate and dividend-yield curves.
 /// Shared instances support concurrent pricing; see [`Self::price`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticGeometricAveragePriceEngine;
 
-/// Approximates continuous arithmetic averages by moment matching.
+/// Approximates continuously monitored arithmetic average-price Asian option prices.
 ///
 /// Requires explicitly flat rates before expiry, including single-fixing contracts.
-/// This is the Levy-compatible approximation, not an exact arithmetic-average price.
+/// Fits a lognormal distribution to the first two moments of the remaining average,
+/// using the Turnbull-Wakeman (Levy-compatible) moment-matching approximation.
 /// Shared instances support concurrent pricing; see [`Self::price`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TurnbullWakemanArithmeticAveragePriceEngine;
 
 impl AnalyticGeometricAveragePriceEngine {
-    /// Prices geometric averaging, preserving forward starts, history and expiry settlement.
+    /// Prices a geometric average-price option, including forward-start averaging and history.
     ///
     /// # Errors
     ///
@@ -153,7 +155,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     /// # Errors
     ///
     /// Reuses geometric life/history errors, then returns
-    /// [`Error::UnsupportedOperation`] for node curves before expiry,
+    /// [`Error::UnsupportedOperation`] for node-based rate curves before expiry,
     /// [`Error::InvalidInput`] for curve coverage, or
     /// [`Error::ComputationFailure`] for invalid moments or non-finite results.
     /// Inputs remain unchanged.

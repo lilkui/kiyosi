@@ -38,7 +38,7 @@ macro_rules! fd_engine {
         /// asset_step_count : int, optional
         ///     Number of spatial steps, at least 3; defaults to 800.
         /// time_step_count : int, optional
-        ///     Positive time-step budget; event dates and curve knots are added.
+        ///     Positive base number of time intervals; event dates and curve knots are added.
         #[doc = concat!("    Read `", stringify!($name), "().time_step_count` for the engine's default.")]
         /// scheme : FiniteDifferenceScheme, optional
         ///     Time-marching scheme; defaults to "rannacher" (damped Crank-Nicolson).
@@ -64,7 +64,7 @@ macro_rules! fd_engine {
         /// Digital pricing requires explicitly flat rates; other families accept
         /// deterministic rate curves. All FD product families support local-volatility
         /// price, delta and gamma, including American exercise. Other Greeks (including
-        /// "all") and inverse solves raise UnsupportedOperationError. Sigma uses
+        /// "all") and implied-parameter solvers raise UnsupportedOperationError. Sigma uses
         /// fixed absolute surface coordinates; Greeks are absent at expiry or where
         /// their stencils cross product events. Surface coverage follows remaining
         /// stochastic evolution; rate coverage follows required future discounting.
@@ -99,12 +99,12 @@ macro_rules! fd_engine {
                         asset_upper_boundary: asset_upper_boundary.map(real).transpose()?,
                     }))?))
                 },
-                /// Return the configured spatial grid budget.
+                /// Return the configured number of spatial intervals.
                 #[getter]
                 fn asset_step_count(&self) -> i32 {
                     self.0.settings().asset_step_count
                 },
-                /// Return the configured time-step budget before event insertion.
+                /// Return the configured base number of time intervals before event insertion.
                 #[getter]
                 fn time_step_count(&self) -> i32 {
                     self.0.settings().time_step_count

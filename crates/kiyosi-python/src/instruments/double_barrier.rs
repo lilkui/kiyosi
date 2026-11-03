@@ -19,7 +19,7 @@ fn kind(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::DoubleBarrierType> {
 /// option_type : {'call', 'put'}
 ///     Call or put payoff direction.
 /// strike : float
-///     Positive finite exercise or purchase price.
+///     Positive finite strike price.
 /// effective_date : datetime.date
 ///     Inclusive first contract date.
 /// expiry_date : datetime.date
@@ -29,7 +29,7 @@ fn kind(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::DoubleBarrierType> {
 /// upper_barrier : float
 ///     Finite upper trigger, strictly above the lower trigger.
 /// barrier_type : {'knock_in', 'knock_out'}
-///     Trigger direction and knock-in or knock-out behavior.
+///     Knock-in or knock-out activation by either barrier.
 /// rebate : float, optional
 ///     Nonnegative finite cash rebate; defaults to zero.
 /// rebate_timing : {'at_hit', 'at_expiry'}, optional
@@ -95,7 +95,7 @@ monitoring_properties!(
             "put"
         }
     },
-    /// Return the exercise or purchase price in underlying price units.
+    /// Return the strike price in underlying price units.
     #[getter]
     fn strike(&self) -> f64 {
         self.0.strike()
@@ -110,7 +110,7 @@ monitoring_properties!(
     fn upper_barrier(&self) -> f64 {
         self.0.upper_barrier()
     },
-    /// Return trigger direction and knock-in or knock-out behavior.
+    /// Return knock-in or knock-out activation by either barrier.
     #[getter]
     fn barrier_type(&self) -> &'static str {
         match self.0.barrier_type() {

@@ -11,18 +11,25 @@ use crate::{BarrierOption, RebateTiming};
 /// Prices single-barrier vanilla options analytically with flat rates.
 ///
 /// See [`Self::price`] for usage and scheduled-monitoring restrictions.
+///
+/// # References
+///
+/// Broadie, Glasserman and Kou (1997), [A Continuity Correction for Discrete Barrier Options][bgk].
+///
+/// [bgk]: https://business.columbia.edu/sites/default/files-efs/pubfiles/1845/bgk_mf.pdf
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticBarrierEngine;
 impl AnalyticBarrierEngine {
     /// Prices after validating flat rates, inclusive life, calendar and strictly prior history.
     ///
     /// Current boundary hits settle before future monitoring. Prior at-hit rebates are paid.
-    /// Scheduled unresolved monitoring uses the BGK approximation and must end at expiry.
+    /// Unresolved scheduled monitoring uses the Broadie-Glasserman-Kou (BGK)
+    /// continuity correction and must end at expiry.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves or unsupported
-    /// schedules. Returns [`Error::InvalidInput`] outside life, for non-trading
+    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves or unsupported
+    /// schedules. Returns [`Error::InvalidInput`] outside life, for nontrading
     /// fixings, or for missing or impossible history, checked in that order.
     /// Non-finite or materially negative prices return [`Error::ComputationFailure`].
     /// Only rounding-sized negative prices are clipped to zero. Inputs remain unchanged.

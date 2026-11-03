@@ -14,8 +14,9 @@ use crate::{
     PricingResult, Result, Timestamp,
 };
 
-/// Prices snowball variants and Phoenix notes by cubic Gaussian integration between exact event dates.
+/// Prices snowball variants and Phoenix notes by quadrature between event dates.
 ///
+/// Integrates piecewise cubic continuation values against Gaussian transition densities.
 /// Retains separate intact and knocked-in continuation layers for daily monitoring.
 /// Preserves cash and asset payments below the spatial grid, including zero-lower-strike losses.
 /// Extends the spatial domain for forward drift and the backward movement of event boundaries.
@@ -27,7 +28,7 @@ pub struct QuadratureAutocallableEngine {
     settings: QuadratureSettings,
 }
 impl QuadratureAutocallableEngine {
-    /// Creates an engine with validated spatial budget and integration extent.
+    /// Creates an engine with validated spatial resolution and integration extent.
     ///
     /// # Errors
     ///
@@ -62,7 +63,7 @@ impl QuadratureAutocallableEngine {
     pub fn settings(&self) -> QuadratureSettings {
         self.settings
     }
-    /// Prices remaining cashflows, resolving current events before future integration.
+    /// Prices remaining cash flows, resolving current events before future integration.
     ///
     /// Knock-in is strict below its level; knock-out and Phoenix coupon barriers
     /// are inclusive. Phoenix coupons accrue over contractual observation periods

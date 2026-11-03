@@ -27,7 +27,7 @@ pub enum SnowballPreset {
     },
     /// Uses a separate maturity coupon and constant knock-out coupons.
     DualCoupon {
-        /// Sets the signed annual maturity coupon.
+        /// Sets the signed annual maturity coupon rate.
         maturity_coupon_rate: f64,
     },
     /// Replaces only the final observation's knock-out level.
@@ -49,18 +49,18 @@ pub enum SnowballPreset {
     EarlyProfit {
         /// Sets the inclusive end of the first stage, within life and before expiry.
         first_stage_end_date: Date,
-        /// Sets the finite signed second-stage and maturity annual coupon.
+        /// Sets the finite signed annual coupon rate for the second stage and maturity.
         second_coupon_rate: f64,
     },
     /// Uses three annual coupon stages; see [`SnowballPresetTerms::expand`].
     Butterfly {
         /// Sets the inclusive end of the first stage, within life and before expiry.
         first_stage_end_date: Date,
-        /// Sets the finite signed second-stage annual coupon.
+        /// Sets the finite signed annual coupon rate for the second stage.
         second_coupon_rate: f64,
         /// Sets the inclusive end of the second stage, after the first and before expiry.
         second_stage_end_date: Date,
-        /// Sets the finite signed third-stage and maturity annual coupon.
+        /// Sets the finite signed annual coupon rate for the third stage and maturity.
         third_coupon_rate: f64,
     },
 }
@@ -70,7 +70,7 @@ pub enum SnowballPreset {
 /// See [`Self::expand`] for conventions, validation and an example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SnowballPresetTerms {
-    /// Sets the annual coupon, or the first coupon for a ladder or staged preset.
+    /// Sets the annual coupon rate, or the first rate for a ladder or staged preset.
     pub coupon_rate: f64,
     /// Sets the positive reference spot and default upper strike.
     pub initial_spot: f64,
@@ -278,7 +278,7 @@ pub enum PhoenixPreset {
     },
 }
 
-/// Supplies FCN/DCN inputs; see [`Self::expand`] for conventions and an example.
+/// Supplies fixed coupon note (FCN) and digital coupon note (DCN) inputs; see [`Self::expand`] for conventions and an example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PhoenixPresetTerms {
     /// Sets the finite signed proportion paid per qualifying observation, without day accrual.

@@ -64,7 +64,7 @@ impl AccumulatorTerms {
 /// observes every trading date by default, or only the explicit dates. An empty
 /// schedule disables early knock-out. Calls knock out at or above the barrier,
 /// puts at or below it; knock-out adds no units that day. A non-knock-out expiry
-/// accumulates normally before settlement. Prices exclude previously settled cashflows;
+/// accumulates normally before settlement. Prices exclude previously settled cash flows;
 /// callers must not value already terminated contracts. History is caller asserted,
 /// with no unknown sentinel or inferred quantity/date consistency restrictions.
 /// Shared reads and owning replacements support concurrent use; see [`Self::new`].

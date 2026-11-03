@@ -418,10 +418,10 @@ snowball_preset!(
 
 snowball_preset!(
     early_profit_snowball,
-    first_coupon_rate => "Finite signed annual coupon through first_stage_end_date.",
+    first_coupon_rate => "Finite signed annual coupon rate through first_stage_end_date.",
     knock_out_level => "Positive inclusive knock-out threshold.",
     [
-        second_coupon_rate => "Finite signed annual coupon after the cutoff and at maturity." => real,
+        second_coupon_rate => "Finite signed annual coupon rate after the cutoff and at maturity." => real,
         first_stage_end_date => "Inclusive first-stage end within life and strictly before expiry." => date
     ],
     kiyosi::SnowballPreset::EarlyProfit { first_stage_end_date, second_coupon_rate },
@@ -433,7 +433,7 @@ dates, stages may have no observations, and rates need not decrease."
 );
 snowball_preset!(
     butterfly_snowball,
-    first_coupon_rate => "Finite signed annual coupon through first_stage_end_date.",
+    first_coupon_rate => "Finite signed annual coupon rate through first_stage_end_date.",
     knock_out_level => "Positive inclusive knock-out threshold.",
     [
         second_coupon_rate => "Finite signed annual coupon in the second stage." => real,
@@ -1007,8 +1007,8 @@ macro_rules! phoenix_preset {
         ///
         /// Notes
         /// -----
-        /// Coupons pay once per qualifying observation, including a qualifying KO,
-        /// with no day accrual or memory. KO and coupon barriers are inclusive;
+        /// Coupons pay once per qualifying observation, including a qualifying knock-out,
+        /// with no day accrual or memory. Knock-out and coupon barriers are inclusive;
         /// knock-in is strict. Observation dates are payment dates; no observation
         /// is implicitly added at expiry. Calendar and history consistency are
         /// checked during pricing. Past coupons are settled.
@@ -1045,13 +1045,13 @@ phoenix_preset!(
     fixed_coupon_note,
     [],
     kiyosi::PhoenixPreset::FixedCouponNote,
-    "Creates an FCN with an unconditional fixed coupon at each surviving observation."
+    "Creates a fixed coupon note (FCN) with unconditional coupons at surviving observations."
 );
 phoenix_preset!(
     digital_coupon_note,
-    [coupon_barrier_level => "Finite nonnegative inclusive coupon threshold, also tested on KO dates."],
+    [coupon_barrier_level => "Finite nonnegative inclusive coupon threshold, also tested on knock-out dates."],
     kiyosi::PhoenixPreset::DigitalCouponNote { coupon_barrier_level },
-    "Creates a DCN with fixed per-period coupons conditional on an explicit barrier."
+    "Creates a digital coupon note (DCN) with fixed per-period coupons conditional on a barrier."
 );
 
 #[derive(FromPyObject)]

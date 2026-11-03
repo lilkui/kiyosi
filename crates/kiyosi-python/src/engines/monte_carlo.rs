@@ -321,8 +321,9 @@ macro_rules! sampling_settings {
 /// request; solver tolerances do not measure sampling error.
 /// European pricing samples the exact terminal distribution and ignores
 /// step_count. Near-strike payoffs preserve small movements even when the
-/// terminal spot rounds to the strike. American exercise grids use step_count
-/// points and require at least three before expiry.
+/// terminal spot rounds to the strike. American pricing uses least-squares
+/// Monte Carlo (Longstaff-Schwartz) with
+/// step_count exercise-grid points and requires at least three before expiry.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloVanillaEngine(pub(crate) kiyosi::MonteCarloVanillaEngine);
 
@@ -416,8 +417,9 @@ sampling_settings!(
     /// volatility_shift : float, optional
     ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
     /// rate_shift : float, optional
-    ///     Positive finite parallel risk-free-rate bump in decimal units;
-    ///     defaults to 0.0001.
+    ///     Positive finite parallel rate bump in decimal units; defaults to 0.0001.
+    ///     Applied separately to the risk-free curve for rho and the dividend-yield
+    ///     curve for dividend rho.
     /// time_shift_days : int, optional
     ///     Positive forward/backward time bump in calendar days; defaults to 1.
     ///     All bumps are validated even when analytic Greeks are available.
@@ -488,7 +490,7 @@ sampling_settings!(
 /// Notes
 /// -----
 /// Standard error uses independent pseudorandom observations or even
-/// antithetic pair means. The interval is an asymptotic 95% normal interval.
+/// antithetic pair means. The interval is an asymptotic 95% normal confidence interval.
 /// Uncertainty is absent for Sobol, insufficient independent samples and odd
 /// antithetic counts; known pseudorandom settlements have zero uncertainty.
 #[pyclass(frozen, module = "kiyosi._native")]
@@ -506,7 +508,7 @@ impl MonteCarloEstimate {
     fn standard_error(&self) -> Option<f64> {
         self.0.standard_error()
     }
-    /// Return the asymptotic 95% interval, or None when unavailable.
+    /// Return the asymptotic 95% confidence interval, or None when unavailable.
     #[getter]
     fn confidence_interval(&self) -> Option<(f64, f64)> {
         self.0.confidence_interval()
@@ -547,7 +549,7 @@ impl MonteCarloEstimate {
 /// Calls own their samples and share a library-owned Rayon pool. A worker cap
 /// does not reserve workers. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
-/// Only native delta and gamma are returned; other requested Greeks remain absent.
+/// Only likelihood-ratio delta and gamma are returned; other requested Greeks remain absent.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloDigitalEngine(pub(crate) kiyosi::MonteCarloDigitalEngine);
 

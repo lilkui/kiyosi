@@ -13,20 +13,23 @@ pub struct HestonParameterChanges {
     pub initial_variance: Option<f64>,
     /// Replaces the long-run variance.
     pub long_run_variance: Option<f64>,
-    /// Replaces the annual mean-reversion speed.
+    /// Replaces the mean-reversion speed per year.
     pub mean_reversion_speed: Option<f64>,
-    /// Replaces the variance diffusion coefficient.
+    /// Replaces the volatility-of-volatility parameter.
     pub vol_of_vol: Option<f64>,
-    /// Replaces the price-variance Brownian correlation.
+    /// Replaces the correlation between the asset and variance Brownian motions.
     pub correlation: Option<f64>,
 }
 
-/// Owns constant risk-neutral Heston parameters and deterministic rate curves.
+/// Owns constant Heston stochastic-volatility parameters under the risk-neutral measure.
 ///
+/// Risk-free rates and dividend yields may follow deterministic term structures.
 /// With time in years, `dv = kappa * (theta - v) dt + xi * sqrt(v) dW`.
 /// Initial variance is measured at valuation; 20% initial volatility means 0.04
 /// variance. Zero variance parameters and correlation endpoints are accepted;
-/// the Feller condition is not required. See [`Self::new`] for an example.
+/// the Feller condition, `2 * kappa * theta >= xi * xi`, is not required.
+/// Here `v` is instantaneous variance and `xi` is the volatility-of-volatility
+/// parameter. See [`Self::new`] for an example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct HestonParameters {
     risk_free_curve: RateTermStructure,
@@ -145,7 +148,7 @@ impl HestonParameters {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves.
+    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves.
     pub fn risk_free_rate(&self) -> Result<f64> {
         self.risk_free_curve.flat_rate().ok_or_else(|| {
             Error::UnsupportedOperation("risk-free curve is not explicitly flat".into())
@@ -155,7 +158,7 @@ impl HestonParameters {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves.
+    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves.
     pub fn dividend_yield(&self) -> Result<f64> {
         self.dividend_curve.flat_rate().ok_or_else(|| {
             Error::UnsupportedOperation("dividend curve is not explicitly flat".into())
@@ -169,15 +172,15 @@ impl HestonParameters {
     pub fn long_run_variance(&self) -> f64 {
         self.long_run_variance
     }
-    /// Returns annual mean-reversion speed; see [`Self::new`].
+    /// Returns mean-reversion speed per year; see [`Self::new`].
     pub fn mean_reversion_speed(&self) -> f64 {
         self.mean_reversion_speed
     }
-    /// Returns the variance diffusion coefficient xi; see [`Self::new`].
+    /// Returns the volatility-of-volatility parameter xi; see [`Self::new`].
     pub fn vol_of_vol(&self) -> f64 {
         self.vol_of_vol
     }
-    /// Returns the price-variance Brownian correlation; see [`Self::new`].
+    /// Returns the correlation between the asset and variance Brownian motions; see [`Self::new`].
     pub fn correlation(&self) -> f64 {
         self.correlation
     }

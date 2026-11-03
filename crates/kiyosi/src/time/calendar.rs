@@ -89,9 +89,10 @@ impl TradingCalendar {
         }
     }
 
-    /// Creates an SSE calendar with weekday closures for 1991–2099 and a 243-day basis.
+    /// Creates a Shanghai Stock Exchange (SSE) calendar with a 243-day basis.
     ///
-    /// Uses weekdays outside that range. Closures beyond the recorded XSHG history
+    /// Includes weekday closures for 1991 through 2099; uses weekdays outside
+    /// that range. Closures beyond the recorded XSHG history
     /// are forecasts that omit ad-hoc closures. Regenerate the bundled table with
     /// `tools/generate_sse_calendar.py` as upstream history grows.
     /// See [`Self::adjust`] for calendar usage.

@@ -82,7 +82,7 @@ def continuous_reference(
     upper : float, optional
         Upper boundary of the surviving interval.
     volatility : float, optional
-        Annual volatility in decimal units.
+        Annualized volatility in decimal units.
     rate : float, optional
         Annual continuously compounded risk-free rate.
     dividend : float, optional
@@ -137,7 +137,7 @@ def cash_reference(spot, *, volatility=0.2, rate=0.03, time=1, count=64):
     spot : float
         Underlying spot price.
     volatility : float, optional
-        Annual volatility in decimal units.
+        Annualized volatility in decimal units.
     rate : float, optional
         Annual continuously compounded risk-free rate.
     time : float, optional

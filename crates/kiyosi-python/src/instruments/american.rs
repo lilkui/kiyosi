@@ -10,7 +10,7 @@ use pyo3::types::PyDate;
 /// option_type : {'call', 'put'}
 ///     Call or put payoff direction.
 /// strike : float
-///     Positive finite exercise or purchase price.
+///     Positive finite strike price.
 /// effective_date : datetime.date
 ///     Inclusive first contract date.
 /// expiry_date : datetime.date
@@ -50,7 +50,7 @@ impl AmericanOption {
     /// option_type : {'call', 'put'}, optional
     ///     Call or put payoff direction.
     /// strike : float, optional
-    ///     Positive finite exercise or purchase price.
+    ///     Positive finite strike price.
     /// effective_date : datetime.date, optional
     ///     Inclusive first contract date.
     /// expiry_date : datetime.date, optional
@@ -90,7 +90,7 @@ impl AmericanOption {
             kiyosi::OptionType::Put => "put",
         }
     }
-    /// Return the exercise or purchase price in underlying price units.
+    /// Return the strike price in underlying price units.
     #[getter]
     fn strike(&self) -> f64 {
         self.0.strike()

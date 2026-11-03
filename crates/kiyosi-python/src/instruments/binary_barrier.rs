@@ -4,7 +4,7 @@ use crate::instruments::barrier;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-/// Cash or asset digital with barrier monitoring and strict exercise.
+/// Cash-or-nothing or asset-or-nothing option with barrier monitoring.
 ///
 /// Notes
 /// -----
@@ -65,7 +65,7 @@ binary_properties!(
             "put"
         }
     },
-    /// Return the exercise or purchase price in underlying price units.
+    /// Return the strike price in underlying price units.
     #[getter]
     fn strike(&self) -> f64 {
         self.0.strike()

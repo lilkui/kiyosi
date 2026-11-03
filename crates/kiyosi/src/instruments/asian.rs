@@ -102,7 +102,7 @@ macro_rules! average_option {
     ($name:ident, $description:literal) => {
         #[doc = $description]
         ///
-        /// Owns validated continuous-average terms; a zero-length window fixes once at expiry.
+        /// Owns validated continuously monitored averaging terms; a zero-length window fixes once at expiry.
         ///
         /// See [`Self::new`] for construction and [`Self::replace`] for history updates.
         #[derive(Clone, Debug, PartialEq)]
@@ -232,9 +232,9 @@ macro_rules! average_option {
 }
 average_option!(
     GeometricAveragePriceOption,
-    "Defines a geometric-average price option."
+    "Defines a geometric average-price Asian option."
 );
 average_option!(
     ArithmeticAveragePriceOption,
-    "Defines an arithmetic-average price option."
+    "Defines an arithmetic average-price Asian option."
 );

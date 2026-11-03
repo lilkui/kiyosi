@@ -41,16 +41,16 @@ impl MonteCarloDoubleBarrierEngine {
 
     /// Prices after validating flat rates, inclusive life, calendar and prior history.
     ///
-    /// Current touches and resolved cashflows precede sampling. Resolved vanilla
+    /// Current touches and resolved cash flows precede sampling. Resolved vanilla
     /// payoffs and continuous at-hit rebates use analytic formulas.
     /// Calls finish synchronously without cancellation polling.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::UnsupportedOperation`] for node curves,
+    /// Returns [`crate::Error::UnsupportedOperation`] for node-based rate curves,
     /// [`crate::Error::InvalidInput`] outside life,
-    /// [`crate::Error::InvalidInput`] for non-trading fixings,
+    /// [`crate::Error::InvalidInput`] for nontrading fixings,
     /// [`crate::Error::InvalidInput`] for missing history or Sobol
     /// dimensions above 21,201, [`crate::Error::InvalidInput`] for
     /// impossible history, or [`crate::Error::ComputationFailure`] for
@@ -93,7 +93,7 @@ impl MonteCarloDoubleBarrierEngine {
     /// # Errors
     ///
     /// Checks flat rates before requests and the spot shift, then propagates
-    /// [`Self::price`] errors. Empty requests or a nonpositive/non-finite spot shift return
+    /// [`Self::price`] errors. Empty requests or a nonpositive or non-finite spot shift return
     /// [`crate::Error::InvalidInput`]; non-finite requested Greek samples
     /// return [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
     ///

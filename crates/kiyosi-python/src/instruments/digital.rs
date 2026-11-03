@@ -28,9 +28,8 @@ macro_rules! digital_option {
             /// option_type : {'call', 'put'}, optional
             ///     Call or put payoff direction.
             /// strike : float, optional
-            ///     Positive finite exercise or purchase price.
-            /// payout : float, optional
-            ///     Positive finite cash payment; accepted only for CashOrNothingOption.
+            ///     Positive finite strike price.
+            $(#[doc = concat!(stringify!($payout), " : float, optional\n    Positive finite cash payment.")])?
             /// effective_date : datetime.date, optional
             ///     Inclusive first contract date.
             /// expiry_date : datetime.date, optional
@@ -70,7 +69,7 @@ macro_rules! digital_option {
             fn option_type(&self) -> &'static str {
                 if self.0.option_type() == kiyosi::OptionType::Call { "call" } else { "put" }
             }
-            /// Return the exercise or purchase price in underlying price units.
+            /// Return the strike price in underlying price units.
             #[getter]
             fn strike(&self) -> f64 { self.0.strike() }
             /// Return inclusive first contract date.
@@ -96,14 +95,14 @@ digital_option!(
     CashOrNothingOption,
     cash_or_nothing,
     payout,
-    r"European digital paying cash strictly in the money.
+    r"European cash-or-nothing option paying only strictly in the money.
 
 Parameters
 ----------
 option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
-    Positive finite exercise or purchase price.
+    Positive finite strike price.
 payout : float
     Positive finite cash payment.
 effective_date : datetime.date
@@ -114,19 +113,19 @@ expiry_date : datetime.date
 Raises
 ------
 InvalidInputError
-    If payout or strike is nonpositive/non-finite, or expiry precedes effective_date."
+    If payout or strike is nonpositive or non-finite, or expiry precedes effective_date."
 );
 digital_option!(
     AssetOrNothingOption,
     asset_or_nothing,
-    r"European digital paying the asset strictly in the money.
+    r"European asset-or-nothing option paying only strictly in the money.
 
 Parameters
 ----------
 option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
-    Positive finite exercise or purchase price.
+    Positive finite strike price.
 effective_date : datetime.date
     Inclusive first contract date.
 expiry_date : datetime.date
@@ -135,7 +134,7 @@ expiry_date : datetime.date
 Raises
 ------
 InvalidInputError
-    If strike is nonpositive/non-finite, or expiry precedes effective_date."
+    If strike is nonpositive or non-finite, or expiry precedes effective_date."
 );
 
 #[derive(FromPyObject)]

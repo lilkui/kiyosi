@@ -40,7 +40,7 @@ pub enum MonteCarloSampling {
     /// Uses pseudorandom PCG32 streams (the default).
     #[default]
     PseudoRandom,
-    /// Uses seeded LMS-scrambled Sobol points with a digital shift.
+    /// Uses seeded Sobol points with linear matrix scrambling (LMS) and a digital shift.
     Sobol,
 }
 
@@ -327,7 +327,8 @@ mod tests {
 /// Prices European and American vanilla contracts with flat-rate CPU sampling.
 ///
 /// European contracts sample the exact terminal distribution without stepping.
-/// American contracts use strike-scaled quadratic continuation regression on a
+/// American contracts use least-squares Monte Carlo (Longstaff-Schwartz) with
+/// strike-scaled quadratic regression of continuation values on a
 /// uniform grid, reducing to linear or constant fits for rank-deficient samples.
 /// Calls with nonpositive dividends and nonnegative rates use terminal sampling,
 /// retaining the immediate-exercise lower bound. See [`Self::default_american_spot_shift`].
@@ -367,12 +368,12 @@ fn validate_step_count(step_count: i32) -> Result<()> {
 
 /// Owns a Monte Carlo price and its optional sampling uncertainty.
 ///
-/// Uses unbiased sample variance and a two-sided asymptotic 95% normal interval
+/// Uses unbiased sample variance and a two-sided asymptotic 95% normal confidence interval
 /// for pseudorandom draws, or independent pair means with even antithetic counts;
 /// sparse samples and heavy tails can make the interval unreliable.
 /// Sobol always leaves uncertainty absent. Simulated payoffs with fewer than two
 /// independent observations or odd antithetic counts also leave uncertainty absent.
-/// Known pseudorandom settlements and fixed cashflows have zero uncertainty.
+/// Known pseudorandom settlements and fixed cash flows have zero uncertainty.
 /// See [`MonteCarloVanillaEngine::price_with_statistics`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MonteCarloEstimate {
@@ -386,11 +387,11 @@ impl MonteCarloEstimate {
     pub fn price(&self) -> f64 {
         self.price
     }
-    /// Returns uncertainty in price units, if estimable. See [`Self`] for applicability.
+    /// Returns the standard error of the price estimate, if estimable. See [`Self`] for applicability.
     pub fn standard_error(&self) -> Option<f64> {
         self.standard_error
     }
-    /// Returns the untruncated asymptotic 95% interval, if estimable. See [`Self`].
+    /// Returns the untruncated asymptotic 95% confidence interval, if estimable. See [`Self`].
     pub fn confidence_interval(&self) -> Option<(f64, f64)> {
         self.confidence_interval
     }
@@ -477,7 +478,7 @@ impl MonteCarloVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Rejects node curves before validating requests and shifts, then propagates
+    /// Rejects node-based rate curves before validating requests and shifts, then propagates
     /// [`crate::numerical_greeks`] and [`Self::price`] errors. Inputs remain unchanged.
     ///
     /// # Examples
@@ -509,7 +510,7 @@ impl MonteCarloVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves before life
+    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves before life
     /// validation, [`Error::InvalidInput`] outside the inclusive contract
     /// life, or [`Error::ComputationFailure`] for unstable parameters, nonpositive
     /// or non-finite terminal prices, or non-finite results. Inputs remain unchanged.

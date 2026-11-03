@@ -35,7 +35,7 @@ fn evaluation_count(value: &Bound<'_, PyAny>) -> PyResult<usize> {
 /// Error estimates are not a universal accuracy guarantee. The budget covers
 /// Heston and control-variate characteristic functions across all integrals and
 /// tail checks. Expiry and deterministic-variance branches need no evaluations.
-/// Greeks and inverse solves raise UnsupportedOperationError. Pricing releases
+/// Greeks and implied-parameter solvers raise UnsupportedOperationError. Pricing releases
 /// the GIL for core computation, with independent state for concurrent calls.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct AnalyticHestonEuropeanEngine(pub(crate) kiyosi::AnalyticHestonEuropeanEngine);

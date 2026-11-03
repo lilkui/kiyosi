@@ -122,7 +122,7 @@ def payoffs(path, records, initial_spot=101.0):
 
 
 def estimate(pairs, substeps, seed=1729, spot=101.0):
-    """Report mean and sampling SE for independent antithetic pairs."""
+    """Report the mean and sampling standard error from independent antithetic pairs."""
     required = [(day - START).days / 365 for day in trading_dates()]
     grid = ql.TimeGrid(required, 90 * substeps)
     records = events(grid)
@@ -193,7 +193,7 @@ def estimate(pairs, substeps, seed=1729, spot=101.0):
 
 
 def time_bias(pairs, substeps, seed=31415, spot=101.0):
-    """Couple coarse/fine QL evolutions by summing pairs of Brownian increments."""
+    """Couple coarse and fine QuantLib path discretizations by summing pairs of Brownian increments."""
     coarse_steps = 90 * substeps
     step = 90 / 365 / coarse_steps
     grid = ql.TimeGrid([day / (365 * substeps) for day in range(1, coarse_steps + 1)])

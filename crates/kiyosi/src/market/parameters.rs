@@ -40,11 +40,13 @@ pub struct BlackScholesMertonParameterChanges {
     pub risk_free_rate: Option<Rate>,
     /// Replaces the dividend yield or curve.
     pub dividend_yield: Option<Rate>,
-    /// Replaces the strictly positive annual volatility in decimal units.
+    /// Replaces the strictly positive annualized volatility in decimal units.
     pub volatility: Option<f64>,
 }
 
-/// Owns validated rate curves and strictly positive annual volatility.
+/// Owns Black-Scholes-Merton (BSM) rate curves and annualized log-return volatility.
+///
+/// Volatility is strictly positive and expressed in decimal units.
 ///
 /// See [`Self::new`] for construction.
 #[derive(Clone, Debug, PartialEq)]
@@ -112,7 +114,7 @@ impl BlackScholesMertonParameters {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves, even if their
+    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves, even if their
     /// forwards are constant. See [`Self::new`] for scalar-rate construction.
     pub fn risk_free_rate(&self) -> Result<f64> {
         self.risk_free_curve
@@ -125,7 +127,7 @@ impl BlackScholesMertonParameters {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves, even if their
+    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves, even if their
     /// forwards are constant. See [`Self::new`] for scalar-rate construction.
     pub fn dividend_yield(&self) -> Result<f64> {
         self.dividend_curve
@@ -146,7 +148,7 @@ impl BlackScholesMertonParameters {
     pub fn dividend_curve(&self) -> &RateTermStructure {
         &self.dividend_curve
     }
-    /// Returns annual volatility in decimal units; see [`Self::new`].
+    /// Returns annualized volatility in decimal units; see [`Self::new`].
     pub fn volatility(&self) -> f64 {
         self.volatility
     }

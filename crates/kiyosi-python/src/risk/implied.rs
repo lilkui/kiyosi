@@ -3,7 +3,7 @@ use crate::engines::ScalarRequest;
 use crate::market::PricingContext;
 use pyo3::prelude::*;
 
-/// Solve the annual volatility that reproduces an observed price.
+/// Solve the annualized volatility that reproduces an observed price.
 ///
 /// Parameters
 /// ----------
@@ -16,9 +16,9 @@ use pyo3::prelude::*;
 /// observed_price : float
 ///     Finite target price in the engine's payment units.
 /// lower_bound : float, optional
-///     Positive finite lower annual volatility in decimal units; defaults to 0.0001.
+///     Positive finite lower annualized volatility in decimal units; defaults to 0.0001.
 /// upper_bound : float, optional
-///     Finite upper annual volatility, above lower_bound; defaults to 4.
+///     Finite upper annualized volatility, above lower_bound; defaults to 4.
 /// price_tolerance : float, optional
 ///     Positive finite absolute price residual tolerance; defaults to 1e-8.
 /// parameter_tolerance : float, optional

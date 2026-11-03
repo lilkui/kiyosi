@@ -39,7 +39,7 @@ impl AnalyticRangeAccrualEngine {
     ///
     /// # Errors
     ///
-    /// Checks valuation after expiry, non-trading expiry, missing or excessive
+    /// Checks valuation after expiry, nontrading expiry, missing or excessive
     /// prior hits, and required curve coverage, in that order
     /// ([`Error::InvalidInput`]). Unresolvable curve knots or non-finite
     /// transitions or prices return [`Error::ComputationFailure`].

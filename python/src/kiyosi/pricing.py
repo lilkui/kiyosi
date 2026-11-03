@@ -4,9 +4,10 @@ Finite-difference engines support local volatility for European and American
 vanilla options, digitals, single and double barriers, binary barriers, touch
 and no-touch options, autocallable notes and accumulators. They provide price,
 delta and gamma, holding the absolute surface fixed. Other Greeks (including
-"all"), non-FD engines and inverse solves raise UnsupportedOperationError for
-this model. Digital FD requires explicitly flat risk-free and dividend rates.
-Delta/gamma are absent at expiry and unavailable event-crossing stencils.
+"all"), other engine families and implied-parameter solvers raise UnsupportedOperationError
+for this model. Digital finite-difference pricing requires explicitly flat risk-free
+rates and dividend yields. Delta and gamma are absent at expiry and when their
+finite-difference stencils cross product events.
 Surface coverage follows remaining stochastic evolution; rates must cover
 required discounting. Automatic domains use the maximum interpolated local
 volatility over the remaining stochastic horizon. Check time, space and boundary
@@ -70,7 +71,7 @@ dividends and nonnegative rates) do not allocate this grid or apply this limit.
 
 ``AnalyticEuropeanEngine``, ``CoxRossRubinsteinDigitalEngine``,
 ``CoxRossRubinsteinBarrierEngine``, ``MonteCarloDigitalEngine`` and
-``MonteCarloAsianEngine`` compute native Greeks without numerical bumps;
+``MonteCarloAsianEngine`` compute Greeks directly without numerical bumps;
 their ``price_with_greeks`` methods accept only ``greeks`` as a request
 control. Engines that use numerical differences also accept bump
 settings.
@@ -100,7 +101,7 @@ precede Greek-name parsing. Monte Carlo vanilla spot bumps default by product:
 ``AnalyticHestonEuropeanEngine`` prices European calls/puts with ``HestonParameters``
 using adaptive Fourier integration and a deterministic-variance control variate.
 It supports deterministic rate/dividend curves, zero parameters and correlation
-endpoints without imposing the Feller condition. Greeks and inverse solves
+endpoints without imposing the Feller condition. Greeks and implied-parameter solvers
 raise ``UnsupportedOperationError``. Integration controls are
 ``absolute_tolerance=1e-8`` (price units), ``relative_tolerance=1e-8`` and
 ``max_evaluations=10000`` (a total characteristic-function budget, including the
@@ -111,15 +112,17 @@ insufficient numerical resolution raises ``NonConvergenceError``. Expiry and
 deterministic-variance branches consume no integration budget.
 
 ``FiniteDifferenceHestonVanillaEngine`` prices European and American calls/puts
-with the same Heston model domain using MCS ADI and IT American splitting.
+with the same Heston parameter domain. It uses the modified Craig-Sneyd (MCS)
+alternating direction implicit (ADI) scheme, with Ikonen-Toivanen splitting for
+American exercise.
 Controls are ``asset_step_count=400``, ``variance_step_count=100``,
 ``time_step_count=400``, ``asset_upper_boundary=None`` and
 ``variance_upper_boundary=None``. Counts specify intervals; spatial counts are
 at least 3 and the base time count is at least 1. Curve knots are added.
 Optional finite positive bounds must cover spot/strike or initial variance
-when the corresponding grid is required. Zero vol-of-vol uses its actual
-deterministic variance path; absorbing zero variance retains optimal American
-exercise, including between curve nodes. Greeks and inverse solves are unsupported.
+when the corresponding grid is required. With zero volatility of volatility,
+the engine uses the deterministic variance path; absorbing zero variance retains optimal American
+exercise, including between curve nodes. Greeks and implied-parameter solvers are unsupported.
 Fixed-grid completion carries no error estimate: check spatial/time refinement
 and domain enlargement separately. Numerical failures raise
 ``ComputationFailureError``.

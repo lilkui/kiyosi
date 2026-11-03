@@ -56,9 +56,9 @@ impl MonteCarloBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::UnsupportedOperation`] for node curves,
+    /// Returns [`crate::Error::UnsupportedOperation`] for node-based rate curves,
     /// [`crate::Error::InvalidInput`] outside life,
-    /// [`crate::Error::InvalidInput`] for non-trading fixings,
+    /// [`crate::Error::InvalidInput`] for nontrading fixings,
     /// [`crate::Error::InvalidInput`] for missing history or Sobol dimensions
     /// above 21,201, [`crate::Error::InvalidInput`] for impossible history,
     /// or [`crate::Error::ComputationFailure`] for unrepresentable paths or results.
@@ -98,7 +98,7 @@ impl MonteCarloBarrierEngine {
     /// # Errors
     ///
     /// Checks flat rates before requests and the spot shift, then propagates
-    /// [`Self::price`] errors. Empty requests or a nonpositive/non-finite spot shift return
+    /// [`Self::price`] errors. Empty requests or a nonpositive or non-finite spot shift return
     /// [`crate::Error::InvalidInput`]; non-finite requested Greek samples
     /// return [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
     ///

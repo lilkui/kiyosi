@@ -11,7 +11,7 @@ analytic_engine!(
     /// double-touch at-hit payments; past at-hit payments have zero remaining value.
     /// Uses image/spectral series and adaptive first-exit integration for at-hit payments.
     /// Node curves are always rejected; unresolved scheduled monitoring is unsupported.
-    /// Resolved scheduled cashflows are priced after calendar and history validation.
+    /// Resolved scheduled cash flows are priced after calendar and history validation.
     /// Greeks use numerical differences; expiry and current barrier equality without
     /// a prior touch omit Greeks. Stencils crossing a barrier omit affected measures.
     ///
@@ -20,7 +20,7 @@ analytic_engine!(
     /// DoubleTouchOption : Supported cash contract.
     /// cash_double_touch : Double one-touch constructor.
     /// cash_double_no_touch : Double no-touch constructor.
-    /// FiniteDifferenceDoubleTouchEngine : Supports schedules and node curves.
+    /// FiniteDifferenceDoubleTouchEngine : Supports schedules and node-based rate curves.
     AnalyticDoubleTouchEngine,
     DoubleTouchOption
 );

@@ -105,7 +105,7 @@ def rollback(
     dividend : float, optional
         Annual continuously compounded dividend yield.
     sigma : float, optional
-        Annual volatility in decimal units.
+        Annualized volatility in decimal units.
     strike : float, optional
         Exercise price.
 

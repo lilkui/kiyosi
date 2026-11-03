@@ -15,16 +15,16 @@ use crate::{
 pub struct AnalyticDoubleTouchEngine;
 
 impl AnalyticDoubleTouchEngine {
-    /// Prices remaining cashflows using absorbing-density image and spectral series.
+    /// Prices remaining cash flows using absorbing-density image and spectral series.
     ///
     /// At-hit payments integrate the discounted first-exit density adaptively.
     /// Prior at-hit payments have zero remaining value. Resolved payments are
-    /// returned before rejecting scheduled monitoring; node curves are always rejected.
+    /// returned before rejecting scheduled monitoring; node-based rate curves are always rejected.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves, then
-    /// [`Error::InvalidInput`] outside life, for non-trading observations or missing
+    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves, then
+    /// [`Error::InvalidInput`] outside life, for nontrading observations or missing
     /// or impossible history. Unresolved scheduled monitoring then returns
     /// [`Error::UnsupportedOperation`]. Unrepresentable calculations return
     /// [`Error::ComputationFailure`]; exhausted series or integration limits return

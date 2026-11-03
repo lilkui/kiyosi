@@ -72,7 +72,7 @@ numerical_greeks_methods!(
                 kiyosi::BinomialSettings { step_count },
             ))?))
         },
-        /// Return the configured grid size.
+        /// Return the configured number of binomial time steps.
         #[getter]
         fn step_count(&self) -> i32 {
             self.0.settings().step_count
@@ -145,7 +145,7 @@ macro_rules! binomial_engine {
                 Ok(Self(domain(kiyosi::$name::new(kiyosi::BinomialSettings { step_count }))?))
             }
 
-            /// Return the configured grid size.
+            /// Return the configured number of binomial time steps.
             #[getter]
             fn step_count(&self) -> i32 {
                 self.0.settings().step_count

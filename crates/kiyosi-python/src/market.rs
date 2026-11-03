@@ -4,7 +4,7 @@ use crate::error::domain;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
 
-/// Immutable rate curve with log-linear factors and Actual/365 Fixed time.
+/// Immutable rate term structure with log-linear discount factors.
 ///
 /// Parameters
 /// ----------
@@ -20,12 +20,14 @@ use pyo3::types::PyDate;
 /// ------
 /// InvalidInputError
 ///     If nodes or factors are empty or mismatched, times do not increase
-///     after the reference, factors are nonpositive/non-finite, or implied
+///     after the reference, factors are nonpositive or non-finite, or implied
 ///     forward rates are non-finite.
 ///
 /// Notes
 /// -----
-/// Dated curves reject times before their reference; node curves also reject
+/// Uses the Actual/365 Fixed day-count convention. Log-linear interpolation
+/// of discount factors gives piecewise constant instantaneous forward rates.
+/// Dated curves reject times before their reference; node-based rate curves also reject
 /// times after the last node. Negative rates are allowed.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -204,7 +206,7 @@ pub(crate) fn rate(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Rate> {
     }
 }
 
-/// Immutable BSM rates and strictly positive annual volatility.
+/// Immutable Black-Scholes-Merton (BSM) model parameters.
 ///
 /// Parameters
 /// ----------
@@ -213,12 +215,12 @@ pub(crate) fn rate(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Rate> {
 /// dividend_yield : float or RateTermStructure
 ///     Continuously compounded dividend yield or owned rate curve.
 /// volatility : float
-///     Positive finite annual volatility in decimal units.
+///     Positive finite annualized log-return volatility in decimal units.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
-///     If scalar rates are non-finite or volatility is nonpositive/non-finite.
+///     If scalar rates are non-finite or volatility is nonpositive or non-finite.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct BlackScholesMertonParameters(pub(crate) kiyosi::BlackScholesMertonParameters);
@@ -247,7 +249,7 @@ impl BlackScholesMertonParameters {
     /// dividend_yield : float or RateTermStructure, optional
     ///     Continuously compounded dividend yield or owned rate curve.
     /// volatility : float, optional
-    ///     Positive finite annual volatility in decimal units.
+    ///     Positive finite annualized log-return volatility in decimal units.
     ///
     /// Returns
     /// -------
@@ -272,12 +274,12 @@ impl BlackScholesMertonParameters {
         };
         Ok(Self(domain(self.0.replace(update))?))
     }
-    /// Return the scalar risk-free rate or an owned node curve.
+    /// Return the scalar risk-free rate or an owned node-based rate curve.
     #[getter]
     fn risk_free_rate(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         python_rate(py, self.0.risk_free_curve())
     }
-    /// Return the scalar dividend yield or an owned node curve.
+    /// Return the scalar dividend yield or an owned node-based rate curve.
     #[getter]
     fn dividend_yield(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         python_rate(py, self.0.dividend_curve())
@@ -292,7 +294,7 @@ impl BlackScholesMertonParameters {
     fn dividend_curve(&self) -> RateTermStructure {
         RateTermStructure(self.0.dividend_curve().clone())
     }
-    /// Return positive finite annual volatility in decimal units.
+    /// Return positive finite annualized volatility in decimal units.
     #[getter]
     fn volatility(&self) -> f64 {
         self.0.volatility()
@@ -316,7 +318,7 @@ impl BlackScholesMertonParameters {
 /// Raises
 /// ------
 /// InvalidInputError
-///     If spot_price is nonpositive/non-finite or valuation_time is outside
+///     If spot_price is nonpositive or non-finite or valuation_time is outside
 ///     either rate curve or the local-volatility surface. Contract-life and
 ///     expiry coverage checks occur at pricing.
 #[pyclass(frozen, eq, module = "kiyosi._native")]

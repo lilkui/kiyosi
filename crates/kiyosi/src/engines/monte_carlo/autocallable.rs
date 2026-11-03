@@ -19,7 +19,7 @@ use crate::{
 /// knock-out cannot shift later paths. Sampling, antithetic counts and thread
 /// reproducibility follow [`crate::MonteCarloVanillaEngine`]. Shared and distinct
 /// instances permit concurrent calls with request-owned buffers and shared workers.
-/// Greeks and implied-parameter solves pin one request-local seed. Solvers
+/// Greeks and implied-parameter solvers pin one request-local seed. Solvers
 /// constrain the sampled price curve, not its statistical error. Coupon trials
 /// retain their own event-grid shortcuts when knock-in exposure changes.
 /// See [`Self::new`] for an example.
@@ -68,7 +68,7 @@ impl MonteCarloAutocallableEngine {
         self.settings
     }
 
-    /// Returns the mean discounted remaining cashflows. See [`Self::new`].
+    /// Returns the mean discounted remaining cash flows. See [`Self::new`].
     ///
     /// # Errors
     ///
@@ -92,9 +92,9 @@ impl MonteCarloAutocallableEngine {
         scaled_value(sample.scale, sample.mean, 0.0)
     }
 
-    /// Returns a price with optional standard error and asymptotic 95% interval.
+    /// Returns a price with optional standard error and asymptotic 95% confidence interval.
     ///
-    /// Uncertainty follows [`MonteCarloEstimate`]; known pseudorandom cashflows
+    /// Uncertainty follows [`MonteCarloEstimate`]; known pseudorandom cash flows
     /// have zero uncertainty even before expiry. Coupons are discounted at their
     /// contractual dates, including a current Phoenix coupon exactly once.
     /// Calls finish synchronously without cancellation polling. See [`Self::new`].
@@ -105,7 +105,7 @@ impl MonteCarloAutocallableEngine {
     /// life ([`crate::Error::InvalidInput`]), trading observations,
     /// prior history and trading expiry using the shared autocallable validation.
     /// Missing history returns [`crate::Error::InvalidInput`],
-    /// impossible history [`crate::Error::InvalidInput`], and non-trading
+    /// impossible history [`crate::Error::InvalidInput`], and nontrading
     /// dates [`crate::Error::InvalidInput`]. Sobol dimensions above 21,201
     /// return [`crate::Error::InvalidInput`]. Non-finite paths,
     /// payments or uncertainty return [`crate::Error::ComputationFailure`].

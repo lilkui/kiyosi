@@ -1,4 +1,4 @@
-"""Double-boundary Local Vol checks with measured monitoring uncertainty."""
+"""Double-barrier local-volatility checks with measured monitoring uncertainty."""
 
 import json
 import math

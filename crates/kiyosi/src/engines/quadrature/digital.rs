@@ -8,7 +8,7 @@ use crate::{
 
 /// Prices European cash-or-nothing and asset-or-nothing options by BSM quadrature.
 ///
-/// Requires flat risk-free and dividend rates. Composite Simpson integration
+/// Requires flat risk-free rates and dividend yields. Composite Simpson integration
 /// covers the paying side of the strike, using its one-sided endpoint limit.
 /// Asset payments shift the normal variable to center the weighted density.
 /// The integration extent is measured around that density's center; omitted
@@ -65,7 +65,7 @@ impl QuadratureDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for other models or node curves,
+    /// Returns [`Error::UnsupportedOperation`] for other models or node-based rate curves,
     /// before life validation. Returns [`Error::InvalidInput`] outside contract
     /// life and [`Error::ComputationFailure`] for unrepresentable transitions,
     /// weights or prices. Inputs and settings remain unchanged.

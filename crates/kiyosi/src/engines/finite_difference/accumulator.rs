@@ -10,7 +10,7 @@ impl FiniteDifferenceAccumulatorEngine {
     /// Prices outstanding units and future trading-date purchases, settling at knock-out or expiry.
     ///
     /// Applies a current midnight event exactly once, with inclusive knock-out and
-    /// direction-dependent acceleration. Supports flat and node rate curves.
+    /// direction-dependent acceleration. Supports flat and node-based rate curves.
     /// Accepts BSM or local volatility; surface coverage is required only for
     /// remaining stochastic evolution, after immediate settlement is resolved.
     /// See [`Self::price_with_greeks`] for an example.
@@ -18,7 +18,7 @@ impl FiniteDifferenceAccumulatorEngine {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside contract life or curve coverage,
-    /// for non-trading expiry or knock-out dates, clipped domains or unstable explicit steps.
+    /// for nontrading expiry or knock-out dates, clipped domains or unstable explicit steps.
     /// Numerical failures return [`Error::ComputationFailure`][crate::Error::ComputationFailure]. Inputs remain unchanged.
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         Ok(native(

@@ -11,18 +11,18 @@ use crate::instruments::autocallable::pricing::{
 use crate::{AutocallableNote, AutocallableObservation, AutocallableTerms};
 
 impl FiniteDifferenceAutocallableEngine {
-    /// Prices remaining snowball or Phoenix cashflows on exact trading and observation dates.
+    /// Prices remaining snowball or Phoenix cash flows on exact trading and observation dates.
     ///
-    /// Accepts flat or node curves, retains daily knock-in layers and projects future events.
+    /// Accepts flat or node-based rate curves, retains daily knock-in layers and projects future events.
     /// Current events use actual spot with strict knock-in and inclusive knock-out/coupon levels.
     /// Accepts BSM or local volatility. Surface coverage is required only for remaining
-    /// stochastic evolution, after settlement and fixed cashflows are resolved.
+    /// stochastic evolution, after settlement and fixed cash flows are resolved.
     /// See [`Self::price_with_greeks`] for an example.
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or curve coverage, for
-    /// non-trading observations or expiry, missing or impossible history, clipped
+    /// nontrading observations or expiry, missing or impossible history, clipped
     /// grids, or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`][crate::Error::ComputationFailure]. Inputs remain unchanged.
     pub fn price<T: AutocallableTerms>(

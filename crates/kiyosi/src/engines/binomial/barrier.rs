@@ -41,8 +41,8 @@ impl CoxRossRubinsteinBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves or unsupported
-    /// fixings. Returns [`Error::InvalidInput`] outside life, for non-trading
+    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves or unsupported
+    /// fixings. Returns [`Error::InvalidInput`] outside life, for nontrading
     /// fixings, or for missing or impossible history, checked in that order.
     /// Unstable tree parameters, nodes or results return [`Error::ComputationFailure`].
     /// Inputs remain unchanged.

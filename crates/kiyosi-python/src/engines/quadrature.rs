@@ -22,7 +22,8 @@ macro_rules! quadrature_engine {
         /// Parameters
         /// ----------
         /// asset_step_count : int, optional
-        ///     Spatial grid budget, at least 4; defaults to 512.
+        ///     Base number of spatial intervals, at least 4; defaults to 512.
+        ///     Event boundaries may add intervals; Simpson panels round up to even.
         $(#[doc = concat!(stringify!($time), " : int, optional\n    American exercise intervals, at least 1; defaults to 200. Ignored for European pricing.")])?
         /// integration_standard_deviations : float, optional
         ///     Positive finite integration extent in standard deviations; defaults to 8.
@@ -65,7 +66,7 @@ macro_rules! quadrature_engine {
                         },
                     ))?))
                 },
-                /// Returns the configured spatial grid budget.
+                /// Returns the configured number of spatial intervals.
                 #[getter]
                 fn asset_step_count(&self) -> i32 {
                     self.0.settings().asset_step_count
@@ -149,8 +150,9 @@ quadrature_engine!(
     ///
     /// Notes
     /// -----
-    /// Uses Simpson integration for European options and cubic Gaussian backward
-    /// induction for American options. Requires flat-rate BSM parameters.
+    /// Uses Simpson integration for European options and Gaussian backward
+    /// induction with piecewise cubic continuation interpolation for American
+    /// options. Requires flat-rate BSM parameters.
     /// Check spatial, time and integration-extent convergence separately;
     /// fixed-grid completion does not estimate error. Higher Greeks near exercise
     /// boundaries also require bump convergence checks.

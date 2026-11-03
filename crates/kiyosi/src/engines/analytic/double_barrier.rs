@@ -14,15 +14,15 @@ use std::f64::consts::PI;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticDoubleBarrierEngine;
 impl AnalyticDoubleBarrierEngine {
-    /// Prices inclusive boundary touches, prior history and remaining cashflows.
+    /// Prices inclusive boundary touches, prior history and remaining cash flows.
     ///
     /// Uses image/spectral absorbing-density series and first-exit rebate integration.
     /// Resolved contracts settle before the continuous-monitoring restriction.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves or unresolved schedules,
-    /// [`Error::InvalidInput`] outside life, for non-trading fixings, or for
+    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves or unresolved schedules,
+    /// [`Error::InvalidInput`] outside life, for nontrading fixings, or for
     /// missing or impossible history, checked in that order. Unrepresentable
     /// calculations return [`Error::ComputationFailure`]; series or integration
     /// limits reached without convergence return [`Error::NonConvergence`].

@@ -44,7 +44,7 @@ pub(crate) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::Barri
 /// option_type : {'call', 'put'}
 ///     Call or put payoff direction.
 /// strike : float
-///     Positive finite exercise or purchase price.
+///     Positive finite strike price.
 /// effective_date : datetime.date
 ///     Inclusive first contract date.
 /// expiry_date : datetime.date
@@ -116,7 +116,7 @@ monitoring_properties!(
             "put"
         }
     },
-    /// Return the exercise or purchase price in underlying price units.
+    /// Return the strike price in underlying price units.
     #[getter]
     fn strike(&self) -> f64 {
         self.0.strike()

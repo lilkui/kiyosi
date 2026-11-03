@@ -16,13 +16,14 @@ pub struct AnalyticBinaryBarrierEngine;
 impl AnalyticBinaryBarrierEngine {
     /// Prices a binary barrier or touch contract with strictly prior history.
     ///
-    /// Equality touches before future monitoring; scheduled unresolved monitoring uses BGK
+    /// Equality counts as a touch before future monitoring. Unresolved scheduled
+    /// monitoring uses the Broadie-Glasserman-Kou (BGK) continuity correction
     /// and must end at expiry. Terminal binary equality at strike pays zero.
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::UnsupportedOperation`] for node curves or unsupported
-    /// schedules. Returns [`crate::Error::InvalidInput`] outside life, for non-trading
+    /// Returns [`crate::Error::UnsupportedOperation`] for node-based rate curves or unsupported
+    /// schedules. Returns [`crate::Error::InvalidInput`] outside life, for nontrading
     /// fixings, or for missing or impossible history, checked in that order.
     /// Non-finite results return [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
     ///

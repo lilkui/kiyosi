@@ -272,7 +272,7 @@ fn bjerksund_call(
             ))
 }
 
-/// Prices American vanilla options using the Bjerksund–Stensland 2002 approximation.
+/// Prices American vanilla options using the Bjerksund-Stensland 2002 approximation.
 ///
 /// This synchronous, stateless engine supports shared concurrent use. It accepts
 /// scalar or explicitly flat rates only; it never substitutes another American algorithm.
@@ -293,7 +293,7 @@ impl BjerksundStenslandVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves (before life
+    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves (before life
     /// validation), negative transformed interest rates before expiry (call: rate;
     /// put: dividend), or exercise boundaries at/below strike. Returns
     /// [`Error::InvalidInput`] outside the inclusive exercise window and

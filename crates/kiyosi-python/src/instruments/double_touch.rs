@@ -3,10 +3,12 @@ use crate::error::domain;
 use crate::instruments::barrier;
 use pyo3::prelude::*;
 
-/// Cash one-touch or no-touch contract with two inclusive boundaries.
+/// Cash double one-touch or double no-touch option with inclusive barriers.
 ///
 /// Notes
 /// -----
+/// Double one-touch pays when either barrier is touched; double no-touch
+/// pays only if neither barrier is touched during monitoring.
 /// Construct with cash_double_touch or cash_double_no_touch. Prior at-hit
 /// payments have no remaining value.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
@@ -25,7 +27,7 @@ monitoring_properties!(
     fn upper_barrier(&self) -> f64 {
         self.0.upper_barrier()
     },
-    /// Return the nonnegative finite cash payout.
+    /// Return the positive finite cash payout.
     #[getter]
     fn payout(&self) -> f64 {
         self.0.payout()

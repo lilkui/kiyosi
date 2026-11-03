@@ -66,18 +66,27 @@ impl HestonFiniteDifferenceSettings {
     }
 }
 
-/// Prices European and American vanilla options under Heston with MCS ADI.
+/// Prices European and American vanilla options under the Heston model.
 ///
-/// Uses a fixed splitting parameter of 1/3, nine-point mixed derivatives,
+/// Uses the modified Craig-Sneyd (MCS) alternating direction implicit (ADI)
+/// scheme with a fixed splitting parameter of 1/3, nine-point mixed derivatives,
 /// nonuniform price/variance grids and Ikonen-Toivanen American splitting.
-/// Accepts deterministic rate/dividend curves, Feller violations, zero parameters
-/// and correlation endpoints. Zero vol-of-vol uses the actual deterministic
-/// variance path in one dimension. Absorbing zero variance uses optimal
-/// deterministic exercise. Greeks and inverse solves are unsupported.
+/// Accepts deterministic rate and dividend-yield curves, parameters that violate
+/// the Feller condition, zero parameters and correlation endpoints. With zero
+/// volatility of volatility, pricing uses the deterministic variance path in
+/// one dimension. Absorbing zero variance uses optimal
+/// deterministic exercise. Greeks and implied-parameter solvers are unsupported.
 ///
 /// Domain truncation and discretization both require convergence checks. No
 /// automatic error estimate or refinement is performed. Shared and independent
 /// instances support concurrent calls with request-local state. See [`Self::new`].
+///
+/// # References
+///
+/// In 't Hout and Foulon (2010), [ADI finite difference schemes for option pricing
+/// in the Heston model with correlation][heston-adi].
+///
+/// [heston-adi]: https://www.math.ualberta.ca/ijnam/Volume-7-2010/No-2-10/2010-02-06.pdf
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FiniteDifferenceHestonVanillaEngine {
     settings: HestonFiniteDifferenceSettings,

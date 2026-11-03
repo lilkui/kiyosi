@@ -3,7 +3,7 @@ use crate::error::domain;
 use crate::market::{RateTermStructure, python_rate, rate};
 use pyo3::prelude::*;
 
-/// Immutable constant risk-neutral Heston parameters with owned rate curves.
+/// Immutable Heston stochastic-volatility parameters under the risk-neutral measure.
 ///
 /// Parameters
 /// ----------
@@ -16,9 +16,10 @@ use pyo3::prelude::*;
 /// mean_reversion_speed : float
 ///     Mean-reversion coefficient kappa, with time measured in years.
 /// vol_of_vol : float
-///     Coefficient xi in dv = kappa * (theta-v) dt + xi * sqrt(v) dW.
+///     Volatility-of-volatility parameter xi in
+///     dv = kappa * (theta - v) dt + xi * sqrt(v) dW.
 /// correlation : float
-///     Price-variance Brownian correlation in [-1, 1], including endpoints.
+///     Correlation between the asset and variance Brownian motions in [-1, 1], including endpoints.
 ///
 /// Raises
 /// ------
@@ -27,8 +28,10 @@ use pyo3::prelude::*;
 ///
 /// Notes
 /// -----
-/// Zero parameters and Feller violations are accepted. Only AnalyticHestonEuropeanEngine
-/// supports this model, for European prices. Greeks and inverse solves are unsupported.
+/// Zero parameters and violations of the Feller condition
+/// (2 * kappa * theta >= xi**2) are accepted. AnalyticHestonEuropeanEngine
+/// prices European options; FiniteDifferenceHestonVanillaEngine prices European
+/// and American options. Greeks and implied-parameter solvers are unsupported.
 /// Numeric conversion rejects booleans. Replacement validates in Rust before
 /// returning a new owned model; the original is unchanged on failure.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
@@ -108,12 +111,12 @@ impl HestonParameters {
             },
         ))?))
     }
-    /// Return the scalar risk-free rate or an owned node curve.
+    /// Return the scalar risk-free rate or an owned node-based rate curve.
     #[getter]
     fn risk_free_rate(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         python_rate(py, self.0.risk_free_curve())
     }
-    /// Return the scalar dividend yield or an owned node curve.
+    /// Return the scalar dividend yield or an owned node-based rate curve.
     #[getter]
     fn dividend_yield(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         python_rate(py, self.0.dividend_curve())
@@ -138,17 +141,17 @@ impl HestonParameters {
     fn long_run_variance(&self) -> f64 {
         self.0.long_run_variance()
     }
-    /// Return annual mean-reversion speed.
+    /// Return mean-reversion speed per year.
     #[getter]
     fn mean_reversion_speed(&self) -> f64 {
         self.0.mean_reversion_speed()
     }
-    /// Return the variance diffusion coefficient xi.
+    /// Return the volatility-of-volatility parameter xi.
     #[getter]
     fn vol_of_vol(&self) -> f64 {
         self.0.vol_of_vol()
     }
-    /// Return the price-variance Brownian correlation.
+    /// Return the correlation between the asset and variance Brownian motions.
     #[getter]
     fn correlation(&self) -> f64 {
         self.0.correlation()

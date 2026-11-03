@@ -73,7 +73,7 @@ impl CoxRossRubinsteinVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node curves before life
+    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves before life
     /// validation, [`Error::InvalidInput`] outside contract life, and
     /// [`Error::ComputationFailure`] for unstable probabilities, asset nodes or values.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>

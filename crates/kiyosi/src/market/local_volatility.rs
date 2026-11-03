@@ -2,9 +2,10 @@ use crate::{Error, Rate, RateTermStructure, Result, Timestamp, error::finite};
 
 /// Owns a local-volatility table in absolute time and spot coordinates.
 ///
-/// Rows correspond to times and columns to spots. Sigma interpolates bilinearly
-/// using Actual/365 Fixed time; price tails are flat and time extrapolation is
-/// rejected. The first time is the reference. Storage is immutable and borrowed
+/// Rows correspond to times and columns to spots. Local volatility interpolates
+/// bilinearly using Actual/365 Fixed year fractions. Extrapolation in the spot
+/// dimension holds the nearest endpoint volatility constant; time extrapolation
+/// is rejected. The first time is the reference. Storage is immutable and borrowed
 /// accessors remain valid for this surface's lifetime. See [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct LocalVolatilitySurface {
@@ -16,13 +17,13 @@ pub struct LocalVolatilitySurface {
 }
 
 impl LocalVolatilitySurface {
-    /// Creates a validated table of positive annual decimal volatilities.
+    /// Creates a validated table of positive annualized volatilities in decimal units.
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for fewer than two nodes on either axis,
     /// unordered or numerically indistinguishable time nodes, a nonrectangular
-    /// table, or nonpositive/non-finite prices
+    /// table, or nonpositive or non-finite prices
     /// or volatilities. No partially validated value is returned.
     ///
     /// # Examples
@@ -95,7 +96,7 @@ impl LocalVolatilitySurface {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] outside time coverage or for a
-    /// nonpositive/non-finite spot. Inputs remain unchanged.
+    /// nonpositive or non-finite spot. Inputs remain unchanged.
     pub fn volatility(&self, time: Timestamp, spot: f64) -> Result<f64> {
         self.validate_time(time)?;
         finite(spot, true)?;

@@ -1,17 +1,20 @@
 """Market snapshots, calendars, and observation schedules.
 
-Rates and volatility use annual decimal units (0.05 means 5%). Rate curves
-use Actual/365 Fixed time; a calendar's trading-day basis applies only to
-trading-year fractions. ``BusinessDayConvention`` accepts ``"following"``
+Rates use annual decimal units and continuous compounding (0.05 means 5%).
+Volatility is annualized and expressed in decimal units. Rate curves
+use the Actual/365 Fixed day-count convention; a calendar's trading-day basis
+applies only to trading-year fractions. ``BusinessDayConvention`` accepts ``"following"``
 or ``"preceding"``, including the supplied date when it is open.
 Observation schedules accept integer indices, including negative positions,
 and reject boolean indices with TypeError. Out-of-range indices raise IndexError.
 LocalVolatilitySurface owns a rectangular table (rows=time, columns=absolute
-spot), interpolating sigma bilinearly with flat price tails and no time
-extrapolation. Context changes keep these absolute nodes fixed. All FD engines
-support LocalVolatilityParameters for price, delta and gamma; Digital FD requires
-explicitly flat risk-free and dividend rates. Non-FD engines, other Greeks and
-inverse solves reject this model with UnsupportedOperationError.
+spot), with bilinear interpolation of local volatility, constant extrapolation
+in the spot dimension, and no time extrapolation. Context changes keep these
+absolute nodes fixed. The one-dimensional finite-difference engines support
+LocalVolatilityParameters for price, delta and gamma; digital
+finite-difference pricing requires explicitly flat risk-free rates and dividend
+yields. Other engine families, other Greeks and implied-parameter solvers
+reject this model with UnsupportedOperationError.
 Model and context ``replace()`` methods expose named keyword-only fields.
 Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
 values; explicit ``None`` is rejected.
@@ -19,8 +22,9 @@ values; explicit ``None`` is rejected.
 HestonParameters owns constant risk-neutral variance parameters and deterministic
 rate curves. Initial variance is at valuation (20% volatility means 0.04).
 Variance parameters are finite and nonnegative; correlation includes [-1, 1].
-The Feller condition is not required. AnalyticHestonEuropeanEngine supports European
-prices only; other engines, Greeks and inverse solves reject this model.
+The Feller condition is not required. AnalyticHestonEuropeanEngine prices European
+options; FiniteDifferenceHestonVanillaEngine prices European and American options.
+Other engines, Greeks and implied-parameter solvers reject this model.
 
 Examples
 --------

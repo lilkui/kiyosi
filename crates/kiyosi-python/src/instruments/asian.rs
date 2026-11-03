@@ -5,14 +5,14 @@ use pyo3::types::PyDate;
 
 macro_rules! average_option {
     ($name:ident) => {
-        /// Continuous average-price option with explicit history.
+        /// Continuously monitored average-price Asian option with explicit history.
         ///
         /// Parameters
         /// ----------
         /// option_type : {'call', 'put'}
         ///     Call or put payoff direction.
         /// strike : float
-        ///     Positive finite exercise or purchase price.
+        ///     Positive finite strike price.
         /// effective_date : datetime.date
         ///     Inclusive first contract date.
         /// averaging_start_date : datetime.date
@@ -71,7 +71,7 @@ macro_rules! average_option {
             fn option_type(&self) -> &'static str {
                 if self.0.option_type() == kiyosi::OptionType::Call { "call" } else { "put" }
             }
-            /// Return the exercise or purchase price in underlying price units.
+            /// Return the strike price in underlying price units.
             #[getter]
             fn strike(&self) -> f64 { self.0.strike() }
             /// Return the supplied historical average; zero denotes no history.

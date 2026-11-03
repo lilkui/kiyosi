@@ -151,7 +151,7 @@ pub(crate) fn all_days_calendar() -> TradingCalendar {
     TradingCalendar(kiyosi::TradingCalendar::all_days())
 }
 
-/// Create an SSE weekday-closure calendar with a 243-day basis.
+/// Create a Shanghai Stock Exchange (SSE) calendar with a 243-day basis.
 ///
 /// Returns
 /// -------

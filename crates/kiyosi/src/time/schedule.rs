@@ -17,7 +17,7 @@ impl ObservationSchedule {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for reversed life, unordered or out-of-life
-    /// dates, or non-trading observation dates, checked in that order.
+    /// dates, or nontrading observation dates, checked in that order.
     pub fn new(
         dates: Vec<Date>,
         start: Date,
