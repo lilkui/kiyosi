@@ -62,9 +62,9 @@ pub struct BarrierOptionTerms {
     /// Positive finite strike.
     pub strike: f64,
     /// Inclusive first date.
-    pub effective_date: Date,
+    pub effective_midnight_utc: Date,
     /// Inclusive expiry at midnight UTC.
-    pub expiry_date: Date,
+    pub expiry_midnight_utc: Date,
     /// Positive finite trigger level; equality touches.
     pub barrier_level: f64,
     /// Trigger direction and activation behavior.
@@ -90,16 +90,16 @@ impl BarrierOptionTerms {
     pub fn new(
         option_type: OptionType,
         strike: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_midnight_utc: Date,
+        expiry_midnight_utc: Date,
         barrier_level: f64,
         barrier_type: BarrierType,
     ) -> Self {
         Self {
             option_type,
             strike,
-            effective_date,
-            expiry_date,
+            effective_midnight_utc,
+            expiry_midnight_utc,
             barrier_level,
             barrier_type,
             rebate: Self::DEFAULT_REBATE,
@@ -147,8 +147,8 @@ impl BarrierOption {
     /// ```
     pub fn new(terms: BarrierOptionTerms) -> Result<Self> {
         let monitoring = Monitoring::new(
-            terms.effective_date,
-            terms.expiry_date,
+            terms.effective_midnight_utc,
+            terms.expiry_midnight_utc,
             terms.barrier_level,
             terms.barrier_type,
             terms.observation_mode,
@@ -158,8 +158,8 @@ impl BarrierOption {
         let vanilla = EuropeanOption::new(
             terms.option_type,
             terms.strike,
-            terms.effective_date,
-            terms.expiry_date,
+            terms.effective_midnight_utc,
+            terms.expiry_midnight_utc,
         )?;
         if !terms.rebate.is_finite() || terms.rebate < 0.0 {
             return Err(Error::InvalidInput(
@@ -214,12 +214,12 @@ impl BarrierOption {
         self.vanilla.strike()
     }
     /// Returns the inclusive first date; see [`Self::new`].
-    pub fn effective_date(&self) -> Date {
-        self.vanilla.effective_date()
+    pub fn effective_midnight_utc(&self) -> Date {
+        self.vanilla.effective_midnight_utc()
     }
     /// Returns expiry at midnight UTC; see [`Self::new`].
-    pub fn expiry_date(&self) -> Date {
-        self.vanilla.expiry_date()
+    pub fn expiry_midnight_utc(&self) -> Date {
+        self.vanilla.expiry_midnight_utc()
     }
     /// Returns the positive trigger level; see [`Self::new`].
     pub fn barrier_level(&self) -> f64 {
@@ -280,11 +280,11 @@ impl BarrierOption {
     }
 }
 impl OptionContract for BarrierOption {
-    fn effective_date(&self) -> Date {
-        self.effective_date()
+    fn effective_midnight_utc(&self) -> Date {
+        self.effective_midnight_utc()
     }
-    fn expiry_date(&self) -> Date {
-        self.expiry_date()
+    fn expiry_midnight_utc(&self) -> Date {
+        self.expiry_midnight_utc()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         self.monitoring.at_spot_discontinuity(context, radius)

@@ -165,7 +165,7 @@ impl MonteCarloBarrierEngine {
         validate_life(option, context)?;
         validate_schedule(option.observation_schedule(), context)?;
         let time = context.valuation_time();
-        let expiry = option.expiry_date().start_of_day();
+        let expiry = option.expiry_midnight_utc().start_of_day();
         let radius =
             crate::risk::numerical::symmetric_shift(context.spot_price(), shifts.spot_shift);
         let discontinuity = match contract {
@@ -218,8 +218,8 @@ impl MonteCarloBarrierEngine {
                 .filter(|date| date.start_of_day() > time)
                 .collect::<Vec<_>>()
         };
-        if dates.last() != Some(&option.expiry_date()) {
-            dates.push(option.expiry_date());
+        if dates.last() != Some(&option.expiry_midnight_utc()) {
+            dates.push(option.expiry_midnight_utc());
         }
         let mut previous = time;
         let mut steps = Vec::with_capacity(dates.len());

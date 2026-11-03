@@ -48,8 +48,8 @@ class AutocallableRegressionTests(unittest.TestCase):
                 lower_strike=60,
                 knock_in_observation_mode=mode,
                 barrier_state="no_event",
-                effective_date=start,
-                expiry_date=end,
+                effective_midnight_utc=start,
+                expiry_midnight_utc=end,
                 observations=autocallable_observations(
                     [date(2025, 1, 3), end],
                     [110, 105],
@@ -79,8 +79,8 @@ class AutocallableRegressionTests(unittest.TestCase):
         )
         binary = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_date=start,
-            expiry_date=end,
+            effective_midnight_utc=start,
+            expiry_midnight_utc=end,
             observations=autocallable_observations(
                 [end], [100], knock_out_coupon_rates=[0.1]
             ),
@@ -89,8 +89,8 @@ class AutocallableRegressionTests(unittest.TestCase):
             option_type="call",
             strike=100,
             payout=0.1,
-            effective_date=start,
-            expiry_date=end,
+            effective_midnight_utc=start,
+            expiry_midnight_utc=end,
         )
         expected = 1 + pricing.AnalyticDigitalEngine().price(digital, context)
         for steps in (200, 2000):
@@ -102,15 +102,18 @@ class AutocallableRegressionTests(unittest.TestCase):
                     engine.price(binary, context), expected, delta=0.0003
                 )
         common = {
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_midnight_utc": start,
+            "expiry_midnight_utc": end,
             "knock_in_level": 100,
             "knock_in_observation_mode": "every_trading_day",
         }
         downside = {"initial_spot": 100, "upper_strike": 100, "lower_strike": 60}
         put = lambda strike: pricing.AnalyticEuropeanEngine().price(
             EuropeanOption(
-                option_type="put", strike=strike, effective_date=start, expiry_date=end
+                option_type="put",
+                strike=strike,
+                effective_midnight_utc=start,
+                expiry_midnight_utc=end,
             ),
             context,
         )
@@ -198,8 +201,8 @@ class AutocallableRegressionTests(unittest.TestCase):
         observation_dates = [date(2025, 1, 3), date(2025, 1, 8), end]
         knock_out_levels = [101, 100, 99]
         common = {
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_midnight_utc": start,
+            "expiry_midnight_utc": end,
             "barrier_state": "no_event",
         }
         coupons = {
@@ -312,8 +315,8 @@ class AutocallableRegressionTests(unittest.TestCase):
         observation_dates = [date(2025, 1, 7), end]
         knock_out_levels = [110, 110]
         common = {
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_midnight_utc": start,
+            "expiry_midnight_utc": end,
             "barrier_state": "no_event",
         }
         coupons = {
@@ -488,7 +491,7 @@ class AutocallableRegressionTests(unittest.TestCase):
         dates = [start + timedelta(days=index) for index in range(1, 13)]
         observation_dates = dates
         knock_out_levels = [110] * len(dates)
-        common = {"effective_date": start, "expiry_date": end}
+        common = {"effective_midnight_utc": start, "expiry_midnight_utc": end}
         coupons = {
             "maturity_coupon_rate": 0.06,
             "observations": autocallable_observations(
@@ -615,8 +618,8 @@ class AutocallableRegressionTests(unittest.TestCase):
             lower_strike=100,
             barrier_state="no_event",
             knock_in_observation_mode="every_trading_day",
-            effective_date=start,
-            expiry_date=end,
+            effective_midnight_utc=start,
+            expiry_midnight_utc=end,
             observations=autocallable_observations(
                 [end], [110], knock_out_coupon_rates=[0]
             ),
@@ -671,8 +674,8 @@ class AutocallableRegressionTests(unittest.TestCase):
                         upper_strike=100,
                         lower_strike=60,
                         barrier_state=state,
-                        effective_date=start,
-                        expiry_date=end,
+                        effective_midnight_utc=start,
+                        expiry_midnight_utc=end,
                         knock_in_observation_mode="every_trading_day",
                         observations=autocallable_observations(
                             [end], [110], knock_out_coupon_rates=[0.08]
@@ -700,8 +703,8 @@ class AutocallableRegressionTests(unittest.TestCase):
         common = {
             "knock_in_level": 100,
             "knock_in_observation_mode": "at_expiry",
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_midnight_utc": start,
+            "expiry_midnight_utc": end,
         }
         snowball = SnowballOption(
             **common,
@@ -736,8 +739,8 @@ class AutocallableRegressionTests(unittest.TestCase):
                 EuropeanOption(
                     option_type="put",
                     strike=strike,
-                    effective_date=start,
-                    expiry_date=end,
+                    effective_midnight_utc=start,
+                    expiry_midnight_utc=end,
                 ),
                 context,
             )
@@ -750,8 +753,8 @@ class AutocallableRegressionTests(unittest.TestCase):
                 option_type="call",
                 strike=100,
                 payout=1,
-                effective_date=start,
-                expiry_date=end,
+                effective_midnight_utc=start,
+                expiry_midnight_utc=end,
             ),
             context,
         )
@@ -796,8 +799,8 @@ class AutocallableRegressionTests(unittest.TestCase):
             "knock_in_level": 75,
             "upper_strike": 100,
             "lower_strike": 100,
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_midnight_utc": start,
+            "expiry_midnight_utc": end,
             "observations": autocallable_observations(
                 [middle, end], [110, 104], knock_out_coupon_rates=[0.08, 0.08]
             ),
@@ -856,8 +859,8 @@ class AutocallableRegressionTests(unittest.TestCase):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         note = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_date=start,
-            expiry_date=end,
+            effective_midnight_utc=start,
+            expiry_midnight_utc=end,
             observations=autocallable_observations(
                 [end], [110], knock_out_coupon_rates=[0]
             ),

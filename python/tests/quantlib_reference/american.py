@@ -20,15 +20,15 @@ STABILITY = {
     "zomma": 0.00001,
     "rho": 0.001,
 }
-EXPIRY_REASON = "whole-day stability stencil touches expiry_date"
+EXPIRY_REASON = "whole-day stability stencil touches expiry_midnight_utc"
 EXERCISE_REASON = "whole-day stability stencil precedes exercise window"
 
 
 def exclusions(inputs):
     valuation = date.fromisoformat(inputs["valuation"])
-    if (date.fromisoformat(inputs["expiry_date"]) - valuation).days <= 2:
+    if (date.fromisoformat(inputs["expiry_midnight_utc"]) - valuation).days <= 2:
         return dict.fromkeys(g.TIME_MEASURES, EXPIRY_REASON)
-    if (valuation - date.fromisoformat(inputs["effective_date"])).days < 2:
+    if (valuation - date.fromisoformat(inputs["effective_midnight_utc"])).days < 2:
         return dict.fromkeys(g.TIME_MEASURES, EXERCISE_REASON)
     return {}
 

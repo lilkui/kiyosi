@@ -36,9 +36,9 @@ class AsianRegressionTests(unittest.TestCase):
                                 option = ArithmeticAveragePriceOption(
                                     option_type=direction,
                                     strike=100 * scale,
-                                    effective_date=start,
+                                    effective_midnight_utc=start,
                                     averaging_start_date=start,
-                                    expiry_date=end,
+                                    expiry_midnight_utc=end,
                                     realized_average=50 * scale,
                                 )
                                 context = PricingContext(
@@ -75,9 +75,9 @@ class AsianRegressionTests(unittest.TestCase):
                 option = kind(
                     option_type="call",
                     strike=5e-201,
-                    effective_date=start,
+                    effective_midnight_utc=start,
                     averaging_start_date=start,
-                    expiry_date=end,
+                    expiry_midnight_utc=end,
                 )
                 result = engine.price_with_greeks(
                     option,
@@ -115,9 +115,9 @@ class AsianRegressionTests(unittest.TestCase):
             option = kind(
                 option_type="call",
                 strike=100,
-                effective_date=start,
+                effective_midnight_utc=start,
                 averaging_start_date=start,
-                expiry_date=end,
+                expiry_midnight_utc=end,
             )
 
             def calculate(selection, engine=engine, option=option):
@@ -166,9 +166,9 @@ class AsianRegressionTests(unittest.TestCase):
                     option = ArithmeticAveragePriceOption(
                         option_type=direction,
                         strike=amount * strike_fraction,
-                        effective_date=start,
+                        effective_midnight_utc=start,
                         averaging_start_date=start,
-                        expiry_date=valuation + timedelta(days=365),
+                        expiry_midnight_utc=valuation + timedelta(days=365),
                         realized_average=amount,
                     )
                     context = PricingContext(
@@ -188,9 +188,9 @@ class AsianRegressionTests(unittest.TestCase):
         option = ArithmeticAveragePriceOption(
             option_type="call",
             strike=25,
-            effective_date=start,
+            effective_midnight_utc=start,
             averaging_start_date=start,
-            expiry_date=start + timedelta(days=730),
+            expiry_midnight_utc=start + timedelta(days=730),
             realized_average=100,
         )
         context = PricingContext(
@@ -220,9 +220,9 @@ class AsianRegressionTests(unittest.TestCase):
                             option_type="call",
                             strike=strike,
                             realized_average=average,
-                            effective_date=end,
+                            effective_midnight_utc=end,
                             averaging_start_date=start,
-                            expiry_date=start,
+                            expiry_midnight_utc=start,
                         )
                     self.assertIs(type(error.exception), expected_error)
 
@@ -259,11 +259,11 @@ class AsianRegressionTests(unittest.TestCase):
                         option = ArithmeticAveragePriceOption(
                             option_type=direction,
                             strike=spot,
-                            effective_date=start,
+                            effective_midnight_utc=start,
                             averaging_start_date=start + timedelta(days=120)
                             if window == 1
                             else start,
-                            expiry_date=end,
+                            expiry_midnight_utc=end,
                             realized_average=spot if window == 2 else 0,
                         )
                         actual = (
@@ -291,9 +291,9 @@ class AsianRegressionTests(unittest.TestCase):
                 terms = {
                     "option_type": direction,
                     "strike": strike * scale,
-                    "effective_date": start,
+                    "effective_midnight_utc": start,
                     "averaging_start_date": start,
-                    "expiry_date": end,
+                    "expiry_midnight_utc": end,
                 }
                 for engine, option, expected in (
                     (
@@ -336,9 +336,9 @@ class AsianRegressionTests(unittest.TestCase):
             terms = {
                 "option_type": direction,
                 "strike": 100,
-                "effective_date": start,
+                "effective_midnight_utc": start,
                 "averaging_start_date": start,
-                "expiry_date": end,
+                "expiry_midnight_utc": end,
             }
             for realized in (100, 200, 220):
                 with self.subTest(direction=direction, realized=realized):
@@ -432,9 +432,9 @@ class AsianRegressionTests(unittest.TestCase):
                             option = ArithmeticAveragePriceOption(
                                 option_type=direction,
                                 strike=spot,
-                                effective_date=start,
+                                effective_midnight_utc=start,
                                 averaging_start_date=averaging,
-                                expiry_date=end,
+                                expiry_midnight_utc=end,
                                 realized_average=spot if window == 2 else 0,
                             )
                             actual = engine.price(option, context)
@@ -470,11 +470,11 @@ class AsianRegressionTests(unittest.TestCase):
                     option = ArithmeticAveragePriceOption(
                         option_type=direction,
                         strike=strike,
-                        effective_date=start,
+                        effective_midnight_utc=start,
                         averaging_start_date=(
                             start + timedelta(days=120) if window == 1 else start
                         ),
-                        expiry_date=end,
+                        expiry_midnight_utc=end,
                         realized_average=1e8 if window == 2 else 0,
                     )
                     actual = (
@@ -495,9 +495,9 @@ class AsianRegressionTests(unittest.TestCase):
         oversized = ArithmeticAveragePriceOption(
             option_type="call",
             strike=1e308,
-            effective_date=start,
+            effective_midnight_utc=start,
             averaging_start_date=start,
-            expiry_date=end,
+            expiry_midnight_utc=end,
             realized_average=1,
         )
         self.assertEqual(
@@ -554,9 +554,9 @@ class AsianRegressionTests(unittest.TestCase):
                             option = GeometricAveragePriceOption(
                                 option_type=direction,
                                 strike=spot,
-                                effective_date=start,
+                                effective_midnight_utc=start,
                                 averaging_start_date=averaging,
-                                expiry_date=end,
+                                expiry_midnight_utc=end,
                                 realized_average=spot if window == 2 else 0,
                             )
                             price = pricing.AnalyticGeometricAveragePriceEngine().price(
@@ -584,9 +584,9 @@ class AsianRegressionTests(unittest.TestCase):
                     terms = {
                         "option_type": direction,
                         "strike": 1e14,
-                        "effective_date": start,
+                        "effective_midnight_utc": start,
                         "averaging_start_date": end,
-                        "expiry_date": end,
+                        "expiry_midnight_utc": end,
                     }
                     actual = engine.price(GeometricAveragePriceOption(**terms), context)
                     expected = 1e14 * math.erf(sigma / (2 * math.sqrt(2)))
@@ -612,9 +612,9 @@ class AsianRegressionTests(unittest.TestCase):
                 GeometricAveragePriceOption(
                     option_type=direction,
                     strike=100,
-                    effective_date=start,
+                    effective_midnight_utc=start,
                     averaging_start_date=end,
-                    expiry_date=end,
+                    expiry_midnight_utc=end,
                 ),
                 expired,
             )

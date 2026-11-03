@@ -53,7 +53,7 @@ impl AnalyticRangeAccrualEngine {
     /// let option = RangeAccrualOption::new(RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
     ///     Date::new(2025, 1, 1)?, Date::new(2025, 1, 3)?))?.replace_history(Some(1))?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
-    ///     95.0, option.expiry_date().into())?;
+    ///     95.0, option.expiry_midnight_utc().into())?;
     /// assert!((AnalyticRangeAccrualEngine.price(&option, &context)? - 240.0 / 365.0).abs() < 1e-12);
     /// # Ok(()) }
     /// ```
@@ -65,16 +65,19 @@ impl AnalyticRangeAccrualEngine {
     pub fn price(&self, option: &RangeAccrualOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         let valuation = context.valuation_time();
-        let expiry = option.expiry_date().start_of_day();
+        let expiry = option.expiry_midnight_utc().start_of_day();
         if valuation > expiry {
             return Err(Error::InvalidInput("valuation is after expiry".into()));
         }
-        if !context.calendar().is_trading_day(option.expiry_date()) {
+        if !context
+            .calendar()
+            .is_trading_day(option.expiry_midnight_utc())
+        {
             return Err(Error::InvalidInput("expiry must be a trading day".into()));
         }
         let schedule = ObservationSchedule::fixed_interval(
-            option.effective_date(),
-            option.expiry_date(),
+            option.effective_midnight_utc(),
+            option.expiry_midnight_utc(),
             1,
             context.calendar(),
         )?;
@@ -102,7 +105,10 @@ impl AnalyticRangeAccrualEngine {
         if option.annual_coupon_rate() == 0.0 {
             return Ok(0.0);
         }
-        let term = option.effective_date().start_of_day().years_until(expiry);
+        let term = option
+            .effective_midnight_utc()
+            .start_of_day()
+            .years_until(expiry);
         let mut scale = option.notional().ln() + option.annual_coupon_rate().ln() + term.ln()
             - (dates.len() as f64).ln();
         let model = context.bsm_parameters()?;
@@ -161,6 +167,6 @@ impl PricingEngine<RangeAccrualOption> for AnalyticRangeAccrualEngine {
         context: &PricingContext,
     ) -> bool {
         option.annual_coupon_rate() != 0.0
-            && context.valuation_time() < option.expiry_date().start_of_day()
+            && context.valuation_time() < option.expiry_midnight_utc().start_of_day()
     }
 }

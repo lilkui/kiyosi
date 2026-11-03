@@ -239,8 +239,8 @@ fn constructors_and_replacements_validate_before_returning_owned_values() {
         assert!(matches!(
             option
                 .replace(DigitalOptionChanges {
-                    effective_date: Some(end),
-                    expiry_date: Some(start),
+                    effective_midnight_utc: Some(end),
+                    expiry_midnight_utc: Some(start),
                     ..Default::default()
                 })
                 .unwrap_err(),
@@ -257,8 +257,8 @@ fn constructors_and_replacements_validate_before_returning_owned_values() {
         assert_eq!(updated.strike(), 105.0);
         assert_eq!(updated.payout(), option.payout());
         assert_eq!(option.strike(), 100.0);
-        assert_eq!(option.effective_date(), start);
-        assert_eq!(option.expiry_date(), end);
+        assert_eq!(option.effective_midnight_utc(), start);
+        assert_eq!(option.expiry_midnight_utc(), end);
     }
     assert_eq!(cash.payout(), Some(10.0));
     assert!(matches!(

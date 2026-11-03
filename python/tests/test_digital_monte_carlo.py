@@ -45,8 +45,8 @@ def options():
         terms = {
             "option_type": direction,
             "strike": 100,
-            "effective_date": START,
-            "expiry_date": END,
+            "effective_midnight_utc": START,
+            "expiry_midnight_utc": END,
         }
         yield (CashOrNothingOption(**terms, payout=10), False)
         yield (AssetOrNothingOption(**terms), True)
@@ -287,8 +287,8 @@ class DigitalNumericalTests(unittest.TestCase):
                 EuropeanOption(
                     option_type="call",
                     strike=100,
-                    effective_date=START,
-                    expiry_date=END,
+                    effective_midnight_utc=START,
+                    expiry_midnight_utc=END,
                 ),
                 market(),
             )
@@ -414,8 +414,8 @@ class DigitalNumericalTests(unittest.TestCase):
                 option = cls(
                     option_type="call",
                     strike=spot,
-                    effective_date=START,
-                    expiry_date=END,
+                    effective_midnight_utc=START,
+                    expiry_midnight_utc=END,
                     **({"payout": amount} if cls is CashOrNothingOption else {}),
                 )
                 context = market(spot=spot, rate=rate, dividend=rate)
@@ -429,8 +429,8 @@ class DigitalNumericalTests(unittest.TestCase):
             option_type="call",
             strike=1e-200,
             payout=1e100,
-            effective_date=START,
-            expiry_date=END,
+            effective_midnight_utc=START,
+            expiry_midnight_utc=END,
         )
         context = market(spot=1e-200, rate=0, dividend=0)
         delta = engine.price_with_greeks(option, context, "delta")
@@ -448,8 +448,8 @@ class DigitalNumericalTests(unittest.TestCase):
             option_type="call",
             strike=100,
             payout=1e308,
-            effective_date=START,
-            expiry_date=END,
+            effective_midnight_utc=START,
+            expiry_midnight_utc=END,
         )
         self.assert_rejection(
             ComputationFailureError,
@@ -478,8 +478,10 @@ class DigitalNumericalTests(unittest.TestCase):
             option = cls(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
-                effective_date=date.fromisoformat(inputs["effective_date"]),
-                expiry_date=date.fromisoformat(inputs["expiry_date"]),
+                effective_midnight_utc=date.fromisoformat(
+                    inputs["effective_midnight_utc"]
+                ),
+                expiry_midnight_utc=date.fromisoformat(inputs["expiry_midnight_utc"]),
                 **({"payout": inputs["payout"]} if inputs["payoff"] == "cash" else {}),
             )
             context = market(
@@ -494,7 +496,9 @@ class DigitalNumericalTests(unittest.TestCase):
             actual = pricing.MonteCarloDigitalEngine(
                 path_count=65536, seed=42, sampling="sobol"
             ).price_with_greeks(option, context, ["delta", "gamma"])
-            time = (option.expiry_date - context.valuation_time.date()).days / 365
+            time = (
+                option.expiry_midnight_utc - context.valuation_time.date()
+            ).days / 365
             scale = inputs.get("payout", inputs["spot"])
             width = inputs["volatility"] * math.sqrt(time)
             for name, error in (

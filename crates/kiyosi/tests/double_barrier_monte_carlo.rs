@@ -99,7 +99,7 @@ fn tiny_volatility_payoffs_match_the_vanilla_limit() {
                 t.upper_barrier = 1.2 * spot;
                 t.observation_mode = mode;
                 if mode == ObservationMode::Scheduled {
-                    t.observation_dates = vec![t.expiry_date];
+                    t.observation_dates = vec![t.expiry_midnight_utc];
                 }
                 let option = DoubleBarrierOption::new(t).unwrap();
                 let actual = engine.price(&option, &context).unwrap();
@@ -414,7 +414,7 @@ fn scheduled_dates_and_unobserved_expiry_leg_match_finite_difference() {
                 t.observation_mode = ObservationMode::Scheduled;
                 t.observation_dates = vec![Date::new(2025, 6, 30).unwrap()];
                 if final_fixing {
-                    t.observation_dates.push(t.expiry_date);
+                    t.observation_dates.push(t.expiry_midnight_utc);
                 }
                 let option = DoubleBarrierOption::new(t).unwrap();
                 let actual = engine
@@ -601,7 +601,7 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                 let later = context
                     .replace(PricingContextChanges {
                         valuation_time: Some(
-                            Timestamp::new(option.effective_date(), 0, 0, 0, 1).unwrap(),
+                            Timestamp::new(option.effective_midnight_utc(), 0, 0, 0, 1).unwrap(),
                         ),
                         ..Default::default()
                     })
@@ -623,7 +623,7 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                     let known = option.replace_history(Some(history));
                     let expired = context
                         .replace(PricingContextChanges {
-                            valuation_time: Some(option.expiry_date().into()),
+                            valuation_time: Some(option.expiry_midnight_utc().into()),
                             ..Default::default()
                         })
                         .unwrap();
@@ -810,8 +810,8 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
     let context = market();
     let quote = engine.price(&option, &context).unwrap();
     let curve = RateTermStructure::new(
-        option.effective_date().into(),
-        vec![option.expiry_date().into()],
+        option.effective_midnight_utc().into(),
+        vec![option.expiry_midnight_utc().into()],
         vec![(-0.03_f64).exp()],
     )
     .unwrap();
@@ -869,7 +869,7 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
     ));
     let outside = context
         .replace(PricingContextChanges {
-            valuation_time: Some(Timestamp::new(option.expiry_date(), 0, 0, 0, 1).unwrap()),
+            valuation_time: Some(Timestamp::new(option.expiry_midnight_utc(), 0, 0, 0, 1).unwrap()),
             ..Default::default()
         })
         .unwrap();
@@ -947,7 +947,7 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
 #[test]
 fn sobol_dimension_limit_counts_the_unobserved_expiry_leg() {
     let mut t = terms(OptionType::Call, DoubleBarrierType::KnockOut);
-    t.expiry_date = Date::new(2100, 1, 1).unwrap();
+    t.expiry_midnight_utc = Date::new(2100, 1, 1).unwrap();
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_dates = (2025..2100)
         .flat_map(|year| {
@@ -955,7 +955,7 @@ fn sobol_dimension_limit_counts_the_unobserved_expiry_leg() {
                 (1..=28).map(move |day| Date::new(year, month, day).unwrap())
             })
         })
-        .filter(|date| *date > t.effective_date)
+        .filter(|date| *date > t.effective_midnight_utc)
         .take(21201)
         .collect();
     let option = DoubleBarrierOption::new(t).unwrap();

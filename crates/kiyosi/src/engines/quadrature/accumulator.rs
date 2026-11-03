@@ -33,7 +33,7 @@ impl QuadratureAccumulatorEngine {
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
     ///     start, Date::new(2025, 1, 6)?))?.replace_history(3.0)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
-    ///     90.0, option.expiry_date().into())?;
+    ///     90.0, option.expiry_midnight_utc().into())?;
     /// let engine = QuadratureAccumulatorEngine::new(QuadratureSettings::default())?;
     /// assert_eq!(engine.settings().asset_step_count, 512);
     /// assert_eq!(engine.price(&option, &context)?, -50.0);
@@ -151,7 +151,7 @@ fn price(
     option.validate_pricing(context)?;
     let horizon = context
         .valuation_time()
-        .years_until(option.expiry_date().into());
+        .years_until(option.expiry_midnight_utc().into());
     let (quantity, settlement) = option.initial(context);
     if let Some(value) = settlement {
         return checked(value);
@@ -205,7 +205,7 @@ fn price(
         asset: sign,
     });
     if count == 2 {
-        let (live_lower, live_upper) = if option.observes_knock_out(option.expiry_date()) {
+        let (live_lower, live_upper) = if option.observes_knock_out(option.expiry_midnight_utc()) {
             if sign > 0.0 {
                 (f64::NEG_INFINITY, knock_out)
             } else {

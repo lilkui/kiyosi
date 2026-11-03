@@ -12,9 +12,9 @@ pub struct RangeAccrualTerms {
     /// Inclusive finite upper spot boundary, strictly above the lower boundary.
     pub upper_bound: f64,
     /// First contract date, excluded from observations.
-    pub effective_date: Date,
+    pub effective_midnight_utc: Date,
     /// Payment date and final observation, at midnight UTC.
-    pub expiry_date: Date,
+    pub expiry_midnight_utc: Date,
     /// Hits strictly before valuation; `None` means unknown history.
     pub realized_hit_count: Option<i32>,
 }
@@ -26,16 +26,16 @@ impl RangeAccrualTerms {
         annual_coupon_rate: f64,
         lower_bound: f64,
         upper_bound: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_midnight_utc: Date,
+        expiry_midnight_utc: Date,
     ) -> Self {
         Self {
             notional,
             annual_coupon_rate,
             lower_bound,
             upper_bound,
-            effective_date,
-            expiry_date,
+            effective_midnight_utc,
+            expiry_midnight_utc,
             realized_hit_count: None,
         }
     }
@@ -43,7 +43,7 @@ impl RangeAccrualTerms {
 
 /// Owns a validated range coupon with no principal payment or early termination.
 ///
-/// Observes the context calendar's trading dates in `(effective_date, expiry_date]`.
+/// Observes the context calendar's trading dates in `(effective_midnight_utc, expiry_midnight_utc]`.
 /// Pays `notional * annual_coupon_rate * ACT/365 * hits / observations` at expiry.
 /// Calendar and history consistency are checked during pricing. Shared reads are safe.
 /// See [`Self::new`] for an example.
@@ -89,7 +89,7 @@ impl RangeAccrualOption {
                 "invalid range accrual amounts, bounds or history".into(),
             ));
         }
-        if terms.expiry_date <= terms.effective_date {
+        if terms.expiry_midnight_utc <= terms.effective_midnight_utc {
             return Err(Error::InvalidInput(
                 "range accrual requires a positive contract term".into(),
             ));
@@ -126,12 +126,12 @@ impl RangeAccrualOption {
         self.terms.upper_bound
     }
     /// Returns the first date, excluded from observations; see [`Self::new`].
-    pub fn effective_date(&self) -> Date {
-        self.terms.effective_date
+    pub fn effective_midnight_utc(&self) -> Date {
+        self.terms.effective_midnight_utc
     }
     /// Returns payment and final observation at midnight UTC; see [`Self::new`].
-    pub fn expiry_date(&self) -> Date {
-        self.terms.expiry_date
+    pub fn expiry_midnight_utc(&self) -> Date {
+        self.terms.expiry_midnight_utc
     }
     /// Returns hits strictly before valuation; see [`Self::new`].
     pub fn realized_hit_count(&self) -> Option<i32> {
@@ -140,11 +140,11 @@ impl RangeAccrualOption {
 }
 
 impl OptionContract for RangeAccrualOption {
-    fn effective_date(&self) -> Date {
-        self.effective_date()
+    fn effective_midnight_utc(&self) -> Date {
+        self.effective_midnight_utc()
     }
-    fn expiry_date(&self) -> Date {
-        self.expiry_date()
+    fn expiry_midnight_utc(&self) -> Date {
+        self.expiry_midnight_utc()
     }
     fn valuation_start(&self) -> Option<Date> {
         None
@@ -155,8 +155,8 @@ impl OptionContract for RangeAccrualOption {
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         let time = context.valuation_time();
         self.annual_coupon_rate() != 0.0
-            && time > self.effective_date().start_of_day()
-            && time <= self.expiry_date().start_of_day()
+            && time > self.effective_midnight_utc().start_of_day()
+            && time <= self.expiry_midnight_utc().start_of_day()
             && time.micros_since_midnight() == 0
             && context.calendar().is_trading_day(time.date())
             && [self.lower_bound(), self.upper_bound()]
@@ -171,10 +171,10 @@ impl OptionContract for RangeAccrualOption {
         before: Timestamp,
         after: Timestamp,
     ) -> bool {
-        let mut date = before.date().max(self.effective_date());
-        let last = after.date().min(self.expiry_date());
+        let mut date = before.date().max(self.effective_midnight_utc());
+        let last = after.date().min(self.expiry_midnight_utc());
         while date <= last {
-            if date > self.effective_date()
+            if date > self.effective_midnight_utc()
                 && before <= date.start_of_day()
                 && date.start_of_day() <= after
                 && context.calendar().is_trading_day(date)

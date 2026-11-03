@@ -39,8 +39,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
         def price(barrier):
             option = BinarySnowballOption(
                 maturity_coupon_rate=0.02,
-                effective_date=start,
-                expiry_date=end,
+                effective_midnight_utc=start,
+                expiry_midnight_utc=end,
                 observations=autocallable_observations(
                     [middle, end], [100, barrier], knock_out_coupon_rates=[0.08, 0.08]
                 ),
@@ -61,8 +61,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         option = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_date=start,
-            expiry_date=end,
+            effective_midnight_utc=start,
+            expiry_midnight_utc=end,
             observations=autocallable_observations(
                 [end], [100], knock_out_coupon_rates=[0.1]
             ),
@@ -71,8 +71,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
             option_type="call",
             strike=100,
             payout=0.1,
-            effective_date=start,
-            expiry_date=end,
+            effective_midnight_utc=start,
+            expiry_midnight_utc=end,
         )
         engine = pricing.FiniteDifferenceAutocallableEngine()
         for volatility in (0.01, 0.2):
@@ -133,8 +133,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
             lower_strike=0,
             knock_in_observation_mode="every_trading_day",
             barrier_state="no_event",
-            effective_date=start,
-            expiry_date=end,
+            effective_midnight_utc=start,
+            expiry_midnight_utc=end,
             observations=autocallable_observations(
                 dates, [103] * len(dates), knock_out_coupon_rates=[0.2] * len(dates)
             ),
@@ -182,8 +182,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         option = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_date=start,
-            expiry_date=end,
+            effective_midnight_utc=start,
+            expiry_midnight_utc=end,
             observations=autocallable_observations(
                 [end], [100], knock_out_coupon_rates=[0.1]
             ),
@@ -228,8 +228,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
         def error(assets, times, upper, barrier=100):
             option = BinarySnowballOption(
                 maturity_coupon_rate=0,
-                effective_date=start,
-                expiry_date=end,
+                effective_midnight_utc=start,
+                expiry_midnight_utc=end,
                 observations=autocallable_observations(
                     [end], [barrier], knock_out_coupon_rates=[0.1]
                 ),
@@ -238,8 +238,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 option_type="call",
                 strike=barrier,
                 payout=0.1,
-                effective_date=start,
-                expiry_date=end,
+                effective_midnight_utc=start,
+                expiry_midnight_utc=end,
             )
             engine = pricing.FiniteDifferenceAutocallableEngine(
                 asset_step_count=assets,
@@ -278,8 +278,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
             lower_strike=60,
             barrier_state="no_event",
             knock_in_observation_mode="every_trading_day",
-            effective_date=start,
-            expiry_date=end,
+            effective_midnight_utc=start,
+            expiry_midnight_utc=end,
             observations=autocallable_observations(
                 [end], [100], coupon_barrier_levels=[100]
             ),
@@ -320,8 +320,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
             knock_in_level=75,
             knock_in_observation_mode="every_trading_day",
             barrier_state="no_event",
-            effective_date=start,
-            expiry_date=end,
+            effective_midnight_utc=start,
+            expiry_midnight_utc=end,
             observations=autocallable_observations(
                 dates,
                 [110] * 4,

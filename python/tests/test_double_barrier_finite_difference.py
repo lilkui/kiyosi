@@ -33,8 +33,8 @@ def contract(**changes):
             {
                 "option_type": "call",
                 "strike": 100,
-                "effective_date": START,
-                "expiry_date": END,
+                "effective_midnight_utc": START,
+                "expiry_midnight_utc": END,
                 "lower_barrier": 80,
                 "upper_barrier": 120,
                 "barrier_type": "knock_out",
@@ -333,8 +333,8 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                     EuropeanOption(
                         option_type="call",
                         strike=100,
-                        effective_date=START,
-                        expiry_date=END,
+                        effective_midnight_utc=START,
+                        expiry_midnight_utc=END,
                     ),
                     context,
                 )
@@ -412,8 +412,8 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 EuropeanOption(
                     option_type=direction,
                     strike=100,
-                    effective_date=START,
-                    expiry_date=END,
+                    effective_midnight_utc=START,
+                    expiry_midnight_utc=END,
                 ),
                 market(),
                 ["delta", "gamma"],
@@ -506,8 +506,8 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 EuropeanOption(
                     option_type=direction,
                     strike=strike,
-                    effective_date=START,
-                    expiry_date=END,
+                    effective_midnight_utc=START,
+                    expiry_midnight_utc=END,
                 ),
                 market(),
             )
@@ -816,7 +816,10 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 engine, instrument, context, result.price, max_iterations=1.5
             )
         vanilla = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call",
+            strike=100,
+            effective_midnight_utc=START,
+            expiry_midnight_utc=END,
         )
         with self.assertRaises(UnsupportedOperationError):
             engine.price(vanilla, context)

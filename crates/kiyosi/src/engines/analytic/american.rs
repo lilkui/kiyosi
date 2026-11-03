@@ -318,8 +318,8 @@ impl BjerksundStenslandVanillaEngine {
         context.bsm_parameters()?;
         Self::require_flat(context)?;
         let valuation = context.valuation_time();
-        let expiry = option.expiry_date().start_of_day();
-        if valuation < option.effective_date().start_of_day() || valuation > expiry {
+        let expiry = option.expiry_midnight_utc().start_of_day();
+        if valuation < option.effective_midnight_utc().start_of_day() || valuation > expiry {
             return Err(Error::InvalidInput(
                 "valuation must be within the contract life".into(),
             ));

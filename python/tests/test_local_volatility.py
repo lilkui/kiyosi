@@ -37,7 +37,10 @@ def context(surf=None, spot=100):
 
 def option(direction="call", end=END):
     return EuropeanOption(
-        option_type=direction, strike=100, effective_date=START, expiry_date=end
+        option_type=direction,
+        strike=100,
+        effective_midnight_utc=START,
+        expiry_midnight_utc=end,
     )
 
 

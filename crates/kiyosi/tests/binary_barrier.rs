@@ -40,16 +40,16 @@ fn binary_branches_preserve_in_out_parity() {
                         DigitalOption::asset_or_nothing(
                             direction,
                             strike,
-                            t.effective_date,
-                            t.expiry_date,
+                            t.effective_midnight_utc,
+                            t.expiry_midnight_utc,
                         )
                     } else {
                         DigitalOption::cash_or_nothing(
                             direction,
                             strike,
                             10.0,
-                            t.effective_date,
-                            t.expiry_date,
+                            t.effective_midnight_utc,
+                            t.expiry_midnight_utc,
                         )
                     }
                     .unwrap();
@@ -61,7 +61,7 @@ fn binary_branches_preserve_in_out_parity() {
                         }
                         .unwrap()
                     };
-                    let context = market(100.0, t.effective_date);
+                    let context = market(100.0, t.effective_midnight_utc);
                     let a = engine.price(&make(t.clone()), &context).unwrap();
                     t.barrier_type = outside;
                     let b = engine.price(&make(t), &context).unwrap();
@@ -226,12 +226,12 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
         engine
             .price(
                 &TouchOption::cash(t.clone(), 10.0).unwrap(),
-                &market(100.0, t.effective_date),
+                &market(100.0, t.effective_midnight_utc),
             )
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    t.observation_dates = vec![day(2025, 1, 4), t.expiry_date];
+    t.observation_dates = vec![day(2025, 1, 4), t.expiry_midnight_utc];
     assert!(matches!(
         engine
             .price(
@@ -285,7 +285,7 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
         Error::InvalidInput(_)
     ));
     let mut invalid = t.clone();
-    invalid.expiry_date = day(2024, 1, 1);
+    invalid.expiry_midnight_utc = day(2024, 1, 1);
     assert!(matches!(
         BinaryBarrierOption::asset(invalid).unwrap_err(),
         Error::InvalidInput(_)
@@ -320,7 +320,7 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
         Error::InvalidInput(_)
     ));
     for spot in [100.0, 120.0] {
-        let expiry = market(spot, option.expiry_date());
+        let expiry = market(spot, option.expiry_midnight_utc());
         assert_eq!(engine.price(&option, &expiry).unwrap(), 0.0);
         let result = engine
             .price_with_greeks(&option, &expiry, GreeksRequest::all(), Default::default())
@@ -338,7 +338,7 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
     assert!(Greek::ALL.into_iter().all(|g| !boundary.has(g)));
     let curve = RateTermStructure::new(
         context.valuation_time(),
-        vec![option.expiry_date().into()],
+        vec![option.expiry_midnight_utc().into()],
         vec![0.95],
     )
     .unwrap();
@@ -392,7 +392,7 @@ fn first_hit_and_scheduled_prices_retain_scaled_tails() {
                 let context = PricingContext::new(
                     BlackScholesMertonParameters::new(0.0, 0.0, 0.2).unwrap(),
                     100.0,
-                    t.effective_date.into(),
+                    t.effective_midnight_utc.into(),
                 )
                 .unwrap();
                 let actual = engine.price(&option, &context).unwrap();
@@ -425,12 +425,12 @@ fn first_hit_and_scheduled_prices_retain_scaled_tails() {
                 day(2025, 4, 1),
                 day(2025, 7, 1),
                 day(2025, 10, 1),
-                t.expiry_date,
+                t.expiry_midnight_utc,
             ];
             let context = PricingContext::new(
                 BlackScholesMertonParameters::new(0.0, 0.0, 1.0).unwrap(),
                 100.0 * scale,
-                t.effective_date.into(),
+                t.effective_midnight_utc.into(),
             )
             .unwrap();
             let value = engine
@@ -460,7 +460,7 @@ fn binary_prices_survive_variance_underflow_and_small_volatility_carry() {
                                 BlackScholesMertonParameters::new(0.03, 0.03 - carry, sigma)
                                     .unwrap(),
                                 100.0,
-                                t.effective_date.into(),
+                                t.effective_midnight_utc.into(),
                             )
                             .unwrap();
                             let terminal = 100.0 * carry.exp();
@@ -684,7 +684,7 @@ fn settled_binaries_delegate_extreme_digital_prices_and_strict_strike_boundaries
                 t.option_type = direction;
                 t.barrier_level = 50.0;
                 t.observation_mode = ObservationMode::Scheduled;
-                t.observation_dates = vec![t.effective_date];
+                t.observation_dates = vec![t.effective_midnight_utc];
                 t.touch_state = Some(history);
                 for sigma in [1e155, 0.5] {
                     let mut t = t.clone();
@@ -701,16 +701,16 @@ fn settled_binaries_delegate_extreme_digital_prices_and_strict_strike_boundaries
                         DigitalOption::asset_or_nothing(
                             direction,
                             t.strike,
-                            t.effective_date,
-                            t.expiry_date,
+                            t.effective_midnight_utc,
+                            t.expiry_midnight_utc,
                         )
                     } else {
                         DigitalOption::cash_or_nothing(
                             direction,
                             t.strike,
                             1e305,
-                            t.effective_date,
-                            t.expiry_date,
+                            t.effective_midnight_utc,
+                            t.expiry_midnight_utc,
                         )
                     }
                     .unwrap();
@@ -744,7 +744,7 @@ fn settled_binaries_delegate_extreme_digital_prices_and_strict_strike_boundaries
                     };
                     assert_eq!(
                         engine
-                            .price(&option, &market(spot, option.expiry_date()))
+                            .price(&option, &market(spot, option.expiry_midnight_utc()))
                             .unwrap(),
                         expected
                     );

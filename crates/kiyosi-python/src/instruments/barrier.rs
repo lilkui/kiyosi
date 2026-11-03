@@ -45,9 +45,9 @@ pub(crate) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::Barri
 ///     Call or put payoff direction.
 /// strike : float
 ///     Positive finite strike price.
-/// effective_date : datetime.date
+/// effective_midnight_utc : datetime.date
 ///     Contract starts at 00:00 UTC on this date.
-/// expiry_date : datetime.date
+/// expiry_midnight_utc : datetime.date
 ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// barrier_level : float
 ///     Positive finite trigger level; equality counts as a touch.
@@ -77,13 +77,13 @@ pub(crate) struct BarrierOption(pub kiyosi::BarrierOption);
 monitoring_properties!(
     BarrierOption,
     #[new]
-    #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, barrier_level, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+    #[pyo3(signature = (*, option_type, strike, effective_midnight_utc, expiry_midnight_utc, barrier_level, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         option_type: &Bound<'_, PyAny>,
         strike: &Bound<'_, PyAny>,
-        effective_date: &Bound<'_, PyAny>,
-        expiry_date: &Bound<'_, PyAny>,
+        effective_midnight_utc: &Bound<'_, PyAny>,
+        expiry_midnight_utc: &Bound<'_, PyAny>,
         barrier_level: &Bound<'_, PyAny>,
         barrier_type: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = real)] rebate: f64,
@@ -95,8 +95,8 @@ monitoring_properties!(
         let mut terms = kiyosi::BarrierOptionTerms::new(
             direction(option_type)?,
             real(strike)?,
-            date(effective_date)?,
-            date(expiry_date)?,
+            date(effective_midnight_utc)?,
+            date(expiry_midnight_utc)?,
             real(barrier_level)?,
             kind(barrier_type)?,
         );

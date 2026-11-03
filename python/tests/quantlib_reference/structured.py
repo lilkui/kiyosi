@@ -30,11 +30,11 @@ def scenarios():
                     f"{instrument.lower()}-{label}-{history}",
                     instrument,
                     {
-                        "effective_date": "2025-01-01",
+                        "effective_midnight_utc": "2025-01-01",
                         "valuation": "2025-01-01"
                         if history == "no_event"
                         else "2025-01-02",
-                        "expiry_date": "2026-01-01",
+                        "expiry_midnight_utc": "2026-01-01",
                         "valuation_hour": 0,
                         "spot": spot,
                         "rate": rate,
@@ -65,9 +65,9 @@ def scenarios():
                     f"accumulator-{volatility}-{barrier}-{acceleration}",
                     "Accumulator",
                     {
-                        "effective_date": "2025-01-01",
+                        "effective_midnight_utc": "2025-01-01",
                         "valuation": "2025-01-03",
-                        "expiry_date": "2025-01-06",
+                        "expiry_midnight_utc": "2025-01-06",
                         "valuation_hour": 12,
                         "spot": 100,
                         "rate": rate,
@@ -86,7 +86,8 @@ def scenarios():
 
 def horizon(inputs, field="valuation"):
     days = (
-        date.fromisoformat(inputs["expiry_date"]) - date.fromisoformat(inputs[field])
+        date.fromisoformat(inputs["expiry_midnight_utc"])
+        - date.fromisoformat(inputs[field])
     ).days
     return (days - (inputs["valuation_hour"] / 24 if field == "valuation" else 0)) / 365
 
@@ -125,7 +126,7 @@ def portfolio(instrument, inputs):
             leg("cash", "put", level, -strike * weight)
         return -quantity * strike, quantity, legs
 
-    time = horizon(inputs, "effective_date")
+    time = horizon(inputs, "effective_midnight_utc")
     principal = inputs["principal_ratio"]
     coupon, maturity, minimum = (
         inputs[name] * time
@@ -238,7 +239,7 @@ def check_portfolios():
                     )
                 expected = quantity * (spot - inputs["strike"])
             else:
-                time = horizon(inputs, "effective_date")
+                time = horizon(inputs, "effective_midnight_utc")
                 expected = inputs["principal_ratio"]
                 knocked_in = (
                     inputs["history"] == "knocked_in" or spot < inputs["knock_in_level"]

@@ -129,7 +129,7 @@ pub(super) fn resolved_price_with_state(
             context
                 .bsm_parameters()?
                 .risk_free_curve()
-                .log_factor(time, option.expiry_date().start_of_day())?,
+                .log_factor(time, option.expiry_midnight_utc().start_of_day())?,
         ))
     };
     if touched && !knock_in {
@@ -193,7 +193,7 @@ impl PricingEngine<BarrierOption> for BarrierPricer {
 fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f64> {
     let t = context
         .valuation_time()
-        .years_until(option.expiry_date().start_of_day());
+        .years_until(option.expiry_midnight_utc().start_of_day());
     let spot = context.spot_price();
     let model = context.bsm_parameters()?;
     let rate = model.risk_free_rate()?;
@@ -539,7 +539,7 @@ pub(crate) fn analytic_log_shift(option: &Monitoring, spot: f64, sigma: f64) -> 
             * 0.582_597_157_939_010_7
             * sigma
             * option.mean_observation_year_fraction().sqrt();
-        if option.observation_dates().last() != Some(&option.expiry_date()) {
+        if option.observation_dates().last() != Some(&option.expiry_midnight_utc()) {
             return Err(Error::UnsupportedOperation(
                 "analytic monitoring must end at expiry".into(),
             ));

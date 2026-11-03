@@ -37,8 +37,8 @@ class MonteCarloThresholdTests(unittest.TestCase):
                     common = {
                         "option_type": direction,
                         "strike": strike,
-                        "effective_date": START,
-                        "expiry_date": END,
+                        "effective_midnight_utc": START,
+                        "expiry_midnight_utc": END,
                         "observation_mode": "scheduled",
                         "observation_dates": [END],
                         "rebate": 2,
@@ -67,8 +67,8 @@ class MonteCarloThresholdTests(unittest.TestCase):
     def test_snowball_thresholds_preserve_price_and_sampling_uncertainty(self):
         note = ins.BinarySnowballOption(
             maturity_coupon_rate=0.02,
-            effective_date=START,
-            expiry_date=END,
+            effective_midnight_utc=START,
+            expiry_midnight_utc=END,
             observations=ins.autocallable_observations(
                 [END], [100], knock_out_coupon_rates=[0.12]
             ),
@@ -94,7 +94,7 @@ class MonteCarloThresholdTests(unittest.TestCase):
     def test_autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements(self):
         end = date(2025, 1, 2)
         engine = pricing.MonteCarloAutocallableEngine(**SETTINGS)
-        common = {"effective_date": START, "expiry_date": end}
+        common = {"effective_midnight_utc": START, "expiry_midnight_utc": end}
         for volatility in (1e-18, 1e-200):
             context = market(volatility, intraday=True)
             for mode in ("every_trading_day", "at_expiry"):
@@ -135,8 +135,8 @@ class MonteCarloThresholdTests(unittest.TestCase):
             for direction, strike, barrier in (("call", 90, 120), ("put", 110, 80)):
                 common = {
                     "option_type": direction,
-                    "effective_date": START,
-                    "expiry_date": end,
+                    "effective_midnight_utc": START,
+                    "expiry_midnight_utc": end,
                 }
                 option = ins.Accumulator(
                     **common,

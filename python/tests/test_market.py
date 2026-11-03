@@ -47,8 +47,8 @@ def vanilla(direction="call", strike=103):
     return EuropeanOption(
         option_type=direction,
         strike=strike,
-        effective_date=START,
-        expiry_date=END,
+        effective_midnight_utc=START,
+        expiry_midnight_utc=END,
     )
 
 
@@ -197,8 +197,8 @@ class RateTermStructureTests(unittest.TestCase):
         option = EuropeanOption(
             option_type="call",
             strike=100,
-            effective_date=first.date(),
-            expiry_date=second.date(),
+            effective_midnight_utc=first.date(),
+            expiry_midnight_utc=second.date(),
         )
         engine = pricing.AnalyticEuropeanEngine()
         self.assertAlmostEqual(
@@ -213,8 +213,8 @@ class RateTermStructureTests(unittest.TestCase):
         distant_option = EuropeanOption(
             option_type="call",
             strike=math.exp(100),
-            effective_date=origin.date(),
-            expiry_date=second.date(),
+            effective_midnight_utc=origin.date(),
+            expiry_midnight_utc=second.date(),
         )
         self.assert_rejection(
             ComputationFailureError, engine.price, distant_option, distant_context

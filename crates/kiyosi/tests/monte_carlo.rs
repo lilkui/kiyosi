@@ -95,8 +95,8 @@ fn terminal_prices_preserve_tiny_positive_volatility() {
                         let option = EuropeanOption::new(
                             direction,
                             amount,
-                            contract(direction).effective_date(),
-                            contract(direction).expiry_date(),
+                            contract(direction).effective_midnight_utc(),
+                            contract(direction).expiry_midnight_utc(),
                         )
                         .unwrap();
                         // At the money, the small-volatility price is S * sigma / sqrt(2*pi).
@@ -118,8 +118,8 @@ fn terminal_prices_preserve_tiny_positive_volatility() {
                             let american = AmericanOption::new(
                                 direction,
                                 amount,
-                                option.effective_date(),
-                                option.expiry_date(),
+                                option.effective_midnight_utc(),
+                                option.expiry_midnight_utc(),
                             )
                             .unwrap();
                             assert_eq!(
@@ -162,8 +162,8 @@ fn sampling_statistics_report_uncertainty_and_single_path_unavailability() {
     let option = EuropeanOption::new(
         OptionType::Call,
         1.0,
-        option.effective_date(),
-        option.expiry_date(),
+        option.effective_midnight_utc(),
+        option.expiry_midnight_utc(),
     )
     .unwrap();
     let pair = MonteCarloVanillaEngine::new(MonteCarloSettings {
@@ -202,8 +202,8 @@ fn analyses_share_one_seed_and_solvers_recover_seeded_quotes() {
     let option = EuropeanOption::new(
         OptionType::Call,
         1e-100,
-        contract(OptionType::Call).effective_date(),
-        contract(OptionType::Call).expiry_date(),
+        contract(OptionType::Call).effective_midnight_utc(),
+        contract(OptionType::Call).expiry_midnight_utc(),
     )
     .unwrap();
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
@@ -399,7 +399,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
             })
             .unwrap()
     };
-    let expiry = option.expiry_date().start_of_day();
+    let expiry = option.expiry_midnight_utc().start_of_day();
     let estimate = engine.price_with_statistics(&option, &at(expiry)).unwrap();
     assert_eq!(estimate.price(), 0.0);
     assert_eq!(estimate.standard_error(), Some(0.0));
@@ -419,7 +419,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
     ));
     for time in [
         Timestamp::new(Date::new(2024, 12, 31).unwrap(), 23, 59, 59, 999_999).unwrap(),
-        Timestamp::new(option.expiry_date(), 0, 0, 0, 1).unwrap(),
+        Timestamp::new(option.expiry_midnight_utc(), 0, 0, 0, 1).unwrap(),
     ] {
         assert!(matches!(
             engine.price(&option, &at(time)).unwrap_err(),
@@ -434,8 +434,12 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
             )
             .is_ok()
     );
-    let curve =
-        RateTermStructure::new(option.effective_date().into(), vec![expiry], vec![0.95]).unwrap();
+    let curve = RateTermStructure::new(
+        option.effective_midnight_utc().into(),
+        vec![expiry],
+        vec![0.95],
+    )
+    .unwrap();
     let model = context
         .model_parameters()
         .as_bsm()
@@ -594,14 +598,14 @@ fn scaled_statistics_preserve_finite_prices_when_sums_squares_or_discounts_overf
         let option = EuropeanOption::new(
             OptionType::Call,
             amount,
-            contract(OptionType::Call).effective_date(),
-            contract(OptionType::Call).expiry_date(),
+            contract(OptionType::Call).effective_midnight_utc(),
+            contract(OptionType::Call).expiry_midnight_utc(),
         )
         .unwrap();
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(rate, rate, sigma).unwrap(),
             amount,
-            option.effective_date().into(),
+            option.effective_midnight_utc().into(),
         )
         .unwrap();
         let reference = AnalyticEuropeanEngine.price(&option, &context).unwrap();
@@ -671,7 +675,7 @@ fn sobol_prices_match_analytic_and_never_claim_sampling_uncertainty() {
             }
             let expiry = market()
                 .replace(PricingContextChanges {
-                    valuation_time: Some(option.expiry_date().into()),
+                    valuation_time: Some(option.expiry_midnight_utc().into()),
                     ..Default::default()
                 })
                 .unwrap();
@@ -725,8 +729,8 @@ fn sobol_path_validation_and_seeded_single_point_preserve_existing_contract() {
         let option = EuropeanOption::new(
             OptionType::Call,
             90.0,
-            contract(OptionType::Call).effective_date(),
-            contract(OptionType::Call).expiry_date(),
+            contract(OptionType::Call).effective_midnight_utc(),
+            contract(OptionType::Call).expiry_midnight_utc(),
         )
         .unwrap();
         // Independent SciPy ndtri reference.
@@ -750,8 +754,8 @@ fn antithetic_counts_keep_the_unpaired_path_and_use_pair_uncertainty() {
     let option = EuropeanOption::new(
         OptionType::Call,
         1e-100,
-        contract(OptionType::Call).effective_date(),
-        contract(OptionType::Call).expiry_date(),
+        contract(OptionType::Call).effective_midnight_utc(),
+        contract(OptionType::Call).expiry_midnight_utc(),
     )
     .unwrap();
     let engine = |paths, antithetic| {
@@ -941,8 +945,8 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
             let linear = EuropeanOption::new(
                 OptionType::Call,
                 1e-100,
-                option.effective_date(),
-                option.expiry_date(),
+                option.effective_midnight_utc(),
+                option.expiry_midnight_utc(),
             )
             .unwrap();
             let analysis = unseeded

@@ -42,8 +42,8 @@ def price_differences(
     r = (rate + rate_shift) - rate
     q = (parameters.dividend_yield + rate_shift) - parameters.dividend_yield
     time = context.valuation_time
-    start = datetime.combine(option.effective_date, datetime.min.time(), UTC)
-    end = datetime.combine(option.expiry_date, datetime.min.time(), UTC)
+    start = datetime.combine(option.effective_midnight_utc, datetime.min.time(), UTC)
+    end = datetime.combine(option.expiry_midnight_utc, datetime.min.time(), UTC)
     step = timedelta(days=time_shift_days)
     if start < time < end:
         step = min(step, time - start, end - time)

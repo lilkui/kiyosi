@@ -30,8 +30,8 @@ class BarrierFiniteDifferenceRegressionTests(unittest.TestCase):
                 option = BarrierOption(
                     option_type="call" if up else "put",
                     strike=100,
-                    effective_date=start,
-                    expiry_date=end,
+                    effective_midnight_utc=start,
+                    expiry_midnight_utc=end,
                     barrier_level=barrier,
                     barrier_type=f"{direction}_and_{activation}",
                     rebate=rebate,
@@ -78,8 +78,8 @@ class BarrierFiniteDifferenceRegressionTests(unittest.TestCase):
                 option = BarrierOption(
                     option_type="call" if up else "put",
                     strike=100,
-                    effective_date=start,
-                    expiry_date=end,
+                    effective_midnight_utc=start,
+                    expiry_midnight_utc=end,
                     barrier_level=110 if up else 90,
                     barrier_type="up_and_out" if up else "down_and_out",
                     rebate=rebate,

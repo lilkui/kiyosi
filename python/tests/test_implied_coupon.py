@@ -33,8 +33,8 @@ from test_snowball import contract as snowball
 def binary(coupon=0.08, maturity=0.06, **changes):
     fields = {
         "maturity_coupon_rate": maturity,
-        "effective_date": START,
-        "expiry_date": END,
+        "effective_midnight_utc": START,
+        "expiry_midnight_utc": END,
         "observations": autocallable_observations(
             [END], [110], knock_out_coupon_rates=[coupon]
         ),
@@ -58,8 +58,8 @@ class ImpliedCouponTests(unittest.TestCase):
                 minimum_coupon_rate=-0.2,
                 knock_in_level=80,
                 knock_in_observation_mode="at_expiry",
-                effective_date=START,
-                expiry_date=END,
+                effective_midnight_utc=START,
+                expiry_midnight_utc=END,
                 observations=observations,
             ),
         ]
@@ -147,7 +147,7 @@ class ImpliedCouponTests(unittest.TestCase):
             lower_strike=100,
             knock_in_observation_mode="every_trading_day",
             barrier_state="no_event",
-            expiry_date=end,
+            expiry_midnight_utc=end,
             observations=autocallable_observations(
                 [date(2025, 1, 7), end],
                 [110, 110],
@@ -220,8 +220,8 @@ class ImpliedCouponTests(unittest.TestCase):
                 fields = {
                     "maturity_coupon_rate": 0.06
                     + (coupon - 0.08 if convention == "shift_maturity_coupon" else 0),
-                    "effective_date": START,
-                    "expiry_date": END,
+                    "effective_midnight_utc": START,
+                    "expiry_midnight_utc": END,
                     "observations": autocallable_observations(
                         dates,
                         [110, 105],
@@ -248,8 +248,8 @@ class ImpliedCouponTests(unittest.TestCase):
                 "initial_spot": 100,
                 "knock_in_level": 80,
                 "knock_out_level": 110,
-                "effective_date": START,
-                "expiry_date": END,
+                "effective_midnight_utc": START,
+                "expiry_midnight_utc": END,
                 "observation_dates": dates,
             }
             if kind == "step_down_snowball":
@@ -488,8 +488,8 @@ class ImpliedCouponTests(unittest.TestCase):
             minimum_coupon_rate=0.02,
             knock_in_level=80,
             knock_in_observation_mode="at_expiry",
-            effective_date=START,
-            expiry_date=END,
+            effective_midnight_utc=START,
+            expiry_midnight_utc=END,
             observations=known.observations,
             barrier_state="no_event",
         )

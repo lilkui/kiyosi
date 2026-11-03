@@ -42,7 +42,7 @@ fn prepared_scheduled_prices_match_scalar_after_spot_and_model_changes() {
     for kind in KINDS {
         let mut terms = terms(kind, OptionType::Call);
         terms.observation_mode = ObservationMode::Scheduled;
-        terms.observation_dates = vec![day(2, 3), day(5, 1), terms.expiry_date];
+        terms.observation_dates = vec![day(2, 3), day(5, 1), terms.expiry_midnight_utc];
         let option = BarrierOption::new(terms).unwrap();
         let context = market(0.04);
         let spot = context
@@ -131,7 +131,7 @@ fn expiry_only_observations_use_exact_digital_moments_independent_of_grid() {
     for (kind, expected) in [(BarrierType::UpAndOut, out), (BarrierType::UpAndIn, inside)] {
         let mut t = terms(kind, OptionType::Call);
         t.observation_mode = ObservationMode::Scheduled;
-        t.observation_dates = vec![t.expiry_date];
+        t.observation_dates = vec![t.expiry_midnight_utc];
         t.rebate = 3.0;
         let option = BarrierOption::new(t).unwrap();
         for (steps, extent) in [(4, 0.1), (512, 8.0)] {
@@ -231,7 +231,7 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
     t.rebate = 3.0;
     t.rebate_timing = RebateTiming::AtHit;
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = vec![observed, t.expiry_date];
+    t.observation_dates = vec![observed, t.expiry_midnight_utc];
     let option = BarrierOption::new(t.clone()).unwrap();
     assert_eq!(engine.price(&option, &boundary).unwrap(), 3.0);
     let result = engine
@@ -263,7 +263,7 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
         let stopped = BarrierOption::new(t.clone()).unwrap();
         let expiry = past
             .replace(PricingContextChanges {
-                valuation_time: Some(t.expiry_date.into()),
+                valuation_time: Some(t.expiry_midnight_utc.into()),
                 ..Default::default()
             })
             .unwrap();
@@ -381,7 +381,7 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
     }
     let curve = RateTermStructure::new(
         day(1, 1).into(),
-        vec![option.expiry_date().into()],
+        vec![option.expiry_midnight_utc().into()],
         vec![(-0.04_f64).exp()],
     )
     .unwrap();
@@ -496,7 +496,7 @@ fn short_maturity_near_barrier_and_continuous_refinement_retain_accuracy() {
             let mut t = terms(kind, direction);
             t.rebate = 1.0;
             t.touch_state = Some(BarrierTouchState::Untouched);
-            let expiry = t.expiry_date;
+            let expiry = t.expiry_midnight_utc;
             let barrier = t.barrier_level;
             let up = matches!(kind, BarrierType::UpAndIn | BarrierType::UpAndOut);
             let option = BarrierOption::new(t).unwrap();

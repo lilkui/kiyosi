@@ -68,8 +68,8 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         for coupon in (0, 0.1):
             note = BinarySnowballOption(
                 maturity_coupon_rate=0,
-                effective_date=START,
-                expiry_date=END,
+                effective_midnight_utc=START,
+                expiry_midnight_utc=END,
                 observations=autocallable_observations(
                     [END], [100], knock_out_coupon_rates=[coupon]
                 ),
@@ -89,8 +89,8 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         end = date(2026, 1, 1)
         note = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_date=START,
-            expiry_date=end,
+            effective_midnight_utc=START,
+            expiry_midnight_utc=end,
             observations=autocallable_observations(
                 [date(2025, 2, 3), end], [100, 100], knock_out_coupon_rates=[0.1, 0.1]
             ),
@@ -141,8 +141,8 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
     def test_fixed_prices_and_unidentifiable_parameters_validate_first(self):
         note = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_date=START,
-            expiry_date=END,
+            effective_midnight_utc=START,
+            expiry_midnight_utc=END,
             observations=autocallable_observations(
                 [END], [110], knock_out_coupon_rates=[0]
             ),

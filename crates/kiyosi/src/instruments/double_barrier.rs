@@ -21,9 +21,9 @@ pub struct DoubleBarrierOptionTerms {
     /// Positive finite strike.
     pub strike: f64,
     /// Inclusive first date.
-    pub effective_date: Date,
+    pub effective_midnight_utc: Date,
     /// Inclusive expiry at midnight UTC.
-    pub expiry_date: Date,
+    pub expiry_midnight_utc: Date,
     /// Positive finite lower boundary; equality touches.
     pub lower_barrier: f64,
     /// Finite upper boundary, strictly above the lower boundary.
@@ -48,8 +48,8 @@ impl DoubleBarrierOptionTerms {
     pub fn new(
         option_type: OptionType,
         strike: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_midnight_utc: Date,
+        expiry_midnight_utc: Date,
         lower_barrier: f64,
         upper_barrier: f64,
         barrier_type: DoubleBarrierType,
@@ -57,8 +57,8 @@ impl DoubleBarrierOptionTerms {
         Self {
             option_type,
             strike,
-            effective_date,
-            expiry_date,
+            effective_midnight_utc,
+            expiry_midnight_utc,
             lower_barrier,
             upper_barrier,
             barrier_type,
@@ -108,8 +108,8 @@ impl DoubleBarrierOption {
         let mut lower = BarrierOptionTerms::new(
             terms.option_type,
             terms.strike,
-            terms.effective_date,
-            terms.expiry_date,
+            terms.effective_midnight_utc,
+            terms.expiry_midnight_utc,
             terms.lower_barrier,
             if terms.barrier_type == DoubleBarrierType::KnockIn {
                 BarrierType::DownAndIn
@@ -162,12 +162,12 @@ impl DoubleBarrierOption {
         self.lower.strike()
     }
     /// Returns the inclusive first date; see [`Self::new`].
-    pub fn effective_date(&self) -> Date {
-        self.lower.effective_date()
+    pub fn effective_midnight_utc(&self) -> Date {
+        self.lower.effective_midnight_utc()
     }
     /// Returns expiry at midnight UTC; see [`Self::new`].
-    pub fn expiry_date(&self) -> Date {
-        self.lower.expiry_date()
+    pub fn expiry_midnight_utc(&self) -> Date {
+        self.lower.expiry_midnight_utc()
     }
     /// Returns the positive lower boundary; see [`Self::new`].
     pub fn lower_barrier(&self) -> f64 {
@@ -229,7 +229,7 @@ impl DoubleBarrierOption {
     }
     pub(crate) fn payoff_requires_touch(&self) -> bool {
         (self.observation_mode() == ObservationMode::Continuous
-            || self.observation_dates().last() == Some(&self.expiry_date()))
+            || self.observation_dates().last() == Some(&self.expiry_midnight_utc()))
             && match self.option_type() {
                 OptionType::Call => self.strike() >= self.upper,
                 OptionType::Put => self.strike() <= self.lower_barrier(),
@@ -237,11 +237,11 @@ impl DoubleBarrierOption {
     }
 }
 impl OptionContract for DoubleBarrierOption {
-    fn effective_date(&self) -> Date {
-        self.effective_date()
+    fn effective_midnight_utc(&self) -> Date {
+        self.effective_midnight_utc()
     }
-    fn expiry_date(&self) -> Date {
-        self.expiry_date()
+    fn expiry_midnight_utc(&self) -> Date {
+        self.expiry_midnight_utc()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         self.lower

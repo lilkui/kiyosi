@@ -23,7 +23,10 @@ class VolgaDividendRhoTests(unittest.TestCase):
         self.addCleanup(lambda: saved)
         for direction in ("call", "put"):
             option = EuropeanOption(
-                option_type=direction, strike=100, effective_date=START, expiry_date=END
+                option_type=direction,
+                strike=100,
+                effective_midnight_utc=START,
+                expiry_midnight_utc=END,
             )
             for spot in (80, 100, 120):
                 for dividend in (-0.02, 0, 0.02):
@@ -32,8 +35,8 @@ class VolgaDividendRhoTests(unittest.TestCase):
                         "option": direction,
                         "spot": spot,
                         "strike": 100,
-                        "effective_date": START.isoformat(),
-                        "expiry_date": END.isoformat(),
+                        "effective_midnight_utc": START.isoformat(),
+                        "expiry_midnight_utc": END.isoformat(),
                         "valuation": START.isoformat(),
                         "rate": 0.05,
                         "dividend": dividend,
@@ -80,7 +83,10 @@ class VolgaDividendRhoTests(unittest.TestCase):
 
     def test_parallel_dividend_curves_numerical_bumps_and_availability(self):
         option = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call",
+            strike=100,
+            effective_midnight_utc=START,
+            expiry_midnight_utc=END,
         )
         curve = RateTermStructure(
             reference_time=START,
@@ -140,7 +146,10 @@ class VolgaDividendRhoTests(unittest.TestCase):
 
     def test_american_dividend_stencil_crossing_zero_keeps_one_estimator(self):
         option = AmericanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call",
+            strike=100,
+            effective_midnight_utc=START,
+            expiry_midnight_utc=END,
         )
         engine = MonteCarloVanillaEngine(path_count=2048, step_count=7, seed=42)
         shift = 1 / 8192

@@ -30,8 +30,8 @@ def contract(end=date(2025, 2, 3), knock_out=110, acceleration=2, daily=1, quant
         daily_quantity=daily,
         acceleration_factor=acceleration,
         accumulated_quantity=quantity,
-        effective_date=START,
-        expiry_date=end,
+        effective_midnight_utc=START,
+        expiry_midnight_utc=end,
     )
 
 
@@ -50,7 +50,8 @@ def market(
 
 def terminal_reference(option, context):
     horizon = (
-        datetime.combine(option.expiry_date, time(), UTC) - context.valuation_time
+        datetime.combine(option.expiry_midnight_utc, time(), UTC)
+        - context.valuation_time
     ).total_seconds() / (365 * 86400)
     parameters = context.model_parameters
     deviation = parameters.volatility * math.sqrt(horizon)
@@ -86,7 +87,7 @@ def terminal_reference(option, context):
 def exposure(option, context):
     current = context.valuation_time.date()
     observations = 0
-    while current <= option.expiry_date:
+    while current <= option.expiry_midnight_utc:
         if datetime.combine(
             current, time(), UTC
         ) >= context.valuation_time and context.calendar.is_trading_day(current):
@@ -110,8 +111,8 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             "knock_out_level": 110,
             "daily_quantity": 1,
             "acceleration_factor": 2,
-            "effective_date": START,
-            "expiry_date": date(2025, 2, 3),
+            "effective_midnight_utc": START,
+            "expiry_midnight_utc": date(2025, 2, 3),
         }
         option = Accumulator(**fields)
         self.assertEqual(option.accumulated_quantity, 0)
@@ -119,8 +120,8 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         self.assertEqual(option.knock_out_level, 110)
         self.assertEqual(option.daily_quantity, 1)
         self.assertEqual(option.acceleration_factor, 2)
-        self.assertEqual(option.effective_date, START)
-        self.assertEqual(option.expiry_date, fields["expiry_date"])
+        self.assertEqual(option.effective_midnight_utc, START)
+        self.assertEqual(option.expiry_midnight_utc, fields["expiry_midnight_utc"])
         updated = option.replace_history(accumulated_quantity=3)
         self.assertEqual(updated.accumulated_quantity, 3)
         self.assertEqual(updated.replace_history(accumulated_quantity=0), option)
@@ -171,26 +172,28 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 updated.replace_history(**changes)
         with self.assertRaises(TypeError):
             updated.replace_history(3)
-        for field in ("effective_date", "expiry_date"):
+        for field in ("effective_midnight_utc", "expiry_midnight_utc"):
             for value in (datetime(2025, 1, 1, tzinfo=UTC), "2025-01-01", None):
                 with self.assertRaises(TypeError):
                     Accumulator(**(fields | {field: value}))
         self.assert_rejection(
             InvalidInputError,
             Accumulator,
-            **(fields | {"expiry_date": START - timedelta(days=1)}),
+            **(fields | {"expiry_midnight_utc": START - timedelta(days=1)}),
         )
         self.assert_rejection(
             InvalidInputError,
             Accumulator,
-            **(fields | {"strike": 0, "expiry_date": START - timedelta(days=1)}),
+            **(
+                fields | {"strike": 0, "expiry_midnight_utc": START - timedelta(days=1)}
+            ),
         )
         self.assertEqual(
             Accumulator(
                 **(
                     fields
                     | {
-                        "expiry_date": START,
+                        "expiry_midnight_utc": START,
                         "daily_quantity": 0,
                         "acceleration_factor": 0,
                     }
@@ -350,8 +353,8 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         vanilla = EuropeanOption(
             option_type="call",
             strike=100,
-            effective_date=START,
-            expiry_date=date(2025, 2, 3),
+            effective_midnight_utc=START,
+            expiry_midnight_utc=date(2025, 2, 3),
         )
         with self.assertRaises(UnsupportedOperationError):
             engine.price(vanilla, market())
@@ -514,7 +517,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         refined = pricing.QuadratureAccumulatorEngine(asset_step_count=1024)
         for option, context in cases:
             with self.subTest(
-                expiry=option.expiry_date,
+                expiry=option.expiry_midnight_utc,
                 spot=context.spot_price,
                 volatility=context.model_parameters.volatility,
             ):

@@ -13,11 +13,11 @@ macro_rules! average_option {
         ///     Call or put payoff direction.
         /// strike : float
         ///     Positive finite strike price.
-        /// effective_date : datetime.date
+        /// effective_midnight_utc : datetime.date
         ///     Contract starts at 00:00 UTC on this date.
         /// averaging_start_date : datetime.date
         ///     First averaging date, within the contract life.
-        /// expiry_date : datetime.date
+        /// expiry_midnight_utc : datetime.date
         ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
         /// realized_average : float, optional
         ///     Nonnegative finite prior average; defaults to zero. Must be zero
@@ -35,12 +35,12 @@ macro_rules! average_option {
         #[pymethods]
         impl $name {
             #[new]
-            #[pyo3(signature = (*, option_type, strike, effective_date, averaging_start_date, expiry_date, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE))]
+            #[pyo3(signature = (*, option_type, strike, effective_midnight_utc, averaging_start_date, expiry_midnight_utc, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE))]
             fn new(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
-                effective_date: &Bound<'_, PyAny>, averaging_start_date: &Bound<'_, PyAny>,
-                expiry_date: &Bound<'_, PyAny>, #[pyo3(from_py_with = real)] realized_average: f64) -> PyResult<Self> {
+                effective_midnight_utc: &Bound<'_, PyAny>, averaging_start_date: &Bound<'_, PyAny>,
+                expiry_midnight_utc: &Bound<'_, PyAny>, #[pyo3(from_py_with = real)] realized_average: f64) -> PyResult<Self> {
                 Ok(Self(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
-                    date(effective_date)?, date(averaging_start_date)?, date(expiry_date)?, realized_average))?))
+                    date(effective_midnight_utc)?, date(averaging_start_date)?, date(expiry_midnight_utc)?, realized_average))?))
             }
             /// Return a validated replacement without changing this value.
             ///
@@ -79,13 +79,13 @@ macro_rules! average_option {
             fn realized_average(&self) -> f64 { self.0.realized_average() }
             /// Return inclusive first contract date.
             #[getter]
-            fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> { python_date(py, self.0.effective_date()) }
+            fn effective_midnight_utc<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> { python_date(py, self.0.effective_midnight_utc()) }
             /// Return first averaging date, within the contract life.
             #[getter]
             fn averaging_start_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> { python_date(py, self.0.averaging_start_date()) }
             /// Return final contract date; expiry is at midnight UTC.
             #[getter]
-            fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> { python_date(py, self.0.expiry_date()) }
+            fn expiry_midnight_utc<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> { python_date(py, self.0.expiry_midnight_utc()) }
         }
     };
 }

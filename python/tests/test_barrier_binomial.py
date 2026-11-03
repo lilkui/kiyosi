@@ -58,8 +58,8 @@ def option(kind="down_and_out", direction="call", **changes):
     terms = {
         "option_type": direction,
         "strike": 100,
-        "effective_date": START,
-        "expiry_date": END,
+        "effective_midnight_utc": START,
+        "expiry_midnight_utc": END,
         "barrier_level": 120 if kind.startswith("up") else 80,
         "barrier_type": kind,
     }
@@ -132,7 +132,10 @@ class BarrierBinomialTests(unittest.TestCase):
             contract = option(kind, **terms)
             prior_untouched = option(kind, **terms, touch_state="untouched")
             vanilla = EuropeanOption(
-                option_type="call", strike=100, effective_date=START, expiry_date=END
+                option_type="call",
+                strike=100,
+                effective_midnight_utc=START,
+                expiry_midnight_utc=END,
             )
             at_observation = market(spot=level, valuation=observation)
             after_observation = market(spot=level, valuation=midday)
@@ -159,7 +162,10 @@ class BarrierBinomialTests(unittest.TestCase):
         valuation = START + timedelta(days=180)
         context = market(valuation=valuation)
         vanilla = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call",
+            strike=100,
+            effective_midnight_utc=START,
+            expiry_midnight_utc=END,
         )
         value = pricing.AnalyticEuropeanEngine().price(vanilla, context)
         for engine in engines():
@@ -235,7 +241,7 @@ class BarrierBinomialTests(unittest.TestCase):
     def test_expiry_only_observation_matches_one_step_payment(self):
         contract = option(
             "up_and_out",
-            expiry_date=START + timedelta(days=2),
+            expiry_midnight_utc=START + timedelta(days=2),
             barrier_level=101,
             rebate=2,
             observation_mode="scheduled",
@@ -338,7 +344,7 @@ class BarrierBinomialTests(unittest.TestCase):
         end = START + timedelta(days=4)
         contract = option(
             "up_and_out",
-            expiry_date=end,
+            expiry_midnight_utc=end,
             observation_mode="scheduled",
             observation_dates=[START + timedelta(days=2)],
         )
@@ -358,7 +364,7 @@ class BarrierBinomialTests(unittest.TestCase):
                 contract = option(
                     "up_and_out" if up else "down_and_out",
                     "call" if up else "put",
-                    expiry_date=START + timedelta(days=2),
+                    expiry_midnight_utc=START + timedelta(days=2),
                     barrier_level=100 * math.exp(jump if up else -jump),
                     observation_mode="scheduled",
                     observation_dates=[START + timedelta(days=1)],
@@ -428,7 +434,10 @@ class BarrierBinomialTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             engine.price_with_greeks(option(), market(), "delta", time_shift_days=2**31)
         mismatch = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call",
+            strike=100,
+            effective_midnight_utc=START,
+            expiry_midnight_utc=END,
         )
         for operation, args in (
             (engine.price, (mismatch, market())),
@@ -519,8 +528,8 @@ class BarrierBinomialTests(unittest.TestCase):
                             "settlement": timing,
                             "monitoring": "continuous",
                             "valuation": START.isoformat(),
-                            "effective_date": START.isoformat(),
-                            "expiry_date": END.isoformat(),
+                            "effective_midnight_utc": START.isoformat(),
+                            "expiry_midnight_utc": END.isoformat(),
                             "option": direction,
                             "strike": 100,
                             "spot": 100,

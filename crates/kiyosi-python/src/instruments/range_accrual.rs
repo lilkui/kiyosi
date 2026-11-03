@@ -23,9 +23,9 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 ///     Inclusive nonnegative lower spot boundary.
 /// upper_bound : float
 ///     Inclusive finite upper spot boundary, above the lower boundary.
-/// effective_date : datetime.date
+/// effective_midnight_utc : datetime.date
 ///     Contract starts at 00:00 UTC on this date.
-/// expiry_date : datetime.date
+/// expiry_midnight_utc : datetime.date
 ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// realized_hit_count : int or None, optional
 ///     Hits strictly before valuation, or None for unknown history.
@@ -34,11 +34,11 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 /// ------
 /// InvalidInputError
 ///     If amounts, bounds or history are invalid, or expiry is not after
-///     effective_date. Pricing checks history against elapsed observations.
+///     effective_midnight_utc. Pricing checks history against elapsed observations.
 ///
 /// Notes
 /// -----
-/// Observe trading dates in (effective_date, expiry_date]. Bounds are
+/// Observe trading dates in (effective_midnight_utc, expiry_midnight_utc]. Bounds are
 /// inclusive. Payment is notional times annual coupon times Actual/365 Fixed
 /// life times the fraction of observations inside the range.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
@@ -48,14 +48,14 @@ pub(crate) struct RangeAccrualOption(pub kiyosi::RangeAccrualOption);
 #[pymethods]
 impl RangeAccrualOption {
     #[new]
-    #[pyo3(signature = (*, notional, annual_coupon_rate, lower_bound, upper_bound, effective_date, expiry_date, realized_hit_count=None))]
+    #[pyo3(signature = (*, notional, annual_coupon_rate, lower_bound, upper_bound, effective_midnight_utc, expiry_midnight_utc, realized_hit_count=None))]
     fn new(
         notional: &Bound<'_, PyAny>,
         annual_coupon_rate: &Bound<'_, PyAny>,
         lower_bound: &Bound<'_, PyAny>,
         upper_bound: &Bound<'_, PyAny>,
-        effective_date: &Bound<'_, PyAny>,
-        expiry_date: &Bound<'_, PyAny>,
+        effective_midnight_utc: &Bound<'_, PyAny>,
+        expiry_midnight_utc: &Bound<'_, PyAny>,
         realized_hit_count: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let mut terms = kiyosi::RangeAccrualTerms::new(
@@ -63,8 +63,8 @@ impl RangeAccrualOption {
             real(annual_coupon_rate)?,
             real(lower_bound)?,
             real(upper_bound)?,
-            date(effective_date)?,
-            date(expiry_date)?,
+            date(effective_midnight_utc)?,
+            date(expiry_midnight_utc)?,
         );
         if let Some(value) = realized_hit_count {
             terms.realized_hit_count = history(value)?;
@@ -121,13 +121,13 @@ impl RangeAccrualOption {
     }
     /// Return inclusive first contract date.
     #[getter]
-    fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.effective_date())
+    fn effective_midnight_utc<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
+        python_date(py, self.0.effective_midnight_utc())
     }
     /// Return final contract date; expiry is at midnight UTC.
     #[getter]
-    fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.expiry_date())
+    fn expiry_midnight_utc<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
+        python_date(py, self.0.expiry_midnight_utc())
     }
     /// Return hits strictly before valuation, or None for unknown history.
     #[getter]
@@ -137,13 +137,13 @@ impl RangeAccrualOption {
 
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         Ok(format!(
-            "RangeAccrualOption(notional={:?}, annual_coupon_rate={:?}, lower_bound={:?}, upper_bound={:?}, effective_date={}, expiry_date={}, realized_hit_count={})",
+            "RangeAccrualOption(notional={:?}, annual_coupon_rate={:?}, lower_bound={:?}, upper_bound={:?}, effective_midnight_utc={}, expiry_midnight_utc={}, realized_hit_count={})",
             self.notional(),
             self.annual_coupon_rate(),
             self.lower_bound(),
             self.upper_bound(),
-            self.effective_date(py)?.repr()?,
-            self.expiry_date(py)?.repr()?,
+            self.effective_midnight_utc(py)?.repr()?,
+            self.expiry_midnight_utc(py)?.repr()?,
             self.realized_hit_count()
                 .map_or_else(|| "None".into(), |n| n.to_string())
         ))

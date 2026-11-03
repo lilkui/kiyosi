@@ -1,12 +1,13 @@
 """Validated derivative contracts, autocallable presets and observation adapters.
 
-``OptionType`` selects ``"call"`` or ``"put"``. Contract boundaries are
-00:00 UTC on effective_date and 00:00 UTC on expiry_date, both included.
+``OptionType`` selects ``"call"`` or ``"put"``. Boundary arguments and properties
+``effective_midnight_utc`` and ``expiry_midnight_utc`` are dates interpreted at
+00:00 UTC, both included. They accept ``datetime.date``, excluding datetime.
 An expiry date does not include the rest of that day. These are fixed UTC
 boundaries, independent of the trading calendar and the caller's time zone.
 Date-valued valuation inputs mean midnight UTC; aware datetimes are converted
-to UTC before checking contract life. For example, noon UTC on expiry_date
-is outside contract life, as is midnight UTC+08:00 on effective_date.
+to UTC before checking contract life. For example, noon UTC on expiry_midnight_utc
+is outside contract life, as is midnight UTC+08:00 on effective_midnight_utc.
 Contract dates cannot specify an intraday expiry. Constructors validate terms; pricing validates
 their consistency with the market snapshot, calendar and supplied history.
 History describes events strictly before valuation; a current observation
@@ -38,7 +39,7 @@ Cash and asset digitals pay zero when the expiry spot equals the strike:
 >>> from datetime import date
 >>> option = CashOrNothingOption(
 ...     option_type="call", strike=100, payout=10,
-...     effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
+...     effective_midnight_utc=date(2025, 1, 1), expiry_midnight_utc=date(2026, 1, 1),
 ... )
 >>> replacement = option.replace(strike=105)
 >>> (option.strike, replacement.strike, replacement.payout)
@@ -49,7 +50,7 @@ Use ``asset_touch_option`` for asset settlement. At-hit settlement is available
 only for one-touch contracts (``up_and_in`` or ``down_and_in``):
 
 >>> touch = cash_touch_option(
-...     effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
+...     effective_midnight_utc=date(2025, 1, 1), expiry_midnight_utc=date(2026, 1, 1),
 ...     barrier_level=80, barrier_type="down_and_out", payout=10,
 ... )
 >>> (touch.barrier_type, touch.is_one_touch, touch.settlement_timing)

@@ -209,10 +209,12 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             knock_out_level=110,
             daily_quantity=1,
             acceleration_factor=2,
-            effective_date=START,
-            expiry_date=date(2025, 1, 6),
+            effective_midnight_utc=START,
+            expiry_midnight_utc=date(2025, 1, 6),
         )
-        self.assertEqual(engine.price(omitted, market(90, omitted.expiry_date)), -20)
+        self.assertEqual(
+            engine.price(omitted, market(90, omitted.expiry_midnight_utc)), -20
+        )
         self.assertEqual(omitted.accumulated_quantity, 0)
 
     def test_shared_greeks_scalar_bumps_and_implied_volatility(self):
@@ -258,7 +260,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             self.assertIsNotNone(boundary.vega)
             self.assertIsNotNone(boundary.rho)
         expired = engine.price_with_greeks(
-            note, market(90, note.expiry_date), greeks="all"
+            note, market(90, note.expiry_midnight_utc), greeks="all"
         )
         for greek in (
             "delta",
@@ -315,7 +317,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             lambda: engine.price_with_greeks(note, context, "delta", spot_shift=0),
         )
         curve = RateTermStructure(
-            reference_time=START, times=[note.expiry_date], factors=[0.99]
+            reference_time=START, times=[note.expiry_midnight_utc], factors=[0.99]
         )
         for field in ("risk_free_rate", "dividend_yield"):
             curved = context.replace(
@@ -337,7 +339,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             )
         for instrument, fixed, expected in (
             (note, market(110, START), 30),
-            (note, market(90, note.expiry_date), -50),
+            (note, market(90, note.expiry_midnight_utc), -50),
             (contract(daily=0), market(90, START, rate=0, dividend=0), -30),
             (contract(daily=0, quantity=0), context, 0),
             (contract(knock_out=100, acceleration=0, quantity=0), context, 0),

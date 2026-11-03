@@ -9,8 +9,9 @@
 //! contract. [`PricingEngine`] also supports [`numerical_greeks`] and the implied
 //! parameter solvers. Contract constructors validate terms; pricing validates
 //! valuation dates, calendar consistency and required prior history.
-//! Contract dates denote midnight UTC boundaries, not whole trading days. The
-//! effective-date and expiry-date midnights are included; later instants on the
+//! Contract boundary fields and accessors are named `effective_midnight_utc` and
+//! `expiry_midnight_utc`. Their [`Date`] values denote fixed midnight UTC boundaries.
+//! Both boundary midnights are included; later instants on the
 //! expiry date are outside contract life. Calendars do not move these boundaries.
 //! Contract dates cannot specify an intraday expiry. Python converts aware
 //! valuation datetimes to UTC before applying the same boundaries.

@@ -98,7 +98,7 @@ def market_process(inputs):
 
 def vanilla_option(inputs, american_grid=None):
     process = market_process(inputs)
-    expiry_date = ql.DateParser.parseISO(inputs["expiry_date"])
+    expiry_midnight_utc = ql.DateParser.parseISO(inputs["expiry_midnight_utc"])
     direction = ql.Option.Call if inputs["option"] == "call" else ql.Option.Put
     kind = inputs.get("payoff", "vanilla")
     require(kind in {"vanilla", "cash", "asset"}, "unknown payoff")
@@ -111,10 +111,11 @@ def vanilla_option(inputs, american_grid=None):
     )
     option = ql.VanillaOption(
         payoff,
-        ql.EuropeanExercise(expiry_date)
+        ql.EuropeanExercise(expiry_midnight_utc)
         if american_grid is None
         else ql.AmericanExercise(
-            ql.DateParser.parseISO(inputs["effective_date"]), expiry_date
+            ql.DateParser.parseISO(inputs["effective_midnight_utc"]),
+            expiry_midnight_utc,
         ),
     )
     option.setPricingEngine(
@@ -176,7 +177,7 @@ def measure(
         if (
             field == "spot"
             and (
-                date.fromisoformat(inputs["expiry_date"])
+                date.fromisoformat(inputs["expiry_midnight_utc"])
                 - date.fromisoformat(inputs["valuation"])
             ).days
             > 2
@@ -194,13 +195,13 @@ def measure(
                 )
             require(
                 date.fromisoformat(inputs["valuation"]) + timedelta(days=h)
-                < date.fromisoformat(inputs["expiry_date"]),
-                "time stencil touches expiry_date",
+                < date.fromisoformat(inputs["expiry_midnight_utc"]),
+                "time stencil touches expiry_midnight_utc",
             )
             require(
                 date.fromisoformat(inputs["valuation"]) - timedelta(days=h)
-                >= date.fromisoformat(inputs["effective_date"]),
-                "time stencil precedes effective_date date",
+                >= date.fromisoformat(inputs["effective_midnight_utc"]),
+                "time stencil precedes effective_midnight_utc date",
             )
         options = {
             "option_factory": option_factory,
@@ -220,12 +221,12 @@ def measure(
 
 def exclusions(inputs):
     days = (
-        date.fromisoformat(inputs["expiry_date"])
+        date.fromisoformat(inputs["expiry_midnight_utc"])
         - date.fromisoformat(inputs["valuation"])
     ).days
     return dict.fromkeys(
         TIME_MEASURES if days <= 2 else (),
-        "whole-day stability stencil touches expiry_date",
+        "whole-day stability stencil touches expiry_midnight_utc",
     )
 
 

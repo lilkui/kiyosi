@@ -11,15 +11,15 @@ use pyo3::types::PyDate;
 ///     Call or put payoff direction.
 /// strike : float
 ///     Positive finite strike price.
-/// effective_date : datetime.date
+/// effective_midnight_utc : datetime.date
 ///     Contract starts at 00:00 UTC on this date.
-/// expiry_date : datetime.date
+/// expiry_midnight_utc : datetime.date
 ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
-///     If strike is nonpositive or non-finite, or expiry precedes effective_date.
+///     If strike is nonpositive or non-finite, or expiry precedes effective_midnight_utc.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct AmericanOption(pub(crate) kiyosi::AmericanOption);
@@ -27,19 +27,19 @@ pub(crate) struct AmericanOption(pub(crate) kiyosi::AmericanOption);
 #[pymethods]
 impl AmericanOption {
     #[new]
-    #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date))]
+    #[pyo3(signature = (*, option_type, strike, effective_midnight_utc, expiry_midnight_utc))]
     fn new(
         option_type: &Bound<'_, PyAny>,
         strike: &Bound<'_, PyAny>,
-        effective_date: &Bound<'_, PyAny>,
-        expiry_date: &Bound<'_, PyAny>,
+        effective_midnight_utc: &Bound<'_, PyAny>,
+        expiry_midnight_utc: &Bound<'_, PyAny>,
     ) -> PyResult<Self> {
         let direction = direction(option_type)?;
         Ok(Self(domain(kiyosi::AmericanOption::new(
             direction,
             real(strike)?,
-            date(effective_date)?,
-            date(expiry_date)?,
+            date(effective_midnight_utc)?,
+            date(expiry_midnight_utc)?,
         ))?))
     }
 
@@ -51,9 +51,9 @@ impl AmericanOption {
     ///     Call or put payoff direction.
     /// strike : float, optional
     ///     Positive finite strike price.
-    /// effective_date : datetime.date, optional
+    /// effective_midnight_utc : datetime.date, optional
     ///     Contract starts at 00:00 UTC on this date.
-    /// expiry_date : datetime.date, optional
+    /// expiry_midnight_utc : datetime.date, optional
     ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
     ///
     /// Returns
@@ -65,19 +65,19 @@ impl AmericanOption {
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_date=crate::conversions::OMITTED, expiry_date=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_midnight_utc=crate::conversions::OMITTED, expiry_midnight_utc=crate::conversions::OMITTED))]
     fn replace(
         &self,
         #[pyo3(from_py_with = supplied)] option_type: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] strike: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] effective_date: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] expiry_date: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] effective_midnight_utc: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] expiry_midnight_utc: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let changes = kiyosi::AmericanOptionChanges {
             option_type: option_type.map(direction).transpose()?,
             strike: strike.map(real).transpose()?,
-            effective_date: effective_date.map(date).transpose()?,
-            expiry_date: expiry_date.map(date).transpose()?,
+            effective_midnight_utc: effective_midnight_utc.map(date).transpose()?,
+            expiry_midnight_utc: expiry_midnight_utc.map(date).transpose()?,
         };
         Ok(Self(domain(self.0.replace(changes))?))
     }
@@ -97,12 +97,12 @@ impl AmericanOption {
     }
     /// Return inclusive first contract date.
     #[getter]
-    fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.effective_date())
+    fn effective_midnight_utc<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
+        python_date(py, self.0.effective_midnight_utc())
     }
     /// Return final contract date; expiry is at midnight UTC.
     #[getter]
-    fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.expiry_date())
+    fn expiry_midnight_utc<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
+        python_date(py, self.0.expiry_midnight_utc())
     }
 }

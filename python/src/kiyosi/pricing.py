@@ -152,7 +152,7 @@ Price a European call and request its delta and vega:
 >>> from kiyosi.pricing import AnalyticEuropeanEngine
 >>> option = EuropeanOption(
 ...     option_type="call", strike=100,
-...     effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
+...     effective_midnight_utc=date(2025, 1, 1), expiry_midnight_utc=date(2026, 1, 1),
 ... )
 >>> context = PricingContext(
 ...     model_parameters=BlackScholesMertonParameters(

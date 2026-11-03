@@ -167,7 +167,7 @@ macro_rules! vanilla_pricing {
                 let payoff = Payoff::vanilla(option.option_type(), option.strike(), $american);
                 let time = context
                     .valuation_time()
-                    .years_until(option.expiry_date().into());
+                    .years_until(option.expiry_midnight_utc().into());
                 if time == 0.0 {
                     return checked(payoff.value(context.spot_price()));
                 }

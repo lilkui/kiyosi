@@ -20,9 +20,9 @@ fn kind(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::DoubleBarrierType> {
 ///     Call or put payoff direction.
 /// strike : float
 ///     Positive finite strike price.
-/// effective_date : datetime.date
+/// effective_midnight_utc : datetime.date
 ///     Contract starts at 00:00 UTC on this date.
-/// expiry_date : datetime.date
+/// expiry_midnight_utc : datetime.date
 ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// lower_barrier : float
 ///     Positive finite lower trigger; equality counts as a touch.
@@ -54,13 +54,13 @@ pub(crate) struct DoubleBarrierOption(pub kiyosi::DoubleBarrierOption);
 monitoring_properties!(
     DoubleBarrierOption,
     #[new]
-    #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, lower_barrier, upper_barrier, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+    #[pyo3(signature = (*, option_type, strike, effective_midnight_utc, expiry_midnight_utc, lower_barrier, upper_barrier, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         option_type: &Bound<'_, PyAny>,
         strike: &Bound<'_, PyAny>,
-        effective_date: &Bound<'_, PyAny>,
-        expiry_date: &Bound<'_, PyAny>,
+        effective_midnight_utc: &Bound<'_, PyAny>,
+        expiry_midnight_utc: &Bound<'_, PyAny>,
         lower_barrier: &Bound<'_, PyAny>,
         upper_barrier: &Bound<'_, PyAny>,
         barrier_type: &Bound<'_, PyAny>,
@@ -73,8 +73,8 @@ monitoring_properties!(
         let mut terms = kiyosi::DoubleBarrierOptionTerms::new(
             direction(option_type)?,
             real(strike)?,
-            date(effective_date)?,
-            date(expiry_date)?,
+            date(effective_midnight_utc)?,
+            date(expiry_midnight_utc)?,
             real(lower_barrier)?,
             real(upper_barrier)?,
             kind(barrier_type)?,

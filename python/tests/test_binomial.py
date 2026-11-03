@@ -58,8 +58,8 @@ def contract(kind, direction="call", strike=100):
     terms = {
         "option_type": direction,
         "strike": strike,
-        "effective_date": START,
-        "expiry_date": END,
+        "effective_midnight_utc": START,
+        "expiry_midnight_utc": END,
     }
     if kind is CashOrNothingOption:
         terms["payout"] = 10
@@ -222,8 +222,8 @@ class BinomialTests(unittest.TestCase):
         option = EuropeanOption(
             option_type="call",
             strike=100,
-            effective_date=date(2025, 1, 1),
-            expiry_date=date(2026, 1, 1),
+            effective_midnight_utc=date(2025, 1, 1),
+            expiry_midnight_utc=date(2026, 1, 1),
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -646,8 +646,12 @@ class BinomialTests(unittest.TestCase):
                 option = kind(
                     option_type=inputs["option"],
                     strike=inputs["strike"],
-                    effective_date=date.fromisoformat(inputs["effective_date"]),
-                    expiry_date=date.fromisoformat(inputs["expiry_date"]),
+                    effective_midnight_utc=date.fromisoformat(
+                        inputs["effective_midnight_utc"]
+                    ),
+                    expiry_midnight_utc=date.fromisoformat(
+                        inputs["expiry_midnight_utc"]
+                    ),
                 )
                 context = market(
                     inputs["spot"],

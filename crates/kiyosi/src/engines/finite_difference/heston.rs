@@ -322,7 +322,7 @@ fn price(
     let model = context.model_parameters().as_heston()?;
     let time = time_to_expiry(option, context)?;
     let start = context.valuation_time();
-    let end = option.expiry_date().start_of_day();
+    let end = option.expiry_midnight_utc().start_of_day();
     let risk = Curve::new(model.risk_free_curve(), start, end)?;
     let dividend = Curve::new(model.dividend_curve(), start, end)?;
     if time == 0.0 {

@@ -51,17 +51,17 @@ macro_rules! double_touch_factory {
     ($name:ident, $kind:ident, [$($settlement:ident)?], $doc:literal) => {
         #[doc = $doc]
         #[pyfunction]
-        #[pyo3(signature = (*, effective_date, expiry_date, lower_barrier, upper_barrier, payout, $($settlement=kiyosi::SettlementTiming::default(),)? observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+        #[pyo3(signature = (*, effective_midnight_utc, expiry_midnight_utc, lower_barrier, upper_barrier, payout, $($settlement=kiyosi::SettlementTiming::default(),)? observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
         pub(crate) fn $name(
-            effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
+            effective_midnight_utc: &Bound<'_, PyAny>, expiry_midnight_utc: &Bound<'_, PyAny>,
             lower_barrier: &Bound<'_, PyAny>, upper_barrier: &Bound<'_, PyAny>, payout: &Bound<'_, PyAny>,
             $(#[pyo3(from_py_with = super::binary_barrier::settlement)] $settlement: kiyosi::SettlementTiming,)?
             #[pyo3(from_py_with = barrier::mode)] observation_mode: kiyosi::ObservationMode,
             #[pyo3(from_py_with = dates)] observation_dates: Vec<kiyosi::Date>,
             #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
         ) -> PyResult<DoubleTouchOption> {
-            let mut terms = kiyosi::DoubleTouchOptionTerms::new(date(effective_date)?, date(expiry_date)?, real(lower_barrier)?, real(upper_barrier)?, kiyosi::DoubleBarrierType::$kind);
+            let mut terms = kiyosi::DoubleTouchOptionTerms::new(date(effective_midnight_utc)?, date(expiry_midnight_utc)?, real(lower_barrier)?, real(upper_barrier)?, kiyosi::DoubleBarrierType::$kind);
             let payout = real(payout)?;
             $(terms.settlement_timing = $settlement;)?
             terms.observation_mode = observation_mode;
@@ -79,9 +79,9 @@ double_touch_factory!(
 
 Parameters
 ----------
-effective_date : datetime.date
+effective_midnight_utc : datetime.date
     Contract starts at 00:00 UTC on this date.
-expiry_date : datetime.date
+expiry_midnight_utc : datetime.date
     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 lower_barrier : float
     Positive finite lower trigger; equality counts as a touch.
@@ -124,9 +124,9 @@ double_touch_factory!(
 
 Parameters
 ----------
-effective_date : datetime.date
+effective_midnight_utc : datetime.date
     Contract starts at 00:00 UTC on this date.
-expiry_date : datetime.date
+expiry_midnight_utc : datetime.date
     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 lower_barrier : float
     Positive finite lower trigger; equality counts as a touch.

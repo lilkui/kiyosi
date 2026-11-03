@@ -34,7 +34,7 @@ EXPIRY_REASON = "terminal average payoff: no smooth sensitivities"
 
 
 def exclusions(inputs):
-    if inputs["valuation"] == inputs["expiry_date"]:
+    if inputs["valuation"] == inputs["expiry_midnight_utc"]:
         return dict.fromkeys(g.MEASURES[1:], EXPIRY_REASON)
     if (
         date.fromisoformat(inputs["valuation"])
@@ -51,17 +51,17 @@ def option(inputs):
         "unknown Asian contract",
     )
     g.require(inputs["monitoring"] == "continuous", "unknown Asian monitoring")
-    valuation, start, expiry_date = (
+    valuation, start, expiry_midnight_utc = (
         ql.DateParser.parseISO(inputs[key])
-        for key in ("valuation", "averaging_start_date", "expiry_date")
+        for key in ("valuation", "averaging_start_date", "expiry_midnight_utc")
     )
     ql.Settings.instance().evaluationDate = valuation
     payoff = ql.PlainVanillaPayoff(
         ql.Option.Call if inputs["option"] == "call" else ql.Option.Put,
         inputs["strike"],
     )
-    if valuation == expiry_date:
-        # Instrument NPV is zero on expiry_date; evaluate its contractual payoff instead.
+    if valuation == expiry_midnight_utc:
+        # Instrument NPV is zero on expiry_midnight_utc; evaluate its contractual payoff instead.
         return SimpleNamespace(NPV=lambda: payoff(inputs["realized_average"]))
     process = g.market_process(inputs)
     if kind == "geometric":
@@ -70,12 +70,15 @@ def option(inputs):
             "unmatched geometric averaging period",
         )
         contract = ql.ContinuousAveragingAsianOption(
-            ql.Average.Geometric, payoff, ql.EuropeanExercise(expiry_date)
+            ql.Average.Geometric, payoff, ql.EuropeanExercise(expiry_midnight_utc)
         )
         engine = ql.AnalyticContinuousGeometricAveragePriceAsianEngine(process)
     else:
         contract = ql.ContinuousAveragingAsianOption(
-            ql.Average.Arithmetic, start, payoff, ql.EuropeanExercise(expiry_date)
+            ql.Average.Arithmetic,
+            start,
+            payoff,
+            ql.EuropeanExercise(expiry_midnight_utc),
         )
         engine = ql.ContinuousArithmeticAsianLevyEngine(
             process, ql.QuoteHandle(ql.SimpleQuote(inputs["realized_average"]))
@@ -109,9 +112,9 @@ def scenarios():
                         "rate": 0.04,
                         "dividend": 0.01,
                         "volatility": 0.3,
-                        "effective_date": "2024-09-01",
+                        "effective_midnight_utc": "2024-09-01",
                         "valuation": "2025-01-06",
-                        "expiry_date": (
+                        "expiry_midnight_utc": (
                             date(2025, 1, 6) + timedelta(days=days)
                         ).isoformat(),
                         "averaging_start_date": (
@@ -134,15 +137,18 @@ def scenarios():
                         "rate": 0.04,
                         "dividend": 0.01,
                         "volatility": 0.3,
-                        "effective_date": "2024-09-01",
+                        "effective_midnight_utc": "2024-09-01",
                         "valuation": "2026-01-06",
-                        "expiry_date": "2026-01-06",
+                        "expiry_midnight_utc": "2026-01-06",
                         "averaging_start_date": "2025-01-06",
                         "realized_average": average,
                         "averaging": kind,
                         "monitoring": "continuous",
                     }
-                    yield f"ql-asian-{kind}-{direction}-expiry_date-{average}", inputs
+                    yield (
+                        f"ql-asian-{kind}-{direction}-expiry_midnight_utc-{average}",
+                        inputs,
+                    )
 
 
 def rows():
@@ -171,7 +177,7 @@ def rows():
 
 
 def check_bindings():
-    valuation, expiry_date = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
+    valuation, expiry_midnight_utc = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
     process = g.market_process(
         {
             "valuation": "2025-01-06",
@@ -182,7 +188,7 @@ def check_bindings():
         }
     )
     payoff = ql.PlainVanillaPayoff(ql.Option.Call, 100)
-    exercise = ql.EuropeanExercise(expiry_date)
+    exercise = ql.EuropeanExercise(expiry_midnight_utc)
     for kind in INSTRUMENTS:
         engine = (
             ql.AnalyticContinuousGeometricAveragePriceAsianEngine(process)

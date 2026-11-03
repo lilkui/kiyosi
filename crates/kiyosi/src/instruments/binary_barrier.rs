@@ -24,9 +24,9 @@ pub struct BinaryBarrierTerms {
     /// Positive finite strike; terminal equality pays zero.
     pub strike: f64,
     /// Inclusive first date.
-    pub effective_date: Date,
+    pub effective_midnight_utc: Date,
     /// Inclusive expiry at midnight UTC.
-    pub expiry_date: Date,
+    pub expiry_midnight_utc: Date,
     /// Positive finite trigger; equality touches.
     pub barrier_level: f64,
     /// Trigger direction and activation behavior.
@@ -45,16 +45,16 @@ impl BinaryBarrierTerms {
     pub fn new(
         option_type: OptionType,
         strike: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_midnight_utc: Date,
+        expiry_midnight_utc: Date,
         barrier_level: f64,
         barrier_type: BarrierType,
     ) -> Self {
         Self {
             option_type,
             strike,
-            effective_date,
-            expiry_date,
+            effective_midnight_utc,
+            expiry_midnight_utc,
             barrier_level,
             barrier_type,
             observation_mode: ObservationMode::default(),
@@ -64,8 +64,8 @@ impl BinaryBarrierTerms {
     }
     fn monitoring(self) -> Result<Monitoring> {
         Monitoring::new(
-            self.effective_date,
-            self.expiry_date,
+            self.effective_midnight_utc,
+            self.expiry_midnight_utc,
             self.barrier_level,
             self.barrier_type,
             self.observation_mode,
@@ -111,8 +111,8 @@ impl BinaryBarrierOption {
             terms.option_type,
             terms.strike,
             payout,
-            terms.effective_date,
-            terms.expiry_date,
+            terms.effective_midnight_utc,
+            terms.expiry_midnight_utc,
         )?;
         Ok(Self {
             monitoring: terms.monitoring()?,
@@ -139,8 +139,8 @@ impl BinaryBarrierOption {
         let digital = DigitalOption::asset_or_nothing(
             terms.option_type,
             terms.strike,
-            terms.effective_date,
-            terms.expiry_date,
+            terms.effective_midnight_utc,
+            terms.expiry_midnight_utc,
         )?;
         Ok(Self {
             monitoring: terms.monitoring()?,
@@ -177,9 +177,9 @@ impl BinaryBarrierOption {
 #[derive(Clone, Debug, PartialEq)]
 pub struct TouchOptionTerms {
     /// Inclusive first date.
-    pub effective_date: Date,
+    pub effective_midnight_utc: Date,
     /// Inclusive expiry at midnight UTC.
-    pub expiry_date: Date,
+    pub expiry_midnight_utc: Date,
     /// Positive finite barrier; equality touches.
     pub barrier_level: f64,
     /// In means one-touch, out means no-touch; up/down selects direction.
@@ -198,14 +198,14 @@ impl TouchOptionTerms {
     ///
     /// See [`TouchOption::cash`] for validation and an example.
     pub fn new(
-        effective_date: Date,
-        expiry_date: Date,
+        effective_midnight_utc: Date,
+        expiry_midnight_utc: Date,
         barrier_level: f64,
         barrier_type: BarrierType,
     ) -> Self {
         Self {
-            effective_date,
-            expiry_date,
+            effective_midnight_utc,
+            expiry_midnight_utc,
             barrier_level,
             barrier_type,
             settlement_timing: SettlementTiming::default(),
@@ -221,8 +221,8 @@ impl TouchOptionTerms {
             ));
         }
         Monitoring::new(
-            self.effective_date,
-            self.expiry_date,
+            self.effective_midnight_utc,
+            self.expiry_midnight_utc,
             self.barrier_level,
             self.barrier_type,
             self.observation_mode,
@@ -338,12 +338,12 @@ macro_rules! monitoring_accessors {
     ($contract:ty) => {
         impl $contract {
             /// Returns the inclusive first date; see the cash constructor.
-            pub fn effective_date(&self) -> Date {
-                self.monitoring.effective_date()
+            pub fn effective_midnight_utc(&self) -> Date {
+                self.monitoring.effective_midnight_utc()
             }
             /// Returns expiry at midnight UTC; see the cash constructor.
-            pub fn expiry_date(&self) -> Date {
-                self.monitoring.expiry_date()
+            pub fn expiry_midnight_utc(&self) -> Date {
+                self.monitoring.expiry_midnight_utc()
             }
             /// Returns the positive barrier; see the cash constructor.
             pub fn barrier_level(&self) -> f64 {
@@ -375,11 +375,11 @@ macro_rules! monitoring_accessors {
             }
         }
         impl OptionContract for $contract {
-            fn effective_date(&self) -> Date {
-                self.effective_date()
+            fn effective_midnight_utc(&self) -> Date {
+                self.effective_midnight_utc()
             }
-            fn expiry_date(&self) -> Date {
-                self.expiry_date()
+            fn expiry_midnight_utc(&self) -> Date {
+                self.expiry_midnight_utc()
             }
             fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
                 self.monitoring.at_spot_discontinuity(context, radius)

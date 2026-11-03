@@ -65,8 +65,8 @@ snowball = standard_snowball(
     knock_in_level=80.0,
     knock_out_level=103.0,
     observation_dates=observations,
-    effective_date=start,
-    expiry_date=end,
+    effective_midnight_utc=start,
+    expiry_midnight_utc=end,
 )
 context = PricingContext(
     model_parameters=BlackScholesMertonParameters(

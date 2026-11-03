@@ -21,8 +21,8 @@ def contract(**changes):
                 "daily_quantity": 1,
                 "acceleration_factor": 2,
                 "accumulated_quantity": 3,
-                "effective_date": START,
-                "expiry_date": END,
+                "effective_midnight_utc": START,
+                "expiry_midnight_utc": END,
             }
             | changes
         )
@@ -43,7 +43,7 @@ def engines():
 
 def terminal_reference(option, context):
     """Independent truncated-lognormal expectation for one remaining event."""
-    end = datetime.combine(option.expiry_date, datetime.min.time(), UTC)
+    end = datetime.combine(option.expiry_midnight_utc, datetime.min.time(), UTC)
     time = (end - context.valuation_time).total_seconds() / (365 * 86400)
     model = context.model_parameters
     deviation = model.volatility * math.sqrt(time)
@@ -63,7 +63,7 @@ def terminal_reference(option, context):
         ) / 2
 
     observations = option.knock_out_observation_dates
-    observes = observations is None or option.expiry_date in observations
+    observes = observations is None or option.expiry_midnight_utc in observations
     strike, barrier = option.strike, option.knock_out_level
     multiplier = option.acceleration_factor
     if option.option_type == "call":
@@ -139,7 +139,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
         )
         self.assertEqual(
             contract(
-                expiry_date=date(2025, 2, 3),
+                expiry_midnight_utc=date(2025, 2, 3),
                 knock_out_observation_dates=schedule,
             ).knock_out_observation_dates,
             list(schedule),
@@ -181,7 +181,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
     def test_trading_calendar_validation_is_deferred_until_pricing(self):
         weekend = contract(knock_out_observation_dates=[date(2025, 1, 4)])
         weekend_expiry = contract(
-            expiry_date=date(2025, 1, 5), knock_out_observation_dates=[]
+            expiry_midnight_utc=date(2025, 1, 5), knock_out_observation_dates=[]
         )
         for engine in engines():
             with self.subTest(engine=type(engine).__name__):
@@ -261,7 +261,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                             option_type=direction,
                             knock_out_level=barrier,
                             acceleration_factor=0,
-                            expiry_date=end,
+                            expiry_midnight_utc=end,
                             knock_out_observation_dates=observations,
                         )
                         self.assertAlmostEqual(
@@ -430,7 +430,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 option_type=direction,
                 knock_out_level=barrier,
                 acceleration_factor=1,
-                expiry_date=end,
+                expiry_midnight_utc=end,
                 knock_out_observation_dates=[date(2025, 1, 15)],
             )
             observation = 13.5 / 365
@@ -495,7 +495,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     knock_out_level=barrier,
                     acceleration_factor=0,
                     accumulated_quantity=0,
-                    expiry_date=date(2025, 1, 3),
+                    expiry_midnight_utc=date(2025, 1, 3),
                     knock_out_observation_dates=observations,
                 )
                 with self.subTest(direction=direction, observations=observations):

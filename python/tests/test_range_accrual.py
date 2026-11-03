@@ -39,8 +39,8 @@ def contract(**changes):
         "annual_coupon_rate": 0.12,
         "lower_bound": 95,
         "upper_bound": 110,
-        "effective_date": START,
-        "expiry_date": START + timedelta(days=16),
+        "effective_midnight_utc": START,
+        "expiry_midnight_utc": START + timedelta(days=16),
     }
     values.update(changes)
     return RangeAccrualOption(**values)
@@ -64,8 +64,8 @@ def reference(option, context):
     total = 0
     model = context.model_parameters
     valuation = context.valuation_time
-    current = option.effective_date + timedelta(days=1)
-    while current <= option.expiry_date:
+    current = option.effective_midnight_utc + timedelta(days=1)
+    while current <= option.expiry_midnight_utc:
         if context.calendar.is_trading_day(current):
             total += 1
             observed = instant(current)
@@ -91,11 +91,11 @@ def reference(option, context):
     return (
         option.notional
         * option.annual_coupon_rate
-        * (option.expiry_date - option.effective_date).days
+        * (option.expiry_midnight_utc - option.effective_midnight_utc).days
         / 365
         * hits
         / total
-        * model.risk_free_curve.factor(valuation, option.expiry_date)
+        * model.risk_free_curve.factor(valuation, option.expiry_midnight_utc)
     )
 
 
@@ -107,7 +107,9 @@ class RangeAccrualTests(unittest.TestCase):
             times=[knot, instant(knot) + timedelta(microseconds=1), expiry],
             factors=[1, 1, 1],
         )
-        option = contract(effective_date=date(2499, 12, 31), expiry_date=expiry)
+        option = contract(
+            effective_midnight_utc=date(2499, 12, 31), expiry_midnight_utc=expiry
+        )
         engine = AnalyticRangeAccrualEngine()
         for rate, dividend in ((curve, 0), (0, curve)):
             context = market(rate=rate, dividend=dividend)
@@ -117,8 +119,8 @@ class RangeAccrualTests(unittest.TestCase):
             self.assertEqual(
                 engine.price(
                     contract(
-                        effective_date=option.effective_date,
-                        expiry_date=expiry,
+                        effective_midnight_utc=option.effective_midnight_utc,
+                        expiry_midnight_utc=expiry,
                         annual_coupon_rate=0,
                     ),
                     context,
@@ -135,10 +137,10 @@ class RangeAccrualTests(unittest.TestCase):
         vanilla = EuropeanOption(
             option_type="call",
             strike=100,
-            effective_date=START,
-            expiry_date=option.expiry_date,
+            effective_midnight_utc=START,
+            expiry_midnight_utc=option.expiry_midnight_utc,
         )
-        for field in ("effective_date", "expiry_date"):
+        for field in ("effective_midnight_utc", "expiry_midnight_utc"):
             for value in ("2025-01-01", instant(START)):
                 with (
                     self.subTest(field=field, value=value),
@@ -188,7 +190,7 @@ class RangeAccrualTests(unittest.TestCase):
             implied_volatility,
             engine,
             option.replace_history(realized_hit_count=15),
-            market(option.expiry_date),
+            market(option.expiry_midnight_utc),
             0,
         )
         self.assert_rejection(
@@ -203,7 +205,7 @@ class RangeAccrualTests(unittest.TestCase):
         self.assertEqual(context.model_parameters.volatility, 0.2)
 
     def test_daily_coupon_matches_exact_marginal_sum(self):
-        option = contract(expiry_date=START + timedelta(days=365))
+        option = contract(expiry_midnight_utc=START + timedelta(days=365))
         context = market()
         self.assertAlmostEqual(
             AnalyticRangeAccrualEngine().price(option, context),
@@ -259,7 +261,7 @@ class RangeAccrualTests(unittest.TestCase):
             {"realized_hit_count": -1},
         ):
             self.assert_rejection(InvalidInputError, contract, **values)
-        self.assert_rejection(InvalidInputError, contract, expiry_date=START)
+        self.assert_rejection(InvalidInputError, contract, expiry_midnight_utc=START)
         self.assert_rejection(
             InvalidInputError,
             option.replace_history,
@@ -271,7 +273,9 @@ class RangeAccrualTests(unittest.TestCase):
             option.notional = 2
 
     def test_closed_bounds_and_expiry_coupon(self):
-        option = contract(expiry_date=START + timedelta(days=2), realized_hit_count=1)
+        option = contract(
+            expiry_midnight_utc=START + timedelta(days=2), realized_hit_count=1
+        )
         engine = AnalyticRangeAccrualEngine()
         for spot, hit in (
             (math.nextafter(95, 0), False),
@@ -283,7 +287,7 @@ class RangeAccrualTests(unittest.TestCase):
         ):
             with self.subTest(spot=spot):
                 result = engine.price_with_greeks(
-                    option, market(option.expiry_date, spot), greeks="all"
+                    option, market(option.expiry_midnight_utc, spot), greeks="all"
                 )
                 self.assertAlmostEqual(
                     result.price, 1000 * 0.12 / 365 * (1 + hit), delta=1e-12
@@ -345,7 +349,10 @@ class RangeAccrualTests(unittest.TestCase):
         )
 
     def test_weekend_calendar_full_term_and_zero_coupon(self):
-        option = contract(effective_date=date(2025, 1, 3), expiry_date=date(2025, 1, 6))
+        option = contract(
+            effective_midnight_utc=date(2025, 1, 3),
+            expiry_midnight_utc=date(2025, 1, 6),
+        )
         context = market(date(2025, 1, 3), calendar=weekdays_calendar())
         engine = AnalyticRangeAccrualEngine()
         self.assertAlmostEqual(
@@ -354,7 +361,7 @@ class RangeAccrualTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            contract(expiry_date=date(2025, 1, 5)),
+            contract(expiry_midnight_utc=date(2025, 1, 5)),
             context,
         )
         short_curve = RateTermStructure(
@@ -444,12 +451,12 @@ class RangeAccrualTests(unittest.TestCase):
         option = contract()
         rate = RateTermStructure(
             reference_time=START,
-            times=[START + timedelta(days=5), option.expiry_date],
+            times=[START + timedelta(days=5), option.expiry_midnight_utc],
             factors=[1.001, 0.997],
         )
         dividend = RateTermStructure(
             reference_time=START - timedelta(days=1),
-            times=[START + timedelta(days=7), option.expiry_date],
+            times=[START + timedelta(days=7), option.expiry_midnight_utc],
             factors=[0.998, 1.002],
         )
         engine = AnalyticRangeAccrualEngine()
@@ -476,7 +483,7 @@ class RangeAccrualTests(unittest.TestCase):
             annual_coupon_rate=1e100,
             lower_bound=math.exp(mean + 40 * width),
             upper_bound=math.exp(mean + 41 * width),
-            expiry_date=START + timedelta(days=1),
+            expiry_midnight_utc=START + timedelta(days=1),
         )
         expected = math.exp(
             math.log(1e300)
@@ -513,7 +520,7 @@ class RangeAccrualTests(unittest.TestCase):
                     annual_coupon_rate=1,
                     lower_bound=lower,
                     upper_bound=upper,
-                    expiry_date=START + timedelta(days=days),
+                    expiry_midnight_utc=START + timedelta(days=days),
                 )
                 context = market(rate=0, dividend=0, volatility=volatility)
                 self.assertAlmostEqual(
@@ -547,7 +554,7 @@ class RangeAccrualTests(unittest.TestCase):
         )
         h, v, r = 0.1, 0.0001, 0.0001
         for days, rate, dividend in ((1, 0.04, 0.01), (8, curve, -0.01)):
-            option = contract(expiry_date=START + timedelta(days=days))
+            option = contract(expiry_midnight_utc=START + timedelta(days=days))
             context = market(valuation, spot=99, rate=rate, dividend=dividend)
             engine = AnalyticRangeAccrualEngine()
             result = engine.price_with_greeks(
@@ -627,10 +634,10 @@ class RangeAccrualTests(unittest.TestCase):
 
     def test_curve_knot_uses_right_hand_time_greek_before_effective(self):
         valuation = START - timedelta(days=3)
-        option = contract(expiry_date=START + timedelta(days=1))
+        option = contract(expiry_midnight_utc=START + timedelta(days=1))
         rate = RateTermStructure(
             reference_time=START - timedelta(days=5),
-            times=[valuation, option.expiry_date],
+            times=[valuation, option.expiry_midnight_utc],
             factors=[0.999, 1.002],
         )
         context = market(valuation, rate=rate)
@@ -646,7 +653,7 @@ class RangeAccrualTests(unittest.TestCase):
 
     def test_long_contract_and_current_spot_stencil(self):
         engine = AnalyticRangeAccrualEngine()
-        option = contract(expiry_date=START + timedelta(days=21204))
+        option = contract(expiry_midnight_utc=START + timedelta(days=21204))
         self.assertAlmostEqual(
             engine.price(option, market()), reference(option, market()), delta=1e-8
         )

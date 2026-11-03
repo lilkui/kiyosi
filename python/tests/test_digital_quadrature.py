@@ -85,8 +85,10 @@ class DigitalQuadratureTests(unittest.TestCase):
             option = kind(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
-                effective_date=date.fromisoformat(inputs["effective_date"]),
-                expiry_date=date.fromisoformat(inputs["expiry_date"]),
+                effective_midnight_utc=date.fromisoformat(
+                    inputs["effective_midnight_utc"]
+                ),
+                expiry_midnight_utc=date.fromisoformat(inputs["expiry_midnight_utc"]),
                 **({"payout": inputs["payout"]} if inputs["payoff"] == "cash" else {}),
             )
             context = market(
@@ -98,7 +100,9 @@ class DigitalQuadratureTests(unittest.TestCase):
             )
             with ql.SavedSettings():
                 reference, uncertainty = oracle.reference(inputs, digital.STABILITY)
-            smooth = (option.expiry_date - context.valuation_time.date()).days > 2
+            smooth = (
+                option.expiry_midnight_utc - context.valuation_time.date()
+            ).days > 2
             names = (
                 tuple(reference.keys() - {"price"}) if smooth else ("delta", "gamma")
             )
@@ -175,9 +179,9 @@ class DigitalQuadratureTests(unittest.TestCase):
                     "rate": 0.04,
                     "dividend": 0.01,
                     "volatility": 0.3,
-                    "effective_date": START.isoformat(),
+                    "effective_midnight_utc": START.isoformat(),
                     "valuation": START.isoformat(),
-                    "expiry_date": END.isoformat(),
+                    "expiry_midnight_utc": END.isoformat(),
                 }
                 with ql.SavedSettings():
                     base = oracle.measure(inputs, "price")
@@ -276,8 +280,8 @@ class DigitalQuadratureTests(unittest.TestCase):
                 option = kind(
                     option_type=direction,
                     strike=1.75e308,
-                    effective_date=START,
-                    expiry_date=END,
+                    effective_midnight_utc=START,
+                    expiry_midnight_utc=END,
                     **({"payout": 1.75e308} if kind is CashOrNothingOption else {}),
                 )
                 context = market(1.75e308, -0.03, -0.05)
@@ -295,8 +299,8 @@ class DigitalQuadratureTests(unittest.TestCase):
                     option = kind(
                         option_type=direction,
                         strike=amount,
-                        effective_date=START,
-                        expiry_date=END,
+                        effective_midnight_utc=START,
+                        expiry_midnight_utc=END,
                         **({"payout": amount} if kind is CashOrNothingOption else {}),
                     )
                     expected = pricing.AnalyticDigitalEngine().price(option, context)

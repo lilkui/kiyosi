@@ -31,7 +31,7 @@ pub(crate) fn initial<T: AutocallableTerms>(
     let settlement =
         if let Some(record) = current.filter(|r| context.spot_price() >= r.knock_out_level) {
             Some(note.knock_out_payment(record) + coupon)
-        } else if context.valuation_time() == note.expiry_date().start_of_day() {
+        } else if context.valuation_time() == note.expiry_midnight_utc().start_of_day() {
             Some(
                 coupon
                     + note.terminal(
@@ -63,7 +63,7 @@ pub(crate) fn future_event_dates<T: AutocallableTerms>(
             {
                 dates.push(date);
             }
-            if date == note.expiry_date() {
+            if date == note.expiry_midnight_utc() {
                 break;
             }
             date = date.add_days(1)?;
@@ -75,8 +75,8 @@ pub(crate) fn future_event_dates<T: AutocallableTerms>(
                 .map(|r| r.date)
                 .filter(|d| d.start_of_day() > context.valuation_time()),
         );
-        if dates.last() != Some(&note.expiry_date()) {
-            dates.push(note.expiry_date());
+        if dates.last() != Some(&note.expiry_midnight_utc()) {
+            dates.push(note.expiry_midnight_utc());
         }
     }
     Ok(dates)
@@ -87,8 +87,8 @@ pub(crate) fn validate<T: AutocallableTerms>(
     context: &PricingContext,
 ) -> Result<()> {
     let valuation = context.valuation_time();
-    if valuation < note.effective_date().start_of_day()
-        || valuation > note.expiry_date().start_of_day()
+    if valuation < note.effective_midnight_utc().start_of_day()
+        || valuation > note.expiry_midnight_utc().start_of_day()
     {
         return Err(Error::InvalidInput(
             "valuation must be within contract life".into(),
@@ -104,7 +104,10 @@ pub(crate) fn validate<T: AutocallableTerms>(
         ));
     }
     note.prior(context.valuation_time(), context.calendar())?;
-    if !context.calendar().is_trading_day(note.expiry_date()) {
+    if !context
+        .calendar()
+        .is_trading_day(note.expiry_midnight_utc())
+    {
         return Err(Error::InvalidInput("expiry is not a trading day".into()));
     }
     Ok(())
@@ -143,7 +146,8 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
             .factor(context.valuation_time(), date.into())
             .ok()
     };
-    let value = note.terminal(context.spot_price(), knocked_in) * discount(note.expiry_date())?;
+    let value =
+        note.terminal(context.spot_price(), knocked_in) * discount(note.expiry_midnight_utc())?;
     if !value.is_finite() {
         return None;
     }
@@ -169,6 +173,6 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
             }
         }
     }
-    let discount = discount(note.expiry_date())?;
+    let discount = discount(note.expiry_midnight_utc())?;
     discount.is_normal().then_some(value + coupons)
 }

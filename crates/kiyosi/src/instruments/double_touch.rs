@@ -8,9 +8,9 @@ use crate::{
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleTouchOptionTerms {
     /// Inclusive first date.
-    pub effective_date: Date,
+    pub effective_midnight_utc: Date,
     /// Inclusive expiry at midnight UTC.
-    pub expiry_date: Date,
+    pub expiry_midnight_utc: Date,
     /// Positive finite lower boundary; equality touches.
     pub lower_barrier: f64,
     /// Finite upper boundary, strictly above the lower boundary.
@@ -29,15 +29,15 @@ pub struct DoubleTouchOptionTerms {
 impl DoubleTouchOptionTerms {
     /// Supplies the single-touch defaults without validation; see [`DoubleTouchOption::cash`].
     pub fn new(
-        effective_date: Date,
-        expiry_date: Date,
+        effective_midnight_utc: Date,
+        expiry_midnight_utc: Date,
         lower_barrier: f64,
         upper_barrier: f64,
         barrier_type: DoubleBarrierType,
     ) -> Self {
         Self {
-            effective_date,
-            expiry_date,
+            effective_midnight_utc,
+            expiry_midnight_utc,
             lower_barrier,
             upper_barrier,
             barrier_type,
@@ -107,8 +107,8 @@ impl DoubleTouchOption {
         }
         validate_upper(terms.lower_barrier, terms.upper_barrier)?;
         let monitoring = Monitoring::new(
-            terms.effective_date,
-            terms.expiry_date,
+            terms.effective_midnight_utc,
+            terms.expiry_midnight_utc,
             terms.lower_barrier,
             if terms.barrier_type == DoubleBarrierType::KnockIn {
                 BarrierType::DownAndIn
@@ -127,12 +127,12 @@ impl DoubleTouchOption {
         })
     }
     /// Returns the inclusive first date; see [`Self::cash`].
-    pub fn effective_date(&self) -> Date {
-        self.monitoring.effective_date()
+    pub fn effective_midnight_utc(&self) -> Date {
+        self.monitoring.effective_midnight_utc()
     }
     /// Returns expiry at midnight UTC; see [`Self::cash`].
-    pub fn expiry_date(&self) -> Date {
-        self.monitoring.expiry_date()
+    pub fn expiry_midnight_utc(&self) -> Date {
+        self.monitoring.expiry_midnight_utc()
     }
     /// Returns the positive lower boundary; see [`Self::cash`].
     pub fn lower_barrier(&self) -> f64 {
@@ -194,11 +194,11 @@ impl DoubleTouchOption {
     }
 }
 impl OptionContract for DoubleTouchOption {
-    fn effective_date(&self) -> Date {
-        self.effective_date()
+    fn effective_midnight_utc(&self) -> Date {
+        self.effective_midnight_utc()
     }
-    fn expiry_date(&self) -> Date {
-        self.expiry_date()
+    fn expiry_midnight_utc(&self) -> Date {
+        self.expiry_midnight_utc()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         self.monitoring

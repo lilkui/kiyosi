@@ -60,7 +60,7 @@ impl AnalyticGeometricAveragePriceEngine {
         }
         let valuation = context.valuation_time();
         let start = o.averaging_start.start_of_day();
-        let expiry = o.terms.expiry_date().start_of_day();
+        let expiry = o.terms.expiry_midnight_utc().start_of_day();
         let period = o.period();
         let lead = valuation.years_until(start).max(0.0);
         let future = valuation.max(start).years_until(expiry);
@@ -355,7 +355,7 @@ impl PricingEngine<ArithmeticAveragePriceOption> for TurnbullWakemanArithmeticAv
     ) -> bool {
         let tau = context
             .valuation_time()
-            .years_until(option.expiry_date().start_of_day());
+            .years_until(option.expiry_midnight_utc().start_of_day());
         option.0.adjusted_strike(tau) > 0.0
     }
 }

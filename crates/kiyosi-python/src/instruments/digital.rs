@@ -13,12 +13,12 @@ macro_rules! digital_option {
         #[pymethods]
         impl $name {
             #[new]
-            #[pyo3(signature = (*, option_type, strike, $($payout,)? effective_date, expiry_date))]
+            #[pyo3(signature = (*, option_type, strike, $($payout,)? effective_midnight_utc, expiry_midnight_utc))]
             fn new(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
-                $($payout: &Bound<'_, PyAny>,)? effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
+                $($payout: &Bound<'_, PyAny>,)? effective_midnight_utc: &Bound<'_, PyAny>, expiry_midnight_utc: &Bound<'_, PyAny>,
             ) -> PyResult<Self> {
                 Ok(Self(domain(kiyosi::DigitalOption::$constructor(direction(option_type)?,
-                    real(strike)?, $(real($payout)?,)? date(effective_date)?, date(expiry_date)?) )?))
+                    real(strike)?, $(real($payout)?,)? date(effective_midnight_utc)?, date(expiry_midnight_utc)?) )?))
             }
 
             /// Return a validated replacement without changing this value.
@@ -30,9 +30,9 @@ macro_rules! digital_option {
             /// strike : float, optional
             ///     Positive finite strike price.
             $(#[doc = concat!(stringify!($payout), " : float, optional\n    Positive finite cash payment.")])?
-            /// effective_date : datetime.date, optional
+            /// effective_midnight_utc : datetime.date, optional
             ///     Contract starts at 00:00 UTC on this date.
-            /// expiry_date : datetime.date, optional
+            /// expiry_midnight_utc : datetime.date, optional
             ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
             ///
             /// Returns
@@ -44,14 +44,14 @@ macro_rules! digital_option {
             /// ------
             /// KiyosiError
             ///     If replacement terms fail domain validation. The original is unchanged.
-            #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, $($payout=crate::conversions::OMITTED,)? effective_date=crate::conversions::OMITTED, expiry_date=crate::conversions::OMITTED))]
+            #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, $($payout=crate::conversions::OMITTED,)? effective_midnight_utc=crate::conversions::OMITTED, expiry_midnight_utc=crate::conversions::OMITTED))]
             fn replace(
                 &self,
                 #[pyo3(from_py_with = supplied)] option_type: Option<&Bound<'_, PyAny>>,
                 #[pyo3(from_py_with = supplied)] strike: Option<&Bound<'_, PyAny>>,
                 $(#[pyo3(from_py_with = supplied)] $payout: Option<&Bound<'_, PyAny>>,)?
-                #[pyo3(from_py_with = supplied)] effective_date: Option<&Bound<'_, PyAny>>,
-                #[pyo3(from_py_with = supplied)] expiry_date: Option<&Bound<'_, PyAny>>,
+                #[pyo3(from_py_with = supplied)] effective_midnight_utc: Option<&Bound<'_, PyAny>>,
+                #[pyo3(from_py_with = supplied)] expiry_midnight_utc: Option<&Bound<'_, PyAny>>,
             ) -> PyResult<Self> {
                 let mut changes = kiyosi::DigitalOptionChanges {
                     option_type: option_type.map(direction).transpose()?,
@@ -59,8 +59,8 @@ macro_rules! digital_option {
                     ..Default::default()
                 };
                 $(changes.payout = $payout.map(real).transpose()?;)?
-                changes.effective_date = effective_date.map(date).transpose()?;
-                changes.expiry_date = expiry_date.map(date).transpose()?;
+                changes.effective_midnight_utc = effective_midnight_utc.map(date).transpose()?;
+                changes.expiry_midnight_utc = expiry_midnight_utc.map(date).transpose()?;
                 Ok(Self(domain(self.0.replace(changes))?))
             }
 
@@ -74,13 +74,13 @@ macro_rules! digital_option {
             fn strike(&self) -> f64 { self.0.strike() }
             /// Return inclusive first contract date.
             #[getter]
-            fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-                python_date(py, self.0.effective_date())
+            fn effective_midnight_utc<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
+                python_date(py, self.0.effective_midnight_utc())
             }
             /// Return final contract date; expiry is at midnight UTC.
             #[getter]
-            fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-                python_date(py, self.0.expiry_date())
+            fn expiry_midnight_utc<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
+                python_date(py, self.0.expiry_midnight_utc())
             }
             $(
                 /// Return the fixed cash payout.
@@ -105,15 +105,15 @@ strike : float
     Positive finite strike price.
 payout : float
     Positive finite cash payment.
-effective_date : datetime.date
+effective_midnight_utc : datetime.date
     Contract starts at 00:00 UTC on this date.
-expiry_date : datetime.date
+expiry_midnight_utc : datetime.date
     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 
 Raises
 ------
 InvalidInputError
-    If payout or strike is nonpositive or non-finite, or expiry precedes effective_date."
+    If payout or strike is nonpositive or non-finite, or expiry precedes effective_midnight_utc."
 );
 digital_option!(
     AssetOrNothingOption,
@@ -126,15 +126,15 @@ option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive finite strike price.
-effective_date : datetime.date
+effective_midnight_utc : datetime.date
     Contract starts at 00:00 UTC on this date.
-expiry_date : datetime.date
+expiry_midnight_utc : datetime.date
     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 
 Raises
 ------
 InvalidInputError
-    If strike is nonpositive or non-finite, or expiry precedes effective_date."
+    If strike is nonpositive or non-finite, or expiry precedes effective_midnight_utc."
 );
 
 #[derive(FromPyObject)]

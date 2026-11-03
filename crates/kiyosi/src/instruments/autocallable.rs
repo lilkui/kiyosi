@@ -132,9 +132,9 @@ pub struct SnowballTerms {
     /// Sets the nonnegative normalized principal, independently of coupons and losses.
     pub principal_ratio: f64,
     /// Sets the inclusive first date.
-    pub effective_date: Date,
+    pub effective_midnight_utc: Date,
     /// Sets the inclusive final date, which must be a trading day when pricing.
-    pub expiry_date: Date,
+    pub expiry_midnight_utc: Date,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
 }
@@ -152,8 +152,8 @@ impl SnowballTerms {
         knock_in_level: f64,
         upper_strike: f64,
         lower_strike: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_midnight_utc: Date,
+        expiry_midnight_utc: Date,
         observations: Vec<AutocallableObservation>,
     ) -> Self {
         Self {
@@ -165,8 +165,8 @@ impl SnowballTerms {
             knock_in_observation_mode: KnockInObservationMode::default(),
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_date,
-            expiry_date,
+            effective_midnight_utc,
+            expiry_midnight_utc,
             observations,
         }
     }
@@ -210,9 +210,9 @@ pub struct PhoenixTerms {
     /// Sets the nonnegative normalized principal, independently of coupons and losses.
     pub principal_ratio: f64,
     /// Sets the inclusive first date.
-    pub effective_date: Date,
+    pub effective_midnight_utc: Date,
     /// Sets the inclusive final date, which must be a trading day when pricing.
-    pub expiry_date: Date,
+    pub expiry_midnight_utc: Date,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
 }
@@ -230,8 +230,8 @@ impl PhoenixTerms {
         knock_in_level: f64,
         upper_strike: f64,
         lower_strike: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_midnight_utc: Date,
+        expiry_midnight_utc: Date,
         observations: Vec<AutocallableObservation>,
     ) -> Self {
         Self {
@@ -243,8 +243,8 @@ impl PhoenixTerms {
             knock_in_observation_mode: KnockInObservationMode::default(),
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_date,
-            expiry_date,
+            effective_midnight_utc,
+            expiry_midnight_utc,
             observations,
         }
     }
@@ -267,9 +267,9 @@ pub struct BinarySnowballTerms {
     /// Sets the nonnegative normalized principal, independently of coupons.
     pub principal_ratio: f64,
     /// Sets the inclusive first date.
-    pub effective_date: Date,
+    pub effective_midnight_utc: Date,
     /// Sets the inclusive final date, which must be a trading day when pricing.
-    pub expiry_date: Date,
+    pub expiry_midnight_utc: Date,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
 }
@@ -279,16 +279,16 @@ impl BinarySnowballTerms {
     /// Validation occurs in [`BinarySnowballOption::new`]; see its example.
     pub fn new(
         maturity_coupon_rate: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_midnight_utc: Date,
+        expiry_midnight_utc: Date,
         observations: Vec<AutocallableObservation>,
     ) -> Self {
         Self {
             maturity_coupon_rate,
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_date,
-            expiry_date,
+            effective_midnight_utc,
+            expiry_midnight_utc,
             observations,
         }
     }
@@ -316,9 +316,9 @@ pub struct TernarySnowballTerms {
     /// Sets the nonnegative normalized principal, independently of coupons.
     pub principal_ratio: f64,
     /// Sets the inclusive first date.
-    pub effective_date: Date,
+    pub effective_midnight_utc: Date,
     /// Sets the inclusive final date, which must be a trading day when pricing.
-    pub expiry_date: Date,
+    pub expiry_midnight_utc: Date,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
 }
@@ -330,8 +330,8 @@ impl TernarySnowballTerms {
         maturity_coupon_rate: f64,
         minimum_coupon_rate: f64,
         knock_in_level: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_midnight_utc: Date,
+        expiry_midnight_utc: Date,
         observations: Vec<AutocallableObservation>,
     ) -> Self {
         Self {
@@ -341,8 +341,8 @@ impl TernarySnowballTerms {
             knock_in_observation_mode: KnockInObservationMode::default(),
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_date,
-            expiry_date,
+            effective_midnight_utc,
+            expiry_midnight_utc,
             observations,
         }
     }
@@ -478,8 +478,8 @@ mod sealed {
         pub coupon: Coupon,
         pub barrier_state: Option<AutocallableBarrierState>,
         pub principal_ratio: f64,
-        pub effective_date: Date,
-        pub expiry_date: Date,
+        pub effective_midnight_utc: Date,
+        pub expiry_midnight_utc: Date,
         pub observations: &'a [AutocallableObservation],
     }
 }
@@ -506,8 +506,8 @@ macro_rules! terms_view {
                     coupon: $coupon(self.$rate),
                     barrier_state: self.barrier_state,
                     principal_ratio: self.principal_ratio,
-                    effective_date: self.effective_date,
-                    expiry_date: self.expiry_date,
+                    effective_midnight_utc: self.effective_midnight_utc,
+                    expiry_midnight_utc: self.expiry_midnight_utc,
                     observations: &self.observations,
                 }
             }
@@ -527,8 +527,8 @@ impl sealed::Terms for BinarySnowballTerms {
             coupon: Coupon::Snowball(self.maturity_coupon_rate),
             barrier_state: self.barrier_state,
             principal_ratio: self.principal_ratio,
-            effective_date: self.effective_date,
-            expiry_date: self.expiry_date,
+            effective_midnight_utc: self.effective_midnight_utc,
+            expiry_midnight_utc: self.expiry_midnight_utc,
             observations: &self.observations,
         }
     }
@@ -548,8 +548,8 @@ impl sealed::Terms for TernarySnowballTerms {
             coupon: Coupon::Snowball(self.maturity_coupon_rate),
             barrier_state: self.barrier_state,
             principal_ratio: self.principal_ratio,
-            effective_date: self.effective_date,
-            expiry_date: self.expiry_date,
+            effective_midnight_utc: self.effective_midnight_utc,
+            expiry_midnight_utc: self.expiry_midnight_utc,
             observations: &self.observations,
         }
     }
@@ -627,12 +627,12 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         self.view().barrier_state
     }
     /// Returns the inclusive first date; see [`Self::new`].
-    pub fn effective_date(&self) -> Date {
-        self.view().effective_date
+    pub fn effective_midnight_utc(&self) -> Date {
+        self.view().effective_midnight_utc
     }
     /// Returns expiry at midnight UTC; see [`Self::new`].
-    pub fn expiry_date(&self) -> Date {
-        self.view().expiry_date
+    pub fn expiry_midnight_utc(&self) -> Date {
+        self.view().expiry_midnight_utc
     }
 
     pub(crate) fn view(&self) -> sealed::View<'_> {
@@ -654,7 +654,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         };
         let i = t.observations.partition_point(|r| r.date < record.date);
         let previous = if i == 0 {
-            t.effective_date
+            t.effective_midnight_utc
         } else {
             t.observations[i - 1].date
         };
@@ -677,7 +677,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         let had_out = self.observations()[0].date.start_of_day() < time;
         let mut had_in = false;
         if self.view().daily_knock_in() {
-            let mut date = self.effective_date();
+            let mut date = self.effective_midnight_utc();
             while date.start_of_day() < time {
                 if calendar.is_trading_day(date) {
                     had_in = true;
@@ -725,9 +725,9 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         };
         t.principal_ratio
             + coupon
-                * t.effective_date
+                * t.effective_midnight_utc
                     .start_of_day()
-                    .years_until(t.expiry_date.into())
+                    .years_until(t.expiry_midnight_utc.into())
     }
     pub(crate) fn knock_out_payment(&self, record: &AutocallableObservation) -> f64 {
         let t = self.view();
@@ -737,17 +737,17 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
             } else {
                 record.coupon_rate
             } * self
-                .effective_date()
+                .effective_midnight_utc()
                 .start_of_day()
                 .years_until(record.date.into())
     }
 }
 impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
-    fn effective_date(&self) -> Date {
-        self.effective_date()
+    fn effective_midnight_utc(&self) -> Date {
+        self.effective_midnight_utc()
     }
-    fn expiry_date(&self) -> Date {
-        self.expiry_date()
+    fn expiry_midnight_utc(&self) -> Date {
+        self.expiry_midnight_utc()
     }
     fn all_greeks_unavailable(&self, _context: &PricingContext) -> bool {
         false
@@ -893,15 +893,15 @@ impl sealed::View<'_> {
                 "negative autocallable principal".into(),
             ));
         }
-        if terms.expiry_date < terms.effective_date {
+        if terms.expiry_midnight_utc < terms.effective_midnight_utc {
             return Err(Error::InvalidInput("expiry precedes effective date".into()));
         }
         if terms.observations.is_empty() {
             return Err(Error::InvalidInput("empty autocallable schedule".into()));
         }
         for (i, r) in terms.observations.iter().enumerate() {
-            if r.date < terms.effective_date
-                || r.date > terms.expiry_date
+            if r.date < terms.effective_midnight_utc
+                || r.date > terms.expiry_midnight_utc
                 || i > 0 && r.date <= terms.observations[i - 1].date
             {
                 return Err(Error::InvalidInput(

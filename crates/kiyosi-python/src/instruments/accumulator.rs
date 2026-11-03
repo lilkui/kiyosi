@@ -15,9 +15,9 @@ use pyo3::types::{PyDate, PyList};
 ///     Nonnegative finite quantity bought or sold on each trading date.
 /// acceleration_factor : float
 ///     Nonnegative multiplier below strike for calls or above strike for puts.
-/// effective_date : datetime.date
+/// effective_midnight_utc : datetime.date
 ///     Contract starts at 00:00 UTC on this date.
-/// expiry_date : datetime.date
+/// expiry_midnight_utc : datetime.date
 ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// accumulated_quantity : float, optional
 ///     Caller-asserted outstanding quantity strictly before valuation.
@@ -32,7 +32,7 @@ use pyo3::types::{PyDate, PyList};
 /// ------
 /// InvalidInputError
 ///     If strike or knock-out level is invalid, quantities are negative or
-///     non-finite, expiry precedes effective_date, or explicit dates are invalid.
+///     non-finite, expiry precedes effective_midnight_utc, or explicit dates are invalid.
 ///     Trading-date compatibility is checked against the calendar at pricing.
 ///
 /// Notes
@@ -52,15 +52,15 @@ pub(crate) struct Accumulator(pub(crate) kiyosi::Accumulator);
 #[pymethods]
 impl Accumulator {
     #[new]
-    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_date, expiry_date, accumulated_quantity=kiyosi::AccumulatorTerms::DEFAULT_ACCUMULATED_QUANTITY, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_dates=None))]
+    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_midnight_utc, expiry_midnight_utc, accumulated_quantity=kiyosi::AccumulatorTerms::DEFAULT_ACCUMULATED_QUANTITY, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_dates=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         strike: &Bound<'_, PyAny>,
         knock_out_level: &Bound<'_, PyAny>,
         daily_quantity: &Bound<'_, PyAny>,
         acceleration_factor: &Bound<'_, PyAny>,
-        effective_date: &Bound<'_, PyAny>,
-        expiry_date: &Bound<'_, PyAny>,
+        effective_midnight_utc: &Bound<'_, PyAny>,
+        expiry_midnight_utc: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = real)] accumulated_quantity: f64,
         #[pyo3(from_py_with = direction)] option_type: kiyosi::OptionType,
         knock_out_observation_dates: Option<&Bound<'_, PyAny>>,
@@ -70,8 +70,8 @@ impl Accumulator {
             real(knock_out_level)?,
             real(daily_quantity)?,
             real(acceleration_factor)?,
-            date(effective_date)?,
-            date(expiry_date)?,
+            date(effective_midnight_utc)?,
+            date(expiry_midnight_utc)?,
         );
         terms.accumulated_quantity = accumulated_quantity;
         terms.option_type = option_type;
@@ -151,13 +151,13 @@ impl Accumulator {
     }
     /// Return inclusive first contract date.
     #[getter]
-    fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.effective_date())
+    fn effective_midnight_utc<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
+        python_date(py, self.0.effective_midnight_utc())
     }
     /// Return final contract date; expiry is at midnight UTC.
     #[getter]
-    fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.expiry_date())
+    fn expiry_midnight_utc<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
+        python_date(py, self.0.expiry_midnight_utc())
     }
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let observations = match self.knock_out_observation_dates(py)? {
@@ -165,14 +165,14 @@ impl Accumulator {
             None => "None".into(),
         };
         Ok(format!(
-            "Accumulator(strike={:?}, knock_out_level={:?}, daily_quantity={:?}, acceleration_factor={:?}, accumulated_quantity={:?}, effective_date={}, expiry_date={}, option_type={:?}, knock_out_observation_dates={})",
+            "Accumulator(strike={:?}, knock_out_level={:?}, daily_quantity={:?}, acceleration_factor={:?}, accumulated_quantity={:?}, effective_midnight_utc={}, expiry_midnight_utc={}, option_type={:?}, knock_out_observation_dates={})",
             self.strike(),
             self.knock_out_level(),
             self.daily_quantity(),
             self.acceleration_factor(),
             self.accumulated_quantity(),
-            self.effective_date(py)?.repr()?,
-            self.expiry_date(py)?.repr()?,
+            self.effective_midnight_utc(py)?.repr()?,
+            self.expiry_midnight_utc(py)?.repr()?,
             self.option_type(),
             observations
         ))

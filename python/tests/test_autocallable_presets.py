@@ -33,8 +33,8 @@ def terms(**changes):
         "knock_in_level": 80,
         "knock_out_level": 110,
         "observation_dates": [MIDDLE, END],
-        "effective_date": START,
-        "expiry_date": END,
+        "effective_midnight_utc": START,
+        "expiry_midnight_utc": END,
     }
     fields.update(changes)
     return fields
@@ -47,8 +47,8 @@ def phoenix_fields(**changes):
         "upper_strike": 80,
         "lower_strike": 0,
         "knock_in_observation_mode": "at_expiry",
-        "effective_date": START,
-        "expiry_date": END,
+        "effective_midnight_utc": START,
+        "expiry_midnight_utc": END,
         "barrier_state": "no_event",
         "observations": autocallable_observations([MIDDLE, END], [110, 110]),
     }

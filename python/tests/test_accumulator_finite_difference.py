@@ -73,8 +73,8 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         wrong = EuropeanOption(
             option_type="call",
             strike=100,
-            effective_date=START,
-            expiry_date=date(2025, 2, 3),
+            effective_midnight_utc=START,
+            expiry_midnight_utc=date(2025, 2, 3),
         )
         with self.assertRaises(UnsupportedOperationError):
             engine.price(wrong, market())
@@ -388,7 +388,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         )
         for instrument, scenario in (
             (option, market(110, START)),
-            (option, market(90, option.expiry_date)),
+            (option, market(90, option.expiry_midnight_utc)),
             (contract(daily=0, quantity=0), market()),
             (contract(daily=0), market(90, rate=0, dividend=0)),
         ):

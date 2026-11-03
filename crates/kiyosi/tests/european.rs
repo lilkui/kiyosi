@@ -280,7 +280,10 @@ fn european_replacements_validate_and_preserve_originals() {
         .unwrap();
     assert_eq!(changed.option_type(), OptionType::Put);
     assert_eq!(changed.strike(), 105.0);
-    assert_eq!(changed.expiry_date(), original.expiry_date());
+    assert_eq!(
+        changed.expiry_midnight_utc(),
+        original.expiry_midnight_utc()
+    );
     for strike in [0.0, f64::NAN] {
         assert!(matches!(
             original.replace(EuropeanOptionChanges {

@@ -83,9 +83,9 @@ pub struct SnowballPresetTerms {
     /// Sets nonnegative normalized principal, independently of coupon and loss components.
     pub principal_ratio: f64,
     /// Sets the inclusive first date.
-    pub effective_date: Date,
+    pub effective_midnight_utc: Date,
     /// Sets expiry at midnight UTC.
-    pub expiry_date: Date,
+    pub expiry_midnight_utc: Date,
     /// Supplies nonempty, strictly increasing observation dates within life.
     pub observation_dates: Vec<Date>,
 }
@@ -98,8 +98,8 @@ impl SnowballPresetTerms {
         initial_spot: f64,
         knock_in_level: f64,
         knock_out_level: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_midnight_utc: Date,
+        expiry_midnight_utc: Date,
         observation_dates: Vec<Date>,
     ) -> Self {
         Self {
@@ -109,8 +109,8 @@ impl SnowballPresetTerms {
             knock_out_level,
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_date,
-            expiry_date,
+            effective_midnight_utc,
+            expiry_midnight_utc,
             observation_dates,
         }
     }
@@ -130,7 +130,7 @@ impl SnowballPresetTerms {
     ///
     /// Propagates [`SnowballOption::new`] errors for invalid expanded terms,
     /// schedules or life dates. Returns [`Error::InvalidInput`] for non-finite stage
-    /// rates or unordered cutoffs outside `[effective_date, expiry_date)`.
+    /// rates or unordered cutoffs outside `[effective_midnight_utc, expiry_midnight_utc)`.
     /// Inputs are consumed on failure.
     ///
     /// # Examples
@@ -172,8 +172,8 @@ impl SnowballPresetTerms {
             self.knock_in_level,
             self.initial_spot,
             0.0,
-            self.effective_date,
-            self.expiry_date,
+            self.effective_midnight_utc,
+            self.expiry_midnight_utc,
             observations,
         );
         terms.barrier_state = self.barrier_state;
@@ -247,8 +247,8 @@ fn staged_coupons(
     finite(final_rate, false)?;
     for (i, &(date, rate)) in stages.iter().enumerate() {
         finite(rate, false)?;
-        if date < terms.effective_date
-            || date >= terms.expiry_date
+        if date < terms.effective_midnight_utc
+            || date >= terms.expiry_midnight_utc
             || i > 0 && date <= stages[i - 1].0
         {
             return Err(Error::InvalidInput(
@@ -294,9 +294,9 @@ pub struct PhoenixPresetTerms {
     /// Sets nonnegative normalized principal, independently of coupon and loss components.
     pub principal_ratio: f64,
     /// Sets the inclusive first date.
-    pub effective_date: Date,
+    pub effective_midnight_utc: Date,
     /// Sets expiry at midnight UTC.
-    pub expiry_date: Date,
+    pub expiry_midnight_utc: Date,
     /// Supplies nonempty, strictly increasing observation dates within life.
     pub observation_dates: Vec<Date>,
 }
@@ -309,8 +309,8 @@ impl PhoenixPresetTerms {
         initial_spot: f64,
         knock_in_level: f64,
         knock_out_level: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_midnight_utc: Date,
+        expiry_midnight_utc: Date,
         observation_dates: Vec<Date>,
     ) -> Self {
         Self {
@@ -320,8 +320,8 @@ impl PhoenixPresetTerms {
             knock_out_level,
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_date,
-            expiry_date,
+            effective_midnight_utc,
+            expiry_midnight_utc,
             observation_dates,
         }
     }
@@ -375,8 +375,8 @@ impl PhoenixPresetTerms {
             self.knock_in_level,
             self.knock_in_level,
             0.0,
-            self.effective_date,
-            self.expiry_date,
+            self.effective_midnight_utc,
+            self.expiry_midnight_utc,
             observations,
         );
         terms.coupon = PhoenixCoupon::PerPeriod(self.coupon_per_period);

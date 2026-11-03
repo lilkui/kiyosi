@@ -19,9 +19,9 @@ pub struct AccumulatorTerms {
     /// Caller-asserted quantity strictly before valuation; zero means none.
     pub accumulated_quantity: f64,
     /// First contract date, included in trading-date observations.
-    pub effective_date: Date,
+    pub effective_midnight_utc: Date,
     /// Final observation and settlement date, at midnight UTC.
-    pub expiry_date: Date,
+    pub expiry_midnight_utc: Date,
     /// Strictly ordered knock-out dates within life; `None` observes every trading date.
     pub knock_out_observation_dates: Option<Vec<Date>>,
 }
@@ -38,8 +38,8 @@ impl AccumulatorTerms {
         knock_out_level: f64,
         daily_quantity: f64,
         acceleration_factor: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_midnight_utc: Date,
+        expiry_midnight_utc: Date,
     ) -> Self {
         Self {
             option_type: Self::DEFAULT_OPTION_TYPE,
@@ -48,8 +48,8 @@ impl AccumulatorTerms {
             daily_quantity,
             acceleration_factor,
             accumulated_quantity: Self::DEFAULT_ACCUMULATED_QUANTITY,
-            effective_date,
-            expiry_date,
+            effective_midnight_utc,
+            expiry_midnight_utc,
             knock_out_observation_dates: None,
         }
     }
@@ -121,14 +121,14 @@ impl Accumulator {
                 "quantities must be finite and nonnegative".into(),
             ));
         }
-        if terms.expiry_date < terms.effective_date {
+        if terms.expiry_midnight_utc < terms.effective_midnight_utc {
             return Err(Error::InvalidInput("expiry precedes effective date".into()));
         }
         if let Some(dates) = &terms.knock_out_observation_dates {
             ObservationSchedule::new(
                 dates.clone(),
-                terms.effective_date,
-                terms.expiry_date,
+                terms.effective_midnight_utc,
+                terms.expiry_midnight_utc,
                 &TradingCalendar::all_days(),
             )?;
         }
@@ -177,24 +177,27 @@ impl Accumulator {
         self.terms.accumulated_quantity
     }
     /// Returns the inclusive first observation date; see [`Self::new`].
-    pub fn effective_date(&self) -> Date {
-        self.terms.effective_date
+    pub fn effective_midnight_utc(&self) -> Date {
+        self.terms.effective_midnight_utc
     }
     /// Returns the final observation and settlement date; see [`Self::new`].
-    pub fn expiry_date(&self) -> Date {
-        self.terms.expiry_date
+    pub fn expiry_midnight_utc(&self) -> Date {
+        self.terms.expiry_midnight_utc
     }
 
     pub(crate) fn validate_pricing(&self, context: &PricingContext) -> Result<()> {
         let valuation = context.valuation_time();
-        if valuation < self.effective_date().start_of_day()
-            || valuation > self.expiry_date().start_of_day()
+        if valuation < self.effective_midnight_utc().start_of_day()
+            || valuation > self.expiry_midnight_utc().start_of_day()
         {
             return Err(Error::InvalidInput(
                 "valuation must be within contract life".into(),
             ));
         }
-        if !context.calendar().is_trading_day(self.expiry_date()) {
+        if !context
+            .calendar()
+            .is_trading_day(self.expiry_midnight_utc())
+        {
             return Err(Error::InvalidInput("expiry must be a trading day".into()));
         }
         if self.knock_out_observation_dates().is_some_and(|dates| {
@@ -218,7 +221,7 @@ impl Accumulator {
             {
                 dates.push(date);
             }
-            if date == self.expiry_date() {
+            if date == self.expiry_midnight_utc() {
                 break;
             }
             date = date.add_days(1)?;
@@ -228,7 +231,7 @@ impl Accumulator {
 
     pub(crate) fn accrues(&self, context: &PricingContext) -> bool {
         if self.daily_quantity() == 0.0
-            || context.valuation_time() >= self.expiry_date().start_of_day()
+            || context.valuation_time() >= self.expiry_midnight_utc().start_of_day()
         {
             return false;
         }
@@ -239,7 +242,7 @@ impl Accumulator {
             return false;
         }
         let mut date = context.valuation_date();
-        while date < self.expiry_date() {
+        while date < self.expiry_midnight_utc() {
             let Ok(next) = date.add_days(1) else {
                 break;
             };
@@ -295,7 +298,7 @@ impl Accumulator {
             return (quantity, Some(0.0));
         }
         let model = context.model_parameters();
-        if context.valuation_time() == self.expiry_date().start_of_day()
+        if context.valuation_time() == self.expiry_midnight_utc().start_of_day()
             || (!accrues
                 && model.risk_free_curve().flat_rate() == Some(0.0)
                 && model.dividend_curve().flat_rate() == Some(0.0))
@@ -320,15 +323,15 @@ impl Accumulator {
         let mut future_knock_out = false;
         let mut early_knock_out = false;
         let mut date = context.valuation_date();
-        while date <= self.expiry_date() {
+        while date <= self.expiry_midnight_utc() {
             if date.start_of_day() > context.valuation_time()
                 && context.calendar().is_trading_day(date)
             {
                 let observe = self.observes_knock_out(date);
                 future_knock_out |= observe;
-                early_knock_out |= observe && date < self.expiry_date();
+                early_knock_out |= observe && date < self.expiry_midnight_utc();
             }
-            if date == self.expiry_date() {
+            if date == self.expiry_midnight_utc() {
                 break;
             }
             let Ok(next) = date.add_days(1) else {
@@ -353,11 +356,11 @@ impl Accumulator {
     }
 }
 impl OptionContract for Accumulator {
-    fn effective_date(&self) -> Date {
-        self.effective_date()
+    fn effective_midnight_utc(&self) -> Date {
+        self.effective_midnight_utc()
     }
-    fn expiry_date(&self) -> Date {
-        self.expiry_date()
+    fn expiry_midnight_utc(&self) -> Date {
+        self.expiry_midnight_utc()
     }
     fn all_greeks_unavailable(&self, _context: &PricingContext) -> bool {
         false

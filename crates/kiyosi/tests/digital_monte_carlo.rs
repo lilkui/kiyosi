@@ -144,7 +144,7 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                 let context = base
                     .replace(PricingContextChanges {
                         spot_price: Some(spot),
-                        valuation_time: Some(option.expiry_date().into()),
+                        valuation_time: Some(option.expiry_midnight_utc().into()),
                         ..Default::default()
                     })
                     .unwrap();
@@ -179,7 +179,9 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
             }
             let outside = base
                 .replace(PricingContextChanges {
-                    valuation_time: Some(Timestamp::new(option.expiry_date(), 0, 0, 0, 1).unwrap()),
+                    valuation_time: Some(
+                        Timestamp::new(option.expiry_midnight_utc(), 0, 0, 0, 1).unwrap(),
+                    ),
                     ..Default::default()
                 })
                 .unwrap();
@@ -194,8 +196,8 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                 Error::InvalidInput(_)
             ));
             let curve = RateTermStructure::new(
-                option.effective_date().into(),
-                vec![option.expiry_date().into()],
+                option.effective_midnight_utc().into(),
+                vec![option.expiry_midnight_utc().into()],
                 vec![0.95],
             )
             .unwrap();

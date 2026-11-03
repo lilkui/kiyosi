@@ -51,8 +51,8 @@ impl MonteCarloVanillaEngine {
         let rate = model.risk_free_rate()?;
         let dividend = model.dividend_yield()?;
         let valuation = context.valuation_time();
-        let expiry = option.expiry_date().start_of_day();
-        if valuation < option.effective_date().start_of_day() || valuation > expiry {
+        let expiry = option.expiry_midnight_utc().start_of_day();
+        if valuation < option.effective_midnight_utc().start_of_day() || valuation > expiry {
             return Err(Error::InvalidInput(
                 "valuation must be within contract life".into(),
             ));
@@ -256,7 +256,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             let dividend = context.bsm_parameters()?.dividend_yield()?;
             for (greek, value) in [(Greek::Rho, rate), (Greek::DividendRho, dividend)] {
                 if !requested.has(greek)
-                    || context.valuation_time() == option.expiry_date().start_of_day()
+                    || context.valuation_time() == option.expiry_midnight_utc().start_of_day()
                     || option.option_type() != OptionType::Call
                 {
                     continue;

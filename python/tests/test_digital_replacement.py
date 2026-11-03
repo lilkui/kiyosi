@@ -12,22 +12,22 @@ class DigitalReplacementTests(unittest.TestCase):
         terms = {
             "option_type": "call",
             "strike": 100,
-            "effective_date": date(2025, 1, 1),
-            "expiry_date": date(2026, 1, 1),
+            "effective_midnight_utc": date(2025, 1, 1),
+            "expiry_midnight_utc": date(2026, 1, 1),
         }
         for cls in (CashOrNothingOption, AssetOrNothingOption):
             extra = {"payout": 10} if cls is CashOrNothingOption else {}
             original = cls(**terms, **extra)
             self.assertEqual(original.replace(), original)
             replaced = original.replace(
-                option_type="put", strike=105, expiry_date=date(2027, 1, 1)
+                option_type="put", strike=105, expiry_midnight_utc=date(2027, 1, 1)
             )
             self.assertEqual(replaced.option_type, "put")
             self.assertEqual(replaced.strike, 105)
-            self.assertEqual(replaced.expiry_date, date(2027, 1, 1))
+            self.assertEqual(replaced.expiry_midnight_utc, date(2027, 1, 1))
             for field, expected_error in (
                 ("strike", InvalidInputError),
-                ("expiry_date", InvalidInputError),
+                ("expiry_midnight_utc", InvalidInputError),
             ):
                 with self.assertRaises(expected_error) as error:
                     original.replace(
@@ -38,7 +38,7 @@ class DigitalReplacementTests(unittest.TestCase):
                 {"strike": True},
                 {"strike": None},
                 {"option_type": 1},
-                {"expiry_date": None},
+                {"expiry_midnight_utc": None},
                 {"unknown": 1},
             ):
                 with self.assertRaises(TypeError):

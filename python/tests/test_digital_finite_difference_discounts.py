@@ -27,8 +27,8 @@ class FiniteDifferenceDiscountTests(unittest.TestCase):
                     option_type=direction,
                     strike=100,
                     payout=payout,
-                    effective_date=start,
-                    expiry_date=end,
+                    effective_midnight_utc=start,
+                    expiry_midnight_utc=end,
                 )
                 expected = (
                     math.exp(math.log(payout) + 710)

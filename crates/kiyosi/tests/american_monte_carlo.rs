@@ -53,7 +53,7 @@ fn american_path_storage_limit_rejects_large_grids_before_sampling() {
         ));
         let expiry = context
             .replace(PricingContextChanges {
-                valuation_time: Some(put.expiry_date().start_of_day()),
+                valuation_time: Some(put.expiry_midnight_utc().start_of_day()),
                 spot_price: Some(90.0),
                 ..Default::default()
             })
@@ -62,8 +62,8 @@ fn american_path_storage_limit_rejects_large_grids_before_sampling() {
         let european = EuropeanOption::new(
             OptionType::Call,
             100.0,
-            put.effective_date(),
-            put.expiry_date(),
+            put.effective_midnight_utc(),
+            put.expiry_midnight_utc(),
         )
         .unwrap();
         let expected = engine.price(&european, &context).unwrap();
@@ -130,7 +130,7 @@ fn american_put_includes_immediate_exercise_and_validates_steps_after_expiry() {
     ));
     let expiry = context
         .replace(PricingContextChanges {
-            valuation_time: Some(put.expiry_date().start_of_day()),
+            valuation_time: Some(put.expiry_midnight_utc().start_of_day()),
             ..Default::default()
         })
         .unwrap();
@@ -285,8 +285,8 @@ fn terminal_only_call_preserves_price_and_immediate_exercise_floor() {
     let european = EuropeanOption::new(
         OptionType::Call,
         100.0,
-        call.effective_date(),
-        call.expiry_date(),
+        call.effective_midnight_utc(),
+        call.expiry_midnight_utc(),
     )
     .unwrap();
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
@@ -468,7 +468,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
     )
     .unwrap();
     let price = engine.price(&put, &context).unwrap();
-    let expiry = put.expiry_date().start_of_day();
+    let expiry = put.expiry_midnight_utc().start_of_day();
     let at_expiry = context
         .replace(PricingContextChanges {
             valuation_time: Some(expiry),
@@ -490,7 +490,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
     ));
     for time in [
         Date::new(2024, 12, 31).unwrap().start_of_day(),
-        Timestamp::new(put.expiry_date(), 0, 0, 0, 1).unwrap(),
+        Timestamp::new(put.expiry_midnight_utc(), 0, 0, 0, 1).unwrap(),
     ] {
         let shifted = context
             .replace(PricingContextChanges {
@@ -503,8 +503,12 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
             Error::InvalidInput(_)
         ));
     }
-    let curve =
-        RateTermStructure::new(put.effective_date().into(), vec![expiry], vec![0.95]).unwrap();
+    let curve = RateTermStructure::new(
+        put.effective_midnight_utc().into(),
+        vec![expiry],
+        vec![0.95],
+    )
+    .unwrap();
     let model = context
         .model_parameters()
         .as_bsm()

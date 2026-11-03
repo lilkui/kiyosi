@@ -68,7 +68,7 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
     for coupon in [-4.0, 0.1] {
         for lower in [0.0, 60.0] {
             let mut t = terms();
-            t.expiry_date = end;
+            t.expiry_midnight_utc = end;
             t.knock_in_level = 100.0;
             t.lower_strike = lower;
             t.principal_ratio = 0.25;
@@ -78,8 +78,13 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
             let put = |strike| {
                 AnalyticEuropeanEngine
                     .price(
-                        &EuropeanOption::new(OptionType::Put, strike, t.effective_date, end)
-                            .unwrap(),
+                        &EuropeanOption::new(
+                            OptionType::Put,
+                            strike,
+                            t.effective_midnight_utc,
+                            end,
+                        )
+                        .unwrap(),
                         &ctx,
                     )
                     .unwrap()
@@ -88,7 +93,7 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
                 OptionType::Call,
                 100.0,
                 coupon.abs(),
-                t.effective_date,
+                t.effective_midnight_utc,
                 end,
             )
             .unwrap();
@@ -235,7 +240,7 @@ fn unconditional_coupon_tails_match_a_two_date_cashflow_portfolio() {
     t.coupon = PhoenixCoupon::Annual(-0.5);
     t.lower_strike = 100.0;
     t.principal_ratio = 0.25;
-    t.expiry_date = end;
+    t.expiry_midnight_utc = end;
     t.observations = autocallable_observations(&[middle, end], &[100.0; 2], None, None).unwrap();
     let note = PhoenixOption::new(t).unwrap();
     let ctx = market(100.0, date(1, 1))

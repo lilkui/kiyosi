@@ -97,10 +97,10 @@ macro_rules! binary_factory {
     ($name:ident, $constructor:ident $(, $payout:ident)?, $doc:literal) => {
         #[doc = $doc]
         #[pyfunction]
-        #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, barrier_level, barrier_type, $($payout,)? observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+        #[pyo3(signature = (*, option_type, strike, effective_midnight_utc, expiry_midnight_utc, barrier_level, barrier_type, $($payout,)? observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
         pub(crate) fn $name(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
-            effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
+            effective_midnight_utc: &Bound<'_, PyAny>, expiry_midnight_utc: &Bound<'_, PyAny>,
             barrier_level: &Bound<'_, PyAny>, barrier_type: &Bound<'_, PyAny>,
             $($payout: &Bound<'_, PyAny>,)?
             #[pyo3(from_py_with = barrier::mode)] observation_mode: kiyosi::ObservationMode,
@@ -108,7 +108,7 @@ macro_rules! binary_factory {
             #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
         ) -> PyResult<BinaryBarrierOption> {
             let mut terms = kiyosi::BinaryBarrierTerms::new(direction(option_type)?, real(strike)?,
-                date(effective_date)?, date(expiry_date)?, real(barrier_level)?, barrier::kind(barrier_type)?);
+                date(effective_midnight_utc)?, date(expiry_midnight_utc)?, real(barrier_level)?, barrier::kind(barrier_type)?);
             $(let $payout = real($payout)?;)?
             terms.observation_mode = observation_mode;
             terms.observation_dates = observation_dates;
@@ -130,9 +130,9 @@ option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive finite exercise or purchase price.
-effective_date : datetime.date
+effective_midnight_utc : datetime.date
     Contract starts at 00:00 UTC on this date.
-expiry_date : datetime.date
+expiry_midnight_utc : datetime.date
     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 barrier_level : float
     Positive finite trigger level; equality counts as a touch.
@@ -176,9 +176,9 @@ option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive finite exercise or purchase price.
-effective_date : datetime.date
+effective_midnight_utc : datetime.date
     Contract starts at 00:00 UTC on this date.
-expiry_date : datetime.date
+expiry_midnight_utc : datetime.date
     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 barrier_level : float
     Positive finite trigger level; equality counts as a touch.
@@ -223,9 +223,9 @@ macro_rules! touch_factory {
         ///
         /// Parameters
         /// ----------
-        /// effective_date : datetime.date
+        /// effective_midnight_utc : datetime.date
         ///     Contract starts at 00:00 UTC on this date.
-        /// expiry_date : datetime.date
+        /// expiry_midnight_utc : datetime.date
         ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
         /// barrier_level : float
         ///     Positive finite trigger level; equality counts as a touch.
@@ -262,9 +262,9 @@ macro_rules! touch_factory {
         /// transfers spot; a future continuous asset hit transfers the barrier amount.
         /// See the kiyosi.instruments module examples for construction.
         #[pyfunction]
-        #[pyo3(signature = (*, effective_date, expiry_date, barrier_level, barrier_type, $($payout,)? settlement_timing=kiyosi::SettlementTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+        #[pyo3(signature = (*, effective_midnight_utc, expiry_midnight_utc, barrier_level, barrier_type, $($payout,)? settlement_timing=kiyosi::SettlementTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
-        pub(crate) fn $name(effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
+        pub(crate) fn $name(effective_midnight_utc: &Bound<'_, PyAny>, expiry_midnight_utc: &Bound<'_, PyAny>,
             barrier_level: &Bound<'_, PyAny>, barrier_type: &Bound<'_, PyAny>,
             $($payout: &Bound<'_, PyAny>,)?
             #[pyo3(from_py_with = settlement)] settlement_timing: kiyosi::SettlementTiming,
@@ -272,7 +272,7 @@ macro_rules! touch_factory {
             #[pyo3(from_py_with = dates)] observation_dates: Vec<kiyosi::Date>,
             #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
         ) -> PyResult<TouchOption> {
-            let mut terms = kiyosi::TouchOptionTerms::new(date(effective_date)?, date(expiry_date)?, real(barrier_level)?, barrier::kind(barrier_type)?);
+            let mut terms = kiyosi::TouchOptionTerms::new(date(effective_midnight_utc)?, date(expiry_midnight_utc)?, real(barrier_level)?, barrier::kind(barrier_type)?);
             $(let $payout = real($payout)?;)?
             terms.settlement_timing = settlement_timing;
             terms.observation_mode = observation_mode;

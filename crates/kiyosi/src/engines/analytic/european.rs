@@ -47,7 +47,7 @@ impl AnalyticEuropeanEngine {
         request.validate()?;
         let mut result = PricingResult::new(self.price(option, context)?)?;
         let valuation = context.valuation_time();
-        let expiry = option.expiry_date().start_of_day();
+        let expiry = option.expiry_midnight_utc().start_of_day();
         let time = valuation.years_until(expiry);
         if time == 0.0 {
             return Ok(result);
@@ -194,8 +194,8 @@ impl AnalyticEuropeanEngine {
     pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         let valuation = context.valuation_time();
-        let expiry = option.expiry_date().start_of_day();
-        if valuation < option.effective_date().start_of_day() || valuation > expiry {
+        let expiry = option.expiry_midnight_utc().start_of_day();
+        if valuation < option.effective_midnight_utc().start_of_day() || valuation > expiry {
             return Err(Error::InvalidInput(
                 "valuation must be within the contract life".into(),
             ));

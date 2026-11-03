@@ -29,7 +29,10 @@ from test_binomial import END, GREEKS, START, market
 
 def contract(direction="call", strike=100):
     return EuropeanOption(
-        option_type=direction, strike=strike, effective_date=START, expiry_date=END
+        option_type=direction,
+        strike=strike,
+        effective_midnight_utc=START,
+        expiry_midnight_utc=END,
     )
 
 
@@ -127,8 +130,8 @@ class MonteCarloTests(unittest.TestCase):
                                     american = AmericanOption(
                                         option_type=direction,
                                         strike=amount,
-                                        effective_date=START,
-                                        expiry_date=END,
+                                        effective_midnight_utc=START,
+                                        expiry_midnight_utc=END,
                                     )
                                     self.assertEqual(
                                         engine.price(american, context), estimate.price
@@ -444,8 +447,10 @@ class MonteCarloTests(unittest.TestCase):
             option = EuropeanOption(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
-                effective_date=date.fromisoformat(inputs["effective_date"]),
-                expiry_date=date.fromisoformat(inputs["expiry_date"]),
+                effective_midnight_utc=date.fromisoformat(
+                    inputs["effective_midnight_utc"]
+                ),
+                expiry_midnight_utc=date.fromisoformat(inputs["expiry_midnight_utc"]),
             )
             context = market(
                 inputs["spot"],
@@ -458,7 +463,9 @@ class MonteCarloTests(unittest.TestCase):
                 reference, uncertainty = oracle.reference(inputs)
             engine = MonteCarloVanillaEngine(**profile["settings"], thread_count=4)
             # Wide bumps are biased at one-day expiries.
-            wrapped = inputs["spot"] == 100 and inputs["expiry_date"] == "2026-01-06"
+            wrapped = (
+                inputs["spot"] == 100 and inputs["expiry_midnight_utc"] == "2026-01-06"
+            )
             names = sorted(reference.keys() - {"price"}) if wrapped else []
             result = (
                 engine.price_with_greeks(option, context, names, **profile["shifts"])

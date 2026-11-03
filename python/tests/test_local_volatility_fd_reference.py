@@ -44,8 +44,8 @@ def instrument(kind, direction):
     terms = {
         "option_type": direction,
         "strike": 100,
-        "effective_date": START,
-        "expiry_date": END,
+        "effective_midnight_utc": START,
+        "expiry_midnight_utc": END,
     }
     if kind == "american":
         return AmericanOption(**terms)

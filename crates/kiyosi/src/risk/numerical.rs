@@ -113,7 +113,8 @@ pub(crate) fn complete_greeks(
     let p0 = result.price();
     let available = GreeksRequest::new(Greek::ALL.into_iter().filter(|&g| result.has(g)));
     let time = context.valuation_time();
-    if time == option.expiry_date().start_of_day() || option.all_greeks_unavailable(context) {
+    if time == option.expiry_midnight_utc().start_of_day() || option.all_greeks_unavailable(context)
+    {
         return Ok(result);
     }
     let want = |g| request.has(g) && !available.has(g);
@@ -339,7 +340,7 @@ pub(crate) fn complete_greeks(
             .valuation_start()
             .unwrap_or(crate::Date::new(-32767, 1, 1)?)
             .start_of_day();
-        let mut upper = option.expiry_date().start_of_day();
+        let mut upper = option.expiry_midnight_utc().start_of_day();
         for curve in [model.risk_free_curve(), model.dividend_curve()] {
             if let Some(reference) = curve.reference_time() {
                 lower = lower.max(reference);
@@ -513,7 +514,7 @@ mod tests {
         ] {
             let evaluate = |context: &PricingContext, _| {
                 let days = option
-                    .effective_date()
+                    .effective_midnight_utc()
                     .start_of_day()
                     .micros_until(context.valuation_time()) as f64
                     / 86_400_000_000.0;

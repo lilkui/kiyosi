@@ -198,7 +198,7 @@ fn continuous_price(
     let (rate, dividend) = flat_rates(context)?;
     let time = context
         .valuation_time()
-        .years_until(option.expiry_date().start_of_day());
+        .years_until(option.expiry_midnight_utc().start_of_day());
     let sigma = context.bsm_parameters()?.volatility();
     let width = sigma * time.sqrt();
     let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
@@ -384,7 +384,7 @@ fn event_layer(
 ) -> Result<Layer> {
     let remaining = date
         .start_of_day()
-        .years_until(option.expiry_date().start_of_day());
+        .years_until(option.expiry_midnight_utc().start_of_day());
     let knock_in = option.barrier_type().is_knock_in();
     let (rate, _) = flat_rates(context)?;
     let rebate = scaled(
@@ -513,11 +513,11 @@ fn scheduled_price(
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
     let horizon = context
         .valuation_time()
-        .years_until(option.expiry_date().start_of_day());
+        .years_until(option.expiry_midnight_utc().start_of_day());
     let extent = settings.integration_standard_deviations * sigma * horizon.sqrt();
     let barrier = log_ratio(option.barrier_level(), option.strike());
     let current = log_ratio(context.spot_price(), option.strike());
-    if dates.len() == 1 && dates[0] == option.expiry_date() {
+    if dates.len() == 1 && dates[0] == option.expiry_midnight_utc() {
         let deviation = sigma * horizon.sqrt();
         let drift = drift_rate * horizon;
         if deviation <= 0.0 || !deviation.is_finite() || !drift.is_finite() {
@@ -540,7 +540,7 @@ fn scheduled_price(
     let mut transitions = TransitionCache::default();
     for event in (0..dates.len()).rev() {
         let final_event = event + 1 == dates.len();
-        let layer = if final_event && dates[event] == option.expiry_date() {
+        let layer = if final_event && dates[event] == option.expiry_midnight_utc() {
             Layer {
                 cells: Vec::new(),
                 exact: terminal_layer(option),
