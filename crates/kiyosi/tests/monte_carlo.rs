@@ -41,7 +41,7 @@ fn prepared_vanilla_request_replays_prices_without_mutating_engine() {
 #[test]
 fn terminal_prices_match_analytic_references_and_ignore_validated_steps() {
     let defaults = MonteCarloVanillaEngine::default().settings();
-    assert_eq!(defaults.path_count, 100_000);
+    assert_eq!(defaults.path_count, 131_072);
     assert_eq!(MonteCarloVanillaEngine::default().step_count(), 50);
     assert_eq!(defaults.thread_count, 0);
     assert_eq!(defaults.seed, None);
@@ -137,6 +137,7 @@ fn terminal_prices_preserve_tiny_positive_volatility() {
 #[test]
 fn sampling_statistics_report_uncertainty_and_single_path_unavailability() {
     let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
+        path_count: 100_000,
         seed: Some(42),
         thread_count: 4,
         ..Default::default()
@@ -1007,4 +1008,16 @@ fn antithetic_companion_failures_preserve_engine_and_inputs() {
     ));
     assert_eq!(pair.price(&option, &market()).unwrap(), baseline);
     assert!(pair.settings().antithetic);
+}
+
+#[test]
+fn default_path_count_supports_both_sampling_methods() {
+    for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+        let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
+            sampling,
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(engine.settings().sampling, sampling);
+    }
 }

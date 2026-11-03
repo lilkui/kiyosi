@@ -92,7 +92,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                 engine.sampling,
                 engine.antithetic,
             ),
-            (100000, None, 0, "pseudo_random", False),
+            (131072, None, 0, "pseudo_random", False),
         )
         for field in ("path_count", "thread_count", "seed"):
             for value, error in (

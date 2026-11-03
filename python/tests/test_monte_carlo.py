@@ -39,6 +39,12 @@ class MonteCarloTests(unittest.TestCase):
             operation(*args, **kwargs)
         self.assertIs(type(error.exception), expected)
 
+    def test_default_path_count_supports_both_sampling_methods(self):
+        for sampling in ("pseudo_random", "sobol"):
+            engine = MonteCarloVanillaEngine(sampling=sampling)
+            self.assertEqual(engine.sampling, sampling)
+            self.assertEqual(engine.path_count, 131072)
+
     def test_defaults_terminal_prices_and_statistics(self):
         default = MonteCarloVanillaEngine()
         self.assertEqual(
@@ -48,7 +54,7 @@ class MonteCarloTests(unittest.TestCase):
                 default.seed,
                 default.thread_count,
             ),
-            (100_000, 50, None, 0),
+            (131_072, 50, None, 0),
         )
         for direction, reference in (
             ("call", 9.227005508154036),

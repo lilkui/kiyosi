@@ -52,7 +52,7 @@ pub enum MonteCarloSampling {
 /// See [`MonteCarloVanillaEngine::new`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MonteCarloSettings {
-    /// Sets the exact path count, from 1 through 10,000,000; defaults to 100,000.
+    /// Sets the exact path count, from 1 through 10,000,000; defaults to 131,072.
     pub path_count: i32,
     /// Selects a reproducible stream, or system entropy when absent (the default).
     pub seed: Option<u64>,
@@ -71,7 +71,7 @@ pub struct MonteCarloSettings {
 impl Default for MonteCarloSettings {
     fn default() -> Self {
         Self {
-            path_count: 100_000,
+            path_count: 131_072,
             seed: None,
             thread_count: 0,
             sampling: MonteCarloSampling::PseudoRandom,
@@ -415,7 +415,7 @@ impl MonteCarloVanillaEngine {
     /// let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
     ///     seed: Some(42), thread_count: 4, ..Default::default()
     /// })?;
-    /// assert_eq!(engine.settings().path_count, 100_000);
+    /// assert_eq!(engine.settings().path_count, 131_072);
     /// let sobol = MonteCarloVanillaEngine::new(MonteCarloSettings {
     ///     path_count: 32768, sampling: kiyosi::MonteCarloSampling::Sobol,
     ///     antithetic: true, seed: Some(42), ..Default::default()

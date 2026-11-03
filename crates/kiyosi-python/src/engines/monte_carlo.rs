@@ -287,7 +287,7 @@ macro_rules! sampling_settings {
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 100,000.
+///     Exact path count, 1 through 10,000,000; defaults to 131,072.
 ///     Sobol sampling requires a power of two.
 /// step_count : int, optional
 ///     Grid size, 2 through 10,000; defaults to 50. Validated even when
@@ -520,7 +520,7 @@ impl MonteCarloEstimate {
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 100,000.
+///     Exact path count, 1 through 10,000,000; defaults to 131,072.
 ///     Sobol sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
@@ -640,7 +640,7 @@ sampling_settings!(
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 100,000.
+///     Exact path count, 1 through 10,000,000; defaults to 131,072.
 ///     Sobol sampling requires a power of two.
 /// step_count : int, optional
 ///     Grid size, 2 through 10,000; defaults to 50. Validated even when
@@ -765,7 +765,7 @@ sampling_settings!(
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 100,000.
+///     Exact path count, 1 through 10,000,000; defaults to 131,072.
 ///     Sobol sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
@@ -806,7 +806,7 @@ sampling_settings!(@barrier MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierO
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 100,000.
+///     Exact path count, 1 through 10,000,000; defaults to 131,072.
 ///     Sobol sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
@@ -847,7 +847,7 @@ sampling_settings!(@barrier MonteCarloDoubleBarrierEngine, PyRef<'_, double_barr
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 100,000.
+///     Exact path count, 1 through 10,000,000; defaults to 131,072.
 ///     Sobol sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
@@ -894,7 +894,7 @@ sampling_settings!(
 /// Parameters
 /// ----------
 /// path_count : int, optional
-///     Exact path count, 1 through 10,000,000; defaults to 100,000.
+///     Exact path count, 1 through 10,000,000; defaults to 131,072.
 ///     Sobol sampling requires a power of two.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
