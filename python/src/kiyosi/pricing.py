@@ -93,7 +93,8 @@ or an iterable of names for a selection. The ``greeks`` argument is required;
 unavailable measures remain None.
 
 Pricing controls are explicit keyword-only parameters, available through
-``inspect.signature``. Instrument conversion and supported-family checks
+``inspect.signature``, with defaults derived from Rust. The displayed
+defaults can be passed back explicitly. Instrument conversion and supported-family checks
 precede Greek-name parsing. Monte Carlo vanilla spot bumps default by product:
 0.01 for European options and 8% of spot for American options. Explicit
 ``None`` selects the automatic bump for either product.

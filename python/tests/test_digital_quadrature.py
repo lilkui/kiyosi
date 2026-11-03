@@ -33,9 +33,9 @@ class DigitalQuadratureTests(unittest.TestCase):
             tuple(signature.parameters),
             ("asset_step_count", "integration_standard_deviations"),
         )
-        for parameter in signature.parameters.values():
+        for name, parameter in signature.parameters.items():
             self.assertIs(parameter.kind, inspect.Parameter.KEYWORD_ONLY)
-            self.assertIs(parameter.default, Ellipsis)
+            self.assertEqual(parameter.default, getattr(engine, name))
         self.assertEqual(
             repr(engine),
             "QuadratureDigitalEngine(asset_step_count=512, "

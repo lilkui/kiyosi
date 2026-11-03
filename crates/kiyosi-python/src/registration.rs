@@ -225,5 +225,5 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     module.add_function(wrap_pyfunction!(calendar::custom_calendar, module)?)?;
     module.add_function(wrap_pyfunction!(schedule::fixed_interval_schedule, module)?)?;
     module.add_function(wrap_pyfunction!(schedule::monthly_schedule, module)?)?;
-    Ok(())
+    crate::signatures::register(py, module)
 }

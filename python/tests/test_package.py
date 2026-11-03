@@ -14,6 +14,93 @@ from kiyosi import _native, instruments, market, pricing
 
 
 class PackageTests(unittest.TestCase):
+    def test_engine_signature_defaults_can_be_forwarded(self):
+        for name in pricing.__all__:
+            if not name.endswith("Engine"):
+                continue
+            factory = getattr(pricing, name)
+            arguments = inspect.signature(factory).bind()
+            arguments.apply_defaults()
+            original = factory()
+            replay = factory(*arguments.args, **arguments.kwargs)
+            for field, default in arguments.arguments.items():
+                with self.subTest(engine=name, field=field):
+                    self.assertIsNot(default, Ellipsis)
+                    self.assertEqual(getattr(original, field), default)
+                    self.assertEqual(getattr(replay, field), default)
+
+    def test_contract_schedule_and_solver_signature_defaults_can_be_forwarded(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        required = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_date": start,
+            "expiry_date": end,
+            "barrier_level": 120,
+            "barrier_type": "up_and_out",
+        }
+        arguments = inspect.signature(instruments.BarrierOption).bind(**required)
+        arguments.apply_defaults()
+        option = instruments.BarrierOption(*arguments.args, **arguments.kwargs)
+        self.assertEqual(option.rebate, 0)
+        self.assertEqual(option.rebate_timing, "at_expiry")
+        self.assertEqual(option.observation_mode, "continuous")
+        self.assertEqual(option.observation_dates, [])
+        arguments = inspect.signature(market.monthly_schedule).bind(
+            start=start,
+            end=date(2025, 3, 3),
+            first_observation_month=1,
+        )
+        arguments.apply_defaults()
+        self.assertEqual(
+            list(market.monthly_schedule(*arguments.args, **arguments.kwargs)),
+            [date(2025, 2, 3), date(2025, 3, 3)],
+        )
+        option = instruments.EuropeanOption(
+            option_type="call",
+            strike=100,
+            effective_date=start,
+            expiry_date=end,
+        )
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0.05,
+                dividend_yield=0.02,
+                volatility=0.2,
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        engine = pricing.AnalyticEuropeanEngine()
+        arguments = inspect.signature(pricing.implied_volatility).bind(
+            engine,
+            option,
+            context,
+            engine.price(option, context),
+        )
+        arguments.apply_defaults()
+        self.assertAlmostEqual(
+            pricing.implied_volatility(*arguments.args, **arguments.kwargs),
+            0.2,
+            delta=1e-8,
+        )
+        digital = instruments.CashOrNothingOption(
+            option_type="call",
+            strike=100,
+            payout=10,
+            effective_date=start,
+            expiry_date=end,
+        )
+        engine = pricing.AnalyticDigitalEngine()
+        arguments = inspect.signature(engine.price_with_greeks).bind(
+            digital, context, "delta"
+        )
+        arguments.apply_defaults()
+        result = engine.price_with_greeks(*arguments.args, **arguments.kwargs)
+        self.assertEqual(
+            result.delta, engine.price_with_greeks(digital, context, "delta").delta
+        )
+
     def test_replacements_expose_declared_keyword_fields(self):
         stub = ast.parse((Path(kiyosi.__file__).parent / "_native.pyi").read_text())
         for node in stub.body:

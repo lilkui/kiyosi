@@ -32,7 +32,7 @@ class VanillaQuadratureTests(unittest.TestCase):
             ("asset_step_count", "time_step_count", "integration_standard_deviations"),
         )
         for name in signature.parameters:
-            self.assertIs(signature.parameters[name].default, Ellipsis)
+            self.assertEqual(signature.parameters[name].default, getattr(engine, name))
             self.assertIs(
                 signature.parameters[name].kind, inspect.Parameter.KEYWORD_ONLY
             )

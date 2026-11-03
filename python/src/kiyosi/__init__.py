@@ -43,6 +43,7 @@ signal handling, including `KeyboardInterrupt`, resumes when control
 returns to Python.
 """
 
+from . import _native
 from ._native import (
     ComputationFailureError,
     Greek,
@@ -54,6 +55,9 @@ from ._native import (
     UnsupportedOperationError,
     __version__,
 )
+from ._signatures import install as _install_signatures
+
+_install_signatures(_native)
 
 __all__ = [
     "ComputationFailureError",

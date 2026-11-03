@@ -16,6 +16,7 @@ mod market;
 mod registration;
 mod risk;
 mod schedule;
+mod signatures;
 
 use pyo3::prelude::*;
 
