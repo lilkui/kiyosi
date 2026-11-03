@@ -44,8 +44,7 @@ impl FiniteDifferenceBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Rejects other local-volatility Greeks with [`Error::UnsupportedOperation`][crate::Error::UnsupportedOperation],
-    /// including at expiry. Validates requests and shifts before pricing. Propagates [`Self::price`] and
+    /// Leaves other local-volatility Greeks absent. Validates requests and shifts before pricing. Propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors; feasible bumped failures fail the operation.
     /// Inputs and immutable engine settings remain unchanged on success and failure.
     ///
@@ -149,7 +148,7 @@ fn analysis(
 ) -> Result<PricingResult> {
     request.validate()?;
     shifts.validate()?;
-    local_volatility::validate_request(context, request)?;
+    let request = local_volatility::validate_request(context, request)?;
     let mut settings = settings;
     if settings.asset_upper_boundary.is_none() && local_volatility::local_model(context).is_none() {
         let upper = default_upper(option, context);
@@ -202,8 +201,7 @@ impl FiniteDifferenceDoubleBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Rejects other local-volatility Greeks with [`Error::UnsupportedOperation`][crate::Error::UnsupportedOperation],
-    /// including at expiry. Validates requests and shifts before pricing, then propagates [`Self::price`] and
+    /// Validates requests and shifts before pricing, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors. Inputs remain unchanged on success and failure.
     ///
     /// # Examples
@@ -271,7 +269,7 @@ fn native_barrier(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<PricingResult> {
-    local_volatility::validate_request(context, request)?;
+    let request = local_volatility::validate_request(context, request)?;
     if let Some(model) = local_volatility::local_model(context) {
         native_with_model(
             option,

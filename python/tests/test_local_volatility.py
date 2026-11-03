@@ -411,16 +411,24 @@ class LocalVolatilityTests(unittest.TestCase):
                             self.assertIsNone(result.delta)
                             self.assertIsNone(result.gamma)
                         for request in ["all", ["delta", "vega"], "theta"]:
-                            with self.assertRaises(UnsupportedOperationError):
-                                e.price_with_greeks(contract, c, request)
+                            result = e.price_with_greeks(contract, c, request)
+                            self.assertIsNone(result.vega)
 
     def test_unsupported_greeks_solvers_expiry_and_coverage(self):
         c = context()
         for time in [START, END]:
             rolled = c.replace(valuation_time=time)
+            baseline = engine().price_with_greeks(option(), rolled, ["delta", "gamma"])
             for greeks in ["all", ["delta", "vega"], "theta"]:
-                with self.assertRaises(UnsupportedOperationError):
-                    engine().price_with_greeks(option(), rolled, greeks)
+                result = engine().price_with_greeks(option(), rolled, greeks)
+                self.assertEqual(result.price, baseline.price)
+                self.assertIsNone(result.vega)
+                self.assertIsNone(result.theta)
+                self.assertIsNone(result.speed)
+                if greeks != "theta":
+                    self.assertEqual(result.delta, baseline.delta)
+                else:
+                    self.assertIsNone(result.delta)
             with self.assertRaises(UnsupportedOperationError):
                 pricing.implied_volatility(engine(), option(), rolled, 10)
         terminal = engine().price_with_greeks(

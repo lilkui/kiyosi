@@ -3,7 +3,7 @@ use super::{FiniteDifferenceSettings, Payoff, invalid_grid, time_to_expiry, unst
 use crate::engines::analytic::heston::integrated_variance;
 use crate::numerics::{checked_with_scale, log_ratio, scaled_cash};
 use crate::{
-    AmericanOption, Error, EuropeanOption, GreeksRequest, HestonParameters, NumericalShiftSettings,
+    AmericanOption, EuropeanOption, GreeksRequest, HestonParameters, NumericalShiftSettings,
     OptionContract, PricingContext, PricingEngine, PricingResult, Result,
 };
 
@@ -47,7 +47,7 @@ impl HestonFiniteDifferenceSettings {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for insufficient counts or nonpositive or
+    /// Returns [`crate::Error::InvalidInput`] for insufficient counts or nonpositive or
     /// non-finite explicit bounds, without changing inputs.
     pub fn validate(&self) -> Result<()> {
         if self.asset_step_count < 3
@@ -75,7 +75,7 @@ impl HestonFiniteDifferenceSettings {
 /// the Feller condition, zero parameters and correlation endpoints. With zero
 /// volatility of volatility, pricing uses the deterministic variance path in
 /// one dimension. Absorbing zero variance uses optimal
-/// deterministic exercise. Greeks and implied-parameter solvers are unsupported.
+/// deterministic exercise. Requested Greeks remain absent; implied-parameter solvers are unsupported.
 ///
 /// Domain truncation and discretization both require convergence checks. No
 /// automatic error estimate or refinement is performed. Shared and independent
@@ -133,10 +133,10 @@ impl FiniteDifferenceHestonVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for other models,
-    /// [`Error::InvalidInput`] outside contract life/curve coverage or for explicit
+    /// Returns [`crate::Error::UnsupportedOperation`] for other models,
+    /// [`crate::Error::InvalidInput`] outside contract life/curve coverage or for explicit
     /// bounds that exclude spot, strike or initial variance, and
-    /// [`Error::ComputationFailure`] for unrepresentable grids, intermediates or
+    /// [`crate::Error::ComputationFailure`] for unrepresentable grids, intermediates or
     /// invalid prices. Fixed grids do not report error-target nonconvergence.
     /// Inputs and settings remain unchanged on success and failure.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
@@ -146,22 +146,24 @@ impl FiniteDifferenceHestonVanillaEngine {
         <Self as PricingEngine<I>>::price(self, option, context)
     }
 
-    /// Rejects Heston sensitivities; see [`Self::new`] for price-only usage.
+    /// Returns the price with all requested Greeks absent; see [`Self::new`].
     ///
     /// # Errors
     ///
-    /// Always returns [`Error::UnsupportedOperation`], including at expiry.
-    /// Inputs remain unchanged.
+    /// Rejects empty requests with [`crate::Error::InvalidInput`] and propagates
+    /// [`Self::price`] errors. Inputs remain unchanged; numerical shifts are unused.
     pub fn price_with_greeks<I: OptionContract>(
         &self,
-        _option: &I,
-        _context: &PricingContext,
-        _request: GreeksRequest,
+        option: &I,
+        context: &PricingContext,
+        request: GreeksRequest,
         _settings: NumericalShiftSettings,
-    ) -> Result<PricingResult> {
-        Err(Error::UnsupportedOperation(
-            "Heston supports prices only".into(),
-        ))
+    ) -> Result<PricingResult>
+    where
+        Self: PricingEngine<I>,
+    {
+        request.validate()?;
+        PricingResult::new(self.price(option, context)?)
     }
 }
 

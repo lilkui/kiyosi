@@ -395,10 +395,13 @@ fn unsupported_models_requests_and_solves_fail_even_at_expiry() {
             GreeksRequest::all(),
             GreeksRequest::new([Greek::Delta, Greek::Vega]),
         ] {
-            assert!(matches!(
-                engine(100, 100, 400.0).price_with_greeks(&option, &c, request, Default::default()),
-                Err(Error::UnsupportedOperation(_))
-            ));
+            assert_eq!(
+                engine(100, 100, 400.0)
+                    .price_with_greeks(&option, &c, request, Default::default())
+                    .unwrap()
+                    .get(Greek::Vega),
+                None
+            );
         }
         assert!(matches!(
             implied_volatility(
@@ -502,15 +505,18 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
                 assert_eq!(result.price(), expected);
                 assert!(!result.has(Greek::Delta));
                 assert!(!result.has(Greek::Gamma));
-                assert!(matches!(
-                    digital.price_with_greeks(
-                        &option,
-                        &terminal,
-                        GreeksRequest::all(),
-                        Default::default()
-                    ),
-                    Err(Error::UnsupportedOperation(_))
-                ));
+                assert_eq!(
+                    digital
+                        .price_with_greeks(
+                            &option,
+                            &terminal,
+                            GreeksRequest::all(),
+                            Default::default()
+                        )
+                        .unwrap()
+                        .get(Greek::Vega),
+                    None
+                );
             }
             let terminal = local
                 .replace(PricingContextChanges {
@@ -532,15 +538,18 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
             );
             assert!(!result.has(Greek::Delta));
             assert!(!result.has(Greek::Gamma));
-            assert!(matches!(
-                vanilla.price_with_greeks(
-                    &american,
-                    &terminal,
-                    GreeksRequest::all(),
-                    Default::default()
-                ),
-                Err(Error::UnsupportedOperation(_))
-            ));
+            assert_eq!(
+                vanilla
+                    .price_with_greeks(
+                        &american,
+                        &terminal,
+                        GreeksRequest::all(),
+                        Default::default()
+                    )
+                    .unwrap()
+                    .get(Greek::Vega),
+                None
+            );
         }
     }
 }

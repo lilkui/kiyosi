@@ -268,15 +268,18 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
         .unwrap();
     let remaining = (185.0 - 1.0 / 86_400_000_000.0) / 365.0;
     assert!((cash - 10.0 * (-0.04_f64 * remaining).exp()).abs() < 1e-12);
-    assert!(matches!(
-        engine.price_with_greeks(
-            &hit.replace(Some(BarrierTouchState::Touched)),
-            &settled_context,
-            GreeksRequest::all(),
-            Default::default(),
-        ),
-        Err(Error::UnsupportedOperation(_))
-    ));
+    assert_eq!(
+        engine
+            .price_with_greeks(
+                &hit.replace(Some(BarrierTouchState::Touched)),
+                &settled_context,
+                GreeksRequest::all(),
+                Default::default(),
+            )
+            .unwrap()
+            .get(Greek::Vega),
+        None
+    );
 }
 
 #[test]
@@ -352,10 +355,13 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
         .unwrap();
     assert_eq!(result.price(), 10.0);
     assert_eq!(result.get(Greek::Delta), None);
-    assert!(matches!(
-        engine.price_with_greeks(&option, &expiry, GreeksRequest::all(), Default::default()),
-        Err(Error::UnsupportedOperation(_))
-    ));
+    assert_eq!(
+        engine
+            .price_with_greeks(&option, &expiry, GreeksRequest::all(), Default::default())
+            .unwrap()
+            .get(Greek::Vega),
+        None
+    );
 }
 
 #[test]

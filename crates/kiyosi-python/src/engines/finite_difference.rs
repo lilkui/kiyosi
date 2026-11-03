@@ -63,8 +63,8 @@ macro_rules! fd_engine {
         /// variants and PhoenixOption. Other engines accept their named product.
         /// Digital pricing requires explicitly flat rates; other families accept
         /// deterministic rate curves. All FD product families support local-volatility
-        /// price, delta and gamma, including American exercise. Other Greeks (including
-        /// "all") and implied-parameter solvers raise UnsupportedOperationError. Sigma uses
+        /// price, delta and gamma, including American exercise. Other requested Greeks remain None;
+        /// implied-parameter solvers raise UnsupportedOperationError. Sigma uses
         /// fixed absolute surface coordinates; Greeks are absent at expiry or where
         /// their stencils cross product events. Surface coverage follows remaining
         /// stochastic evolution; rate coverage follows required future discounting.

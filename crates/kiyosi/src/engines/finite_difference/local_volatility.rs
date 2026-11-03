@@ -4,18 +4,20 @@ use super::{
 };
 use crate::{LocalVolatilityParameters, ModelParameters};
 
-pub(super) fn validate_request(context: &PricingContext, request: GreeksRequest) -> Result<()> {
+pub(super) fn validate_request(
+    context: &PricingContext,
+    request: GreeksRequest,
+) -> Result<GreeksRequest> {
     validate_model(context)?;
-    if local_model(context).is_some()
-        && Greek::ALL
-            .into_iter()
-            .any(|g| request.has(g) && !matches!(g, Greek::Delta | Greek::Gamma))
-    {
-        return Err(Error::UnsupportedOperation(
-            "local volatility supports only delta and gamma".into(),
-        ));
-    }
-    Ok(())
+    Ok(if local_model(context).is_some() {
+        GreeksRequest::new(
+            [Greek::Delta, Greek::Gamma]
+                .into_iter()
+                .filter(|&g| request.has(g)),
+        )
+    } else {
+        request
+    })
 }
 
 pub(super) fn validate_model(context: &PricingContext) -> Result<()> {
@@ -35,7 +37,7 @@ pub(super) fn price(
     settings: FiniteDifferenceSettings,
     request: GreeksRequest,
 ) -> Result<PricingResult> {
-    validate_request(context, request)?;
+    let request = validate_request(context, request)?;
     Ok(super::native_model(
         option,
         payoff,

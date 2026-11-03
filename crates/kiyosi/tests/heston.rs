@@ -348,10 +348,13 @@ fn unsupported_requests_and_invalid_computations_preserve_categories() {
     let context = context(model());
     let option = option(OptionType::Call);
     let request = GreeksRequest::new([Greek::Delta]);
-    assert!(matches!(
-        engine.price_with_greeks(&option, &context, request, Default::default()),
-        Err(Error::UnsupportedOperation(_))
-    ));
+    assert_eq!(
+        engine
+            .price_with_greeks(&option, &context, request, Default::default())
+            .unwrap()
+            .get(Greek::Vega),
+        None
+    );
     assert!(matches!(
         numerical_greeks(&engine, &option, &context, request, Default::default()),
         Err(Error::UnsupportedOperation(_))

@@ -401,7 +401,7 @@ class AnalyticHestonEuropeanEngine:
         instrument: EuropeanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-    ) -> Never: ...
+    ) -> PricingResult: ...
 
 class BjerksundStenslandVanillaEngine:
     def __init__(self) -> None: ...
@@ -789,7 +789,7 @@ class FiniteDifferenceHestonVanillaEngine:
         instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-    ) -> Never: ...
+    ) -> PricingResult: ...
 
 class FiniteDifferenceVanillaEngine:
     def __init__(

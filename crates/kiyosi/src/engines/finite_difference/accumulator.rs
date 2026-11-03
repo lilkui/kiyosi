@@ -42,8 +42,7 @@ impl FiniteDifferenceAccumulatorEngine {
     ///
     /// Validates requests and shifts, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors without changing inputs or settings.
-    /// Unsupported local-volatility Greeks return [`Error::UnsupportedOperation`][crate::Error::UnsupportedOperation]
-    /// before settlement or expiry shortcuts.
+    /// Unsupported local-volatility Greeks remain absent.
     ///
     /// # Examples
     ///
@@ -121,7 +120,7 @@ fn native(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<(PricingResult, Option<f64>)> {
-    local_volatility::validate_request(context, request)?;
+    let request = local_volatility::validate_request(context, request)?;
     match context.model_parameters() {
         crate::ModelParameters::Heston(_) => Err(crate::Error::UnsupportedOperation(
             "finite differences do not support Heston".into(),

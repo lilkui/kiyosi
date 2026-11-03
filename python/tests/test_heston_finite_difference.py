@@ -223,8 +223,8 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
         )
         with self.assertRaises(UnsupportedOperationError):
             engine.price(option(), bsm)
-        with self.assertRaises(UnsupportedOperationError):
-            engine.price_with_greeks(option(), snapshot, "delta")
+        result = engine.price_with_greeks(option(), snapshot, "delta")
+        self.assertIsNone(result.delta)
         with self.assertRaises(UnsupportedOperationError):
             implied_volatility(engine, option(), snapshot, 9)
         for controls in (

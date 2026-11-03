@@ -39,8 +39,8 @@ impl FiniteDifferenceBinaryBarrierEngine {
     ///
     /// Stencils crossing observations or barriers leave affected measures absent.
     /// All Greeks are absent at expiry or a current barrier equality without a prior touch.
-    /// Local volatility supports only delta and gamma with the local-volatility surface held fixed; other requests return
-    /// [`Error::UnsupportedOperation`][crate::Error::UnsupportedOperation] before settlement or expiry shortcuts.
+    /// Local volatility supports only delta and gamma with the local-volatility surface held fixed;
+    /// other requested Greeks remain absent.
     ///
     /// # Errors
     ///
@@ -103,7 +103,7 @@ macro_rules! binary_pricing {
             ) -> Result<PricingResult> {
                 request.validate()?;
                 shifts.validate()?;
-                local_volatility::validate_request(context, request)?;
+                let request = local_volatility::validate_request(context, request)?;
                 let mut settings = self.settings;
                 if settings.asset_upper_boundary.is_none()
                     && local_volatility::local_model(context).is_none()
@@ -158,8 +158,8 @@ impl FiniteDifferenceDoubleTouchEngine {
     ///
     /// Stencils crossing either boundary or an observation omit affected measures.
     /// All Greeks are absent at expiry or current boundary equality without a prior touch.
-    /// Local volatility supports only delta and gamma with the local-volatility surface held fixed; unsupported Greeks
-    /// return [`Error::UnsupportedOperation`][crate::Error::UnsupportedOperation] even for settled contracts.
+    /// Local volatility supports only delta and gamma with the local-volatility surface held fixed;
+    /// other requested Greeks remain absent.
     ///
     /// # Errors
     ///
@@ -218,7 +218,7 @@ fn native(
     request: GreeksRequest,
     shifts: NumericalShiftSettings,
 ) -> Result<PricingResult> {
-    local_volatility::validate_request(context, request)?;
+    let request = local_volatility::validate_request(context, request)?;
     match context.model_parameters() {
         crate::ModelParameters::Heston(_) => Err(crate::Error::UnsupportedOperation(
             "finite differences do not support Heston".into(),

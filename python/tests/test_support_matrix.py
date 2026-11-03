@@ -325,15 +325,9 @@ class SupportMatrixTests(unittest.TestCase):
                 context = self.context_for(name)
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
                     self.assertAlmostEqual(engine.price(instrument, context), expected)
-                    if name in HESTON_ENGINES:
-                        with self.assertRaises(UnsupportedOperationError):
-                            engine.price_with_greeks(instrument, context, ["delta"])
-                    else:
-                        result = engine.price_with_greeks(
-                            instrument, context, ["delta"]
-                        )
-                        self.assertAlmostEqual(result.price, expected)
-                        self.assertIsNone(result.delta)
+                    result = engine.price_with_greeks(instrument, context, ["delta"])
+                    self.assertAlmostEqual(result.price, expected)
+                    self.assertIsNone(result.delta)
                     with self.assertRaises(UnsupportedOperationError) as error:
                         pricing.implied_volatility(
                             engine, instrument, self.context, expected

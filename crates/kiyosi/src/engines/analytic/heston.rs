@@ -200,22 +200,21 @@ impl AnalyticHestonEuropeanEngine {
         checked_with_scale(price, scale)
     }
 
-    /// Rejects Heston Greek requests; see [`Self::new`] for price-only usage.
+    /// Returns the price with all requested Greeks absent; see [`Self::new`].
     ///
     /// # Errors
     ///
-    /// Always returns [`Error::UnsupportedOperation`], including at expiry.
-    /// Inputs remain unchanged.
+    /// Rejects empty requests with [`Error::InvalidInput`] and propagates
+    /// [`Self::price`] errors. Inputs remain unchanged; numerical shifts are unused.
     pub fn price_with_greeks(
         &self,
-        _option: &EuropeanOption,
-        _context: &PricingContext,
-        _request: GreeksRequest,
+        option: &EuropeanOption,
+        context: &PricingContext,
+        request: GreeksRequest,
         _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        Err(Error::UnsupportedOperation(
-            "Heston supports prices only".into(),
-        ))
+        request.validate()?;
+        PricingResult::new(self.price(option, context)?)
     }
 }
 

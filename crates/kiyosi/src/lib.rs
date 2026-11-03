@@ -26,7 +26,7 @@
 //! engines support this model for European and American vanilla options, digitals,
 //! single and double barriers, binary barriers, touch and
 //! no-touch options, autocallable notes and accumulators. They provide price,
-//! delta and gamma with the surface held fixed. Other Greeks, other engine families
+//! delta and gamma with the surface held fixed. Other Greeks remain absent. Other engine families
 //! and implied-parameter solvers reject this model. Digital pricing requires
 //! explicitly flat risk-free rates and dividend yields.
 //! Future coverage follows remaining stochastic evolution and required discounts;
@@ -38,7 +38,7 @@
 //! European and American call and put prices using the modified Craig-Sneyd scheme
 //! with Ikonen-Toivanen splitting for American exercise. Both accept zero variance
 //! parameters, correlation endpoints and violations of the Feller condition.
-//! Other engines, Greeks and implied-parameter solvers reject Heston.
+//! All Heston Greeks remain absent. Other engines and implied-parameter solvers reject Heston.
 //! See each engine's constructor for examples, numerical controls and convergence checks.
 //!
 //! # Concurrency and errors

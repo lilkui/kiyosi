@@ -201,7 +201,7 @@ fn native(
     shifts: NumericalShiftSettings,
     concentrate: bool,
 ) -> Result<(PricingResult, Option<f64>)> {
-    local_volatility::validate_request(context, request)?;
+    let request = local_volatility::validate_request(context, request)?;
     match context.model_parameters() {
         crate::ModelParameters::Heston(_) => Err(Error::UnsupportedOperation(
             "finite differences do not support Heston".into(),
@@ -532,7 +532,7 @@ fn complete_greeks(
             native,
         );
     }
-    local_volatility::validate_request(context, request)?;
+    let request = local_volatility::validate_request(context, request)?;
     if context.valuation_time() == option.expiry_date().start_of_day()
         || option.all_greeks_unavailable(context)
     {
@@ -583,7 +583,7 @@ fn analysis<I: OptionContract>(
 ) -> Result<PricingResult> {
     request.validate()?;
     shifts.validate()?;
-    local_volatility::validate_request(context, request)?;
+    let request = local_volatility::validate_request(context, request)?;
     let (result, upper) = native(option, context, settings, request, shifts)?;
     settings.asset_upper_boundary = upper.or(settings.asset_upper_boundary);
     complete_greeks(
@@ -725,9 +725,8 @@ impl FiniteDifferenceVanillaEngine {
 
     /// Returns spline delta/gamma and fixed-grid speed, completing other Greeks numerically.
     ///
-    /// Local-volatility requests support only delta and gamma; a request containing
-    /// another Greek fails with [`Error::UnsupportedOperation`]. Unsupported requests
-    /// are rejected at expiry too. Bumped contexts share the central spatial domain.
+    /// Local-volatility results provide delta and gamma; other requested Greeks remain
+    /// absent. Bumped contexts share the central spatial domain.
     /// All Greeks are absent at expiry.
     /// Uses [`NumericalShiftSettings`] for bumps; unavailable stencils leave Greeks absent.
     ///
@@ -888,7 +887,7 @@ impl FiniteDifferenceDigitalEngine {
     ///
     /// All expiry Greeks are absent. See [`Self::price`] for a pricing example.
     /// Local volatility supports only delta and gamma with the absolute surface fixed;
-    /// other Greeks return [`Error::UnsupportedOperation`] before expiry shortcuts.
+    /// other requested Greeks remain absent.
     ///
     /// # Errors
     ///

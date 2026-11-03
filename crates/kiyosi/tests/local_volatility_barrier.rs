@@ -315,10 +315,13 @@ fn resolved_cash_uses_only_required_coverage_and_requests_fail_before_shortcuts(
     assert!((result.price() - 3.0 * (-0.05_f64).exp()).abs() < 1e-14);
     assert_eq!(result.get(Greek::Delta), None);
     assert_eq!(result.get(Greek::Gamma), None);
-    assert!(matches!(
-        engine.price_with_greeks(&option, &short, GreeksRequest::all(), Default::default()),
-        Err(Error::UnsupportedOperation(_))
-    ));
+    assert_eq!(
+        engine
+            .price_with_greeks(&option, &short, GreeksRequest::all(), Default::default())
+            .unwrap()
+            .get(Greek::Vega),
+        None
+    );
     terms.rebate_timing = RebateTiming::AtHit;
     let paid = BarrierOption::new(terms)
         .unwrap()

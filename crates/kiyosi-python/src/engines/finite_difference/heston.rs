@@ -126,7 +126,7 @@ impl FiniteDifferenceHestonVanillaEngine {
         self.evaluate(py, instrument, context, ScalarRequest::Price)
     }
 
-    /// Reject Heston Greeks after validating instrument and Greek representations.
+    /// Return the Heston price with all requested sensitivities absent.
     ///
     /// Parameters
     /// ----------
@@ -135,29 +135,29 @@ impl FiniteDifferenceHestonVanillaEngine {
     /// context : PricingContext
     ///     Market snapshot.
     /// greeks : str or iterable of str
-    ///     Required Greek request, checked before the unsupported-operation error.
+    ///     Required nonempty Greek request.
     ///
     /// Returns
     /// -------
     /// PricingResult
-    ///     No result is available; valid requests raise UnsupportedOperationError.
+    ///     Price with every requested Greek set to None.
     fn price_with_greeks(
         &self,
+        py: Python<'_>,
         #[pyo3(from_py_with = crate::conversions::instrument)]
         instrument: binomial::VanillaInstrument<'_>,
         context: &PricingContext,
         greeks: &Bound<'_, PyAny>,
     ) -> PyResult<risk::PricingResult> {
         let request = risk::greeks_request(greeks)?;
+        let engine = self.0;
+        let context = &context.0;
         binomial::with_vanilla!(
             instrument,
             option,
-            Ok(risk::PricingResult(domain(self.0.price_with_greeks(
-                option,
-                &context.0,
-                request,
-                Default::default()
-            ))?))
+            Ok(risk::PricingResult(domain(py.detach(|| {
+                engine.price_with_greeks(option, context, request, Default::default())
+            }))?))
         )
     }
 }

@@ -35,7 +35,7 @@ fn evaluation_count(value: &Bound<'_, PyAny>) -> PyResult<usize> {
 /// Error estimates are not a universal accuracy guarantee. The budget covers
 /// Heston and control-variate characteristic functions across all integrals and
 /// tail checks. Expiry and deterministic-variance branches need no evaluations.
-/// Greeks and implied-parameter solvers raise UnsupportedOperationError. Pricing releases
+/// Requested Greeks remain None; implied-parameter solvers raise UnsupportedOperationError. Pricing releases
 /// the GIL for core computation, with independent state for concurrent calls.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct AnalyticHestonEuropeanEngine(pub(crate) kiyosi::AnalyticHestonEuropeanEngine);
@@ -109,7 +109,7 @@ impl AnalyticHestonEuropeanEngine {
         self.evaluate(py, instrument, context, ScalarRequest::Price)
     }
 
-    /// Reject unsupported Heston sensitivities, including at expiry.
+    /// Return the Heston price with all requested sensitivities absent.
     ///
     /// Parameters
     /// ----------
@@ -123,18 +123,19 @@ impl AnalyticHestonEuropeanEngine {
     /// Returns
     /// -------
     /// PricingResult
-    ///     No result is available; this operation always fails.
+    ///     Price with every requested Greek set to None.
     ///
     /// Raises
     /// ------
     /// UnsupportedOperationError
-    ///     For every valid Greek request; Heston currently supports prices only.
+    ///     If the model is unsupported; Heston currently provides no sensitivities.
     #[expect(
         clippy::needless_pass_by_value,
         reason = "PyO3 extracts an owned borrow guard"
     )]
     fn price_with_greeks(
         &self,
+        py: Python<'_>,
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
             '_,
             EuropeanOption,
@@ -142,12 +143,13 @@ impl AnalyticHestonEuropeanEngine {
         context: &PricingContext,
         greeks: &Bound<'_, PyAny>,
     ) -> PyResult<risk::PricingResult> {
-        Ok(risk::PricingResult(domain(self.0.price_with_greeks(
-            &instrument.0,
-            &context.0,
-            risk::greeks_request(greeks)?,
-            Default::default(),
-        ))?))
+        let engine = self.0;
+        let option = &instrument.0;
+        let context = &context.0;
+        let request = risk::greeks_request(greeks)?;
+        Ok(risk::PricingResult(domain(py.detach(|| {
+            engine.price_with_greeks(option, context, request, Default::default())
+        }))?))
     }
 }
 

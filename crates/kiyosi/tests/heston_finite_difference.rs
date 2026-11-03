@@ -308,6 +308,6 @@ fn settings_and_unsupported_sensitivities_have_structured_errors() {
             GreeksRequest::new([]),
             Default::default()
         ),
-        Err(Error::UnsupportedOperation(_))
+        Err(Error::InvalidInput(_))
     ));
 }

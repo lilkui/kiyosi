@@ -219,10 +219,13 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
         acc_engine.price(&acc, &live),
         Err(Error::InvalidInput(_))
     ));
-    assert!(matches!(
-        acc_engine.price_with_greeks(&acc, &settled, GreeksRequest::all(), Default::default()),
-        Err(Error::UnsupportedOperation(_))
-    ));
+    assert_eq!(
+        acc_engine
+            .price_with_greeks(&acc, &settled, GreeksRequest::all(), Default::default())
+            .unwrap()
+            .get(Greek::Vega),
+        None
+    );
 
     let note = BinarySnowballOption::new(BinarySnowballTerms::new(
         0.02,
@@ -246,15 +249,18 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
         engine.price(&note, &live),
         Err(Error::InvalidInput(_))
     ));
-    assert!(matches!(
-        engine.price_with_greeks(
-            &knocked_out,
-            &later,
-            GreeksRequest::all(),
-            Default::default()
-        ),
-        Err(Error::UnsupportedOperation(_))
-    ));
+    assert_eq!(
+        engine
+            .price_with_greeks(
+                &knocked_out,
+                &later,
+                GreeksRequest::all(),
+                Default::default()
+            )
+            .unwrap()
+            .get(Greek::Vega),
+        None
+    );
 
     let fixed = BinarySnowballOption::new(BinarySnowballTerms::new(
         0.0,
@@ -318,10 +324,13 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
         .unwrap();
     assert_eq!(result.get(Greek::Delta), None);
     assert_eq!(result.get(Greek::Gamma), None);
-    assert!(matches!(
-        engine.price_with_greeks(&note, &expired, GreeksRequest::all(), Default::default()),
-        Err(Error::UnsupportedOperation(_))
-    ));
+    assert_eq!(
+        engine
+            .price_with_greeks(&note, &expired, GreeksRequest::all(), Default::default())
+            .unwrap()
+            .get(Greek::Vega),
+        None
+    );
     let acc = Accumulator::new(AccumulatorTerms {
         accumulated_quantity: 3.0,
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, end)
@@ -334,10 +343,13 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
     assert_eq!(result.price(), -50.0);
     assert_eq!(result.get(Greek::Delta), None);
     assert_eq!(result.get(Greek::Gamma), None);
-    assert!(matches!(
-        acc_engine.price_with_greeks(&acc, &expired, GreeksRequest::all(), Default::default()),
-        Err(Error::UnsupportedOperation(_))
-    ));
+    assert_eq!(
+        acc_engine
+            .price_with_greeks(&acc, &expired, GreeksRequest::all(), Default::default())
+            .unwrap()
+            .get(Greek::Vega),
+        None
+    );
 }
 
 #[test]

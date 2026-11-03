@@ -3,8 +3,8 @@
 Finite-difference engines support local volatility for European and American
 vanilla options, digitals, single and double barriers, binary barriers, touch
 and no-touch options, autocallable notes and accumulators. They provide price,
-delta and gamma, holding the absolute surface fixed. Other Greeks (including
-"all"), other engine families and implied-parameter solvers raise UnsupportedOperationError
+delta and gamma, holding the absolute surface fixed. Other requested Greeks remain None, including in "all" requests.
+Other engine families and implied-parameter solvers raise UnsupportedOperationError
 for this model. Digital finite-difference pricing requires explicitly flat risk-free
 rates and dividend yields. Delta and gamma are absent at expiry and when their
 finite-difference stencils cross product events.
@@ -101,7 +101,7 @@ precede Greek-name parsing. Monte Carlo vanilla spot bumps default by product:
 ``AnalyticHestonEuropeanEngine`` prices European calls/puts with ``HestonParameters``
 using adaptive Fourier integration and a deterministic-variance control variate.
 It supports deterministic rate/dividend curves, zero parameters and correlation
-endpoints without imposing the Feller condition. Greeks and implied-parameter solvers
+endpoints without imposing the Feller condition. Requested Greeks remain None; implied-parameter solvers
 raise ``UnsupportedOperationError``. Integration controls are
 ``absolute_tolerance=1e-8`` (price units), ``relative_tolerance=1e-8`` and
 ``max_evaluations=10000`` (a total characteristic-function budget, including the
@@ -122,7 +122,7 @@ at least 3 and the base time count is at least 1. Curve knots are added.
 Optional finite positive bounds must cover spot/strike or initial variance
 when the corresponding grid is required. With zero volatility of volatility,
 the engine uses the deterministic variance path; absorbing zero variance retains optimal American
-exercise, including between curve nodes. Greeks and implied-parameter solvers are unsupported.
+exercise, including between curve nodes. Requested Greeks remain absent; implied-parameter solvers are unsupported.
 Fixed-grid completion carries no error estimate: check spatial/time refinement
 and domain enlargement separately. Numerical failures raise
 ``ComputationFailureError``.

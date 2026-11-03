@@ -15,8 +15,8 @@ in the spot dimension, and no time extrapolation. Context changes keep these
 absolute nodes fixed. The one-dimensional finite-difference engines support
 LocalVolatilityParameters for price, delta and gamma; digital
 finite-difference pricing requires explicitly flat risk-free rates and dividend
-yields. Other engine families, other Greeks and implied-parameter solvers
-reject this model with UnsupportedOperationError.
+yields. Other requested Greeks remain None. Other engine families and
+implied-parameter solvers reject this model with UnsupportedOperationError.
 Model and context ``replace()`` methods expose named keyword-only fields.
 Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
 values; explicit ``None`` is rejected.
@@ -26,7 +26,7 @@ rate curves. Initial variance is at valuation (20% volatility means 0.04).
 Variance parameters are finite and nonnegative; correlation includes [-1, 1].
 The Feller condition is not required. AnalyticHestonEuropeanEngine prices European
 options; FiniteDifferenceHestonVanillaEngine prices European and American options.
-Other engines, Greeks and implied-parameter solvers reject this model.
+Other engines and implied-parameter solvers reject this model; requested Greeks remain None.
 
 Examples
 --------
