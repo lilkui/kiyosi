@@ -264,9 +264,9 @@ macro_rules! snowball_preset {
         /// observation_dates : iterable of date
         ///     Strictly increasing observation dates within the contract life.
         /// effective_date : datetime.date
-        ///     Inclusive first contract date.
+        ///     Contract starts at 00:00 UTC on this date.
         /// expiry_date : datetime.date
-        ///     Final contract date; expiry is at midnight UTC.
+        ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
         /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
         ///     Strictly prior events. None is unknown; the string none means no event.
         /// principal_ratio : float, optional
@@ -468,9 +468,9 @@ dates, stages may have no observations, and rates need not decrease."
 /// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
 ///     Observe knock-in on every trading day or only at expiry.
 /// effective_date : datetime.date
-///     Inclusive first contract date.
+///     Contract starts at 00:00 UTC on this date.
 /// expiry_date : datetime.date
-///     Final contract date; expiry is at midnight UTC.
+///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// observations : iterable of AutocallableObservation
 ///     Nonempty, strictly ordered contractual observations within life.
 /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
@@ -595,9 +595,9 @@ autocallable_properties! {
 /// maturity_coupon_rate : float
 ///     Finite annual maturity coupon rate in decimal units.
 /// effective_date : datetime.date
-///     Inclusive first contract date.
+///     Contract starts at 00:00 UTC on this date.
 /// expiry_date : datetime.date
-///     Final contract date; expiry is at midnight UTC.
+///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// observations : iterable of AutocallableObservation
 ///     Nonempty, strictly ordered contractual observations within life.
 /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
@@ -687,9 +687,9 @@ autocallable_properties! {
 /// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
 ///     Observe knock-in on every trading day or only at expiry.
 /// effective_date : datetime.date
-///     Inclusive first contract date.
+///     Contract starts at 00:00 UTC on this date.
 /// expiry_date : datetime.date
-///     Final contract date; expiry is at midnight UTC.
+///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// observations : iterable of AutocallableObservation
 ///     Nonempty, strictly ordered contractual observations within life.
 /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
@@ -812,9 +812,9 @@ autocallable_properties! {
 /// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
 ///     Observe knock-in on every trading day or only at expiry.
 /// effective_date : datetime.date
-///     Inclusive first contract date.
+///     Contract starts at 00:00 UTC on this date.
 /// expiry_date : datetime.date
-///     Final contract date; expiry is at midnight UTC.
+///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// observations : iterable of AutocallableObservation
 ///     Nonempty, strictly ordered contractual observations within life.
 /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
@@ -987,7 +987,7 @@ macro_rules! phoenix_preset {
         /// observation_dates : iterable of datetime.date
         ///     Strictly increasing observation and payment dates within life.
         /// effective_date : datetime.date
-        ///     Inclusive first contract date.
+        ///     Contract starts at 00:00 UTC on this date.
         /// expiry_date : datetime.date
         ///     Final contract date at midnight UTC.
         /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional

@@ -12,9 +12,9 @@ use pyo3::types::PyDate;
 /// strike : float
 ///     Positive finite strike price.
 /// effective_date : datetime.date
-///     Inclusive first contract date.
+///     Contract starts at 00:00 UTC on this date.
 /// expiry_date : datetime.date
-///     Final contract date; expiry is at midnight UTC.
+///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 ///
 /// Raises
 /// ------
@@ -52,9 +52,9 @@ impl AmericanOption {
     /// strike : float, optional
     ///     Positive finite strike price.
     /// effective_date : datetime.date, optional
-    ///     Inclusive first contract date.
+    ///     Contract starts at 00:00 UTC on this date.
     /// expiry_date : datetime.date, optional
-    ///     Final contract date; expiry is at midnight UTC.
+    ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
     ///
     /// Returns
     /// -------

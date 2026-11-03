@@ -31,9 +31,9 @@ macro_rules! digital_option {
             ///     Positive finite strike price.
             $(#[doc = concat!(stringify!($payout), " : float, optional\n    Positive finite cash payment.")])?
             /// effective_date : datetime.date, optional
-            ///     Inclusive first contract date.
+            ///     Contract starts at 00:00 UTC on this date.
             /// expiry_date : datetime.date, optional
-            ///     Final contract date; expiry is at midnight UTC.
+            ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
             ///
             /// Returns
             /// -------
@@ -106,9 +106,9 @@ strike : float
 payout : float
     Positive finite cash payment.
 effective_date : datetime.date
-    Inclusive first contract date.
+    Contract starts at 00:00 UTC on this date.
 expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
+    Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 
 Raises
 ------
@@ -127,9 +127,9 @@ option_type : {'call', 'put'}
 strike : float
     Positive finite strike price.
 effective_date : datetime.date
-    Inclusive first contract date.
+    Contract starts at 00:00 UTC on this date.
 expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
+    Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 
 Raises
 ------

@@ -9,6 +9,12 @@
 //! contract. [`PricingEngine`] also supports [`numerical_greeks`] and the implied
 //! parameter solvers. Contract constructors validate terms; pricing validates
 //! valuation dates, calendar consistency and required prior history.
+//! Contract dates denote midnight UTC boundaries, not whole trading days. The
+//! effective-date and expiry-date midnights are included; later instants on the
+//! expiry date are outside contract life. Calendars do not move these boundaries.
+//! Contract dates cannot specify an intraday expiry. Python converts aware
+//! valuation datetimes to UTC before applying the same boundaries.
+//!
 //! Annual rates and annualized volatility use decimal units. Rates and dividend
 //! yields are continuously compounded. Rate curves use the Actual/365 Fixed
 //! day-count convention; [`TradingCalendar::trading_year_fraction`] uses its own

@@ -1,7 +1,13 @@
 """Validated derivative contracts, autocallable presets and observation adapters.
 
-``OptionType`` selects ``"call"`` or ``"put"``. Contract dates are inclusive,
-with expiry at midnight UTC. Constructors validate terms; pricing validates
+``OptionType`` selects ``"call"`` or ``"put"``. Contract boundaries are
+00:00 UTC on effective_date and 00:00 UTC on expiry_date, both included.
+An expiry date does not include the rest of that day. These are fixed UTC
+boundaries, independent of the trading calendar and the caller's time zone.
+Date-valued valuation inputs mean midnight UTC; aware datetimes are converted
+to UTC before checking contract life. For example, noon UTC on expiry_date
+is outside contract life, as is midnight UTC+08:00 on effective_date.
+Contract dates cannot specify an intraday expiry. Constructors validate terms; pricing validates
 their consistency with the market snapshot, calendar and supplied history.
 History describes events strictly before valuation; a current observation
 is evaluated from the current spot. Replacement returns a new contract.

@@ -35,7 +35,7 @@ macro_rules! monitoring_properties {
                 };
                 Ok(Self(self.0.replace(state)))
             }
-            /// Returns inclusive first contract date.
+            /// Returns the date of the 00:00 UTC contract start.
             #[getter]
             fn effective_date<'py>(
                 &self,
@@ -43,7 +43,7 @@ macro_rules! monitoring_properties {
             ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyDate>> {
                 $crate::conversions::python_date(py, self.0.effective_date())
             }
-            /// Returns final contract date; expiry is at midnight UTC.
+            /// Returns the expiry date; only 00:00 UTC on this date is within contract life.
             #[getter]
             fn expiry_date<'py>(
                 &self,

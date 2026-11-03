@@ -21,9 +21,9 @@ fn kind(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::DoubleBarrierType> {
 /// strike : float
 ///     Positive finite strike price.
 /// effective_date : datetime.date
-///     Inclusive first contract date.
+///     Contract starts at 00:00 UTC on this date.
 /// expiry_date : datetime.date
-///     Final contract date; expiry is at midnight UTC.
+///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// lower_barrier : float
 ///     Positive finite lower trigger; equality counts as a touch.
 /// upper_barrier : float

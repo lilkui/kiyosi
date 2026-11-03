@@ -21,7 +21,7 @@ pub struct EuropeanOption {
 }
 
 impl EuropeanOption {
-    /// Creates a positive-strike contract with inclusive, ordered life dates.
+    /// Creates a positive-strike contract between ordered midnight UTC boundaries.
     ///
     /// # Errors
     ///
@@ -68,7 +68,7 @@ impl EuropeanOption {
     pub fn effective_date(&self) -> Date {
         self.effective_date
     }
-    /// Returns expiry at midnight UTC; see [`Self::new`].
+    /// Returns the expiry boundary at 00:00 UTC, excluding later instants that day; see [`Self::new`].
     pub fn expiry_date(&self) -> Date {
         self.expiry_date
     }

@@ -131,9 +131,9 @@ option_type : {'call', 'put'}
 strike : float
     Positive finite exercise or purchase price.
 effective_date : datetime.date
-    Inclusive first contract date.
+    Contract starts at 00:00 UTC on this date.
 expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
+    Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 barrier_level : float
     Positive finite trigger level; equality counts as a touch.
 barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
@@ -177,9 +177,9 @@ option_type : {'call', 'put'}
 strike : float
     Positive finite exercise or purchase price.
 effective_date : datetime.date
-    Inclusive first contract date.
+    Contract starts at 00:00 UTC on this date.
 expiry_date : datetime.date
-    Final contract date; expiry is at midnight UTC.
+    Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 barrier_level : float
     Positive finite trigger level; equality counts as a touch.
 barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
@@ -224,9 +224,9 @@ macro_rules! touch_factory {
         /// Parameters
         /// ----------
         /// effective_date : datetime.date
-        ///     Inclusive first contract date.
+        ///     Contract starts at 00:00 UTC on this date.
         /// expiry_date : datetime.date
-        ///     Final contract date; expiry is at midnight UTC.
+        ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
         /// barrier_level : float
         ///     Positive finite trigger level; equality counts as a touch.
         /// barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}

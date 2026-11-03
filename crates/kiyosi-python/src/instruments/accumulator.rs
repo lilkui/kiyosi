@@ -16,9 +16,9 @@ use pyo3::types::{PyDate, PyList};
 /// acceleration_factor : float
 ///     Nonnegative multiplier below strike for calls or above strike for puts.
 /// effective_date : datetime.date
-///     Inclusive first contract date.
+///     Contract starts at 00:00 UTC on this date.
 /// expiry_date : datetime.date
-///     Final contract date; expiry is at midnight UTC.
+///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// accumulated_quantity : float, optional
 ///     Caller-asserted outstanding quantity strictly before valuation.
 /// option_type : {'call', 'put'}, optional
