@@ -3,6 +3,9 @@
 ``RateTermStructure.is_explicitly_flat`` identifies the flat-rate representation;
 node-based curves return False even when their forward rates are constant.
 Rates use annual decimal units and continuous compounding (0.05 means 5%).
+Model rate properties return scalars only for undated flat curves. Dated flat
+and node-based curves remain owned RateTermStructure values, preserving coverage
+when passed back to constructors or ``replace()``.
 Volatility is annualized and expressed in decimal units. Rate curves
 use the Actual/365 Fixed day-count convention; a calendar's trading-day basis
 applies only to trading-year fractions. ``BusinessDayConvention`` accepts ``"following"``

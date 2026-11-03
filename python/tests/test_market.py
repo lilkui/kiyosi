@@ -9,6 +9,9 @@ from kiyosi import ComputationFailureError, InvalidInputError, pricing
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
+    HestonParameters,
+    LocalVolatilityParameters,
+    LocalVolatilitySurface,
     PricingContext,
     RateTermStructure,
 )
@@ -50,6 +53,47 @@ def vanilla(direction="call", strike=103):
 
 
 class RateTermStructureTests(unittest.TestCase):
+    def test_model_rate_properties_preserve_dated_flat_coverage(self):
+        curve = RateTermStructure.flat(0.03, reference_time=REFERENCE)
+        rates = {"risk_free_rate": curve, "dividend_yield": curve}
+        models = [
+            BlackScholesMertonParameters(**rates, volatility=0.2),
+            HestonParameters(
+                **rates,
+                initial_variance=0.04,
+                long_run_variance=0.04,
+                mean_reversion_speed=1,
+                vol_of_vol=0.2,
+                correlation=-0.5,
+            ),
+            LocalVolatilityParameters(
+                **rates,
+                surface=LocalVolatilitySurface(
+                    times=[REFERENCE - timedelta(days=365), MATURITY],
+                    spots=[50, 150],
+                    values=[[0.2, 0.2], [0.2, 0.2]],
+                ),
+            ),
+        ]
+        for model in models:
+            with self.subTest(model=type(model).__name__):
+                for field in ("risk_free_rate", "dividend_yield"):
+                    copied = getattr(model, field)
+                    self.assertIsInstance(copied, RateTermStructure)
+                    self.assertEqual(copied, curve)
+                    self.assertIsNot(copied, curve)
+                replay = model.replace(
+                    risk_free_rate=model.risk_free_rate,
+                    dividend_yield=model.dividend_yield,
+                )
+                self.assertEqual(replay, model)
+                with self.assertRaises(InvalidInputError):
+                    PricingContext(
+                        model_parameters=replay,
+                        spot_price=100,
+                        valuation_time=REFERENCE - timedelta(days=1),
+                    )
+
     def assert_rejection(self, expected_error, operation, *args, **kwargs):
         with self.assertRaises(expected_error) as error:
             operation(*args, **kwargs)

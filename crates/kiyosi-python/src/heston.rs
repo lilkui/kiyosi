@@ -111,12 +111,12 @@ impl HestonParameters {
             },
         ))?))
     }
-    /// Return the scalar risk-free rate or an owned node-based rate curve.
+    /// Returns an undated scalar risk-free rate or an owned dated curve.
     #[getter]
     fn risk_free_rate(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         python_rate(py, self.0.risk_free_curve())
     }
-    /// Return the scalar dividend yield or an owned node-based rate curve.
+    /// Returns an undated scalar dividend yield or an owned dated curve.
     #[getter]
     fn dividend_yield(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         python_rate(py, self.0.dividend_curve())

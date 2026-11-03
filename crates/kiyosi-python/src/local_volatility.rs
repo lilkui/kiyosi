@@ -197,12 +197,12 @@ impl LocalVolatilityParameters {
     fn dividend_curve(&self) -> RateTermStructure {
         RateTermStructure(self.0.dividend_curve().clone())
     }
-    /// Return a scalar risk-free rate or an owned node-based rate curve.
+    /// Returns an undated scalar risk-free rate or an owned dated curve.
     #[getter]
     fn risk_free_rate(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         crate::market::python_rate(py, self.0.risk_free_curve())
     }
-    /// Return a scalar dividend yield or an owned node-based rate curve.
+    /// Returns an undated scalar dividend yield or an owned dated curve.
     #[getter]
     fn dividend_yield(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         crate::market::python_rate(py, self.0.dividend_curve())
