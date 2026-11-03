@@ -82,6 +82,51 @@ macro_rules! autocallable_properties {
     };
 }
 
+macro_rules! snowball_properties {
+    ($name:ident, $($extra:item),* $(,)?) => {
+        autocallable_properties! {
+            $name,
+            $($extra,)*
+            /// Returns an independent note with its observation coupon schedule shifted.
+            ///
+            /// Parameters
+            /// ----------
+            /// coupon : float
+            ///     New first observation coupon; all observation coupons shift equally.
+            /// quote_convention : CouponQuoteConvention
+            ///     Whether to shift the maturity coupon or preserve it.
+            ///
+            /// Returns
+            /// -------
+            /// object
+            ///     New note of the same type, preserving history and other terms.
+            ///
+            /// Raises
+            /// ------
+            /// InvalidInputError
+            ///     If shifted coupons are non-finite or violate contractual constraints.
+            #[pyo3(signature = (coupon, *, quote_convention))]
+            fn with_coupon(
+                &self,
+                coupon: &Bound<'_, PyAny>,
+                quote_convention: &Bound<'_, PyAny>,
+            ) -> PyResult<Self> {
+                Ok(Self(domain(self.0.with_coupon(real(coupon)?, coupon_convention(quote_convention)?))?))
+            }
+        }
+    };
+}
+
+pub(crate) fn coupon_convention(
+    value: &Bound<'_, PyAny>,
+) -> PyResult<kiyosi::CouponQuoteConvention> {
+    match value.extract::<&str>()? {
+        "shift_maturity_coupon" => Ok(kiyosi::CouponQuoteConvention::ShiftMaturityCoupon),
+        "preserve_maturity_coupon" => Ok(kiyosi::CouponQuoteConvention::PreserveMaturityCoupon),
+        _ => Err(PyValueError::new_err("unknown coupon quote convention")),
+    }
+}
+
 fn state(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::AutocallableBarrierState>> {
     if value.is_none() {
         return Ok(None);
@@ -487,7 +532,7 @@ dates, stages may have no observations, and rates need not decrease."
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct SnowballOption(pub kiyosi::SnowballOption);
-autocallable_properties! {
+snowball_properties! {
     SnowballOption,
     #[new]
     #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
@@ -614,7 +659,7 @@ autocallable_properties! {
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct BinarySnowballOption(pub kiyosi::BinarySnowballOption);
-autocallable_properties! {
+snowball_properties! {
     BinarySnowballOption,
     #[new]
     #[pyo3(signature = (*, maturity_coupon_rate, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
@@ -706,7 +751,7 @@ autocallable_properties! {
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct TernarySnowballOption(pub kiyosi::TernarySnowballOption);
-autocallable_properties! {
+snowball_properties! {
     TernarySnowballOption,
     #[new]
     #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation_mode, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
@@ -884,6 +929,25 @@ autocallable_properties! {
         }
         terms.principal_ratio = principal_ratio;
         Ok(Self(domain(kiyosi::PhoenixOption::new(terms))?))
+    },
+    /// Returns an independent Phoenix note with a coupon in the existing units.
+    ///
+    /// Parameters
+    /// ----------
+    /// coupon : float
+    ///     Finite annual rate or per-period proportion, matching this note's convention.
+    ///
+    /// Returns
+    /// -------
+    /// PhoenixOption
+    ///     New note preserving history, coupon units and all other terms.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInputError
+    ///     If the coupon is non-finite. The original is unchanged.
+    fn with_coupon(&self, coupon: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(domain(self.0.with_coupon(real(coupon)?))?))
     },
     /// Return copied Phoenix coupon thresholds in observation order.
     #[getter]

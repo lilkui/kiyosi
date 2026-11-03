@@ -1908,6 +1908,9 @@ def autocallable_observations(
 ) -> list[AutocallableObservation]: ...
 
 class SnowballOption:
+    def with_coupon(
+        self, coupon: float, *, quote_convention: _pricing.CouponQuoteConvention
+    ) -> Self: ...
     def __init__(
         self,
         *,
@@ -1958,6 +1961,7 @@ class SnowballOption:
     def expiry_date(self) -> date: ...
 
 class PhoenixOption:
+    def with_coupon(self, coupon: float) -> Self: ...
     def __init__(
         self,
         *,
@@ -2011,6 +2015,9 @@ class PhoenixOption:
     def expiry_date(self) -> date: ...
 
 class BinarySnowballOption:
+    def with_coupon(
+        self, coupon: float, *, quote_convention: _pricing.CouponQuoteConvention
+    ) -> Self: ...
     def __init__(
         self,
         *,
@@ -2044,6 +2051,9 @@ class BinarySnowballOption:
     def expiry_date(self) -> date: ...
 
 class TernarySnowballOption:
+    def with_coupon(
+        self, coupon: float, *, quote_convention: _pricing.CouponQuoteConvention
+    ) -> Self: ...
     def __init__(
         self,
         *,

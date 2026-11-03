@@ -44,6 +44,84 @@ def binary(coupon=0.08, maturity=0.06, **changes):
 
 
 class ImpliedCouponTests(unittest.TestCase):
+    def test_coupon_replacements_apply_solved_quotes_without_changing_notes(self):
+        engine = QuadratureAutocallableEngine(asset_step_count=64)
+        context = market()
+        observations = autocallable_observations(
+            [date(2025, 2, 3), END], [110, 105], knock_out_coupon_rates=[0.08, 0.12]
+        )
+        notes = [
+            snowball(observations=observations, maturity_coupon_rate=0.06),
+            binary(observations=observations),
+            instruments.TernarySnowballOption(
+                maturity_coupon_rate=0.06,
+                minimum_coupon_rate=-0.2,
+                knock_in_level=80,
+                knock_in_observation_mode="at_expiry",
+                effective_date=START,
+                expiry_date=END,
+                observations=observations,
+            ),
+        ]
+        for note in notes:
+            for convention in get_args(CouponQuoteConvention):
+                with self.subTest(note=type(note).__name__, convention=convention):
+                    replacement = note.with_coupon(0.18, quote_convention=convention)
+                    self.assertIs(type(replacement), type(note))
+                    self.assertIsNot(replacement, note)
+                    for actual, expected in zip(
+                        replacement.knock_out_coupon_rates, [0.18, 0.22], strict=True
+                    ):
+                        self.assertAlmostEqual(actual, expected, delta=1e-15)
+                    maturity = 0.16 if convention == "shift_maturity_coupon" else 0.06
+                    self.assertAlmostEqual(replacement.maturity_coupon_rate, maturity)
+                    self.assertEqual(replacement.barrier_state, note.barrier_state)
+                    self.assertEqual(
+                        replacement.knock_out_levels, note.knock_out_levels
+                    )
+                    target = engine.price(replacement, context)
+                    solved = implied_coupon(
+                        engine, note, context, target, quote_convention=convention
+                    )
+                    self.assertAlmostEqual(
+                        engine.price(
+                            note.with_coupon(solved, quote_convention=convention),
+                            context,
+                        ),
+                        target,
+                        delta=1e-8,
+                    )
+                    with self.assertRaises(InvalidInputError):
+                        note.with_coupon(math.nan, quote_convention=convention)
+                    with self.assertRaises(TypeError):
+                        note.with_coupon(True, quote_convention=convention)
+            with self.assertRaises(ValueError):
+                note.with_coupon(0.1, quote_convention="unknown")
+            self.assertEqual(note.knock_out_coupon_rates, [0.08, 0.12])
+            self.assertEqual(note.maturity_coupon_rate, 0.06)
+
+        for note in (
+            phoenix(),
+            phoenix(coupon_rate=Ellipsis, coupon_per_period=0.02),
+        ):
+            field = (
+                "coupon_rate" if note.coupon_rate is not None else "coupon_per_period"
+            )
+            original = getattr(note, field)
+            replacement = note.with_coupon(0.18)
+            self.assertEqual(getattr(replacement, field), 0.18)
+            self.assertEqual(replacement.barrier_state, note.barrier_state)
+            self.assertEqual(replacement.observations, note.observations)
+            target = engine.price(replacement, context)
+            solved = implied_coupon(engine, note, context, target)
+            self.assertAlmostEqual(
+                engine.price(note.with_coupon(solved), context), target, delta=1e-8
+            )
+            for value, error in ((math.inf, InvalidInputError), (True, TypeError)):
+                with self.assertRaises(error):
+                    note.with_coupon(value)
+            self.assertEqual(getattr(note, field), original)
+
     def test_phoenix_quote_convention_default_can_be_forwarded(self):
         engine = QuadratureAutocallableEngine(asset_step_count=64)
         note, context = phoenix(), market()

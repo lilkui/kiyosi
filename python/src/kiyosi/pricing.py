@@ -139,6 +139,8 @@ Unsupported coupon-solver instruments are rejected before checking this choice.
 Phoenix solves preserve the contract's coupon units: annual rate for annual
 coupons, fixed per-period proportion for FCN/DCN. Bounds, parameter tolerance
 and the returned value use the same units.
+Apply the result with ``note.with_coupon(coupon, quote_convention=convention)``
+for snowballs or ``note.with_coupon(coupon)`` for Phoenix, then price the new note.
 
 Examples
 --------

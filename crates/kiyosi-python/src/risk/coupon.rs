@@ -3,9 +3,9 @@ use crate::engines::finite_difference;
 use crate::engines::monte_carlo;
 use crate::engines::quadrature::QuadratureAutocallableEngine;
 use crate::error::domain;
-use crate::instruments::autocallable::AutocallableInstrument;
+use crate::instruments::autocallable::{AutocallableInstrument, coupon_convention};
 use crate::market::PricingContext;
-use pyo3::exceptions::{PyTypeError, PyValueError};
+use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 /// Solve the coupon that reproduces an observed price in the contract's units.
 ///
@@ -152,11 +152,7 @@ where
         ($note:expr) => {{
             let convention = convention
                 .ok_or_else(|| PyTypeError::new_err("snowballs require quote_convention"))?;
-            let convention = match convention.extract::<&str>()? {
-                "shift_maturity_coupon" => kiyosi::CouponQuoteConvention::ShiftMaturityCoupon,
-                "preserve_maturity_coupon" => kiyosi::CouponQuoteConvention::PreserveMaturityCoupon,
-                _ => return Err(PyValueError::new_err("unknown coupon quote convention")),
-            };
+            let convention = coupon_convention(convention)?;
             let note = &$note.0;
             domain(py.detach(|| {
                 kiyosi::implied_snowball_coupon(

@@ -13,6 +13,9 @@ History describes events strictly before valuation; a current observation
 is evaluated from the current spot. ``replace()`` replaces constructor terms on vanilla and digital contracts.
 ``replace_history()`` updates only prior history on path-dependent contracts.
 Both return new contracts and expose named keyword-only fields through ``inspect.signature``.
+Autocallable ``with_coupon(coupon, ...)`` returns a new note using the same
+quote convention and coupon units as ``pricing.implied_coupon``. Snowballs
+require ``quote_convention``; Phoenix preserves annual or per-period units.
 Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
 values. Explicit ``None`` clears nullable history and is rejected for fields
 that require a value.
