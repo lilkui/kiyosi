@@ -26,14 +26,14 @@ impl PricingEngine<Accumulator> for TerminalReference {
                 OptionType::Put,
                 level,
                 option.strike(),
-                option.effective_midnight_utc(),
-                option.expiry_midnight_utc(),
+                option.effective_date(),
+                option.expiry_date(),
             )?;
             let asset = DigitalOption::asset_or_nothing(
                 OptionType::Put,
                 level,
-                option.effective_midnight_utc(),
-                option.expiry_midnight_utc(),
+                option.effective_date(),
+                option.expiry_date(),
             )?;
             Ok(AnalyticDigitalEngine.price(&asset, context)?
                 - AnalyticDigitalEngine.price(&cash, context)?)
@@ -41,15 +41,13 @@ impl PricingEngine<Accumulator> for TerminalReference {
         let model = context.model_parameters().as_bsm().unwrap();
         let fixed = option.accumulated_quantity().unwrap()
             * (context.spot_price()
-                * model.dividend_curve().factor(
-                    context.valuation_time(),
-                    option.expiry_midnight_utc().into(),
-                )?
+                * model
+                    .dividend_curve()
+                    .factor(context.valuation_time(), option.expiry_date().into())?
                 - option.strike()
-                    * model.risk_free_curve().factor(
-                        context.valuation_time(),
-                        option.expiry_midnight_utc().into(),
-                    )?);
+                    * model
+                        .risk_free_curve()
+                        .factor(context.valuation_time(), option.expiry_date().into())?);
         let purchase = if option.knock_out_level() > option.strike() {
             lower(option.knock_out_level())?
                 + (option.acceleration_factor() - 1.0) * lower(option.strike())?
@@ -116,8 +114,8 @@ fn history_replacement_owns_validated_values_and_preserves_terms() {
     assert_eq!(option.knock_out_level(), 110.0);
     assert_eq!(option.daily_quantity(), 1.0);
     assert_eq!(option.acceleration_factor(), 2.0);
-    assert_eq!(option.effective_midnight_utc(), day(1, 1));
-    assert_eq!(option.expiry_midnight_utc(), day(2, 3));
+    assert_eq!(option.effective_date(), day(1, 1));
+    assert_eq!(option.expiry_date(), day(2, 3));
 }
 
 #[test]
@@ -142,7 +140,7 @@ fn validation_categories_and_order_preserve_accepted_degenerate_terms() {
     t.daily_quantity = 0.0;
     t.acceleration_factor = 0.0;
     assert!(Accumulator::new(t.clone()).is_ok());
-    t.expiry_midnight_utc = Date::new(2024, 12, 31).unwrap();
+    t.expiry_date = Date::new(2024, 12, 31).unwrap();
     assert!(matches!(
         Accumulator::new(t.clone()).unwrap_err(),
         Error::InvalidInput(_)

@@ -45,15 +45,15 @@ class DigitalTests(unittest.TestCase):
         self.terms = {
             "option_type": "call",
             "strike": 100,
-            "effective_midnight_utc": date(2025, 1, 1),
-            "expiry_midnight_utc": date(2026, 1, 1),
+            "effective_date": date(2025, 1, 1),
+            "expiry_date": date(2026, 1, 1),
         }
         self.context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
             ),
             spot_price=100,
-            valuation_time=self.terms["effective_midnight_utc"],
+            valuation_time=self.terms["effective_date"],
         )
         self.engine = AnalyticDigitalEngine()
 
@@ -95,12 +95,8 @@ class DigitalTests(unittest.TestCase):
                 )
             self.assertEqual(option.option_type, "call")
             self.assertEqual(option.strike, 100)
-            self.assertEqual(
-                option.effective_midnight_utc, self.terms["effective_midnight_utc"]
-            )
-            self.assertEqual(
-                option.expiry_midnight_utc, self.terms["expiry_midnight_utc"]
-            )
+            self.assertEqual(option.effective_date, self.terms["effective_date"])
+            self.assertEqual(option.expiry_date, self.terms["expiry_date"])
             self.assertEqual(option, cls(**self.terms, **extra))
             with self.assertRaises(AttributeError):
                 option.strike = 105
@@ -121,10 +117,8 @@ class DigitalTests(unittest.TestCase):
             option = cls(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
-                effective_midnight_utc=date.fromisoformat(
-                    inputs["effective_midnight_utc"]
-                ),
-                expiry_midnight_utc=date.fromisoformat(inputs["expiry_midnight_utc"]),
+                effective_date=date.fromisoformat(inputs["effective_date"]),
+                expiry_date=date.fromisoformat(inputs["expiry_date"]),
                 **({"payout": inputs["payout"]} if inputs["payoff"] == "cash" else {}),
             )
             context = PricingContext(
@@ -139,9 +133,7 @@ class DigitalTests(unittest.TestCase):
             with ql.SavedSettings():
                 reference, uncertainty = oracle.reference(inputs, digital.STABILITY)
             # Reference time Greeks are unavailable when a whole-day stencil reaches expiry.
-            smooth = (
-                option.expiry_midnight_utc - context.valuation_time.date()
-            ).days > 2
+            smooth = (option.expiry_date - context.valuation_time.date()).days > 2
             names = (
                 tuple(reference.keys() - {"price"}) if smooth else ("delta", "gamma")
             )
@@ -173,7 +165,7 @@ class DigitalTests(unittest.TestCase):
                             )
 
     def test_strict_expiry_payoffs_and_valuation_boundaries(self):
-        end = self.terms["expiry_midnight_utc"]
+        end = self.terms["expiry_date"]
         for direction in ("call", "put"):
             for spot in (
                 99,
@@ -243,7 +235,7 @@ class DigitalTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 cls,
-                **dict(self.terms, expiry_midnight_utc=date(2024, 1, 1)),
+                **dict(self.terms, expiry_date=date(2024, 1, 1)),
                 **extra,
             )
             for field in ("strike", *extra):
@@ -260,7 +252,7 @@ class DigitalTests(unittest.TestCase):
                     cls(**dict(self.terms, option_type=value), **extra)
             with self.assertRaises(ValueError):
                 cls(**dict(self.terms, option_type="Call"), **extra)
-            for field in ("effective_midnight_utc", "expiry_midnight_utc"):
+            for field in ("effective_date", "expiry_date"):
                 for value in ("2025-01-01", None, datetime(2025, 1, 1)):
                     with self.assertRaises(TypeError):
                         cls(**dict(self.terms, **{field: value}), **extra)
@@ -378,10 +370,7 @@ class DigitalTests(unittest.TestCase):
             self.engine.price(EuropeanOption(**self.terms), self.context)
 
     def test_curves_coverage_time_knots_and_concurrency(self):
-        start, end = (
-            self.terms["effective_midnight_utc"],
-            self.terms["expiry_midnight_utc"],
-        )
+        start, end = self.terms["effective_date"], self.terms["expiry_date"]
         knot = start + timedelta(days=180)
         curve = RateTermStructure(
             reference_time=start,

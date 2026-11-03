@@ -46,8 +46,8 @@ class AmericanTests(unittest.TestCase):
         self.terms = {
             "option_type": "call",
             "strike": 100,
-            "effective_midnight_utc": date(2025, 1, 1),
-            "expiry_midnight_utc": date(2026, 1, 1),
+            "effective_date": date(2025, 1, 1),
+            "expiry_date": date(2026, 1, 1),
         }
         self.option = AmericanOption(**self.terms)
         self.context = self.market()
@@ -59,7 +59,7 @@ class AmericanTests(unittest.TestCase):
                 risk_free_rate=rate, dividend_yield=dividend, volatility=volatility
             ),
             spot_price=spot,
-            valuation_time=at or self.terms["effective_midnight_utc"],
+            valuation_time=at or self.terms["effective_date"],
         )
 
     def assert_rejection(self, expected, call, *args, **kwargs):
@@ -89,7 +89,7 @@ class AmericanTests(unittest.TestCase):
             )
 
     def test_expiry_and_microsecond_exercise_boundaries(self):
-        end = self.terms["expiry_midnight_utc"]
+        end = self.terms["expiry_date"]
         for direction in ("call", "put"):
             option = AmericanOption(**dict(self.terms, option_type=direction))
             for spot in (90, 100, 110):
@@ -123,7 +123,7 @@ class AmericanTests(unittest.TestCase):
                 ),
                 0,
             )
-        same_day = AmericanOption(**dict(self.terms, effective_midnight_utc=end))
+        same_day = AmericanOption(**dict(self.terms, effective_date=end))
         self.assertEqual(self.engine.price(same_day, self.market(spot=110, at=end)), 10)
 
     def test_construction_protocols_validation_order_and_ownership(self):
@@ -131,20 +131,20 @@ class AmericanTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 AmericanOption,
-                **dict(self.terms, strike=strike, expiry_midnight_utc=date(2024, 1, 1)),
+                **dict(self.terms, strike=strike, expiry_date=date(2024, 1, 1)),
             )
         self.assert_rejection(
             InvalidInputError,
             AmericanOption,
-            **dict(self.terms, expiry_midnight_utc=date(2024, 1, 1)),
+            **dict(self.terms, expiry_date=date(2024, 1, 1)),
         )
         for fields in (
             {"strike": True},
             {"strike": "100"},
             {"strike": 1 + 0j},
             {"strike": None},
-            {"effective_midnight_utc": datetime(2025, 1, 1)},
-            {"expiry_midnight_utc": "2026-01-01"},
+            {"effective_date": datetime(2025, 1, 1)},
+            {"expiry_date": "2026-01-01"},
             {"option_type": 1},
             {"unknown": 1},
         ):
@@ -158,12 +158,8 @@ class AmericanTests(unittest.TestCase):
             AmericanOption(**dict(self.terms, strike=Fraction(201, 2))).strike, 100.5
         )
         self.assertEqual(self.option, AmericanOption(**self.terms))
-        self.assertEqual(
-            self.option.effective_midnight_utc, self.terms["effective_midnight_utc"]
-        )
-        self.assertEqual(
-            self.option.expiry_midnight_utc, self.terms["expiry_midnight_utc"]
-        )
+        self.assertEqual(self.option.effective_date, self.terms["effective_date"])
+        self.assertEqual(self.option.expiry_date, self.terms["expiry_date"])
         self.assertEqual(self.option.option_type, "call")
         with self.assertRaises(AttributeError):
             self.option.strike = 105
@@ -195,14 +191,14 @@ class AmericanTests(unittest.TestCase):
                     "delta",
                 )
             curve = RateTermStructure(
-                reference_time=self.terms["effective_midnight_utc"],
-                times=[self.terms["expiry_midnight_utc"]],
+                reference_time=self.terms["effective_date"],
+                times=[self.terms["expiry_date"]],
                 factors=[math.exp(-0.05)],
             )
             for context in (
                 self.market(rate=curve),
                 self.market(dividend=curve),
-                self.market(rate=curve, at=self.terms["expiry_midnight_utc"]),
+                self.market(rate=curve, at=self.terms["expiry_date"]),
             ):
                 self.assert_rejection(
                     UnsupportedOperationError,
@@ -227,7 +223,7 @@ class AmericanTests(unittest.TestCase):
                 )
         explicit = self.market(
             rate=RateTermStructure.flat(
-                0.05, reference_time=self.terms["effective_midnight_utc"]
+                0.05, reference_time=self.terms["effective_date"]
             ),
             dividend=RateTermStructure.flat(0.03),
         )
@@ -408,10 +404,8 @@ class AmericanTests(unittest.TestCase):
             option = AmericanOption(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
-                effective_midnight_utc=date.fromisoformat(
-                    inputs["effective_midnight_utc"]
-                ),
-                expiry_midnight_utc=date.fromisoformat(inputs["expiry_midnight_utc"]),
+                effective_date=date.fromisoformat(inputs["effective_date"]),
+                expiry_date=date.fromisoformat(inputs["expiry_date"]),
             )
             context = self.market(
                 inputs["spot"],

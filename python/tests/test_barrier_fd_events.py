@@ -37,8 +37,8 @@ def option(up, barrier, *, dates=(END,), timing="at_expiry", knock_in=False):
     return BarrierOption(
         option_type="call" if up else "put",
         strike=100,
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        effective_date=START,
+        expiry_date=END,
         barrier_level=barrier,
         barrier_type=f"{'up' if up else 'down'}_and_{'in' if knock_in else 'out'}",
         rebate=2,
@@ -143,8 +143,8 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
             direction = "call" if up else "put"
             common = {
                 "option_type": direction,
-                "effective_midnight_utc": START,
-                "expiry_midnight_utc": END,
+                "effective_date": START,
+                "expiry_date": END,
             }
             vanilla = pricing.AnalyticEuropeanEngine().price_with_greeks(
                 EuropeanOption(strike=100, **common), market, ["delta", "gamma"]
@@ -209,8 +209,8 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
             contract = BarrierOption(
                 option_type="call",
                 strike=100,
-                effective_midnight_utc=START,
-                expiry_midnight_utc=END,
+                effective_date=START,
+                expiry_date=END,
                 barrier_level=110,
                 barrier_type="up_and_out",
                 rebate=rebate,
@@ -227,8 +227,8 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
             contract = BarrierOption(
                 option_type="call" if up else "put",
                 strike=100,
-                effective_midnight_utc=START,
-                expiry_midnight_utc=end,
+                effective_date=START,
+                expiry_date=end,
                 barrier_level=110.125 if up else 90.125,
                 barrier_type="up_and_out" if up else "down_and_out",
                 rebate=2,
@@ -354,8 +354,8 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
                                 EuropeanOption(
                                     option_type="call" if up else "put",
                                     strike=100,
-                                    effective_midnight_utc=START,
-                                    expiry_midnight_utc=END,
+                                    effective_date=START,
+                                    expiry_date=END,
                                 ),
                                 market,
                             )
@@ -381,8 +381,8 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
             contract = BarrierOption(
                 option_type="put" if up else "call",
                 strike=100,
-                effective_midnight_utc=START,
-                expiry_midnight_utc=END,
+                effective_date=START,
+                expiry_date=END,
                 barrier_level=110.125 if up else 90.125,
                 barrier_type="up_and_out" if up else "down_and_out",
                 rebate=2,

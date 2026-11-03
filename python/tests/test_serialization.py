@@ -21,7 +21,7 @@ def price_in_worker(engine, option, context):
 
 
 def values():
-    life = {"effective_midnight_utc": START, "expiry_midnight_utc": END}
+    life = {"effective_date": START, "expiry_date": END}
     vanilla = {"option_type": "call", "strike": 100, **life}
     curve = m.RateTermStructure(
         reference_time=START, times=[END], factors=[0.99]
@@ -204,8 +204,8 @@ class SerializationTests(unittest.TestCase):
         option = i.EuropeanOption(
             option_type="call",
             strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            effective_date=START,
+            expiry_date=END,
         )
         context = m.PricingContext(
             model_parameters=m.BlackScholesMertonParameters(
@@ -243,7 +243,7 @@ class SerializationTests(unittest.TestCase):
                 {
                     "option_type": "call",
                     "strike": -1,
-                    "effective_midnight_utc": START,
-                    "expiry_midnight_utc": END,
+                    "effective_date": START,
+                    "expiry_date": END,
                 },
             )

@@ -63,22 +63,22 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
             direction,
             level,
             option.strike(),
-            option.effective_midnight_utc(),
-            option.expiry_midnight_utc(),
+            option.effective_date(),
+            option.expiry_date(),
         )
         .unwrap();
         let asset = DigitalOption::asset_or_nothing(
             direction,
             level,
-            option.effective_midnight_utc(),
-            option.expiry_midnight_utc(),
+            option.effective_date(),
+            option.expiry_date(),
         )
         .unwrap();
         AnalyticDigitalEngine.price(&asset, context).unwrap()
             - AnalyticDigitalEngine.price(&cash, context).unwrap()
     };
     let model = context.model_parameters().as_bsm().unwrap();
-    let expiry = option.expiry_midnight_utc().into();
+    let expiry = option.expiry_date().into();
     let forward = context.spot_price()
         * model
             .dividend_curve()
@@ -91,7 +91,7 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
                 .unwrap();
     let observed = option
         .knock_out_observation_dates()
-        .is_none_or(|dates| dates.contains(&option.expiry_midnight_utc()));
+        .is_none_or(|dates| dates.contains(&option.expiry_date()));
     let accelerated = if option.option_type() == OptionType::Call {
         OptionType::Put
     } else {
@@ -150,7 +150,7 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
     }
     for direction in [OptionType::Call, OptionType::Put] {
         let mut t = terms(direction, Some(Vec::new()));
-        t.effective_midnight_utc = day(6);
+        t.effective_date = day(6);
         t.daily_quantity = 0.25;
         t.acceleration_factor = 0.5;
         t.accumulated_quantity = Some(0.5);

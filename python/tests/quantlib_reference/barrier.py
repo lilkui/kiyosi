@@ -69,7 +69,7 @@ def price(items):
         "knock-in cannot rebate at hit",
     )
     valuation = ql.DateParser.parseISO(inputs["valuation"])
-    expiry_midnight_utc = ql.DateParser.parseISO(inputs["expiry_midnight_utc"])
+    expiry_date = ql.DateParser.parseISO(inputs["expiry_date"])
     ql.Settings.instance().evaluationDate = valuation
     process = g.market_process(inputs)
     rates = process.riskFreeRate()
@@ -77,7 +77,7 @@ def price(items):
         ql.Option.Call if inputs["option"] == "call" else ql.Option.Put,
         inputs["strike"],
     )
-    exercise = ql.EuropeanExercise(expiry_midnight_utc)
+    exercise = ql.EuropeanExercise(expiry_date)
 
     def barrier_value(BarrierType, rebate):
         contract = ql.BarrierOption(
@@ -91,7 +91,7 @@ def price(items):
             0,
             ql.WeekendsOnly(),
             inputs["rebate"],
-            expiry_midnight_utc,
+            expiry_date,
             ql.Unadjusted,
             100,
             valuation,
@@ -132,7 +132,7 @@ def scenarios():
             for settlement in (
                 ("at_expiry",) if kind.endswith("_in") else ("at_hit", "at_expiry")
             ):
-                # Compact paired matrix, plus a strictly already-hit state and expiry_midnight_utc boundary.
+                # Compact paired matrix, plus a strictly already-hit state and expiry_date boundary.
                 for spot, days in (
                     (80, 30),
                     (100, 365),
@@ -147,9 +147,9 @@ def scenarios():
                         "rate": 0.04,
                         "dividend": 0.01,
                         "volatility": 0.3,
-                        "effective_midnight_utc": "2024-12-30",
+                        "effective_date": "2024-12-30",
                         "valuation": "2025-01-06",
-                        "expiry_midnight_utc": (
+                        "expiry_date": (
                             date(2025, 1, 6) + timedelta(days=days)
                         ).isoformat(),
                         "BarrierType": kind,
@@ -166,7 +166,7 @@ def scenarios():
 
 def check_bindings():
     """Probe the pinned binding, including actual engine restrictions."""
-    valuation, expiry_midnight_utc = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
+    valuation, expiry_date = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
     process = g.market_process(
         {
             "valuation": "2025-01-06",
@@ -180,12 +180,12 @@ def check_bindings():
     for payoff, exercise, error in (
         (
             ql.CashOrNothingPayoff(ql.Option.Call, 100, 10),
-            ql.EuropeanExercise(expiry_midnight_utc),
+            ql.EuropeanExercise(expiry_date),
             "non-plain payoff given",
         ),
         (
             vanilla,
-            ql.AmericanExercise(valuation, expiry_midnight_utc),
+            ql.AmericanExercise(valuation, expiry_date),
             "only european style option are supported",
         ),
     ):
@@ -198,7 +198,7 @@ def check_bindings():
         else:
             raise AssertionError("unexpected analytic barrier binding support")
     contract = ql.BarrierOption(
-        ql.Barrier.UpOut, 140, 10, vanilla, ql.EuropeanExercise(expiry_midnight_utc)
+        ql.Barrier.UpOut, 140, 10, vanilla, ql.EuropeanExercise(expiry_date)
     )
     contract.setPricingEngine(ql.AnalyticBarrierEngine(process))
     assert math.isfinite(contract.NPV())
@@ -214,7 +214,7 @@ def check_bindings():
         for at_expiry in (False, True):
             touch = ql.VanillaOption(
                 ql.CashOrNothingPayoff(direction, level, 10),
-                ql.AmericanExercise(valuation, expiry_midnight_utc, at_expiry),
+                ql.AmericanExercise(valuation, expiry_date, at_expiry),
             )
             touch.setPricingEngine(ql.AnalyticDigitalAmericanEngine(process))
             inputs = {
@@ -224,9 +224,9 @@ def check_bindings():
                 "rate": 0.04,
                 "dividend": 0.01,
                 "volatility": 0.3,
-                "effective_midnight_utc": "2024-12-30",
+                "effective_date": "2024-12-30",
                 "valuation": "2025-01-06",
-                "expiry_midnight_utc": "2026-01-06",
+                "expiry_date": "2026-01-06",
                 "BarrierType": "up_and_out"
                 if direction == ql.Option.Call
                 else "down_and_out",

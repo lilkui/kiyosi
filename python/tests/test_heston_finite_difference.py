@@ -43,10 +43,7 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
         self.assertLess(fixture["refinement_uncertainty"], budget / 10)
         engine = FiniteDifferenceHestonVanillaEngine()
         contract = AmericanOption(
-            option_type="put",
-            strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            option_type="put", strike=100, effective_date=START, expiry_date=END
         )
         actual = engine.price(contract, context())
         self.assertAlmostEqual(actual, reference_price, delta=budget)
@@ -61,10 +58,7 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
             actual, engine.price(option(option_type="put"), context())
         )
         call = AmericanOption(
-            option_type="call",
-            strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            option_type="call", strike=100, effective_date=START, expiry_date=END
         )
         snapshot = context(model(dividend_yield=0))
         expected = AnalyticHestonEuropeanEngine().price(option(), snapshot)
@@ -171,8 +165,8 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
         contract = AmericanOption(
             option_type="put",
             strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=date(2028, 1, 1),
+            effective_date=START,
+            expiry_date=date(2028, 1, 1),
         )
         optimum = math.log(5 / 6) / -0.15
         expected = 100 * math.exp(-0.05 * optimum) - 30 * math.exp(-0.2 * optimum)
@@ -205,10 +199,7 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
             long_run_variance=0,
         )
         contract = AmericanOption(
-            option_type="put",
-            strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            option_type="put", strike=100, effective_date=START, expiry_date=END
         )
         self.assertAlmostEqual(
             engine.price(contract, context(parameters, spot_price=0.01)),
@@ -326,7 +317,7 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
             (END, 50),
             (END, 150),
         ):
-            contract = option(expiry_midnight_utc=expiry, strike=strike)
+            contract = option(expiry_date=expiry, strike=strike)
             ref = AnalyticHestonEuropeanEngine().price(contract, context())
             with self.subTest(expiry=expiry, strike=strike):
                 self.assertAlmostEqual(
@@ -380,7 +371,7 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
 
     def test_refined_tail_price_uses_relative_acceptance(self):
         contract = option(
-            option_type="put", strike=70, expiry_midnight_utc=START + timedelta(days=30)
+            option_type="put", strike=70, expiry_date=START + timedelta(days=30)
         )
         expected = 3.105513031411244e-6
         estimates = [

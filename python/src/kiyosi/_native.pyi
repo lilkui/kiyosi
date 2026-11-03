@@ -56,25 +56,25 @@ class EuropeanOption:
         *,
         option_type: Literal["call", "put"],
         strike: float,
-        effective_midnight_utc: date,
-        expiry_midnight_utc: date,
+        effective_date: date,
+        expiry_date: date,
     ) -> None: ...
     def replace(
         self,
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
         strike: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
     ) -> EuropeanOption: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
     @property
     def strike(self) -> float: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
 
 class AmericanOption:
     def __init__(
@@ -82,25 +82,25 @@ class AmericanOption:
         *,
         option_type: Literal["call", "put"],
         strike: float,
-        effective_midnight_utc: date,
-        expiry_midnight_utc: date,
+        effective_date: date,
+        expiry_date: date,
     ) -> None: ...
     def replace(
         self,
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
         strike: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
     ) -> AmericanOption: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
     @property
     def strike(self) -> float: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
 
 class CashOrNothingOption:
     def __init__(
@@ -109,8 +109,8 @@ class CashOrNothingOption:
         option_type: Literal["call", "put"],
         strike: float,
         payout: float,
-        effective_midnight_utc: date,
-        expiry_midnight_utc: date,
+        effective_date: date,
+        expiry_date: date,
     ) -> None: ...
     def replace(
         self,
@@ -118,8 +118,8 @@ class CashOrNothingOption:
         option_type: Literal["call", "put"] | EllipsisType = ...,
         strike: float | EllipsisType = ...,
         payout: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
     ) -> CashOrNothingOption: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
@@ -128,9 +128,9 @@ class CashOrNothingOption:
     @property
     def payout(self) -> float: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
 
 class AssetOrNothingOption:
     def __init__(
@@ -138,25 +138,25 @@ class AssetOrNothingOption:
         *,
         option_type: Literal["call", "put"],
         strike: float,
-        effective_midnight_utc: date,
-        expiry_midnight_utc: date,
+        effective_date: date,
+        expiry_date: date,
     ) -> None: ...
     def replace(
         self,
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
         strike: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
     ) -> AssetOrNothingOption: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
     @property
     def strike(self) -> float: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
 
 class RateTermStructure:
     def __init__(
@@ -1377,9 +1377,9 @@ class GeometricAveragePriceOption:
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
         strike: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
         averaging_start_date: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         realized_average: float | EllipsisType = ...,
     ) -> Self: ...
     def __init__(
@@ -1387,9 +1387,9 @@ class GeometricAveragePriceOption:
         *,
         option_type: Literal["call", "put"],
         strike: float,
-        effective_midnight_utc: date,
+        effective_date: date,
         averaging_start_date: date,
-        expiry_midnight_utc: date,
+        expiry_date: date,
         realized_average: float = ...,
     ) -> None: ...
     def replace_history(
@@ -1400,11 +1400,11 @@ class GeometricAveragePriceOption:
     @property
     def strike(self) -> float: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
     def averaging_start_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
     @property
     def realized_average(self) -> float: ...
 
@@ -1431,9 +1431,9 @@ class ArithmeticAveragePriceOption:
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
         strike: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
         averaging_start_date: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         realized_average: float | EllipsisType = ...,
     ) -> Self: ...
     def __init__(
@@ -1441,9 +1441,9 @@ class ArithmeticAveragePriceOption:
         *,
         option_type: Literal["call", "put"],
         strike: float,
-        effective_midnight_utc: date,
+        effective_date: date,
         averaging_start_date: date,
-        expiry_midnight_utc: date,
+        expiry_date: date,
         realized_average: float = ...,
     ) -> None: ...
     def replace_history(
@@ -1454,11 +1454,11 @@ class ArithmeticAveragePriceOption:
     @property
     def strike(self) -> float: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
     def averaging_start_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
     @property
     def realized_average(self) -> float: ...
 
@@ -1485,8 +1485,8 @@ class BarrierOption:
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
         strike: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         barrier_level: float | EllipsisType = ...,
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"]
         | EllipsisType = ...,
@@ -1501,8 +1501,8 @@ class BarrierOption:
         *,
         option_type: Literal["call", "put"],
         strike: float,
-        effective_midnight_utc: date,
-        expiry_midnight_utc: date,
+        effective_date: date,
+        expiry_date: date,
         barrier_level: float,
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
         rebate: float = ...,
@@ -1521,9 +1521,9 @@ class BarrierOption:
     @property
     def strike(self) -> float: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
     @property
     def barrier_level(self) -> float: ...
     @property
@@ -1566,8 +1566,8 @@ class DoubleBarrierOption:
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
         strike: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         lower_barrier: float | EllipsisType = ...,
         upper_barrier: float | EllipsisType = ...,
         barrier_type: Literal["knock_in", "knock_out"] | EllipsisType = ...,
@@ -1582,8 +1582,8 @@ class DoubleBarrierOption:
         *,
         option_type: Literal["call", "put"],
         strike: float,
-        effective_midnight_utc: date,
-        expiry_midnight_utc: date,
+        effective_date: date,
+        expiry_date: date,
         lower_barrier: float,
         upper_barrier: float,
         barrier_type: Literal["knock_in", "knock_out"],
@@ -1603,9 +1603,9 @@ class DoubleBarrierOption:
     @property
     def strike(self) -> float: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
     @property
     def lower_barrier(self) -> float: ...
     @property
@@ -1635,8 +1635,8 @@ class RangeAccrualOption:
         annual_coupon_rate: float | EllipsisType = ...,
         lower_bound: float | EllipsisType = ...,
         upper_bound: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         realized_hit_count: int | None | EllipsisType = ...,
     ) -> Self: ...
     def __init__(
@@ -1646,8 +1646,8 @@ class RangeAccrualOption:
         annual_coupon_rate: float,
         lower_bound: float,
         upper_bound: float,
-        effective_midnight_utc: date,
-        expiry_midnight_utc: date,
+        effective_date: date,
+        expiry_date: date,
         realized_hit_count: int | None = ...,
     ) -> None: ...
     def replace_history(
@@ -1662,9 +1662,9 @@ class RangeAccrualOption:
     @property
     def upper_bound(self) -> float: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
     @property
     def realized_hit_count(self) -> int | None: ...
 
@@ -1725,8 +1725,8 @@ class BinaryBarrierOption:
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
         strike: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         barrier_level: float | EllipsisType = ...,
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"]
         | EllipsisType = ...,
@@ -1742,9 +1742,9 @@ class BinaryBarrierOption:
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
     ) -> Self: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
     @property
     def barrier_level(self) -> float: ...
     @property
@@ -1774,8 +1774,8 @@ class TouchOption:
     def replace(
         self,
         *,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         barrier_level: float | EllipsisType = ...,
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"]
         | EllipsisType = ...,
@@ -1792,9 +1792,9 @@ class TouchOption:
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
     ) -> Self: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
     @property
     def barrier_level(self) -> float: ...
     @property
@@ -1826,8 +1826,8 @@ def cash_binary_barrier_option(
     *,
     option_type: Literal["call", "put"],
     strike: float,
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_level: float,
     barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
     payout: float,
@@ -1839,8 +1839,8 @@ def asset_binary_barrier_option(
     *,
     option_type: Literal["call", "put"],
     strike: float,
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_level: float,
     barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
     observation_mode: Literal["continuous", "scheduled"] = ...,
@@ -1849,8 +1849,8 @@ def asset_binary_barrier_option(
 ) -> BinaryBarrierOption: ...
 def cash_touch_option(
     *,
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_level: float,
     barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
     payout: float,
@@ -1861,8 +1861,8 @@ def cash_touch_option(
 ) -> TouchOption: ...
 def asset_touch_option(
     *,
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_level: float,
     barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
@@ -1892,8 +1892,8 @@ class DoubleTouchOption:
     def replace(
         self,
         *,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         lower_barrier: float | EllipsisType = ...,
         upper_barrier: float | EllipsisType = ...,
         barrier_type: Literal["knock_in", "knock_out"] | EllipsisType = ...,
@@ -1910,9 +1910,9 @@ class DoubleTouchOption:
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
     ) -> Self: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
     @property
     def lower_barrier(self) -> float: ...
     @property
@@ -1934,8 +1934,8 @@ class DoubleTouchOption:
 
 def cash_double_touch(
     *,
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     lower_barrier: float,
     upper_barrier: float,
     payout: float,
@@ -1946,8 +1946,8 @@ def cash_double_touch(
 ) -> DoubleTouchOption: ...
 def cash_double_no_touch(
     *,
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     lower_barrier: float,
     upper_barrier: float,
     payout: float,
@@ -2031,8 +2031,8 @@ class SnowballOption:
         | None
         | EllipsisType = ...,
         principal_ratio: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
     ) -> Self: ...
     def with_coupon(
@@ -2047,8 +2047,8 @@ class SnowballOption:
         upper_strike: float,
         lower_strike: float,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
-        effective_midnight_utc: date,
-        expiry_midnight_utc: date,
+        effective_date: date,
+        expiry_date: date,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_ratio: float = ...,
@@ -2089,9 +2089,9 @@ class SnowballOption:
         self,
     ) -> Literal["no_event", "knocked_in", "knocked_out"] | None: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
 
 class PhoenixOption:
     @overload
@@ -2110,8 +2110,8 @@ class PhoenixOption:
         | None
         | EllipsisType = ...,
         principal_ratio: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
     ) -> Self: ...
     @overload
@@ -2130,8 +2130,8 @@ class PhoenixOption:
         | None
         | EllipsisType = ...,
         principal_ratio: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
     ) -> Self: ...
     @overload
@@ -2150,8 +2150,8 @@ class PhoenixOption:
         | None
         | EllipsisType = ...,
         principal_ratio: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
     ) -> Self: ...
     def with_coupon(self, coupon: float) -> Self: ...
@@ -2166,8 +2166,8 @@ class PhoenixOption:
         upper_strike: float,
         lower_strike: float,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
-        effective_midnight_utc: date,
-        expiry_midnight_utc: date,
+        effective_date: date,
+        expiry_date: date,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_ratio: float = ...,
@@ -2183,8 +2183,8 @@ class PhoenixOption:
         upper_strike: float,
         lower_strike: float,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
-        effective_midnight_utc: date,
-        expiry_midnight_utc: date,
+        effective_date: date,
+        expiry_date: date,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_ratio: float = ...,
@@ -2227,9 +2227,9 @@ class PhoenixOption:
         self,
     ) -> Literal["no_event", "knocked_in", "knocked_out"] | None: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
 
 class BinarySnowballOption:
     def replace(
@@ -2240,8 +2240,8 @@ class BinarySnowballOption:
         | None
         | EllipsisType = ...,
         principal_ratio: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
     ) -> Self: ...
     def with_coupon(
@@ -2251,8 +2251,8 @@ class BinarySnowballOption:
         self,
         *,
         maturity_coupon_rate: float,
-        effective_midnight_utc: date,
-        expiry_midnight_utc: date,
+        effective_date: date,
+        expiry_date: date,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_ratio: float = ...,
@@ -2281,9 +2281,9 @@ class BinarySnowballOption:
         self,
     ) -> Literal["no_event", "knocked_in", "knocked_out"] | None: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
 
 class TernarySnowballOption:
     def replace(
@@ -2298,8 +2298,8 @@ class TernarySnowballOption:
         | None
         | EllipsisType = ...,
         principal_ratio: float | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
     ) -> Self: ...
     def with_coupon(
@@ -2312,8 +2312,8 @@ class TernarySnowballOption:
         minimum_coupon_rate: float,
         knock_in_level: float,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
-        effective_midnight_utc: date,
-        expiry_midnight_utc: date,
+        effective_date: date,
+        expiry_date: date,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_ratio: float = ...,
@@ -2350,9 +2350,9 @@ class TernarySnowballOption:
         self,
     ) -> Literal["no_event", "knocked_in", "knocked_out"] | None: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
 
 def standard_snowball(
     *,
@@ -2361,8 +2361,8 @@ def standard_snowball(
     knock_in_level: float,
     knock_out_level: float,
     observation_dates: Iterable[date],
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
@@ -2373,8 +2373,8 @@ def european_snowball(
     knock_in_level: float,
     knock_out_level: float,
     observation_dates: Iterable[date],
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
@@ -2386,8 +2386,8 @@ def step_down_snowball(
     initial_knock_out_level: float,
     knock_out_level_decrement: float,
     observation_dates: Iterable[date],
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
@@ -2400,8 +2400,8 @@ def both_down_snowball(
     coupon_rate_decrement: float,
     knock_out_level_decrement: float,
     observation_dates: Iterable[date],
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
@@ -2413,8 +2413,8 @@ def dual_coupon_snowball(
     knock_out_level: float,
     maturity_coupon_rate: float,
     observation_dates: Iterable[date],
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
@@ -2426,8 +2426,8 @@ def parachute_snowball(
     knock_out_level: float,
     final_knock_out_level: float,
     observation_dates: Iterable[date],
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
@@ -2439,8 +2439,8 @@ def otm_snowball(
     knock_out_level: float,
     upper_strike: float,
     observation_dates: Iterable[date],
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
@@ -2452,8 +2452,8 @@ def loss_capped_snowball(
     knock_out_level: float,
     lower_strike: float,
     observation_dates: Iterable[date],
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
@@ -2468,8 +2468,8 @@ class Accumulator:
         daily_quantity: float | EllipsisType = ...,
         acceleration_factor: float | EllipsisType = ...,
         accumulated_quantity: float | None | EllipsisType = ...,
-        effective_midnight_utc: date | EllipsisType = ...,
-        expiry_midnight_utc: date | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
         knock_out_observation_dates: Iterable[date] | None | EllipsisType = ...,
     ) -> Self: ...
     def __init__(
@@ -2479,8 +2479,8 @@ class Accumulator:
         knock_out_level: float,
         daily_quantity: float,
         acceleration_factor: float,
-        effective_midnight_utc: date,
-        expiry_midnight_utc: date,
+        effective_date: date,
+        expiry_date: date,
         accumulated_quantity: float | None = None,
         option_type: Literal["call", "put"] = ...,
         knock_out_observation_dates: Iterable[date] | None = None,
@@ -2500,9 +2500,9 @@ class Accumulator:
     @property
     def accumulated_quantity(self) -> float | None: ...
     @property
-    def effective_midnight_utc(self) -> date: ...
+    def effective_date(self) -> date: ...
     @property
-    def expiry_midnight_utc(self) -> date: ...
+    def expiry_date(self) -> date: ...
     def replace_history(
         self, *, accumulated_quantity: float | None | EllipsisType = ...
     ) -> Self: ...
@@ -2543,8 +2543,8 @@ def fixed_coupon_note(
     knock_in_level: float,
     knock_out_level: float,
     observation_dates: Iterable[date],
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> PhoenixOption: ...
@@ -2556,8 +2556,8 @@ def digital_coupon_note(
     knock_out_level: float,
     coupon_barrier_level: float,
     observation_dates: Iterable[date],
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> PhoenixOption: ...
@@ -2570,8 +2570,8 @@ def early_profit_snowball(
     second_coupon_rate: float,
     first_stage_end_date: date,
     observation_dates: Iterable[date],
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
@@ -2586,8 +2586,8 @@ def butterfly_snowball(
     first_stage_end_date: date,
     second_stage_end_date: date,
     observation_dates: Iterable[date],
-    effective_midnight_utc: date,
-    expiry_midnight_utc: date,
+    effective_date: date,
+    expiry_date: date,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...

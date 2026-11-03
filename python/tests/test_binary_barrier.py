@@ -36,8 +36,8 @@ class BinaryBarrierTests(unittest.TestCase):
         return {
             "option_type": "call",
             "strike": 100,
-            "effective_midnight_utc": date(2025, 1, 1),
-            "expiry_midnight_utc": date(2026, 1, 1),
+            "effective_date": date(2025, 1, 1),
+            "expiry_date": date(2026, 1, 1),
             "barrier_level": 120,
             "barrier_type": "up_and_out",
         } | changes
@@ -172,7 +172,7 @@ class BinaryBarrierTests(unittest.TestCase):
             for fields, expected_error in (
                 ({"strike": 0, "barrier_level": 0}, InvalidInputError),
                 ({"barrier_level": 0}, InvalidInputError),
-                ({"expiry_midnight_utc": date(2024, 1, 1)}, InvalidInputError),
+                ({"expiry_date": date(2024, 1, 1)}, InvalidInputError),
                 ({"observation_mode": "scheduled"}, InvalidInputError),
                 ({"observation_dates": [date(2025, 1, 2)]}, InvalidInputError),
                 (
@@ -233,7 +233,7 @@ class BinaryBarrierTests(unittest.TestCase):
         with self.assertRaises(InvalidInputError):
             self.touch(barrier_type="up_and_out", settlement_timing="at_hit")
         with self.assertRaises(TypeError):
-            self.touch(effective_midnight_utc=datetime(2025, 1, 1, tzinfo=UTC))
+            self.touch(effective_date=datetime(2025, 1, 1, tzinfo=UTC))
         with self.assertRaises(TypeError):
             AnalyticBinaryBarrierEngine().price(object(), self.context())
 
@@ -439,12 +439,8 @@ class BinaryBarrierTests(unittest.TestCase):
                 kind = inputs["BarrierType"]
                 asset = inputs["asset_settlement"]
                 terms = {
-                    "effective_midnight_utc": date.fromisoformat(
-                        inputs["effective_midnight_utc"]
-                    ),
-                    "expiry_midnight_utc": date.fromisoformat(
-                        inputs["expiry_midnight_utc"]
-                    ),
+                    "effective_date": date.fromisoformat(inputs["effective_date"]),
+                    "expiry_date": date.fromisoformat(inputs["expiry_date"]),
                     "barrier_level": inputs["barrier"],
                     "touch_state": "untouched",
                 }

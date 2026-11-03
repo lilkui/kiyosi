@@ -16,7 +16,7 @@ EXPIRY_REASON = "terminal payoff: no smooth sensitivities"
 
 
 def exclusions(inputs):
-    if inputs["valuation"] == inputs["expiry_midnight_utc"]:
+    if inputs["valuation"] == inputs["expiry_date"]:
         return dict.fromkeys(g.MEASURES[1:], EXPIRY_REASON)
     if float(inputs["spot"]) == float(inputs["barrier"]):
         return dict.fromkeys(g.MEASURES[1:], BOUNDARY_REASON)
@@ -65,9 +65,8 @@ def make_contract(inputs):
         not asset or not at_hit or inputs["payout"] == inputs["barrier"],
         "asset hit payment must equal barrier",
     )
-    valuation, expiry_midnight_utc = (
-        ql.DateParser.parseISO(inputs[key])
-        for key in ("valuation", "expiry_midnight_utc")
+    valuation, expiry_date = (
+        ql.DateParser.parseISO(inputs[key]) for key in ("valuation", "expiry_date")
     )
     ql.Settings.instance().evaluationDate = valuation
     hit = (
@@ -80,7 +79,7 @@ def make_contract(inputs):
         flow = ql.SimpleCashFlow(amount, valuation)
         return SimpleNamespace(NPV=flow.amount)
 
-    if valuation == expiry_midnight_utc:
+    if valuation == expiry_date:
         g.require(not at_hit, "terminal hit payment requires a hitting history")
         if knock_in != hit:
             return cash(0)
@@ -104,7 +103,7 @@ def make_contract(inputs):
             ql.Option.Call if up else ql.Option.Put, inputs["barrier"], inputs["payout"]
         )
         contract = ql.VanillaOption(
-            payoff, ql.AmericanExercise(valuation, expiry_midnight_utc, False)
+            payoff, ql.AmericanExercise(valuation, expiry_date, False)
         )
         contract.setPricingEngine(ql.AnalyticDigitalAmericanEngine(process))
         return contract
@@ -116,9 +115,7 @@ def make_contract(inputs):
             else ql.CashOrNothingPayoff(side, inputs["strike"], inputs["payout"])
         )
         if hit:
-            contract = ql.VanillaOption(
-                payoff, ql.EuropeanExercise(expiry_midnight_utc)
-            )
+            contract = ql.VanillaOption(payoff, ql.EuropeanExercise(expiry_date))
             engine = ql.AnalyticEuropeanEngine(process)
         else:
             contract = ql.BarrierOption(
@@ -126,7 +123,7 @@ def make_contract(inputs):
                 inputs["barrier"],
                 0,
                 payoff,
-                ql.AmericanExercise(valuation, expiry_midnight_utc, True),
+                ql.AmericanExercise(valuation, expiry_date, True),
             )
             engine = ql.AnalyticBinaryBarrierEngine(process)
         contract.setPricingEngine(engine)
@@ -182,9 +179,9 @@ def scenarios():
                             "rate": 0.04,
                             "dividend": 0.01,
                             "volatility": 0.3,
-                            "effective_midnight_utc": "2024-12-30",
+                            "effective_date": "2024-12-30",
                             "valuation": "2025-01-06",
-                            "expiry_midnight_utc": (
+                            "expiry_date": (
                                 date(2025, 1, 6) + timedelta(days=days)
                             ).isoformat(),
                             "BarrierType": kind,
@@ -201,7 +198,7 @@ def scenarios():
 
 
 def check_bindings():
-    valuation, expiry_midnight_utc = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
+    valuation, expiry_date = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
     process = g.market_process(
         {
             "valuation": "2025-01-06",
@@ -217,19 +214,16 @@ def check_bindings():
             ql.AssetOrNothingPayoff(ql.Option.Call, 130),
         ):
             for exercise, error in (
+                (ql.EuropeanExercise(expiry_date), "non-American exercise given"),
                 (
-                    ql.EuropeanExercise(expiry_midnight_utc),
-                    "non-American exercise given",
-                ),
-                (
-                    ql.AmericanExercise(valuation, expiry_midnight_utc, False),
+                    ql.AmericanExercise(valuation, expiry_date, False),
                     "payoff must be at expiry"
                     if engine == ql.AnalyticBinaryBarrierEngine
                     else None,
                 ),
-                (ql.AmericanExercise(valuation, expiry_midnight_utc, True), None),
+                (ql.AmericanExercise(valuation, expiry_date, True), None),
                 (
-                    ql.AmericanExercise(valuation + 1, expiry_midnight_utc, True),
+                    ql.AmericanExercise(valuation + 1, expiry_date, True),
                     "American option with window exercise not handled yet",
                 ),
             ):
@@ -267,8 +261,7 @@ def check_bindings():
                     else ql.CashOrNothingPayoff(side, level, payout)
                 )
                 contract = ql.VanillaOption(
-                    payoff,
-                    ql.AmericanExercise(valuation, expiry_midnight_utc, deferred),
+                    payoff, ql.AmericanExercise(valuation, expiry_date, deferred)
                 )
                 contract.setPricingEngine(ql.AnalyticDigitalAmericanEngine(process))
                 inputs = {
@@ -279,8 +272,8 @@ def check_bindings():
                     "dividend": 0.01,
                     "volatility": 0.3,
                     "valuation": "2025-01-06",
-                    "expiry_midnight_utc": "2026-01-06",
-                    "effective_midnight_utc": "2024-12-30",
+                    "expiry_date": "2026-01-06",
+                    "effective_date": "2024-12-30",
                     "barrier": level,
                     "BarrierType": kind,
                     "payout": payout,
@@ -294,8 +287,7 @@ def check_bindings():
                         inputs, spot=level + (10 if side == ql.Option.Call else -10)
                     )
                     immediate = ql.VanillaOption(
-                        payoff,
-                        ql.AmericanExercise(valuation, expiry_midnight_utc, False),
+                        payoff, ql.AmericanExercise(valuation, expiry_date, False)
                     )
                     immediate.setPricingEngine(
                         ql.AnalyticDigitalAmericanEngine(g.market_process(touched))

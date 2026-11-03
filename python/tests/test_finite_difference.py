@@ -63,8 +63,8 @@ class FiniteDifferenceTests(unittest.TestCase):
                 option = EuropeanOption(
                     option_type=direction,
                     strike=100,
-                    effective_midnight_utc=START,
-                    expiry_midnight_utc=end,
+                    effective_date=START,
+                    expiry_date=end,
                 )
                 for spot in (99.875, 100, 100.125):
                     with self.subTest(end=end, direction=direction, spot=spot):
@@ -90,10 +90,7 @@ class FiniteDifferenceTests(unittest.TestCase):
     def test_automatic_mesh_policy_is_preserved_for_bumped_greeks(self):
         engine = FiniteDifferenceVanillaEngine(asset_step_count=200, time_step_count=50)
         option = EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            option_type="call", strike=100, effective_date=START, expiry_date=END
         )
         context = market(spot=100, rate=0.05, dividend=0.02, sigma=0.2)
         names = ["vega", "volga"]
@@ -122,8 +119,8 @@ class FiniteDifferenceTests(unittest.TestCase):
                 option = EuropeanOption(
                     option_type="call",
                     strike=100 * scale,
-                    effective_midnight_utc=START,
-                    expiry_midnight_utc=END,
+                    effective_date=START,
+                    expiry_date=END,
                 )
                 context = market(spot=150 * scale, rate=0.05, dividend=2, sigma=0.5)
                 engine = FiniteDifferenceVanillaEngine(
@@ -514,8 +511,8 @@ class FiniteDifferenceTests(unittest.TestCase):
                 option = type(option)(
                     option_type=direction,
                     strike=100,
-                    effective_midnight_utc=START,
-                    expiry_midnight_utc=date(2035, 1, 1),
+                    effective_date=START,
+                    expiry_date=date(2035, 1, 1),
                     **({"payout": 10} if kind is CashOrNothingOption else {}),
                 )
                 context = market(rate=0.03, dividend=0.02, sigma=0.6)
@@ -571,12 +568,8 @@ class FiniteDifferenceTests(unittest.TestCase):
                 option = kind(
                     option_type=inputs["option"],
                     strike=inputs["strike"],
-                    effective_midnight_utc=date.fromisoformat(
-                        inputs["effective_midnight_utc"]
-                    ),
-                    expiry_midnight_utc=date.fromisoformat(
-                        inputs["expiry_midnight_utc"]
-                    ),
+                    effective_date=date.fromisoformat(inputs["effective_date"]),
+                    expiry_date=date.fromisoformat(inputs["expiry_date"]),
                 )
                 context = market(
                     inputs["spot"],
@@ -630,10 +623,8 @@ class FiniteDifferenceTests(unittest.TestCase):
             option = kind(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
-                effective_midnight_utc=date.fromisoformat(
-                    inputs["effective_midnight_utc"]
-                ),
-                expiry_midnight_utc=date.fromisoformat(inputs["expiry_midnight_utc"]),
+                effective_date=date.fromisoformat(inputs["effective_date"]),
+                expiry_date=date.fromisoformat(inputs["expiry_date"]),
                 **({"payout": inputs["payout"]} if kind is CashOrNothingOption else {}),
             )
             context = market(
@@ -645,9 +636,7 @@ class FiniteDifferenceTests(unittest.TestCase):
             )
             with ql.SavedSettings():
                 reference, uncertainty = oracle.reference(inputs, digital.STABILITY)
-            boundary = (
-                option.expiry_midnight_utc - context.valuation_time.date()
-            ).days <= 2
+            boundary = (option.expiry_date - context.valuation_time.date()).days <= 2
             settings = profile["settings"] | (
                 profile["boundary_settings"] if boundary else {}
             )
@@ -655,7 +644,7 @@ class FiniteDifferenceTests(unittest.TestCase):
             wrapped = (
                 not boundary
                 and inputs["spot"] == 100
-                and inputs["expiry_midnight_utc"] == "2026-01-06"
+                and inputs["expiry_date"] == "2026-01-06"
             )
             names = (
                 sorted(reference.keys() - {"price"}) if wrapped else ["delta", "gamma"]
@@ -679,10 +668,7 @@ class FiniteDifferenceTests(unittest.TestCase):
         )
         for direction in ("call", "put"):
             option = EuropeanOption(
-                option_type=direction,
-                strike=100,
-                effective_midnight_utc=START,
-                expiry_midnight_utc=end,
+                option_type=direction, strike=100, effective_date=START, expiry_date=end
             )
             context = market(sigma=0.3)
             expected = AnalyticEuropeanEngine().price_with_greeks(
@@ -708,9 +694,9 @@ class FiniteDifferenceTests(unittest.TestCase):
             "rate": 0.03,
             "dividend": 0.05,
             "volatility": 1.0,
-            "effective_midnight_utc": "2025-01-01",
+            "effective_date": "2025-01-01",
             "valuation": "2025-01-01",
-            "expiry_midnight_utc": "2035-01-01",
+            "expiry_date": "2035-01-01",
         }
         with ql.SavedSettings():
             reference = american.native(tuple(sorted(inputs.items())), (3200, 3200))[
@@ -719,8 +705,8 @@ class FiniteDifferenceTests(unittest.TestCase):
         option = AmericanOption(
             option_type="call",
             strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=date(2035, 1, 1),
+            effective_date=START,
+            expiry_date=date(2035, 1, 1),
         )
         context = market(rate=0.03, dividend=0.05, sigma=1)
         coarse = FiniteDifferenceVanillaEngine(time_step_count=200).price(

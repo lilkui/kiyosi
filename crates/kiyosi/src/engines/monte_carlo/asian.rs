@@ -195,7 +195,7 @@ impl MonteCarloAsianEngine {
         o.coverage(context)?;
         let valuation = context.valuation_time();
         let start = o.averaging_start.start_of_day();
-        let expiry = o.terms.expiry_midnight_utc().start_of_day();
+        let expiry = o.terms.expiry_date().start_of_day();
         let single = o.period() == 0.0;
         let lead = if single {
             0.0
@@ -484,7 +484,7 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
     ) -> bool {
         let tau = context
             .valuation_time()
-            .years_until(option.expiry_midnight_utc().start_of_day());
+            .years_until(option.expiry_date().start_of_day());
         option.0.adjusted_strike(tau) > 0.0
     }
 }

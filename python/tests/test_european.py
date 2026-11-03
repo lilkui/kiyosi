@@ -29,8 +29,8 @@ class EuropeanTests(unittest.TestCase):
         values = {
             "option_type": "call",
             "strike": 100.0,
-            "effective_midnight_utc": date(2025, 1, 1),
-            "expiry_midnight_utc": date(2026, 1, 1),
+            "effective_date": date(2025, 1, 1),
+            "expiry_date": date(2026, 1, 1),
         }
         values.update(changes)
         return EuropeanOption(**values)
@@ -61,8 +61,8 @@ class EuropeanTests(unittest.TestCase):
                 option = EuropeanOption(
                     option_type=direction,
                     strike=100.0,
-                    effective_midnight_utc=date(2025, 1, 1),
-                    expiry_midnight_utc=date(2026, 1, 1),
+                    effective_date=date(2025, 1, 1),
+                    expiry_date=date(2026, 1, 1),
                 )
                 self.assertAlmostEqual(
                     AnalyticEuropeanEngine().price(option, context),
@@ -86,12 +86,8 @@ class EuropeanTests(unittest.TestCase):
                 option = self.option(
                     option_type=inputs["option"],
                     strike=inputs["strike"],
-                    effective_midnight_utc=date.fromisoformat(
-                        inputs["effective_midnight_utc"]
-                    ),
-                    expiry_midnight_utc=date.fromisoformat(
-                        inputs["expiry_midnight_utc"]
-                    ),
+                    effective_date=date.fromisoformat(inputs["effective_date"]),
+                    expiry_date=date.fromisoformat(inputs["expiry_date"]),
                 )
                 context = self.context(
                     model_parameters=model,
@@ -111,9 +107,9 @@ class EuropeanTests(unittest.TestCase):
         self.assertLess(
             engine.price(option, noon), engine.price(option, self.context())
         )
-        expiry = self.context(spot_price=110, valuation_time=option.expiry_midnight_utc)
+        expiry = self.context(spot_price=110, valuation_time=option.expiry_date)
         self.assertEqual(engine.price(option, expiry), 10)
-        same_day = self.option(effective_midnight_utc=option.expiry_midnight_utc)
+        same_day = self.option(effective_date=option.expiry_date)
         self.assertEqual(engine.price(same_day, expiry), 10)
         for at in (
             date(2024, 12, 31),
@@ -144,8 +140,7 @@ class EuropeanTests(unittest.TestCase):
 
         start = ShadowedDate(2025, 1, 1)
         self.assertEqual(
-            self.option(effective_midnight_utc=start).effective_midnight_utc,
-            date(2025, 1, 1),
+            self.option(effective_date=start).effective_date, date(2025, 1, 1)
         )
         local = ShadowedTime(
             2025, 1, 1, 8, 9, 10, 123456, tzinfo=timezone(timedelta(hours=8))
@@ -170,7 +165,7 @@ class EuropeanTests(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(TypeError):
                 self.context(valuation_time=bad)
         with self.assertRaises(TypeError):
-            self.option(effective_midnight_utc=datetime(2025, 1, 1, tzinfo=UTC))
+            self.option(effective_date=datetime(2025, 1, 1, tzinfo=UTC))
 
     def test_strict_numeric_protocol_and_native_conversion_failures(self):
         for field in ("risk_free_rate", "dividend_yield", "volatility"):
@@ -241,7 +236,7 @@ class EuropeanTests(unittest.TestCase):
                 BlackScholesMertonParameters(**values)
             self.assertIs(type(error.exception), expected_error)
         with self.assertRaises(InvalidInputError) as error:
-            self.option(effective_midnight_utc=date(2027, 1, 1))
+            self.option(effective_date=date(2027, 1, 1))
         self.assertIs(type(error.exception), InvalidInputError)
         self.assertAlmostEqual(
             AnalyticEuropeanEngine().price(option, context), 9.227005508154036

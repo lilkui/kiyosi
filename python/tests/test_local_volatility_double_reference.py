@@ -12,8 +12,8 @@ from test_local_volatility_structured import END, OBSERVATIONS, START, market
 
 def contracts(scheduled):
     terms = {
-        "effective_midnight_utc": START,
-        "expiry_midnight_utc": END,
+        "effective_date": START,
+        "expiry_date": END,
         "lower_barrier": 85,
         "upper_barrier": 115,
         "touch_state": "untouched",

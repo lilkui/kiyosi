@@ -125,7 +125,7 @@ impl AnalyticHestonEuropeanEngine {
         let model = context.model_parameters().as_heston()?;
         validate_life(option, context)?;
         let start = context.valuation_time();
-        let end = option.expiry_midnight_utc().start_of_day();
+        let end = option.expiry_date().start_of_day();
         model.risk_free_curve().validate_horizon(start, end)?;
         model.dividend_curve().validate_horizon(start, end)?;
         let spot = context.spot_price();

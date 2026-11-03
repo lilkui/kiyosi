@@ -36,8 +36,8 @@ class PackageTests(unittest.TestCase):
         required = {
             "option_type": "call",
             "strike": 100,
-            "effective_midnight_utc": start,
-            "expiry_midnight_utc": end,
+            "effective_date": start,
+            "expiry_date": end,
             "barrier_level": 120,
             "barrier_type": "up_and_out",
         }
@@ -61,8 +61,8 @@ class PackageTests(unittest.TestCase):
         option = instruments.EuropeanOption(
             option_type="call",
             strike=100,
-            effective_midnight_utc=start,
-            expiry_midnight_utc=end,
+            effective_date=start,
+            expiry_date=end,
         )
         context = market.PricingContext(
             model_parameters=market.BlackScholesMertonParameters(
@@ -90,8 +90,8 @@ class PackageTests(unittest.TestCase):
             option_type="call",
             strike=100,
             payout=10,
-            effective_midnight_utc=start,
-            expiry_midnight_utc=end,
+            effective_date=start,
+            expiry_date=end,
         )
         engine = pricing.AnalyticDigitalEngine()
         arguments = inspect.signature(engine.price_with_greeks).bind(
@@ -143,7 +143,7 @@ class PackageTests(unittest.TestCase):
 
     def test_replacement_signature_defaults_can_be_forwarded(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
-        dates = {"effective_midnight_utc": start, "expiry_midnight_utc": end}
+        dates = {"effective_date": start, "expiry_date": end}
         vanilla = dict(dates, option_type="call", strike=100)
         model = market.BlackScholesMertonParameters(
             risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
@@ -252,8 +252,8 @@ class PackageTests(unittest.TestCase):
         terms = {
             "option_type": "put",
             "strike": 100,
-            "effective_midnight_utc": start,
-            "expiry_midnight_utc": end,
+            "effective_date": start,
+            "expiry_date": end,
         }
         engine = pricing.MonteCarloVanillaEngine(path_count=256, step_count=4, seed=42)
         for kind, shift in (
@@ -292,8 +292,8 @@ class PackageTests(unittest.TestCase):
         option = instruments.EuropeanOption(
             option_type="call",
             strike=100,
-            effective_midnight_utc=start,
-            expiry_midnight_utc=end,
+            effective_date=start,
+            expiry_date=end,
         )
         context = market.PricingContext(
             model_parameters=market.BlackScholesMertonParameters(
@@ -329,8 +329,8 @@ class PackageTests(unittest.TestCase):
         terms = {
             "option_type": "call",
             "strike": 100,
-            "effective_midnight_utc": start,
-            "expiry_midnight_utc": end,
+            "effective_date": start,
+            "expiry_date": end,
         }
         for engine, option in (
             (pricing.AnalyticEuropeanEngine(), instruments.EuropeanOption(**terms)),
@@ -455,8 +455,8 @@ class PackageTests(unittest.TestCase):
         start, end = date(2025, 1, 2), date(2026, 1, 2)
         common = {
             "knock_in_level": 80,
-            "effective_midnight_utc": start,
-            "expiry_midnight_utc": end,
+            "effective_date": start,
+            "expiry_date": end,
             "observations": [instruments.AutocallableObservation(end, 110)],
         }
         for cls, extra in (
@@ -580,8 +580,8 @@ class PackageTests(unittest.TestCase):
         terms = {
             "option_type": "call",
             "strike": 100,
-            "effective_midnight_utc": date(2025, 1, 1),
-            "expiry_midnight_utc": date(2026, 1, 1),
+            "effective_date": date(2025, 1, 1),
+            "expiry_date": date(2026, 1, 1),
         }
         with self.assertRaises(kiyosi.InvalidInputError) as rejection:
             EuropeanOption(**(terms | {"strike": -1}))

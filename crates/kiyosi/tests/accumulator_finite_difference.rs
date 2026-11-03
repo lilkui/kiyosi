@@ -25,22 +25,22 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
             OptionType::Put,
             level,
             option.strike(),
-            option.effective_midnight_utc(),
-            option.expiry_midnight_utc(),
+            option.effective_date(),
+            option.expiry_date(),
         )
         .unwrap();
         let asset = DigitalOption::asset_or_nothing(
             OptionType::Put,
             level,
-            option.effective_midnight_utc(),
-            option.expiry_midnight_utc(),
+            option.effective_date(),
+            option.expiry_date(),
         )
         .unwrap();
         AnalyticDigitalEngine.price(&asset, context).unwrap()
             - AnalyticDigitalEngine.price(&cash, context).unwrap()
     };
     let model = context.model_parameters().as_bsm().unwrap();
-    let end = option.expiry_midnight_utc().into();
+    let end = option.expiry_date().into();
     let holding = option.accumulated_quantity().unwrap()
         * (context.spot_price()
             * model

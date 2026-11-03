@@ -118,7 +118,7 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     };
     let (mut a, mut b) = (s.lower_bound, s.upper_bound);
     let (mut fa, mut fb) = (evaluate(a)?, evaluate(b)?);
-    if context.valuation_time() == option.expiry_midnight_utc().start_of_day()
+    if context.valuation_time() == option.expiry_date().start_of_day()
         || !engine.volatility_affects_price(option, context)
     {
         return Err(Error::UnsupportedOperation(

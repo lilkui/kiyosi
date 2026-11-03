@@ -37,8 +37,8 @@ def contract(factory=cash_double_touch, **changes):
     return factory(
         **(
             {
-                "effective_midnight_utc": START,
-                "expiry_midnight_utc": END,
+                "effective_date": START,
+                "expiry_date": END,
                 "lower_barrier": 80,
                 "upper_barrier": 120,
                 "payout": 1,
@@ -339,7 +339,7 @@ class DoubleTouchTests(unittest.TestCase):
                 ({"lower_barrier": 120}, InvalidInputError),
                 ({"lower_barrier": 121}, InvalidInputError),
                 (
-                    {"expiry_midnight_utc": START - timedelta(days=1)},
+                    {"expiry_date": START - timedelta(days=1)},
                     InvalidInputError,
                 ),
                 ({"observation_mode": "scheduled"}, InvalidInputError),
@@ -683,8 +683,8 @@ class DoubleTouchTests(unittest.TestCase):
                         option_type=direction,
                         strike=level,
                         payout=1,
-                        effective_midnight_utc=START,
-                        expiry_midnight_utc=horizon,
+                        effective_date=START,
+                        expiry_date=horizon,
                     ),
                     context,
                 )
@@ -780,7 +780,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                 lower_barrier=70,
                 upper_barrier=140,
                 payout=payout,
-                expiry_midnight_utc=START + timedelta(days=1),
+                expiry_date=START + timedelta(days=1),
                 settlement_timing="at_hit",
             )
             self.assertEqual(
@@ -898,7 +898,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                         option = contract(
                             factory,
                             payout=7.5,
-                            expiry_midnight_utc=START + timedelta(days=days),
+                            expiry_date=START + timedelta(days=days),
                         )
                         actual = pricing.AnalyticDoubleTouchEngine().price(
                             option,

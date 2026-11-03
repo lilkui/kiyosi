@@ -27,8 +27,8 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
         terms = {
             "option_type": "call",
             "strike": 100,
-            "effective_midnight_utc": start,
-            "expiry_midnight_utc": end,
+            "effective_date": start,
+            "expiry_date": end,
         }
         for option, factory, analytic, rhs_low, rhs_high in (
             (
@@ -78,8 +78,8 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
             option_type="call",
             strike=100.5,
             payout=100,
-            effective_midnight_utc=start,
-            expiry_midnight_utc=end,
+            effective_date=start,
+            expiry_date=end,
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -113,8 +113,8 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
                 terms = {
                     "option_type": "call",
                     "strike": 1,
-                    "effective_midnight_utc": start,
-                    "expiry_midnight_utc": end,
+                    "effective_date": start,
+                    "expiry_date": end,
                 }
                 for option, upper, delta in (
                     (
@@ -154,8 +154,8 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
                 terms = {
                     "option_type": option_type,
                     "strike": 100,
-                    "effective_midnight_utc": start,
-                    "expiry_midnight_utc": end,
+                    "effective_date": start,
+                    "expiry_date": end,
                 }
                 for option, factory in (
                     (EuropeanOption(**terms), pricing.FiniteDifferenceVanillaEngine),
@@ -211,8 +211,8 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
                 terms = {
                     "option_type": option_type,
                     "strike": 100,
-                    "effective_midnight_utc": start,
-                    "expiry_midnight_utc": end,
+                    "effective_date": start,
+                    "expiry_date": end,
                 }
                 for option, factory, analytic, tolerances in (
                     (

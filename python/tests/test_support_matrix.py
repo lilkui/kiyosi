@@ -19,10 +19,7 @@ HESTON_ENGINES = (
 
 
 def terminal_cases():
-    dates = {
-        "effective_midnight_utc": date(2025, 1, 1),
-        "expiry_midnight_utc": date(2026, 1, 1),
-    }
+    dates = {"effective_date": date(2025, 1, 1), "expiry_date": date(2026, 1, 1)}
     vanilla = dict(dates, option_type="call", strike=100)
     barrier = dict(
         vanilla, barrier_type="up_and_out", barrier_level=120, touch_state="untouched"
@@ -99,7 +96,7 @@ def terminal_cases():
         (
             ins.GeometricAveragePriceOption(
                 **vanilla,
-                averaging_start_date=dates["effective_midnight_utc"],
+                averaging_start_date=dates["effective_date"],
                 realized_average=110,
             ),
             ("AnalyticGeometricAveragePriceEngine", "MonteCarloAsianEngine"),
@@ -108,7 +105,7 @@ def terminal_cases():
         (
             ins.ArithmeticAveragePriceOption(
                 **vanilla,
-                averaging_start_date=dates["effective_midnight_utc"],
+                averaging_start_date=dates["effective_date"],
                 realized_average=110,
             ),
             ("TurnbullWakemanArithmeticAveragePriceEngine", "MonteCarloAsianEngine"),
@@ -180,7 +177,7 @@ def terminal_cases():
     common = dict(
         dates,
         observations=ins.autocallable_observations(
-            [dates["expiry_midnight_utc"]], [120], knock_out_coupon_rates=[0.08]
+            [dates["expiry_date"]], [120], knock_out_coupon_rates=[0.08]
         ),
     )
     loss = {
@@ -221,9 +218,7 @@ def terminal_cases():
                     **loss,
                     coupon_rate=0.08,
                     observations=ins.autocallable_observations(
-                        [dates["expiry_midnight_utc"]],
-                        [120],
-                        coupon_barrier_levels=[90],
+                        [dates["expiry_date"]], [120], coupon_barrier_levels=[90]
                     ),
                 ),
                 notes,

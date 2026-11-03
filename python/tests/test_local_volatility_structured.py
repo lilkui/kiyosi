@@ -42,7 +42,7 @@ def market(spot=101):
 
 
 def contracts():
-    dates = {"effective_midnight_utc": START, "expiry_midnight_utc": END}
+    dates = {"effective_date": START, "expiry_date": END}
     observations = ins.autocallable_observations(
         OBSERVATIONS, KNOCK_OUT_LEVELS, knock_out_coupon_rates=[0.08] * 3
     )

@@ -15,7 +15,7 @@ pub(crate) struct AverageTerms {
 
 impl AverageTerms {
     pub(crate) fn coverage(&self, context: &PricingContext) -> Result<()> {
-        let expiry = self.terms.expiry_midnight_utc().start_of_day();
+        let expiry = self.terms.expiry_date().start_of_day();
         context
             .bsm_parameters()?
             .risk_free_curve()
@@ -63,8 +63,8 @@ impl AverageTerms {
     }
     pub(crate) fn validate(&self, context: &PricingContext) -> Result<f64> {
         let valuation = context.valuation_time();
-        let expiry = self.terms.expiry_midnight_utc().start_of_day();
-        if valuation < self.terms.effective_midnight_utc().start_of_day() || valuation > expiry {
+        let expiry = self.terms.expiry_date().start_of_day();
+        if valuation < self.terms.effective_date().start_of_day() || valuation > expiry {
             return Err(Error::InvalidInput(
                 "valuation must be within contract life".into(),
             ));
@@ -79,7 +79,7 @@ impl AverageTerms {
     pub(crate) fn period(&self) -> f64 {
         self.averaging_start
             .start_of_day()
-            .years_until(self.terms.expiry_midnight_utc().start_of_day())
+            .years_until(self.terms.expiry_date().start_of_day())
     }
     pub(crate) fn sign(&self) -> f64 {
         if self.terms.option_type() == OptionType::Call {
@@ -121,15 +121,11 @@ macro_rules! average_option {
                 Self::new(
                     changes.option_type.unwrap_or(self.option_type()),
                     changes.strike.unwrap_or(self.strike()),
-                    changes
-                        .effective_midnight_utc
-                        .unwrap_or(self.effective_midnight_utc()),
+                    changes.effective_date.unwrap_or(self.effective_date()),
                     changes
                         .averaging_start_date
                         .unwrap_or(self.averaging_start_date()),
-                    changes
-                        .expiry_midnight_utc
-                        .unwrap_or(self.expiry_midnight_utc()),
+                    changes.expiry_date.unwrap_or(self.expiry_date()),
                     changes.realized_average.unwrap_or(self.realized_average()),
                 )
             }
@@ -163,17 +159,17 @@ macro_rules! average_option {
             pub fn new(
                 option_type: OptionType,
                 strike: f64,
-                effective_midnight_utc: Date,
+                effective_date: Date,
                 averaging_start_date: Date,
-                expiry_midnight_utc: Date,
+                expiry_date: Date,
                 realized_average: f64,
             ) -> Result<Self> {
                 Ok(Self(AverageTerms::new(
                     option_type,
                     strike,
-                    effective_midnight_utc,
+                    effective_date,
                     averaging_start_date,
-                    expiry_midnight_utc,
+                    expiry_date,
                     realized_average,
                 )?))
             }
@@ -201,9 +197,9 @@ macro_rules! average_option {
                 Self::new(
                     self.option_type(),
                     self.strike(),
-                    self.effective_midnight_utc(),
+                    self.effective_date(),
                     self.averaging_start_date(),
-                    self.expiry_midnight_utc(),
+                    self.expiry_date(),
                     realized_average,
                 )
             }
@@ -216,12 +212,12 @@ macro_rules! average_option {
                 self.0.terms.strike()
             }
             /// Returns the inclusive first date; see [`Self::new`].
-            pub fn effective_midnight_utc(&self) -> Date {
-                self.0.terms.effective_midnight_utc()
+            pub fn effective_date(&self) -> Date {
+                self.0.terms.effective_date()
             }
             /// Returns expiry at midnight UTC; see [`Self::new`].
-            pub fn expiry_midnight_utc(&self) -> Date {
-                self.0.terms.expiry_midnight_utc()
+            pub fn expiry_date(&self) -> Date {
+                self.0.terms.expiry_date()
             }
             /// Returns the averaging start; see [`Self::new`].
             pub fn averaging_start_date(&self) -> Date {
@@ -233,11 +229,11 @@ macro_rules! average_option {
             }
         }
         impl OptionContract for $name {
-            fn effective_midnight_utc(&self) -> Date {
-                self.effective_midnight_utc()
+            fn effective_date(&self) -> Date {
+                self.effective_date()
             }
-            fn expiry_midnight_utc(&self) -> Date {
-                self.expiry_midnight_utc()
+            fn expiry_date(&self) -> Date {
+                self.expiry_date()
             }
             fn time_stencil_available(
                 &self,
@@ -273,12 +269,12 @@ pub struct AveragePriceOptionChanges {
     pub option_type: Option<OptionType>,
     /// Replaces [`strike`](GeometricAveragePriceOption::strike).
     pub strike: Option<f64>,
-    /// Replaces [`effective_midnight_utc`](GeometricAveragePriceOption::effective_midnight_utc).
-    pub effective_midnight_utc: Option<Date>,
+    /// Replaces [`effective_date`](GeometricAveragePriceOption::effective_date).
+    pub effective_date: Option<Date>,
     /// Replaces [`averaging_start_date`](GeometricAveragePriceOption::averaging_start_date).
     pub averaging_start_date: Option<Date>,
-    /// Replaces [`expiry_midnight_utc`](GeometricAveragePriceOption::expiry_midnight_utc).
-    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`expiry_date`](GeometricAveragePriceOption::expiry_date).
+    pub expiry_date: Option<Date>,
     /// Replaces [`realized_average`](GeometricAveragePriceOption::realized_average).
     pub realized_average: Option<f64>,
 }

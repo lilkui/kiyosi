@@ -39,8 +39,8 @@ fn american_construction_and_replacement_validate_without_mutating() {
     assert!(matches!(
         option
             .replace(AmericanOptionChanges {
-                expiry_midnight_utc: Some(start),
-                effective_midnight_utc: Some(end),
+                expiry_date: Some(start),
+                effective_date: Some(end),
                 ..Default::default()
             })
             .unwrap_err(),
@@ -51,14 +51,14 @@ fn american_construction_and_replacement_validate_without_mutating() {
         .replace(AmericanOptionChanges {
             option_type: Some(OptionType::Call),
             strike: Some(105.0),
-            effective_midnight_utc: Some(end),
-            expiry_midnight_utc: Some(end),
+            effective_date: Some(end),
+            expiry_date: Some(end),
         })
         .unwrap();
     assert_eq!(replaced.option_type(), OptionType::Call);
     assert_eq!(replaced.strike(), 105.0);
-    assert_eq!(replaced.effective_midnight_utc(), end);
-    assert_eq!(replaced.expiry_midnight_utc(), end);
+    assert_eq!(replaced.effective_date(), end);
+    assert_eq!(replaced.expiry_date(), end);
     assert_eq!(
         option,
         AmericanOption::new(OptionType::Put, 100.0, start, end).unwrap()

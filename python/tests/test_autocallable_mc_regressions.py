@@ -26,8 +26,8 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
         note = BinarySnowballOption(
             maturity_coupon_rate=0,
             principal_ratio=0,
-            effective_midnight_utc=start,
-            expiry_midnight_utc=end,
+            effective_date=start,
+            expiry_date=end,
             observations=autocallable_observations(
                 [end], [100], knock_out_coupon_rates=[1.5e308]
             ),
@@ -53,8 +53,8 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
         knock_out_levels = [101, 100, 99]
         terms = {
             "barrier_state": "no_event",
-            "effective_midnight_utc": start,
-            "expiry_midnight_utc": end,
+            "effective_date": start,
+            "expiry_date": end,
         }
         cases = [
             (
@@ -180,8 +180,8 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             lower_strike=100,
             barrier_state="no_event",
             knock_in_observation_mode="every_trading_day",
-            effective_midnight_utc=start,
-            expiry_midnight_utc=end,
+            effective_date=start,
+            expiry_date=end,
             observations=autocallable_observations(
                 [end], [110], knock_out_coupon_rates=[0]
             ),
@@ -236,8 +236,8 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                         upper_strike=100,
                         lower_strike=60,
                         barrier_state=state,
-                        effective_midnight_utc=start,
-                        expiry_midnight_utc=end,
+                        effective_date=start,
+                        expiry_date=end,
                         knock_in_observation_mode="every_trading_day",
                         observations=autocallable_observations(
                             [end], [110], knock_out_coupon_rates=[0.08]
@@ -254,8 +254,8 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
         note = BinarySnowballOption(
             maturity_coupon_rate=1e308,
             principal_ratio=1e308,
-            effective_midnight_utc=start,
-            expiry_midnight_utc=end,
+            effective_date=start,
+            expiry_date=end,
             observations=autocallable_observations(
                 [end], [110], knock_out_coupon_rates=[1e308]
             ),
@@ -286,8 +286,8 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
         for observations in ([date(2025, 7, 1)], [date(2025, 7, 1), end]):
             terms = {
                 "maturity_coupon_rate": 0.04,
-                "effective_midnight_utc": start,
-                "expiry_midnight_utc": end,
+                "effective_date": start,
+                "expiry_date": end,
                 "observations": autocallable_observations(
                     observations,
                     [110] * len(observations),
@@ -346,7 +346,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 )
 
     def test_current_knockouts_pay_only_contractual_coupon(self):
-        common = {"effective_midnight_utc": START, "expiry_midnight_utc": END}
+        common = {"effective_date": START, "expiry_date": END}
         observations = autocallable_observations(
             [FIRST, MIDDLE, END],
             [100, 100, 100],
@@ -404,8 +404,8 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             "lower_strike": 60,
             "barrier_state": "knocked_in",
             "principal_ratio": 1.25,
-            "effective_midnight_utc": START,
-            "expiry_midnight_utc": END,
+            "effective_date": START,
+            "expiry_date": END,
         }
         snowball = SnowballOption(
             **common,

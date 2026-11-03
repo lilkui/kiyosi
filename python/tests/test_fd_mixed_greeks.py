@@ -20,8 +20,8 @@ class FiniteDifferenceMixedGreekTests(unittest.TestCase):
             option = EuropeanOption(
                 option_type=option_type,
                 strike=100,
-                effective_midnight_utc=start,
-                expiry_midnight_utc=end,
+                effective_date=start,
+                expiry_date=end,
             )
             for engine in (
                 pricing.CoxRossRubinsteinVanillaEngine(step_count=1000),
@@ -49,13 +49,10 @@ class FiniteDifferenceMixedGreekTests(unittest.TestCase):
                             delta=abs(reference) * 0.02 + 1e-7,
                         )
 
-    def test_charm_at_effective_midnight_utc_remains_selective(self):
+    def test_charm_at_effective_date_remains_selective(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         option = EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_midnight_utc=start,
-            expiry_midnight_utc=end,
+            option_type="call", strike=100, effective_date=start, expiry_date=end
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -81,8 +78,8 @@ class FiniteDifferenceMixedGreekTests(unittest.TestCase):
         option = EuropeanOption(
             option_type="call",
             strike=100,
-            effective_midnight_utc=date(2025, 1, 1),
-            expiry_midnight_utc=date(2026, 1, 1),
+            effective_date=date(2025, 1, 1),
+            expiry_date=date(2026, 1, 1),
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(

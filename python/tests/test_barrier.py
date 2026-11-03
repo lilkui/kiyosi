@@ -25,8 +25,8 @@ class BarrierTests(unittest.TestCase):
         return {
             "option_type": "call",
             "strike": 100,
-            "effective_midnight_utc": date(2025, 1, 1),
-            "expiry_midnight_utc": date(2026, 1, 1),
+            "effective_date": date(2025, 1, 1),
+            "expiry_date": date(2026, 1, 1),
             "barrier_level": 120,
             "barrier_type": "up_and_out",
         } | changes
@@ -86,7 +86,7 @@ class BarrierTests(unittest.TestCase):
             ({"strike": 0}, InvalidInputError),
             ({"rebate": -1}, InvalidInputError),
             ({"rebate": float("inf")}, InvalidInputError),
-            ({"expiry_midnight_utc": date(2024, 1, 1)}, InvalidInputError),
+            ({"expiry_date": date(2024, 1, 1)}, InvalidInputError),
             (
                 {"barrier_type": "up_and_in", "rebate_timing": "at_hit"},
                 InvalidInputError,
@@ -154,7 +154,7 @@ class BarrierTests(unittest.TestCase):
                             if kind.endswith("_in")
                             else (rebate if hit else 20)
                         )
-                        context = self.context(time=option.expiry_midnight_utc)
+                        context = self.context(time=option.expiry_date)
                         with self.subTest(
                             kind=kind, state=state, level=level, timing=timing
                         ):
@@ -217,8 +217,8 @@ class BarrierTests(unittest.TestCase):
         vanilla = EuropeanOption(
             option_type="call",
             strike=100,
-            effective_midnight_utc=option.effective_midnight_utc,
-            expiry_midnight_utc=option.expiry_midnight_utc,
+            effective_date=option.effective_date,
+            expiry_date=option.expiry_date,
         )
         self.assertEqual(
             engine.price(untouched, self.context(150, noon)),
@@ -544,9 +544,9 @@ KINDS = {
 
 def reference(terms, spot=100, sigma=0.2, rate=0.05, dividend=0.02, days=0):
     with ql.SavedSettings():
-        valuation = terms["effective_midnight_utc"] + timedelta(days=days)
+        valuation = terms["effective_date"] + timedelta(days=days)
         today = ql.Date(valuation.day, valuation.month, valuation.year)
-        end = terms["expiry_midnight_utc"]
+        end = terms["expiry_date"]
         expiry = ql.Date(end.day, end.month, end.year)
         ql.Settings.instance().evaluationDate = today
         process = ql.BlackScholesMertonProcess(

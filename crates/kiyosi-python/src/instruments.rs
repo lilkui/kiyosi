@@ -37,19 +37,19 @@ macro_rules! monitoring_properties {
             }
             /// Returns the date of the 00:00 UTC contract start.
             #[getter]
-            fn effective_midnight_utc<'py>(
+            fn effective_date<'py>(
                 &self,
                 py: pyo3::Python<'py>,
             ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyDate>> {
-                $crate::conversions::python_date(py, self.0.effective_midnight_utc())
+                $crate::conversions::python_date(py, self.0.effective_date())
             }
             /// Returns the expiry date; only 00:00 UTC on this date is within contract life.
             #[getter]
-            fn expiry_midnight_utc<'py>(
+            fn expiry_date<'py>(
                 &self,
                 py: pyo3::Python<'py>,
             ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyDate>> {
-                $crate::conversions::python_date(py, self.0.expiry_midnight_utc())
+                $crate::conversions::python_date(py, self.0.expiry_date())
             }
             /// Returns continuous monitoring or observations on the supplied dates.
             #[getter]

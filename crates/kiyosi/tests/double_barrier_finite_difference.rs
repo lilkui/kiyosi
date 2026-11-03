@@ -117,7 +117,7 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
     ));
     let at_expiry = later
         .replace(PricingContextChanges {
-            valuation_time: Some(t.expiry_midnight_utc.into()),
+            valuation_time: Some(t.expiry_date.into()),
             ..Default::default()
         })
         .unwrap();
@@ -209,11 +209,11 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
     let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
     let first = Date::new(2025, 4, 2).unwrap();
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = vec![first, t.expiry_midnight_utc];
+    t.observation_dates = vec![first, t.expiry_date];
     t.rebate = 7.0;
     let curve = RateTermStructure::new(
-        t.effective_midnight_utc.into(),
-        vec![first.into(), t.expiry_midnight_utc.into()],
+        t.effective_date.into(),
+        vec![first.into(), t.expiry_date.into()],
         vec![(-0.08_f64 * 91.0 / 365.0).exp(), (-0.01_f64).exp()],
     )
     .unwrap();
@@ -244,12 +244,8 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
             };
         assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-5);
     }
-    let short = RateTermStructure::new(
-        t.effective_midnight_utc.into(),
-        vec![first.into()],
-        vec![0.99],
-    )
-    .unwrap();
+    let short =
+        RateTermStructure::new(t.effective_date.into(), vec![first.into()], vec![0.99]).unwrap();
     let uncovered = context
         .replace(PricingContextChanges {
             model_parameters: Some(
@@ -271,13 +267,13 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
 #[test]
 fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
     let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
-    t.expiry_midnight_utc = Date::new(2025, 12, 27).unwrap();
+    t.expiry_date = Date::new(2025, 12, 27).unwrap();
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_dates = vec![
         Date::new(2025, 4, 1).unwrap(),
         Date::new(2025, 6, 30).unwrap(),
         Date::new(2025, 9, 28).unwrap(),
-        t.expiry_midnight_utc,
+        t.expiry_date,
     ];
     t.upper_barrier = 110.125;
     t.rebate = 2.0;
@@ -326,7 +322,7 @@ fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
 fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
     let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = vec![t.expiry_midnight_utc];
+    t.observation_dates = vec![t.expiry_date];
     let option = DoubleBarrierOption::new(t).unwrap();
     let engine = FiniteDifferenceDoubleBarrierEngine::new(FiniteDifferenceSettings {
         asset_step_count: 200,
@@ -382,13 +378,9 @@ fn one_two_and_early_fixings_match_independent_lognormal_integrals() {
             t.rebate_timing = timing;
             t.observation_mode = ObservationMode::Scheduled;
             let first = Date::new(2025, 6, 30).unwrap();
-            for (index, dates) in [
-                vec![t.expiry_midnight_utc],
-                vec![first, t.expiry_midnight_utc],
-                vec![first],
-            ]
-            .into_iter()
-            .enumerate()
+            for (index, dates) in [vec![t.expiry_date], vec![first, t.expiry_date], vec![first]]
+                .into_iter()
+                .enumerate()
             {
                 t.observation_dates = dates;
                 let option = DoubleBarrierOption::new(t.clone()).unwrap();

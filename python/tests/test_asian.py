@@ -53,9 +53,9 @@ def terms(**changes):
     return {
         "option_type": "call",
         "strike": 100,
-        "effective_midnight_utc": START,
+        "effective_date": START,
         "averaging_start_date": START,
-        "expiry_midnight_utc": END,
+        "expiry_date": END,
     } | changes
 
 
@@ -100,11 +100,7 @@ class AsianTests(unittest.TestCase):
                         kind(**terms(**{name: invalid}))
                 with self.assertRaises(OverflowError):
                     kind(**terms(**{name: 10**400}))
-            for name in (
-                "effective_midnight_utc",
-                "averaging_start_date",
-                "expiry_midnight_utc",
-            ):
+            for name in ("effective_date", "averaging_start_date", "expiry_date"):
                 for invalid in (True, "2025-01-01", datetime(2025, 1, 1, tzinfo=UTC)):
                     with self.assertRaises(TypeError):
                         kind(**terms(**{name: invalid}))
@@ -124,8 +120,8 @@ class AsianTests(unittest.TestCase):
                 EuropeanOption(
                     option_type="call",
                     strike=100,
-                    effective_midnight_utc=START,
-                    expiry_midnight_utc=END,
+                    effective_date=START,
+                    expiry_date=END,
                 ),
             ):
                 with self.assertRaises(UnsupportedOperationError):
@@ -149,8 +145,8 @@ class AsianTests(unittest.TestCase):
                     **terms(
                         strike=strike,
                         realized_average=average,
-                        effective_midnight_utc=END,
-                        expiry_midnight_utc=START,
+                        effective_date=END,
+                        expiry_date=START,
                     ),
                 )
             for average in (-1, math.nan, math.inf):
@@ -201,8 +197,8 @@ class AsianTests(unittest.TestCase):
                 vanilla = EuropeanOption(
                     option_type=direction,
                     strike=100,
-                    effective_midnight_utc=START,
-                    expiry_midnight_utc=END,
+                    effective_date=START,
+                    expiry_date=END,
                 )
                 for at in (START, END - timedelta(days=1), END):
                     self.assertEqual(
@@ -318,10 +314,7 @@ class AsianTests(unittest.TestCase):
         context = market(rate=1e16, dividend=0.02)
         expected = 100 * math.exp(-0.02)
         vanilla = EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            option_type="call", strike=100, effective_date=START, expiry_date=END
         )
         self.assertAlmostEqual(
             AnalyticEuropeanEngine().price(vanilla, context), expected, delta=1e-12
@@ -431,15 +424,11 @@ class AsianTests(unittest.TestCase):
                 **terms(
                     option_type=inputs["option"],
                     strike=inputs["strike"],
-                    effective_midnight_utc=date.fromisoformat(
-                        inputs["effective_midnight_utc"]
-                    ),
+                    effective_date=date.fromisoformat(inputs["effective_date"]),
                     averaging_start_date=date.fromisoformat(
                         inputs["averaging_start_date"]
                     ),
-                    expiry_midnight_utc=date.fromisoformat(
-                        inputs["expiry_midnight_utc"]
-                    ),
+                    expiry_date=date.fromisoformat(inputs["expiry_date"]),
                     realized_average=inputs["realized_average"],
                 )
             )

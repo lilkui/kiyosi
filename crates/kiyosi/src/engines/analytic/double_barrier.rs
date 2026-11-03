@@ -546,7 +546,7 @@ fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Res
     let density = AbsorbingDistribution::new(
         option.lower_barrier(),
         option.upper_barrier(),
-        option.expiry_midnight_utc(),
+        option.expiry_date(),
         context,
     )?;
     let rate = context.bsm_parameters()?.risk_free_rate()?;
@@ -595,7 +595,7 @@ pub(crate) fn hit_value(option: &DoubleBarrierOption, context: &PricingContext) 
     AbsorbingDistribution::new(
         option.lower_barrier(),
         option.upper_barrier(),
-        option.expiry_midnight_utc(),
+        option.expiry_date(),
         context,
     )?
     .hit_value(option.rebate(), context.bsm_parameters()?.risk_free_rate()?)

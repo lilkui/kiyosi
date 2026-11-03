@@ -62,10 +62,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
             contract = option(kind, **terms)
             prior_untouched = option(kind, **terms, touch_state="untouched")
             vanilla = EuropeanOption(
-                option_type="call",
-                strike=100,
-                effective_midnight_utc=START,
-                expiry_midnight_utc=END,
+                option_type="call", strike=100, effective_date=START, expiry_date=END
             )
             at_observation = market(spot=level, valuation=observation)
             after_observation = market(spot=level, valuation=midday)
@@ -92,10 +89,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         valuation = START + timedelta(days=180)
         context = market(valuation=valuation)
         vanilla = EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            option_type="call", strike=100, effective_date=START, expiry_date=END
         )
         value = pricing.AnalyticEuropeanEngine().price(vanilla, context)
         for engine in engines():
@@ -197,8 +191,8 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                             "settlement": timing,
                             "monitoring": "continuous",
                             "valuation": START.isoformat(),
-                            "effective_midnight_utc": START.isoformat(),
-                            "expiry_midnight_utc": END.isoformat(),
+                            "effective_date": START.isoformat(),
+                            "expiry_date": END.isoformat(),
                             "option": direction,
                             "strike": 100,
                             "spot": 100,
@@ -458,11 +452,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         contract = option(
             "up_and_out", observation_mode="scheduled", observation_dates=[END]
         )
-        common = {
-            "option_type": "call",
-            "effective_midnight_utc": START,
-            "expiry_midnight_utc": END,
-        }
+        common = {"option_type": "call", "effective_date": START, "expiry_date": END}
         lower = EuropeanOption(strike=100, **common)
         upper = EuropeanOption(strike=120, **common)
         cash = CashOrNothingOption(strike=120, payout=20, **common)
@@ -496,7 +486,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         end = date(2026, 1, 1)
         contract = option(
             "up_and_out",
-            expiry_midnight_utc=end,
+            expiry_date=end,
             observation_mode="scheduled",
             observation_dates=[end],
         )

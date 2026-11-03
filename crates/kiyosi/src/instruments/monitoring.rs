@@ -14,8 +14,8 @@ pub(crate) fn validate_upper(lower: f64, upper: f64) -> Result<()> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Monitoring {
-    effective_midnight_utc: Date,
-    expiry_midnight_utc: Date,
+    effective_date: Date,
+    expiry_date: Date,
     barrier_level: f64,
     barrier_type: BarrierType,
     observation_mode: ObservationMode,
@@ -25,8 +25,8 @@ pub(crate) struct Monitoring {
 
 impl Monitoring {
     pub(crate) fn new(
-        effective_midnight_utc: Date,
-        expiry_midnight_utc: Date,
+        effective_date: Date,
+        expiry_date: Date,
         barrier_level: f64,
         barrier_type: BarrierType,
         observation_mode: ObservationMode,
@@ -45,13 +45,13 @@ impl Monitoring {
         }
         let schedule = ObservationSchedule::new(
             observation_dates,
-            effective_midnight_utc,
-            expiry_midnight_utc,
+            effective_date,
+            expiry_date,
             &TradingCalendar::all_days(),
         )?;
         Ok(Self {
-            effective_midnight_utc,
-            expiry_midnight_utc,
+            effective_date,
+            expiry_date,
             barrier_level,
             barrier_type,
             observation_mode,
@@ -66,11 +66,11 @@ impl Monitoring {
             ..self.clone()
         }
     }
-    pub(crate) fn effective_midnight_utc(&self) -> Date {
-        self.effective_midnight_utc
+    pub(crate) fn effective_date(&self) -> Date {
+        self.effective_date
     }
-    pub(crate) fn expiry_midnight_utc(&self) -> Date {
-        self.expiry_midnight_utc
+    pub(crate) fn expiry_date(&self) -> Date {
+        self.expiry_date
     }
     pub(crate) fn barrier_level(&self) -> f64 {
         self.barrier_level
@@ -96,24 +96,22 @@ impl Monitoring {
     )]
     pub(crate) fn mean_observation_year_fraction(&self) -> f64 {
         self.observation_dates().last().map_or(0.0, |&last| {
-            self.effective_midnight_utc().days_until(last) as f64
-                / 365.0
-                / self.schedule.len() as f64
+            self.effective_date().days_until(last) as f64 / 365.0 / self.schedule.len() as f64
         })
     }
     pub(crate) fn continuous(&self) -> bool {
         self.observation_mode() == ObservationMode::Continuous
     }
     pub(crate) fn monitored(&self, time: Timestamp) -> bool {
-        time >= self.effective_midnight_utc().start_of_day()
-            && time <= self.expiry_midnight_utc().start_of_day()
+        time >= self.effective_date().start_of_day()
+            && time <= self.expiry_date().start_of_day()
             && (self.continuous()
                 || self.observation_dates().binary_search(&time.date()).is_ok()
                     && time == time.date().start_of_day())
     }
     pub(crate) fn prior(&self, time: Timestamp) -> Result<bool> {
         let had = if self.continuous() {
-            time > self.effective_midnight_utc().start_of_day()
+            time > self.effective_date().start_of_day()
         } else {
             self.observation_dates()[0].start_of_day() < time
         };
@@ -142,7 +140,7 @@ impl Monitoring {
         Ok((
             prior,
             prior || self.monitored(time) && hit,
-            time == self.expiry_midnight_utc().start_of_day()
+            time == self.expiry_date().start_of_day()
                 || !self.continuous()
                     && self
                         .observation_dates()
@@ -151,7 +149,7 @@ impl Monitoring {
         ))
     }
     pub(crate) fn payoff_requires_touch(&self, option_type: OptionType, strike: f64) -> bool {
-        (self.continuous() || self.observation_dates().last() == Some(&self.expiry_midnight_utc()))
+        (self.continuous() || self.observation_dates().last() == Some(&self.expiry_date()))
             && if self.barrier_type().is_up() {
                 option_type == OptionType::Call && strike >= self.barrier_level()
             } else {
@@ -174,11 +172,11 @@ impl Monitoring {
     }
 }
 impl OptionContract for Monitoring {
-    fn effective_midnight_utc(&self) -> Date {
-        self.effective_midnight_utc()
+    fn effective_date(&self) -> Date {
+        self.effective_date()
     }
-    fn expiry_midnight_utc(&self) -> Date {
-        self.expiry_midnight_utc()
+    fn expiry_date(&self) -> Date {
+        self.expiry_date()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         self.spot_discontinuity(context, radius, None)
@@ -205,9 +203,7 @@ pub(crate) fn validate_life(
     context: &PricingContext,
 ) -> Result<()> {
     let time = context.valuation_time();
-    if time < option.effective_midnight_utc().start_of_day()
-        || time > option.expiry_midnight_utc().start_of_day()
-    {
+    if time < option.effective_date().start_of_day() || time > option.expiry_date().start_of_day() {
         return Err(Error::InvalidInput(
             "valuation outside contract life".into(),
         ));

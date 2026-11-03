@@ -45,9 +45,9 @@ pub(crate) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::Barri
 ///     Call or put payoff direction.
 /// strike : float
 ///     Positive finite strike price.
-/// effective_midnight_utc : datetime.date
+/// effective_date : datetime.date
 ///     Contract starts at 00:00 UTC on this date.
-/// expiry_midnight_utc : datetime.date
+/// expiry_date : datetime.date
 ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// barrier_level : float
 ///     Positive finite trigger level; equality counts as a touch.
@@ -84,9 +84,9 @@ monitoring_properties!(
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// strike : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// effective_midnight_utc : datetime.date, optional
+    /// effective_date : datetime.date, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// expiry_midnight_utc : datetime.date, optional
+    /// expiry_date : datetime.date, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// barrier_level : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -114,7 +114,7 @@ monitoring_properties!(
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation, field name or mutually exclusive coupon choice is invalid.
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_midnight_utc=crate::conversions::OMITTED, expiry_midnight_utc=crate::conversions::OMITTED, barrier_level=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, rebate=crate::conversions::OMITTED, rebate_timing=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_dates=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_date=crate::conversions::OMITTED, expiry_date=crate::conversions::OMITTED, barrier_level=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, rebate=crate::conversions::OMITTED, rebate_timing=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_dates=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
         reason = "explicit Python replacement fields"
@@ -123,12 +123,10 @@ monitoring_properties!(
         &self,
         #[pyo3(from_py_with = crate::conversions::supplied)] option_type: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] strike: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] effective_midnight_utc: Option<
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_date: Option<
             &Bound<'_, PyAny>,
         >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_midnight_utc: Option<
-            &Bound<'_, PyAny>,
-        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_date: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] barrier_level: Option<
             &Bound<'_, PyAny>,
         >,
@@ -150,12 +148,8 @@ monitoring_properties!(
         let changes = kiyosi::BarrierOptionChanges {
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
-            effective_midnight_utc: effective_midnight_utc
-                .map(crate::conversions::date)
-                .transpose()?,
-            expiry_midnight_utc: expiry_midnight_utc
-                .map(crate::conversions::date)
-                .transpose()?,
+            effective_date: effective_date.map(crate::conversions::date).transpose()?,
+            expiry_date: expiry_date.map(crate::conversions::date).transpose()?,
             barrier_level: barrier_level.map(crate::conversions::real).transpose()?,
             barrier_type: barrier_type
                 .map(crate::instruments::barrier::kind)
@@ -177,13 +171,13 @@ monitoring_properties!(
         Ok(Self(domain(self.0.replace(changes))?))
     },
     #[new]
-    #[pyo3(signature = (*, option_type, strike, effective_midnight_utc, expiry_midnight_utc, barrier_level, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+    #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, barrier_level, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         option_type: &Bound<'_, PyAny>,
         strike: &Bound<'_, PyAny>,
-        effective_midnight_utc: &Bound<'_, PyAny>,
-        expiry_midnight_utc: &Bound<'_, PyAny>,
+        effective_date: &Bound<'_, PyAny>,
+        expiry_date: &Bound<'_, PyAny>,
         barrier_level: &Bound<'_, PyAny>,
         barrier_type: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = real)] rebate: f64,
@@ -195,8 +189,8 @@ monitoring_properties!(
         let mut terms = kiyosi::BarrierOptionTerms::new(
             direction(option_type)?,
             real(strike)?,
-            date(effective_midnight_utc)?,
-            date(expiry_midnight_utc)?,
+            date(effective_date)?,
+            date(expiry_date)?,
             real(barrier_level)?,
             kind(barrier_type)?,
         );

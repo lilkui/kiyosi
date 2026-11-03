@@ -34,7 +34,7 @@ def scenarios(config):
                     config["inputs"],
                     option=direction,
                     spot=spot,
-                    expiry_midnight_utc=(
+                    expiry_date=(
                         date.fromisoformat(config["inputs"]["valuation"])
                         + timedelta(days=days)
                     ).isoformat(),

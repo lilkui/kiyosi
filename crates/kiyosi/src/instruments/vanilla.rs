@@ -16,8 +16,8 @@ pub enum OptionType {
 pub struct EuropeanOption {
     option_type: OptionType,
     strike: f64,
-    effective_midnight_utc: Date,
-    expiry_midnight_utc: Date,
+    effective_date: Date,
+    expiry_date: Date,
 }
 
 /// Selects European contract replacements; absent fields retain their values.
@@ -30,9 +30,9 @@ pub struct EuropeanOptionChanges {
     /// Replaces the positive strike.
     pub strike: Option<f64>,
     /// Replaces the effective-date midnight UTC boundary.
-    pub effective_midnight_utc: Option<Date>,
+    pub effective_date: Option<Date>,
     /// Replaces the expiry-date midnight UTC boundary.
-    pub expiry_midnight_utc: Option<Date>,
+    pub expiry_date: Option<Date>,
 }
 
 impl EuropeanOption {
@@ -56,18 +56,18 @@ impl EuropeanOption {
     pub fn new(
         option_type: OptionType,
         strike: f64,
-        effective_midnight_utc: Date,
-        expiry_midnight_utc: Date,
+        effective_date: Date,
+        expiry_date: Date,
     ) -> Result<Self> {
         finite(strike, true)?;
-        if expiry_midnight_utc < effective_midnight_utc {
+        if expiry_date < effective_date {
             return Err(Error::InvalidInput("expiry precedes effective date".into()));
         }
         Ok(Self {
             option_type,
             strike,
-            effective_midnight_utc,
-            expiry_midnight_utc,
+            effective_date,
+            expiry_date,
         })
     }
 
@@ -95,12 +95,8 @@ impl EuropeanOption {
         Self::new(
             changes.option_type.unwrap_or(self.option_type),
             changes.strike.unwrap_or(self.strike),
-            changes
-                .effective_midnight_utc
-                .unwrap_or(self.effective_midnight_utc),
-            changes
-                .expiry_midnight_utc
-                .unwrap_or(self.expiry_midnight_utc),
+            changes.effective_date.unwrap_or(self.effective_date),
+            changes.expiry_date.unwrap_or(self.expiry_date),
         )
     }
     /// Returns the payoff direction; see [`Self::new`].
@@ -112,12 +108,12 @@ impl EuropeanOption {
         self.strike
     }
     /// Returns the inclusive first date; see [`Self::new`].
-    pub fn effective_midnight_utc(&self) -> Date {
-        self.effective_midnight_utc
+    pub fn effective_date(&self) -> Date {
+        self.effective_date
     }
     /// Returns the expiry boundary at 00:00 UTC, excluding later instants that day; see [`Self::new`].
-    pub fn expiry_midnight_utc(&self) -> Date {
-        self.expiry_midnight_utc
+    pub fn expiry_date(&self) -> Date {
+        self.expiry_date
     }
 }
 
@@ -126,16 +122,16 @@ impl EuropeanOption {
 /// Implementations retain their own payoff; engines select supported contract types.
 /// See [`DigitalOption::cash_or_nothing`] for an example contract.
 pub trait OptionContract {
-    /// Returns the inclusive first date. See [`DigitalOption::effective_midnight_utc`].
-    fn effective_midnight_utc(&self) -> Date;
-    /// Returns expiry at midnight UTC. See [`DigitalOption::expiry_midnight_utc`].
-    fn expiry_midnight_utc(&self) -> Date;
+    /// Returns the inclusive first date. See [`DigitalOption::effective_date`].
+    fn effective_date(&self) -> Date;
+    /// Returns expiry at midnight UTC. See [`DigitalOption::expiry_date`].
+    fn expiry_date(&self) -> Date;
 
     /// Returns the earliest valuation date, or `None` when pre-effective valuation is valid.
     ///
     /// Defaults to the effective date; see [`crate::AnalyticRangeAccrualEngine::price`].
     fn valuation_start(&self) -> Option<Date> {
-        Some(self.effective_midnight_utc())
+        Some(self.effective_date())
     }
 
     /// Reports whether every Greek is undefined at the current spot discontinuity.
@@ -169,11 +165,11 @@ pub trait OptionContract {
 }
 
 impl OptionContract for EuropeanOption {
-    fn effective_midnight_utc(&self) -> Date {
-        self.effective_midnight_utc()
+    fn effective_date(&self) -> Date {
+        self.effective_date()
     }
-    fn expiry_midnight_utc(&self) -> Date {
-        self.expiry_midnight_utc()
+    fn expiry_date(&self) -> Date {
+        self.expiry_date()
     }
 }
 
@@ -199,9 +195,9 @@ pub struct DigitalOptionChanges {
     /// Replaces the positive cash payout; unsupported for asset settlement.
     pub payout: Option<f64>,
     /// Replaces the inclusive first date.
-    pub effective_midnight_utc: Option<Date>,
+    pub effective_date: Option<Date>,
     /// Replaces the inclusive expiry date, at midnight UTC.
-    pub expiry_midnight_utc: Option<Date>,
+    pub expiry_date: Option<Date>,
 }
 
 impl DigitalOption {
@@ -222,25 +218,20 @@ impl DigitalOption {
     /// assert_eq!(option.payout(), Some(10.0));
     /// assert_eq!(option.option_type(), OptionType::Call);
     /// assert_eq!(option.strike(), 100.0);
-    /// assert_eq!(option.effective_midnight_utc(), Date::new(2025, 1, 1)?);
-    /// assert_eq!(option.expiry_midnight_utc(), Date::new(2026, 1, 1)?);
+    /// assert_eq!(option.effective_date(), Date::new(2025, 1, 1)?);
+    /// assert_eq!(option.expiry_date(), Date::new(2026, 1, 1)?);
     /// # Ok(()) }
     /// ```
     pub fn cash_or_nothing(
         option_type: OptionType,
         strike: f64,
         payout: f64,
-        effective_midnight_utc: Date,
-        expiry_midnight_utc: Date,
+        effective_date: Date,
+        expiry_date: Date,
     ) -> Result<Self> {
         finite(payout, true)?;
         Ok(Self {
-            terms: EuropeanOption::new(
-                option_type,
-                strike,
-                effective_midnight_utc,
-                expiry_midnight_utc,
-            )?,
+            terms: EuropeanOption::new(option_type, strike, effective_date, expiry_date)?,
             payout: Some(payout),
         })
     }
@@ -265,16 +256,11 @@ impl DigitalOption {
     pub fn asset_or_nothing(
         option_type: OptionType,
         strike: f64,
-        effective_midnight_utc: Date,
-        expiry_midnight_utc: Date,
+        effective_date: Date,
+        expiry_date: Date,
     ) -> Result<Self> {
         Ok(Self {
-            terms: EuropeanOption::new(
-                option_type,
-                strike,
-                effective_midnight_utc,
-                expiry_midnight_utc,
-            )?,
+            terms: EuropeanOption::new(option_type, strike, effective_date, expiry_date)?,
             payout: None,
         })
     }
@@ -303,12 +289,8 @@ impl DigitalOption {
     pub fn replace(&self, changes: DigitalOptionChanges) -> Result<Self> {
         let direction = changes.option_type.unwrap_or(self.option_type());
         let strike = changes.strike.unwrap_or(self.strike());
-        let start = changes
-            .effective_midnight_utc
-            .unwrap_or(self.effective_midnight_utc());
-        let end = changes
-            .expiry_midnight_utc
-            .unwrap_or(self.expiry_midnight_utc());
+        let start = changes.effective_date.unwrap_or(self.effective_date());
+        let end = changes.expiry_date.unwrap_or(self.expiry_date());
         if let Some(payout) = self.payout {
             Self::cash_or_nothing(
                 direction,
@@ -335,12 +317,12 @@ impl DigitalOption {
         self.terms.strike()
     }
     /// Returns the effective date. See [`Self::cash_or_nothing`] for an example.
-    pub fn effective_midnight_utc(&self) -> Date {
-        self.terms.effective_midnight_utc()
+    pub fn effective_date(&self) -> Date {
+        self.terms.effective_date()
     }
     /// Returns the expiry date. See [`Self::cash_or_nothing`] for an example.
-    pub fn expiry_midnight_utc(&self) -> Date {
-        self.terms.expiry_midnight_utc()
+    pub fn expiry_date(&self) -> Date {
+        self.terms.expiry_date()
     }
     /// Returns fixed cash, or `None` for asset settlement. See [`Self::asset_or_nothing`].
     pub fn payout(&self) -> Option<f64> {
@@ -349,11 +331,11 @@ impl DigitalOption {
 }
 
 impl OptionContract for DigitalOption {
-    fn effective_midnight_utc(&self) -> Date {
-        self.effective_midnight_utc()
+    fn effective_date(&self) -> Date {
+        self.effective_date()
     }
-    fn expiry_midnight_utc(&self) -> Date {
-        self.expiry_midnight_utc()
+    fn expiry_date(&self) -> Date {
+        self.expiry_date()
     }
 }
 
@@ -375,9 +357,9 @@ pub struct AmericanOptionChanges {
     /// Replaces the positive strike.
     pub strike: Option<f64>,
     /// Replaces the inclusive first exercise date.
-    pub effective_midnight_utc: Option<Date>,
+    pub effective_date: Option<Date>,
     /// Replaces the inclusive last exercise date, at midnight UTC.
-    pub expiry_midnight_utc: Option<Date>,
+    pub expiry_date: Option<Date>,
 }
 
 impl AmericanOption {
@@ -401,23 +383,18 @@ impl AmericanOption {
     ///     Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?)?;
     /// assert_eq!(option.option_type(), OptionType::Put);
     /// assert_eq!(option.strike(), 100.0);
-    /// assert_eq!(option.effective_midnight_utc(), Date::new(2025, 1, 1)?);
-    /// assert_eq!(option.expiry_midnight_utc(), Date::new(2026, 1, 1)?);
+    /// assert_eq!(option.effective_date(), Date::new(2025, 1, 1)?);
+    /// assert_eq!(option.expiry_date(), Date::new(2026, 1, 1)?);
     /// # Ok(()) }
     /// ```
     pub fn new(
         option_type: OptionType,
         strike: f64,
-        effective_midnight_utc: Date,
-        expiry_midnight_utc: Date,
+        effective_date: Date,
+        expiry_date: Date,
     ) -> Result<Self> {
         Ok(Self {
-            terms: EuropeanOption::new(
-                option_type,
-                strike,
-                effective_midnight_utc,
-                expiry_midnight_utc,
-            )?,
+            terms: EuropeanOption::new(option_type, strike, effective_date, expiry_date)?,
         })
     }
 
@@ -445,12 +422,8 @@ impl AmericanOption {
         Self::new(
             changes.option_type.unwrap_or(self.option_type()),
             changes.strike.unwrap_or(self.strike()),
-            changes
-                .effective_midnight_utc
-                .unwrap_or(self.effective_midnight_utc()),
-            changes
-                .expiry_midnight_utc
-                .unwrap_or(self.expiry_midnight_utc()),
+            changes.effective_date.unwrap_or(self.effective_date()),
+            changes.expiry_date.unwrap_or(self.expiry_date()),
         )
     }
     /// Returns the direction. See [`Self::new`] for an example.
@@ -462,20 +435,20 @@ impl AmericanOption {
         self.terms.strike()
     }
     /// Returns the first exercise date. See [`Self::new`] for an example.
-    pub fn effective_midnight_utc(&self) -> Date {
-        self.terms.effective_midnight_utc()
+    pub fn effective_date(&self) -> Date {
+        self.terms.effective_date()
     }
     /// Returns the last exercise date. See [`Self::new`] for an example.
-    pub fn expiry_midnight_utc(&self) -> Date {
-        self.terms.expiry_midnight_utc()
+    pub fn expiry_date(&self) -> Date {
+        self.terms.expiry_date()
     }
 }
 
 impl OptionContract for AmericanOption {
-    fn effective_midnight_utc(&self) -> Date {
-        self.effective_midnight_utc()
+    fn effective_date(&self) -> Date {
+        self.effective_date()
     }
-    fn expiry_midnight_utc(&self) -> Date {
-        self.expiry_midnight_utc()
+    fn expiry_date(&self) -> Date {
+        self.expiry_date()
     }
 }

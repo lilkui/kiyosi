@@ -279,7 +279,7 @@ fn native_with_diffusion<D: Diffusion>(
     if prior && at_hit {
         return PricingResult::new(0.0);
     }
-    let expiry = option.expiry_midnight_utc().start_of_day();
+    let expiry = option.expiry_date().start_of_day();
     if context.valuation_time() == expiry {
         return PricingResult::new(if touched == knock_in {
             terminal(spot)
@@ -334,7 +334,7 @@ fn native_with_diffusion<D: Diffusion>(
             .observation_dates()
             .last()
             .copied()
-            .unwrap_or(option.expiry_midnight_utc())
+            .unwrap_or(option.expiry_date())
             .start_of_day()
     } else {
         expiry

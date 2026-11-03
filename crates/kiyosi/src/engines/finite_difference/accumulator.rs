@@ -107,7 +107,7 @@ fn default_upper(
         context,
         context
             .valuation_time()
-            .years_until(option.expiry_midnight_utc().into()),
+            .years_until(option.expiry_date().into()),
         risk,
         dividend,
     )
@@ -157,7 +157,7 @@ fn native_with_diffusion<D: Diffusion>(
     if let Some(value) = settlement {
         return Ok((PricingResult::new(value)?, None));
     }
-    let expiry = option.expiry_midnight_utc().start_of_day();
+    let expiry = option.expiry_date().start_of_day();
     let model = context.model_parameters();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
@@ -217,7 +217,7 @@ fn native_with_diffusion<D: Diffusion>(
                 asset,
                 option.unit_payoff(asset),
                 0.0,
-                option.observes_knock_out(option.expiry_midnight_utc()),
+                option.observes_knock_out(option.expiry_date()),
             )
         });
         *slope = value[0];

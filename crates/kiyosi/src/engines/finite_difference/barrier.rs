@@ -307,10 +307,10 @@ fn local_resolved(
         }
         crate::numerics::checked(scaled(
             terms.rebate(),
-            context.model_parameters().risk_free_curve().log_factor(
-                context.valuation_time(),
-                terms.expiry_midnight_utc().start_of_day(),
-            )?,
+            context
+                .model_parameters()
+                .risk_free_curve()
+                .log_factor(context.valuation_time(), terms.expiry_date().start_of_day())?,
         ))
     };
     if touched && !knock_in {
@@ -377,9 +377,9 @@ fn native_with_model<D: Diffusion>(
     }
     let time = context
         .valuation_time()
-        .years_until(option.expiry_midnight_utc().start_of_day());
+        .years_until(option.expiry_date().start_of_day());
     let model = context.model_parameters();
-    let expiry = option.expiry_midnight_utc().start_of_day();
+    let expiry = option.expiry_date().start_of_day();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
     let upper = if let Some(upper) = settings.asset_upper_boundary {

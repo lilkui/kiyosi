@@ -33,7 +33,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 direction,
                 strike=spot,
                 barrier_level=0.8 * spot,
-                expiry_midnight_utc=end,
+                expiry_date=end,
                 observation_mode=mode,
                 observation_dates=[end] if mode == "scheduled" else [],
             )
@@ -241,10 +241,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                                 actual, (expected.price, expected.delta, expected.gamma)
                             )
         vanilla = EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            option_type="call", strike=100, effective_date=START, expiry_date=END
         )
         for paths in (1, 2, 3, 5, 257):
             settings = {"path_count": paths, "seed": 42, "antithetic": True}
@@ -386,10 +383,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 engine.price_with_greeks(option(), market(), "delta", **fields)
         vanilla = EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            option_type="call", strike=100, effective_date=START, expiry_date=END
         )
         for operation, args in (
             (engine.price, (vanilla, market())),
@@ -508,7 +502,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
         dates = [START + timedelta(days=i) for i in range(1, 21202)]
         contract = option(
             "up_and_out",
-            expiry_midnight_utc=dates[-1] + timedelta(days=1),
+            expiry_date=dates[-1] + timedelta(days=1),
             observation_mode="scheduled",
             observation_dates=dates,
         )

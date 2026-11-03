@@ -30,8 +30,8 @@ class AnalyticsTests(unittest.TestCase):
         self.option = EuropeanOption(
             option_type="call",
             strike=100,
-            effective_midnight_utc=date(2025, 1, 1),
-            expiry_midnight_utc=date(2026, 1, 1),
+            effective_date=date(2025, 1, 1),
+            expiry_date=date(2026, 1, 1),
         )
         self.context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -110,10 +110,8 @@ class AnalyticsTests(unittest.TestCase):
             option = EuropeanOption(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
-                effective_midnight_utc=date.fromisoformat(
-                    inputs["effective_midnight_utc"]
-                ),
-                expiry_midnight_utc=date.fromisoformat(inputs["expiry_midnight_utc"]),
+                effective_date=date.fromisoformat(inputs["effective_date"]),
+                expiry_date=date.fromisoformat(inputs["expiry_date"]),
             )
             context = self.context.replace(
                 spot_price=inputs["spot"],
@@ -142,8 +140,7 @@ class AnalyticsTests(unittest.TestCase):
             numeric_budget = scenario["numerical_tolerances"]
             bumps = (
                 (0.008, 0.01)
-                if (option.expiry_midnight_utc - context.valuation_time.date()).days
-                <= 2
+                if (option.expiry_date - context.valuation_time.date()).days <= 2
                 else (0.01, 0.012)
             )
             for bump in bumps:
@@ -185,7 +182,7 @@ class AnalyticsTests(unittest.TestCase):
                 selected.require("gamma")
             self.assertIs(type(error.exception), UnsupportedOperationError)
         expiry = self.context.replace(
-            spot_price=110, valuation_time=self.option.expiry_midnight_utc
+            spot_price=110, valuation_time=self.option.expiry_date
         )
         result = self.engine.price_with_greeks(self.option, expiry, greeks="all")
         self.assertEqual(result.price, 10)
@@ -306,7 +303,7 @@ class AnalyticsTests(unittest.TestCase):
         with self.assertRaises(NonConvergenceError) as error:
             solve(max_iterations=1, price_tolerance=1e-15, parameter_tolerance=1e-15)
         self.assertIs(type(error.exception), NonConvergenceError)
-        expiry = self.context.replace(valuation_time=self.option.expiry_midnight_utc)
+        expiry = self.context.replace(valuation_time=self.option.expiry_date)
         with self.assertRaises(UnsupportedOperationError) as error:
             solve(expiry, 0)
         self.assertIs(type(error.exception), UnsupportedOperationError)
@@ -394,8 +391,8 @@ class AnalyticsTests(unittest.TestCase):
                     option = EuropeanOption(
                         option_type=direction,
                         strike=1e160,
-                        effective_midnight_utc=self.option.effective_midnight_utc,
-                        expiry_midnight_utc=self.option.expiry_midnight_utc,
+                        effective_date=self.option.effective_date,
+                        expiry_date=self.option.expiry_date,
                     )
                     result = self.engine.price_with_greeks(option, context, "speed")
                     self.assertAlmostEqual(result.speed / expected, 1, delta=1e-12)
@@ -409,8 +406,8 @@ class AnalyticsTests(unittest.TestCase):
             option = EuropeanOption(
                 option_type="call",
                 strike=strike,
-                effective_midnight_utc=self.option.effective_midnight_utc,
-                expiry_midnight_utc=self.option.expiry_midnight_utc,
+                effective_date=self.option.effective_date,
+                expiry_date=self.option.expiry_date,
             )
             context = self.context.replace(
                 spot_price=spot,

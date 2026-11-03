@@ -102,9 +102,9 @@ class VanillaQuadratureTests(unittest.TestCase):
             "rate": 0.05,
             "dividend": 0.02,
             "volatility": 0.2,
-            "effective_midnight_utc": START.isoformat(),
+            "effective_date": START.isoformat(),
             "valuation": START.isoformat(),
-            "expiry_midnight_utc": END.isoformat(),
+            "expiry_date": END.isoformat(),
         }
         with ql.SavedSettings():
             reference = american.measure(inputs, "price")
@@ -151,12 +151,8 @@ class VanillaQuadratureTests(unittest.TestCase):
                 option = kind(
                     option_type=inputs["option"],
                     strike=inputs["strike"],
-                    effective_midnight_utc=date.fromisoformat(
-                        inputs["effective_midnight_utc"]
-                    ),
-                    expiry_midnight_utc=date.fromisoformat(
-                        inputs["expiry_midnight_utc"]
-                    ),
+                    effective_date=date.fromisoformat(inputs["effective_date"]),
+                    expiry_date=date.fromisoformat(inputs["expiry_date"]),
                 )
                 context = market(
                     inputs["spot"],
@@ -224,9 +220,9 @@ class VanillaQuadratureTests(unittest.TestCase):
                 "rate": rate,
                 "dividend": dividend,
                 "volatility": 0.3,
-                "effective_midnight_utc": START.isoformat(),
+                "effective_date": START.isoformat(),
                 "valuation": START.isoformat(),
-                "expiry_midnight_utc": END.isoformat(),
+                "expiry_date": END.isoformat(),
             }
             with ql.SavedSettings():
                 expected = american.measure(inputs, "price")
@@ -251,9 +247,9 @@ class VanillaQuadratureTests(unittest.TestCase):
             "rate": 0.04,
             "dividend": 0.01,
             "volatility": 0.3,
-            "effective_midnight_utc": START.isoformat(),
+            "effective_date": START.isoformat(),
             "valuation": START.isoformat(),
-            "expiry_midnight_utc": END.isoformat(),
+            "expiry_date": END.isoformat(),
         }
         with ql.SavedSettings():
             base = american.measure(inputs, "price")

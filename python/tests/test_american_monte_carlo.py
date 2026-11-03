@@ -26,10 +26,7 @@ from test_binomial import END, GREEKS, START, market
 
 def contract(direction="put", strike=100):
     return AmericanOption(
-        option_type=direction,
-        strike=strike,
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        option_type=direction, strike=strike, effective_date=START, expiry_date=END
     )
 
 
@@ -58,8 +55,8 @@ class AmericanMonteCarloTests(unittest.TestCase):
                 european = EuropeanOption(
                     option_type="call",
                     strike=100,
-                    effective_midnight_utc=START,
-                    expiry_midnight_utc=END,
+                    effective_date=START,
+                    expiry_date=END,
                 )
                 expected = engine.price(european, context)
                 self.assertGreater(expected, 0)
@@ -162,7 +159,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
                         delta=1e-11,
                     )
         # A deterministic optimal exercise date lies strictly inside this three-year grid.
-        option = contract().replace(expiry_midnight_utc=date(2028, 1, 1))
+        option = contract().replace(expiry_date=date(2028, 1, 1))
         expected = max(
             100 * math.exp(-0.05 * (3 * step / 50))
             - 30 * math.exp(-0.2 * (3 * step / 50))
@@ -181,10 +178,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
     def test_terminal_call_shortcut_and_rate_stencil_crossing_zero(self):
         call = contract("call")
         european = EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            option_type="call", strike=100, effective_date=START, expiry_date=END
         )
         for sampling in ("pseudo_random", "sobol"):
             for antithetic in (False, True):
@@ -350,8 +344,8 @@ class AmericanMonteCarloTests(unittest.TestCase):
             option_type="call",
             strike=100,
             payout=1,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            effective_date=START,
+            expiry_date=END,
         )
         with self.assertRaises(UnsupportedOperationError):
             engine.price(digital, context)
@@ -378,10 +372,8 @@ class AmericanMonteCarloTests(unittest.TestCase):
             option = AmericanOption(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
-                effective_midnight_utc=date.fromisoformat(
-                    inputs["effective_midnight_utc"]
-                ),
-                expiry_midnight_utc=date.fromisoformat(inputs["expiry_midnight_utc"]),
+                effective_date=date.fromisoformat(inputs["effective_date"]),
+                expiry_date=date.fromisoformat(inputs["expiry_date"]),
             )
             context = market(
                 spot=inputs["spot"],

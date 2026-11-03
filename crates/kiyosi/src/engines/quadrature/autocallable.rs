@@ -388,7 +388,7 @@ fn price<T: AutocallableTerms>(
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
     let horizon = context
         .valuation_time()
-        .years_until(note.expiry_midnight_utc().into());
+        .years_until(note.expiry_date().into());
     let transition = |time: f64| -> Result<(f64, f64, f64)> {
         let drift = drift_rate * time;
         let deviation = sigma * time.sqrt();
@@ -401,7 +401,7 @@ fn price<T: AutocallableTerms>(
     };
     let terminal = terminal(
         note,
-        event(note, note.expiry_midnight_utc()),
+        event(note, note.expiry_date()),
         &breaks,
         state.knocked_in,
     );
@@ -427,7 +427,7 @@ fn price<T: AutocallableTerms>(
     let nodes = integration_nodes(lower, upper, settings.asset_step_count, &breaks)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let terminal_in = if layers {
-        self::terminal(note, event(note, note.expiry_midnight_utc()), &breaks, true)
+        self::terminal(note, event(note, note.expiry_date()), &breaks, true)
     } else {
         Vec::new()
     };

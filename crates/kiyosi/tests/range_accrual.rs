@@ -11,8 +11,8 @@ fn terms() -> RangeAccrualTerms {
         annual_coupon_rate: 0.12,
         lower_bound: 95.0,
         upper_bound: 110.0,
-        effective_midnight_utc: day(1),
-        expiry_midnight_utc: day(17),
+        effective_date: day(1),
+        expiry_date: day(17),
         realized_hit_count: None,
     }
 }
@@ -58,7 +58,7 @@ fn reference(option: &RangeAccrualOption, context: &PricingContext) -> f64 {
     let mut count = 0;
     let model = context.model_parameters().as_bsm().unwrap();
     let valuation = context.valuation_time();
-    let mut date = add(option.effective_midnight_utc(), 1);
+    let mut date = add(option.effective_date(), 1);
     loop {
         if context.calendar().is_trading_day(date) {
             count += 1;
@@ -86,22 +86,19 @@ fn reference(option: &RangeAccrualOption, context: &PricingContext) -> f64 {
                 hits += cdf(option.upper_bound()) - cdf(option.lower_bound());
             }
         }
-        if date == option.expiry_midnight_utc() {
+        if date == option.expiry_date() {
             break;
         }
         date = add(date, 1);
     }
     option.notional()
         * option.annual_coupon_rate()
-        * years(
-            option.effective_midnight_utc().into(),
-            option.expiry_midnight_utc().into(),
-        )
+        * years(option.effective_date().into(), option.expiry_date().into())
         * hits
         / f64::from(count)
         * model
             .risk_free_curve()
-            .factor(valuation, option.expiry_midnight_utc().into())
+            .factor(valuation, option.expiry_date().into())
             .unwrap()
 }
 
@@ -150,7 +147,7 @@ fn exact_marginals_match_flat_negative_and_node_curves_and_recover_volatility() 
         );
     }
     let annual = RangeAccrualOption::new(RangeAccrualTerms {
-        expiry_midnight_utc: add(day(1), 365),
+        expiry_date: add(day(1), 365),
         ..terms()
     })
     .unwrap();
@@ -186,7 +183,7 @@ fn numerical_greeks_match_independent_payoff_reference() {
     .unwrap();
     for (days, rate) in [(1, Rate::Flat(0.04)), (8, curve.into())] {
         let option = RangeAccrualOption::new(RangeAccrualTerms {
-            expiry_midnight_utc: add(day(1), days),
+            expiry_date: add(day(1), days),
             ..terms()
         })
         .unwrap();
@@ -227,7 +224,7 @@ fn numerical_greeks_match_independent_payoff_reference() {
 #[test]
 fn terminal_coupon_counts_current_spot_inclusively() {
     let option = RangeAccrualOption::new(RangeAccrualTerms {
-        expiry_midnight_utc: day(3),
+        expiry_date: day(3),
         realized_hit_count: Some(1),
         ..terms()
     })
@@ -265,8 +262,8 @@ fn greeks_respect_observations_and_allow_pre_effective_time() {
         );
     }
     let weekend = RangeAccrualOption::new(RangeAccrualTerms {
-        effective_midnight_utc: day(3),
-        expiry_midnight_utc: day(6),
+        effective_date: day(3),
+        expiry_date: day(6),
         ..terms()
     })
     .unwrap();
@@ -314,7 +311,7 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
                 2 => input.lower_bound = bad,
                 _ => input.upper_bound = bad,
             }
-            input.expiry_midnight_utc = input.effective_midnight_utc;
+            input.expiry_date = input.effective_date;
             assert!(matches!(
                 RangeAccrualOption::new(input).unwrap_err(),
                 Error::InvalidInput(_)
@@ -347,7 +344,7 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
     for end in [day(1), add(day(1), -1)] {
         assert!(matches!(
             RangeAccrualOption::new(RangeAccrualTerms {
-                expiry_midnight_utc: end,
+                expiry_date: end,
                 ..terms()
             })
             .unwrap_err(),
@@ -365,7 +362,7 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
 }
 
 #[test]
-fn history_is_strictly_prior_and_valuation_can_precede_effective_midnight_utc() {
+fn history_is_strictly_prior_and_valuation_can_precede_effective_date() {
     let option = RangeAccrualOption::new(terms()).unwrap();
     for (at, hits) in [
         (add(day(1), -3).into(), None),
@@ -455,7 +452,7 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
         .unwrap();
     let weekend = RangeAccrualOption::new(RangeAccrualTerms {
         annual_coupon_rate: 0.0,
-        expiry_midnight_utc: day(5),
+        expiry_date: day(5),
         ..terms()
     })
     .unwrap();
@@ -466,8 +463,8 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
         Error::InvalidInput(_)
     ));
     let monday = RangeAccrualOption::new(RangeAccrualTerms {
-        effective_midnight_utc: day(3),
-        expiry_midnight_utc: day(6),
+        effective_date: day(3),
+        expiry_date: day(6),
         ..terms()
     })
     .unwrap();
@@ -499,7 +496,7 @@ fn tiny_volatility_and_coupon_scaling_preserve_representable_prices() {
             annual_coupon_rate: 1.0,
             lower_bound: lower,
             upper_bound: upper,
-            expiry_midnight_utc: add(day(1), days.into()),
+            expiry_date: add(day(1), days.into()),
             ..terms()
         })
         .unwrap();
@@ -524,7 +521,7 @@ fn tiny_volatility_and_coupon_scaling_preserve_representable_prices() {
         annual_coupon_rate: 1e100,
         lower_bound: (mean + 40.0 * width).exp(),
         upper_bound: (mean + 41.0 * width).exp(),
-        expiry_midnight_utc: day(2),
+        expiry_date: day(2),
         ..terms()
     })
     .unwrap();
@@ -686,7 +683,7 @@ fn full_term_coupon_uses_calendar_days_and_one_expiry_discount() {
 fn long_and_zero_lower_bound_contracts_support_shared_concurrent_reads() {
     let engine = AnalyticRangeAccrualEngine;
     let option = RangeAccrualOption::new(RangeAccrualTerms {
-        expiry_midnight_utc: add(day(1), 21204),
+        expiry_date: add(day(1), 21204),
         ..terms()
     })
     .unwrap();
@@ -740,8 +737,8 @@ fn unresolvable_curve_knots_fail_before_pricing_future_observations() {
             })
             .unwrap();
         let mut input = RangeAccrualTerms {
-            effective_midnight_utc: Date::new(2499, 12, 31).unwrap(),
-            expiry_midnight_utc: expiry,
+            effective_date: Date::new(2499, 12, 31).unwrap(),
+            expiry_date: expiry,
             ..terms()
         };
         let option = RangeAccrualOption::new(input).unwrap();

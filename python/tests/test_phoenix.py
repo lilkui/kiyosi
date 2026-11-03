@@ -44,8 +44,8 @@ def contract(**changes):
         "upper_strike": 100,
         "lower_strike": 60,
         "knock_in_observation_mode": "at_expiry",
-        "effective_midnight_utc": START,
-        "expiry_midnight_utc": END,
+        "effective_date": START,
+        "expiry_date": END,
         "barrier_state": "no_event",
         "observations": autocallable_observations(
             [MIDDLE, END], [110, 110], coupon_barrier_levels=[90, 90]
@@ -101,7 +101,7 @@ class PhoenixTests(unittest.TestCase):
             {"principal_ratio": None},
             {"initial_spot": True},
             {"observations": [(END, 110)]},
-            {"effective_midnight_utc": datetime(2025, 1, 1)},
+            {"effective_date": datetime(2025, 1, 1)},
             {"knock_in_observation_mode": 1},
             {"barrier_state": True},
         ):
@@ -144,7 +144,7 @@ class PhoenixTests(unittest.TestCase):
                 {"observations": [AutocallableObservation(END, 110)] * 2},
                 InvalidInputError,
             ),
-            ({"expiry_midnight_utc": date(2024, 1, 1)}, InvalidInputError),
+            ({"expiry_date": date(2024, 1, 1)}, InvalidInputError),
         ):
             self.assert_rejection(expected_error, contract, **fields)
         for value in (-1, math.nan, math.inf):
@@ -180,11 +180,11 @@ class PhoenixTests(unittest.TestCase):
             market(),
         )
         nontrading = contract(
-            expiry_midnight_utc=date(2025, 4, 5),
+            expiry_date=date(2025, 4, 5),
             observations=[AutocallableObservation(date(2025, 2, 1), 110)],
         )
         self.assert_rejection(InvalidInputError, engine.price, nontrading, market())
-        nontrading = contract(expiry_midnight_utc=date(2025, 4, 5), barrier_state=None)
+        nontrading = contract(expiry_date=date(2025, 4, 5), barrier_state=None)
         self.assert_rejection(
             InvalidInputError, engine.price, nontrading, market(valuation=END)
         )
@@ -232,15 +232,11 @@ class PhoenixTests(unittest.TestCase):
             with self.subTest(name=name):
                 start, end, valuation = (
                     date.fromisoformat(inputs[k])
-                    for k in (
-                        "effective_midnight_utc",
-                        "expiry_midnight_utc",
-                        "valuation",
-                    )
+                    for k in ("effective_date", "expiry_date", "valuation")
                 )
                 note = contract(
-                    effective_midnight_utc=start,
-                    expiry_midnight_utc=end,
+                    effective_date=start,
+                    expiry_date=end,
                     coupon_rate=inputs["coupon_rate"],
                     principal_ratio=inputs["principal_ratio"],
                     barrier_state=inputs["history"],
@@ -301,7 +297,7 @@ class PhoenixTests(unittest.TestCase):
             coupon_rate=-0.5,
             lower_strike=100,
             principal_ratio=0.25,
-            expiry_midnight_utc=end,
+            expiry_date=end,
             observations=autocallable_observations([middle, end], [100, 100]),
         )
         time = 181 / 365
@@ -519,7 +515,7 @@ class PhoenixTests(unittest.TestCase):
         self.assertLess(values[1], values[0] - 0.001)
         end = date(2026, 1, 1)
         note = contract(
-            expiry_midnight_utc=end,
+            expiry_date=end,
             observations=autocallable_observations(
                 [date(2025, 6, 2), end], [110, 105], coupon_barrier_levels=[95, 95]
             ),
@@ -558,7 +554,7 @@ class PhoenixTests(unittest.TestCase):
         # Equal terminal strikes remove KI dependence, leaving cash plus a digital.
         end = date(2026, 1, 1)
         note = contract(
-            expiry_midnight_utc=end,
+            expiry_date=end,
             lower_strike=100,
             coupon_rate=0.1,
             observations=autocallable_observations(
@@ -684,7 +680,7 @@ class PhoenixTests(unittest.TestCase):
     def test_dense_deterministic_ladder_and_short_terminal_transition(self):
         dates = [START + timedelta(days=i) for i in range(1, 33)]
         note = contract(
-            expiry_midnight_utc=dates[-1],
+            expiry_date=dates[-1],
             principal_ratio=0.5,
             observations=autocallable_observations(
                 dates,

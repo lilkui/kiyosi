@@ -28,8 +28,8 @@ def phoenix_choices() -> None:
             upper_strike=100,
             lower_strike=0,
             knock_in_observation_mode="every_trading_day",
-            effective_midnight_utc=start,
-            expiry_midnight_utc=end,
+            effective_date=start,
+            expiry_date=end,
             observations=observations,
         ),
         PhoenixOption,
@@ -42,8 +42,8 @@ def phoenix_choices() -> None:
             upper_strike=100,
             lower_strike=0,
             knock_in_observation_mode="every_trading_day",
-            effective_midnight_utc=start,
-            expiry_midnight_utc=end,
+            effective_date=start,
+            expiry_date=end,
             observations=observations,
         ),
         PhoenixOption,
@@ -56,8 +56,8 @@ def phoenix_choices() -> None:
         upper_strike=100,
         lower_strike=0,
         knock_in_observation_mode="every_trading_day",
-        effective_midnight_utc=start,
-        expiry_midnight_utc=end,
+        effective_date=start,
+        expiry_date=end,
         observations=observations,
     )  # ty: ignore[no-matching-overload]
     PhoenixOption(
@@ -66,8 +66,8 @@ def phoenix_choices() -> None:
         upper_strike=100,
         lower_strike=0,
         knock_in_observation_mode="every_trading_day",
-        effective_midnight_utc=start,
-        expiry_midnight_utc=end,
+        effective_date=start,
+        expiry_date=end,
         observations=observations,
     )  # ty: ignore[no-matching-overload]
 

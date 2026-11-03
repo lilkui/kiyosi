@@ -90,10 +90,7 @@ class BarrierQuadratureTests(unittest.TestCase):
             contract = option(kind, **terms)
             prior_untouched = option(kind, **terms, touch_state="untouched")
             vanilla = EuropeanOption(
-                option_type="call",
-                strike=100,
-                effective_midnight_utc=START,
-                expiry_midnight_utc=END,
+                option_type="call", strike=100, effective_date=START, expiry_date=END
             )
             at_observation = market(spot=level, valuation=observation)
             after_observation = market(spot=level, valuation=midday)
@@ -120,10 +117,7 @@ class BarrierQuadratureTests(unittest.TestCase):
         valuation = START + timedelta(days=180)
         context = market(valuation=valuation)
         vanilla = EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            option_type="call", strike=100, effective_date=START, expiry_date=END
         )
         value = pricing.AnalyticEuropeanEngine().price(vanilla, context)
         for engine in engines():
@@ -244,8 +238,8 @@ class BarrierQuadratureTests(unittest.TestCase):
                             "settlement": timing,
                             "monitoring": "continuous",
                             "valuation": START.isoformat(),
-                            "effective_midnight_utc": START.isoformat(),
-                            "expiry_midnight_utc": END.isoformat(),
+                            "effective_date": START.isoformat(),
+                            "expiry_date": END.isoformat(),
                             "option": direction,
                             "strike": 100,
                             "spot": 100,
@@ -437,10 +431,7 @@ class BarrierQuadratureTests(unittest.TestCase):
         with self.assertRaises(OverflowError):
             engine.price_with_greeks(option(), market(), "delta", time_shift_days=2**31)
         mismatch = EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            option_type="call", strike=100, effective_date=START, expiry_date=END
         )
         for operation, args in (
             (engine.price, (mismatch, market())),

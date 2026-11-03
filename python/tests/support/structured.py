@@ -20,7 +20,7 @@ def contract(row):
     number = lambda key: float(inputs[key])
     common = {
         key: date.fromisoformat(inputs[key])
-        for key in ("effective_midnight_utc", "expiry_midnight_utc")
+        for key in ("effective_date", "expiry_date")
     }
     if row["instrument"] == "Accumulator":
         return instruments.Accumulator(
@@ -41,7 +41,7 @@ def contract(row):
         principal_ratio=number("principal_ratio"),
         barrier_state=inputs["history"],
         observations=instruments.autocallable_observations(
-            [common["expiry_midnight_utc"]],
+            [common["expiry_date"]],
             [number("knock_out_level")],
             **(
                 {"coupon_barrier_levels": [number("coupon_barrier_level")]}

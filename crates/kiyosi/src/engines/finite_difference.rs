@@ -104,8 +104,8 @@ fn unstable() -> Error {
 
 fn time_to_expiry(option: &impl OptionContract, context: &PricingContext) -> Result<f64> {
     let valuation = context.valuation_time();
-    let expiry = option.expiry_midnight_utc().start_of_day();
-    if valuation < option.effective_midnight_utc().start_of_day() || valuation > expiry {
+    let expiry = option.expiry_date().start_of_day();
+    if valuation < option.effective_date().start_of_day() || valuation > expiry {
         return Err(Error::InvalidInput(
             "valuation must be within contract life".into(),
         ));
@@ -250,7 +250,7 @@ fn native_model<D: Diffusion>(
         return Ok((PricingResult::new(payoff.value(spot))?, None));
     }
     let model = context.model_parameters();
-    let expiry = option.expiry_midnight_utc().start_of_day();
+    let expiry = option.expiry_date().start_of_day();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
     let upper = match settings.asset_upper_boundary {
@@ -533,7 +533,7 @@ fn complete_greeks(
         );
     }
     let request = local_volatility::validate_request(context, request)?;
-    if context.valuation_time() == option.expiry_midnight_utc().start_of_day()
+    if context.valuation_time() == option.expiry_date().start_of_day()
         || option.all_greeks_unavailable(context)
     {
         return Ok(result);

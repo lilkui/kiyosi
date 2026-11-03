@@ -177,7 +177,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         )
         weekend = datetime(2025, 1, 4, tzinfo=UTC)
         snow = contract(
-            expiry_midnight_utc=date(2025, 1, 6),
+            expiry_date=date(2025, 1, 6),
             maturity_coupon_rate=0.12,
             knock_in_observation_mode="every_trading_day",
             barrier_state="no_event",
@@ -228,8 +228,8 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         self.assertIsNone(unseeded.seed)
         fixed = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            effective_date=START,
+            expiry_date=END,
             observations=autocallable_observations(
                 [END], [110], knock_out_coupon_rates=[0]
             ),
@@ -292,7 +292,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
     def test_sobol_dimension_limit_uses_remaining_monitoring_dates(self):
         end = date(2110, 1, 1)
         fields = {
-            "expiry_midnight_utc": end,
+            "expiry_date": end,
             "observations": autocallable_observations(
                 [end], [110], knock_out_coupon_rates=[0.08]
             ),

@@ -70,7 +70,7 @@ impl AnalyticDoubleTouchEngine {
                     -rate
                         * context
                             .valuation_time()
-                            .years_until(option.expiry_midnight_utc().start_of_day()),
+                            .years_until(option.expiry_date().start_of_day()),
                 ))
             };
         }
@@ -82,7 +82,7 @@ impl AnalyticDoubleTouchEngine {
         let density = AbsorbingDistribution::new(
             option.lower_barrier(),
             option.upper_barrier(),
-            option.expiry_midnight_utc(),
+            option.expiry_date(),
             context,
         )?;
         if at_hit {

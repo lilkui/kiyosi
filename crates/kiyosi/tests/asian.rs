@@ -91,9 +91,9 @@ macro_rules! contract_tests {
                 let updated = original.replace_history(110.0).unwrap();
                 assert_eq!(updated.option_type(), OptionType::Put);
                 assert_eq!(updated.strike(), 100.0);
-                assert_eq!(updated.effective_midnight_utc(), start);
+                assert_eq!(updated.effective_date(), start);
                 assert_eq!(updated.averaging_start_date(), start);
-                assert_eq!(updated.expiry_midnight_utc(), end);
+                assert_eq!(updated.expiry_date(), end);
                 assert_eq!(updated.realized_average(), 110.0);
                 assert!(matches!(
                     original.replace_history(-1.0).unwrap_err(),

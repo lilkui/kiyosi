@@ -14,8 +14,8 @@ def contracts():
     yield i.BarrierOption(
         option_type="call",
         strike=100,
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        effective_date=START,
+        expiry_date=END,
         barrier_level=120,
         barrier_type="up_and_out",
         rebate=0,
@@ -27,8 +27,8 @@ def contracts():
     yield i.DoubleBarrierOption(
         option_type="call",
         strike=100,
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        effective_date=START,
+        expiry_date=END,
         lower_barrier=80,
         upper_barrier=120,
         barrier_type="knock_out",
@@ -41,8 +41,8 @@ def contracts():
     yield i.cash_binary_barrier_option(
         option_type="call",
         strike=100,
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        effective_date=START,
+        expiry_date=END,
         barrier_level=120,
         barrier_type="up_and_out",
         observation_mode="continuous",
@@ -53,8 +53,8 @@ def contracts():
     yield i.asset_binary_barrier_option(
         option_type="call",
         strike=100,
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        effective_date=START,
+        expiry_date=END,
         barrier_level=120,
         barrier_type="up_and_out",
         observation_mode="continuous",
@@ -62,8 +62,8 @@ def contracts():
         touch_state="untouched",
     )
     yield i.cash_touch_option(
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        effective_date=START,
+        expiry_date=END,
         barrier_level=120,
         barrier_type="up_and_in",
         settlement_timing="at_expiry",
@@ -73,8 +73,8 @@ def contracts():
         payout=10,
     )
     yield i.asset_touch_option(
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        effective_date=START,
+        expiry_date=END,
         barrier_level=120,
         barrier_type="up_and_in",
         settlement_timing="at_expiry",
@@ -83,8 +83,8 @@ def contracts():
         touch_state="untouched",
     )
     yield i.cash_double_touch(
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        effective_date=START,
+        expiry_date=END,
         lower_barrier=80,
         upper_barrier=120,
         settlement_timing="at_expiry",
@@ -100,8 +100,8 @@ def contracts():
         daily_quantity=1,
         acceleration_factor=2,
         accumulated_quantity=3,
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        effective_date=START,
+        expiry_date=END,
         knock_out_observation_dates=[END],
     )
     yield i.RangeAccrualOption(
@@ -109,8 +109,8 @@ def contracts():
         annual_coupon_rate=0.12,
         lower_bound=90,
         upper_bound=110,
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        effective_date=START,
+        expiry_date=END,
         realized_hit_count=1,
     )
     yield i.SnowballOption(
@@ -122,8 +122,8 @@ def contracts():
         knock_in_observation_mode="every_trading_day",
         barrier_state="no_event",
         principal_ratio=1,
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        effective_date=START,
+        expiry_date=END,
         observations=[i.AutocallableObservation(END, 110)],
     )
     yield i.PhoenixOption(
@@ -135,16 +135,16 @@ def contracts():
         knock_in_observation_mode="every_trading_day",
         barrier_state="no_event",
         principal_ratio=1,
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        effective_date=START,
+        expiry_date=END,
         observations=[i.AutocallableObservation(END, 110)],
     )
     yield i.BinarySnowballOption(
         maturity_coupon_rate=0.1,
         barrier_state="no_event",
         principal_ratio=1,
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        effective_date=START,
+        expiry_date=END,
         observations=[i.AutocallableObservation(END, 110)],
     )
     yield i.TernarySnowballOption(
@@ -154,24 +154,24 @@ def contracts():
         knock_in_observation_mode="every_trading_day",
         barrier_state="no_event",
         principal_ratio=1,
-        effective_midnight_utc=START,
-        expiry_midnight_utc=END,
+        effective_date=START,
+        expiry_date=END,
         observations=[i.AutocallableObservation(END, 110)],
     )
     yield i.GeometricAveragePriceOption(
         option_type="call",
         strike=100,
-        effective_midnight_utc=START,
+        effective_date=START,
         averaging_start_date=START,
-        expiry_midnight_utc=END,
+        expiry_date=END,
         realized_average=0,
     )
     yield i.ArithmeticAveragePriceOption(
         option_type="call",
         strike=100,
-        effective_midnight_utc=START,
+        effective_date=START,
         averaging_start_date=START,
-        expiry_midnight_utc=END,
+        expiry_date=END,
         realized_average=0,
     )
 
@@ -179,8 +179,8 @@ def contracts():
 UPDATES = {
     "option_type": "put",
     "strike": 105,
-    "effective_midnight_utc": date(2025, 1, 2),
-    "expiry_midnight_utc": date(2026, 1, 2),
+    "effective_date": date(2025, 1, 2),
+    "expiry_date": date(2026, 1, 2),
     "averaging_start_date": date(2025, 1, 2),
     "barrier_level": 125,
     "lower_barrier": 85,
@@ -259,7 +259,7 @@ class ContractReplacementTests(unittest.TestCase):
                             original.replace(payout=value)
                         continue
                     updates = {name: value}
-                    if name == "effective_midnight_utc" and isinstance(
+                    if name == "effective_date" and isinstance(
                         original,
                         (i.GeometricAveragePriceOption, i.ArithmeticAveragePriceOption),
                     ):

@@ -13,11 +13,11 @@ macro_rules! average_option {
         ///     Call or put payoff direction.
         /// strike : float
         ///     Positive finite strike price.
-        /// effective_midnight_utc : datetime.date
+        /// effective_date : datetime.date
         ///     Contract starts at 00:00 UTC on this date.
         /// averaging_start_date : datetime.date
         ///     First averaging date, within the contract life.
-        /// expiry_midnight_utc : datetime.date
+        /// expiry_date : datetime.date
         ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
         /// realized_average : float, optional
         ///     Nonnegative finite prior average; defaults to zero. Must be zero
@@ -42,11 +42,11 @@ macro_rules! average_option {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// strike : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// effective_midnight_utc : datetime.date, optional
+    /// effective_date : datetime.date, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// averaging_start_date : datetime.date, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// expiry_midnight_utc : datetime.date, optional
+    /// expiry_date : datetime.date, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// realized_average : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -62,33 +62,33 @@ macro_rules! average_option {
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation, field name or mutually exclusive coupon choice is invalid.
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_midnight_utc=crate::conversions::OMITTED, averaging_start_date=crate::conversions::OMITTED, expiry_midnight_utc=crate::conversions::OMITTED, realized_average=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_date=crate::conversions::OMITTED, averaging_start_date=crate::conversions::OMITTED, expiry_date=crate::conversions::OMITTED, realized_average=crate::conversions::OMITTED))]
     fn replace(
         &self,
         #[pyo3(from_py_with = crate::conversions::supplied)] option_type: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] strike: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] effective_midnight_utc: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_date: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] averaging_start_date: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_midnight_utc: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_date: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] realized_average: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let changes = kiyosi::AveragePriceOptionChanges {
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
-            effective_midnight_utc: effective_midnight_utc.map(crate::conversions::date).transpose()?,
+            effective_date: effective_date.map(crate::conversions::date).transpose()?,
             averaging_start_date: averaging_start_date.map(crate::conversions::date).transpose()?,
-            expiry_midnight_utc: expiry_midnight_utc.map(crate::conversions::date).transpose()?,
+            expiry_date: expiry_date.map(crate::conversions::date).transpose()?,
             realized_average: realized_average.map(crate::conversions::real).transpose()?,
         };
         Ok(Self(domain(self.0.replace(changes))?))
     }
             #[new]
-            #[pyo3(signature = (*, option_type, strike, effective_midnight_utc, averaging_start_date, expiry_midnight_utc, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE))]
+            #[pyo3(signature = (*, option_type, strike, effective_date, averaging_start_date, expiry_date, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE))]
             fn new(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
-                effective_midnight_utc: &Bound<'_, PyAny>, averaging_start_date: &Bound<'_, PyAny>,
-                expiry_midnight_utc: &Bound<'_, PyAny>, #[pyo3(from_py_with = real)] realized_average: f64) -> PyResult<Self> {
+                effective_date: &Bound<'_, PyAny>, averaging_start_date: &Bound<'_, PyAny>,
+                expiry_date: &Bound<'_, PyAny>, #[pyo3(from_py_with = real)] realized_average: f64) -> PyResult<Self> {
                 Ok(Self(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
-                    date(effective_midnight_utc)?, date(averaging_start_date)?, date(expiry_midnight_utc)?, realized_average))?))
+                    date(effective_date)?, date(averaging_start_date)?, date(expiry_date)?, realized_average))?))
             }
             /// Return a validated replacement without changing this value.
             ///
@@ -127,13 +127,13 @@ macro_rules! average_option {
             fn realized_average(&self) -> f64 { self.0.realized_average() }
             /// Return inclusive first contract date.
             #[getter]
-            fn effective_midnight_utc<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> { python_date(py, self.0.effective_midnight_utc()) }
+            fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> { python_date(py, self.0.effective_date()) }
             /// Return first averaging date, within the contract life.
             #[getter]
             fn averaging_start_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> { python_date(py, self.0.averaging_start_date()) }
             /// Return final contract date; expiry is at midnight UTC.
             #[getter]
-            fn expiry_midnight_utc<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> { python_date(py, self.0.expiry_midnight_utc()) }
+            fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> { python_date(py, self.0.expiry_date()) }
         }
     };
 }

@@ -8,9 +8,9 @@ use crate::{
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleTouchOptionTerms {
     /// Inclusive first date.
-    pub effective_midnight_utc: Date,
+    pub effective_date: Date,
     /// Inclusive expiry at midnight UTC.
-    pub expiry_midnight_utc: Date,
+    pub expiry_date: Date,
     /// Positive finite lower boundary; equality touches.
     pub lower_barrier: f64,
     /// Finite upper boundary, strictly above the lower boundary.
@@ -29,15 +29,15 @@ pub struct DoubleTouchOptionTerms {
 impl DoubleTouchOptionTerms {
     /// Supplies the single-touch defaults without validation; see [`DoubleTouchOption::cash`].
     pub fn new(
-        effective_midnight_utc: Date,
-        expiry_midnight_utc: Date,
+        effective_date: Date,
+        expiry_date: Date,
         lower_barrier: f64,
         upper_barrier: f64,
         barrier_type: DoubleBarrierType,
     ) -> Self {
         Self {
-            effective_midnight_utc,
-            expiry_midnight_utc,
+            effective_date,
+            expiry_date,
             lower_barrier,
             upper_barrier,
             barrier_type,
@@ -107,8 +107,8 @@ impl DoubleTouchOption {
         }
         validate_upper(terms.lower_barrier, terms.upper_barrier)?;
         let monitoring = Monitoring::new(
-            terms.effective_midnight_utc,
-            terms.expiry_midnight_utc,
+            terms.effective_date,
+            terms.expiry_date,
             terms.lower_barrier,
             if terms.barrier_type == DoubleBarrierType::KnockIn {
                 BarrierType::DownAndIn
@@ -127,12 +127,12 @@ impl DoubleTouchOption {
         })
     }
     /// Returns the inclusive first date; see [`Self::cash`].
-    pub fn effective_midnight_utc(&self) -> Date {
-        self.monitoring.effective_midnight_utc()
+    pub fn effective_date(&self) -> Date {
+        self.monitoring.effective_date()
     }
     /// Returns expiry at midnight UTC; see [`Self::cash`].
-    pub fn expiry_midnight_utc(&self) -> Date {
-        self.monitoring.expiry_midnight_utc()
+    pub fn expiry_date(&self) -> Date {
+        self.monitoring.expiry_date()
     }
     /// Returns the positive lower boundary; see [`Self::cash`].
     pub fn lower_barrier(&self) -> f64 {
@@ -194,11 +194,11 @@ impl DoubleTouchOption {
     }
 }
 impl OptionContract for DoubleTouchOption {
-    fn effective_midnight_utc(&self) -> Date {
-        self.effective_midnight_utc()
+    fn effective_date(&self) -> Date {
+        self.effective_date()
     }
-    fn expiry_midnight_utc(&self) -> Date {
-        self.expiry_midnight_utc()
+    fn expiry_date(&self) -> Date {
+        self.expiry_date()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         self.monitoring
@@ -220,10 +220,10 @@ impl OptionContract for DoubleTouchOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct DoubleTouchOptionChanges {
-    /// Replaces [`effective_midnight_utc`](DoubleTouchOptionTerms::effective_midnight_utc).
-    pub effective_midnight_utc: Option<Date>,
-    /// Replaces [`expiry_midnight_utc`](DoubleTouchOptionTerms::expiry_midnight_utc).
-    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`effective_date`](DoubleTouchOptionTerms::effective_date).
+    pub effective_date: Option<Date>,
+    /// Replaces [`expiry_date`](DoubleTouchOptionTerms::expiry_date).
+    pub expiry_date: Option<Date>,
     /// Replaces [`lower_barrier`](DoubleTouchOptionTerms::lower_barrier).
     pub lower_barrier: Option<f64>,
     /// Replaces [`upper_barrier`](DoubleTouchOptionTerms::upper_barrier).
@@ -255,12 +255,8 @@ impl DoubleTouchOption {
     pub fn replace(&self, changes: DoubleTouchOptionChanges) -> Result<Self> {
         Self::cash(
             DoubleTouchOptionTerms {
-                effective_midnight_utc: changes
-                    .effective_midnight_utc
-                    .unwrap_or(self.effective_midnight_utc()),
-                expiry_midnight_utc: changes
-                    .expiry_midnight_utc
-                    .unwrap_or(self.expiry_midnight_utc()),
+                effective_date: changes.effective_date.unwrap_or(self.effective_date()),
+                expiry_date: changes.expiry_date.unwrap_or(self.expiry_date()),
                 lower_barrier: changes.lower_barrier.unwrap_or(self.lower_barrier()),
                 upper_barrier: changes.upper_barrier.unwrap_or(self.upper_barrier()),
                 barrier_type: changes.barrier_type.unwrap_or(if self.is_one_touch() {

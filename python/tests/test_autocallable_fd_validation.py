@@ -15,8 +15,8 @@ class AutocallableValidationTests(unittest.TestCase):
             note = BinarySnowballOption(
                 maturity_coupon_rate=0.05,
                 barrier_state=history,
-                effective_midnight_utc=start,
-                expiry_midnight_utc=end,
+                effective_date=start,
+                expiry_date=end,
                 observations=[
                     AutocallableObservation(date(2025, 1, 2), 110, coupon_rate=0.08)
                 ],

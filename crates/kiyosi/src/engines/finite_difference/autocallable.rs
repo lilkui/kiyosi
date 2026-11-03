@@ -133,7 +133,7 @@ fn default_upper<T: AutocallableTerms>(
         context,
         context
             .valuation_time()
-            .years_until(note.expiry_midnight_utc().into()),
+            .years_until(note.expiry_date().into()),
         risk,
         dividend,
     )
@@ -246,7 +246,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
     let daily = t.daily_knock_in();
     let layered = daily && !state.knocked_in && note.knock_in_affects_payoff();
     let model = context.model_parameters();
-    let expiry = note.expiry_midnight_utc().start_of_day();
+    let expiry = note.expiry_date().start_of_day();
     let time = context.valuation_time().years_until(expiry);
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
@@ -265,7 +265,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
             {
                 trading.push(context.valuation_time().years_until(date.into()));
             }
-            if date == note.expiry_midnight_utc() {
+            if date == note.expiry_date() {
                 break;
             }
             date = date.add_days(1)?;

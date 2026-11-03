@@ -36,11 +36,7 @@ def market(spot=100, time=START, rate=0.04, dividend=0.01, sigma=0.2):
 
 
 def touch(factory=ins.cash_touch_option, **changes):
-    terms = {
-        "effective_midnight_utc": START,
-        "expiry_midnight_utc": END,
-        "barrier_level": 120.13,
-    }
+    terms = {"effective_date": START, "expiry_date": END, "barrier_level": 120.13}
     terms["barrier_type"] = "up_and_in"
     if factory is ins.cash_touch_option:
         terms["payout"] = 10
@@ -135,8 +131,8 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                         fields = {
                             "option_type": direction,
                             "strike": 100,
-                            "effective_midnight_utc": START,
-                            "expiry_midnight_utc": END,
+                            "effective_date": START,
+                            "expiry_date": END,
                             "barrier_level": 120.125 if up else 79.875,
                             "barrier_type": f"{'up' if up else 'down'}_and_{'in' if knock_in else 'out'}",
                             "observation_mode": "scheduled",
@@ -213,8 +209,8 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             option_type="call",
             strike=option.barrier_level,
             payout=10,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=fixing,
+            effective_date=START,
+            expiry_date=fixing,
         )
         self.assertAlmostEqual(
             engine.price(option, ctx),
@@ -399,12 +395,8 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             with self.subTest(identifier=identifier):
                 kind, asset = inputs["BarrierType"], inputs["asset_settlement"]
                 fields = {
-                    "effective_midnight_utc": date.fromisoformat(
-                        inputs["effective_midnight_utc"]
-                    ),
-                    "expiry_midnight_utc": date.fromisoformat(
-                        inputs["expiry_midnight_utc"]
-                    ),
+                    "effective_date": date.fromisoformat(inputs["effective_date"]),
+                    "expiry_date": date.fromisoformat(inputs["expiry_date"]),
                     "barrier_level": inputs["barrier"],
                     "touch_state": "untouched",
                 }
@@ -444,7 +436,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 if (
                     inputs["spot"],
                     inputs["strike"],
-                    (option.expiry_midnight_utc - ctx.valuation_time.date()).days,
+                    (option.expiry_date - ctx.valuation_time.date()).days,
                 ) == (100, 100, 365):
                     result = engine.price_with_greeks(
                         option, ctx, greeks="all", spot_shift=0.1

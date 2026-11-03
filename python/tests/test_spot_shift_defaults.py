@@ -15,8 +15,8 @@ class SpotShiftDefaultTests(unittest.TestCase):
         vanilla = {
             "option_type": "call",
             "strike": 100,
-            "effective_midnight_utc": start,
-            "expiry_midnight_utc": end,
+            "effective_date": start,
+            "expiry_date": end,
         }
         context = m.PricingContext(
             model_parameters=m.BlackScholesMertonParameters(
@@ -60,8 +60,8 @@ class SpotShiftDefaultTests(unittest.TestCase):
         option = i.AmericanOption(
             option_type="put",
             strike=100,
-            effective_midnight_utc=start,
-            expiry_midnight_utc=end,
+            effective_date=start,
+            expiry_date=end,
         )
         context = m.PricingContext(
             model_parameters=m.BlackScholesMertonParameters(

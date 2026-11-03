@@ -79,7 +79,7 @@ fn enumerated(
 ) -> f64 {
     let (initial_level, initial_node) = initial;
     let time = context.valuation_time();
-    let days = f64::from(option.expiry_midnight_utc().day() - time.date().day())
+    let days = f64::from(option.expiry_date().day() - time.date().day())
         - time.micros_since_midnight() as f64 / 86_400_000_000.0;
     let dt = days / 365.0 / steps as f64;
     let model = context.model_parameters().as_bsm().unwrap();
@@ -160,14 +160,13 @@ fn prices_and_node_greeks_match_independent_paths_across_supported_terms() {
                             t.option_type = direction;
                             t.rebate = rebate;
                             t.rebate_timing = timing;
-                            let context =
-                                market(t.effective_midnight_utc.into(), 100.0, 0.04, 0.25);
+                            let context = market(t.effective_date.into(), 100.0, 0.04, 0.25);
                             let jump = 0.25 * (10.0 / 365.0 / steps as f64).sqrt();
                             t.barrier_level =
                                 100.0 * (if is_up(kind) { 1.5 * jump } else { -1.5 * jump }).exp();
                             if scheduled {
                                 t.observation_mode = ObservationMode::Scheduled;
-                                t.observation_dates = vec![t.expiry_midnight_utc];
+                                t.observation_dates = vec![t.expiry_date];
                             }
                             let option = BarrierOption::new(t).unwrap();
                             let mut observed = vec![!scheduled; steps + 1];
@@ -224,7 +223,7 @@ fn exact_intraday_alignment_early_ending_monitoring_and_node_equality() {
         t.observation_mode = ObservationMode::Scheduled;
         t.observation_dates = vec![Date::new(2025, 1, 3).unwrap()];
         let context = market(
-            Timestamp::new(t.effective_midnight_utc, 12, 0, 0, 0).unwrap(),
+            Timestamp::new(t.effective_date, 12, 0, 0, 0).unwrap(),
             100.0,
             -0.02,
             0.3,
@@ -242,9 +241,7 @@ fn exact_intraday_alignment_early_ending_monitoring_and_node_equality() {
         assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-11);
         let shifted = context
             .replace(PricingContextChanges {
-                valuation_time: Some(
-                    Timestamp::new(option.effective_midnight_utc(), 12, 0, 0, 1).unwrap(),
-                ),
+                valuation_time: Some(Timestamp::new(option.effective_date(), 12, 0, 0, 1).unwrap()),
                 ..Default::default()
             })
             .unwrap();
@@ -272,7 +269,7 @@ fn exact_intraday_alignment_early_ending_monitoring_and_node_equality() {
             t.barrier_level = 100.0 * (if up { jump } else { -jump }).exp();
             t.observation_mode = ObservationMode::Scheduled;
             t.observation_dates = vec![Date::new(2025, 1, 2).unwrap()];
-            let context = market(t.effective_midnight_utc.into(), 100.0, 0.04, sigma);
+            let context = market(t.effective_date.into(), 100.0, 0.04, sigma);
             let option = BarrierOption::new(t).unwrap();
             let engine =
                 CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: 2 }).unwrap();
@@ -291,11 +288,11 @@ fn continuous_refinement_matches_analytic_prices_and_node_greeks() {
     for kind in KINDS {
         for direction in [OptionType::Call, OptionType::Put] {
             let mut t = terms(kind, 10);
-            t.expiry_midnight_utc = Date::new(2026, 1, 1).unwrap();
+            t.expiry_date = Date::new(2026, 1, 1).unwrap();
             t.barrier_level = if is_up(kind) { 120.0 } else { 80.0 };
             t.rebate = 2.0;
             t.option_type = direction;
-            let context = market(t.effective_midnight_utc.into(), 100.0, 0.04, 0.2);
+            let context = market(t.effective_date.into(), 100.0, 0.04, 0.2);
             let option = BarrierOption::new(t).unwrap();
             let expected = AnalyticBarrierEngine
                 .price_with_greeks(
@@ -354,12 +351,12 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     t.rebate_timing = RebateTiming::AtHit;
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_dates = vec![
-        t.effective_midnight_utc,
+        t.effective_date,
         Date::new(2025, 1, 2).unwrap(),
-        t.expiry_midnight_utc,
+        t.expiry_date,
     ];
     let context = market(
-        Timestamp::new(t.effective_midnight_utc, 12, 0, 0, 0).unwrap(),
+        Timestamp::new(t.effective_date, 12, 0, 0, 0).unwrap(),
         100.0,
         0.04,
         0.2,
@@ -378,14 +375,11 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     assert_eq!(engine.price(&touched, &context).unwrap(), 0.0);
     assert!(matches!(
         engine
-            .price(
-                &touched,
-                &market(t.effective_midnight_utc.into(), 100.0, 0.04, 0.2)
-            )
+            .price(&touched, &market(t.effective_date.into(), 100.0, 0.04, 0.2))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let hit = market(t.effective_midnight_utc.into(), 120.0, 0.04, 0.2);
+    let hit = market(t.effective_date.into(), 120.0, 0.04, 0.2);
     let result = engine
         .price_with_greeks(&unknown, &hit, GreeksRequest::all())
         .unwrap();
@@ -401,15 +395,15 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     assert_eq!(engine.settings().step_count, 3);
 
     let curve = RateTermStructure::new(
-        t.effective_midnight_utc.into(),
-        vec![t.expiry_midnight_utc.into()],
+        t.effective_date.into(),
+        vec![t.expiry_date.into()],
         vec![0.99],
     );
     let curve = curve.unwrap();
     let nonflat = PricingContext::new(
         BlackScholesMertonParameters::new(curve, 0.01, 0.2).unwrap(),
         120.0,
-        t.expiry_midnight_utc.into(),
+        t.expiry_date.into(),
     )
     .unwrap();
     assert!(matches!(
@@ -426,17 +420,14 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     for (rate, sigma) in [(0.04, 1e-200), (0.04, 1e6), (-1e6, 0.2)] {
         assert!(matches!(
             engine
-                .price(
-                    &live,
-                    &market(t.effective_midnight_utc.into(), 100.0, rate, sigma)
-                )
+                .price(&live, &market(t.effective_date.into(), 100.0, rate, sigma))
                 .unwrap_err(),
             Error::ComputationFailure(_)
         ));
     }
     for time in [
         Date::new(2024, 12, 31).unwrap().into(),
-        Timestamp::new(t.expiry_midnight_utc, 0, 0, 0, 1).unwrap(),
+        Timestamp::new(t.expiry_date, 0, 0, 0, 1).unwrap(),
     ] {
         assert!(matches!(
             engine
@@ -460,7 +451,7 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
         for time in [
             t.observation_dates[0].into(),
             Timestamp::new(t.observation_dates[0], 12, 0, 0, 0).unwrap(),
-            t.expiry_midnight_utc.into(),
+            t.expiry_date.into(),
         ] {
             let option = if time > t.observation_dates[0].start_of_day() {
                 option.replace_history(Some(BarrierTouchState::Untouched))
@@ -475,8 +466,7 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
                 result.price(),
                 AnalyticBarrierEngine.price(&option, &context).unwrap()
             );
-            if time == t.expiry_midnight_utc.start_of_day()
-                || time == t.observation_dates[0].start_of_day()
+            if time == t.expiry_date.start_of_day() || time == t.observation_dates[0].start_of_day()
             {
                 assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
             }
@@ -487,7 +477,7 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
             t.touch_state = Some(history);
             for spot in [90.0, 100.0, 110.0] {
                 let option = BarrierOption::new(t.clone()).unwrap();
-                let context = market(t.expiry_midnight_utc.into(), spot, 0.04, 0.2);
+                let context = market(t.expiry_date.into(), spot, 0.04, 0.2);
                 let result = engine
                     .price_with_greeks(&option, &context, GreeksRequest::all())
                     .unwrap();
@@ -505,9 +495,9 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
 fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
     let mut t = terms(BarrierType::DownAndOut, 10);
     t.barrier_level = 60.0;
-    t.expiry_midnight_utc = Date::new(2026, 1, 1).unwrap();
+    t.expiry_date = Date::new(2026, 1, 1).unwrap();
     t.touch_state = Some(BarrierTouchState::Untouched);
-    let context = market(t.effective_midnight_utc.into(), 100.0, 0.04, 0.2);
+    let context = market(t.effective_date.into(), 100.0, 0.04, 0.2);
     let option = BarrierOption::new(t.clone()).unwrap();
     let engine = CoxRossRubinsteinBarrierEngine::default();
     let quote = engine.price(&option, &context).unwrap();
@@ -564,13 +554,8 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
         Default::default(),
     )
     .unwrap();
-    let vanilla = EuropeanOption::new(
-        t.option_type,
-        t.strike,
-        t.effective_midnight_utc,
-        t.expiry_midnight_utc,
-    )
-    .unwrap();
+    let vanilla =
+        EuropeanOption::new(t.option_type, t.strike, t.effective_date, t.expiry_date).unwrap();
     let expected = AnalyticEuropeanEngine
         .price_with_greeks(&vanilla, &context, GreeksRequest::all())
         .unwrap();

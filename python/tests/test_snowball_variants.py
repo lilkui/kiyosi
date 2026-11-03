@@ -32,8 +32,8 @@ class SnowballVariantTests(unittest.TestCase):
         end = date(2026, 1, 1)
         note = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=end,
+            effective_date=START,
+            expiry_date=end,
             observations=autocallable_observations(
                 [date(2025, 6, 30), end], [110, 110], knock_out_coupon_rates=[0.2, 0.2]
             ),
@@ -64,8 +64,8 @@ class SnowballVariantTests(unittest.TestCase):
             knock_in_level=80,
             upper_strike=100,
             lower_strike=0,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=end,
+            effective_date=START,
+            expiry_date=end,
             knock_in_observation_mode="every_trading_day",
             observations=autocallable_observations(
                 [end], [110], knock_out_coupon_rates=[0.2]
@@ -103,8 +103,8 @@ class SnowballVariantTests(unittest.TestCase):
         common = {
             "maturity_coupon_rate": 0.06,
             "principal_ratio": 0.5,
-            "effective_midnight_utc": START,
-            "expiry_midnight_utc": END,
+            "effective_date": START,
+            "expiry_date": END,
             "observations": autocallable_observations(
                 [END], [110], knock_out_coupon_rates=[0.08]
             ),
@@ -150,8 +150,8 @@ class SnowballVariantTests(unittest.TestCase):
     def fixed(self, kind, **changes):
         fields = {
             "maturity_coupon_rate": 0.06,
-            "effective_midnight_utc": START,
-            "expiry_midnight_utc": END,
+            "effective_date": START,
+            "expiry_date": END,
             "observations": autocallable_observations(
                 [END], [110], knock_out_coupon_rates=[0.08]
             ),
@@ -172,17 +172,13 @@ class SnowballVariantTests(unittest.TestCase):
                 continue
             with self.subTest(name=name):
                 fields = {
-                    "effective_midnight_utc": date.fromisoformat(
-                        inputs["effective_midnight_utc"]
-                    ),
-                    "expiry_midnight_utc": date.fromisoformat(
-                        inputs["expiry_midnight_utc"]
-                    ),
+                    "effective_date": date.fromisoformat(inputs["effective_date"]),
+                    "expiry_date": date.fromisoformat(inputs["expiry_date"]),
                     "barrier_state": inputs["history"],
                     "principal_ratio": inputs["principal_ratio"],
                     "maturity_coupon_rate": inputs["maturity_coupon_rate"],
                     "observations": autocallable_observations(
-                        [date.fromisoformat(inputs["expiry_midnight_utc"])],
+                        [date.fromisoformat(inputs["expiry_date"])],
                         [110],
                         knock_out_coupon_rates=[inputs["coupon_rate"]],
                     ),
@@ -210,8 +206,8 @@ class SnowballVariantTests(unittest.TestCase):
             "initial_spot": 100,
             "knock_in_level": 80,
             "observation_dates": dates,
-            "effective_midnight_utc": START,
-            "expiry_midnight_utc": END,
+            "effective_date": START,
+            "expiry_date": END,
             "principal_ratio": 0.5,
             "barrier_state": "no_event",
         }
@@ -328,8 +324,8 @@ class SnowballVariantTests(unittest.TestCase):
                     knock_in_observation_mode=mode,
                     barrier_state="no_event",
                     principal_ratio=0.5,
-                    effective_midnight_utc=START,
-                    expiry_midnight_utc=END,
+                    effective_date=START,
+                    expiry_date=END,
                     observations=autocallable_observations(
                         dates, levels, knock_out_coupon_rates=coupons
                     ),
@@ -361,8 +357,8 @@ class SnowballVariantTests(unittest.TestCase):
             knock_in_level=80,
             knock_out_level=110,
             observation_dates=[END],
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            effective_date=START,
+            expiry_date=END,
         )
         self.assertEqual(defaults.principal_ratio, 1)
         self.assertIsNone(defaults.barrier_state)
@@ -404,12 +400,9 @@ class SnowballVariantTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 self.fixed(kind, observations=[object()])
             with self.assertRaises(TypeError):
-                self.fixed(kind, effective_midnight_utc=datetime(2025, 1, 1))
+                self.fixed(kind, effective_date=datetime(2025, 1, 1))
             self.assert_rejection(
-                InvalidInputError,
-                self.fixed,
-                kind,
-                expiry_midnight_utc=date(2024, 12, 31),
+                InvalidInputError, self.fixed, kind, expiry_date=date(2024, 12, 31)
             )
             self.assert_rejection(
                 InvalidInputError,
@@ -482,8 +475,8 @@ class SnowballVariantTests(unittest.TestCase):
             "knock_in_level": 80,
             "knock_out_level": 110,
             "observation_dates": [END],
-            "effective_midnight_utc": START,
-            "expiry_midnight_utc": END,
+            "effective_date": START,
+            "expiry_date": END,
         }
         for field in (
             "coupon_rate",
@@ -662,7 +655,7 @@ class SnowballVariantTests(unittest.TestCase):
                 for kind in (BinarySnowballOption, TernarySnowballOption):
                     note = self.fixed(
                         kind,
-                        expiry_midnight_utc=end,
+                        expiry_date=end,
                         maturity_coupon_rate=0,
                         observations=autocallable_observations(
                             [end], [100], knock_out_coupon_rates=[coupon]
@@ -690,7 +683,7 @@ class SnowballVariantTests(unittest.TestCase):
         t = 1 / (365 * 86400)
         note = self.fixed(
             BinarySnowballOption,
-            expiry_midnight_utc=end,
+            expiry_date=end,
             maturity_coupon_rate=0,
             observations=autocallable_observations(
                 [end], [100], knock_out_coupon_rates=[0.1]

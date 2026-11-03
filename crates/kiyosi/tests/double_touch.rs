@@ -268,7 +268,7 @@ fn analytic_exit_density_series_and_discounted_peaks_match_independent_values() 
         assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-11);
     }
     let mut t = terms(DoubleBarrierType::KnockIn);
-    t.expiry_midnight_utc = Date::new(2025, 1, 2).unwrap();
+    t.expiry_date = Date::new(2025, 1, 2).unwrap();
     t.lower_barrier = 70.0;
     t.upper_barrier = 140.0;
     t.settlement_timing = SettlementTiming::AtHit;
@@ -316,7 +316,7 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
             ));
             assert_eq!(
                 engine
-                    .price(&known, &context(spot, option.expiry_midnight_utc().into()))
+                    .price(&known, &context(spot, option.expiry_date().into()))
                     .unwrap(),
                 if kind == DoubleBarrierType::KnockIn {
                     3.0
@@ -339,7 +339,7 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
         let terminal = engine
             .price_with_greeks(
                 &known,
-                &context(100.0, option.expiry_midnight_utc().into()),
+                &context(100.0, option.expiry_date().into()),
                 GreeksRequest::all(),
                 Default::default(),
             )
@@ -422,8 +422,8 @@ fn analytic_node_curves_reject_even_resolved_payments_and_failures_preserve_inpu
     let option = DoubleTouchOption::cash(terms(DoubleBarrierType::KnockIn), 1.0).unwrap();
     let original = option.clone();
     let curve = RateTermStructure::new(
-        option.effective_midnight_utc().into(),
-        vec![option.expiry_midnight_utc().into()],
+        option.effective_date().into(),
+        vec![option.expiry_date().into()],
         vec![0.97],
     )
     .unwrap();
@@ -693,7 +693,7 @@ fn cash_terms_defaults_validation_and_owning_history() {
             ));
         }
         let mut bad = t.clone();
-        bad.expiry_midnight_utc = Date::new(2024, 12, 31).unwrap();
+        bad.expiry_date = Date::new(2024, 12, 31).unwrap();
         assert!(matches!(
             DoubleTouchOption::cash(bad, 1.0).unwrap_err(),
             Error::InvalidInput(_)
@@ -706,11 +706,8 @@ fn cash_terms_defaults_validation_and_owning_history() {
         ));
         let first = Date::new(2025, 6, 30).unwrap();
         for (mode, dates) in [
-            (ObservationMode::Continuous, vec![t.expiry_midnight_utc]),
-            (
-                ObservationMode::Scheduled,
-                vec![t.expiry_midnight_utc, first],
-            ),
+            (ObservationMode::Continuous, vec![t.expiry_date]),
+            (ObservationMode::Scheduled, vec![t.expiry_date, first]),
             (ObservationMode::Scheduled, vec![first, first]),
         ] {
             let mut bad = t.clone();
@@ -723,13 +720,10 @@ fn cash_terms_defaults_validation_and_owning_history() {
         }
         let mut scheduled = t;
         scheduled.observation_mode = ObservationMode::Scheduled;
-        scheduled.observation_dates = vec![first, scheduled.expiry_midnight_utc];
+        scheduled.observation_dates = vec![first, scheduled.expiry_date];
         let owned = DoubleTouchOption::cash(scheduled.clone(), 1.0).unwrap();
         scheduled.observation_dates.clear();
-        assert_eq!(
-            owned.observation_dates(),
-            &[first, owned.expiry_midnight_utc()]
-        );
+        assert_eq!(owned.observation_dates(), &[first, owned.expiry_date()]);
     }
     let mut invalid = terms(DoubleBarrierType::KnockOut);
     invalid.settlement_timing = SettlementTiming::AtHit;
@@ -799,7 +793,7 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
             .unwrap()
             .replace_history(Some(BarrierTouchState::Untouched));
         for spot in [80.0, 100.0, 120.0] {
-            let at = context(spot, option.expiry_midnight_utc().into());
+            let at = context(spot, option.expiry_date().into());
             let result = engine
                 .price_with_greeks(&option, &at, GreeksRequest::all(), Default::default())
                 .unwrap();
@@ -830,7 +824,7 @@ fn scheduled_one_two_and_early_fixings_match_independent_integrals() {
     // Conditional lognormal integrals from the independent Python reference.
     for (dates, expected) in [
         (
-            vec![terms(DoubleBarrierType::KnockIn).expiry_midnight_utc],
+            vec![terms(DoubleBarrierType::KnockIn).expiry_date],
             [
                 0.304_897_549_279_567_64,
                 0.304_897_549_279_567_64,
@@ -1034,9 +1028,7 @@ fn node_curves_and_early_at_hit_horizons_match_digital_cash_portfolios() {
     for early in [false, true] {
         let horizon = if early { first } else { end };
         let curve = RateTermStructure::new(
-            terms(DoubleBarrierType::KnockIn)
-                .effective_midnight_utc
-                .into(),
+            terms(DoubleBarrierType::KnockIn).effective_date.into(),
             if early {
                 vec![first.into()]
             } else {
@@ -1066,14 +1058,9 @@ fn node_curves_and_early_at_hit_horizons_match_digital_cash_portfolios() {
             (OptionType::Put, t.lower_barrier),
             (OptionType::Call, t.upper_barrier),
         ] {
-            let digital = DigitalOption::cash_or_nothing(
-                direction,
-                level,
-                1.0,
-                t.effective_midnight_utc,
-                horizon,
-            )
-            .unwrap();
+            let digital =
+                DigitalOption::cash_or_nothing(direction, level, 1.0, t.effective_date, horizon)
+                    .unwrap();
             touched += AnalyticDigitalEngine.price(&digital, &ctx).unwrap();
         }
         let option = DoubleTouchOption::cash(t.clone(), 1.0).unwrap();

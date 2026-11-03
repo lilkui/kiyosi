@@ -116,7 +116,7 @@ fn tiny_volatility_payoffs_match_the_vanilla_limit() {
                 t.barrier_level = 0.8 * spot;
                 t.observation_mode = mode;
                 if mode == ObservationMode::Scheduled {
-                    t.observation_dates = vec![t.expiry_midnight_utc];
+                    t.observation_dates = vec![t.expiry_date];
                 }
                 let option = BarrierOption::new(t).unwrap();
                 let actual = engine.price(&option, &context).unwrap();
@@ -236,7 +236,7 @@ fn scheduled_likelihood_greeks_and_early_monitoring_match_quadrature() {
             t.observation_mode = ObservationMode::Scheduled;
             t.observation_dates = vec![day(4, 1), day(7, 1)];
             if !early {
-                t.observation_dates.push(t.expiry_midnight_utc);
+                t.observation_dates.push(t.expiry_date);
             }
             let option = BarrierOption::new(t).unwrap();
             let actual = engine
@@ -522,7 +522,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
             );
             let expired = context
                 .replace(PricingContextChanges {
-                    valuation_time: Some(t.expiry_midnight_utc.into()),
+                    valuation_time: Some(t.expiry_date.into()),
                     ..Default::default()
                 })
                 .unwrap();
@@ -653,7 +653,7 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
     let quote = engine.price(&option, &context).unwrap();
     let curve = RateTermStructure::new(
         day(1, 1).into(),
-        vec![option.expiry_midnight_utc().into()],
+        vec![option.expiry_date().into()],
         vec![(-0.04_f64).exp()],
     )
     .unwrap();
@@ -694,7 +694,7 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
     }
     let outside = context
         .replace(PricingContextChanges {
-            valuation_time: Some(Timestamp::new(option.expiry_midnight_utc(), 0, 0, 0, 1).unwrap()),
+            valuation_time: Some(Timestamp::new(option.expiry_date(), 0, 0, 0, 1).unwrap()),
             ..Default::default()
         })
         .unwrap();
@@ -806,7 +806,7 @@ fn rare_hit_samples_retain_scaled_value_and_unrequested_greeks_do_not_fail_price
 #[test]
 fn sobol_dimensions_count_fixings_and_unobserved_expiry_leg() {
     let mut t = terms(BarrierType::UpAndOut, OptionType::Put);
-    t.expiry_midnight_utc = Date::new(2100, 1, 1).unwrap();
+    t.expiry_date = Date::new(2100, 1, 1).unwrap();
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_dates = (2025..2100)
         .flat_map(|year| {

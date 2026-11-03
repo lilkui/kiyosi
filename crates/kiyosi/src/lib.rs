@@ -11,9 +11,8 @@
 //! valuation dates, calendar consistency and required prior history. All built-in
 //! contracts support validated immutable `replace` operations; omitted terms and
 //! history remain unchanged. See [`BarrierOption::replace`] for an exotic example.
-//! Contract boundary fields and accessors are named `effective_midnight_utc` and
-//! `expiry_midnight_utc`. Their [`Date`] values denote fixed midnight UTC boundaries.
-//! Both boundary midnights are included; later instants on the
+//! Contract dates denote midnight UTC boundaries, not whole trading days. The
+//! effective-date and expiry-date midnights are included; later instants on the
 //! expiry date are outside contract life. Calendars do not move these boundaries.
 //! Contract dates cannot specify an intraday expiry. Python converts aware
 //! valuation datetimes to UTC before applying the same boundaries.

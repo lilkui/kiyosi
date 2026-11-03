@@ -39,9 +39,9 @@ def option(kind, direction="call", strike=100, averaging=START, realized=0):
     return kind(
         option_type=direction,
         strike=strike,
-        effective_midnight_utc=START,
+        effective_date=START,
         averaging_start_date=averaging,
-        expiry_midnight_utc=END,
+        expiry_date=END,
         realized_average=realized,
     )
 
@@ -479,10 +479,7 @@ class AsianMonteCarloTests(unittest.TestCase):
         from kiyosi.instruments import EuropeanOption
 
         wrong = EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            option_type="call", strike=100, effective_date=START, expiry_date=END
         )
         with self.assertRaises(UnsupportedOperationError):
             engine.price(wrong, market())
@@ -540,9 +537,9 @@ class AsianMonteCarloTests(unittest.TestCase):
         instrument = ArithmeticAveragePriceOption(
             option_type="put",
             strike=100,
-            effective_midnight_utc=START,
+            effective_date=START,
             averaging_start_date=START,
-            expiry_midnight_utc=date(2035, 1, 1),
+            expiry_date=date(2035, 1, 1),
         )
         engine = pricing.MonteCarloAsianEngine(path_count=1, step_count=100, seed=42)
         self.assertAlmostEqual(

@@ -19,8 +19,8 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
     let original = BarrierOption::new(BarrierOptionTerms {
         option_type: OptionType::Call,
         strike: 100.0,
-        effective_midnight_utc: start,
-        expiry_midnight_utc: end,
+        effective_date: start,
+        expiry_date: end,
         barrier_level: 120.0,
         barrier_type: BarrierType::UpAndOut,
         rebate: 0.0,
@@ -40,13 +40,13 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
     check_field!(
         original,
         BarrierOptionChanges,
-        effective_midnight_utc,
+        effective_date,
         Date::new(2025, 1, 2).unwrap()
     );
     check_field!(
         original,
         BarrierOptionChanges,
-        expiry_midnight_utc,
+        expiry_date,
         Date::new(2026, 1, 2).unwrap()
     );
     check_field!(original, BarrierOptionChanges, barrier_level, 125.0);
@@ -109,8 +109,8 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
     let original = DoubleBarrierOption::new(DoubleBarrierOptionTerms {
         option_type: OptionType::Call,
         strike: 100.0,
-        effective_midnight_utc: start,
-        expiry_midnight_utc: end,
+        effective_date: start,
+        expiry_date: end,
         lower_barrier: 80.0,
         upper_barrier: 120.0,
         barrier_type: DoubleBarrierType::KnockOut,
@@ -138,13 +138,13 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
     check_field!(
         original,
         DoubleBarrierOptionChanges,
-        effective_midnight_utc,
+        effective_date,
         Date::new(2025, 1, 2).unwrap()
     );
     check_field!(
         original,
         DoubleBarrierOptionChanges,
-        expiry_midnight_utc,
+        expiry_date,
         Date::new(2026, 1, 2).unwrap()
     );
     check_field!(original, DoubleBarrierOptionChanges, lower_barrier, 85.0);
@@ -209,8 +209,8 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
         BinaryBarrierTerms {
             option_type: OptionType::Call,
             strike: 100.0,
-            effective_midnight_utc: start,
-            expiry_midnight_utc: end,
+            effective_date: start,
+            expiry_date: end,
             barrier_level: 120.0,
             barrier_type: BarrierType::UpAndOut,
             observation_mode: ObservationMode::Continuous,
@@ -237,13 +237,13 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
     check_field!(
         original,
         BinaryBarrierOptionChanges,
-        effective_midnight_utc,
+        effective_date,
         Date::new(2025, 1, 2).unwrap()
     );
     check_field!(
         original,
         BinaryBarrierOptionChanges,
-        expiry_midnight_utc,
+        expiry_date,
         Date::new(2026, 1, 2).unwrap()
     );
     check_field!(original, BinaryBarrierOptionChanges, barrier_level, 125.0);
@@ -305,8 +305,8 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     let end = Date::new(2026, 1, 1).unwrap();
     let original = TouchOption::cash(
         TouchOptionTerms {
-            effective_midnight_utc: start,
-            expiry_midnight_utc: end,
+            effective_date: start,
+            expiry_date: end,
             barrier_level: 120.0,
             barrier_type: BarrierType::UpAndIn,
             settlement_timing: SettlementTiming::AtExpiry,
@@ -325,13 +325,13 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     check_field!(
         original,
         TouchOptionChanges,
-        effective_midnight_utc,
+        effective_date,
         Date::new(2025, 1, 2).unwrap()
     );
     check_field!(
         original,
         TouchOptionChanges,
-        expiry_midnight_utc,
+        expiry_date,
         Date::new(2026, 1, 2).unwrap()
     );
     check_field!(original, TouchOptionChanges, barrier_level, 125.0);
@@ -399,8 +399,8 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
     let end = Date::new(2026, 1, 1).unwrap();
     let original = DoubleTouchOption::cash(
         DoubleTouchOptionTerms {
-            effective_midnight_utc: start,
-            expiry_midnight_utc: end,
+            effective_date: start,
+            expiry_date: end,
             lower_barrier: 80.0,
             upper_barrier: 120.0,
             barrier_type: DoubleBarrierType::KnockIn,
@@ -422,13 +422,13 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
     check_field!(
         original,
         DoubleTouchOptionChanges,
-        effective_midnight_utc,
+        effective_date,
         Date::new(2025, 1, 2).unwrap()
     );
     check_field!(
         original,
         DoubleTouchOptionChanges,
-        expiry_midnight_utc,
+        expiry_date,
         Date::new(2026, 1, 2).unwrap()
     );
     check_field!(original, DoubleTouchOptionChanges, lower_barrier, 85.0);
@@ -497,8 +497,8 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
         daily_quantity: 1.0,
         acceleration_factor: 2.0,
         accumulated_quantity: Some(3.0),
-        effective_midnight_utc: start,
-        expiry_midnight_utc: end,
+        effective_date: start,
+        expiry_date: end,
         knock_out_observation_dates: Some(vec![end]),
     })
     .unwrap();
@@ -528,13 +528,13 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
     check_field!(
         original,
         AccumulatorChanges,
-        effective_midnight_utc,
+        effective_date,
         Date::new(2025, 1, 2).unwrap()
     );
     check_field!(
         original,
         AccumulatorChanges,
-        expiry_midnight_utc,
+        expiry_date,
         Date::new(2026, 1, 2).unwrap()
     );
     check_field!(
@@ -573,8 +573,8 @@ fn range_accrual_option_replacements_preserve_omissions_and_validate_each_field(
         annual_coupon_rate: 0.12,
         lower_bound: 90.0,
         upper_bound: 110.0,
-        effective_midnight_utc: start,
-        expiry_midnight_utc: end,
+        effective_date: start,
+        expiry_date: end,
         realized_hit_count: Some(1),
     })
     .unwrap();
@@ -597,13 +597,13 @@ fn range_accrual_option_replacements_preserve_omissions_and_validate_each_field(
     check_field!(
         original,
         RangeAccrualOptionChanges,
-        effective_midnight_utc,
+        effective_date,
         Date::new(2025, 1, 2).unwrap()
     );
     check_field!(
         original,
         RangeAccrualOptionChanges,
-        expiry_midnight_utc,
+        expiry_date,
         Date::new(2026, 1, 2).unwrap()
     );
     check_field!(
@@ -642,8 +642,8 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
         knock_in_observation_mode: KnockInObservationMode::EveryTradingDay,
         barrier_state: Some(AutocallableBarrierState::NoEvent),
         principal_ratio: 1.0,
-        effective_midnight_utc: start,
-        expiry_midnight_utc: end,
+        effective_date: start,
+        expiry_date: end,
         observations: vec![AutocallableObservation::new(end, 110.0)],
     })
     .unwrap();
@@ -718,16 +718,16 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
     check_field!(
         original,
         SnowballOptionChanges,
-        effective_midnight_utc,
+        effective_date,
         Date::new(2025, 1, 2).unwrap(),
-        terms().effective_midnight_utc
+        terms().effective_date
     );
     check_field!(
         original,
         SnowballOptionChanges,
-        expiry_midnight_utc,
+        expiry_date,
         Date::new(2026, 1, 2).unwrap(),
-        terms().expiry_midnight_utc
+        terms().expiry_date
     );
     check_field!(
         original,
@@ -759,8 +759,8 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
         knock_in_observation_mode: KnockInObservationMode::EveryTradingDay,
         barrier_state: Some(AutocallableBarrierState::NoEvent),
         principal_ratio: 1.0,
-        effective_midnight_utc: start,
-        expiry_midnight_utc: end,
+        effective_date: start,
+        expiry_date: end,
         observations: vec![AutocallableObservation::new(end, 110.0)],
     })
     .unwrap();
@@ -835,16 +835,16 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
     check_field!(
         original,
         PhoenixOptionChanges,
-        effective_midnight_utc,
+        effective_date,
         Date::new(2025, 1, 2).unwrap(),
-        terms().effective_midnight_utc
+        terms().effective_date
     );
     check_field!(
         original,
         PhoenixOptionChanges,
-        expiry_midnight_utc,
+        expiry_date,
         Date::new(2026, 1, 2).unwrap(),
-        terms().expiry_midnight_utc
+        terms().expiry_date
     );
     check_field!(
         original,
@@ -871,8 +871,8 @@ fn binary_snowball_option_replacements_preserve_omissions_and_validate_each_fiel
         maturity_coupon_rate: 0.1,
         barrier_state: Some(AutocallableBarrierState::NoEvent),
         principal_ratio: 1.0,
-        effective_midnight_utc: start,
-        expiry_midnight_utc: end,
+        effective_date: start,
+        expiry_date: end,
         observations: vec![AutocallableObservation::new(end, 110.0)],
     })
     .unwrap();
@@ -914,16 +914,16 @@ fn binary_snowball_option_replacements_preserve_omissions_and_validate_each_fiel
     check_field!(
         original,
         BinarySnowballOptionChanges,
-        effective_midnight_utc,
+        effective_date,
         Date::new(2025, 1, 2).unwrap(),
-        terms().effective_midnight_utc
+        terms().effective_date
     );
     check_field!(
         original,
         BinarySnowballOptionChanges,
-        expiry_midnight_utc,
+        expiry_date,
         Date::new(2026, 1, 2).unwrap(),
-        terms().expiry_midnight_utc
+        terms().expiry_date
     );
     check_field!(
         original,
@@ -953,8 +953,8 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
         knock_in_observation_mode: KnockInObservationMode::EveryTradingDay,
         barrier_state: Some(AutocallableBarrierState::NoEvent),
         principal_ratio: 1.0,
-        effective_midnight_utc: start,
-        expiry_midnight_utc: end,
+        effective_date: start,
+        expiry_date: end,
         observations: vec![AutocallableObservation::new(end, 110.0)],
     })
     .unwrap();
@@ -1017,16 +1017,16 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
     check_field!(
         original,
         TernarySnowballOptionChanges,
-        effective_midnight_utc,
+        effective_date,
         Date::new(2025, 1, 2).unwrap(),
-        terms().effective_midnight_utc
+        terms().effective_date
     );
     check_field!(
         original,
         TernarySnowballOptionChanges,
-        expiry_midnight_utc,
+        expiry_date,
         Date::new(2026, 1, 2).unwrap(),
-        terms().expiry_midnight_utc
+        terms().expiry_date
     );
     check_field!(
         original,
@@ -1067,15 +1067,12 @@ fn geometric_average_price_option_replacements_preserve_omissions_and_validate_e
     check_field!(original, AveragePriceOptionChanges, strike, 105.0);
     let updated = original
         .replace(AveragePriceOptionChanges {
-            effective_midnight_utc: Some(Date::new(2025, 1, 2).unwrap()),
+            effective_date: Some(Date::new(2025, 1, 2).unwrap()),
             averaging_start_date: Some(Date::new(2025, 1, 2).unwrap()),
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        updated.effective_midnight_utc(),
-        Date::new(2025, 1, 2).unwrap()
-    );
+    assert_eq!(updated.effective_date(), Date::new(2025, 1, 2).unwrap());
     check_field!(
         original,
         AveragePriceOptionChanges,
@@ -1085,7 +1082,7 @@ fn geometric_average_price_option_replacements_preserve_omissions_and_validate_e
     check_field!(
         original,
         AveragePriceOptionChanges,
-        expiry_midnight_utc,
+        expiry_date,
         Date::new(2026, 1, 2).unwrap()
     );
     check_field!(original, AveragePriceOptionChanges, realized_average, 105.0);
@@ -1121,15 +1118,12 @@ fn arithmetic_average_price_option_replacements_preserve_omissions_and_validate_
     check_field!(original, AveragePriceOptionChanges, strike, 105.0);
     let updated = original
         .replace(AveragePriceOptionChanges {
-            effective_midnight_utc: Some(Date::new(2025, 1, 2).unwrap()),
+            effective_date: Some(Date::new(2025, 1, 2).unwrap()),
             averaging_start_date: Some(Date::new(2025, 1, 2).unwrap()),
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(
-        updated.effective_midnight_utc(),
-        Date::new(2025, 1, 2).unwrap()
-    );
+    assert_eq!(updated.effective_date(), Date::new(2025, 1, 2).unwrap());
     check_field!(
         original,
         AveragePriceOptionChanges,
@@ -1139,7 +1133,7 @@ fn arithmetic_average_price_option_replacements_preserve_omissions_and_validate_
     check_field!(
         original,
         AveragePriceOptionChanges,
-        expiry_midnight_utc,
+        expiry_date,
         Date::new(2026, 1, 2).unwrap()
     );
     check_field!(original, AveragePriceOptionChanges, realized_average, 105.0);

@@ -96,7 +96,7 @@ impl Contract<'_> {
         validate_life(option, context)?;
         validate_schedule(option.observation_schedule(), context)?;
         let (prior, touched, finished) = self.state(context)?;
-        let t = valuation.years_until(option.expiry_midnight_utc().start_of_day());
+        let t = valuation.years_until(option.expiry_date().start_of_day());
         let knock_in = option.barrier_type().is_knock_in();
         let at_hit = self.timing == SettlementTiming::AtHit;
         if prior && at_hit {

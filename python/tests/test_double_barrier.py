@@ -24,8 +24,8 @@ def contract(**changes):
             {
                 "option_type": "call",
                 "strike": 100,
-                "effective_midnight_utc": START,
-                "expiry_midnight_utc": END,
+                "effective_date": START,
+                "expiry_date": END,
                 "lower_barrier": 80,
                 "upper_barrier": 120,
                 "barrier_type": "knock_out",
@@ -100,10 +100,7 @@ class DoubleBarrierTests(unittest.TestCase):
                 barrier_type="knock_in" if kind == "knock_out" else "knock_out",
             )
             vanilla = EuropeanOption(
-                option_type=direction,
-                strike=100,
-                effective_midnight_utc=START,
-                expiry_midnight_utc=END,
+                option_type=direction, strike=100, effective_date=START, expiry_date=END
             )
             self.assertAlmostEqual(
                 result.price + engine.price(other, market()),
@@ -123,8 +120,8 @@ class DoubleBarrierTests(unittest.TestCase):
         single = BarrierOption(
             option_type="call",
             strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            effective_date=START,
+            expiry_date=END,
             barrier_level=80,
             barrier_type="down_and_out",
         )
@@ -144,8 +141,8 @@ class DoubleBarrierTests(unittest.TestCase):
             (
                 option.option_type,
                 option.strike,
-                option.effective_midnight_utc,
-                option.expiry_midnight_utc,
+                option.effective_date,
+                option.expiry_date,
             ),
             ("call", 100, START, END),
         )
@@ -169,7 +166,7 @@ class DoubleBarrierTests(unittest.TestCase):
                 contract(**{field: "unknown"})
             with self.assertRaises(TypeError):
                 contract(**{field: True})
-        for field in ("effective_midnight_utc", "expiry_midnight_utc"):
+        for field in ("effective_date", "expiry_date"):
             with self.assertRaises(TypeError):
                 contract(**{field: "2025-01-01"})
         for values, expected_error in [
@@ -179,7 +176,7 @@ class DoubleBarrierTests(unittest.TestCase):
             ({"upper_barrier": 80}, InvalidInputError),
             ({"lower_barrier": 130}, InvalidInputError),
             ({"strike": 0}, InvalidInputError),
-            ({"expiry_midnight_utc": date(2024, 1, 1)}, InvalidInputError),
+            ({"expiry_date": date(2024, 1, 1)}, InvalidInputError),
             ({"rebate": -1}, InvalidInputError),
             ({"rebate": math.nan}, InvalidInputError),
             (
@@ -290,10 +287,7 @@ class DoubleBarrierTests(unittest.TestCase):
         )
         inside = contract(barrier_type="knock_in", touch_state="touched")
         vanilla = EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            option_type="call", strike=100, effective_date=START, expiry_date=END
         )
         self.assertEqual(
             engine.price(inside, later), AnalyticEuropeanEngine().price(vanilla, later)
@@ -330,8 +324,8 @@ class DoubleBarrierTests(unittest.TestCase):
                     EuropeanOption(
                         option_type="call",
                         strike=100,
-                        effective_midnight_utc=START,
-                        expiry_midnight_utc=END,
+                        effective_date=START,
+                        expiry_date=END,
                     ),
                     market(120, time=first),
                 )
@@ -352,8 +346,8 @@ class DoubleBarrierTests(unittest.TestCase):
                     EuropeanOption(
                         option_type="call",
                         strike=100,
-                        effective_midnight_utc=START,
-                        expiry_midnight_utc=END,
+                        effective_date=START,
+                        expiry_date=END,
                     ),
                     intraday,
                 )
@@ -387,10 +381,7 @@ class DoubleBarrierTests(unittest.TestCase):
                 actual, reference("call", "knock_out", spot=spot), delta=1e-9
             )
         vanilla = EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_midnight_utc=START,
-            expiry_midnight_utc=END,
+            option_type="call", strike=100, effective_date=START, expiry_date=END
         )
         self.assertAlmostEqual(
             engine.price(contract(lower_barrier=0.01, upper_barrier=10000), market()),
@@ -565,10 +556,10 @@ class DoubleBarrierTests(unittest.TestCase):
 
     def test_settled_zero_rebates_do_not_require_representable_discount(self):
         engine = AnalyticDoubleBarrierEngine()
-        outside = contract(expiry_midnight_utc=date(2027, 1, 1))
+        outside = contract(expiry_date=date(2027, 1, 1))
         self.assertEqual(engine.price(outside, market(120, rate=1e308, dividend=0)), 0)
         inside = contract(
-            expiry_midnight_utc=date(2027, 1, 1),
+            expiry_date=date(2027, 1, 1),
             barrier_type="knock_in",
             observation_mode="scheduled",
             observation_dates=[START],

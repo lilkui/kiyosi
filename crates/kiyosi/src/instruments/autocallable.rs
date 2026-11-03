@@ -132,9 +132,9 @@ pub struct SnowballTerms {
     /// Sets the nonnegative normalized principal, independently of coupons and losses.
     pub principal_ratio: f64,
     /// Sets the inclusive first date.
-    pub effective_midnight_utc: Date,
+    pub effective_date: Date,
     /// Sets the inclusive final date, which must be a trading day when pricing.
-    pub expiry_midnight_utc: Date,
+    pub expiry_date: Date,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
 }
@@ -152,8 +152,8 @@ impl SnowballTerms {
         knock_in_level: f64,
         upper_strike: f64,
         lower_strike: f64,
-        effective_midnight_utc: Date,
-        expiry_midnight_utc: Date,
+        effective_date: Date,
+        expiry_date: Date,
         observations: Vec<AutocallableObservation>,
     ) -> Self {
         Self {
@@ -165,8 +165,8 @@ impl SnowballTerms {
             knock_in_observation_mode: KnockInObservationMode::default(),
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_midnight_utc,
-            expiry_midnight_utc,
+            effective_date,
+            expiry_date,
             observations,
         }
     }
@@ -210,9 +210,9 @@ pub struct PhoenixTerms {
     /// Sets the nonnegative normalized principal, independently of coupons and losses.
     pub principal_ratio: f64,
     /// Sets the inclusive first date.
-    pub effective_midnight_utc: Date,
+    pub effective_date: Date,
     /// Sets the inclusive final date, which must be a trading day when pricing.
-    pub expiry_midnight_utc: Date,
+    pub expiry_date: Date,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
 }
@@ -230,8 +230,8 @@ impl PhoenixTerms {
         knock_in_level: f64,
         upper_strike: f64,
         lower_strike: f64,
-        effective_midnight_utc: Date,
-        expiry_midnight_utc: Date,
+        effective_date: Date,
+        expiry_date: Date,
         observations: Vec<AutocallableObservation>,
     ) -> Self {
         Self {
@@ -243,8 +243,8 @@ impl PhoenixTerms {
             knock_in_observation_mode: KnockInObservationMode::default(),
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_midnight_utc,
-            expiry_midnight_utc,
+            effective_date,
+            expiry_date,
             observations,
         }
     }
@@ -267,9 +267,9 @@ pub struct BinarySnowballTerms {
     /// Sets the nonnegative normalized principal, independently of coupons.
     pub principal_ratio: f64,
     /// Sets the inclusive first date.
-    pub effective_midnight_utc: Date,
+    pub effective_date: Date,
     /// Sets the inclusive final date, which must be a trading day when pricing.
-    pub expiry_midnight_utc: Date,
+    pub expiry_date: Date,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
 }
@@ -279,16 +279,16 @@ impl BinarySnowballTerms {
     /// Validation occurs in [`BinarySnowballOption::new`]; see its example.
     pub fn new(
         maturity_coupon_rate: f64,
-        effective_midnight_utc: Date,
-        expiry_midnight_utc: Date,
+        effective_date: Date,
+        expiry_date: Date,
         observations: Vec<AutocallableObservation>,
     ) -> Self {
         Self {
             maturity_coupon_rate,
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_midnight_utc,
-            expiry_midnight_utc,
+            effective_date,
+            expiry_date,
             observations,
         }
     }
@@ -316,9 +316,9 @@ pub struct TernarySnowballTerms {
     /// Sets the nonnegative normalized principal, independently of coupons.
     pub principal_ratio: f64,
     /// Sets the inclusive first date.
-    pub effective_midnight_utc: Date,
+    pub effective_date: Date,
     /// Sets the inclusive final date, which must be a trading day when pricing.
-    pub expiry_midnight_utc: Date,
+    pub expiry_date: Date,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
 }
@@ -330,8 +330,8 @@ impl TernarySnowballTerms {
         maturity_coupon_rate: f64,
         minimum_coupon_rate: f64,
         knock_in_level: f64,
-        effective_midnight_utc: Date,
-        expiry_midnight_utc: Date,
+        effective_date: Date,
+        expiry_date: Date,
         observations: Vec<AutocallableObservation>,
     ) -> Self {
         Self {
@@ -341,8 +341,8 @@ impl TernarySnowballTerms {
             knock_in_observation_mode: KnockInObservationMode::default(),
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_midnight_utc,
-            expiry_midnight_utc,
+            effective_date,
+            expiry_date,
             observations,
         }
     }
@@ -478,8 +478,8 @@ mod sealed {
         pub coupon: Coupon,
         pub barrier_state: Option<AutocallableBarrierState>,
         pub principal_ratio: f64,
-        pub effective_midnight_utc: Date,
-        pub expiry_midnight_utc: Date,
+        pub effective_date: Date,
+        pub expiry_date: Date,
         pub observations: &'a [AutocallableObservation],
     }
 }
@@ -506,8 +506,8 @@ macro_rules! terms_view {
                     coupon: $coupon(self.$rate),
                     barrier_state: self.barrier_state,
                     principal_ratio: self.principal_ratio,
-                    effective_midnight_utc: self.effective_midnight_utc,
-                    expiry_midnight_utc: self.expiry_midnight_utc,
+                    effective_date: self.effective_date,
+                    expiry_date: self.expiry_date,
                     observations: &self.observations,
                 }
             }
@@ -527,8 +527,8 @@ impl sealed::Terms for BinarySnowballTerms {
             coupon: Coupon::Snowball(self.maturity_coupon_rate),
             barrier_state: self.barrier_state,
             principal_ratio: self.principal_ratio,
-            effective_midnight_utc: self.effective_midnight_utc,
-            expiry_midnight_utc: self.expiry_midnight_utc,
+            effective_date: self.effective_date,
+            expiry_date: self.expiry_date,
             observations: &self.observations,
         }
     }
@@ -548,8 +548,8 @@ impl sealed::Terms for TernarySnowballTerms {
             coupon: Coupon::Snowball(self.maturity_coupon_rate),
             barrier_state: self.barrier_state,
             principal_ratio: self.principal_ratio,
-            effective_midnight_utc: self.effective_midnight_utc,
-            expiry_midnight_utc: self.expiry_midnight_utc,
+            effective_date: self.effective_date,
+            expiry_date: self.expiry_date,
             observations: &self.observations,
         }
     }
@@ -627,12 +627,12 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         self.view().barrier_state
     }
     /// Returns the inclusive first date; see [`Self::new`].
-    pub fn effective_midnight_utc(&self) -> Date {
-        self.view().effective_midnight_utc
+    pub fn effective_date(&self) -> Date {
+        self.view().effective_date
     }
     /// Returns expiry at midnight UTC; see [`Self::new`].
-    pub fn expiry_midnight_utc(&self) -> Date {
-        self.view().expiry_midnight_utc
+    pub fn expiry_date(&self) -> Date {
+        self.view().expiry_date
     }
 
     pub(crate) fn view(&self) -> sealed::View<'_> {
@@ -654,7 +654,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         };
         let i = t.observations.partition_point(|r| r.date < record.date);
         let previous = if i == 0 {
-            t.effective_midnight_utc
+            t.effective_date
         } else {
             t.observations[i - 1].date
         };
@@ -677,7 +677,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         let had_out = self.observations()[0].date.start_of_day() < time;
         let mut had_in = false;
         if self.view().daily_knock_in() {
-            let mut date = self.effective_midnight_utc();
+            let mut date = self.effective_date();
             while date.start_of_day() < time {
                 if calendar.is_trading_day(date) {
                     had_in = true;
@@ -725,9 +725,9 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         };
         t.principal_ratio
             + coupon
-                * t.effective_midnight_utc
+                * t.effective_date
                     .start_of_day()
-                    .years_until(t.expiry_midnight_utc.into())
+                    .years_until(t.expiry_date.into())
     }
     pub(crate) fn knock_out_payment(&self, record: &AutocallableObservation) -> f64 {
         let t = self.view();
@@ -737,17 +737,17 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
             } else {
                 record.coupon_rate
             } * self
-                .effective_midnight_utc()
+                .effective_date()
                 .start_of_day()
                 .years_until(record.date.into())
     }
 }
 impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
-    fn effective_midnight_utc(&self) -> Date {
-        self.effective_midnight_utc()
+    fn effective_date(&self) -> Date {
+        self.effective_date()
     }
-    fn expiry_midnight_utc(&self) -> Date {
-        self.expiry_midnight_utc()
+    fn expiry_date(&self) -> Date {
+        self.expiry_date()
     }
     fn all_greeks_unavailable(&self, _context: &PricingContext) -> bool {
         false
@@ -893,15 +893,15 @@ impl sealed::View<'_> {
                 "negative autocallable principal".into(),
             ));
         }
-        if terms.expiry_midnight_utc < terms.effective_midnight_utc {
+        if terms.expiry_date < terms.effective_date {
             return Err(Error::InvalidInput("expiry precedes effective date".into()));
         }
         if terms.observations.is_empty() {
             return Err(Error::InvalidInput("empty autocallable schedule".into()));
         }
         for (i, r) in terms.observations.iter().enumerate() {
-            if r.date < terms.effective_midnight_utc
-                || r.date > terms.expiry_midnight_utc
+            if r.date < terms.effective_date
+                || r.date > terms.expiry_date
                 || i > 0 && r.date <= terms.observations[i - 1].date
             {
                 return Err(Error::InvalidInput(
@@ -974,10 +974,10 @@ pub struct SnowballOptionChanges {
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_ratio`](SnowballTerms::principal_ratio).
     pub principal_ratio: Option<f64>,
-    /// Replaces [`effective_midnight_utc`](SnowballTerms::effective_midnight_utc).
-    pub effective_midnight_utc: Option<Date>,
-    /// Replaces [`expiry_midnight_utc`](SnowballTerms::expiry_midnight_utc).
-    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`effective_date`](SnowballTerms::effective_date).
+    pub effective_date: Option<Date>,
+    /// Replaces [`expiry_date`](SnowballTerms::expiry_date).
+    pub expiry_date: Option<Date>,
     /// Replaces [`observations`](SnowballTerms::observations).
     pub observations: Option<Vec<AutocallableObservation>>,
 }
@@ -1006,12 +1006,8 @@ impl SnowballOption {
                 .unwrap_or(self.0.knock_in_observation_mode),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
             principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
-            effective_midnight_utc: changes
-                .effective_midnight_utc
-                .unwrap_or(self.0.effective_midnight_utc),
-            expiry_midnight_utc: changes
-                .expiry_midnight_utc
-                .unwrap_or(self.0.expiry_midnight_utc),
+            effective_date: changes.effective_date.unwrap_or(self.0.effective_date),
+            expiry_date: changes.expiry_date.unwrap_or(self.0.expiry_date),
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
@@ -1040,10 +1036,10 @@ pub struct PhoenixOptionChanges {
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_ratio`](PhoenixTerms::principal_ratio).
     pub principal_ratio: Option<f64>,
-    /// Replaces [`effective_midnight_utc`](PhoenixTerms::effective_midnight_utc).
-    pub effective_midnight_utc: Option<Date>,
-    /// Replaces [`expiry_midnight_utc`](PhoenixTerms::expiry_midnight_utc).
-    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`effective_date`](PhoenixTerms::effective_date).
+    pub effective_date: Option<Date>,
+    /// Replaces [`expiry_date`](PhoenixTerms::expiry_date).
+    pub expiry_date: Option<Date>,
     /// Replaces [`observations`](PhoenixTerms::observations).
     pub observations: Option<Vec<AutocallableObservation>>,
 }
@@ -1070,12 +1066,8 @@ impl PhoenixOption {
                 .unwrap_or(self.0.knock_in_observation_mode),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
             principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
-            effective_midnight_utc: changes
-                .effective_midnight_utc
-                .unwrap_or(self.0.effective_midnight_utc),
-            expiry_midnight_utc: changes
-                .expiry_midnight_utc
-                .unwrap_or(self.0.expiry_midnight_utc),
+            effective_date: changes.effective_date.unwrap_or(self.0.effective_date),
+            expiry_date: changes.expiry_date.unwrap_or(self.0.expiry_date),
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
@@ -1094,10 +1086,10 @@ pub struct BinarySnowballOptionChanges {
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_ratio`](BinarySnowballTerms::principal_ratio).
     pub principal_ratio: Option<f64>,
-    /// Replaces [`effective_midnight_utc`](BinarySnowballTerms::effective_midnight_utc).
-    pub effective_midnight_utc: Option<Date>,
-    /// Replaces [`expiry_midnight_utc`](BinarySnowballTerms::expiry_midnight_utc).
-    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`effective_date`](BinarySnowballTerms::effective_date).
+    pub effective_date: Option<Date>,
+    /// Replaces [`expiry_date`](BinarySnowballTerms::expiry_date).
+    pub expiry_date: Option<Date>,
     /// Replaces [`observations`](BinarySnowballTerms::observations).
     pub observations: Option<Vec<AutocallableObservation>>,
 }
@@ -1119,12 +1111,8 @@ impl BinarySnowballOption {
                 .unwrap_or(self.0.maturity_coupon_rate),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
             principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
-            effective_midnight_utc: changes
-                .effective_midnight_utc
-                .unwrap_or(self.0.effective_midnight_utc),
-            expiry_midnight_utc: changes
-                .expiry_midnight_utc
-                .unwrap_or(self.0.expiry_midnight_utc),
+            effective_date: changes.effective_date.unwrap_or(self.0.effective_date),
+            expiry_date: changes.expiry_date.unwrap_or(self.0.expiry_date),
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
@@ -1149,10 +1137,10 @@ pub struct TernarySnowballOptionChanges {
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_ratio`](TernarySnowballTerms::principal_ratio).
     pub principal_ratio: Option<f64>,
-    /// Replaces [`effective_midnight_utc`](TernarySnowballTerms::effective_midnight_utc).
-    pub effective_midnight_utc: Option<Date>,
-    /// Replaces [`expiry_midnight_utc`](TernarySnowballTerms::expiry_midnight_utc).
-    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`effective_date`](TernarySnowballTerms::effective_date).
+    pub effective_date: Option<Date>,
+    /// Replaces [`expiry_date`](TernarySnowballTerms::expiry_date).
+    pub expiry_date: Option<Date>,
     /// Replaces [`observations`](TernarySnowballTerms::observations).
     pub observations: Option<Vec<AutocallableObservation>>,
 }
@@ -1181,12 +1169,8 @@ impl TernarySnowballOption {
                 .unwrap_or(self.0.knock_in_observation_mode),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
             principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
-            effective_midnight_utc: changes
-                .effective_midnight_utc
-                .unwrap_or(self.0.effective_midnight_utc),
-            expiry_midnight_utc: changes
-                .expiry_midnight_utc
-                .unwrap_or(self.0.expiry_midnight_utc),
+            effective_date: changes.effective_date.unwrap_or(self.0.effective_date),
+            expiry_date: changes.expiry_date.unwrap_or(self.0.expiry_date),
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
