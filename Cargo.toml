@@ -9,6 +9,8 @@ edition = "2024"
 rust-version = "1.85"
 license = "MIT"
 repository = "https://github.com/lilkui/kiyosi"
+[profile.release]
+lto = "thin"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
