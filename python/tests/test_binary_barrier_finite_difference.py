@@ -338,7 +338,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 engine.scheme,
                 engine.asset_upper_boundary,
             ),
-            (800, 200, "rannacher", None),
+            (800, 400, "rannacher", None),
         )
         for name in ("asset_step_count", "time_step_count"):
             for value in (True, 2.5, 4.0):

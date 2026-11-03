@@ -162,7 +162,7 @@ class FiniteDifferenceTests(unittest.TestCase):
                     engine.scheme,
                     engine.asset_upper_boundary,
                 ),
-                (800, 200, "rannacher", None),
+                (800, 400, "rannacher", None),
             )
             self.assertEqual(factory(asset_step_count=Index()).asset_step_count, 17)
             for count in (3, 10_001, 2**31 - 1):
@@ -709,7 +709,7 @@ class FiniteDifferenceTests(unittest.TestCase):
             expiry_date=date(2035, 1, 1),
         )
         context = market(rate=0.03, dividend=0.05, sigma=1)
-        coarse = FiniteDifferenceVanillaEngine().price(option, context)
+        coarse = FiniteDifferenceVanillaEngine(time_step_count=200).price(option, context)
         engine = FiniteDifferenceVanillaEngine(time_step_count=1600)
         refined = engine.price(option, context)
         self.assertAlmostEqual(coarse, reference, delta=0.2)

@@ -23,6 +23,8 @@ class PackageTests(unittest.TestCase):
             arguments.apply_defaults()
             original = factory()
             replay = factory(*arguments.args, **arguments.kwargs)
+            if name.startswith("FiniteDifference"):
+                self.assertEqual(original.time_step_count, 400)
             for field, default in arguments.arguments.items():
                 with self.subTest(engine=name, field=field):
                     self.assertIsNot(default, Ellipsis)

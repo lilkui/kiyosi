@@ -22,8 +22,8 @@ concentrate spatial nodes around the strike for non-explicit schemes; BSM
 digitals and explicit upper boundaries retain uniform spot grids.
 Concentrated vanilla grids average the payoff kink;
 digital terminal payoffs are cell-averaged on either grid. American grids retain
-their sinh coordinates. Autocallable engines default to 800 spatial and 400
-time steps; observations and damping can add substeps. Check convergence before
+their sinh coordinates. One-dimensional finite-difference engines share defaults
+of 800 spatial and 400 time steps; observations and damping can add substeps. Check convergence before
 reducing grid counts further.
 ``MonteCarloSampling`` selects
 ``"pseudo_random"`` or scrambled ``"sobol"``; a fixed seed reproduces draws

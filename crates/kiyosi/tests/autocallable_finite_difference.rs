@@ -225,9 +225,8 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
     assert_eq!(
         FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings::default())
             .unwrap()
-            .settings()
-            .time_step_count,
-        200
+            .settings(),
+        defaults
     );
     assert!(matches!(
         FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {

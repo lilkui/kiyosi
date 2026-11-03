@@ -161,7 +161,7 @@ fn settings_validate_without_allocating_or_imposing_grid_caps() {
     let defaults = FiniteDifferenceSettings::default();
     assert_eq!(
         (defaults.asset_step_count, defaults.time_step_count),
-        (800, 200)
+        (800, 400)
     );
     assert_eq!(defaults.scheme, FiniteDifferenceScheme::Rannacher);
     assert_eq!(defaults.asset_upper_boundary, None);

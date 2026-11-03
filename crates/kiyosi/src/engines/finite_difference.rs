@@ -57,7 +57,7 @@ impl FiniteDifferenceScheme {
 pub struct FiniteDifferenceSettings {
     /// Sets at least three spatial steps; defaults to 800.
     pub asset_step_count: i32,
-    /// Sets at least one time step; defaults to 200. Curve/surface knots and observations are added.
+    /// Sets at least one time step; defaults to 400. Curve/surface knots and observations are added.
     pub time_step_count: i32,
     /// Selects time marching; defaults to [`FiniteDifferenceScheme::Rannacher`].
     pub scheme: FiniteDifferenceScheme,
@@ -74,7 +74,7 @@ impl Default for FiniteDifferenceSettings {
     fn default() -> Self {
         Self {
             asset_step_count: 800,
-            time_step_count: 200,
+            time_step_count: 400,
             scheme: Default::default(),
             asset_upper_boundary: None,
         }
@@ -599,24 +599,14 @@ fn analysis<I: OptionContract>(
 
 macro_rules! engine_settings {
     ($engine:ident, $description:literal) => {
-        engine_settings!($engine, $description, FiniteDifferenceSettings::default());
-    };
-    ($engine:ident, $description:literal, $defaults:expr) => {
         #[doc = $description]
         ///
         /// Owns immutable settings; distinct and shared instances support concurrent pricing.
         ///
         /// See [`Self::price_with_greeks`] for usage.
-        #[derive(Clone, Copy, Debug, PartialEq)]
+        #[derive(Clone, Copy, Debug, Default, PartialEq)]
         pub struct $engine {
             settings: FiniteDifferenceSettings,
-        }
-        impl Default for $engine {
-            fn default() -> Self {
-                Self {
-                    settings: $defaults,
-                }
-            }
         }
         impl $engine {
             /// Creates an engine after validating grid sizes and any explicit upper boundary.
@@ -687,11 +677,7 @@ engine_settings!(
 
 engine_settings!(
     FiniteDifferenceAutocallableEngine,
-    "Prices snowball variants and Phoenix notes with event-projected finite differences; defaults to 800 asset and 400 time steps.",
-    FiniteDifferenceSettings {
-        time_step_count: 400,
-        ..Default::default()
-    }
+    "Prices snowball variants and Phoenix notes with event-projected finite differences; defaults to 800 asset and 400 time steps."
 );
 
 impl FiniteDifferenceVanillaEngine {
