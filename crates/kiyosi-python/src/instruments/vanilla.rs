@@ -1,4 +1,4 @@
-use crate::conversions::{date, direction, python_date, real};
+use crate::conversions::{date, direction, python_date, real, supplied};
 use crate::error::domain;
 use pyo3::prelude::*;
 use pyo3::types::PyDate;
@@ -41,6 +41,45 @@ impl EuropeanOption {
             date(effective_date)?,
             date(expiry_date)?,
         ))?))
+    }
+
+    /// Return a validated replacement without changing this value.
+    ///
+    /// Parameters
+    /// ----------
+    /// option_type : {'call', 'put'}, optional
+    ///     Call or put payoff direction.
+    /// strike : float, optional
+    ///     Positive finite strike price.
+    /// effective_date : datetime.date, optional
+    ///     Contract starts at 00:00 UTC on this date.
+    /// expiry_date : datetime.date, optional
+    ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     New instance of the same class; omitted fields or Ellipsis retain their values.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If replacement terms fail domain validation. The original is unchanged.
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_date=crate::conversions::OMITTED, expiry_date=crate::conversions::OMITTED))]
+    fn replace(
+        &self,
+        #[pyo3(from_py_with = supplied)] option_type: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] strike: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] effective_date: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] expiry_date: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let changes = kiyosi::EuropeanOptionChanges {
+            option_type: option_type.map(direction).transpose()?,
+            strike: strike.map(real).transpose()?,
+            effective_date: effective_date.map(date).transpose()?,
+            expiry_date: expiry_date.map(date).transpose()?,
+        };
+        Ok(Self(domain(self.0.replace(changes))?))
     }
 
     /// Return call or put payoff direction.

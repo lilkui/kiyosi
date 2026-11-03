@@ -69,7 +69,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
         .unwrap()
         .price()
         * quantity;
-    let scaled = option.replace(quantity).unwrap();
+    let scaled = option.replace_history(quantity).unwrap();
     assert!(expected.is_finite() && expected > 0.0);
     assert!((engine.price(&scaled, &context).unwrap() / expected - 1.0).abs() < 1e-12);
     assert!(matches!(
@@ -298,7 +298,7 @@ fn trading_midnights_intraday_history_and_calendar_control_purchases() {
         let context = PricingContext::with_calendar(model.clone(), 90.0, at, calendar).unwrap();
         assert_eq!(engine.price(&option, &context).unwrap(), expected);
     }
-    let empty = option.replace(0.0).unwrap();
+    let empty = option.replace_history(0.0).unwrap();
     assert_eq!(
         engine
             .price(
@@ -382,7 +382,7 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
             (|error| matches!(error, Error::InvalidInput(_))) as fn(Error) -> bool,
         ),
         (
-            option.replace(f64::MAX).unwrap(),
+            option.replace_history(f64::MAX).unwrap(),
             market(111.0, day(1, 1)),
             (|error| matches!(error, Error::ComputationFailure(_))) as fn(Error) -> bool,
         ),
@@ -521,7 +521,11 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
         (option.clone(), market(110.0, day(1, 1)), 30.0),
         (option.clone(), expired, -50.0),
         (fixed.clone(), zero_rates, -30.0),
-        (fixed.replace(0.0).unwrap(), market(100.25, day(1, 1)), 0.0),
+        (
+            fixed.replace_history(0.0).unwrap(),
+            market(100.25, day(1, 1)),
+            0.0,
+        ),
     ] {
         assert_eq!(
             engine

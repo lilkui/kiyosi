@@ -93,7 +93,7 @@ fn trading_midnight_is_observed_once_and_intraday_uses_caller_history() {
     .unwrap();
     for (spot, quantity) in [(90.0, 5.0), (100.0, 4.0), (109.0, 4.0)] {
         let context = market(spot, day(1, 3).into());
-        let expected = terminal_reference(&option.replace(quantity).unwrap(), &context);
+        let expected = terminal_reference(&option.replace_history(quantity).unwrap(), &context);
         assert!((engine.price(&option, &context).unwrap() - expected).abs() < 0.001);
     }
     for at in [
@@ -155,12 +155,15 @@ fn settlement_thresholds_history_replacement_and_expiry_greeks_are_exact() {
     );
     for value in [-1.0, f64::NAN, f64::INFINITY] {
         assert!(matches!(
-            option.replace(value).unwrap_err(),
+            option.replace_history(value).unwrap_err(),
             Error::InvalidInput(_)
         ));
     }
     assert_eq!(option.accumulated_quantity(), 3.0);
-    assert_eq!(option.replace(0.25).unwrap().accumulated_quantity(), 0.25);
+    assert_eq!(
+        option.replace_history(0.25).unwrap().accumulated_quantity(),
+        0.25
+    );
 }
 
 #[test]
@@ -254,7 +257,7 @@ fn validation_order_domains_and_failures_preserve_engine_and_inputs() {
     assert!(matches!(
         engine
             .price(
-                &option.replace(f64::MAX).unwrap(),
+                &option.replace_history(f64::MAX).unwrap(),
                 &market(111.0, day(1, 6).into())
             )
             .unwrap_err(),
@@ -293,8 +296,11 @@ fn daily_layers_converge_to_quadrature_and_quantity_is_affine() {
     assert!(errors[1] < 0.014, "{errors:?}");
     assert!(errors[1] < errors[0], "{errors:?}");
     let engine = FiniteDifferenceAccumulatorEngine::default();
-    let prices =
-        [0.0, 3.0, 6.0].map(|q| engine.price(&option.replace(q).unwrap(), &context).unwrap());
+    let prices = [0.0, 3.0, 6.0].map(|q| {
+        engine
+            .price(&option.replace_history(q).unwrap(), &context)
+            .unwrap()
+    });
     assert!((prices[2] - 2.0 * prices[1] + prices[0]).abs() < 1e-10);
     std::thread::scope(|scope| {
         let task = scope.spawn(|| engine.price(&option, &context).unwrap());

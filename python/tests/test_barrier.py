@@ -50,10 +50,10 @@ class BarrierTests(unittest.TestCase):
         with self.assertRaises(InvalidInputError) as error:
             engine.price(option, self.context(time=date(2025, 1, 2)))
         self.assertIs(type(error.exception), InvalidInputError)
-        touched = option.replace(touch_state="touched")
+        touched = option.replace_history(touch_state="touched")
         self.assertEqual(engine.price(touched, self.context(time=date(2025, 1, 2))), 0)
         self.assertIsNone(option.touch_state)
-        self.assertEqual(touched.replace(touch_state=None), option)
+        self.assertEqual(touched.replace_history(touch_state=None), option)
 
     def assert_rejection(self, expected_error, action):
         with self.assertRaises(expected_error) as error:
@@ -119,11 +119,11 @@ class BarrierTests(unittest.TestCase):
             ({"strike": 7}, TypeError),
         ):
             with self.assertRaises(error):
-                option.replace(**fields)
+                option.replace_history(**fields)
             self.assertEqual(option, BarrierOption(**self.terms()))
         with self.assertRaises(AttributeError):
             option.touch_state = "touched"
-        self.assertEqual(option.replace(), option)
+        self.assertEqual(option.replace_history(), option)
 
     def test_expiry_and_prior_settlement_matrix(self):
         engine = AnalyticBarrierEngine()
@@ -201,7 +201,7 @@ class BarrierTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             lambda: engine.price(
-                option.replace(touch_state="touched"), self.context(time=fixing)
+                option.replace_history(touch_state="touched"), self.context(time=fixing)
             ),
         )
         self.assertAlmostEqual(
@@ -213,7 +213,7 @@ class BarrierTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError, lambda: engine.price(option, self.context(150, noon))
         )
-        untouched = option.replace(touch_state="untouched")
+        untouched = option.replace_history(touch_state="untouched")
         vanilla = EuropeanOption(
             option_type="call",
             strike=100,

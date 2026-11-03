@@ -161,13 +161,13 @@ impl BinaryBarrierOption {
     }
     /// Returns an owning copy with replaced strictly prior history; `None` restores unknown.
     ///
-    /// See [`crate::BarrierOption::replace`] for an example and time consistency rules.
+    /// See [`crate::BarrierOption::replace_history`] for an example and time consistency rules.
     ///
     /// Preserves the validated monitoring and payoff terms.
     #[must_use]
-    pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
+    pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
-            monitoring: self.monitoring.replace(touch_state),
+            monitoring: self.monitoring.replace_history(touch_state),
             digital: self.digital.clone(),
         }
     }
@@ -321,13 +321,13 @@ impl TouchOption {
     }
     /// Returns an owning copy with replaced strictly prior history; `None` restores unknown.
     ///
-    /// See [`crate::BarrierOption::replace`] for examples and time consistency rules.
+    /// See [`crate::BarrierOption::replace_history`] for examples and time consistency rules.
     ///
     /// Preserves the validated monitoring and payoff terms.
     #[must_use]
-    pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
+    pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
-            monitoring: self.monitoring.replace(touch_state),
+            monitoring: self.monitoring.replace_history(touch_state),
             payout: self.payout,
             settlement_timing: self.settlement_timing,
         }

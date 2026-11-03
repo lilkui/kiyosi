@@ -18,7 +18,7 @@ pub enum KnockInObservationMode {
     AtExpiry,
 }
 
-/// Records events strictly before valuation; see [`SnowballOption::replace`].
+/// Records events strictly before valuation; see [`SnowballOption::replace_history`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AutocallableBarrierState {
     /// Records known absence of prior events, distinct from unknown history.
@@ -582,7 +582,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// let terms = PhoenixTerms::new(0.08, 100.0, 80.0, 100.0, 0.0, start, end,
     ///     autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?);
     /// let note = PhoenixOption::new(terms)?;
-    /// let known = note.replace(Some(AutocallableBarrierState::None))?;
+    /// let known = note.replace_history(Some(AutocallableBarrierState::None))?;
     /// assert_eq!(known.observations(), note.observations());
     /// assert_eq!(note.barrier_state(), None);
     /// let records = autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?;
@@ -608,7 +608,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     ///
     /// Returns [`Error::InvalidInput`] for a knock-in state on a binary snowball.
     /// Other terms retain their validated values; this note remains unchanged.
-    pub fn replace(&self, barrier_state: Option<AutocallableBarrierState>) -> Result<Self> {
+    pub fn replace_history(&self, barrier_state: Option<AutocallableBarrierState>) -> Result<Self> {
         self.view().validate_history(barrier_state)?;
         let mut terms = self.0.clone();
         terms.set_history(barrier_state);
@@ -622,7 +622,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     pub fn observations(&self) -> &[AutocallableObservation] {
         self.view().observations
     }
-    /// Returns prior history, or `None` for unknown; see [`Self::replace`].
+    /// Returns prior history, or `None` for unknown; see [`Self::replace_history`].
     pub fn barrier_state(&self) -> Option<AutocallableBarrierState> {
         self.view().barrier_state
     }

@@ -20,6 +20,21 @@ pub struct EuropeanOption {
     expiry_date: Date,
 }
 
+/// Selects European contract replacements; absent fields retain their values.
+///
+/// See [`EuropeanOption::replace`] for an example.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct EuropeanOptionChanges {
+    /// Replaces the call-or-put direction.
+    pub option_type: Option<OptionType>,
+    /// Replaces the positive strike.
+    pub strike: Option<f64>,
+    /// Replaces the effective-date midnight UTC boundary.
+    pub effective_date: Option<Date>,
+    /// Replaces the expiry-date midnight UTC boundary.
+    pub expiry_date: Option<Date>,
+}
+
 impl EuropeanOption {
     /// Creates a positive-strike contract between ordered midnight UTC boundaries.
     ///
@@ -56,6 +71,34 @@ impl EuropeanOption {
         })
     }
 
+    /// Returns a validated replacement, leaving this contract unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Reuses [`Self::new`] validation for the resulting contract.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Date, EuropeanOption, EuropeanOptionChanges, OptionType};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let option = EuropeanOption::new(OptionType::Call, 100.0,
+    ///     Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?)?;
+    /// let changed = option.replace(EuropeanOptionChanges {
+    ///     strike: Some(105.0), ..Default::default()
+    /// })?;
+    /// assert_eq!(changed.strike(), 105.0);
+    /// assert_eq!(option.strike(), 100.0);
+    /// # Ok(()) }
+    /// ```
+    pub fn replace(&self, changes: EuropeanOptionChanges) -> Result<Self> {
+        Self::new(
+            changes.option_type.unwrap_or(self.option_type),
+            changes.strike.unwrap_or(self.strike),
+            changes.effective_date.unwrap_or(self.effective_date),
+            changes.expiry_date.unwrap_or(self.expiry_date),
+        )
+    }
     /// Returns the payoff direction; see [`Self::new`].
     pub fn option_type(&self) -> OptionType {
         self.option_type

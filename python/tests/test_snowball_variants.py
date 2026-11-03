@@ -90,13 +90,13 @@ class SnowballVariantTests(unittest.TestCase):
                 states += ("knocked_in",)
             for state in states:
                 with self.subTest(kind=kind.__name__, state=state):
-                    replaced = note.replace(barrier_state=state)
+                    replaced = note.replace_history(barrier_state=state)
                     self.assertEqual(replaced, self.fixed(kind, barrier_state=state))
-                    self.assertEqual(replaced.replace(barrier_state=None), note)
+                    self.assertEqual(replaced.replace_history(barrier_state=None), note)
             self.assertEqual(note, self.fixed(kind))
         binary = self.fixed(BinarySnowballOption)
         with self.assertRaises(InvalidInputError):
-            binary.replace(barrier_state="knocked_in")
+            binary.replace_history(barrier_state="knocked_in")
         self.assertEqual(binary, self.fixed(BinarySnowballOption))
 
     def test_fixed_terminal_regions_and_no_binary_monitoring(self):
@@ -341,8 +341,8 @@ class SnowballVariantTests(unittest.TestCase):
                     self.assertIsNotNone(result.delta)
                     self.assertIsNotNone(result.vega)
                 self.assertEqual(
-                    actual.replace(barrier_state="knocked_in"),
-                    explicit.replace(barrier_state="knocked_in"),
+                    actual.replace_history(barrier_state="knocked_in"),
+                    explicit.replace_history(barrier_state="knocked_in"),
                 )
                 self.assertEqual(
                     eval(
@@ -412,14 +412,14 @@ class SnowballVariantTests(unittest.TestCase):
                 maturity_coupon_rate=math.nan,
             )
             with self.assertRaises(ValueError):
-                note.replace(barrier_state="unknown")
+                note.replace_history(barrier_state="unknown")
             with self.assertRaises(TypeError):
-                note.replace(barrier_state=True)
+                note.replace_history(barrier_state=True)
             self.assertIsNone(note.barrier_state)
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
-                note.replace(barrier_state="knocked_out"),
+                note.replace_history(barrier_state="knocked_out"),
                 market(),
             )
             self.assert_rejection(
@@ -430,7 +430,7 @@ class SnowballVariantTests(unittest.TestCase):
             )
         binary = self.fixed(BinarySnowballOption)
         self.assert_rejection(
-            InvalidInputError, binary.replace, barrier_state="knocked_in"
+            InvalidInputError, binary.replace_history, barrier_state="knocked_in"
         )
         self.assertIsNone(binary.barrier_state)
         for value in (True, "0.02"):
@@ -457,7 +457,9 @@ class SnowballVariantTests(unittest.TestCase):
             InvalidInputError, engine.price, daily, market(100, date(2025, 1, 2))
         )
         self.assertEqual(
-            engine.price(daily.replace(barrier_state="knocked_in"), market(100, END)),
+            engine.price(
+                daily.replace_history(barrier_state="knocked_in"), market(100, END)
+            ),
             1 + 0.02 * 90 / 365,
         )
         # Calendar applicability is checked before history and expiry settlement.
@@ -590,12 +592,12 @@ class SnowballVariantTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
-                note.replace(barrier_state=None),
+                note.replace_history(barrier_state=None),
                 market(110, intraday),
             )
             self.assertEqual(
                 engine.price(
-                    note.replace(barrier_state="knocked_out"), market(100, END)
+                    note.replace_history(barrier_state="knocked_out"), market(100, END)
                 ),
                 0,
             )

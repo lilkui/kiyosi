@@ -320,7 +320,7 @@ class BarrierBinomialTests(unittest.TestCase):
                 result = engine.price_with_greeks(contract, context, greeks="all")
                 for name in ("delta", "gamma", *OTHER_GREEKS):
                     self.assertIsNone(getattr(result, name))
-                touched = contract.replace(touch_state="touched")
+                touched = contract.replace_history(touch_state="touched")
                 context = market(valuation=START + timedelta(days=2))
                 expected = pricing.AnalyticBarrierEngine().price(touched, context)
                 result = engine.price_with_greeks(touched, context, greeks="all")

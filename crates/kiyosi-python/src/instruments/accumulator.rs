@@ -95,8 +95,10 @@ impl Accumulator {
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (*, accumulated_quantity))]
-    fn replace(&self, accumulated_quantity: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(self.0.replace(real(accumulated_quantity)?))?))
+    fn replace_history(&self, accumulated_quantity: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(domain(
+            self.0.replace_history(real(accumulated_quantity)?),
+        )?))
     }
     /// Returns call for purchases or put for sales.
     #[getter]

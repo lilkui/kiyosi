@@ -118,15 +118,15 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         for value in (-1, math.nan, math.inf):
             self.assert_rejection(
                 InvalidInputError,
-                option.replace,
+                option.replace_history,
                 accumulated_quantity=value,
             )
         for value in (None, True, "3"):
             with self.assertRaises(TypeError):
-                option.replace(accumulated_quantity=value)
+                option.replace_history(accumulated_quantity=value)
         self.assertEqual(option.accumulated_quantity, 3)
         self.assertEqual(
-            option.replace(accumulated_quantity=0.25).accumulated_quantity, 0.25
+            option.replace_history(accumulated_quantity=0.25).accumulated_quantity, 0.25
         )
         for instrument, context, expected_error in (
             (
@@ -157,7 +157,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         for spot, quantity in ((90, 5), (100, 4), (109, 4)):
             at = date(2025, 1, 3)
             expected = terminal_reference(
-                option.replace(accumulated_quantity=quantity), market(spot, at)
+                option.replace_history(accumulated_quantity=quantity), market(spot, at)
             )
             self.assertAlmostEqual(
                 engine.price(option, market(spot, at)), expected, delta=0.001

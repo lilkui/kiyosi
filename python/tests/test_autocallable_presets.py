@@ -94,9 +94,14 @@ class AutocallablePresetTests(unittest.TestCase):
             self.assertEqual(note.principal_ratio, 1)
             dates.clear()
             self.assertEqual(note.observation_dates, [MIDDLE, END])
-            self.assertEqual(note.replace(barrier_state="none").coupon_per_period, 0.01)
             self.assertEqual(
-                note.replace(barrier_state="none").replace(barrier_state=None), note
+                note.replace_history(barrier_state="none").coupon_per_period, 0.01
+            )
+            self.assertEqual(
+                note.replace_history(barrier_state="none").replace_history(
+                    barrier_state=None
+                ),
+                note,
             )
 
     def test_phoenix_coupon_choice_signatures_getters_and_repr_roundtrip(self):
@@ -210,7 +215,9 @@ class AutocallablePresetTests(unittest.TestCase):
                         engine.price(note, after), remaining, places=9
                     )
                     self.assertEqual(
-                        engine.price(note.replace(barrier_state="knocked_out"), after),
+                        engine.price(
+                            note.replace_history(barrier_state="knocked_out"), after
+                        ),
                         0,
                     )
         annual = PhoenixOption(coupon_rate=0.365, **phoenix_fields())

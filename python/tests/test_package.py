@@ -23,15 +23,18 @@ class PackageTests(unittest.TestCase):
                 (
                     member
                     for member in node.body
-                    if isinstance(member, ast.FunctionDef) and member.name == "replace"
+                    if isinstance(member, ast.FunctionDef)
+                    and member.name in ("replace", "replace_history")
                 ),
                 None,
             )
             if method is None:
                 continue
-            signature = inspect.signature(getattr(_native, node.name).replace)
+            signature = inspect.signature(
+                getattr(getattr(_native, node.name), method.name)
+            )
             keywords = tuple(arg.arg for arg in method.args.kwonlyargs)
-            with self.subTest(api=f"{node.name}.replace"):
+            with self.subTest(api=f"{node.name}.{method.name}"):
                 self.assertEqual(tuple(signature.parameters), ("self", *keywords))
                 for name, default in zip(keywords, method.args.kw_defaults):
                     parameter = signature.parameters[name]
@@ -79,19 +82,18 @@ class PackageTests(unittest.TestCase):
             ),
         ]
         for value in values:
+            replace = getattr(value, "replace", None) or value.replace_history
             defaults = {
                 name: parameter.default
-                for name, parameter in inspect.signature(
-                    value.replace
-                ).parameters.items()
+                for name, parameter in inspect.signature(replace).parameters.items()
             }
             with self.subTest(type=type(value).__name__):
-                replacement = value.replace(**defaults)
+                replacement = replace(**defaults)
                 self.assertEqual(replacement, value)
                 self.assertIsNot(replacement, value)
-        self.assertIsNone(values[-2].replace(touch_state=None).touch_state)
+        self.assertIsNone(values[-2].replace_history(touch_state=None).touch_state)
         self.assertIsNone(
-            values[-1].replace(realized_hit_count=None).realized_hit_count
+            values[-1].replace_history(realized_hit_count=None).realized_hit_count
         )
 
     def test_greek_methods_expose_declared_keyword_controls(self):

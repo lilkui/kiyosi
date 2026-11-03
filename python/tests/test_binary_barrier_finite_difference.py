@@ -73,7 +73,8 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             self.assertEqual(engine.price(option, market(130)), amount)
             self.assertEqual(
                 engine.price(
-                    option.replace(touch_state="touched"), market(time=date(2025, 1, 2))
+                    option.replace_history(touch_state="touched"),
+                    market(time=date(2025, 1, 2)),
                 ),
                 0,
             )
@@ -218,7 +219,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         )
         later_payment = touch(observation_mode="scheduled", observation_dates=[fixing])
         self.assert_rejection(InvalidInputError, engine.price, later_payment, ctx)
-        known = option.replace(touch_state="untouched")
+        known = option.replace_history(touch_state="untouched")
         after = market(130, datetime(2025, 6, 30, 0, 0, 0, 1, tzinfo=UTC))
         self.assert_rejection(InvalidInputError, engine.price, option, after)
         self.assertEqual(engine.price(known, after), 0)
@@ -274,7 +275,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            option.replace(touch_state="touched"),
+            option.replace_history(touch_state="touched"),
             market(),
         )
         self.assert_rejection(

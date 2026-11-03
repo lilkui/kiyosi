@@ -59,6 +59,14 @@ class EuropeanOption:
         effective_date: date,
         expiry_date: date,
     ) -> None: ...
+    def replace(
+        self,
+        *,
+        option_type: Literal["call", "put"] | EllipsisType = ...,
+        strike: float | EllipsisType = ...,
+        effective_date: date | EllipsisType = ...,
+        expiry_date: date | EllipsisType = ...,
+    ) -> EuropeanOption: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
     @property
@@ -1374,7 +1382,9 @@ class GeometricAveragePriceOption:
         expiry_date: date,
         realized_average: float = ...,
     ) -> None: ...
-    def replace(self, *, realized_average: float | EllipsisType = ...) -> Self: ...
+    def replace_history(
+        self, *, realized_average: float | EllipsisType = ...
+    ) -> Self: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
     @property
@@ -1416,7 +1426,9 @@ class ArithmeticAveragePriceOption:
         expiry_date: date,
         realized_average: float = ...,
     ) -> None: ...
-    def replace(self, *, realized_average: float | EllipsisType = ...) -> Self: ...
+    def replace_history(
+        self, *, realized_average: float | EllipsisType = ...
+    ) -> Self: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
     @property
@@ -1463,7 +1475,7 @@ class BarrierOption:
         observation_dates: Iterable[date] = ...,
         touch_state: Literal["untouched", "touched"] | None = None,
     ) -> None: ...
-    def replace(
+    def replace_history(
         self,
         *,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
@@ -1529,7 +1541,7 @@ class DoubleBarrierOption:
         observation_dates: Iterable[date] = ...,
         touch_state: Literal["untouched", "touched"] | None = None,
     ) -> None: ...
-    def replace(
+    def replace_history(
         self,
         *,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
@@ -1575,7 +1587,7 @@ class RangeAccrualOption:
         expiry_date: date,
         realized_hit_count: int | None = ...,
     ) -> None: ...
-    def replace(
+    def replace_history(
         self, *, realized_hit_count: int | None | EllipsisType = ...
     ) -> Self: ...
     @property
@@ -1645,7 +1657,7 @@ class AnalyticDoubleTouchEngine:
     ) -> PricingResult: ...
 
 class BinaryBarrierOption:
-    def replace(
+    def replace_history(
         self,
         *,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
@@ -1680,7 +1692,7 @@ class BinaryBarrierOption:
     def strike(self) -> float: ...
 
 class TouchOption:
-    def replace(
+    def replace_history(
         self,
         *,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
@@ -1783,7 +1795,7 @@ class AnalyticBinaryBarrierEngine:
     ) -> PricingResult: ...
 
 class DoubleTouchOption:
-    def replace(
+    def replace_history(
         self,
         *,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
@@ -1911,7 +1923,7 @@ class SnowballOption:
         barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
         principal_ratio: float = ...,
     ) -> None: ...
-    def replace(
+    def replace_history(
         self, *, barrier_state: Literal["none", "knocked_in", "knocked_out"] | None
     ) -> SnowballOption: ...
     @property
@@ -1962,7 +1974,7 @@ class PhoenixOption:
         barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
         principal_ratio: float = ...,
     ) -> None: ...
-    def replace(
+    def replace_history(
         self, *, barrier_state: Literal["none", "knocked_in", "knocked_out"] | None
     ) -> PhoenixOption: ...
     @property
@@ -2009,7 +2021,7 @@ class BinarySnowballOption:
         barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
         principal_ratio: float = ...,
     ) -> None: ...
-    def replace(
+    def replace_history(
         self, *, barrier_state: Literal["none", "knocked_in", "knocked_out"] | None
     ) -> BinarySnowballOption: ...
     @property
@@ -2045,7 +2057,7 @@ class TernarySnowballOption:
         barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
         principal_ratio: float = ...,
     ) -> None: ...
-    def replace(
+    def replace_history(
         self, *, barrier_state: Literal["none", "knocked_in", "knocked_out"] | None
     ) -> TernarySnowballOption: ...
     @property
@@ -2211,7 +2223,7 @@ class Accumulator:
     def effective_date(self) -> date: ...
     @property
     def expiry_date(self) -> date: ...
-    def replace(self, *, accumulated_quantity: float) -> Self: ...
+    def replace_history(self, *, accumulated_quantity: float) -> Self: ...
     def __eq__(self, other: object) -> bool: ...
 
 class QuadratureAccumulatorEngine:

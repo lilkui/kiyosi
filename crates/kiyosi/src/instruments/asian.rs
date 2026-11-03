@@ -104,7 +104,7 @@ macro_rules! average_option {
         ///
         /// Owns validated continuously monitored averaging terms; a zero-length window fixes once at expiry.
         ///
-        /// See [`Self::new`] for construction and [`Self::replace`] for history updates.
+        /// See [`Self::new`] for construction and [`Self::replace_history`] for history updates.
         #[derive(Clone, Debug, PartialEq)]
         pub struct $name(pub(crate) AverageTerms);
         impl $name {
@@ -167,12 +167,12 @@ macro_rules! average_option {
             /// let start = Date::new(2025, 1, 1)?;
             /// let original = GeometricAveragePriceOption::new(OptionType::Call,
             ///     100.0, start, start, Date::new(2026, 1, 1)?, 0.0)?;
-            /// let seasoned = original.replace(105.0)?;
+            /// let seasoned = original.replace_history(105.0)?;
             /// assert_eq!(seasoned.realized_average(), 105.0);
             /// assert_eq!(original.realized_average(), 0.0);
             /// # Ok(()) }
             /// ```
-            pub fn replace(&self, realized_average: f64) -> Result<Self> {
+            pub fn replace_history(&self, realized_average: f64) -> Result<Self> {
                 Self::new(
                     self.option_type(),
                     self.strike(),
@@ -202,7 +202,7 @@ macro_rules! average_option {
             pub fn averaging_start_date(&self) -> Date {
                 self.0.averaging_start
             }
-            /// Returns the caller-supplied history; see [`Self::replace`].
+            /// Returns the caller-supplied history; see [`Self::replace_history`].
             pub fn realized_average(&self) -> f64 {
                 self.0.realized
             }

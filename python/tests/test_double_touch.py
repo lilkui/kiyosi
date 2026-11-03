@@ -301,10 +301,10 @@ class DoubleTouchTests(unittest.TestCase):
         self.assertIsNone(option.touch_state)
         self.assertEqual(option.observation_dates, [])
         self.assertEqual(option.payout, 1)
-        replaced = option.replace(touch_state="untouched")
+        replaced = option.replace_history(touch_state="untouched")
         self.assertEqual(replaced.touch_state, "untouched")
         self.assertIsNone(option.touch_state)
-        self.assertEqual(replaced.replace(touch_state=None), option)
+        self.assertEqual(replaced.replace_history(touch_state=None), option)
         dates = [FIRST, END]
         scheduled = contract(
             cash_double_no_touch, observation_mode="scheduled", observation_dates=dates
@@ -364,7 +364,7 @@ class DoubleTouchTests(unittest.TestCase):
             contract(settlement_timing="later")
         option = contract()
         with self.assertRaises(TypeError):
-            option.replace(touch_state=True)
+            option.replace_history(touch_state=True)
         self.assertEqual(option, contract())
 
     def test_continuous_prices_match_independent_series_and_converge(self):
@@ -467,7 +467,7 @@ class DoubleTouchTests(unittest.TestCase):
                         option, market(spot, time=later)
                     ),
                 )
-            known = option.replace(touch_state="touched")
+            known = option.replace_history(touch_state="touched")
             self.assert_core_error(
                 InvalidInputError,
                 lambda known=known: engine.price(known, market()),
@@ -490,7 +490,7 @@ class DoubleTouchTests(unittest.TestCase):
             contract(payout=3),
             contract(payout=3, settlement_timing="at_hit"),
         ):
-            known = option.replace(touch_state="untouched")
+            known = option.replace_history(touch_state="untouched")
             result = engine.price_with_greeks(known, market(time=END), greeks="all")
             self.assertEqual(result.price, 0 if known.is_one_touch else 3)
             self.assertIsNone(result.delta)
@@ -516,7 +516,7 @@ class DoubleTouchTests(unittest.TestCase):
             InvalidInputError,
             lambda: engine.price(option, market(130, time=after)),
         )
-        known = option.replace(touch_state="untouched")
+        known = option.replace_history(touch_state="untouched")
         for offset in (timedelta(seconds=1), timedelta(hours=12)):
             time = event + offset
             remaining = (
@@ -957,7 +957,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                 )
                 with self.assertRaises(InvalidInputError):
                     engine.price(option, market(spot, time=START + timedelta(days=1)))
-            prior = option.replace(touch_state="touched")
+            prior = option.replace_history(touch_state="touched")
             with self.assertRaises(InvalidInputError):
                 engine.price(prior, market())
             later = market(time=START + timedelta(days=1))
@@ -969,7 +969,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
             self.assertAlmostEqual(engine.price(prior, later), expected, delta=1e-12)
             with self.assertRaises(UnsupportedOperationError):
                 pricing.implied_volatility(engine, prior, later, expected)
-            known = option.replace(touch_state="untouched")
+            known = option.replace_history(touch_state="untouched")
             for spot in (80, 100, 120):
                 terminal = engine.price_with_greeks(
                     known, market(spot, time=END), greeks="all"
@@ -1001,7 +1001,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
             after = FIRST + timedelta(days=1)
             with self.assertRaises(InvalidInputError):
                 engine.price(option, market(time=after))
-            known = option.replace(touch_state="untouched")
+            known = option.replace_history(touch_state="untouched")
             for spot in (80, 120):
                 expected = (
                     0

@@ -92,12 +92,12 @@ fn binary_history_replacement_preserves_terms_and_rejects_knock_in() {
     ] {
         let mut expected = terms.clone();
         expected.barrier_state = state;
-        let replaced = note.replace(state).unwrap();
+        let replaced = note.replace_history(state).unwrap();
         assert_eq!(replaced, BinarySnowballOption::new(expected).unwrap());
-        assert_eq!(replaced.replace(None).unwrap(), note);
+        assert_eq!(replaced.replace_history(None).unwrap(), note);
     }
     assert!(matches!(
-        note.replace(Some(AutocallableBarrierState::KnockedIn)),
+        note.replace_history(Some(AutocallableBarrierState::KnockedIn)),
         Err(Error::InvalidInput(_))
     ));
     assert_eq!(note, BinarySnowballOption::new(terms).unwrap());
@@ -124,7 +124,7 @@ fn binary_has_no_knock_in_and_pays_signed_flat_maturity_coupon() {
         );
     }
     assert!(matches!(
-        note.replace(Some(AutocallableBarrierState::KnockedIn))
+        note.replace_history(Some(AutocallableBarrierState::KnockedIn))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -364,7 +364,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
             implied_volatility(&engine, note, &context, 10.0, Default::default()).unwrap_err(),
             Error::RootNotBracketed(_)
         ));
-        let missing = note.replace(None).unwrap();
+        let missing = note.replace_history(None).unwrap();
         assert!(matches!(
             engine
                 .price(&missing, &market(100.0, date(4, 2)))
@@ -372,7 +372,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
             Error::InvalidInput(_)
         ));
         let settled = note
-            .replace(Some(AutocallableBarrierState::KnockedOut))
+            .replace_history(Some(AutocallableBarrierState::KnockedOut))
             .unwrap();
         assert!(matches!(
             engine.price(&settled, &context).unwrap_err(),
@@ -458,7 +458,7 @@ fn ternary_daily_layers_converge_and_retain_recovered_knock_in_history() {
         Error::InvalidInput(_)
     ));
     let known = note
-        .replace(Some(AutocallableBarrierState::KnockedIn))
+        .replace_history(Some(AutocallableBarrierState::KnockedIn))
         .unwrap();
     assert_eq!(
         engine.price(&known, &market(100.0, date(4, 1))).unwrap(),

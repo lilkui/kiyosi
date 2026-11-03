@@ -294,11 +294,11 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
         RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0, day(1), day(17)),
         terms()
     );
-    let changed = option.replace(Some(3)).unwrap();
+    let changed = option.replace_history(Some(3)).unwrap();
     assert_eq!(changed.realized_hit_count(), Some(3));
-    assert_eq!(changed.replace(None).unwrap(), option);
+    assert_eq!(changed.replace_history(None).unwrap(), option);
     assert!(matches!(
-        option.replace(Some(-1)).unwrap_err(),
+        option.replace_history(Some(-1)).unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert_eq!(option, RangeAccrualOption::new(terms()).unwrap());
@@ -372,7 +372,7 @@ fn history_is_strictly_prior_and_valuation_can_precede_effective_date() {
         (Timestamp::new(day(2), 12, 0, 0, 0).unwrap(), Some(1)),
         (day(9).into(), Some(5)),
     ] {
-        let live = option.replace(hits).unwrap();
+        let live = option.replace_history(hits).unwrap();
         let context = market(at, 100.0);
         assert!(
             (AnalyticRangeAccrualEngine.price(&live, &context).unwrap()
@@ -387,7 +387,7 @@ fn history_is_strictly_prior_and_valuation_can_precede_effective_date() {
         (Timestamp::new(day(2), 12, 0, 0, 0).unwrap(), Some(2)),
         (day(3).into(), None),
     ] {
-        let live = option.replace(hits).unwrap();
+        let live = option.replace_history(hits).unwrap();
         assert!(matches!(
             AnalyticRangeAccrualEngine
                 .price(&live, &market(at, 100.0))
@@ -608,7 +608,7 @@ fn request_and_solver_errors_preserve_inputs() {
         implied_volatility(&engine, &zero, &context, 0.0, settings).unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    let end = option.replace(Some(15)).unwrap();
+    let end = option.replace_history(Some(15)).unwrap();
     let terminal = market(day(17), 100.0);
     assert!(matches!(
         implied_volatility(&engine, &end, &terminal, 0.0, settings).unwrap_err(),
@@ -638,7 +638,7 @@ fn full_term_coupon_uses_calendar_days_and_one_expiry_discount() {
     let engine = AnalyticRangeAccrualEngine;
     let expected = 120.0 * 16.0 / 365.0 * (-0.8_f64 * 16.0 / 365.0).exp();
     assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-12);
-    let seasoned = option.replace(Some(3)).unwrap();
+    let seasoned = option.replace_history(Some(3)).unwrap();
     let live = context
         .replace(PricingContextChanges {
             valuation_time: Some(day(8).into()),
@@ -694,7 +694,7 @@ fn long_and_zero_lower_bound_contracts_support_shared_concurrent_reads() {
         assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-8);
         assert!((parallel.join().unwrap() - expected).abs() < 1e-8);
     });
-    let seasoned = option.replace(Some(20000)).unwrap();
+    let seasoned = option.replace_history(Some(20000)).unwrap();
     let live = market(add(day(1), 20001), 100.0);
     assert!((engine.price(&seasoned, &live).unwrap() - reference(&seasoned, &live)).abs() < 1e-8);
     let lower_zero = RangeAccrualOption::new(RangeAccrualTerms {

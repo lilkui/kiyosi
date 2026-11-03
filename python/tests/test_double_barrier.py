@@ -211,11 +211,11 @@ class DoubleBarrierTests(unittest.TestCase):
             ({"strike": 90}, TypeError),
         ]:
             with self.assertRaises(error):
-                option.replace(**changes)
+                option.replace_history(**changes)
             self.assertEqual(option, contract())
-        known = option.replace(touch_state="untouched")
-        self.assertEqual(known.replace(), known)
-        self.assertEqual(known.replace(touch_state=None), option)
+        known = option.replace_history(touch_state="untouched")
+        self.assertEqual(known.replace_history(), known)
+        self.assertEqual(known.replace_history(touch_state=None), option)
         self.assertIsNone(option.touch_state)
         scheduled = contract(
             observation_mode="scheduled", observation_dates=(d for d in [START, END])
@@ -238,7 +238,7 @@ class DoubleBarrierTests(unittest.TestCase):
             self.assertAlmostEqual(
                 engine.price(option, market(spot)), expected, delta=1e-12
             )
-            past = option.replace(touch_state="touched")
+            past = option.replace_history(touch_state="touched")
             expected = 0 if timing == "at_hit" else 3 * math.exp(-0.04 * 364 / 365)
             self.assertAlmostEqual(engine.price(past, later), expected, delta=1e-12)
             self.assert_rejection(
@@ -306,7 +306,7 @@ class DoubleBarrierTests(unittest.TestCase):
                 UnsupportedOperationError,
                 lambda option=option: engine.price(option, market()),
             )
-            touched = option.replace(touch_state="touched")
+            touched = option.replace_history(touch_state="touched")
             self.assert_rejection(
                 InvalidInputError,
                 lambda touched=touched: engine.price(touched, market()),
@@ -338,7 +338,7 @@ class DoubleBarrierTests(unittest.TestCase):
                 InvalidInputError,
                 lambda option=option, intraday=intraday: engine.price(option, intraday),
             )
-            known = option.replace(touch_state="untouched")
+            known = option.replace_history(touch_state="untouched")
             expected = (
                 3 * math.exp(-0.04 * 184.5 / 365)
                 if kind == "knock_in"
@@ -477,7 +477,7 @@ class DoubleBarrierTests(unittest.TestCase):
             engine, option, context, quote, lower_bound=0.15, upper_bound=0.25
         )
         self.assertAlmostEqual(solved, 0.2, delta=1e-7)
-        known = option.replace(touch_state="untouched")
+        known = option.replace_history(touch_state="untouched")
         later = market(time=START + timedelta(days=1))
         result = engine.price_with_greeks(known, later, greeks="all")
         for name in (

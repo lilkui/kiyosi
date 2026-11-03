@@ -79,13 +79,13 @@ class AsianTests(unittest.TestCase):
         for kind, engine_type in PAIRS:
             option = kind(**terms())
             self.assertEqual(option.realized_average, 0)
-            self.assertEqual(option.replace(), option)
-            updated = option.replace(realized_average=Fraction(211, 2))
+            self.assertEqual(option.replace_history(), option)
+            updated = option.replace_history(realized_average=Fraction(211, 2))
             self.assertEqual(updated.realized_average, 105.5)
             for name in terms():
                 self.assertEqual(getattr(option, name), getattr(updated, name))
             self.assert_rejection(
-                InvalidInputError, option.replace, realized_average=-1
+                InvalidInputError, option.replace_history, realized_average=-1
             )
             self.assertEqual(option.realized_average, 0)
             for name in (*terms(), "realized_average"):
@@ -110,9 +110,9 @@ class AsianTests(unittest.TestCase):
                 kind("call", 100, START, START, END)
             for invalid in (None, True, "100"):
                 with self.assertRaises(TypeError):
-                    option.replace(realized_average=invalid)
+                    option.replace_history(realized_average=invalid)
             with self.assertRaises(TypeError):
-                option.replace(strike=101)
+                option.replace_history(strike=101)
             other = PAIRS[1 if kind is GeometricAveragePriceOption else 0][0](**terms())
             engine = engine_type()
             for wrong in (
@@ -162,7 +162,7 @@ class AsianTests(unittest.TestCase):
                     **terms(averaging_start_date=invalid),
                 )
             original = kind(**terms(averaging_start_date=averaging))
-            seasoned = original.replace(realized_average=110)
+            seasoned = original.replace_history(realized_average=110)
             engine = engine_type()
             for at in (START, averaging):
                 self.assertGreater(engine.price(original, market(at)), 0)
@@ -208,7 +208,7 @@ class AsianTests(unittest.TestCase):
                     self.assert_rejection(
                         InvalidInputError,
                         engine.price,
-                        single.replace(realized_average=110),
+                        single.replace_history(realized_average=110),
                         market(at),
                     )
 
@@ -255,7 +255,7 @@ class AsianTests(unittest.TestCase):
                 option, context, "delta", spot_shift=math.ulp(0.0)
             )
             self.assertIsNone(collapsed.delta)
-            seasoned = option.replace(realized_average=100)
+            seasoned = option.replace_history(realized_average=100)
             active = market(date(2025, 7, 1))
             result = engine.price_with_greeks(seasoned, active, greeks="all")
             self.assertTrue(all(getattr(result, g) is not None for g in GREEKS))
@@ -381,12 +381,12 @@ class AsianTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            arithmetic.replace(realized_average=110),
+            arithmetic.replace_history(realized_average=110),
             context,
         )
         self.assertEqual(
             engine.price(
-                arithmetic.replace(realized_average=110),
+                arithmetic.replace_history(realized_average=110),
                 context.replace(valuation_time=END),
             ),
             10,

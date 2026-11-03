@@ -278,7 +278,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             self.assertAlmostEqual(
                 engine.price(option, market(spot)), expected, delta=1e-12
             )
-            past = option.replace(touch_state="touched")
+            past = option.replace_history(touch_state="touched")
             expected = 0 if timing == "at_hit" else 3 * math.exp(-0.04 * 364 / 365)
             self.assertAlmostEqual(
                 engine.price(past, market(time=START + timedelta(days=1))),
@@ -463,7 +463,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             UnsupportedOperationError,
             lambda: pricing.implied_volatility(
                 engine,
-                option.replace(touch_state="touched"),
+                option.replace_history(touch_state="touched"),
                 market(time=START + timedelta(days=1)),
                 0,
             ),
@@ -480,7 +480,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         self.assertIsNone(event.charm)
         self.assertIsNone(event.color)
         at_expiry = engine.price_with_greeks(
-            option.replace(touch_state="untouched"),
+            option.replace_history(touch_state="untouched"),
             market(110, time=END),
             greeks="all",
         )

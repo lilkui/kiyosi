@@ -97,12 +97,12 @@ fn single_observation_matches_terminal_digital_portfolio_without_grid_error() {
 fn history_replacement_owns_validated_values_and_preserves_terms() {
     let option = Accumulator::new(terms(day(2, 3))).unwrap();
     assert_eq!(option.accumulated_quantity(), 0.0);
-    let seasoned = option.replace(3.0).unwrap();
+    let seasoned = option.replace_history(3.0).unwrap();
     assert_eq!(seasoned.accumulated_quantity(), 3.0);
-    assert_eq!(seasoned.replace(0.0).unwrap(), option);
+    assert_eq!(seasoned.replace_history(0.0).unwrap(), option);
     for invalid in [-1.0, f64::NAN, f64::INFINITY] {
         assert!(matches!(
-            seasoned.replace(invalid).unwrap_err(),
+            seasoned.replace_history(invalid).unwrap_err(),
             Error::InvalidInput(_)
         ));
         assert_eq!(seasoned.accumulated_quantity(), 3.0);
@@ -153,7 +153,7 @@ fn validation_categories_and_order_preserve_accepted_degenerate_terms() {
 fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
     let option = Accumulator::new(terms(day(1, 6)))
         .unwrap()
-        .replace(3.0)
+        .replace_history(3.0)
         .unwrap();
     let engine = QuadratureAccumulatorEngine::default();
     for (spot, quantity) in [
@@ -184,7 +184,7 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
     for spot in [90.0, 100.0, 109.0] {
         let context = market(spot, day(1, 3).into(), 0.2, 0.04, 0.01);
         let updated = option
-            .replace(if spot < 100.0 { 5.0 } else { 4.0 })
+            .replace_history(if spot < 100.0 { 5.0 } else { 4.0 })
             .unwrap();
         assert!(
             (engine.price(&option, &context).unwrap()
@@ -217,7 +217,7 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let huge = option.replace(f64::MAX).unwrap();
+    let huge = option.replace_history(f64::MAX).unwrap();
     assert!(matches!(
         engine
             .price(&huge, &market(111.0, day(1, 6).into(), 0.2, 0.04, 0.01))
@@ -279,7 +279,7 @@ fn two_observations_match_independent_conditional_terminal_portfolio() {
                 let quantity = 3.0 + if side < 100.0 { 2.0 } else { 1.0 };
                 TerminalReference
                     .price(
-                        &option.replace(quantity).unwrap(),
+                        &option.replace_history(quantity).unwrap(),
                         &market(spot, day(1, 2).into(), 0.6, -0.02, 0.03),
                     )
                     .unwrap()
@@ -317,8 +317,11 @@ fn affine_history_zero_limits_and_tiny_volatility_tails() {
     let option = Accumulator::new(terms(day(2, 3))).unwrap();
     let at = Timestamp::new(day(1, 1), 12, 0, 0, 0).unwrap();
     let context = market(90.0, at, 0.2, 0.04, 0.01);
-    let values =
-        [0.0, 3.0, 6.0].map(|q| engine.price(&option.replace(q).unwrap(), &context).unwrap());
+    let values = [0.0, 3.0, 6.0].map(|q| {
+        engine
+            .price(&option.replace_history(q).unwrap(), &context)
+            .unwrap()
+    });
     assert!((values[2] - values[1] - (values[1] - values[0])).abs() < 1e-10);
     let inactive = Accumulator::new(AccumulatorTerms {
         daily_quantity: 0.0,
@@ -329,14 +332,19 @@ fn affine_history_zero_limits_and_tiny_volatility_tails() {
     let zero_carry = market(90.0, at, 0.2, 0.0, 0.0);
     assert_eq!(
         engine
-            .price(&inactive.replace(3.0).unwrap(), &zero_carry)
+            .price(&inactive.replace_history(3.0).unwrap(), &zero_carry)
             .unwrap(),
         -30.0
     );
     for (spot, expected) in [(90.0, -490.0), (120.0, 60.0)] {
         let tiny = market(spot, at, 1e-8, 0.0, 0.0);
         assert!(
-            (engine.price(&option.replace(3.0).unwrap(), &tiny).unwrap() - expected).abs() < 1e-9
+            (engine
+                .price(&option.replace_history(3.0).unwrap(), &tiny)
+                .unwrap()
+                - expected)
+                .abs()
+                < 1e-9
         );
     }
     std::thread::scope(|scope| {
@@ -465,7 +473,7 @@ impl PricingEngine<Accumulator> for Scalar {
 fn greeks_match_terminal_reference_and_cached_prices_match_scalar_repricing() {
     let option = Accumulator::new(terms(day(1, 6)))
         .unwrap()
-        .replace(3.0)
+        .replace_history(3.0)
         .unwrap();
     let context = market(
         101.5,
@@ -501,7 +509,7 @@ fn greeks_match_terminal_reference_and_cached_prices_match_scalar_repricing() {
     }
     let option = Accumulator::new(terms(day(1, 20)))
         .unwrap()
-        .replace(3.0)
+        .replace_history(3.0)
         .unwrap();
     let engine = QuadratureAccumulatorEngine::new(QuadratureSettings {
         asset_step_count: 128,
@@ -536,7 +544,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
     let engine = QuadratureAccumulatorEngine::default();
     let option = Accumulator::new(terms(day(2, 3)))
         .unwrap()
-        .replace(3.0)
+        .replace_history(3.0)
         .unwrap();
     let boundary = market(100.0, day(1, 1).into(), 0.2, 0.04, 0.01);
     let result = engine
@@ -558,7 +566,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
     assert!(result.has(Greek::Rho));
     let option = Accumulator::new(terms(day(1, 6)))
         .unwrap()
-        .replace(3.0)
+        .replace_history(3.0)
         .unwrap();
     let context = market(
         100.0,
@@ -593,7 +601,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
                 ..terms(day(1, 6))
             })
             .unwrap()
-            .replace(3.0)
+            .replace_history(3.0)
             .unwrap(),
             market(90.0, day(1, 3).into(), 0.2, 0.0, 0.0),
         ),

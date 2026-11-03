@@ -51,7 +51,7 @@ impl AnalyticRangeAccrualEngine {
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
     /// let option = RangeAccrualOption::new(RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
-    ///     Date::new(2025, 1, 1)?, Date::new(2025, 1, 3)?))?.replace(Some(1))?;
+    ///     Date::new(2025, 1, 1)?, Date::new(2025, 1, 3)?))?.replace_history(Some(1))?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     95.0, option.expiry_date().into())?;
     /// assert!((AnalyticRangeAccrualEngine.price(&option, &context)? - 240.0 / 365.0).abs() < 1e-12);

@@ -254,7 +254,7 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
     assert_eq!(
         engine
             .price(
-                &hit.replace(Some(BarrierTouchState::Touched)),
+                &hit.replace_history(Some(BarrierTouchState::Touched)),
                 &settled_context
             )
             .unwrap(),
@@ -262,7 +262,7 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
     );
     let cash = engine
         .price(
-            &expiry.replace(Some(BarrierTouchState::Touched)),
+            &expiry.replace_history(Some(BarrierTouchState::Touched)),
             &settled_context,
         )
         .unwrap();
@@ -271,7 +271,7 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
     assert_eq!(
         engine
             .price_with_greeks(
-                &hit.replace(Some(BarrierTouchState::Touched)),
+                &hit.replace_history(Some(BarrierTouchState::Touched)),
                 &settled_context,
                 GreeksRequest::all(),
                 Default::default(),
@@ -330,7 +330,7 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
         .unwrap();
     let result = engine
         .price_with_greeks(
-            &option.replace(None),
+            &option.replace_history(None),
             &boundary,
             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
             Default::default(),
@@ -344,7 +344,7 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
             ..Default::default()
         })
         .unwrap();
-    let option = option.replace(Some(BarrierTouchState::Untouched));
+    let option = option.replace_history(Some(BarrierTouchState::Untouched));
     let result = engine
         .price_with_greeks(
             &option,

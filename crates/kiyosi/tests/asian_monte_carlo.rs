@@ -544,7 +544,7 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
         start.into(),
     )
     .unwrap();
-    let a = affine.replace(0.0).unwrap();
+    let a = affine.replace_history(0.0).unwrap();
     assert!(matches!(
         engine.price(&a, &short_context).unwrap_err(),
         Error::InvalidInput(_)

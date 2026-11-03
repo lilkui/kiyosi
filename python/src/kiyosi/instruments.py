@@ -10,8 +10,9 @@ is outside contract life, as is midnight UTC+08:00 on effective_date.
 Contract dates cannot specify an intraday expiry. Constructors validate terms; pricing validates
 their consistency with the market snapshot, calendar and supplied history.
 History describes events strictly before valuation; a current observation
-is evaluated from the current spot. Replacement returns a new contract.
-``replace()`` exposes named keyword-only fields through ``inspect.signature``.
+is evaluated from the current spot. ``replace()`` replaces constructor terms on vanilla and digital contracts.
+``replace_history()`` updates only prior history on path-dependent contracts.
+Both return new contracts and expose named keyword-only fields through ``inspect.signature``.
 Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
 values. Explicit ``None`` clears nullable history and is rejected for fields
 that require a value.

@@ -23,7 +23,7 @@ macro_rules! monitoring_properties {
             /// ValueError
             ///     If touch_state is an unknown choice.
             #[pyo3(signature = (*, touch_state=crate::conversions::OMITTED))]
-            fn replace(
+            fn replace_history(
                 &self,
                 #[pyo3(from_py_with = crate::conversions::supplied)] touch_state: Option<
                     &pyo3::Bound<'_, pyo3::PyAny>,
@@ -33,7 +33,7 @@ macro_rules! monitoring_properties {
                     Some(value) => $crate::instruments::barrier::history(value)?,
                     None => self.0.touch_state(),
                 };
-                Ok(Self(self.0.replace(state)))
+                Ok(Self(self.0.replace_history(state)))
             }
             /// Returns the date of the 00:00 UTC contract start.
             #[getter]

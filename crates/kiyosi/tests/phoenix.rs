@@ -141,12 +141,14 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
         engine.price(&note, &ctx).unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let known = note.replace(Some(AutocallableBarrierState::None)).unwrap();
+    let known = note
+        .replace_history(Some(AutocallableBarrierState::None))
+        .unwrap();
     assert_eq!(known.observations(), note.observations());
     assert_eq!(note.barrier_state(), None);
     assert!(engine.price(&known, &ctx).unwrap().is_finite());
     let impossible = note
-        .replace(Some(AutocallableBarrierState::KnockedOut))
+        .replace_history(Some(AutocallableBarrierState::KnockedOut))
         .unwrap();
     assert!(matches!(
         engine
@@ -206,7 +208,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     assert!(result.has(Greek::Vega));
     assert!(result.has(Greek::Rho));
     let settled = note
-        .replace(Some(AutocallableBarrierState::KnockedOut))
+        .replace_history(Some(AutocallableBarrierState::KnockedOut))
         .unwrap();
     assert_eq!(
         engine.price(&settled, &market(100.0, date(3, 3))).unwrap(),

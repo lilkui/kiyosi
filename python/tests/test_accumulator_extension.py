@@ -102,12 +102,12 @@ class AccumulatorExtensionTests(unittest.TestCase):
         returned = option.knock_out_observation_dates
         returned.clear()
         self.assertEqual(option.knock_out_observation_dates, [START, END])
-        updated = option.replace(accumulated_quantity=0.25)
+        updated = option.replace_history(accumulated_quantity=0.25)
         self.assertEqual(updated.option_type, "put")
         self.assertEqual(updated.knock_out_observation_dates, [START, END])
         self.assertEqual(updated.accumulated_quantity, 0.25)
         self.assertEqual(option.accumulated_quantity, 3)
-        self.assertEqual(updated.replace(accumulated_quantity=3), option)
+        self.assertEqual(updated.replace_history(accumulated_quantity=3), option)
         self.assertNotEqual(default, contract(knock_out_observation_dates=[]))
         self.assertNotEqual(default, contract(option_type="put"))
         self.assertIn('option_type="put"', repr(option))
@@ -124,7 +124,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(AttributeError):
                 setattr(option, field, value)
         with self.assertRaises(InvalidInputError):
-            option.replace(accumulated_quantity=-1)
+            option.replace_history(accumulated_quantity=-1)
         self.assertEqual(option.knock_out_observation_dates, [START, END])
         signature = inspect.signature(Accumulator)
         self.assertIsNone(signature.parameters["knock_out_observation_dates"].default)
@@ -309,7 +309,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 )
                 context = market(spot, midnight)
                 expected = terminal_reference(
-                    option.replace(accumulated_quantity=quantity), context
+                    option.replace_history(accumulated_quantity=quantity), context
                 )
                 actual = engine.price(option, context)
                 if isinstance(engine, pricing.MonteCarloAccumulatorEngine):
@@ -322,7 +322,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 ):
                     self.assertAlmostEqual(actual, expected, delta=limit)
                     intraday = market(spot, midnight + timedelta(hours=12))
-                    seasoned = option.replace(accumulated_quantity=quantity)
+                    seasoned = option.replace_history(accumulated_quantity=quantity)
                     self.assertAlmostEqual(
                         engine.price(seasoned, intraday),
                         terminal_reference(seasoned, intraday),
@@ -504,7 +504,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     self.assertEqual(result.standard_error, 0)
                     self.assertEqual(result.confidence_interval, (0, 0))
                     self.assertEqual(clipped.price(option, context), 0)
-                    holding = option.replace(accumulated_quantity=3)
+                    holding = option.replace_history(accumulated_quantity=3)
                     holding_context = market(
                         85 if direction == "call" else 115, rate=0, dividend=0
                     )

@@ -35,7 +35,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         engine = MC(path_count=2, seed=0, thread_count=1)
         quantity = 6e307
         expected = engine.price_with_statistics(note, context).price * quantity
-        scaled = note.replace(accumulated_quantity=quantity)
+        scaled = note.replace_history(accumulated_quantity=quantity)
         self.assertTrue(math.isfinite(expected))
         self.assertGreater(expected, 0)
         self.assertAlmostEqual(engine.price(scaled, context) / expected, 1, delta=1e-12)

@@ -260,3 +260,36 @@ fn time_scaled_subnormal_volatility_preserves_positive_value() {
         assert!((actual / expected - 1.0).abs() < 2e-12, "{actual}");
     }
 }
+
+#[test]
+fn european_replacements_validate_and_preserve_originals() {
+    use kiyosi::EuropeanOptionChanges;
+    let original = EuropeanOption::new(
+        OptionType::Call,
+        100.0,
+        Date::new(2025, 1, 1).unwrap(),
+        Date::new(2026, 1, 1).unwrap(),
+    )
+    .unwrap();
+    let changed = original
+        .replace(EuropeanOptionChanges {
+            option_type: Some(OptionType::Put),
+            strike: Some(105.0),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(changed.option_type(), OptionType::Put);
+    assert_eq!(changed.strike(), 105.0);
+    assert_eq!(changed.expiry_date(), original.expiry_date());
+    for strike in [0.0, f64::NAN] {
+        assert!(matches!(
+            original.replace(EuropeanOptionChanges {
+                strike: Some(strike),
+                ..Default::default()
+            }),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    assert_eq!(original.strike(), 100.0);
+    assert_eq!(original.option_type(), OptionType::Call);
+}

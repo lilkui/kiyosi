@@ -423,7 +423,7 @@ class ImpliedCouponTests(unittest.TestCase):
             ternary,
             phoenix(),
         ):
-            settled = note.replace(barrier_state="knocked_out")
+            settled = note.replace_history(barrier_state="knocked_out")
             kwargs = (
                 {}
                 if isinstance(note, PhoenixOption)

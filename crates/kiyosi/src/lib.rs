@@ -157,7 +157,7 @@ pub use instruments::double_touch::{DoubleTouchOption, DoubleTouchOptionTerms};
 pub use instruments::range_accrual::{RangeAccrualOption, RangeAccrualTerms};
 pub use instruments::vanilla::{
     AmericanOption, AmericanOptionChanges, DigitalOption, DigitalOptionChanges, EuropeanOption,
-    OptionContract, OptionType,
+    EuropeanOptionChanges, OptionContract, OptionType,
 };
 pub use market::{
     BlackScholesMertonParameterChanges, BlackScholesMertonParameters, HestonParameterChanges,

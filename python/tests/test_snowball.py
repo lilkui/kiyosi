@@ -92,10 +92,10 @@ class SnowballTests(unittest.TestCase):
         self.assertEqual(note.observation_dates, [END])
         self.assertEqual(note.knock_out_levels, [110])
         self.assertEqual(note.knock_out_coupon_rates, [0])
-        known = note.replace(barrier_state="none")
+        known = note.replace_history(barrier_state="none")
         self.assertEqual(known.observations, note.observations)
         self.assertIsNone(note.barrier_state)
-        self.assertEqual(known.replace(barrier_state=None), note)
+        self.assertEqual(known.replace_history(barrier_state=None), note)
         for changes, exception in (
             ({"barrier_state": True}, TypeError),
             ({"barrier_state": "unknown"}, ValueError),
@@ -103,7 +103,7 @@ class SnowballTests(unittest.TestCase):
             ({"observations": []}, TypeError),
         ):
             with self.subTest(changes=changes), self.assertRaises(exception):
-                note.replace(**changes)
+                note.replace_history(**changes)
         self.assertEqual(
             note, contract(observations=[AutocallableObservation(END, 110)])
         )
@@ -177,7 +177,7 @@ class SnowballTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            unknown.replace(barrier_state="knocked_out"),
+            unknown.replace_history(barrier_state="knocked_out"),
             market(),
         )
         # Non-trading observations precede history checks; missing history precedes expiry checks.
@@ -199,7 +199,7 @@ class SnowballTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            nontrading.replace(barrier_state="none"),
+            nontrading.replace_history(barrier_state="none"),
             market(valuation=date(2025, 3, 3)),
         )
         for valuation in (date(2024, 12, 31), datetime(2025, 4, 1, 0, 0, 0, 1, UTC)):
@@ -370,9 +370,12 @@ class SnowballTests(unittest.TestCase):
         )
         past = market(110, datetime(2025, 2, 3, 0, 0, 0, 1, UTC))
         self.assert_rejection(
-            InvalidInputError, engine.price, note.replace(barrier_state=None), past
+            InvalidInputError,
+            engine.price,
+            note.replace_history(barrier_state=None),
+            past,
         )
-        settled = note.replace(barrier_state="knocked_out")
+        settled = note.replace_history(barrier_state="knocked_out")
         result = engine.price_with_greeks(
             settled, market(valuation=date(2025, 3, 3)), greeks="all"
         )
@@ -397,7 +400,7 @@ class SnowballTests(unittest.TestCase):
         )
         self.assertEqual(engine.price(daily, market(90, END)), 0.9)
         # Midnight KI is strict; intraday spot does not create a historical breach.
-        daily = daily.replace(barrier_state="none")
+        daily = daily.replace_history(barrier_state="none")
         for when, has_theta in ((datetime(2025, 1, 2, 12, tzinfo=UTC), False),):
             result = engine.price_with_greeks(daily, market(80, when), "theta")
             self.assertEqual(result.theta is not None, has_theta)

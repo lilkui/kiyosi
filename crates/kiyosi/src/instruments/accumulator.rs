@@ -93,7 +93,7 @@ impl Accumulator {
     /// # fn main() -> kiyosi::Result<()> {
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
     ///     Date::new(2025, 1, 1)?, Date::new(2025, 2, 3)?))?;
-    /// let seasoned = option.replace(3.0)?;
+    /// let seasoned = option.replace_history(3.0)?;
     /// assert_eq!(seasoned.accumulated_quantity(), 3.0);
     /// assert_eq!(option.accumulated_quantity(), 0.0);
     /// let end = Date::new(2025, 2, 3)?;
@@ -139,7 +139,7 @@ impl Accumulator {
     /// # Errors
     ///
     /// Reuses [`Self::new`] validation, preserving the original on success and failure.
-    pub fn replace(&self, accumulated_quantity: f64) -> Result<Self> {
+    pub fn replace_history(&self, accumulated_quantity: f64) -> Result<Self> {
         Self::new(AccumulatorTerms {
             accumulated_quantity,
             ..self.terms.clone()

@@ -89,7 +89,7 @@ impl RangeAccrualOption {
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
     #[pyo3(signature = (*, realized_hit_count=crate::conversions::OMITTED))]
-    fn replace(
+    fn replace_history(
         &self,
         #[pyo3(from_py_with = supplied)] realized_hit_count: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
@@ -97,7 +97,7 @@ impl RangeAccrualOption {
             Some(value) => history(value)?,
             None => self.0.realized_hit_count(),
         };
-        Ok(Self(domain(self.0.replace(count))?))
+        Ok(Self(domain(self.0.replace_history(count))?))
     }
     /// Return positive finite coupon notional, without principal repayment.
     #[getter]

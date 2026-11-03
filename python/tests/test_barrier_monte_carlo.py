@@ -279,14 +279,14 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     contract,
                     later,
                 )
-                touched = contract.replace(touch_state="touched")
+                touched = contract.replace_history(touch_state="touched")
                 self.assert_rejection(InvalidInputError, engine.price, touched, context)
                 self.assertEqual(
                     engine.price(touched, later),
                     pricing.AnalyticBarrierEngine().price(touched, later),
                 )
                 for history in ("touched", "untouched"):
-                    known = contract.replace(touch_state=history)
+                    known = contract.replace_history(touch_state=history)
                     expired = market(spot=contract.barrier_level, valuation=END)
                     result = engine.price_with_greeks(known, expired, greeks="all")
                     self.assertEqual(
@@ -314,7 +314,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     )
                     + timedelta(microseconds=1)
                 )
-                untouched = scheduled.replace(touch_state="untouched")
+                untouched = scheduled.replace_history(touch_state="untouched")
                 self.assertEqual(
                     engine.price(untouched, after),
                     pricing.AnalyticBarrierEngine().price(untouched, after),
@@ -485,7 +485,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 observed,
                 **controls,
             )
-        fixed = contract.replace(touch_state="touched")
+        fixed = contract.replace_history(touch_state="touched")
         later = market(valuation=START + timedelta(days=1))
         self.assert_rejection(
             UnsupportedOperationError,

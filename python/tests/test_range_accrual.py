@@ -147,9 +147,9 @@ class RangeAccrualTests(unittest.TestCase):
                     contract(**{field: value})
         for value in (2**31, -(2**31) - 1):
             with self.assertRaises(OverflowError):
-                option.replace(realized_hit_count=value)
+                option.replace_history(realized_hit_count=value)
         with self.assertRaises(TypeError):
-            option.replace(notional=2000)
+            option.replace_history(notional=2000)
         with self.assertRaises(UnsupportedOperationError):
             engine.price(vanilla, context)
         with self.assertRaises(UnsupportedOperationError):
@@ -160,7 +160,7 @@ class RangeAccrualTests(unittest.TestCase):
             engine.price_with_greeks(option, context, "delta", spot_shift=True)
         with self.assertRaises(TypeError):
             implied_volatility(engine, option, context, True)
-        self.assertEqual(option.replace(), option)
+        self.assertEqual(option.replace_history(), option)
         self.assertEqual(option, contract())
 
     def test_solver_failures_and_no_mutation(self):
@@ -187,7 +187,7 @@ class RangeAccrualTests(unittest.TestCase):
             UnsupportedOperationError,
             implied_volatility,
             engine,
-            option.replace(realized_hit_count=15),
+            option.replace_history(realized_hit_count=15),
             market(option.expiry_date),
             0,
         )
@@ -235,15 +235,15 @@ class RangeAccrualTests(unittest.TestCase):
         self.assertEqual(option.annual_coupon_rate, 0.12)
         self.assertEqual(option.lower_bound, 95)
         self.assertEqual(option.upper_bound, 110)
-        changed = option.replace(realized_hit_count=3)
+        changed = option.replace_history(realized_hit_count=3)
         self.assertEqual(changed.realized_hit_count, 3)
-        self.assertEqual(changed.replace(realized_hit_count=None), option)
+        self.assertEqual(changed.replace_history(realized_hit_count=None), option)
         for value in (True, 1.0, 1.5, "1"):
             with self.subTest(value=value):
                 with self.assertRaises(TypeError):
                     contract(realized_hit_count=value)
                 with self.assertRaises(TypeError):
-                    option.replace(realized_hit_count=value)
+                    option.replace_history(realized_hit_count=value)
         with self.assertRaises(OverflowError):
             contract(realized_hit_count=2**100)
         for name in ("notional", "annual_coupon_rate", "lower_bound", "upper_bound"):
@@ -262,7 +262,7 @@ class RangeAccrualTests(unittest.TestCase):
         self.assert_rejection(InvalidInputError, contract, expiry_date=START)
         self.assert_rejection(
             InvalidInputError,
-            option.replace,
+            option.replace_history,
             realized_hit_count=-1,
         )
         self.assertEqual(option, contract())
@@ -424,7 +424,7 @@ class RangeAccrualTests(unittest.TestCase):
             120 * 16 / 365 * math.exp(-0.8 * 16 / 365),
             delta=1e-12,
         )
-        live = option.replace(realized_hit_count=3)
+        live = option.replace_history(realized_hit_count=3)
         current = market(
             START + timedelta(days=7), rate=0.8, dividend=0.8, volatility=1e-9
         )
@@ -650,7 +650,7 @@ class RangeAccrualTests(unittest.TestCase):
         self.assertAlmostEqual(
             engine.price(option, market()), reference(option, market()), delta=1e-8
         )
-        seasoned = option.replace(realized_hit_count=20000)
+        seasoned = option.replace_history(realized_hit_count=20000)
         context = market(START + timedelta(days=20001))
         self.assertAlmostEqual(
             engine.price(seasoned, context), reference(seasoned, context), delta=1e-8

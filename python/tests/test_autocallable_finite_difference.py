@@ -116,7 +116,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         self.assertIsNotNone(result.rho)
         snapshot = note.observations
         with self.assertRaises(ValueError):
-            note.replace(barrier_state="invalid")
+            note.replace_history(barrier_state="invalid")
         self.assertEqual(note.observations, snapshot)
         context = market()
         curve = RateTermStructure(

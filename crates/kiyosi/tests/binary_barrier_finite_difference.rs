@@ -227,7 +227,7 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
                     .unwrap_err(),
                 Error::InvalidInput(_)
             ));
-            let known = option.replace(Some(BarrierTouchState::Touched));
+            let known = option.replace_history(Some(BarrierTouchState::Touched));
             assert!(matches!(
                 engine.price(&known, &market()).unwrap_err(),
                 Error::InvalidInput(_)
@@ -247,7 +247,7 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
                 .unwrap_err(),
                 Error::UnsupportedOperation(_)
             ));
-            let untouched = option.replace(Some(BarrierTouchState::Untouched));
+            let untouched = option.replace_history(Some(BarrierTouchState::Untouched));
             for spot in [100.0, 120.0, 130.0] {
                 let ctx = context(spot, end().into());
                 let expected = if spot >= 120.0 {
@@ -280,7 +280,7 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
                 )
             }
             .unwrap()
-            .replace(Some(BarrierTouchState::Untouched));
+            .replace_history(Some(BarrierTouchState::Untouched));
             assert_eq!(
                 engine
                     .price(&option, &context(100.0, end().into()))
@@ -342,7 +342,10 @@ fn early_scheduled_at_hit_horizon_and_resolved_flows_use_only_required_curves() 
     ));
     assert_eq!(
         engine(400)
-            .price(&option.replace(Some(BarrierTouchState::Untouched)), &after)
+            .price(
+                &option.replace_history(Some(BarrierTouchState::Untouched)),
+                &after
+            )
             .unwrap(),
         0.0
     );
@@ -397,7 +400,7 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
         Error::InvalidInput(_)
     ));
     let at = context(120.13, start().into());
-    let unknown = option.replace(None);
+    let unknown = option.replace_history(None);
     let result_at = engine
         .price_with_greeks(&unknown, &at, GreeksRequest::all(), Default::default())
         .unwrap();

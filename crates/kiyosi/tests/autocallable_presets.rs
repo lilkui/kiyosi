@@ -90,7 +90,7 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
                 Err(Error::InvalidInput(_))
             ));
             assert_eq!(
-                note.replace(None).unwrap().terms().coupon,
+                note.replace_history(None).unwrap().terms().coupon,
                 note.terms().coupon
             );
         }
@@ -139,7 +139,7 @@ fn fixed_period_cashflows_exclude_settled_coupons_and_preserve_annual_accrual() 
         let note = phoenix_terms()
             .expand(preset)
             .unwrap()
-            .replace(Some(AutocallableBarrierState::None))
+            .replace_history(Some(AutocallableBarrierState::None))
             .unwrap();
         for (day, expected) in [(date(1, 1), total), (date(2, 4), remaining)] {
             // Positive near-zero volatility keeps these far-from-barrier payoffs effectively deterministic.
@@ -161,7 +161,7 @@ fn fixed_period_cashflows_exclude_settled_coupons_and_preserve_annual_accrual() 
     let fixed = phoenix_terms()
         .expand(PhoenixPreset::FixedCouponNote)
         .unwrap()
-        .replace(Some(AutocallableBarrierState::None))
+        .replace_history(Some(AutocallableBarrierState::None))
         .unwrap();
     let mut terms = fixed.terms().clone();
     terms.coupon = PhoenixCoupon::Annual(0.365);
@@ -306,7 +306,7 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
             .clone()
             .expand(preset)
             .unwrap()
-            .replace(Some(AutocallableBarrierState::None))
+            .replace_history(Some(AutocallableBarrierState::None))
             .unwrap();
         assert_eq!(
             note.observations()
@@ -483,7 +483,7 @@ fn phoenix_presets_reuse_core_validation_and_history_defaults() {
         Err(Error::InvalidInput(_))
     ));
     let settled = note
-        .replace(Some(AutocallableBarrierState::KnockedOut))
+        .replace_history(Some(AutocallableBarrierState::KnockedOut))
         .unwrap();
     assert_eq!(
         QuadratureAutocallableEngine::default()

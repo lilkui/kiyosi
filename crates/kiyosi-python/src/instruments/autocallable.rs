@@ -27,8 +27,8 @@ macro_rules! autocallable_properties {
             /// KiyosiError
             ///     If replacement terms fail domain validation. The original is unchanged.
             #[pyo3(signature = (*, barrier_state))]
-            fn replace(&self, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
-                Ok(Self(domain(self.0.replace(state(barrier_state)?))?))
+            fn replace_history(&self, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
+                Ok(Self(domain(self.0.replace_history(state(barrier_state)?))?))
             }
             /// Returns owned copies of the contractual observations.
             #[getter]

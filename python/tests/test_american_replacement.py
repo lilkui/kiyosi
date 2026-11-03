@@ -4,10 +4,12 @@ import unittest
 from datetime import date, datetime
 
 from kiyosi import InvalidInputError
-from kiyosi.instruments import AmericanOption
+from kiyosi.instruments import AmericanOption, EuropeanOption
 
 
 class AmericanReplacementTests(unittest.TestCase):
+    option_class = AmericanOption
+
     def test_replacements_validate_and_preserve_originals(self):
         terms = {
             "option_type": "put",
@@ -15,7 +17,7 @@ class AmericanReplacementTests(unittest.TestCase):
             "effective_date": date(2025, 1, 1),
             "expiry_date": date(2026, 1, 1),
         }
-        original = AmericanOption(**terms)
+        original = self.option_class(**terms)
         self.assertEqual(original.replace(), original)
         updated = original.replace(
             option_type="call",
@@ -44,6 +46,10 @@ class AmericanReplacementTests(unittest.TestCase):
         ):
             with self.assertRaises(TypeError):
                 original.replace(**fields)
-        self.assertEqual(original, AmericanOption(**terms))
+        self.assertEqual(original, self.option_class(**terms))
         del original
         self.assertEqual(updated.strike, 105)
+
+
+class EuropeanReplacementTests(AmericanReplacementTests):
+    option_class = EuropeanOption

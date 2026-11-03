@@ -353,13 +353,13 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                     + timedelta(microseconds=1)
                 )
                 self.assert_rejection(InvalidInputError, engine.price, option, later)
-                touched = option.replace(touch_state="touched")
+                touched = option.replace_history(touch_state="touched")
                 self.assert_rejection(InvalidInputError, engine.price, touched, context)
                 self.assertEqual(
                     engine.price(touched, later), analytic.price(touched, later)
                 )
                 for history in ("touched", "untouched"):
-                    known = option.replace(touch_state=history)
+                    known = option.replace_history(touch_state=history)
                     expired = market(spot, time=END)
                     result = engine.price_with_greeks(known, expired, greeks="all")
                     self.assertEqual(result.price, analytic.price(known, expired))
@@ -380,7 +380,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 valuation_time=datetime.combine(FIRST, datetime.min.time(), UTC)
                 + timedelta(microseconds=1)
             )
-            untouched = scheduled.replace(touch_state="untouched")
+            untouched = scheduled.replace_history(touch_state="untouched")
             self.assertEqual(
                 engine.price(untouched, after), analytic.price(untouched, after)
             )

@@ -98,7 +98,7 @@ class BinaryBarrierTests(unittest.TestCase):
                         option, self.context(130, date(2025, 1, 2))
                     ),
                 )
-                known = option.replace(touch_state="touched")
+                known = option.replace_history(touch_state="touched")
                 self.assert_rejection(
                     InvalidInputError,
                     lambda known=known: engine.price(known, self.context(130)),
@@ -119,14 +119,14 @@ class BinaryBarrierTests(unittest.TestCase):
                         implied_volatility(engine, known, context, expected)
                     ),
                 )
-                self.assertEqual(known.replace(touch_state=None), option)
-                self.assertEqual(option.replace(), option)
+                self.assertEqual(known.replace_history(touch_state=None), option)
+                self.assertEqual(option.replace_history(), option)
                 with self.assertRaises(ValueError):
-                    option.replace(touch_state="unknown")
+                    option.replace_history(touch_state="unknown")
                 with self.assertRaises(TypeError):
-                    option.replace(touch_state=True)
+                    option.replace_history(touch_state=True)
                 with self.assertRaises(TypeError):
-                    option.replace(payout=7)
+                    option.replace_history(payout=7)
                 self.assertIsNone(option.touch_state)
         for kind in ("up_and_in", "up_and_out"):
             option = ins.cash_binary_barrier_option(
@@ -138,12 +138,12 @@ class BinaryBarrierTests(unittest.TestCase):
                     option, self.context(130, date(2025, 7, 1))
                 ),
             )
-            known = option.replace(touch_state="touched")
+            known = option.replace_history(touch_state="touched")
             self.assertEqual(
                 engine.price(known, self.context(100, date(2025, 7, 1))) == 0,
                 kind == "up_and_out",
             )
-            self.assertEqual(known.replace(touch_state=None), option)
+            self.assertEqual(known.replace_history(touch_state=None), option)
 
     def test_representation_domain_validation_and_failure_state(self):
         for factory in (
@@ -198,7 +198,7 @@ class BinaryBarrierTests(unittest.TestCase):
                 )
             for fields in ({"strike": 7}, {"touch_state": True}):
                 with self.assertRaises(TypeError):
-                    option.replace(**fields)
+                    option.replace_history(**fields)
             self.assertEqual(option, factory(**self.terms(), **extra))
             with self.assertRaises(AttributeError):
                 option.strike = 0
@@ -291,7 +291,8 @@ class BinaryBarrierTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 lambda option=option: engine.price(
-                    option.replace(touch_state="touched"), self.context(120, fixing)
+                    option.replace_history(touch_state="touched"),
+                    self.context(120, fixing),
                 ),
             )
             expected = 10 * math.exp(-0.04 * 364 / 365) if one else 0
@@ -305,7 +306,7 @@ class BinaryBarrierTests(unittest.TestCase):
                     option, self.context(130, noon)
                 ),
             )
-            known = option.replace(touch_state="untouched")
+            known = option.replace_history(touch_state="untouched")
             expected = 0 if one else 10 * math.exp(-0.04 * 363 / 365)
             self.assertAlmostEqual(
                 engine.price(known, self.context(130, date(2025, 1, 3))),

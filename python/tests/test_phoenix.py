@@ -89,7 +89,10 @@ class PhoenixTests(unittest.TestCase):
         records.clear()
         self.assertEqual(note.observation_dates, [MIDDLE, END])
         self.assertEqual(
-            note.replace(barrier_state="none").replace(barrier_state=None), note
+            note.replace_history(barrier_state="none").replace_history(
+                barrier_state=None
+            ),
+            note,
         )
         self.assertIn("PhoenixOption(coupon_rate=", repr(note))
         for fields in (
@@ -112,7 +115,7 @@ class PhoenixTests(unittest.TestCase):
                 contract(**fields)
         for fields in ({}, {"observations": []}, {"barrier_state": True}):
             with self.assertRaises(TypeError):
-                note.replace(**fields)
+                note.replace_history(**fields)
         with self.assertRaises(AttributeError):
             note.coupon_rate = 1
         engine = QuadratureAutocallableEngine()
@@ -182,7 +185,7 @@ class PhoenixTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            nontrading.replace(barrier_state="none"),
+            nontrading.replace_history(barrier_state="none"),
             market(valuation=END),
         )
         for valuation in (date(2024, 12, 31), datetime(2025, 4, 1, 0, 0, 0, 1, UTC)):
@@ -344,7 +347,7 @@ class PhoenixTests(unittest.TestCase):
             market(110, MIDDLE),
             result.price,
         )
-        settled = note.replace(barrier_state="knocked_out")
+        settled = note.replace_history(barrier_state="knocked_out")
         self.assertEqual(engine.price(settled, market(valuation=END)), 0)
         result = engine.price_with_greeks(note, market(90, END), greeks="all")
         self.assertTrue(all(getattr(result, g) is None for g in GREEKS))

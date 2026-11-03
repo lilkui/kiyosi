@@ -121,9 +121,9 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         self.assertEqual(option.acceleration_factor, 2)
         self.assertEqual(option.effective_date, START)
         self.assertEqual(option.expiry_date, fields["expiry_date"])
-        updated = option.replace(accumulated_quantity=3)
+        updated = option.replace_history(accumulated_quantity=3)
         self.assertEqual(updated.accumulated_quantity, 3)
-        self.assertEqual(updated.replace(accumulated_quantity=0), option)
+        self.assertEqual(updated.replace_history(accumulated_quantity=0), option)
         self.assertEqual(updated, contract())
         self.assertIn("accumulated_quantity=3", repr(updated))
         with self.assertRaises(AttributeError):
@@ -151,20 +151,20 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 )
         for value in (None, True, "3", object()):
             with self.assertRaises(TypeError):
-                updated.replace(accumulated_quantity=value)
+                updated.replace_history(accumulated_quantity=value)
         for value in (-1, math.nan, math.inf):
             self.assert_rejection(
                 InvalidInputError,
-                updated.replace,
+                updated.replace_history,
                 accumulated_quantity=value,
             )
         with self.assertRaises(OverflowError):
-            updated.replace(accumulated_quantity=10**400)
+            updated.replace_history(accumulated_quantity=10**400)
         for changes in ({}, {"strike": 90}, {"accumulated_quantity": 3, "extra": 0}):
             with self.assertRaises(TypeError):
-                updated.replace(**changes)
+                updated.replace_history(**changes)
         with self.assertRaises(TypeError):
-            updated.replace(3)
+            updated.replace_history(3)
         for field in ("effective_date", "expiry_date"):
             for value in (datetime(2025, 1, 1, tzinfo=UTC), "2025-01-01", None):
                 with self.assertRaises(TypeError):
@@ -195,7 +195,8 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         self.assertEqual(updated.accumulated_quantity, 3)
         # Historical corrections are caller assertions, including zero and fractional quantities.
         self.assertEqual(
-            updated.replace(accumulated_quantity=0.25).accumulated_quantity, 0.25
+            updated.replace_history(accumulated_quantity=0.25).accumulated_quantity,
+            0.25,
         )
         self.assertEqual(
             pricing.QuadratureAccumulatorEngine().price(
@@ -299,7 +300,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                     else:
                         quantity = 3 + (2 if side < 100 else 1)
                         value = terminal_reference(
-                            option.replace(accumulated_quantity=quantity),
+                            option.replace_history(accumulated_quantity=quantity),
                             market(spot, date(2025, 1, 2), 0.6, -0.02, 0.03),
                         )
                     return value * math.exp(-z * z / 2) / math.sqrt(2 * math.pi)

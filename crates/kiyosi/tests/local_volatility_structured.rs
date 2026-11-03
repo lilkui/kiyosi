@@ -236,7 +236,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
     .unwrap();
     let engine = FiniteDifferenceAutocallableEngine::default();
     let knocked_out = note
-        .replace(Some(AutocallableBarrierState::KnockedOut))
+        .replace_history(Some(AutocallableBarrierState::KnockedOut))
         .unwrap();
     let later = PricingContext::new(
         LocalVolatilityParameters::new(0.04, 0.01, surface(date(2, 4).into(), true)).unwrap(),

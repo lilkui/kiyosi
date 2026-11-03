@@ -35,7 +35,7 @@ pub enum ObservationMode {
     Scheduled,
 }
 
-/// Caller-supplied observations strictly before valuation; see [`BarrierOption::replace`].
+/// Caller-supplied observations strictly before valuation; see [`BarrierOption::replace_history`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BarrierTouchState {
     /// No earlier observation touched the barrier.
@@ -114,7 +114,7 @@ impl BarrierOptionTerms {
 /// Owns validated single-barrier vanilla terms and strictly prior history.
 ///
 /// Immutable shared reads and pricing are safe; replacement never mutates the original.
-/// See [`Self::new`] and [`Self::replace`] for examples.
+/// See [`Self::new`] and [`Self::replace_history`] for examples.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarrierOption {
     vanilla: EuropeanOption,
@@ -191,16 +191,16 @@ impl BarrierOption {
     /// # fn main() -> kiyosi::Result<()> {
     /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
     ///     Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?, 120.0, BarrierType::UpAndOut))?;
-    /// let known = option.replace(Some(BarrierTouchState::Untouched));
+    /// let known = option.replace_history(Some(BarrierTouchState::Untouched));
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
     /// assert_eq!(option.touch_state(), None);
     /// # Ok(()) }
     /// ```
     #[must_use]
-    pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
+    pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
             vanilla: self.vanilla.clone(),
-            monitoring: self.monitoring.replace(touch_state),
+            monitoring: self.monitoring.replace_history(touch_state),
             rebate: self.rebate,
             rebate_timing: self.rebate_timing,
         }
@@ -249,7 +249,7 @@ impl BarrierOption {
     pub fn observation_dates(&self) -> &[Date] {
         self.monitoring.observation_dates()
     }
-    /// Returns prior history; see [`Self::replace`].
+    /// Returns prior history; see [`Self::replace_history`].
     pub fn touch_state(&self) -> Option<BarrierTouchState> {
         self.monitoring.touch_state()
     }

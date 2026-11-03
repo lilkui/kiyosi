@@ -69,7 +69,9 @@ fn invalid_terms_and_history_fail_without_changing_the_note() {
         engine.price(&note, &market(100.0, date(1, 2))).unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let known = note.replace(Some(AutocallableBarrierState::None)).unwrap();
+    let known = note
+        .replace_history(Some(AutocallableBarrierState::None))
+        .unwrap();
     assert!(
         engine
             .price(&known, &market(100.0, date(1, 2)))
@@ -77,7 +79,7 @@ fn invalid_terms_and_history_fail_without_changing_the_note() {
             .is_finite()
     );
     let impossible = note
-        .replace(Some(AutocallableBarrierState::KnockedOut))
+        .replace_history(Some(AutocallableBarrierState::KnockedOut))
         .unwrap();
     assert!(matches!(
         engine

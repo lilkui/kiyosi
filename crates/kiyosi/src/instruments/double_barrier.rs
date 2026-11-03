@@ -74,7 +74,7 @@ impl DoubleBarrierOptionTerms {
 /// Owns two ordered boundaries sharing monitoring and strictly prior history.
 ///
 /// Immutable shared pricing and replacement are safe under the crate concurrency contract.
-/// See [`Self::new`] and [`Self::replace`] for examples.
+/// See [`Self::new`] and [`Self::replace_history`] for examples.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleBarrierOption {
     pub(crate) lower: BarrierOption,
@@ -131,7 +131,7 @@ impl DoubleBarrierOption {
     ///
     /// Time consistency is checked during pricing. The original is preserved on every outcome.
     ///
-    /// Preserves validated monitoring terms through [`BarrierOption::replace`].
+    /// Preserves validated monitoring terms through [`BarrierOption::replace_history`].
     ///
     /// # Examples
     ///
@@ -141,15 +141,15 @@ impl DoubleBarrierOption {
     /// let option = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
     ///     100.0, Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?, 80.0, 120.0,
     ///     DoubleBarrierType::KnockOut))?;
-    /// let known = option.replace(Some(BarrierTouchState::Untouched));
+    /// let known = option.replace_history(Some(BarrierTouchState::Untouched));
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
     /// assert_eq!(option.touch_state(), None);
     /// # Ok(()) }
     /// ```
     #[must_use]
-    pub fn replace(&self, touch_state: Option<BarrierTouchState>) -> Self {
+    pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
-            lower: self.lower.replace(touch_state),
+            lower: self.lower.replace_history(touch_state),
             upper: self.upper,
         }
     }

@@ -69,9 +69,9 @@ impl RangeAccrualOption {
     /// let terms = RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
     ///     Date::new(2025, 1, 1)?, Date::new(2025, 1, 17)?);
     /// let option = RangeAccrualOption::new(terms)?;
-    /// let seasoned = option.replace(Some(3))?;
+    /// let seasoned = option.replace_history(Some(3))?;
     /// assert_eq!(seasoned.realized_hit_count(), Some(3));
-    /// assert_eq!(seasoned.replace(None)?, option);
+    /// assert_eq!(seasoned.replace_history(None)?, option);
     /// # Ok(()) }
     /// ```
     pub fn new(terms: RangeAccrualTerms) -> Result<Self> {
@@ -102,7 +102,7 @@ impl RangeAccrualOption {
     /// # Errors
     ///
     /// Reuses [`Self::new`] validation. The original is unchanged on success and failure.
-    pub fn replace(&self, realized_hit_count: Option<i32>) -> Result<Self> {
+    pub fn replace_history(&self, realized_hit_count: Option<i32>) -> Result<Self> {
         Self::new(RangeAccrualTerms {
             realized_hit_count,
             ..self.terms
