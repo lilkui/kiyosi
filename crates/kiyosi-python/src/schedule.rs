@@ -170,3 +170,16 @@ pub(crate) fn monthly_schedule(
         ),
     )?))
 }
+
+#[pyfunction]
+pub(crate) fn _observation_schedule(dates: &Bound<'_, PyAny>) -> PyResult<ObservationSchedule> {
+    let dates = crate::conversions::dates(dates)?;
+    let start = dates
+        .first()
+        .copied()
+        .unwrap_or(domain(kiyosi::Date::new(1, 1, 1))?);
+    let end = dates.last().copied().unwrap_or(start);
+    Ok(ObservationSchedule(domain(
+        kiyosi::ObservationSchedule::new(dates, start, end, &kiyosi::TradingCalendar::all_days()),
+    )?))
+}

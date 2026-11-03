@@ -17,7 +17,10 @@ reject booleans and unintended lossy conversions.
 
 Values own their data and expose read-only properties. Shared and distinct
 instances support concurrent reads and pricing. Replacement creates a new
-value. Long calculations release the GIL while borrowing immutable Rust
+value. ``copy.copy`` and ``copy.deepcopy`` return the same immutable value;
+``pickle`` reconstructs contracts, market data, calendars, schedules, engines and
+results through validated constructors. Use the same Kiyosi version in each process.
+Long calculations release the GIL while borrowing immutable Rust
 inputs for the duration of the call; short analytic calls may retain it.
 Parallel Monte Carlo calls share a library-owned Rayon worker pool and keep
 their own simulation buffers. The pool is sized from available CPUs on first
@@ -26,7 +29,8 @@ the application's global Rayon pool unchanged. `thread_count` caps workers per
 call without reserving them; one runs on the calling thread and zero selects
 automatic sizing. Worker-creation failures raise `OSError` during pricing;
 failed initialization can be retried by a later call.
-For multiprocessing, use the `spawn` start method. Forking after the worker
+For multiprocessing, use the `spawn` start method; library values can be passed
+to workers and pricing results returned through process queues. Forking after the worker
 pool has initialized leaves it unusable in the child process.
 
 `Greek` accepts delta, gamma, speed, theta, charm, color, vega, volga, vanna,
@@ -55,9 +59,11 @@ from ._native import (
     UnsupportedOperationError,
     __version__,
 )
+from ._serialization import install as _install_serialization
 from ._signatures import install as _install_signatures
 
 _install_signatures(_native)
+_install_serialization(_native)
 
 __all__ = [
     "ComputationFailureError",

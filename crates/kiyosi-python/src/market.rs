@@ -449,3 +449,8 @@ pub(crate) fn python_rate(
         _ => Ok(Py::new(py, RateTermStructure(curve.clone()))?.into_any()),
     }
 }
+
+#[pyfunction]
+pub(crate) fn _curve_parts(curve: &RateTermStructure) -> (Vec<f64>, f64) {
+    (curve.0.base_factors().to_vec(), curve.0.parallel_shift())
+}

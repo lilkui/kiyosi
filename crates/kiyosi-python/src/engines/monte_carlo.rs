@@ -977,3 +977,17 @@ impl MonteCarloAsianEngine {
         )
     }
 }
+
+#[pyfunction]
+#[pyo3(signature = (*, price, standard_error))]
+pub(crate) fn _monte_carlo_estimate(
+    price: &Bound<'_, PyAny>,
+    standard_error: Option<&Bound<'_, PyAny>>,
+) -> PyResult<MonteCarloEstimate> {
+    Ok(MonteCarloEstimate(domain(
+        kiyosi::MonteCarloEstimate::from_statistics(
+            crate::conversions::real(price)?,
+            standard_error.map(crate::conversions::real).transpose()?,
+        ),
+    )?))
+}

@@ -312,3 +312,22 @@ fn calendars_count_half_open_ranges_and_adjust_both_directions() {
     assert_eq!(TradingCalendar::all_days().trading_days_per_year(), 365);
     assert!(TradingCalendar::all_days().is_trading_day(day(2025, 1, 5)));
 }
+
+#[test]
+fn calendar_override_components_borrow_normalized_owned_storage() {
+    let closed = Date::new(2025, 1, 2).unwrap();
+    let opened = Date::new(2025, 1, 4).unwrap();
+    let calendar = TradingCalendar::custom(
+        TradingCalendar::weekdays(),
+        vec![closed, closed],
+        vec![opened],
+        Some(260),
+    )
+    .unwrap();
+    let (base, closed_dates, open_dates) = calendar.overrides().unwrap();
+    assert_eq!(base, &TradingCalendar::weekdays());
+    assert_eq!(closed_dates, &[closed]);
+    assert_eq!(open_dates, &[opened]);
+    assert_eq!(calendar.trading_days_per_year(), 260);
+    assert!(TradingCalendar::weekdays().overrides().is_none());
+}

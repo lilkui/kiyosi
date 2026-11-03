@@ -1025,3 +1025,31 @@ fn default_path_count_supports_both_sampling_methods() {
         assert_eq!(engine.settings().sampling, sampling);
     }
 }
+
+#[test]
+fn estimate_reconstruction_validates_statistics_and_preserves_reporting() {
+    let estimate = MonteCarloEstimate::from_statistics(10.0, Some(2.0)).unwrap();
+    assert_eq!(estimate.price(), 10.0);
+    assert_eq!(estimate.standard_error(), Some(2.0));
+    assert_eq!(
+        estimate.confidence_interval(),
+        Some((6.080_072_030_919_892, 13.919_927_969_080_108))
+    );
+    assert_eq!(
+        MonteCarloEstimate::from_statistics(10.0, None)
+            .unwrap()
+            .confidence_interval(),
+        None
+    );
+    for (price, error) in [
+        (f64::NAN, None),
+        (10.0, Some(-1.0)),
+        (10.0, Some(f64::INFINITY)),
+        (f64::MAX, Some(f64::MAX)),
+    ] {
+        assert!(matches!(
+            MonteCarloEstimate::from_statistics(price, error),
+            Err(Error::ComputationFailure(_))
+        ));
+    }
+}

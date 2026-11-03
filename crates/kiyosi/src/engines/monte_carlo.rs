@@ -383,6 +383,37 @@ pub struct MonteCarloEstimate {
 }
 
 impl MonteCarloEstimate {
+    /// Creates an estimate from a finite mean and optional nonnegative standard error.
+    ///
+    /// Computes the asymptotic 95% normal interval when uncertainty is available.
+    /// See [`MonteCarloVanillaEngine::price_with_statistics`] for reporting units.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ComputationFailure`] for non-finite values, a negative
+    /// standard error or confidence bounds that overflow.
+    pub fn from_statistics(price: f64, standard_error: Option<f64>) -> Result<Self> {
+        if !price.is_finite()
+            || standard_error.is_some_and(|error| !error.is_finite() || error < 0.0)
+        {
+            return Err(unstable());
+        }
+        let confidence_interval = standard_error.map(|error| {
+            let half_width = 1.959_963_984_540_054 * error;
+            (price - half_width, price + half_width)
+        });
+        if confidence_interval
+            .is_some_and(|(lower, upper)| !lower.is_finite() || !upper.is_finite())
+        {
+            return Err(unstable());
+        }
+        Ok(Self {
+            price,
+            standard_error,
+            confidence_interval,
+        })
+    }
+
     /// Returns the finite sample mean. See [`MonteCarloVanillaEngine::price_with_statistics`].
     pub fn price(&self) -> f64 {
         self.price
@@ -708,18 +739,7 @@ fn estimate(
     } else {
         None
     };
-    let confidence_interval = standard_error.map(|error| {
-        let half_width = 1.959_963_984_540_054 * error;
-        (price - half_width, price + half_width)
-    });
-    if confidence_interval.is_some_and(|(lower, upper)| !lower.is_finite() || !upper.is_finite()) {
-        return Err(unstable());
-    }
-    Ok(MonteCarloEstimate {
-        price,
-        standard_error,
-        confidence_interval,
-    })
+    MonteCarloEstimate::from_statistics(price, standard_error)
 }
 
 fn terminal_samples<const N: usize>(

@@ -136,6 +136,19 @@ impl RateTermStructure {
     pub fn nodes(&self) -> &[Timestamp] {
         &self.nodes
     }
+    /// Borrows the original node factors before parallel shifts; see [`Self::shifted`].
+    ///
+    /// Together with [`Self::parallel_shift`], these preserve the exact construction
+    /// representation when rebuilding a curve. Storage remains valid for this borrow.
+    pub fn base_factors(&self) -> &[f64] {
+        &self.factors
+    }
+    /// Returns the accumulated node-curve parallel shift; see [`Self::shifted`].
+    ///
+    /// Flat curves incorporate shifts into their rate and return zero here.
+    pub fn parallel_shift(&self) -> f64 {
+        self.spread
+    }
     /// Returns owned node factors including any parallel shift.
     ///
     /// Flat curves return an empty vector. Shifted factors may underflow to zero

@@ -134,3 +134,15 @@ mod coupon;
 mod implied;
 pub(crate) use coupon::implied_coupon;
 pub(crate) use implied::implied_volatility;
+
+#[pyfunction]
+pub(crate) fn _pricing_result(
+    price: &Bound<'_, PyAny>,
+    greeks: &Bound<'_, pyo3::types::PyDict>,
+) -> PyResult<PricingResult> {
+    let mut result = domain(kiyosi::PricingResult::new(crate::conversions::real(price)?))?;
+    for (name, value) in greeks.iter() {
+        result = domain(result.with_greek(greek(&name)?, crate::conversions::real(&value)?))?;
+    }
+    Ok(PricingResult(result))
+}

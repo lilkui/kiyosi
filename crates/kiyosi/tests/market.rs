@@ -408,3 +408,25 @@ fn context_validation_timing_replacement_and_concurrent_owned_values() {
         &risk
     );
 }
+
+#[test]
+fn shifted_curve_reconstruction_preserves_the_original_representation() {
+    let start = Date::new(2025, 1, 2).unwrap().start_of_day();
+    let end = Date::new(2026, 1, 2).unwrap().start_of_day();
+    let curve = RateTermStructure::new(start, vec![end], vec![0.95])
+        .unwrap()
+        .shifted(0.01)
+        .unwrap();
+    assert_eq!(curve.base_factors(), &[0.95]);
+    assert_eq!(curve.parallel_shift(), 0.01);
+    let restored =
+        RateTermStructure::new(start, curve.nodes().to_vec(), curve.base_factors().to_vec())
+            .unwrap()
+            .shifted(curve.parallel_shift())
+            .unwrap();
+    assert_eq!(restored, curve);
+    assert_eq!(
+        restored.factor(start, end).unwrap(),
+        curve.factor(start, end).unwrap()
+    );
+}

@@ -207,3 +207,51 @@ pub(crate) fn custom_calendar(
         basis,
     ))?))
 }
+
+type CalendarParts<'py> = (
+    String,
+    Option<TradingCalendar>,
+    Vec<Bound<'py, PyDate>>,
+    Vec<Bound<'py, PyDate>>,
+    i32,
+);
+
+#[pyfunction]
+pub(crate) fn _calendar_parts<'py>(
+    py: Python<'py>,
+    calendar: &TradingCalendar,
+) -> PyResult<CalendarParts<'py>> {
+    let basis = calendar.0.trading_days_per_year();
+    if let Some((base, closed, open)) = calendar.0.overrides() {
+        return Ok((
+            "custom".into(),
+            Some(TradingCalendar(base.clone())),
+            closed
+                .iter()
+                .map(|&value| python_date(py, value))
+                .collect::<PyResult<_>>()?,
+            open.iter()
+                .map(|&value| python_date(py, value))
+                .collect::<PyResult<_>>()?,
+            basis,
+        ));
+    }
+    for (name, builtin) in [
+        ("weekdays", kiyosi::TradingCalendar::weekdays()),
+        ("all_days", kiyosi::TradingCalendar::all_days()),
+        ("sse", kiyosi::TradingCalendar::sse()),
+    ] {
+        let adjusted = domain(kiyosi::TradingCalendar::custom(
+            builtin,
+            vec![],
+            vec![],
+            Some(basis),
+        ))?;
+        if calendar.0 == adjusted {
+            return Ok((name.into(), None, vec![], vec![], basis));
+        }
+    }
+    Err(pyo3::exceptions::PyTypeError::new_err(
+        "predicate calendars cannot be serialized",
+    ))
+}

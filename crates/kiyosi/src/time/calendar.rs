@@ -180,6 +180,19 @@ impl TradingCalendar {
         })
     }
 
+    /// Borrows this layer's base calendar and normalized date overrides, if present.
+    ///
+    /// Built-in and predicate calendars return `None`. References remain valid
+    /// for the borrow's lifetime; see [`Self::custom`] for construction.
+    pub fn overrides(&self) -> Option<(&Self, &[Date], &[Date])> {
+        match &self.kind {
+            CalendarKind::Overrides(overrides) => {
+                Some((&overrides.base, &overrides.closed, &overrides.open))
+            }
+            _ => None,
+        }
+    }
+
     /// Returns the positive annualization basis; see [`Self::weekdays`].
     pub fn trading_days_per_year(&self) -> i32 {
         self.basis
