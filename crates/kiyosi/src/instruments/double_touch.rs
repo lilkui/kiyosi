@@ -214,3 +214,70 @@ impl OptionContract for DoubleTouchOption {
             .time_stencil_available(context, before, after)
     }
 }
+
+/// Selects replacements for [`DoubleTouchOption::replace`]; absent fields retain their values.
+///
+/// For nullable fields, `Some(None)` clears the value.
+#[derive(Clone, Debug, Default)]
+pub struct DoubleTouchOptionChanges {
+    /// Replaces [`effective_midnight_utc`](DoubleTouchOptionTerms::effective_midnight_utc).
+    pub effective_midnight_utc: Option<Date>,
+    /// Replaces [`expiry_midnight_utc`](DoubleTouchOptionTerms::expiry_midnight_utc).
+    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`lower_barrier`](DoubleTouchOptionTerms::lower_barrier).
+    pub lower_barrier: Option<f64>,
+    /// Replaces [`upper_barrier`](DoubleTouchOptionTerms::upper_barrier).
+    pub upper_barrier: Option<f64>,
+    /// Replaces [`barrier_type`](DoubleTouchOptionTerms::barrier_type).
+    pub barrier_type: Option<DoubleBarrierType>,
+    /// Replaces [`settlement_timing`](DoubleTouchOptionTerms::settlement_timing).
+    pub settlement_timing: Option<SettlementTiming>,
+    /// Replaces [`observation_mode`](DoubleTouchOptionTerms::observation_mode).
+    pub observation_mode: Option<ObservationMode>,
+    /// Replaces [`observation_dates`](DoubleTouchOptionTerms::observation_dates).
+    pub observation_dates: Option<Vec<Date>>,
+    /// Replaces [`touch_state`](DoubleTouchOptionTerms::touch_state).
+    pub touch_state: Option<Option<BarrierTouchState>>,
+    /// Replaces [`payout`](DoubleTouchOption::payout).
+    pub payout: Option<f64>,
+}
+
+impl DoubleTouchOption {
+    /// Returns a validated replacement, preserving omitted terms and the original.
+    ///
+    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// See [`DoubleTouchOption::cash`] for construction examples.
+    ///
+    /// # Errors
+    ///
+    /// Reuses constructor validation for the resulting contract. Failure leaves
+    /// this value unchanged.
+    pub fn replace(&self, changes: DoubleTouchOptionChanges) -> Result<Self> {
+        Self::cash(
+            DoubleTouchOptionTerms {
+                effective_midnight_utc: changes
+                    .effective_midnight_utc
+                    .unwrap_or(self.effective_midnight_utc()),
+                expiry_midnight_utc: changes
+                    .expiry_midnight_utc
+                    .unwrap_or(self.expiry_midnight_utc()),
+                lower_barrier: changes.lower_barrier.unwrap_or(self.lower_barrier()),
+                upper_barrier: changes.upper_barrier.unwrap_or(self.upper_barrier()),
+                barrier_type: changes.barrier_type.unwrap_or(if self.is_one_touch() {
+                    DoubleBarrierType::KnockIn
+                } else {
+                    DoubleBarrierType::KnockOut
+                }),
+                settlement_timing: changes
+                    .settlement_timing
+                    .unwrap_or(self.settlement_timing()),
+                observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
+                observation_dates: changes
+                    .observation_dates
+                    .unwrap_or_else(|| self.observation_dates().to_vec()),
+                touch_state: changes.touch_state.unwrap_or(self.touch_state()),
+            },
+            changes.payout.unwrap_or(self.payout()),
+        )
+    }
+}

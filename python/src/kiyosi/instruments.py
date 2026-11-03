@@ -11,7 +11,13 @@ is outside contract life, as is midnight UTC+08:00 on effective_midnight_utc.
 Contract dates cannot specify an intraday expiry. Constructors validate terms; pricing validates
 their consistency with the market snapshot, calendar and supplied history.
 History describes events strictly before valuation; a current observation
-is evaluated from the current spot. ``replace()`` replaces constructor terms on vanilla and digital contracts.
+is evaluated from the current spot. ``replace()`` replaces constructor terms on every contract. Omitted terms and
+history are preserved; supplied terms are validated together in Rust.
+For example, ``barrier.replace(strike=105)`` preserves monitoring and history,
+and changing monitoring to scheduled requires supplying the dates in the same call.
+Phoenix replacements accept at most one coupon choice and can change coupon units.
+Double-touch replacements accept ``barrier_type="knock_in"`` or ``"knock_out"``;
+asset-settled binary and touch contracts reject cash payout replacements.
 ``replace_history()`` updates only prior history on path-dependent contracts.
 Both return new contracts and expose named keyword-only fields through ``inspect.signature``.
 Autocallable ``with_coupon(coupon, ...)`` returns a new note using the same

@@ -70,3 +70,10 @@ def phoenix_choices() -> None:
         expiry_midnight_utc=end,
         observations=observations,
     )  # ty: ignore[no-matching-overload]
+
+
+def phoenix_replacements(note: PhoenixOption) -> None:
+    assert_type(note.replace(), PhoenixOption)
+    assert_type(note.replace(coupon_rate=0.1), PhoenixOption)
+    assert_type(note.replace(coupon_per_period=0.01), PhoenixOption)
+    note.replace(coupon_rate=0.1, coupon_per_period=0.01)  # ty: ignore[no-matching-overload]

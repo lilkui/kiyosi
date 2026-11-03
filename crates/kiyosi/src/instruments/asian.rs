@@ -108,6 +108,31 @@ macro_rules! average_option {
         #[derive(Clone, Debug, PartialEq)]
         pub struct $name(pub(crate) AverageTerms);
         impl $name {
+            /// Returns a validated replacement, preserving omitted terms and the original.
+            ///
+            /// Valuation-relative history checks remain at pricing time.
+            /// See [`GeometricAveragePriceOption::new`] for construction examples.
+            ///
+            /// # Errors
+            ///
+            /// Reuses constructor validation for the resulting contract. Failure leaves
+            /// this value unchanged.
+            pub fn replace(&self, changes: AveragePriceOptionChanges) -> Result<Self> {
+                Self::new(
+                    changes.option_type.unwrap_or(self.option_type()),
+                    changes.strike.unwrap_or(self.strike()),
+                    changes
+                        .effective_midnight_utc
+                        .unwrap_or(self.effective_midnight_utc()),
+                    changes
+                        .averaging_start_date
+                        .unwrap_or(self.averaging_start_date()),
+                    changes
+                        .expiry_midnight_utc
+                        .unwrap_or(self.expiry_midnight_utc()),
+                    changes.realized_average.unwrap_or(self.realized_average()),
+                )
+            }
             /// Creates an average-price contract with explicit history.
             ///
             /// Use [`DEFAULT_REALIZED_AVERAGE`] before averaging starts. Positive history
@@ -238,3 +263,22 @@ average_option!(
     ArithmeticAveragePriceOption,
     "Defines an arithmetic average-price Asian option."
 );
+
+/// Selects replacements for [`GeometricAveragePriceOption::replace`]; absent fields retain their values.
+///
+/// For nullable fields, `Some(None)` clears the value.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AveragePriceOptionChanges {
+    /// Replaces [`option_type`](GeometricAveragePriceOption::option_type).
+    pub option_type: Option<OptionType>,
+    /// Replaces [`strike`](GeometricAveragePriceOption::strike).
+    pub strike: Option<f64>,
+    /// Replaces [`effective_midnight_utc`](GeometricAveragePriceOption::effective_midnight_utc).
+    pub effective_midnight_utc: Option<Date>,
+    /// Replaces [`averaging_start_date`](GeometricAveragePriceOption::averaging_start_date).
+    pub averaging_start_date: Option<Date>,
+    /// Replaces [`expiry_midnight_utc`](GeometricAveragePriceOption::expiry_midnight_utc).
+    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`realized_average`](GeometricAveragePriceOption::realized_average).
+    pub realized_average: Option<f64>,
+}

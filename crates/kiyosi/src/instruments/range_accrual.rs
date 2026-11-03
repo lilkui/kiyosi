@@ -192,3 +192,55 @@ impl OptionContract for RangeAccrualOption {
         true
     }
 }
+
+/// Selects replacements for [`RangeAccrualOption::replace`]; absent fields retain their values.
+///
+/// For nullable fields, `Some(None)` clears the value.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RangeAccrualOptionChanges {
+    /// Replaces [`notional`](RangeAccrualTerms::notional).
+    pub notional: Option<f64>,
+    /// Replaces [`annual_coupon_rate`](RangeAccrualTerms::annual_coupon_rate).
+    pub annual_coupon_rate: Option<f64>,
+    /// Replaces [`lower_bound`](RangeAccrualTerms::lower_bound).
+    pub lower_bound: Option<f64>,
+    /// Replaces [`upper_bound`](RangeAccrualTerms::upper_bound).
+    pub upper_bound: Option<f64>,
+    /// Replaces [`effective_midnight_utc`](RangeAccrualTerms::effective_midnight_utc).
+    pub effective_midnight_utc: Option<Date>,
+    /// Replaces [`expiry_midnight_utc`](RangeAccrualTerms::expiry_midnight_utc).
+    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`realized_hit_count`](RangeAccrualTerms::realized_hit_count).
+    pub realized_hit_count: Option<Option<i32>>,
+}
+
+impl RangeAccrualOption {
+    /// Returns a validated replacement, preserving omitted terms and the original.
+    ///
+    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// See [`RangeAccrualOption::new`] for construction examples.
+    ///
+    /// # Errors
+    ///
+    /// Reuses constructor validation for the resulting contract. Failure leaves
+    /// this value unchanged.
+    pub fn replace(&self, changes: RangeAccrualOptionChanges) -> Result<Self> {
+        Self::new(RangeAccrualTerms {
+            notional: changes.notional.unwrap_or(self.notional()),
+            annual_coupon_rate: changes
+                .annual_coupon_rate
+                .unwrap_or(self.annual_coupon_rate()),
+            lower_bound: changes.lower_bound.unwrap_or(self.lower_bound()),
+            upper_bound: changes.upper_bound.unwrap_or(self.upper_bound()),
+            effective_midnight_utc: changes
+                .effective_midnight_utc
+                .unwrap_or(self.effective_midnight_utc()),
+            expiry_midnight_utc: changes
+                .expiry_midnight_utc
+                .unwrap_or(self.expiry_midnight_utc()),
+            realized_hit_count: changes
+                .realized_hit_count
+                .unwrap_or(self.realized_hit_count()),
+        })
+    }
+}

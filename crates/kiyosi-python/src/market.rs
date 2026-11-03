@@ -364,7 +364,7 @@ impl PricingContext {
     ///     Valuation instant. Dates mean midnight; aware datetimes convert to
     ///     UTC.
     /// calendar : TradingCalendar, optional
-    ///     Trading calendar. Defaults to weekdays with a 252-day basis.
+    ///     Replacement calendar; omission retains this context's calendar.
     ///
     /// Returns
     /// -------

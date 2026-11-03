@@ -299,3 +299,82 @@ impl OptionContract for BarrierOption {
             .time_stencil_available(context, before, after)
     }
 }
+
+/// Selects replacements for [`BarrierOption::replace`]; absent fields retain their values.
+///
+/// For nullable fields, `Some(None)` clears the value.
+#[derive(Clone, Debug, Default)]
+pub struct BarrierOptionChanges {
+    /// Replaces [`option_type`](BarrierOptionTerms::option_type).
+    pub option_type: Option<OptionType>,
+    /// Replaces [`strike`](BarrierOptionTerms::strike).
+    pub strike: Option<f64>,
+    /// Replaces [`effective_midnight_utc`](BarrierOptionTerms::effective_midnight_utc).
+    pub effective_midnight_utc: Option<Date>,
+    /// Replaces [`expiry_midnight_utc`](BarrierOptionTerms::expiry_midnight_utc).
+    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`barrier_level`](BarrierOptionTerms::barrier_level).
+    pub barrier_level: Option<f64>,
+    /// Replaces [`barrier_type`](BarrierOptionTerms::barrier_type).
+    pub barrier_type: Option<BarrierType>,
+    /// Replaces [`rebate`](BarrierOptionTerms::rebate).
+    pub rebate: Option<f64>,
+    /// Replaces [`rebate_timing`](BarrierOptionTerms::rebate_timing).
+    pub rebate_timing: Option<RebateTiming>,
+    /// Replaces [`observation_mode`](BarrierOptionTerms::observation_mode).
+    pub observation_mode: Option<ObservationMode>,
+    /// Replaces [`observation_dates`](BarrierOptionTerms::observation_dates).
+    pub observation_dates: Option<Vec<Date>>,
+    /// Replaces [`touch_state`](BarrierOptionTerms::touch_state).
+    pub touch_state: Option<Option<BarrierTouchState>>,
+}
+
+impl BarrierOption {
+    /// Returns a validated replacement, preserving omitted terms and the original.
+    ///
+    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// See [`BarrierOption::new`] for construction examples.
+    ///
+    /// # Errors
+    ///
+    /// Reuses constructor validation for the resulting contract. Failure leaves
+    /// this value unchanged.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::*;
+    /// # fn main() -> Result<()> {
+    /// let original = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call,
+    ///     100.0, Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?,
+    ///     120.0, BarrierType::UpAndOut))?.replace_history(Some(BarrierTouchState::Untouched));
+    /// let changed = original.replace(BarrierOptionChanges {
+    ///     strike: Some(105.0), ..Default::default()
+    /// })?;
+    /// assert_eq!(changed.strike(), 105.0);
+    /// assert_eq!(changed.touch_state(), original.touch_state());
+    /// assert_eq!(original.strike(), 100.0);
+    /// # Ok(()) }
+    /// ```
+    pub fn replace(&self, changes: BarrierOptionChanges) -> Result<Self> {
+        Self::new(BarrierOptionTerms {
+            option_type: changes.option_type.unwrap_or(self.option_type()),
+            strike: changes.strike.unwrap_or(self.strike()),
+            effective_midnight_utc: changes
+                .effective_midnight_utc
+                .unwrap_or(self.effective_midnight_utc()),
+            expiry_midnight_utc: changes
+                .expiry_midnight_utc
+                .unwrap_or(self.expiry_midnight_utc()),
+            barrier_level: changes.barrier_level.unwrap_or(self.barrier_level()),
+            barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
+            rebate: changes.rebate.unwrap_or(self.rebate()),
+            rebate_timing: changes.rebate_timing.unwrap_or(self.rebate_timing()),
+            observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
+            observation_dates: changes
+                .observation_dates
+                .unwrap_or_else(|| self.observation_dates().to_vec()),
+            touch_state: changes.touch_state.unwrap_or(self.touch_state()),
+        })
+    }
+}

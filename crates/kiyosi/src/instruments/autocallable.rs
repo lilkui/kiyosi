@@ -952,3 +952,244 @@ impl sealed::View<'_> {
         Ok(())
     }
 }
+
+/// Selects replacements for [`SnowballOption::replace`]; absent fields retain their values.
+///
+/// For nullable fields, `Some(None)` clears the value.
+#[derive(Clone, Debug, Default)]
+pub struct SnowballOptionChanges {
+    /// Replaces [`maturity_coupon_rate`](SnowballTerms::maturity_coupon_rate).
+    pub maturity_coupon_rate: Option<f64>,
+    /// Replaces [`initial_spot`](SnowballTerms::initial_spot).
+    pub initial_spot: Option<f64>,
+    /// Replaces [`knock_in_level`](SnowballTerms::knock_in_level).
+    pub knock_in_level: Option<f64>,
+    /// Replaces [`upper_strike`](SnowballTerms::upper_strike).
+    pub upper_strike: Option<f64>,
+    /// Replaces [`lower_strike`](SnowballTerms::lower_strike).
+    pub lower_strike: Option<f64>,
+    /// Replaces [`knock_in_observation_mode`](SnowballTerms::knock_in_observation_mode).
+    pub knock_in_observation_mode: Option<KnockInObservationMode>,
+    /// Replaces [`barrier_state`](SnowballTerms::barrier_state).
+    pub barrier_state: Option<Option<AutocallableBarrierState>>,
+    /// Replaces [`principal_ratio`](SnowballTerms::principal_ratio).
+    pub principal_ratio: Option<f64>,
+    /// Replaces [`effective_midnight_utc`](SnowballTerms::effective_midnight_utc).
+    pub effective_midnight_utc: Option<Date>,
+    /// Replaces [`expiry_midnight_utc`](SnowballTerms::expiry_midnight_utc).
+    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`observations`](SnowballTerms::observations).
+    pub observations: Option<Vec<AutocallableObservation>>,
+}
+
+impl SnowballOption {
+    /// Returns a validated replacement, preserving omitted terms and the original.
+    ///
+    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// See [`SnowballOption::new`] for construction examples.
+    ///
+    /// # Errors
+    ///
+    /// Reuses constructor validation for the resulting contract. Failure leaves
+    /// this value unchanged.
+    pub fn replace(&self, changes: SnowballOptionChanges) -> Result<Self> {
+        Self::new(SnowballTerms {
+            maturity_coupon_rate: changes
+                .maturity_coupon_rate
+                .unwrap_or(self.0.maturity_coupon_rate),
+            initial_spot: changes.initial_spot.unwrap_or(self.0.initial_spot),
+            knock_in_level: changes.knock_in_level.unwrap_or(self.0.knock_in_level),
+            upper_strike: changes.upper_strike.unwrap_or(self.0.upper_strike),
+            lower_strike: changes.lower_strike.unwrap_or(self.0.lower_strike),
+            knock_in_observation_mode: changes
+                .knock_in_observation_mode
+                .unwrap_or(self.0.knock_in_observation_mode),
+            barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
+            principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
+            effective_midnight_utc: changes
+                .effective_midnight_utc
+                .unwrap_or(self.0.effective_midnight_utc),
+            expiry_midnight_utc: changes
+                .expiry_midnight_utc
+                .unwrap_or(self.0.expiry_midnight_utc),
+            observations: changes
+                .observations
+                .unwrap_or_else(|| self.0.observations.clone()),
+        })
+    }
+}
+
+/// Selects replacements for [`PhoenixOption::replace`]; absent fields retain their values.
+///
+/// For nullable fields, `Some(None)` clears the value.
+#[derive(Clone, Debug, Default)]
+pub struct PhoenixOptionChanges {
+    /// Replaces [`coupon`](PhoenixTerms::coupon).
+    pub coupon: Option<PhoenixCoupon>,
+    /// Replaces [`initial_spot`](PhoenixTerms::initial_spot).
+    pub initial_spot: Option<f64>,
+    /// Replaces [`knock_in_level`](PhoenixTerms::knock_in_level).
+    pub knock_in_level: Option<f64>,
+    /// Replaces [`upper_strike`](PhoenixTerms::upper_strike).
+    pub upper_strike: Option<f64>,
+    /// Replaces [`lower_strike`](PhoenixTerms::lower_strike).
+    pub lower_strike: Option<f64>,
+    /// Replaces [`knock_in_observation_mode`](PhoenixTerms::knock_in_observation_mode).
+    pub knock_in_observation_mode: Option<KnockInObservationMode>,
+    /// Replaces [`barrier_state`](PhoenixTerms::barrier_state).
+    pub barrier_state: Option<Option<AutocallableBarrierState>>,
+    /// Replaces [`principal_ratio`](PhoenixTerms::principal_ratio).
+    pub principal_ratio: Option<f64>,
+    /// Replaces [`effective_midnight_utc`](PhoenixTerms::effective_midnight_utc).
+    pub effective_midnight_utc: Option<Date>,
+    /// Replaces [`expiry_midnight_utc`](PhoenixTerms::expiry_midnight_utc).
+    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`observations`](PhoenixTerms::observations).
+    pub observations: Option<Vec<AutocallableObservation>>,
+}
+
+impl PhoenixOption {
+    /// Returns a validated replacement, preserving omitted terms and the original.
+    ///
+    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// See [`PhoenixOption::new`] for construction examples.
+    ///
+    /// # Errors
+    ///
+    /// Reuses constructor validation for the resulting contract. Failure leaves
+    /// this value unchanged.
+    pub fn replace(&self, changes: PhoenixOptionChanges) -> Result<Self> {
+        Self::new(PhoenixTerms {
+            coupon: changes.coupon.unwrap_or(self.0.coupon),
+            initial_spot: changes.initial_spot.unwrap_or(self.0.initial_spot),
+            knock_in_level: changes.knock_in_level.unwrap_or(self.0.knock_in_level),
+            upper_strike: changes.upper_strike.unwrap_or(self.0.upper_strike),
+            lower_strike: changes.lower_strike.unwrap_or(self.0.lower_strike),
+            knock_in_observation_mode: changes
+                .knock_in_observation_mode
+                .unwrap_or(self.0.knock_in_observation_mode),
+            barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
+            principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
+            effective_midnight_utc: changes
+                .effective_midnight_utc
+                .unwrap_or(self.0.effective_midnight_utc),
+            expiry_midnight_utc: changes
+                .expiry_midnight_utc
+                .unwrap_or(self.0.expiry_midnight_utc),
+            observations: changes
+                .observations
+                .unwrap_or_else(|| self.0.observations.clone()),
+        })
+    }
+}
+
+/// Selects replacements for [`BinarySnowballOption::replace`]; absent fields retain their values.
+///
+/// For nullable fields, `Some(None)` clears the value.
+#[derive(Clone, Debug, Default)]
+pub struct BinarySnowballOptionChanges {
+    /// Replaces [`maturity_coupon_rate`](BinarySnowballTerms::maturity_coupon_rate).
+    pub maturity_coupon_rate: Option<f64>,
+    /// Replaces [`barrier_state`](BinarySnowballTerms::barrier_state).
+    pub barrier_state: Option<Option<AutocallableBarrierState>>,
+    /// Replaces [`principal_ratio`](BinarySnowballTerms::principal_ratio).
+    pub principal_ratio: Option<f64>,
+    /// Replaces [`effective_midnight_utc`](BinarySnowballTerms::effective_midnight_utc).
+    pub effective_midnight_utc: Option<Date>,
+    /// Replaces [`expiry_midnight_utc`](BinarySnowballTerms::expiry_midnight_utc).
+    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`observations`](BinarySnowballTerms::observations).
+    pub observations: Option<Vec<AutocallableObservation>>,
+}
+
+impl BinarySnowballOption {
+    /// Returns a validated replacement, preserving omitted terms and the original.
+    ///
+    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// See [`BinarySnowballOption::new`] for construction examples.
+    ///
+    /// # Errors
+    ///
+    /// Reuses constructor validation for the resulting contract. Failure leaves
+    /// this value unchanged.
+    pub fn replace(&self, changes: BinarySnowballOptionChanges) -> Result<Self> {
+        Self::new(BinarySnowballTerms {
+            maturity_coupon_rate: changes
+                .maturity_coupon_rate
+                .unwrap_or(self.0.maturity_coupon_rate),
+            barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
+            principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
+            effective_midnight_utc: changes
+                .effective_midnight_utc
+                .unwrap_or(self.0.effective_midnight_utc),
+            expiry_midnight_utc: changes
+                .expiry_midnight_utc
+                .unwrap_or(self.0.expiry_midnight_utc),
+            observations: changes
+                .observations
+                .unwrap_or_else(|| self.0.observations.clone()),
+        })
+    }
+}
+
+/// Selects replacements for [`TernarySnowballOption::replace`]; absent fields retain their values.
+///
+/// For nullable fields, `Some(None)` clears the value.
+#[derive(Clone, Debug, Default)]
+pub struct TernarySnowballOptionChanges {
+    /// Replaces [`maturity_coupon_rate`](TernarySnowballTerms::maturity_coupon_rate).
+    pub maturity_coupon_rate: Option<f64>,
+    /// Replaces [`minimum_coupon_rate`](TernarySnowballTerms::minimum_coupon_rate).
+    pub minimum_coupon_rate: Option<f64>,
+    /// Replaces [`knock_in_level`](TernarySnowballTerms::knock_in_level).
+    pub knock_in_level: Option<f64>,
+    /// Replaces [`knock_in_observation_mode`](TernarySnowballTerms::knock_in_observation_mode).
+    pub knock_in_observation_mode: Option<KnockInObservationMode>,
+    /// Replaces [`barrier_state`](TernarySnowballTerms::barrier_state).
+    pub barrier_state: Option<Option<AutocallableBarrierState>>,
+    /// Replaces [`principal_ratio`](TernarySnowballTerms::principal_ratio).
+    pub principal_ratio: Option<f64>,
+    /// Replaces [`effective_midnight_utc`](TernarySnowballTerms::effective_midnight_utc).
+    pub effective_midnight_utc: Option<Date>,
+    /// Replaces [`expiry_midnight_utc`](TernarySnowballTerms::expiry_midnight_utc).
+    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`observations`](TernarySnowballTerms::observations).
+    pub observations: Option<Vec<AutocallableObservation>>,
+}
+
+impl TernarySnowballOption {
+    /// Returns a validated replacement, preserving omitted terms and the original.
+    ///
+    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// See [`TernarySnowballOption::new`] for construction examples.
+    ///
+    /// # Errors
+    ///
+    /// Reuses constructor validation for the resulting contract. Failure leaves
+    /// this value unchanged.
+    pub fn replace(&self, changes: TernarySnowballOptionChanges) -> Result<Self> {
+        Self::new(TernarySnowballTerms {
+            maturity_coupon_rate: changes
+                .maturity_coupon_rate
+                .unwrap_or(self.0.maturity_coupon_rate),
+            minimum_coupon_rate: changes
+                .minimum_coupon_rate
+                .unwrap_or(self.0.minimum_coupon_rate),
+            knock_in_level: changes.knock_in_level.unwrap_or(self.0.knock_in_level),
+            knock_in_observation_mode: changes
+                .knock_in_observation_mode
+                .unwrap_or(self.0.knock_in_observation_mode),
+            barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
+            principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
+            effective_midnight_utc: changes
+                .effective_midnight_utc
+                .unwrap_or(self.0.effective_midnight_utc),
+            expiry_midnight_utc: changes
+                .expiry_midnight_utc
+                .unwrap_or(self.0.expiry_midnight_utc),
+            observations: changes
+                .observations
+                .unwrap_or_else(|| self.0.observations.clone()),
+        })
+    }
+}

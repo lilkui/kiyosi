@@ -8,7 +8,9 @@
 //! Construct a contract and a [`PricingContext`], then choose an engine for that
 //! contract. [`PricingEngine`] also supports [`numerical_greeks`] and the implied
 //! parameter solvers. Contract constructors validate terms; pricing validates
-//! valuation dates, calendar consistency and required prior history.
+//! valuation dates, calendar consistency and required prior history. All built-in
+//! contracts support validated immutable `replace` operations; omitted terms and
+//! history remain unchanged. See [`BarrierOption::replace`] for an exotic example.
 //! Contract boundary fields and accessors are named `effective_midnight_utc` and
 //! `expiry_midnight_utc`. Their [`Date`] values denote fixed midnight UTC boundaries.
 //! Both boundary midnights are included; later instants on the
@@ -133,29 +135,37 @@ pub use engines::quadrature::{
     QuadratureVanillaSettings,
 };
 pub use error::{Error, Result};
-pub use instruments::accumulator::{Accumulator, AccumulatorTerms};
+pub use instruments::accumulator::{Accumulator, AccumulatorChanges, AccumulatorTerms};
 pub use instruments::asian::{
-    ArithmeticAveragePriceOption, DEFAULT_REALIZED_AVERAGE, GeometricAveragePriceOption,
+    ArithmeticAveragePriceOption, AveragePriceOptionChanges, DEFAULT_REALIZED_AVERAGE,
+    GeometricAveragePriceOption,
 };
 pub use instruments::autocallable::{
     AutocallableBarrierState, AutocallableNote, AutocallableObservation, AutocallableTerms,
-    BinarySnowballOption, BinarySnowballTerms, DEFAULT_PRINCIPAL_RATIO, KnockInObservationMode,
-    PhoenixCoupon, PhoenixOption, PhoenixPreset, PhoenixPresetTerms, PhoenixTerms,
-    SnowballCouponTerms, SnowballOption, SnowballPreset, SnowballPresetTerms, SnowballTerms,
-    TernarySnowballOption, TernarySnowballTerms, autocallable_observations,
+    BinarySnowballOption, BinarySnowballOptionChanges, BinarySnowballTerms,
+    DEFAULT_PRINCIPAL_RATIO, KnockInObservationMode, PhoenixCoupon, PhoenixOption,
+    PhoenixOptionChanges, PhoenixPreset, PhoenixPresetTerms, PhoenixTerms, SnowballCouponTerms,
+    SnowballOption, SnowballOptionChanges, SnowballPreset, SnowballPresetTerms, SnowballTerms,
+    TernarySnowballOption, TernarySnowballOptionChanges, TernarySnowballTerms,
+    autocallable_observations,
 };
 pub use instruments::barrier::{
-    BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType, ObservationMode,
-    RebateTiming,
+    BarrierOption, BarrierOptionChanges, BarrierOptionTerms, BarrierTouchState, BarrierType,
+    ObservationMode, RebateTiming,
 };
 pub use instruments::binary_barrier::{
-    BinaryBarrierOption, BinaryBarrierTerms, SettlementTiming, TouchOption, TouchOptionTerms,
+    BinaryBarrierOption, BinaryBarrierOptionChanges, BinaryBarrierTerms, SettlementTiming,
+    TouchOption, TouchOptionChanges, TouchOptionTerms,
 };
 pub use instruments::double_barrier::{
-    DoubleBarrierOption, DoubleBarrierOptionTerms, DoubleBarrierType,
+    DoubleBarrierOption, DoubleBarrierOptionChanges, DoubleBarrierOptionTerms, DoubleBarrierType,
 };
-pub use instruments::double_touch::{DoubleTouchOption, DoubleTouchOptionTerms};
-pub use instruments::range_accrual::{RangeAccrualOption, RangeAccrualTerms};
+pub use instruments::double_touch::{
+    DoubleTouchOption, DoubleTouchOptionChanges, DoubleTouchOptionTerms,
+};
+pub use instruments::range_accrual::{
+    RangeAccrualOption, RangeAccrualOptionChanges, RangeAccrualTerms,
+};
 pub use instruments::vanilla::{
     AmericanOption, AmericanOptionChanges, DigitalOption, DigitalOptionChanges, EuropeanOption,
     EuropeanOptionChanges, OptionContract, OptionType,

@@ -257,3 +257,68 @@ impl OptionContract for DoubleBarrierOption {
         self.lower.time_stencil_available(context, before, after)
     }
 }
+
+/// Selects replacements for [`DoubleBarrierOption::replace`]; absent fields retain their values.
+///
+/// For nullable fields, `Some(None)` clears the value.
+#[derive(Clone, Debug, Default)]
+pub struct DoubleBarrierOptionChanges {
+    /// Replaces [`option_type`](DoubleBarrierOptionTerms::option_type).
+    pub option_type: Option<OptionType>,
+    /// Replaces [`strike`](DoubleBarrierOptionTerms::strike).
+    pub strike: Option<f64>,
+    /// Replaces [`effective_midnight_utc`](DoubleBarrierOptionTerms::effective_midnight_utc).
+    pub effective_midnight_utc: Option<Date>,
+    /// Replaces [`expiry_midnight_utc`](DoubleBarrierOptionTerms::expiry_midnight_utc).
+    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`lower_barrier`](DoubleBarrierOptionTerms::lower_barrier).
+    pub lower_barrier: Option<f64>,
+    /// Replaces [`upper_barrier`](DoubleBarrierOptionTerms::upper_barrier).
+    pub upper_barrier: Option<f64>,
+    /// Replaces [`barrier_type`](DoubleBarrierOptionTerms::barrier_type).
+    pub barrier_type: Option<DoubleBarrierType>,
+    /// Replaces [`rebate`](DoubleBarrierOptionTerms::rebate).
+    pub rebate: Option<f64>,
+    /// Replaces [`rebate_timing`](DoubleBarrierOptionTerms::rebate_timing).
+    pub rebate_timing: Option<RebateTiming>,
+    /// Replaces [`observation_mode`](DoubleBarrierOptionTerms::observation_mode).
+    pub observation_mode: Option<ObservationMode>,
+    /// Replaces [`observation_dates`](DoubleBarrierOptionTerms::observation_dates).
+    pub observation_dates: Option<Vec<Date>>,
+    /// Replaces [`touch_state`](DoubleBarrierOptionTerms::touch_state).
+    pub touch_state: Option<Option<BarrierTouchState>>,
+}
+
+impl DoubleBarrierOption {
+    /// Returns a validated replacement, preserving omitted terms and the original.
+    ///
+    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// See [`DoubleBarrierOption::new`] for construction examples.
+    ///
+    /// # Errors
+    ///
+    /// Reuses constructor validation for the resulting contract. Failure leaves
+    /// this value unchanged.
+    pub fn replace(&self, changes: DoubleBarrierOptionChanges) -> Result<Self> {
+        Self::new(DoubleBarrierOptionTerms {
+            option_type: changes.option_type.unwrap_or(self.option_type()),
+            strike: changes.strike.unwrap_or(self.strike()),
+            effective_midnight_utc: changes
+                .effective_midnight_utc
+                .unwrap_or(self.effective_midnight_utc()),
+            expiry_midnight_utc: changes
+                .expiry_midnight_utc
+                .unwrap_or(self.expiry_midnight_utc()),
+            lower_barrier: changes.lower_barrier.unwrap_or(self.lower_barrier()),
+            upper_barrier: changes.upper_barrier.unwrap_or(self.upper_barrier()),
+            barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
+            rebate: changes.rebate.unwrap_or(self.rebate()),
+            rebate_timing: changes.rebate_timing.unwrap_or(self.rebate_timing()),
+            observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
+            observation_dates: changes
+                .observation_dates
+                .unwrap_or_else(|| self.observation_dates().to_vec()),
+            touch_state: changes.touch_state.unwrap_or(self.touch_state()),
+        })
+    }
+}

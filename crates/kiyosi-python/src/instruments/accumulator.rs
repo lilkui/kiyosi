@@ -52,6 +52,106 @@ pub(crate) struct Accumulator(pub(crate) kiyosi::Accumulator);
 
 #[pymethods]
 impl Accumulator {
+    /// Returns a validated replacement without changing this contract.
+    ///
+    /// Parameters
+    /// ----------
+    /// option_type : {'call', 'put'}, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// strike : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// knock_out_level : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// daily_quantity : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// acceleration_factor : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// accumulated_quantity : float or None, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// effective_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// expiry_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// knock_out_observation_dates : Iterable[date] | None, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     Independent contract of the same class, preserving omitted history and terms.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If the resulting contract fails core validation; the original is unchanged.
+    /// TypeError
+    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_midnight_utc=crate::conversions::OMITTED, expiry_midnight_utc=crate::conversions::OMITTED, knock_out_observation_dates=crate::conversions::OMITTED))]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit Python replacement fields"
+    )]
+    fn replace(
+        &self,
+        #[pyo3(from_py_with = crate::conversions::supplied)] option_type: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] strike: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] knock_out_level: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] daily_quantity: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] acceleration_factor: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] accumulated_quantity: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_midnight_utc: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_midnight_utc: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] knock_out_observation_dates: Option<
+            &Bound<'_, PyAny>,
+        >,
+    ) -> PyResult<Self> {
+        let changes = kiyosi::AccumulatorChanges {
+            option_type: option_type.map(crate::conversions::direction).transpose()?,
+            strike: strike.map(crate::conversions::real).transpose()?,
+            knock_out_level: knock_out_level.map(crate::conversions::real).transpose()?,
+            daily_quantity: daily_quantity.map(crate::conversions::real).transpose()?,
+            acceleration_factor: acceleration_factor
+                .map(crate::conversions::real)
+                .transpose()?,
+            accumulated_quantity: accumulated_quantity
+                .map(|value| {
+                    if value.is_none() {
+                        Ok(None)
+                    } else {
+                        crate::conversions::real(value).map(Some)
+                    }
+                })
+                .transpose()?,
+            effective_midnight_utc: effective_midnight_utc
+                .map(crate::conversions::date)
+                .transpose()?,
+            expiry_midnight_utc: expiry_midnight_utc
+                .map(crate::conversions::date)
+                .transpose()?,
+            knock_out_observation_dates: knock_out_observation_dates
+                .map(|value| {
+                    if value.is_none() {
+                        Ok(None)
+                    } else {
+                        crate::conversions::dates(value).map(Some)
+                    }
+                })
+                .transpose()?,
+        };
+        Ok(Self(domain(self.0.replace(changes))?))
+    }
     #[new]
     #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_midnight_utc, expiry_midnight_utc, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_dates=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]

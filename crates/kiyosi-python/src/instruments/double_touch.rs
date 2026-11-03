@@ -17,6 +17,104 @@ pub(crate) struct DoubleTouchOption(pub kiyosi::DoubleTouchOption);
 
 monitoring_properties!(
     DoubleTouchOption,
+    /// Returns a validated replacement without changing this contract.
+    ///
+    /// Parameters
+    /// ----------
+    /// effective_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// expiry_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// lower_barrier : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// upper_barrier : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// barrier_type : {'knock_in', 'knock_out'}, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// settlement_timing : {'at_hit', 'at_expiry'}, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// observation_mode : {'continuous', 'scheduled'}, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// observation_dates : Iterable[date], optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// touch_state : {'untouched', 'touched'} or None, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// payout : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     Independent contract of the same class, preserving omitted history and terms.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If the resulting contract fails core validation; the original is unchanged.
+    /// TypeError
+    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    #[pyo3(signature = (*, effective_midnight_utc=crate::conversions::OMITTED, expiry_midnight_utc=crate::conversions::OMITTED, lower_barrier=crate::conversions::OMITTED, upper_barrier=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, settlement_timing=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_dates=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED, payout=crate::conversions::OMITTED))]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit Python replacement fields"
+    )]
+    fn replace(
+        &self,
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_midnight_utc: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_midnight_utc: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] lower_barrier: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] upper_barrier: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] barrier_type: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] settlement_timing: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] observation_mode: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] observation_dates: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] touch_state: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] payout: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let changes = kiyosi::DoubleTouchOptionChanges {
+            effective_midnight_utc: effective_midnight_utc
+                .map(crate::conversions::date)
+                .transpose()?,
+            expiry_midnight_utc: expiry_midnight_utc
+                .map(crate::conversions::date)
+                .transpose()?,
+            lower_barrier: lower_barrier.map(crate::conversions::real).transpose()?,
+            upper_barrier: upper_barrier.map(crate::conversions::real).transpose()?,
+            barrier_type: barrier_type
+                .map(crate::instruments::double_barrier::kind)
+                .transpose()?,
+            settlement_timing: settlement_timing
+                .map(crate::instruments::binary_barrier::settlement)
+                .transpose()?,
+            observation_mode: observation_mode
+                .map(crate::instruments::barrier::mode)
+                .transpose()?,
+            observation_dates: observation_dates
+                .map(crate::conversions::dates)
+                .transpose()?,
+            touch_state: touch_state
+                .map(crate::instruments::barrier::history)
+                .transpose()?,
+            payout: payout.map(crate::conversions::real).transpose()?,
+        };
+        Ok(Self(domain(self.0.replace(changes))?))
+    },
     /// Return positive finite lower trigger; equality counts as a touch.
     #[getter]
     fn lower_barrier(&self) -> f64 {

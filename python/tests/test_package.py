@@ -128,9 +128,16 @@ class PackageTests(unittest.TestCase):
                 for name, default in zip(keywords, method.args.kw_defaults):
                     parameter = signature.parameters[name]
                     self.assertIs(parameter.kind, inspect.Parameter.KEYWORD_ONLY)
-                    self.assertEqual(
-                        parameter.default is inspect.Parameter.empty, default is None
-                    )
+                    if node.name == "PhoenixOption" and name in (
+                        "coupon_rate",
+                        "coupon_per_period",
+                    ):
+                        self.assertIs(parameter.default, Ellipsis)
+                    else:
+                        self.assertEqual(
+                            parameter.default is inspect.Parameter.empty,
+                            default is None,
+                        )
                     if default is not None:
                         self.assertIs(parameter.default, Ellipsis)
 

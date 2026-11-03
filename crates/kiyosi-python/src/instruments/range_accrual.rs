@@ -47,6 +47,84 @@ pub(crate) struct RangeAccrualOption(pub kiyosi::RangeAccrualOption);
 
 #[pymethods]
 impl RangeAccrualOption {
+    /// Returns a validated replacement without changing this contract.
+    ///
+    /// Parameters
+    /// ----------
+    /// notional : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// annual_coupon_rate : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// lower_bound : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// upper_bound : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// effective_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// expiry_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// realized_hit_count : int | None, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     Independent contract of the same class, preserving omitted history and terms.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If the resulting contract fails core validation; the original is unchanged.
+    /// TypeError
+    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    #[pyo3(signature = (*, notional=crate::conversions::OMITTED, annual_coupon_rate=crate::conversions::OMITTED, lower_bound=crate::conversions::OMITTED, upper_bound=crate::conversions::OMITTED, effective_midnight_utc=crate::conversions::OMITTED, expiry_midnight_utc=crate::conversions::OMITTED, realized_hit_count=crate::conversions::OMITTED))]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit Python replacement fields"
+    )]
+    fn replace(
+        &self,
+        #[pyo3(from_py_with = crate::conversions::supplied)] notional: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] annual_coupon_rate: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] lower_bound: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] upper_bound: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_midnight_utc: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_midnight_utc: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] realized_hit_count: Option<
+            &Bound<'_, PyAny>,
+        >,
+    ) -> PyResult<Self> {
+        let changes = kiyosi::RangeAccrualOptionChanges {
+            notional: notional.map(crate::conversions::real).transpose()?,
+            annual_coupon_rate: annual_coupon_rate
+                .map(crate::conversions::real)
+                .transpose()?,
+            lower_bound: lower_bound.map(crate::conversions::real).transpose()?,
+            upper_bound: upper_bound.map(crate::conversions::real).transpose()?,
+            effective_midnight_utc: effective_midnight_utc
+                .map(crate::conversions::date)
+                .transpose()?,
+            expiry_midnight_utc: expiry_midnight_utc
+                .map(crate::conversions::date)
+                .transpose()?,
+            realized_hit_count: realized_hit_count
+                .map(|value| {
+                    if value.is_none() {
+                        Ok(None)
+                    } else {
+                        crate::conversions::integer(value).map(Some)
+                    }
+                })
+                .transpose()?,
+        };
+        Ok(Self(domain(self.0.replace(changes))?))
+    }
     #[new]
     #[pyo3(signature = (*, notional, annual_coupon_rate, lower_bound, upper_bound, effective_midnight_utc, expiry_midnight_utc, realized_hit_count=None))]
     fn new(

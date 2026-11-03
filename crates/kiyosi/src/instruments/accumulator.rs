@@ -416,3 +416,63 @@ impl OptionContract for Accumulator {
         }
     }
 }
+
+/// Selects replacements for [`Accumulator::replace`]; absent fields retain their values.
+///
+/// For nullable fields, `Some(None)` clears the value.
+#[derive(Clone, Debug, Default)]
+pub struct AccumulatorChanges {
+    /// Replaces [`option_type`](AccumulatorTerms::option_type).
+    pub option_type: Option<OptionType>,
+    /// Replaces [`strike`](AccumulatorTerms::strike).
+    pub strike: Option<f64>,
+    /// Replaces [`knock_out_level`](AccumulatorTerms::knock_out_level).
+    pub knock_out_level: Option<f64>,
+    /// Replaces [`daily_quantity`](AccumulatorTerms::daily_quantity).
+    pub daily_quantity: Option<f64>,
+    /// Replaces [`acceleration_factor`](AccumulatorTerms::acceleration_factor).
+    pub acceleration_factor: Option<f64>,
+    /// Replaces [`accumulated_quantity`](AccumulatorTerms::accumulated_quantity).
+    pub accumulated_quantity: Option<Option<f64>>,
+    /// Replaces [`effective_midnight_utc`](AccumulatorTerms::effective_midnight_utc).
+    pub effective_midnight_utc: Option<Date>,
+    /// Replaces [`expiry_midnight_utc`](AccumulatorTerms::expiry_midnight_utc).
+    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`knock_out_observation_dates`](AccumulatorTerms::knock_out_observation_dates).
+    pub knock_out_observation_dates: Option<Option<Vec<Date>>>,
+}
+
+impl Accumulator {
+    /// Returns a validated replacement, preserving omitted terms and the original.
+    ///
+    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// See [`Accumulator::new`] for construction examples.
+    ///
+    /// # Errors
+    ///
+    /// Reuses constructor validation for the resulting contract. Failure leaves
+    /// this value unchanged.
+    pub fn replace(&self, changes: AccumulatorChanges) -> Result<Self> {
+        Self::new(AccumulatorTerms {
+            option_type: changes.option_type.unwrap_or(self.option_type()),
+            strike: changes.strike.unwrap_or(self.strike()),
+            knock_out_level: changes.knock_out_level.unwrap_or(self.knock_out_level()),
+            daily_quantity: changes.daily_quantity.unwrap_or(self.daily_quantity()),
+            acceleration_factor: changes
+                .acceleration_factor
+                .unwrap_or(self.acceleration_factor()),
+            accumulated_quantity: changes
+                .accumulated_quantity
+                .unwrap_or(self.accumulated_quantity()),
+            effective_midnight_utc: changes
+                .effective_midnight_utc
+                .unwrap_or(self.effective_midnight_utc()),
+            expiry_midnight_utc: changes
+                .expiry_midnight_utc
+                .unwrap_or(self.expiry_midnight_utc()),
+            knock_out_observation_dates: changes
+                .knock_out_observation_dates
+                .unwrap_or_else(|| self.knock_out_observation_dates().map(<[Date]>::to_vec)),
+        })
+    }
+}

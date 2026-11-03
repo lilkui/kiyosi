@@ -134,7 +134,9 @@ pub(crate) fn coupon_convention(
     }
 }
 
-fn state(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::AutocallableBarrierState>> {
+pub(crate) fn state(
+    value: &Bound<'_, PyAny>,
+) -> PyResult<Option<kiyosi::AutocallableBarrierState>> {
     if value.is_none() {
         return Ok(None);
     }
@@ -152,7 +154,7 @@ fn state_name(value: Option<kiyosi::AutocallableBarrierState>) -> Option<&'stati
         kiyosi::AutocallableBarrierState::KnockedOut => "knocked_out",
     })
 }
-fn mode(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::KnockInObservationMode> {
+pub(crate) fn mode(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::KnockInObservationMode> {
     match value.extract::<&str>()? {
         "every_trading_day" => Ok(kiyosi::KnockInObservationMode::EveryTradingDay),
         "at_expiry" => Ok(kiyosi::KnockInObservationMode::AtExpiry),
@@ -165,7 +167,7 @@ fn mode_name(value: kiyosi::KnockInObservationMode) -> &'static str {
         kiyosi::KnockInObservationMode::AtExpiry => "at_expiry",
     }
 }
-fn records(values: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::AutocallableObservation>> {
+pub(crate) fn records(values: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::AutocallableObservation>> {
     values
         .try_iter()?
         .map(|item| Ok(item?.extract::<PyRef<'_, AutocallableObservation>>()?.0))
@@ -541,6 +543,76 @@ dates, stages may have no observations, and rates need not decrease."
 pub(crate) struct SnowballOption(pub kiyosi::SnowballOption);
 snowball_properties! {
     SnowballOption,
+    /// Returns a validated replacement without changing this contract.
+    ///
+    /// Parameters
+    /// ----------
+    /// maturity_coupon_rate : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// initial_spot : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// knock_in_level : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// upper_strike : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// lower_strike : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// principal_ratio : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// effective_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// expiry_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// observations : Iterable[AutocallableObservation], optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     Independent contract of the same class, preserving omitted history and terms.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If the resulting contract fails core validation; the original is unchanged.
+    /// TypeError
+    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    #[pyo3(signature = (*, maturity_coupon_rate=crate::conversions::OMITTED, initial_spot=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, upper_strike=crate::conversions::OMITTED, lower_strike=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_midnight_utc=crate::conversions::OMITTED, expiry_midnight_utc=crate::conversions::OMITTED, observations=crate::conversions::OMITTED))]
+    #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
+    fn replace(
+        &self,
+        #[pyo3(from_py_with = crate::conversions::supplied)] maturity_coupon_rate: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] initial_spot: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] knock_in_level: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] upper_strike: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] lower_strike: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] knock_in_observation_mode: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] barrier_state: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] principal_ratio: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_midnight_utc: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_midnight_utc: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] observations: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let changes = kiyosi::SnowballOptionChanges {
+            maturity_coupon_rate: maturity_coupon_rate.map(crate::conversions::real).transpose()?,
+            initial_spot: initial_spot.map(crate::conversions::real).transpose()?,
+            knock_in_level: knock_in_level.map(crate::conversions::real).transpose()?,
+            upper_strike: upper_strike.map(crate::conversions::real).transpose()?,
+            lower_strike: lower_strike.map(crate::conversions::real).transpose()?,
+            knock_in_observation_mode: knock_in_observation_mode.map(crate::instruments::autocallable::mode).transpose()?,
+            barrier_state: barrier_state.map(crate::instruments::autocallable::state).transpose()?,
+            principal_ratio: principal_ratio.map(crate::conversions::real).transpose()?,
+            effective_midnight_utc: effective_midnight_utc.map(crate::conversions::date).transpose()?,
+            expiry_midnight_utc: expiry_midnight_utc.map(crate::conversions::date).transpose()?,
+            observations: observations.map(crate::instruments::autocallable::records).transpose()?,
+        };
+        Ok(Self(domain(self.0.replace(changes))?))
+    }
+,
     #[new]
     #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), effective_midnight_utc, expiry_midnight_utc, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
@@ -668,6 +740,55 @@ snowball_properties! {
 pub(crate) struct BinarySnowballOption(pub kiyosi::BinarySnowballOption);
 snowball_properties! {
     BinarySnowballOption,
+    /// Returns a validated replacement without changing this contract.
+    ///
+    /// Parameters
+    /// ----------
+    /// maturity_coupon_rate : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// principal_ratio : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// effective_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// expiry_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// observations : Iterable[AutocallableObservation], optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     Independent contract of the same class, preserving omitted history and terms.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If the resulting contract fails core validation; the original is unchanged.
+    /// TypeError
+    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    #[pyo3(signature = (*, maturity_coupon_rate=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_midnight_utc=crate::conversions::OMITTED, expiry_midnight_utc=crate::conversions::OMITTED, observations=crate::conversions::OMITTED))]
+    fn replace(
+        &self,
+        #[pyo3(from_py_with = crate::conversions::supplied)] maturity_coupon_rate: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] barrier_state: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] principal_ratio: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_midnight_utc: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_midnight_utc: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] observations: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let changes = kiyosi::BinarySnowballOptionChanges {
+            maturity_coupon_rate: maturity_coupon_rate.map(crate::conversions::real).transpose()?,
+            barrier_state: barrier_state.map(crate::instruments::autocallable::state).transpose()?,
+            principal_ratio: principal_ratio.map(crate::conversions::real).transpose()?,
+            effective_midnight_utc: effective_midnight_utc.map(crate::conversions::date).transpose()?,
+            expiry_midnight_utc: expiry_midnight_utc.map(crate::conversions::date).transpose()?,
+            observations: observations.map(crate::instruments::autocallable::records).transpose()?,
+        };
+        Ok(Self(domain(self.0.replace(changes))?))
+    }
+,
     #[new]
     #[pyo3(signature = (*, maturity_coupon_rate, effective_midnight_utc, expiry_midnight_utc, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     fn new(
@@ -760,6 +881,68 @@ snowball_properties! {
 pub(crate) struct TernarySnowballOption(pub kiyosi::TernarySnowballOption);
 snowball_properties! {
     TernarySnowballOption,
+    /// Returns a validated replacement without changing this contract.
+    ///
+    /// Parameters
+    /// ----------
+    /// maturity_coupon_rate : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// minimum_coupon_rate : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// knock_in_level : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// principal_ratio : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// effective_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// expiry_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// observations : Iterable[AutocallableObservation], optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     Independent contract of the same class, preserving omitted history and terms.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If the resulting contract fails core validation; the original is unchanged.
+    /// TypeError
+    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    #[pyo3(signature = (*, maturity_coupon_rate=crate::conversions::OMITTED, minimum_coupon_rate=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_midnight_utc=crate::conversions::OMITTED, expiry_midnight_utc=crate::conversions::OMITTED, observations=crate::conversions::OMITTED))]
+    #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
+    fn replace(
+        &self,
+        #[pyo3(from_py_with = crate::conversions::supplied)] maturity_coupon_rate: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] minimum_coupon_rate: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] knock_in_level: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] knock_in_observation_mode: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] barrier_state: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] principal_ratio: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_midnight_utc: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_midnight_utc: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] observations: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let changes = kiyosi::TernarySnowballOptionChanges {
+            maturity_coupon_rate: maturity_coupon_rate.map(crate::conversions::real).transpose()?,
+            minimum_coupon_rate: minimum_coupon_rate.map(crate::conversions::real).transpose()?,
+            knock_in_level: knock_in_level.map(crate::conversions::real).transpose()?,
+            knock_in_observation_mode: knock_in_observation_mode.map(crate::instruments::autocallable::mode).transpose()?,
+            barrier_state: barrier_state.map(crate::instruments::autocallable::state).transpose()?,
+            principal_ratio: principal_ratio.map(crate::conversions::real).transpose()?,
+            effective_midnight_utc: effective_midnight_utc.map(crate::conversions::date).transpose()?,
+            expiry_midnight_utc: expiry_midnight_utc.map(crate::conversions::date).transpose()?,
+            observations: observations.map(crate::instruments::autocallable::records).transpose()?,
+        };
+        Ok(Self(domain(self.0.replace(changes))?))
+    }
+,
     #[new]
     #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), effective_midnight_utc, expiry_midnight_utc, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
@@ -895,6 +1078,84 @@ snowball_properties! {
 pub(crate) struct PhoenixOption(pub kiyosi::PhoenixOption);
 autocallable_properties! {
     PhoenixOption,
+    /// Returns a validated replacement without changing this contract.
+    ///
+    /// Parameters
+    /// ----------
+    /// coupon_rate : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// coupon_per_period : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// initial_spot : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// knock_in_level : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// upper_strike : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// lower_strike : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// principal_ratio : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// effective_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// expiry_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// observations : Iterable[AutocallableObservation], optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     Independent contract of the same class, preserving omitted history and terms.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If the resulting contract fails core validation; the original is unchanged.
+    /// TypeError
+    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    #[pyo3(signature = (*, coupon_rate=crate::conversions::OMITTED, coupon_per_period=crate::conversions::OMITTED, initial_spot=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, upper_strike=crate::conversions::OMITTED, lower_strike=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_midnight_utc=crate::conversions::OMITTED, expiry_midnight_utc=crate::conversions::OMITTED, observations=crate::conversions::OMITTED))]
+    #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
+    fn replace(
+        &self,
+        #[pyo3(from_py_with = crate::conversions::supplied)] coupon_rate: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] coupon_per_period: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] initial_spot: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] knock_in_level: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] upper_strike: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] lower_strike: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] knock_in_observation_mode: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] barrier_state: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] principal_ratio: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_midnight_utc: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_midnight_utc: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] observations: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let changes = kiyosi::PhoenixOptionChanges {
+            coupon: match (coupon_rate, coupon_per_period) {
+                (None, None) => None,
+                (Some(value), None) => Some(kiyosi::PhoenixCoupon::Annual(crate::conversions::real(value)?)),
+                (None, Some(value)) => Some(kiyosi::PhoenixCoupon::PerPeriod(crate::conversions::real(value)?)),
+                _ => return Err(pyo3::exceptions::PyTypeError::new_err("supply at most one coupon choice")),
+            },
+            initial_spot: initial_spot.map(crate::conversions::real).transpose()?,
+            knock_in_level: knock_in_level.map(crate::conversions::real).transpose()?,
+            upper_strike: upper_strike.map(crate::conversions::real).transpose()?,
+            lower_strike: lower_strike.map(crate::conversions::real).transpose()?,
+            knock_in_observation_mode: knock_in_observation_mode.map(crate::instruments::autocallable::mode).transpose()?,
+            barrier_state: barrier_state.map(crate::instruments::autocallable::state).transpose()?,
+            principal_ratio: principal_ratio.map(crate::conversions::real).transpose()?,
+            effective_midnight_utc: effective_midnight_utc.map(crate::conversions::date).transpose()?,
+            expiry_midnight_utc: expiry_midnight_utc.map(crate::conversions::date).transpose()?,
+            observations: observations.map(crate::instruments::autocallable::records).transpose()?,
+        };
+        Ok(Self(domain(self.0.replace(changes))?))
+    }
+,
     #[new]
     #[pyo3(signature = (*, coupon_rate=crate::conversions::OMITTED, coupon_per_period=crate::conversions::OMITTED, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), effective_midnight_utc, expiry_midnight_utc, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]

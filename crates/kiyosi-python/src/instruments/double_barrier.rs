@@ -4,7 +4,7 @@ use crate::instruments::barrier::{history, mode, timing};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-fn kind(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::DoubleBarrierType> {
+pub(crate) fn kind(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::DoubleBarrierType> {
     match value.extract::<&str>()? {
         "knock_in" => Ok(kiyosi::DoubleBarrierType::KnockIn),
         "knock_out" => Ok(kiyosi::DoubleBarrierType::KnockOut),
@@ -53,6 +53,112 @@ pub(crate) struct DoubleBarrierOption(pub kiyosi::DoubleBarrierOption);
 
 monitoring_properties!(
     DoubleBarrierOption,
+    /// Returns a validated replacement without changing this contract.
+    ///
+    /// Parameters
+    /// ----------
+    /// option_type : {'call', 'put'}, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// strike : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// effective_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// expiry_midnight_utc : datetime.date, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// lower_barrier : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// upper_barrier : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// barrier_type : {'knock_in', 'knock_out'}, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// rebate : float, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// rebate_timing : {'at_hit', 'at_expiry'}, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// observation_mode : {'continuous', 'scheduled'}, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// observation_dates : Iterable[date], optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// touch_state : {'untouched', 'touched'} or None, optional
+    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///
+    /// Returns
+    /// -------
+    /// object
+    ///     Independent contract of the same class, preserving omitted history and terms.
+    ///
+    /// Raises
+    /// ------
+    /// KiyosiError
+    ///     If the resulting contract fails core validation; the original is unchanged.
+    /// TypeError
+    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_midnight_utc=crate::conversions::OMITTED, expiry_midnight_utc=crate::conversions::OMITTED, lower_barrier=crate::conversions::OMITTED, upper_barrier=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, rebate=crate::conversions::OMITTED, rebate_timing=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_dates=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED))]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit Python replacement fields"
+    )]
+    fn replace(
+        &self,
+        #[pyo3(from_py_with = crate::conversions::supplied)] option_type: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] strike: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_midnight_utc: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_midnight_utc: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] lower_barrier: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] upper_barrier: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] barrier_type: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] rebate: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] rebate_timing: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] observation_mode: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] observation_dates: Option<
+            &Bound<'_, PyAny>,
+        >,
+        #[pyo3(from_py_with = crate::conversions::supplied)] touch_state: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let changes = kiyosi::DoubleBarrierOptionChanges {
+            option_type: option_type.map(crate::conversions::direction).transpose()?,
+            strike: strike.map(crate::conversions::real).transpose()?,
+            effective_midnight_utc: effective_midnight_utc
+                .map(crate::conversions::date)
+                .transpose()?,
+            expiry_midnight_utc: expiry_midnight_utc
+                .map(crate::conversions::date)
+                .transpose()?,
+            lower_barrier: lower_barrier.map(crate::conversions::real).transpose()?,
+            upper_barrier: upper_barrier.map(crate::conversions::real).transpose()?,
+            barrier_type: barrier_type
+                .map(crate::instruments::double_barrier::kind)
+                .transpose()?,
+            rebate: rebate.map(crate::conversions::real).transpose()?,
+            rebate_timing: rebate_timing
+                .map(crate::instruments::barrier::timing)
+                .transpose()?,
+            observation_mode: observation_mode
+                .map(crate::instruments::barrier::mode)
+                .transpose()?,
+            observation_dates: observation_dates
+                .map(crate::conversions::dates)
+                .transpose()?,
+            touch_state: touch_state
+                .map(crate::instruments::barrier::history)
+                .transpose()?,
+        };
+        Ok(Self(domain(self.0.replace(changes))?))
+    },
     #[new]
     #[pyo3(signature = (*, option_type, strike, effective_midnight_utc, expiry_midnight_utc, lower_barrier, upper_barrier, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]

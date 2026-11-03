@@ -450,3 +450,138 @@ impl TouchOption {
         }
     }
 }
+
+/// Selects replacements for [`BinaryBarrierOption::replace`]; absent fields retain their values.
+///
+/// For nullable fields, `Some(None)` clears the value.
+#[derive(Clone, Debug, Default)]
+pub struct BinaryBarrierOptionChanges {
+    /// Replaces [`option_type`](BinaryBarrierTerms::option_type).
+    pub option_type: Option<OptionType>,
+    /// Replaces [`strike`](BinaryBarrierTerms::strike).
+    pub strike: Option<f64>,
+    /// Replaces [`effective_midnight_utc`](BinaryBarrierTerms::effective_midnight_utc).
+    pub effective_midnight_utc: Option<Date>,
+    /// Replaces [`expiry_midnight_utc`](BinaryBarrierTerms::expiry_midnight_utc).
+    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`barrier_level`](BinaryBarrierTerms::barrier_level).
+    pub barrier_level: Option<f64>,
+    /// Replaces [`barrier_type`](BinaryBarrierTerms::barrier_type).
+    pub barrier_type: Option<BarrierType>,
+    /// Replaces [`observation_mode`](BinaryBarrierTerms::observation_mode).
+    pub observation_mode: Option<ObservationMode>,
+    /// Replaces [`observation_dates`](BinaryBarrierTerms::observation_dates).
+    pub observation_dates: Option<Vec<Date>>,
+    /// Replaces [`touch_state`](BinaryBarrierTerms::touch_state).
+    pub touch_state: Option<Option<BarrierTouchState>>,
+    /// Replaces [`payout`](BinaryBarrierOption::payout).
+    pub payout: Option<f64>,
+}
+
+impl BinaryBarrierOption {
+    /// Returns a validated replacement, preserving omitted terms and the original.
+    ///
+    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// See [`BinaryBarrierOption::cash`] for construction examples.
+    ///
+    /// # Errors
+    ///
+    /// Reuses constructor validation for the resulting contract. Failure leaves
+    /// this value unchanged. Asset contracts reject cash payout replacements with
+    /// [`crate::Error::UnsupportedOperation`].
+    pub fn replace(&self, changes: BinaryBarrierOptionChanges) -> Result<Self> {
+        if self.payout().is_none() && changes.payout.is_some() {
+            return Err(Error::UnsupportedOperation(
+                "asset settlement has no cash payout".into(),
+            ));
+        }
+        let terms = BinaryBarrierTerms {
+            option_type: changes.option_type.unwrap_or(self.option_type()),
+            strike: changes.strike.unwrap_or(self.strike()),
+            effective_midnight_utc: changes
+                .effective_midnight_utc
+                .unwrap_or(self.effective_midnight_utc()),
+            expiry_midnight_utc: changes
+                .expiry_midnight_utc
+                .unwrap_or(self.expiry_midnight_utc()),
+            barrier_level: changes.barrier_level.unwrap_or(self.barrier_level()),
+            barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
+            observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
+            observation_dates: changes
+                .observation_dates
+                .unwrap_or_else(|| self.observation_dates().to_vec()),
+            touch_state: changes.touch_state.unwrap_or(self.touch_state()),
+        };
+        match self.payout() {
+            Some(payout) => Self::cash(terms, changes.payout.unwrap_or(payout)),
+            None => Self::asset(terms),
+        }
+    }
+}
+
+/// Selects replacements for [`TouchOption::replace`]; absent fields retain their values.
+///
+/// For nullable fields, `Some(None)` clears the value.
+#[derive(Clone, Debug, Default)]
+pub struct TouchOptionChanges {
+    /// Replaces [`effective_midnight_utc`](TouchOptionTerms::effective_midnight_utc).
+    pub effective_midnight_utc: Option<Date>,
+    /// Replaces [`expiry_midnight_utc`](TouchOptionTerms::expiry_midnight_utc).
+    pub expiry_midnight_utc: Option<Date>,
+    /// Replaces [`barrier_level`](TouchOptionTerms::barrier_level).
+    pub barrier_level: Option<f64>,
+    /// Replaces [`barrier_type`](TouchOptionTerms::barrier_type).
+    pub barrier_type: Option<BarrierType>,
+    /// Replaces [`settlement_timing`](TouchOptionTerms::settlement_timing).
+    pub settlement_timing: Option<SettlementTiming>,
+    /// Replaces [`observation_mode`](TouchOptionTerms::observation_mode).
+    pub observation_mode: Option<ObservationMode>,
+    /// Replaces [`observation_dates`](TouchOptionTerms::observation_dates).
+    pub observation_dates: Option<Vec<Date>>,
+    /// Replaces [`touch_state`](TouchOptionTerms::touch_state).
+    pub touch_state: Option<Option<BarrierTouchState>>,
+    /// Replaces [`payout`](TouchOption::payout).
+    pub payout: Option<f64>,
+}
+
+impl TouchOption {
+    /// Returns a validated replacement, preserving omitted terms and the original.
+    ///
+    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// See [`TouchOption::cash`] for construction examples.
+    ///
+    /// # Errors
+    ///
+    /// Reuses constructor validation for the resulting contract. Failure leaves
+    /// this value unchanged. Asset contracts reject cash payout replacements with
+    /// [`crate::Error::UnsupportedOperation`].
+    pub fn replace(&self, changes: TouchOptionChanges) -> Result<Self> {
+        if self.payout().is_none() && changes.payout.is_some() {
+            return Err(Error::UnsupportedOperation(
+                "asset settlement has no cash payout".into(),
+            ));
+        }
+        let terms = TouchOptionTerms {
+            effective_midnight_utc: changes
+                .effective_midnight_utc
+                .unwrap_or(self.effective_midnight_utc()),
+            expiry_midnight_utc: changes
+                .expiry_midnight_utc
+                .unwrap_or(self.expiry_midnight_utc()),
+            barrier_level: changes.barrier_level.unwrap_or(self.barrier_level()),
+            barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
+            settlement_timing: changes
+                .settlement_timing
+                .unwrap_or(self.settlement_timing()),
+            observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
+            observation_dates: changes
+                .observation_dates
+                .unwrap_or_else(|| self.observation_dates().to_vec()),
+            touch_state: changes.touch_state.unwrap_or(self.touch_state()),
+        };
+        match self.payout() {
+            Some(payout) => Self::cash(terms, changes.payout.unwrap_or(payout)),
+            None => Self::asset(terms),
+        }
+    }
+}
