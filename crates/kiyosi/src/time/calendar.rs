@@ -19,6 +19,14 @@ enum CalendarKind {
     Weekdays,
     Sse,
     Predicate(Arc<dyn Fn(Date) -> bool + Send + Sync>),
+    Overrides(Arc<CalendarOverrides>),
+}
+
+#[derive(PartialEq, Eq)]
+struct CalendarOverrides {
+    base: TradingCalendar,
+    closed: Vec<Date>,
+    open: Vec<Date>,
 }
 
 /// Owns a trading-day predicate and positive annualization basis.
@@ -26,8 +34,10 @@ enum CalendarKind {
 /// Defaults to [`Self::weekdays`] with a 252-day basis.
 /// All instances support shared concurrent reads. Custom predicates must be deterministic
 /// throughout each operation and safe for concurrent invocation; query order/count is unspecified.
-/// Clones retain predicate ownership. Predicate calendars compare by shared predicate identity,
-/// not by evaluating their behavior; built-in calendars compare by kind.
+/// Clones retain ownership of predicates and overrides. Overrides compare by base,
+/// normalized date lists and annualization basis; empty overrides retain the base kind.
+/// Predicate calendars compare by shared predicate identity, not by evaluating their
+/// behavior; built-in calendars compare by kind. See [`Self::custom`] for overrides.
 #[derive(Clone)]
 pub struct TradingCalendar {
     kind: CalendarKind,
@@ -47,6 +57,7 @@ impl fmt::Debug for TradingCalendar {
             CalendarKind::Weekdays => "weekdays",
             CalendarKind::Sse => "sse",
             CalendarKind::Predicate(_) => "custom",
+            CalendarKind::Overrides(_) => "overrides",
         };
         f.debug_struct("TradingCalendar")
             .field("kind", &kind)
@@ -62,6 +73,7 @@ impl PartialEq for TradingCalendar {
                 (CalendarKind::Predicate(left), CalendarKind::Predicate(right)) => {
                     Arc::ptr_eq(left, right)
                 }
+                (CalendarKind::Overrides(left), CalendarKind::Overrides(right)) => left == right,
                 (left, right) => std::mem::discriminant(left) == std::mem::discriminant(right),
             }
     }
@@ -131,6 +143,8 @@ impl TradingCalendar {
     ///
     /// Override dates may be unsorted or repeated. The basis defaults to the base's
     /// value and is never recalculated from the overrides. The base is consumed.
+    /// Equivalent normalized overrides on equal bases compare equal. Empty overrides
+    /// preserve the base's kind, including when changing only its annualization basis.
     ///
     /// # Errors
     ///
@@ -152,15 +166,18 @@ impl TradingCalendar {
             ));
         }
         let basis = basis.unwrap_or(base.basis);
-        Self::new(
-            move |date| {
-                if closed.binary_search(&date).is_ok() {
-                    return false;
-                }
-                open.binary_search(&date).is_ok() || base.is_trading_day(date)
-            },
+        if basis <= 0 {
+            return Err(Error::InvalidInput(
+                "annual trading-day count must be positive".into(),
+            ));
+        }
+        if closed.is_empty() && open.is_empty() {
+            return Ok(Self { basis, ..base });
+        }
+        Ok(Self {
+            kind: CalendarKind::Overrides(Arc::new(CalendarOverrides { base, closed, open })),
             basis,
-        )
+        })
     }
 
     /// Returns the positive annualization basis; see [`Self::weekdays`].
@@ -188,6 +205,11 @@ impl TradingCalendar {
                 date.is_weekday() && SSE_HOLIDAYS.binary_search(&encoded).is_err()
             }
             CalendarKind::Predicate(predicate) => predicate(date),
+            CalendarKind::Overrides(overrides) => {
+                overrides.closed.binary_search(&date).is_err()
+                    && (overrides.open.binary_search(&date).is_ok()
+                        || overrides.base.is_trading_day(date))
+            }
         }
     }
 

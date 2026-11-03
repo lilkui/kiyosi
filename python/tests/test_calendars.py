@@ -7,6 +7,8 @@ from datetime import date, datetime, timedelta
 
 from kiyosi import InvalidInputError
 from kiyosi.market import (
+    BlackScholesMertonParameters,
+    PricingContext,
     all_days_calendar,
     custom_calendar,
     fixed_interval_schedule,
@@ -18,6 +20,45 @@ from support.custom_calendar import CustomCalendarTests  # noqa: F401
 
 
 class CalendarTests(unittest.TestCase):
+    def test_equivalent_custom_calendars_and_contexts_compare_equal(self):
+        base = weekdays_calendar()
+        closed, opened = date(2026, 10, 1), date(2026, 10, 10)
+        left = custom_calendar(
+            base=base, closed_dates=[closed] * 2, open_dates=[opened]
+        )
+        right = custom_calendar(
+            base=base, closed_dates=[closed], open_dates=[opened] * 2
+        )
+        self.assertEqual(left, right)
+        self.assertEqual(custom_calendar(base=base), base)
+        self.assertNotEqual(custom_calendar(base=base, trading_days_per_year=365), base)
+        self.assertNotEqual(left, custom_calendar(base=base, closed_dates=[closed]))
+        self.assertNotEqual(
+            left,
+            custom_calendar(
+                base=base,
+                closed_dates=[closed],
+                open_dates=[opened],
+                trading_days_per_year=365,
+            ),
+        )
+        nested = custom_calendar(base=left, closed_dates=[opened], open_dates=[closed])
+        self.assertEqual(
+            nested,
+            custom_calendar(base=right, closed_dates=[opened] * 2, open_dates=[closed]),
+        )
+        self.assertFalse(nested.is_trading_day(opened))
+        self.assertTrue(nested.is_trading_day(closed))
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.03, dividend_yield=0, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=closed,
+            calendar=left,
+        )
+        self.assertEqual(context, context.replace(calendar=right))
+
     def test_counts_adjustment_and_annualization(self):
         calendar = weekdays_calendar()
         start, end = date(2025, 1, 1), date(2025, 1, 6)

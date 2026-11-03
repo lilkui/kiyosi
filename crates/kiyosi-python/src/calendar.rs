@@ -9,6 +9,8 @@ use pyo3::types::PyDate;
 /// Notes
 /// -----
 /// Use the calendar factory functions to construct instances.
+/// Calendars with equal bases, normalized overrides and annualization bases compare
+/// equal. Empty overrides retain the base calendar's kind.
 #[pyclass(frozen, eq, from_py_object, module = "kiyosi._native")]
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct TradingCalendar(pub(crate) kiyosi::TradingCalendar);

@@ -5,6 +5,47 @@ fn day(year: i32, month: u32, day: u32) -> Date {
 }
 
 #[test]
+fn calendar_equality_preserves_normalized_overrides_and_predicate_identity() {
+    let base = TradingCalendar::weekdays();
+    let closed = day(2026, 10, 1);
+    let open = day(2026, 10, 10);
+    let left = TradingCalendar::custom(base.clone(), vec![closed; 2], vec![open], None).unwrap();
+    let right = TradingCalendar::custom(base.clone(), vec![closed], vec![open; 2], None).unwrap();
+    assert_eq!(left, right);
+    assert_eq!(
+        TradingCalendar::custom(base.clone(), vec![], vec![], None).unwrap(),
+        base
+    );
+    assert_ne!(
+        TradingCalendar::custom(base.clone(), vec![], vec![], Some(365)).unwrap(),
+        base
+    );
+    assert_ne!(
+        left,
+        TradingCalendar::custom(base.clone(), vec![closed], vec![], None).unwrap()
+    );
+    assert_ne!(
+        left,
+        TradingCalendar::custom(base, vec![closed], vec![open], Some(365)).unwrap()
+    );
+    let nested = TradingCalendar::custom(left, vec![open], vec![closed], None).unwrap();
+    assert_eq!(
+        nested,
+        TradingCalendar::custom(right, vec![open; 2], vec![closed], None).unwrap()
+    );
+    assert!(!nested.is_trading_day(open));
+    assert!(nested.is_trading_day(closed));
+
+    let predicate = TradingCalendar::new(|_| true, 252).unwrap();
+    assert_eq!(predicate, predicate.clone());
+    assert_eq!(
+        TradingCalendar::custom(predicate.clone(), vec![], vec![], None).unwrap(),
+        predicate
+    );
+    assert_ne!(predicate, TradingCalendar::new(|_| true, 252).unwrap());
+}
+
+#[test]
 fn custom_calendars_own_overrides_validate_and_retain_basis() {
     let base = TradingCalendar::default();
     let mut closed = vec![day(2026, 10, 2), day(2026, 10, 1), day(2026, 10, 1)];

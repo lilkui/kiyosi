@@ -10,6 +10,8 @@ Volatility is annualized and expressed in decimal units. Rate curves
 use the Actual/365 Fixed day-count convention; a calendar's trading-day basis
 applies only to trading-year fractions. ``BusinessDayConvention`` accepts ``"following"``
 or ``"preceding"``, including the supplied date when it is open.
+Custom calendars compare by base, normalized overrides and annualization basis;
+empty overrides compare equal to the base when the basis is unchanged.
 Observation schedules accept integer indices, including negative positions,
 and reject boolean indices with TypeError. Out-of-range indices raise IndexError.
 LocalVolatilitySurface owns a rectangular table (rows=time, columns=absolute
