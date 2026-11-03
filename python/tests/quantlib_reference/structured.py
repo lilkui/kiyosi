@@ -21,9 +21,9 @@ def scenarios():
     ):
         for instrument in INSTRUMENTS:
             histories = (
-                ("none",)
+                ("no_event",)
                 if instrument == "BinarySnowballOption"
-                else ("none", "knocked_in")
+                else ("no_event", "knocked_in")
             )
             for history in histories:
                 yield (
@@ -32,7 +32,7 @@ def scenarios():
                     {
                         "effective_date": "2025-01-01",
                         "valuation": "2025-01-01"
-                        if history == "none"
+                        if history == "no_event"
                         else "2025-01-02",
                         "expiry_date": "2026-01-01",
                         "valuation_hour": 0,
@@ -52,10 +52,10 @@ def scenarios():
                         "minimum_coupon_rate": 0.02,
                         "history": history,
                         "knock_in_mode": "at_expiry"
-                        if history == "none"
+                        if history == "no_event"
                         else "every_trading_day",
                         "exposure": 1,
-                        "convergence": label == "base" and history == "none",
+                        "convergence": label == "base" and history == "no_event",
                     },
                 )
     for volatility, rate in ((0.2, 0.04), (0.4, -0.02)):

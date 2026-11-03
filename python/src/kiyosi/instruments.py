@@ -19,6 +19,8 @@ require ``quote_convention``; Phoenix preserves annual or per-period units.
 Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
 values. Explicit ``None`` clears nullable history and is rejected for fields
 that require a value.
+For autocallables, ``barrier_state=None`` means unknown history;
+``barrier_state="no_event"`` records known absence of prior events.
 
 ``fixed_coupon_note`` and ``digital_coupon_note`` return Phoenix contracts
 with fixed ``coupon_per_period`` and expiry-only knock-in. Explicit Phoenix

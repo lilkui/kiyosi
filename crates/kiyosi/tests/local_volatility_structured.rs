@@ -155,11 +155,11 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
                 observations.clone(),
             );
             snow.knock_in_observation_mode = mode;
-            snow.barrier_state = Some(AutocallableBarrierState::None);
+            snow.barrier_state = Some(AutocallableBarrierState::NoEvent);
             let mut ternary =
                 TernarySnowballTerms::new(0.06, 0.01, 95.0, start, end, observations.clone());
             ternary.knock_in_observation_mode = mode;
-            ternary.barrier_state = Some(AutocallableBarrierState::None);
+            ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
             let mut phoenix = PhoenixTerms::new(
                 0.08,
                 100.0,
@@ -177,7 +177,7 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
                 .unwrap(),
             );
             phoenix.knock_in_observation_mode = mode;
-            phoenix.barrier_state = Some(AutocallableBarrierState::None);
+            phoenix.barrier_state = Some(AutocallableBarrierState::NoEvent);
             parity(&engine, &SnowballOption::new(snow).unwrap(), &local);
             parity(
                 &engine,
@@ -299,7 +299,7 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
         autocallable_observations(&[date(2, 3), end], &[110.0; 2], None, Some(&[90.0; 2])).unwrap(),
     );
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    terms.barrier_state = Some(AutocallableBarrierState::None);
+    terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = PhoenixOption::new(terms).unwrap();
     let engine = FiniteDifferenceAutocallableEngine::new(settings()).unwrap();
     let local = context(0.04, 0.01, 90.0, true)
@@ -471,7 +471,7 @@ fn skewed_multievent_prices_supply_fixed_surface_delta_and_gamma() {
         )
         .unwrap(),
     );
-    terms.barrier_state = Some(AutocallableBarrierState::None);
+    terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = SnowballOption::new(terms).unwrap();
     let engine = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
         asset_step_count: 1600,
@@ -544,11 +544,11 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
             observations.clone(),
         );
         snow.knock_in_observation_mode = mode;
-        snow.barrier_state = Some(AutocallableBarrierState::None);
+        snow.barrier_state = Some(AutocallableBarrierState::NoEvent);
         let mut ternary =
             TernarySnowballTerms::new(0.06, 0.01, 95.0, start, end, observations.clone());
         ternary.knock_in_observation_mode = mode;
-        ternary.barrier_state = Some(AutocallableBarrierState::None);
+        ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
         let mut phoenix = PhoenixTerms::new(
             0.08,
             100.0,
@@ -566,7 +566,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
             .unwrap(),
         );
         phoenix.knock_in_observation_mode = mode;
-        phoenix.barrier_state = Some(AutocallableBarrierState::None);
+        phoenix.barrier_state = Some(AutocallableBarrierState::NoEvent);
         for (price, expected, tolerance) in [
             (
                 engine

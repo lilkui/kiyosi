@@ -180,7 +180,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             expiry_date=date(2025, 1, 6),
             maturity_coupon_rate=0.12,
             knock_in_observation_mode="every_trading_day",
-            barrier_state="none",
+            barrier_state="no_event",
             observations=autocallable_observations(
                 [date(2025, 1, 6)], [120], knock_out_coupon_rates=[0.12]
             ),

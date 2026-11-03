@@ -22,7 +22,7 @@ pub enum KnockInObservationMode {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AutocallableBarrierState {
     /// Records known absence of prior events, distinct from unknown history.
-    None,
+    NoEvent,
     /// Records a settled knock-out; no remaining cash flows are valued.
     KnockedOut,
     /// Records an earlier downside breach.
@@ -582,7 +582,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// let terms = PhoenixTerms::new(0.08, 100.0, 80.0, 100.0, 0.0, start, end,
     ///     autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?);
     /// let note = PhoenixOption::new(terms)?;
-    /// let known = note.replace_history(Some(AutocallableBarrierState::None))?;
+    /// let known = note.replace_history(Some(AutocallableBarrierState::NoEvent))?;
     /// assert_eq!(known.observations(), note.observations());
     /// assert_eq!(note.barrier_state(), None);
     /// let records = autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?;
@@ -601,7 +601,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     }
     /// Returns a validated owning copy with only history replaced; preserves the original.
     ///
-    /// `None` clears history; `Some(AutocallableBarrierState::None)` records no prior event.
+    /// `None` clears history; `Some(AutocallableBarrierState::NoEvent)` records no prior event.
     /// See [`Self::new`] for an example. Time consistency is checked during pricing.
     ///
     /// # Errors

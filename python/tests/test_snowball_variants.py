@@ -85,7 +85,7 @@ class SnowballVariantTests(unittest.TestCase):
     def test_history_replacement_preserves_terms_and_rejects_binary_knock_in(self):
         for kind in (BinarySnowballOption, TernarySnowballOption):
             note = self.fixed(kind)
-            states = (None, "none", "knocked_out")
+            states = (None, "no_event", "knocked_out")
             if kind is TernarySnowballOption:
                 states += ("knocked_in",)
             for state in states:
@@ -209,7 +209,7 @@ class SnowballVariantTests(unittest.TestCase):
             "effective_date": START,
             "expiry_date": END,
             "principal_ratio": 0.5,
-            "barrier_state": "none",
+            "barrier_state": "no_event",
         }
         cases = [
             (
@@ -322,7 +322,7 @@ class SnowballVariantTests(unittest.TestCase):
                     upper_strike=upper,
                     lower_strike=lower,
                     knock_in_observation_mode=mode,
-                    barrier_state="none",
+                    barrier_state="no_event",
                     principal_ratio=0.5,
                     effective_date=START,
                     expiry_date=END,
@@ -570,7 +570,7 @@ class SnowballVariantTests(unittest.TestCase):
             middle = date(2025, 2, 3)
             note = self.fixed(
                 kind,
-                barrier_state="none",
+                barrier_state="no_event",
                 observations=autocallable_observations(
                     [middle, END], [110, 105], knock_out_coupon_rates=[0.08, 0.06]
                 ),

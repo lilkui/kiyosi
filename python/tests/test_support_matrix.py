@@ -186,7 +186,7 @@ def terminal_cases():
         "upper_strike": 100,
         "lower_strike": 60,
         "knock_in_observation_mode": "at_expiry",
-        "barrier_state": "none",
+        "barrier_state": "no_event",
     }
     cases.extend(
         [
@@ -207,7 +207,7 @@ def terminal_cases():
                     minimum_coupon_rate=-0.02,
                     knock_in_level=80,
                     knock_in_observation_mode="at_expiry",
-                    barrier_state="none",
+                    barrier_state="no_event",
                 ),
                 notes,
                 1.06,

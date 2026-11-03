@@ -285,7 +285,7 @@ fn bounds_defaults_validation_and_identifiability_preserve_inputs() {
         Error::RootNotBracketed(_)
     ));
     let known = note
-        .replace_history(Some(AutocallableBarrierState::None))
+        .replace_history(Some(AutocallableBarrierState::NoEvent))
         .unwrap();
     let terminal = market(100.0, date(4, 1));
     let quote = engine.price(&known, &terminal).unwrap();
@@ -603,7 +603,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         date(4, 1),
         records,
     );
-    terms.barrier_state = Some(AutocallableBarrierState::None);
+    terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let phoenix = PhoenixOption::new(terms).unwrap();
     let quote = engine.price(&phoenix, &context).unwrap();
     assert!(matches!(
@@ -630,7 +630,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         date(4, 1),
         records,
     );
-    terms.barrier_state = Some(AutocallableBarrierState::None);
+    terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = SnowballOption::new(terms).unwrap();
     let quote = engine.price(&note, &context).unwrap();
     assert!(matches!(
@@ -670,7 +670,7 @@ fn coupon_endpoints_can_change_daily_knock_in_layers() {
         )
         .unwrap(),
     );
-    terms.barrier_state = Some(AutocallableBarrierState::None);
+    terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = SnowballOption::new(terms).unwrap();
     let context = PricingContext::with_calendar(
         BlackScholesMertonParameters::new(0.03, 0.0, 0.3).unwrap(),

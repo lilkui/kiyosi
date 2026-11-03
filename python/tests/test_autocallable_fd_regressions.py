@@ -47,7 +47,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                 upper_strike=100,
                 lower_strike=60,
                 knock_in_observation_mode=mode,
-                barrier_state="none",
+                barrier_state="no_event",
                 effective_date=start,
                 expiry_date=end,
                 observations=autocallable_observations(
@@ -197,7 +197,11 @@ class AutocallableRegressionTests(unittest.TestCase):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         observation_dates = [date(2025, 1, 3), date(2025, 1, 8), end]
         knock_out_levels = [101, 100, 99]
-        common = {"effective_date": start, "expiry_date": end, "barrier_state": "none"}
+        common = {
+            "effective_date": start,
+            "expiry_date": end,
+            "barrier_state": "no_event",
+        }
         coupons = {
             "maturity_coupon_rate": 0.06,
             "observations": autocallable_observations(
@@ -307,7 +311,11 @@ class AutocallableRegressionTests(unittest.TestCase):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         observation_dates = [date(2025, 1, 7), end]
         knock_out_levels = [110, 110]
-        common = {"effective_date": start, "expiry_date": end, "barrier_state": "none"}
+        common = {
+            "effective_date": start,
+            "expiry_date": end,
+            "barrier_state": "no_event",
+        }
         coupons = {
             "maturity_coupon_rate": 0.073,
             "observations": autocallable_observations(
@@ -534,7 +542,7 @@ class AutocallableRegressionTests(unittest.TestCase):
 
         base = context()
         for option_type, terms in cases:
-            note = option_type(**common, **terms, barrier_state="none")
+            note = option_type(**common, **terms, barrier_state="no_event")
             missing_history = option_type(**common, **terms)
             engines = (
                 pricing.FiniteDifferenceAutocallableEngine(
@@ -605,7 +613,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             knock_in_level=75,
             upper_strike=100,
             lower_strike=100,
-            barrier_state="none",
+            barrier_state="no_event",
             knock_in_observation_mode="every_trading_day",
             effective_date=start,
             expiry_date=end,
@@ -654,7 +662,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             valuation_time=datetime(2025, 1, 2, 12, tzinfo=UTC),
         )
         for engine in (pricing.FiniteDifferenceAutocallableEngine(),):
-            for state in ("none", "knocked_in"):
+            for state in ("no_event", "knocked_in"):
                 with self.subTest(engine=type(engine).__name__, state=state):
                     note = SnowballOption(
                         maturity_coupon_rate=0.06,

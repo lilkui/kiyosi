@@ -124,6 +124,12 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         updated = option.replace_history(accumulated_quantity=3)
         self.assertEqual(updated.accumulated_quantity, 3)
         self.assertEqual(updated.replace_history(accumulated_quantity=0), option)
+        for replacement in (
+            updated.replace_history(),
+            updated.replace_history(accumulated_quantity=Ellipsis),
+        ):
+            self.assertEqual(replacement, updated)
+            self.assertIsNot(replacement, updated)
         self.assertEqual(updated, contract())
         self.assertIn("accumulated_quantity=3", repr(updated))
         with self.assertRaises(AttributeError):
@@ -160,7 +166,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             )
         with self.assertRaises(OverflowError):
             updated.replace_history(accumulated_quantity=10**400)
-        for changes in ({}, {"strike": 90}, {"accumulated_quantity": 3, "extra": 0}):
+        for changes in ({"strike": 90}, {"accumulated_quantity": 3, "extra": 0}):
             with self.assertRaises(TypeError):
                 updated.replace_history(**changes)
         with self.assertRaises(TypeError):

@@ -46,7 +46,7 @@ def contract(**changes):
         "knock_in_observation_mode": "at_expiry",
         "effective_date": START,
         "expiry_date": END,
-        "barrier_state": "none",
+        "barrier_state": "no_event",
         "observations": autocallable_observations(
             [MIDDLE, END], [110, 110], coupon_barrier_levels=[90, 90]
         ),
@@ -89,7 +89,7 @@ class PhoenixTests(unittest.TestCase):
         records.clear()
         self.assertEqual(note.observation_dates, [MIDDLE, END])
         self.assertEqual(
-            note.replace_history(barrier_state="none").replace_history(
+            note.replace_history(barrier_state="no_event").replace_history(
                 barrier_state=None
             ),
             note,
@@ -113,7 +113,13 @@ class PhoenixTests(unittest.TestCase):
         ):
             with self.assertRaises(ValueError):
                 contract(**fields)
-        for fields in ({}, {"observations": []}, {"barrier_state": True}):
+        for replacement in (
+            note.replace_history(),
+            note.replace_history(barrier_state=Ellipsis),
+        ):
+            self.assertEqual(replacement, note)
+            self.assertIsNot(replacement, note)
+        for fields in ({"observations": []}, {"barrier_state": True}):
             with self.assertRaises(TypeError):
                 note.replace_history(**fields)
         with self.assertRaises(AttributeError):
@@ -185,7 +191,7 @@ class PhoenixTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            nontrading.replace_history(barrier_state="none"),
+            nontrading.replace_history(barrier_state="no_event"),
             market(valuation=END),
         )
         for valuation in (date(2024, 12, 31), datetime(2025, 4, 1, 0, 0, 0, 1, UTC)):
@@ -389,7 +395,7 @@ class PhoenixTests(unittest.TestCase):
             parameter_tolerance=1e-15,
         )
         self.assertEqual(ctx.model_parameters.volatility, 0.3)
-        self.assertEqual(note.barrier_state, "none")
+        self.assertEqual(note.barrier_state, "no_event")
 
     def test_two_event_prices_match_independent_conditional_payoff_integral(self):
         calendar = custom_calendar(

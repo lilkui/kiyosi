@@ -107,7 +107,7 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
                 autocallable_observations(&[end], &[120.0], None, None).unwrap(),
             );
             terms.knock_in_observation_mode = mode;
-            terms.barrier_state = Some(AutocallableBarrierState::None);
+            terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
             let note = TernarySnowballOption::new(terms).unwrap();
             assert!((engine.price(&note, &context).unwrap() - (1.0 + 0.07 / 365.0)).abs() < 1e-12);
         }

@@ -132,7 +132,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
             upper_strike=100,
             lower_strike=0,
             knock_in_observation_mode="every_trading_day",
-            barrier_state="none",
+            barrier_state="no_event",
             effective_date=start,
             expiry_date=end,
             observations=autocallable_observations(
@@ -276,7 +276,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
             knock_in_level=80,
             upper_strike=100,
             lower_strike=60,
-            barrier_state="none",
+            barrier_state="no_event",
             knock_in_observation_mode="every_trading_day",
             effective_date=start,
             expiry_date=end,
@@ -319,7 +319,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
             minimum_coupon_rate=carry_rate(end),
             knock_in_level=75,
             knock_in_observation_mode="every_trading_day",
-            barrier_state="none",
+            barrier_state="no_event",
             effective_date=start,
             expiry_date=end,
             observations=autocallable_observations(

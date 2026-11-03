@@ -104,7 +104,7 @@ class MonteCarloThresholdTests(unittest.TestCase):
                     minimum_coupon_rate=0.02,
                     knock_in_level=100,
                     knock_in_observation_mode=mode,
-                    barrier_state="none",
+                    barrier_state="no_event",
                     observations=ins.autocallable_observations([end], [120]),
                 )
                 with self.subTest(volatility=volatility, mode=mode):

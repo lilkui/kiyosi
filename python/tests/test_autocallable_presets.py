@@ -49,7 +49,7 @@ def phoenix_fields(**changes):
         "knock_in_observation_mode": "at_expiry",
         "effective_date": START,
         "expiry_date": END,
-        "barrier_state": "none",
+        "barrier_state": "no_event",
         "observations": autocallable_observations([MIDDLE, END], [110, 110]),
     }
     fields.update(changes)
@@ -95,10 +95,10 @@ class AutocallablePresetTests(unittest.TestCase):
             dates.clear()
             self.assertEqual(note.observation_dates, [MIDDLE, END])
             self.assertEqual(
-                note.replace_history(barrier_state="none").coupon_per_period, 0.01
+                note.replace_history(barrier_state="no_event").coupon_per_period, 0.01
             )
             self.assertEqual(
-                note.replace_history(barrier_state="none").replace_history(
+                note.replace_history(barrier_state="no_event").replace_history(
                     barrier_state=None
                 ),
                 note,
@@ -156,7 +156,7 @@ class AutocallablePresetTests(unittest.TestCase):
             for coupon in (0.01, -0.01):
                 note = factory(
                     coupon_per_period=coupon,
-                    **terms(principal_ratio=0.25, barrier_state="none"),
+                    **terms(principal_ratio=0.25, barrier_state="no_event"),
                     **extra,
                 )
                 for engine in engines():
@@ -184,7 +184,7 @@ class AutocallablePresetTests(unittest.TestCase):
         note = digital_coupon_note(
             coupon_per_period=0.01,
             coupon_barrier_level=90,
-            **terms(knock_out_level=85, barrier_state="none"),
+            **terms(knock_out_level=85, barrier_state="no_event"),
         )
         for engine in engines():
             self.assertEqual(engine.price(note, market(85, MIDDLE)), 1)
@@ -197,7 +197,7 @@ class AutocallablePresetTests(unittest.TestCase):
             (digital_coupon_note, {"coupon_barrier_level": 90}, 85, 1.0),
         ):
             note = factory(
-                coupon_per_period=0.01, **terms(barrier_state="none"), **extra
+                coupon_per_period=0.01, **terms(barrier_state="no_event"), **extra
             )
             for engine in engines():
                 with self.subTest(factory=factory, spot=spot, engine=engine):
@@ -260,7 +260,7 @@ class AutocallablePresetTests(unittest.TestCase):
                 first_coupon_rate=0.2,
                 second_coupon_rate=0.05,
                 first_stage_end_date=MIDDLE,
-                **terms(observation_dates=dates, barrier_state="none"),
+                **terms(observation_dates=dates, barrier_state="no_event"),
                 **extra,
             )
             self.assertEqual(note.knock_out_coupon_rates, rates)

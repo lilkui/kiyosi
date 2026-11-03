@@ -82,11 +82,11 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
             observations.clone(),
         );
         snow.knock_in_observation_mode = mode;
-        snow.barrier_state = Some(AutocallableBarrierState::None);
+        snow.barrier_state = Some(AutocallableBarrierState::NoEvent);
         let mut ternary =
             TernarySnowballTerms::new(0.06, 0.01, 95.0, start, end, observations.clone());
         ternary.knock_in_observation_mode = mode;
-        ternary.barrier_state = Some(AutocallableBarrierState::None);
+        ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
         let mut phoenix = PhoenixTerms::new(
             0.08,
             100.0,
@@ -104,7 +104,7 @@ fn daily_layers_and_all_variants_converge_to_quadrature() {
             .unwrap(),
         );
         phoenix.knock_in_observation_mode = mode;
-        phoenix.barrier_state = Some(AutocallableBarrierState::None);
+        phoenix.barrier_state = Some(AutocallableBarrierState::NoEvent);
 
         check(&SnowballOption::new(snow).unwrap(), &context);
         check(&TernarySnowballOption::new(ternary).unwrap(), &context);
@@ -137,7 +137,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
             .unwrap(),
     );
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    terms.barrier_state = Some(AutocallableBarrierState::None);
+    terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = PhoenixOption::new(terms).unwrap();
     let original = note.clone();
     let context = market(103.0, date(1, 1));
@@ -255,7 +255,7 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
         Error::InvalidInput(_)
     ));
     let known = note
-        .replace_history(Some(AutocallableBarrierState::None))
+        .replace_history(Some(AutocallableBarrierState::NoEvent))
         .unwrap();
     let impossible = note
         .replace_history(Some(AutocallableBarrierState::KnockedOut))
@@ -354,7 +354,7 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
         autocallable_observations(&[date(2, 3), end], &[110.0; 2], None, Some(&[90.0; 2])).unwrap(),
     );
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    terms.barrier_state = Some(AutocallableBarrierState::None);
+    terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let engine = FiniteDifferenceAutocallableEngine::default();
     let note = PhoenixOption::new(terms).unwrap();
     let result = engine

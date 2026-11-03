@@ -64,7 +64,7 @@ def contracts():
         )
     }
     for suffix, mode in [("daily", "every_trading_day"), ("terminal", "at_expiry")]:
-        state = {"knock_in_observation_mode": mode, "barrier_state": "none"}
+        state = {"knock_in_observation_mode": mode, "barrier_state": "no_event"}
         result[f"snowball_{suffix}"] = ins.SnowballOption(
             **common, **loss, **state, maturity_coupon_rate=0.06
         )

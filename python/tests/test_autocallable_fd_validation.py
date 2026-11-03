@@ -11,7 +11,7 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 class AutocallableValidationTests(unittest.TestCase):
     def test_autocallable_engines_share_domain_validation_precedence(self):
         start, end = date(2025, 1, 1), date(2025, 1, 4)
-        for history in (None, "none"):
+        for history in (None, "no_event"):
             note = BinarySnowballOption(
                 maturity_coupon_rate=0.05,
                 barrier_state=history,

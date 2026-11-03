@@ -13,22 +13,29 @@ macro_rules! autocallable_properties {
             ///
             /// Parameters
             /// ----------
-            /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None
-            ///     Strictly prior events. None is unknown; the string none means no
+            /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+            ///     Strictly prior events. None is unknown; the string no_event means no
             ///     event.
             ///
             /// Returns
             /// -------
             /// object
-            ///     New instance of the same class; omitted fields retain their values.
+            ///     New instance of the same class; omission or Ellipsis retains history.
             ///
             /// Raises
             /// ------
             /// KiyosiError
             ///     If replacement terms fail domain validation. The original is unchanged.
-            #[pyo3(signature = (*, barrier_state))]
-            fn replace_history(&self, barrier_state: &Bound<'_, PyAny>) -> PyResult<Self> {
-                Ok(Self(domain(self.0.replace_history(state(barrier_state)?))?))
+            #[pyo3(signature = (*, barrier_state=crate::conversions::OMITTED))]
+            fn replace_history(
+                &self,
+                #[pyo3(from_py_with = supplied)] barrier_state: Option<&Bound<'_, PyAny>>,
+            ) -> PyResult<Self> {
+                let history = match barrier_state {
+                    Some(value) => state(value)?,
+                    None => self.0.barrier_state(),
+                };
+                Ok(Self(domain(self.0.replace_history(history))?))
             }
             /// Returns owned copies of the contractual observations.
             #[getter]
@@ -132,7 +139,7 @@ fn state(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::AutocallableBarrie
         return Ok(None);
     }
     Ok(Some(match value.extract::<&str>()? {
-        "none" => kiyosi::AutocallableBarrierState::None,
+        "no_event" => kiyosi::AutocallableBarrierState::NoEvent,
         "knocked_in" => kiyosi::AutocallableBarrierState::KnockedIn,
         "knocked_out" => kiyosi::AutocallableBarrierState::KnockedOut,
         _ => return Err(PyValueError::new_err("unknown autocallable barrier_state")),
@@ -140,7 +147,7 @@ fn state(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::AutocallableBarrie
 }
 fn state_name(value: Option<kiyosi::AutocallableBarrierState>) -> Option<&'static str> {
     value.map(|s| match s {
-        kiyosi::AutocallableBarrierState::None => "none",
+        kiyosi::AutocallableBarrierState::NoEvent => "no_event",
         kiyosi::AutocallableBarrierState::KnockedIn => "knocked_in",
         kiyosi::AutocallableBarrierState::KnockedOut => "knocked_out",
     })
@@ -312,8 +319,8 @@ macro_rules! snowball_preset {
         ///     Contract starts at 00:00 UTC on this date.
         /// expiry_date : datetime.date
         ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
-        /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
-        ///     Strictly prior events. None is unknown; the string none means no event.
+        /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+        ///     Strictly prior events. None is unknown; the string no_event means no event.
         /// principal_ratio : float, optional
         ///     Nonnegative normalized principal, independent of coupons and losses.
         ///
@@ -518,8 +525,8 @@ dates, stages may have no observations, and rates need not decrease."
 ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// observations : iterable of AutocallableObservation
 ///     Nonempty, strictly ordered contractual observations within life.
-/// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
-///     Strictly prior events. None is unknown; the string none means no
+/// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+///     Strictly prior events. None is unknown; the string no_event means no
 ///     event.
 /// principal_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
@@ -645,8 +652,8 @@ snowball_properties! {
 ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// observations : iterable of AutocallableObservation
 ///     Nonempty, strictly ordered contractual observations within life.
-/// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
-///     Strictly prior events. None is unknown; the string none means no
+/// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+///     Strictly prior events. None is unknown; the string no_event means no
 ///     event.
 /// principal_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
@@ -737,8 +744,8 @@ snowball_properties! {
 ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// observations : iterable of AutocallableObservation
 ///     Nonempty, strictly ordered contractual observations within life.
-/// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
-///     Strictly prior events. None is unknown; the string none means no
+/// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+///     Strictly prior events. None is unknown; the string no_event means no
 ///     event.
 /// principal_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
@@ -862,8 +869,8 @@ snowball_properties! {
 ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
 /// observations : iterable of AutocallableObservation
 ///     Nonempty, strictly ordered contractual observations within life.
-/// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
-///     Strictly prior events. None is unknown; the string none means no
+/// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
+///     Strictly prior events. None is unknown; the string no_event means no
 ///     event.
 /// principal_ratio : float, optional
 ///     Nonnegative normalized principal, independent of coupons and losses.
@@ -1054,7 +1061,7 @@ macro_rules! phoenix_preset {
         ///     Contract starts at 00:00 UTC on this date.
         /// expiry_date : datetime.date
         ///     Final contract date at midnight UTC.
-        /// barrier_state : {'none', 'knocked_in', 'knocked_out'} or None, optional
+        /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         ///     Strictly prior events; None means unknown history.
         /// principal_ratio : float, optional
         ///     Nonnegative normalized principal, independent of coupon and loss components.

@@ -30,7 +30,7 @@ fn market(spot: f64, valuation: Date) -> PricingContext {
 fn current_settlement_preserves_strict_knock_in_and_inclusive_knock_out() {
     let mut t = terms();
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    t.barrier_state = Some(AutocallableBarrierState::None);
+    t.barrier_state = Some(AutocallableBarrierState::NoEvent);
     t.observations[0].coupon_rate = 0.08;
     let note = SnowballOption::new(t).unwrap();
     let engine = QuadratureAutocallableEngine::default();
@@ -70,7 +70,7 @@ fn invalid_terms_and_history_fail_without_changing_the_note() {
         Error::InvalidInput(_)
     ));
     let known = note
-        .replace_history(Some(AutocallableBarrierState::None))
+        .replace_history(Some(AutocallableBarrierState::NoEvent))
         .unwrap();
     assert!(
         engine
@@ -167,7 +167,7 @@ fn multi_observation_affine_tails_preserve_cash_asset_and_greeks() {
             ),
             (
                 KnockInObservationMode::EveryTradingDay,
-                Some(AutocallableBarrierState::None),
+                Some(AutocallableBarrierState::NoEvent),
             ),
         ] {
             let mut t = terms();
@@ -288,7 +288,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     assert_eq!(ctx.model_parameters().as_bsm().unwrap().volatility(), 0.3);
     let mut t = terms();
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    t.barrier_state = Some(AutocallableBarrierState::None);
+    t.barrier_state = Some(AutocallableBarrierState::NoEvent);
     t.observations[0].date = date(2, 3);
     let note = SnowballOption::new(t).unwrap();
     let result = engine

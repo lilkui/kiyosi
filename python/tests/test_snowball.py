@@ -92,14 +92,21 @@ class SnowballTests(unittest.TestCase):
         self.assertEqual(note.observation_dates, [END])
         self.assertEqual(note.knock_out_levels, [110])
         self.assertEqual(note.knock_out_coupon_rates, [0])
-        known = note.replace_history(barrier_state="none")
+        known = note.replace_history(barrier_state="no_event")
+        self.assertEqual(known.barrier_state, "no_event")
+        for replacement in (
+            known.replace_history(),
+            known.replace_history(barrier_state=Ellipsis),
+        ):
+            self.assertEqual(replacement, known)
+            self.assertIsNot(replacement, known)
         self.assertEqual(known.observations, note.observations)
         self.assertIsNone(note.barrier_state)
         self.assertEqual(known.replace_history(barrier_state=None), note)
         for changes, exception in (
             ({"barrier_state": True}, TypeError),
             ({"barrier_state": "unknown"}, ValueError),
-            ({}, TypeError),
+            ({"barrier_state": "none"}, ValueError),
             ({"observations": []}, TypeError),
         ):
             with self.subTest(changes=changes), self.assertRaises(exception):
@@ -199,7 +206,7 @@ class SnowballTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            nontrading.replace_history(barrier_state="none"),
+            nontrading.replace_history(barrier_state="no_event"),
             market(valuation=date(2025, 3, 3)),
         )
         for valuation in (date(2024, 12, 31), datetime(2025, 4, 1, 0, 0, 0, 1, UTC)):
@@ -296,7 +303,7 @@ class SnowballTests(unittest.TestCase):
             for mode, history in (
                 ("at_expiry", None),
                 ("every_trading_day", "knocked_in"),
-                ("every_trading_day", "none"),
+                ("every_trading_day", "no_event"),
             ):
                 with self.subTest(principal=principal, mode=mode, history=history):
                     note = contract(
@@ -347,7 +354,7 @@ class SnowballTests(unittest.TestCase):
     def test_current_events_history_and_unavailable_sensitivities(self):
         middle = date(2025, 2, 3)
         note = contract(
-            barrier_state="none",
+            barrier_state="no_event",
             observations=autocallable_observations(
                 [middle, END], [110, 110], knock_out_coupon_rates=[0.08, 0.08]
             ),
@@ -400,7 +407,7 @@ class SnowballTests(unittest.TestCase):
         )
         self.assertEqual(engine.price(daily, market(90, END)), 0.9)
         # Midnight KI is strict; intraday spot does not create a historical breach.
-        daily = daily.replace_history(barrier_state="none")
+        daily = daily.replace_history(barrier_state="no_event")
         for when, has_theta in ((datetime(2025, 1, 2, 12, tzinfo=UTC), False),):
             result = engine.price_with_greeks(daily, market(80, when), "theta")
             self.assertEqual(result.theta is not None, has_theta)
@@ -417,7 +424,7 @@ class SnowballTests(unittest.TestCase):
         note = contract(
             lower_strike=100,
             maturity_coupon_rate=0,
-            barrier_state="none",
+            barrier_state="no_event",
             observations=autocallable_observations([END], [110]),
         )
         engine = QuadratureAutocallableEngine()
@@ -625,7 +632,7 @@ class SnowballTests(unittest.TestCase):
         dates = [START + timedelta(days=i) for i in range(1, 33)]
         note = contract(
             expiry_date=dates[-1],
-            barrier_state="none",
+            barrier_state="no_event",
             principal_ratio=0.5,
             observations=autocallable_observations(
                 dates,
@@ -679,7 +686,7 @@ class SnowballTests(unittest.TestCase):
         end = date(2026, 1, 1)
         note = contract(
             expiry_date=end,
-            barrier_state="none",
+            barrier_state="no_event",
             observations=autocallable_observations(
                 [date(2025, 6, 2), end], [110, 105], knock_out_coupon_rates=[0.08, 0.08]
             ),

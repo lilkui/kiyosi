@@ -64,6 +64,8 @@ class ImpliedCouponTests(unittest.TestCase):
             ),
         ]
         for note in notes:
+            self.assertEqual(note.replace_history(), note)
+            self.assertEqual(note.replace_history(barrier_state=Ellipsis), note)
             for convention in get_args(CouponQuoteConvention):
                 with self.subTest(note=type(note).__name__, convention=convention):
                     replacement = note.with_coupon(0.18, quote_convention=convention)
@@ -104,6 +106,8 @@ class ImpliedCouponTests(unittest.TestCase):
             phoenix(),
             phoenix(coupon_rate=Ellipsis, coupon_per_period=0.02),
         ):
+            self.assertEqual(note.replace_history(), note)
+            self.assertEqual(note.replace_history(barrier_state=Ellipsis), note)
             field = (
                 "coupon_rate" if note.coupon_rate is not None else "coupon_per_period"
             )
@@ -142,7 +146,7 @@ class ImpliedCouponTests(unittest.TestCase):
             knock_in_level=99,
             lower_strike=100,
             knock_in_observation_mode="every_trading_day",
-            barrier_state="none",
+            barrier_state="no_event",
             expiry_date=end,
             observations=autocallable_observations(
                 [date(2025, 1, 7), end],
@@ -420,7 +424,7 @@ class ImpliedCouponTests(unittest.TestCase):
     def test_no_exposure_current_and_past_events_and_ternary_validation(self):
         engine = QuadratureAutocallableEngine()
         known = binary(
-            barrier_state="none",
+            barrier_state="no_event",
             observations=autocallable_observations(
                 [date(2025, 2, 3), END], [110, 110], knock_out_coupon_rates=[0.08, 0.08]
             ),
@@ -457,7 +461,7 @@ class ImpliedCouponTests(unittest.TestCase):
         )
         for note, kwargs in (
             (
-                snowball(barrier_state="none"),
+                snowball(barrier_state="no_event"),
                 {"quote_convention": "shift_maturity_coupon"},
             ),
             (
@@ -487,7 +491,7 @@ class ImpliedCouponTests(unittest.TestCase):
             effective_date=START,
             expiry_date=END,
             observations=known.observations,
-            barrier_state="none",
+            barrier_state="no_event",
         )
         self.assert_rejection(
             InvalidInputError,
@@ -497,7 +501,7 @@ class ImpliedCouponTests(unittest.TestCase):
         )
         for note in (
             known,
-            snowball(barrier_state="none", observations=known.observations),
+            snowball(barrier_state="no_event", observations=known.observations),
             ternary,
             phoenix(),
         ):
@@ -591,7 +595,7 @@ class ImpliedCouponTests(unittest.TestCase):
 
     def test_nonfinite_residual_and_exhausted_bisection_errors(self):
         engine = QuadratureAutocallableEngine(asset_step_count=17)
-        note = binary(barrier_state="none")
+        note = binary(barrier_state="no_event")
         self.assert_rejection(
             ComputationFailureError,
             lambda: implied_coupon(

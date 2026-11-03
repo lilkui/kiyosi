@@ -1923,11 +1923,15 @@ class SnowballOption:
         effective_date: date,
         expiry_date: date,
         observations: Iterable[AutocallableObservation],
-        barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_ratio: float = ...,
     ) -> None: ...
     def replace_history(
-        self, *, barrier_state: Literal["none", "knocked_in", "knocked_out"] | None
+        self,
+        *,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
+        | None
+        | EllipsisType = ...,
     ) -> SnowballOption: ...
     @property
     def observations(self) -> list[AutocallableObservation]: ...
@@ -1954,7 +1958,9 @@ class SnowballOption:
         self,
     ) -> Literal["every_trading_day", "at_expiry"]: ...
     @property
-    def barrier_state(self) -> Literal["none", "knocked_in", "knocked_out"] | None: ...
+    def barrier_state(
+        self,
+    ) -> Literal["no_event", "knocked_in", "knocked_out"] | None: ...
     @property
     def effective_date(self) -> date: ...
     @property
@@ -1975,11 +1981,15 @@ class PhoenixOption:
         effective_date: date,
         expiry_date: date,
         observations: Iterable[AutocallableObservation],
-        barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_ratio: float = ...,
     ) -> None: ...
     def replace_history(
-        self, *, barrier_state: Literal["none", "knocked_in", "knocked_out"] | None
+        self,
+        *,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
+        | None
+        | EllipsisType = ...,
     ) -> PhoenixOption: ...
     @property
     def observations(self) -> list[AutocallableObservation]: ...
@@ -2008,7 +2018,9 @@ class PhoenixOption:
         self,
     ) -> Literal["every_trading_day", "at_expiry"]: ...
     @property
-    def barrier_state(self) -> Literal["none", "knocked_in", "knocked_out"] | None: ...
+    def barrier_state(
+        self,
+    ) -> Literal["no_event", "knocked_in", "knocked_out"] | None: ...
     @property
     def effective_date(self) -> date: ...
     @property
@@ -2025,11 +2037,15 @@ class BinarySnowballOption:
         effective_date: date,
         expiry_date: date,
         observations: Iterable[AutocallableObservation],
-        barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_ratio: float = ...,
     ) -> None: ...
     def replace_history(
-        self, *, barrier_state: Literal["none", "knocked_in", "knocked_out"] | None
+        self,
+        *,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
+        | None
+        | EllipsisType = ...,
     ) -> BinarySnowballOption: ...
     @property
     def observations(self) -> list[AutocallableObservation]: ...
@@ -2044,7 +2060,9 @@ class BinarySnowballOption:
     @property
     def principal_ratio(self) -> float: ...
     @property
-    def barrier_state(self) -> Literal["none", "knocked_in", "knocked_out"] | None: ...
+    def barrier_state(
+        self,
+    ) -> Literal["no_event", "knocked_in", "knocked_out"] | None: ...
     @property
     def effective_date(self) -> date: ...
     @property
@@ -2064,11 +2082,15 @@ class TernarySnowballOption:
         effective_date: date,
         expiry_date: date,
         observations: Iterable[AutocallableObservation],
-        barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
         principal_ratio: float = ...,
     ) -> None: ...
     def replace_history(
-        self, *, barrier_state: Literal["none", "knocked_in", "knocked_out"] | None
+        self,
+        *,
+        barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
+        | None
+        | EllipsisType = ...,
     ) -> TernarySnowballOption: ...
     @property
     def observations(self) -> list[AutocallableObservation]: ...
@@ -2091,7 +2113,9 @@ class TernarySnowballOption:
         self,
     ) -> Literal["every_trading_day", "at_expiry"]: ...
     @property
-    def barrier_state(self) -> Literal["none", "knocked_in", "knocked_out"] | None: ...
+    def barrier_state(
+        self,
+    ) -> Literal["no_event", "knocked_in", "knocked_out"] | None: ...
     @property
     def effective_date(self) -> date: ...
     @property
@@ -2106,7 +2130,7 @@ def standard_snowball(
     observation_dates: Iterable[date],
     effective_date: date,
     expiry_date: date,
-    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
 def european_snowball(
@@ -2118,7 +2142,7 @@ def european_snowball(
     observation_dates: Iterable[date],
     effective_date: date,
     expiry_date: date,
-    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
 def step_down_snowball(
@@ -2131,7 +2155,7 @@ def step_down_snowball(
     observation_dates: Iterable[date],
     effective_date: date,
     expiry_date: date,
-    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
 def both_down_snowball(
@@ -2145,7 +2169,7 @@ def both_down_snowball(
     observation_dates: Iterable[date],
     effective_date: date,
     expiry_date: date,
-    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
 def dual_coupon_snowball(
@@ -2158,7 +2182,7 @@ def dual_coupon_snowball(
     observation_dates: Iterable[date],
     effective_date: date,
     expiry_date: date,
-    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
 def parachute_snowball(
@@ -2171,7 +2195,7 @@ def parachute_snowball(
     observation_dates: Iterable[date],
     effective_date: date,
     expiry_date: date,
-    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
 def otm_snowball(
@@ -2184,7 +2208,7 @@ def otm_snowball(
     observation_dates: Iterable[date],
     effective_date: date,
     expiry_date: date,
-    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
 def loss_capped_snowball(
@@ -2197,7 +2221,7 @@ def loss_capped_snowball(
     observation_dates: Iterable[date],
     effective_date: date,
     expiry_date: date,
-    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
 
@@ -2233,7 +2257,9 @@ class Accumulator:
     def effective_date(self) -> date: ...
     @property
     def expiry_date(self) -> date: ...
-    def replace_history(self, *, accumulated_quantity: float) -> Self: ...
+    def replace_history(
+        self, *, accumulated_quantity: float | EllipsisType = ...
+    ) -> Self: ...
     def __eq__(self, other: object) -> bool: ...
 
 class QuadratureAccumulatorEngine:
@@ -2273,7 +2299,7 @@ def fixed_coupon_note(
     observation_dates: Iterable[date],
     effective_date: date,
     expiry_date: date,
-    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> PhoenixOption: ...
 def digital_coupon_note(
@@ -2286,7 +2312,7 @@ def digital_coupon_note(
     observation_dates: Iterable[date],
     effective_date: date,
     expiry_date: date,
-    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> PhoenixOption: ...
 def early_profit_snowball(
@@ -2300,7 +2326,7 @@ def early_profit_snowball(
     observation_dates: Iterable[date],
     effective_date: date,
     expiry_date: date,
-    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...
 def butterfly_snowball(
@@ -2316,6 +2342,6 @@ def butterfly_snowball(
     observation_dates: Iterable[date],
     effective_date: date,
     expiry_date: date,
-    barrier_state: Literal["none", "knocked_in", "knocked_out"] | None = None,
+    barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: float = ...,
 ) -> SnowballOption: ...

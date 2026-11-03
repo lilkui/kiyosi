@@ -41,7 +41,7 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
             let mut input = phoenix_terms();
             input.coupon_per_period = coupon;
             input.principal_ratio = 0.25;
-            input.barrier_state = Some(AutocallableBarrierState::None);
+            input.barrier_state = Some(AutocallableBarrierState::NoEvent);
             let note = input.expand(preset).unwrap();
             let mut expected = PhoenixTerms::new(
                 0.0,
@@ -61,7 +61,7 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
             );
             expected.coupon = PhoenixCoupon::PerPeriod(coupon);
             expected.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-            expected.barrier_state = Some(AutocallableBarrierState::None);
+            expected.barrier_state = Some(AutocallableBarrierState::NoEvent);
             expected.principal_ratio = 0.25;
             assert_eq!(note, PhoenixOption::new(expected).unwrap());
             for (spot, base) in [
@@ -97,7 +97,7 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
     }
     let mut input = phoenix_terms();
     input.knock_out_level = 85.0;
-    input.barrier_state = Some(AutocallableBarrierState::None);
+    input.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = input
         .expand(PhoenixPreset::DigitalCouponNote {
             coupon_barrier_level: 90.0,
@@ -139,7 +139,7 @@ fn fixed_period_cashflows_exclude_settled_coupons_and_preserve_annual_accrual() 
         let note = phoenix_terms()
             .expand(preset)
             .unwrap()
-            .replace_history(Some(AutocallableBarrierState::None))
+            .replace_history(Some(AutocallableBarrierState::NoEvent))
             .unwrap();
         for (day, expected) in [(date(1, 1), total), (date(2, 4), remaining)] {
             // Positive near-zero volatility keeps these far-from-barrier payoffs effectively deterministic.
@@ -161,7 +161,7 @@ fn fixed_period_cashflows_exclude_settled_coupons_and_preserve_annual_accrual() 
     let fixed = phoenix_terms()
         .expand(PhoenixPreset::FixedCouponNote)
         .unwrap()
-        .replace_history(Some(AutocallableBarrierState::None))
+        .replace_history(Some(AutocallableBarrierState::NoEvent))
         .unwrap();
     let mut terms = fixed.terms().clone();
     terms.coupon = PhoenixCoupon::Annual(0.365);
@@ -306,7 +306,7 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
             .clone()
             .expand(preset)
             .unwrap()
-            .replace_history(Some(AutocallableBarrierState::None))
+            .replace_history(Some(AutocallableBarrierState::NoEvent))
             .unwrap();
         assert_eq!(
             note.observations()
@@ -325,7 +325,7 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
             date(4, 1),
             autocallable_observations(&dates, &[110.0; 5], Some(&rates), None).unwrap(),
         );
-        expected.barrier_state = Some(AutocallableBarrierState::None);
+        expected.barrier_state = Some(AutocallableBarrierState::NoEvent);
         assert_eq!(note, SnowballOption::new(expected).unwrap());
         for ((&observation, &rate), days) in
             dates.iter().zip(&rates).zip([33.0, 34.0, 61.0, 62.0, 90.0])

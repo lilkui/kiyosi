@@ -229,7 +229,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         autocallable_observations(&[date(2, 3), end], &[103.0, 105.0], Some(&[0.08; 2]), None)
             .unwrap(),
     );
-    terms.barrier_state = Some(AutocallableBarrierState::None);
+    terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = SnowballOption::new(terms).unwrap();
     let original = note.clone();
     let context = market(100.0, date(1, 1));
@@ -393,7 +393,7 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
         .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    terms.barrier_state = Some(AutocallableBarrierState::None);
+    terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = SnowballOption::new(terms).unwrap();
     for (spot, expected) in [
         (70.0, 0.7),
@@ -518,11 +518,11 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
             observations.clone(),
         );
         snow.knock_in_observation_mode = mode;
-        snow.barrier_state = Some(AutocallableBarrierState::None);
+        snow.barrier_state = Some(AutocallableBarrierState::NoEvent);
         let mut ternary =
             TernarySnowballTerms::new(0.06, 0.01, 95.0, start, end, observations.clone());
         ternary.knock_in_observation_mode = mode;
-        ternary.barrier_state = Some(AutocallableBarrierState::None);
+        ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
         let mut phoenix = PhoenixTerms::new(
             0.08,
             100.0,
@@ -540,7 +540,7 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
             .unwrap(),
         );
         phoenix.knock_in_observation_mode = mode;
-        phoenix.barrier_state = Some(AutocallableBarrierState::None);
+        phoenix.barrier_state = Some(AutocallableBarrierState::NoEvent);
 
         check(&SnowballOption::new(snow).unwrap(), &context);
         check(&TernarySnowballOption::new(ternary).unwrap(), &context);

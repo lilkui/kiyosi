@@ -21,7 +21,7 @@ fn terms() -> PhoenixTerms {
         .unwrap(),
     );
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
-    terms.barrier_state = Some(AutocallableBarrierState::None);
+    terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     terms
 }
 fn market(spot: f64, valuation: Date) -> PricingContext {
@@ -142,7 +142,7 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
         Error::InvalidInput(_)
     ));
     let known = note
-        .replace_history(Some(AutocallableBarrierState::None))
+        .replace_history(Some(AutocallableBarrierState::NoEvent))
         .unwrap();
     assert_eq!(known.observations(), note.observations());
     assert_eq!(note.barrier_state(), None);

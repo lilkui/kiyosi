@@ -709,7 +709,9 @@ class FiniteDifferenceTests(unittest.TestCase):
             expiry_date=date(2035, 1, 1),
         )
         context = market(rate=0.03, dividend=0.05, sigma=1)
-        coarse = FiniteDifferenceVanillaEngine(time_step_count=200).price(option, context)
+        coarse = FiniteDifferenceVanillaEngine(time_step_count=200).price(
+            option, context
+        )
         engine = FiniteDifferenceVanillaEngine(time_step_count=1600)
         refined = engine.price(option, context)
         self.assertAlmostEqual(coarse, reference, delta=0.2)

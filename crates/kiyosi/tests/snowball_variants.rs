@@ -87,7 +87,7 @@ fn binary_history_replacement_preserves_terms_and_rejects_knock_in() {
     let note = BinarySnowballOption::new(terms.clone()).unwrap();
     for state in [
         None,
-        Some(AutocallableBarrierState::None),
+        Some(AutocallableBarrierState::NoEvent),
         Some(AutocallableBarrierState::KnockedOut),
     ] {
         let mut expected = terms.clone();

@@ -1,4 +1,4 @@
-use crate::conversions::{date, dates, direction, python_date, real};
+use crate::conversions::{date, dates, direction, python_date, real, supplied};
 use crate::error::domain;
 use pyo3::prelude::*;
 use pyo3::types::{PyDate, PyList};
@@ -82,23 +82,28 @@ impl Accumulator {
     ///
     /// Parameters
     /// ----------
-    /// accumulated_quantity : float
+    /// accumulated_quantity : float, optional
     ///     Caller-asserted outstanding quantity strictly before valuation.
     ///
     /// Returns
     /// -------
     /// object
-    ///     New instance of the same class; omitted fields retain their values.
+    ///     New instance of the same class; omission or Ellipsis retains history.
     ///
     /// Raises
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, accumulated_quantity))]
-    fn replace_history(&self, accumulated_quantity: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(domain(
-            self.0.replace_history(real(accumulated_quantity)?),
-        )?))
+    #[pyo3(signature = (*, accumulated_quantity=crate::conversions::OMITTED))]
+    fn replace_history(
+        &self,
+        #[pyo3(from_py_with = supplied)] accumulated_quantity: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let quantity = accumulated_quantity
+            .map(real)
+            .transpose()?
+            .unwrap_or(self.0.accumulated_quantity());
+        Ok(Self(domain(self.0.replace_history(quantity))?))
     }
     /// Returns call for purchases or put for sales.
     #[getter]

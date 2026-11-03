@@ -51,7 +51,11 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         observation_dates = [date(2025, 1, 3), date(2025, 1, 8), end]
         knock_out_levels = [101, 100, 99]
-        terms = {"barrier_state": "none", "effective_date": start, "expiry_date": end}
+        terms = {
+            "barrier_state": "no_event",
+            "effective_date": start,
+            "expiry_date": end,
+        }
         cases = [
             (
                 BinarySnowballOption(
@@ -174,7 +178,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             knock_in_level=75,
             upper_strike=100,
             lower_strike=100,
-            barrier_state="none",
+            barrier_state="no_event",
             knock_in_observation_mode="every_trading_day",
             effective_date=start,
             expiry_date=end,
@@ -223,7 +227,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             valuation_time=datetime(2025, 1, 2, 12, tzinfo=UTC),
         )
         for engine in (pricing.MonteCarloAutocallableEngine(path_count=64, seed=42),):
-            for state in ("none", "knocked_in"):
+            for state in ("no_event", "knocked_in"):
                 with self.subTest(engine=type(engine).__name__, state=state):
                     note = SnowballOption(
                         maturity_coupon_rate=0.06,
@@ -353,7 +357,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             BinarySnowballOption(
                 **common,
                 maturity_coupon_rate=5,
-                barrier_state="none",
+                barrier_state="no_event",
                 observations=observations,
             ),
             SnowballOption(
