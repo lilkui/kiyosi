@@ -54,3 +54,25 @@ class SpotShiftDefaultTests(unittest.TestCase):
                     option, context, "delta", spot_shift=default
                 )
                 self.assertEqual(actual.delta, expected.delta)
+
+    def test_automatic_american_bump_matches_explicit_core_control(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = i.AmericanOption(
+            option_type="put",
+            strike=100,
+            effective_midnight_utc=start,
+            expiry_midnight_utc=end,
+        )
+        context = m.PricingContext(
+            model_parameters=m.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.03, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        engine = p.MonteCarloVanillaEngine(
+            path_count=8192, step_count=19, seed=42, thread_count=1
+        )
+        result = engine.price_with_greeks(option, context, "gamma")
+        explicit = engine.price_with_greeks(option, context, "gamma", spot_shift=8.0)
+        self.assertEqual(result.require("gamma"), explicit.require("gamma"))

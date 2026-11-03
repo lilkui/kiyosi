@@ -68,7 +68,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
 
     def test_nonfinite_continuation_regressions_preserve_engine_reuse(self):
         context = market(rate=-0.1, dividend=0, sigma=0.2, spot=100)
-        engine = MonteCarloVanillaEngine(path_count=128, step_count=5, seed=42)
+        engine = MonteCarloVanillaEngine(path_count=128, step_count=4, seed=42)
         ordinary = contract("call")
         before = engine.price(ordinary, context)
         for strike in (1e-100, 1e-300):
@@ -92,12 +92,29 @@ class AmericanMonteCarloTests(unittest.TestCase):
             operation(*args, **kwargs)
         self.assertIs(type(error.exception), expected)
 
+    def test_step_counts_are_intervals_with_two_required_for_american_exercise(self):
+        from kiyosi.pricing import MonteCarloAsianEngine
+
+        option = contract()
+        context = market()
+        engine = MonteCarloVanillaEngine(path_count=64, step_count=2, seed=42)
+        value = engine.price(option, context)
+        self.assertGreater(value, 0)
+        self.assertLess(value, 100)
+        self.assertEqual(engine.step_count, 2)
+        self.assertEqual(MonteCarloAsianEngine(step_count=2).step_count, 2)
+        one = MonteCarloVanillaEngine(path_count=64, step_count=1, seed=42)
+        self.assert_rejection(InvalidInputError, one.price, option, context)
+        self.assertEqual(
+            one.price(option, context.replace(valuation_time=END, spot_price=90)), 10
+        )
+
     def test_immediate_exercise_and_minimum_grid_validation_timing(self):
         option = contract()
         context = market(rate=0.1, dividend=0, sigma=0.1, spot=50)
         engine = MonteCarloVanillaEngine(path_count=4096, seed=42)
         self.assertAlmostEqual(engine.price(option, context), 50, delta=1e-10)
-        engine = MonteCarloVanillaEngine(step_count=2, seed=42)
+        engine = MonteCarloVanillaEngine(step_count=1, seed=42)
         self.assert_rejection(InvalidInputError, engine.price, option, context)
         expiry = context.replace(valuation_time=END)
         self.assertEqual(engine.price(option, expiry), 50)
@@ -127,7 +144,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
         for paths in (1, 3, 4, 127):
             for antithetic in (False, True):
                 engine = MonteCarloVanillaEngine(
-                    path_count=paths, step_count=5, seed=42, antithetic=antithetic
+                    path_count=paths, step_count=4, seed=42, antithetic=antithetic
                 )
                 context = market(
                     rate=0, dividend=0.1, sigma=sys.float_info.min, spot=50
@@ -147,9 +164,9 @@ class AmericanMonteCarloTests(unittest.TestCase):
         # A deterministic optimal exercise date lies strictly inside this three-year grid.
         option = contract().replace(expiry_midnight_utc=date(2028, 1, 1))
         expected = max(
-            100 * math.exp(-0.05 * (3 * step / 49))
-            - 30 * math.exp(-0.2 * (3 * step / 49))
-            for step in range(50)
+            100 * math.exp(-0.05 * (3 * step / 50))
+            - 30 * math.exp(-0.2 * (3 * step / 50))
+            for step in range(51)
         )
         for paths in (1, 2, 4, 2000):
             engine = MonteCarloVanillaEngine(path_count=paths, seed=42)
@@ -187,7 +204,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
                             ),
                             price,
                         )
-        engine = MonteCarloVanillaEngine(path_count=2048, step_count=7, seed=42)
+        engine = MonteCarloVanillaEngine(path_count=2048, step_count=6, seed=42)
         shift = 1 / 8192
         for rate in (-1 / 16384, 0, 1 / 16384):
             context = market(rate=rate, dividend=0)
@@ -209,7 +226,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
             for antithetic in (False, True):
                 engine = MonteCarloVanillaEngine(
                     path_count=1024,
-                    step_count=7,
+                    step_count=6,
                     seed=42,
                     sampling=sampling,
                     antithetic=antithetic,
@@ -271,13 +288,13 @@ class AmericanMonteCarloTests(unittest.TestCase):
                         [getattr(value, name) for name in GREEKS],
                         [getattr(result, name) for name in GREEKS],
                     )
-        unseeded = MonteCarloVanillaEngine(path_count=1024, step_count=7)
+        unseeded = MonteCarloVanillaEngine(path_count=1024, step_count=6)
         result = unseeded.price_with_greeks(option, context, greeks="all", **shifts)
         self.assertTrue(all(math.isfinite(getattr(result, name)) for name in GREEKS))
         self.assertIsNone(unseeded.seed)
 
     def test_validation_representations_and_failure_state(self):
-        engine = MonteCarloVanillaEngine(path_count=127, step_count=7, seed=42)
+        engine = MonteCarloVanillaEngine(path_count=127, step_count=6, seed=42)
         option, context = contract(), market()
         price = engine.price(option, context)
         for name in ("spot_shift", "volatility_shift", "rate_shift"):

@@ -150,7 +150,7 @@ class MonteCarloTests(unittest.TestCase):
                     MonteCarloVanillaEngine(**{field: value})
         for field, values in (
             ("path_count", (0, -1, 10_000_001)),
-            ("step_count", (0, 1, 10_001)),
+            ("step_count", (0, 10_001)),
             ("thread_count", (-1,)),
         ):
             for value in values:

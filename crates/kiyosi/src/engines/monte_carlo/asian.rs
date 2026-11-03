@@ -62,7 +62,7 @@ impl MonteCarloAsianEngine {
     /// # Ok(()) }
     /// ```
     pub fn with_step_count(settings: MonteCarloSettings, step_count: i32) -> Result<Self> {
-        super::validate_step_count(step_count)?;
+        super::validate_step_count(step_count, 2)?;
         settings.validate()?;
         Ok(Self {
             settings,

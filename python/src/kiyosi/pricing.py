@@ -25,6 +25,8 @@ digital terminal payoffs are cell-averaged on either grid. American grids retain
 their sinh coordinates. One-dimensional finite-difference engines share defaults
 of 800 spatial and 400 time steps; observations and damping can add substeps. Check convergence before
 reducing grid counts further.
+Monte Carlo ``step_count`` counts time intervals for both American exercise
+and arithmetic Asian integration; American pricing needs at least two intervals.
 ``MonteCarloSampling`` selects
 ``"pseudo_random"`` or scrambled ``"sobol"``; a fixed seed reproduces draws
 across thread counts in the same build. Sobol estimates omit sampling error.
@@ -63,7 +65,7 @@ Coarse numerical grids may require refinement before pricing succeeds.
 American Monte Carlo also rejects non-finite continuation regressions;
 finite fits with insufficient independent samples use a lower polynomial degree.
 American exercise-grid pricing limits retained path storage to 1 GiB per call.
-Storage is ``8 * path_count * (step_count - 1)`` bytes, with odd antithetic
+Storage is ``8 * path_count * step_count`` bytes, with odd antithetic
 path counts rounded up to the next even count for reserved capacity; other
 buffers are additional. Larger grids raise ``InvalidInputError`` before sampling.
 Reduce either count to fit. Expiry and terminal-only American calls (nonpositive

@@ -332,7 +332,7 @@ mod tests {
 /// uniform grid, reducing to linear or constant fits for rank-deficient samples.
 /// Calls with nonpositive dividends and nonnegative rates use terminal sampling,
 /// retaining the immediate-exercise lower bound. See [`Self::default_american_spot_shift`].
-/// Sobol uses one dimension for terminal sampling or `step_count - 1` for exercise
+/// Sobol uses one dimension for terminal sampling or `step_count` for exercise
 /// grids, and `ceil(path_count / 2)` points with antithetic pairing.
 /// Fixed seeds reproduce results across thread counts within the same build.
 /// Shared and distinct instances permit concurrent calls without mutation;
@@ -359,8 +359,8 @@ impl Default for MonteCarloVanillaEngine {
     }
 }
 
-fn validate_step_count(step_count: i32) -> Result<()> {
-    if !(2..=10_000).contains(&step_count) {
+fn validate_step_count(step_count: i32, minimum: i32) -> Result<()> {
+    if !(minimum..=10_000).contains(&step_count) {
         return Err(Error::InvalidInput("invalid Monte Carlo step count".into()));
     }
     Ok(())
@@ -429,7 +429,7 @@ impl MonteCarloEstimate {
 }
 
 impl MonteCarloVanillaEngine {
-    /// Creates an engine with validated sampling settings and 50 exercise-grid points.
+    /// Creates an engine with validated sampling settings and 50 exercise intervals.
     ///
     /// Use [`Self::with_step_count`] to configure the exercise grid.
     ///
@@ -458,16 +458,16 @@ impl MonteCarloVanillaEngine {
         Self::with_step_count(settings, DEFAULT_STEP_COUNT)
     }
 
-    /// Creates an engine with a configured American exercise-grid point count.
+    /// Creates an engine with a configured American exercise interval count.
     ///
     /// European pricing samples the terminal distribution and does not use this grid.
-    /// American pricing before expiry requires at least three points.
+    /// American pricing before expiry requires at least two intervals.
     /// American exercise-grid pricing limits retained path storage to 1 GiB per call;
     /// see [`Self::price`] for the size calculation and validation timing.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for steps outside 2..=10,000,
+    /// Returns [`Error::InvalidInput`] for steps outside 1..=10,000,
     /// then reuses [`Self::new`] sampling validation. Inputs are consumed on failure.
     ///
     /// # Examples
@@ -480,7 +480,7 @@ impl MonteCarloVanillaEngine {
     /// # Ok(()) }
     /// ```
     pub fn with_step_count(settings: MonteCarloSettings, step_count: i32) -> Result<Self> {
-        validate_step_count(step_count)?;
+        validate_step_count(step_count, 1)?;
         settings.validate()?;
         Ok(Self {
             settings,
@@ -488,7 +488,7 @@ impl MonteCarloVanillaEngine {
         })
     }
 
-    /// Returns the American exercise-grid point count; see [`Self::with_step_count`].
+    /// Returns the American exercise interval count; see [`Self::with_step_count`].
     pub fn step_count(&self) -> i32 {
         self.step_count
     }
@@ -533,7 +533,7 @@ impl MonteCarloVanillaEngine {
     ///
     /// Near-strike payoffs retain small movements even when terminal spot rounds to strike.
     /// Calls complete synchronously without cancellation or signal polling.
-    /// American exercise grids retain `path_count * (step_count - 1)` values of
+    /// American exercise grids retain `path_count * step_count` values of
     /// eight bytes each, rounding odd antithetic path counts up to the next even
     /// count for reserved capacity. Retained path storage is limited to 1 GiB per
     /// call, excluding other buffers. Expiry and terminal-only American calls
@@ -548,7 +548,7 @@ impl MonteCarloVanillaEngine {
     /// Entropy and thread-creation failures retain their native [`std::io::Error`]
     /// in [`Error::Io`].
     /// American pricing before expiry returns [`Error::InvalidInput`]
-    /// for fewer than three grid points, after life validation.
+    /// for fewer than two exercise intervals, after life validation.
     /// Exercise-grid pricing also returns [`Error::InvalidInput`] when retained
     /// path storage would exceed 1 GiB, before entropy, worker or path allocation.
     /// Non-finite American regression matrices, coefficients or continuation values

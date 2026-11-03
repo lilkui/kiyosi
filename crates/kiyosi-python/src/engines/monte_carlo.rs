@@ -290,7 +290,7 @@ macro_rules! sampling_settings {
 ///     Exact path count, 1 through 10,000,000; defaults to 131,072.
 ///     Sobol sampling requires a power of two.
 /// step_count : int, optional
-///     Grid size, 2 through 10,000; defaults to 50. Validated even when
+///     Exercise intervals, 1 through 10,000; defaults to 50. Validated even when
 ///     unused; see Notes for product-specific use.
 /// seed : int or None, optional
 ///     Unsigned 64-bit seed, or None (default) to use system entropy.
@@ -305,7 +305,7 @@ macro_rules! sampling_settings {
 /// Raises
 /// ------
 /// InvalidInputError
-///     If paths are outside 1 through 10,000,000, steps outside 2 through
+///     If paths are outside 1 through 10,000,000, steps outside 1 through
 ///     10,000, thread_count is negative, or Sobol paths are not a power of two.
 ///
 /// See Also
@@ -323,7 +323,7 @@ macro_rules! sampling_settings {
 /// step_count. Near-strike payoffs preserve small movements even when the
 /// terminal spot rounds to the strike. American pricing uses least-squares
 /// Monte Carlo (Longstaff-Schwartz) with
-/// step_count exercise-grid points and requires at least three before expiry.
+/// step_count exercise intervals and requires at least two before expiry.
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloVanillaEngine(pub(crate) kiyosi::MonteCarloVanillaEngine);
 

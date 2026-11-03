@@ -151,7 +151,7 @@ class VolgaDividendRhoTests(unittest.TestCase):
             effective_midnight_utc=START,
             expiry_midnight_utc=END,
         )
-        engine = MonteCarloVanillaEngine(path_count=2048, step_count=7, seed=42)
+        engine = MonteCarloVanillaEngine(path_count=2048, step_count=6, seed=42)
         shift = 1 / 8192
         for dividend in (-shift / 2, 0, shift / 2, shift):
             context = market(rate=0, dividend=dividend)

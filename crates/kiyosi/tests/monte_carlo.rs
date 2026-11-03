@@ -256,7 +256,7 @@ fn settings_validate_boundaries_before_committing_an_engine() {
             Error::InvalidInput(_)
         ));
     }
-    for steps in [i32::MIN, 0, 1, 10_001, i32::MAX] {
+    for steps in [i32::MIN, 0, 10_001, i32::MAX] {
         assert!(matches!(
             MonteCarloVanillaEngine::with_step_count(Default::default(), steps).unwrap_err(),
             Error::InvalidInput(_)

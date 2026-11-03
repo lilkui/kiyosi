@@ -68,9 +68,9 @@ impl MonteCarloVanillaEngine {
         if time == 0.0 {
             return Ok(immediate);
         }
-        if self.step_count < 3 {
+        if self.step_count < 2 {
             return Err(Error::InvalidInput(
-                "American Monte Carlo requires at least three grid points".into(),
+                "American Monte Carlo requires at least two exercise intervals".into(),
             ));
         }
         if terminal_only
@@ -80,7 +80,7 @@ impl MonteCarloVanillaEngine {
         {
             return Ok(self.price(option.vanilla(), context)?.max(immediate));
         }
-        let intervals = self.step_count as usize - 1;
+        let intervals = self.step_count as usize;
         let paths = self.settings.path_count as usize;
         let samples = if self.settings.antithetic {
             paths.div_ceil(2)

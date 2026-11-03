@@ -87,7 +87,7 @@ fn nonfinite_continuation_regressions_fail_without_changing_the_engine() {
             seed: Some(42),
             ..Default::default()
         },
-        5,
+        4,
     )
     .unwrap();
     let ordinary = option(OptionType::Call, 100.0);
@@ -123,7 +123,7 @@ fn american_put_includes_immediate_exercise_and_validates_steps_after_expiry() {
     })
     .unwrap();
     assert!((engine.price(&put, &context).unwrap() - 50.0).abs() < 1e-10);
-    let engine = MonteCarloVanillaEngine::with_step_count(engine.settings(), 2).unwrap();
+    let engine = MonteCarloVanillaEngine::with_step_count(engine.settings(), 1).unwrap();
     assert!(matches!(
         engine.price(&put, &context).unwrap_err(),
         Error::InvalidInput(_)
@@ -148,7 +148,7 @@ fn sparse_and_rank_deficient_paths_preserve_exercise_and_currency_scaling() {
                     antithetic,
                     ..Default::default()
                 },
-                5,
+                4,
             )
             .unwrap();
             // Deterministic decreasing spots leave a constant regression basis.
@@ -183,7 +183,7 @@ fn sparse_and_rank_deficient_paths_preserve_exercise_and_currency_scaling() {
                 seed: Some(42),
                 ..Default::default()
             },
-            5,
+            4,
         )
         .unwrap();
         assert!(
@@ -218,7 +218,7 @@ fn sampling_combinations_preserve_threads_seeds_and_exact_odd_paths() {
                     sampling,
                     antithetic,
                 },
-                50,
+                49,
             )
             .unwrap();
             let price = engine.price(&put, &context).unwrap();
@@ -347,7 +347,7 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
                     antithetic,
                     ..Default::default()
                 },
-                7,
+                6,
             )
             .unwrap();
             let all = engine
@@ -405,7 +405,7 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
             path_count: 1024,
             ..Default::default()
         },
-        7,
+        6,
     )
     .unwrap();
     assert!(
@@ -425,7 +425,7 @@ fn rate_stencils_crossing_zero_keep_one_exercise_estimator() {
             seed: Some(42),
             ..Default::default()
         },
-        7,
+        6,
     )
     .unwrap();
     let shift = 1.0 / 8192.0;
@@ -466,7 +466,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
             seed: Some(42),
             ..Default::default()
         },
-        7,
+        6,
     )
     .unwrap();
     let price = engine.price(&put, &context).unwrap();
@@ -584,7 +584,7 @@ fn automatic_spot_bumps_match_explicit_product_defaults() {
             thread_count: 1,
             ..Default::default()
         },
-        20,
+        19,
     )
     .unwrap();
     let put = option(OptionType::Put, 100.0);
@@ -629,4 +629,38 @@ fn automatic_spot_bumps_match_explicit_product_defaults() {
             )
             .unwrap()
     );
+}
+
+#[test]
+fn monte_carlo_step_counts_are_intervals_with_two_required_for_american_exercise() {
+    let context = market(0.05, 0.02, 0.2, 100.0);
+    let put = option(OptionType::Put, 100.0);
+    let settings = MonteCarloSettings {
+        path_count: 64,
+        seed: Some(42),
+        ..Default::default()
+    };
+    let two = MonteCarloVanillaEngine::with_step_count(settings, 2).unwrap();
+    let price = two.price(&put, &context).unwrap();
+    assert!(price > 0.0 && price < 100.0);
+    assert_eq!(two.step_count(), 2);
+    assert_eq!(
+        MonteCarloAsianEngine::with_step_count(settings, 2)
+            .unwrap()
+            .step_count(),
+        2
+    );
+    let one = MonteCarloVanillaEngine::with_step_count(settings, 1).unwrap();
+    assert!(matches!(
+        one.price(&put, &context),
+        Err(Error::InvalidInput(_))
+    ));
+    let expiry = context
+        .replace(PricingContextChanges {
+            valuation_time: Some(put.expiry_midnight_utc().start_of_day()),
+            spot_price: Some(90.0),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(one.price(&put, &expiry).unwrap(), 10.0);
 }

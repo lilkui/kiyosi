@@ -248,7 +248,7 @@ class PackageTests(unittest.TestCase):
             "effective_midnight_utc": start,
             "expiry_midnight_utc": end,
         }
-        engine = pricing.MonteCarloVanillaEngine(path_count=256, step_count=5, seed=42)
+        engine = pricing.MonteCarloVanillaEngine(path_count=256, step_count=4, seed=42)
         for kind, shift in (
             (instruments.EuropeanOption, 0.01),
             (instruments.AmericanOption, 8.0),
@@ -465,7 +465,10 @@ class PackageTests(unittest.TestCase):
             (
                 instruments.PhoenixOption,
                 {
-                    "coupon_rate": 0.1, "initial_spot": 100, "upper_strike": 100, "lower_strike": 0
+                    "coupon_rate": 0.1,
+                    "initial_spot": 100,
+                    "upper_strike": 100,
+                    "lower_strike": 0,
                 },
             ),
             (
