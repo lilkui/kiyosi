@@ -20,7 +20,7 @@ fn log_interpolation_and_right_hand_forwards() {
     assert_eq!(curve.reference_time(), Some(reference));
     assert_eq!(curve.max_time(), Some(end));
     assert_eq!(curve.nodes(), &[middle, end]);
-    assert_eq!(curve.factors()[0], first);
+    assert_eq!(curve.factors().unwrap()[0], first);
     assert!(
         (curve.log_factor(at(2025, 4, 1), at(2025, 7, 30)).unwrap()
             + (0.02 * 90.0 + 0.08 * 30.0) / 365.0)
@@ -225,7 +225,7 @@ fn flat_and_parallel_shifted_curves_preserve_coverage_and_ownership() {
     assert_eq!(flat.reference_time(), None);
     assert_eq!(flat.max_time(), None);
     assert_eq!(flat.nodes(), []);
-    assert_eq!(flat.factors(), [] as [f64; 0]);
+    assert_eq!(flat.factors().unwrap(), [] as [f64; 0]);
     assert!((flat.factor(before, reference).unwrap() - 0.03_f64.exp()).abs() < 1e-14);
     let dated = RateTermStructure::flat(-0.03, Some(reference)).unwrap();
     assert!(matches!(
@@ -240,12 +240,12 @@ fn flat_and_parallel_shifted_curves_preserve_coverage_and_ownership() {
     assert_eq!(changed.reference_time(), curve.reference_time());
     assert_eq!(changed.max_time(), curve.max_time());
     assert!((changed.factor(reference, end).unwrap() - 0.95 * (-0.01_f64).exp()).abs() < 1e-14);
-    assert!((changed.factors()[0] - 0.95 * (-0.01_f64).exp()).abs() < 1e-14);
+    assert!((changed.factors().unwrap()[0] - 0.95 * (-0.01_f64).exp()).abs() < 1e-14);
     assert!((flat.shifted(0.01).unwrap().flat_rate().unwrap() + 0.02).abs() < 1e-15);
-    assert_eq!(curve.factors(), vec![0.95]);
-    let mut factors = curve.factors();
+    assert_eq!(curve.factors().unwrap(), vec![0.95]);
+    let mut factors = curve.factors().unwrap();
     factors.clear();
-    assert_eq!(curve.factors(), vec![0.95]);
+    assert_eq!(curve.factors().unwrap(), vec![0.95]);
     assert!(matches!(
         curve
             .shifted(f64::MAX)
@@ -429,4 +429,28 @@ fn shifted_curve_reconstruction_preserves_the_original_representation() {
         restored.factor(start, end).unwrap(),
         curve.factor(start, end).unwrap()
     );
+}
+
+#[test]
+fn bulk_curve_factors_follow_scalar_overflow_and_underflow_rules() {
+    let start = Date::new(2025, 1, 1).unwrap().start_of_day();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
+    let original = RateTermStructure::new(start, vec![end], vec![0.95]).unwrap();
+    let overflowing = original.shifted(-1000.0).unwrap();
+    assert!(matches!(
+        overflowing.factors(),
+        Err(Error::ComputationFailure(_))
+    ));
+    assert!(matches!(
+        overflowing.factor(start, end),
+        Err(Error::ComputationFailure(_))
+    ));
+    let underflowing = original.shifted(1000.0).unwrap();
+    assert_eq!(underflowing.factors().unwrap(), vec![0.0]);
+    assert_eq!(underflowing.factor(start, end).unwrap(), 0.0);
+    assert_eq!(original.factors().unwrap(), vec![0.95]);
+    assert!(matches!(
+        RateTermStructure::new(start, vec![end], underflowing.factors().unwrap()),
+        Err(Error::InvalidInput(_))
+    ));
 }

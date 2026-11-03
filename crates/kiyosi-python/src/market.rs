@@ -111,10 +111,20 @@ impl RateTermStructure {
             .map(|&time| python_timestamp(py, time))
             .collect()
     }
-    /// Return copied node factors, including any parallel shift.
+    /// Return owned node factors including shifts, allowing underflow to zero.
+    ///
+    /// Raises
+    /// ------
+    /// ComputationFailureError
+    ///     If a log factor is non-finite or exponentiation overflows.
+    ///
+    /// Notes
+    /// -----
+    /// Zero factors cannot reconstruct a curve through its constructor. Pickle
+    /// preserves the original factors and shift, including extreme shifted curves.
     #[getter]
-    fn factors(&self) -> Vec<f64> {
-        self.0.factors()
+    fn factors(&self) -> PyResult<Vec<f64>> {
+        domain(self.0.factors())
     }
     /// Return the factor over an ordered, covered interval.
     ///

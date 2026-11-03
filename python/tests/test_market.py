@@ -568,6 +568,31 @@ class RateTermStructureTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 setattr(obj, field, value)
 
+    def test_bulk_curve_factors_follow_scalar_overflow_and_underflow_rules(self):
+        import pickle
+
+        curve = RateTermStructure(
+            reference_time=REFERENCE, times=[MATURITY], factors=[0.95]
+        )
+        overflowing = curve.shifted(-1000)
+        self.assert_rejection(ComputationFailureError, lambda: overflowing.factors)
+        self.assert_rejection(
+            ComputationFailureError, overflowing.factor, REFERENCE, MATURITY
+        )
+        underflowing = curve.shifted(1000)
+        self.assertEqual(underflowing.factors, [0.0])
+        self.assertEqual(underflowing.factor(REFERENCE, MATURITY), 0.0)
+        self.assertEqual(curve.factors, [0.95])
+        for extreme in (overflowing, underflowing):
+            self.assertEqual(pickle.loads(pickle.dumps(extreme)), extreme)
+        self.assert_rejection(
+            InvalidInputError,
+            RateTermStructure,
+            reference_time=REFERENCE,
+            times=[MATURITY],
+            factors=underflowing.factors,
+        )
+
     def test_curve_numerical_limits_ownership_and_concurrency(self):
         from concurrent.futures import ThreadPoolExecutor
 

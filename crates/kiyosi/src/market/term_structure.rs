@@ -65,7 +65,7 @@ impl RateTermStructure {
     /// let curve = RateTermStructure::new(start, vec![end], vec![0.95])?;
     /// assert!((curve.factor(start, end)? - 0.95).abs() < 1e-14);
     /// assert_eq!(curve.nodes(), &[end]);
-    /// assert_eq!(curve.factors(), vec![0.95]);
+    /// assert_eq!(curve.factors()?, vec![0.95]);
     /// assert_eq!(curve.reference_time(), Some(start));
     /// assert_eq!(curve.max_time(), Some(end));
     /// # Ok(()) }
@@ -151,16 +151,31 @@ impl RateTermStructure {
     }
     /// Returns owned node factors including any parallel shift.
     ///
-    /// Flat curves return an empty vector. Shifted factors may underflow to zero
-    /// or overflow to infinity. See [`Self::new`] for node access.
-    pub fn factors(&self) -> Vec<f64> {
+    /// Flat curves return an empty vector; underflow to zero is allowed, as in
+    /// [`Self::factor`]. Zero factors cannot be passed to [`Self::new`]; use
+    /// [`Self::base_factors`] and [`Self::parallel_shift`] for lossless reconstruction.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ComputationFailure`] for a non-finite log factor or overflow.
+    pub fn factors(&self) -> Result<Vec<f64>> {
         let Some(reference) = self.reference.filter(|_| self.spread != 0.0) else {
-            return self.factors.clone();
+            return Ok(self.factors.clone());
         };
         self.nodes
             .iter()
             .zip(&self.factors)
-            .map(|(&node, &factor)| (factor.ln() - self.spread * reference.years_until(node)).exp())
+            .map(|(&node, &factor)| {
+                let log = factor.ln() - self.spread * reference.years_until(node);
+                let value = log.exp();
+                if log.is_finite() && value.is_finite() {
+                    Ok(value)
+                } else {
+                    Err(Error::ComputationFailure(
+                        "curve node factor cannot be represented".into(),
+                    ))
+                }
+            })
             .collect()
     }
     /// Checks whether a timestamp lies within the curve's inclusive coverage.
