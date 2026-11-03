@@ -74,6 +74,14 @@ pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     engine.validate_applicability(context)?;
     request.validate()?;
     settings.validate()?;
+    let settings = NumericalShiftSettings {
+        spot_shift: Some(
+            settings
+                .spot_shift
+                .unwrap_or_else(|| engine.default_spot_shift(context)),
+        ),
+        ..settings
+    };
     let prepared = engine.prepare_request()?;
     if let Some(prepared) = &prepared {
         prepared.validate_applicability(context)?;
@@ -125,7 +133,7 @@ pub(crate) fn complete_greeks(
     let spot = context.spot_price();
     let vol = model.volatility();
     let rate = model.risk_free_curve().flat_rate().unwrap_or(0.0);
-    let h = symmetric_shift(spot, settings.spot_shift);
+    let h = symmetric_shift(spot, settings.spot_shift());
     let v = symmetric_shift(vol, settings.volatility_shift);
     let r = symmetric_shift(rate, settings.rate_shift);
     let spot_ok = [
@@ -467,7 +475,7 @@ mod tests {
         let (option, context) = inputs();
         let request = GreeksRequest::new([Greek::Speed]);
         let shifts = NumericalShiftSettings {
-            spot_shift: 0.25,
+            spot_shift: Some(0.25),
             ..Default::default()
         };
         let result = complete_greeks(
@@ -532,7 +540,7 @@ mod tests {
                 &context,
                 request,
                 NumericalShiftSettings {
-                    spot_shift: 0.25,
+                    spot_shift: Some(0.25),
                     volatility_shift: 0.125,
                     rate_shift: 0.125,
                     time_shift_days: 1,
@@ -580,7 +588,7 @@ mod tests {
             &context,
             request,
             NumericalShiftSettings {
-                spot_shift: 0.25,
+                spot_shift: Some(0.25),
                 volatility_shift: 0.125,
                 ..Default::default()
             },

@@ -283,7 +283,7 @@ fn native_with_diffusion<D: Diffusion>(
     let spot = context.spot_price();
     let value = sample(spot);
     let mut result = PricingResult::new(value[0])?;
-    let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift);
+    let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift());
     if !option.at_spot_discontinuity(context, h) {
         result.set(request, Greek::Delta, value[1])?;
         result.set(request, Greek::Gamma, value[2])?;

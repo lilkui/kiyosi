@@ -97,7 +97,9 @@ Pricing controls are explicit keyword-only parameters, available through
 defaults can be passed back explicitly. Instrument conversion and supported-family checks
 precede Greek-name parsing. Monte Carlo vanilla spot bumps default by product:
 0.01 for European options and 8% of spot for American options. Explicit
-``None`` selects the automatic bump for either product.
+``None`` selects the automatic bump for either product. Other numerical engines
+use ``None`` to select the shared 0.01 spot-unit bump. Rust
+``NumericalShiftSettings.spot_shift=None`` uses the same engine-specific defaults.
 
 ``AnalyticHestonEuropeanEngine`` prices European calls/puts with ``HestonParameters``
 using adaptive Fourier integration and a deterministic-variance control variate.

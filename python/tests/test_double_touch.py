@@ -1063,7 +1063,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
         self.assertEqual(str(inspect.signature(type(engine))), "()")
         signature = inspect.signature(engine.price_with_greeks)
         for name, default in (
-            ("spot_shift", 0.01),
+            ("spot_shift", None),
             ("volatility_shift", 0.0001),
             ("rate_shift", 0.0001),
             ("time_shift_days", 1),

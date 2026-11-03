@@ -240,7 +240,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
     })
     .unwrap();
     let shifts = NumericalShiftSettings {
-        spot_shift: 0.25,
+        spot_shift: Some(0.25),
         ..Default::default()
     };
     let result = engine

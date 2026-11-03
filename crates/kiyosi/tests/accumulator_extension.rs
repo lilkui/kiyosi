@@ -668,7 +668,7 @@ fn scheduled_decumulator_supports_greeks_and_identifiable_volatility() {
     let option = Accumulator::new(terms(OptionType::Put, Some(vec![day(6)]))).unwrap();
     let original = option.clone();
     let context = market(100.25, Timestamp::new(day(3), 12, 0, 0, 0).unwrap(), 0.4);
-    let h = NumericalShiftSettings::default().spot_shift;
+    let h = NumericalShiftSettings::default().spot_shift();
     let shifted = |spot| {
         context
             .replace(PricingContextChanges {

@@ -158,7 +158,7 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
         &context,
         GreeksRequest::all(),
         NumericalShiftSettings {
-            spot_shift: 0.1,
+            spot_shift: Some(0.1),
             ..Default::default()
         },
     )
@@ -177,7 +177,7 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
             &context,
             GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Speed]),
             NumericalShiftSettings {
-                spot_shift: 1e-300,
+                spot_shift: Some(1e-300),
                 ..Default::default()
             },
         )

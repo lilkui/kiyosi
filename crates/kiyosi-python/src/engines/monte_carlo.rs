@@ -88,7 +88,7 @@ macro_rules! sampling_settings {
             ///     If requests, shifts, pricing or a feasible bumped valuation fails.
             /// OSError
             ///     If system entropy or worker creation fails.
-            #[pyo3(signature = (instrument, context, greeks, *, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift))]
+            #[pyo3(signature = (instrument, context, greeks, *, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift()))]
             fn price_with_greeks(
                 &self,
                 py: Python<'_>,
@@ -461,17 +461,7 @@ sampling_settings!(
         let engine = self.0;
         let context = &context.0;
         let shifts = kiyosi::NumericalShiftSettings {
-            spot_shift: spot_shift
-                .map(crate::conversions::real)
-                .transpose()?
-                .unwrap_or_else(|| match &instrument {
-                    binomial::VanillaInstrument::European(_) => {
-                        kiyosi::NumericalShiftSettings::default().spot_shift
-                    }
-                    binomial::VanillaInstrument::American(_) => {
-                        kiyosi::MonteCarloVanillaEngine::default_american_spot_shift(context)
-                    }
-                }),
+            spot_shift: spot_shift.map(crate::conversions::real).transpose()?,
             volatility_shift,
             rate_shift,
             time_shift_days,

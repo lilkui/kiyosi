@@ -59,7 +59,7 @@ fn numerical_greeks_validate_before_preparation_and_prepare_only_once() {
         (
             request,
             NumericalShiftSettings {
-                spot_shift: 0.0,
+                spot_shift: Some(0.0),
                 ..Default::default()
             },
         ),
@@ -121,7 +121,7 @@ fn numerical_greeks_are_stable_across_absolute_bumps() {
         .unwrap();
     for bump in [0.05, 0.1, 0.2] {
         let settings = NumericalShiftSettings {
-            spot_shift: bump,
+            spot_shift: Some(bump),
             ..Default::default()
         };
         let actual = numerical_greeks(
@@ -389,7 +389,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
     for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
         for settings in [
             NumericalShiftSettings {
-                spot_shift: bad,
+                spot_shift: Some(bad),
                 ..Default::default()
             },
             NumericalShiftSettings {
@@ -441,7 +441,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         expected: &PricingResult,
     ) {
         let settings = NumericalShiftSettings {
-            spot_shift: 0.0,
+            spot_shift: Some(0.0),
             volatility_shift: f64::NAN,
             rate_shift: f64::INFINITY,
             time_shift_days: 0,
@@ -784,7 +784,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
 
     let (option, context) = market();
     let settings = NumericalShiftSettings {
-        spot_shift: 200.0,
+        spot_shift: Some(200.0),
         volatility_shift: 0.3,
         ..Default::default()
     };
@@ -815,7 +815,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
         &context,
         GreeksRequest::new([Greek::Delta, Greek::Vega]),
         NumericalShiftSettings {
-            spot_shift: f64::MIN_POSITIVE,
+            spot_shift: Some(f64::MIN_POSITIVE),
             ..Default::default()
         },
     )
@@ -864,7 +864,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
         &extreme,
         GreeksRequest::new([Greek::Speed]),
         NumericalShiftSettings {
-            spot_shift: 0.6,
+            spot_shift: Some(0.6),
             ..Default::default()
         },
     )

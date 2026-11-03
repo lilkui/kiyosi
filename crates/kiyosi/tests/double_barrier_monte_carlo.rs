@@ -49,7 +49,7 @@ fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
             &option,
             &context,
             request,
-            NumericalShiftSettings::default().spot_shift,
+            NumericalShiftSettings::default().spot_shift(),
         )
         .unwrap();
     assert_eq!(result.price(), engine.price(&option, &context).unwrap());
@@ -61,14 +61,14 @@ fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
         ));
     }
     let settings = NumericalShiftSettings {
-        spot_shift: 1e12,
+        spot_shift: Some(1e12),
         ..Default::default()
     };
     let expected = AnalyticDoubleBarrierEngine
         .price_with_greeks(&option, &context, request, settings)
         .unwrap();
     let actual = engine
-        .price_with_greeks(&option, &context, request, settings.spot_shift)
+        .price_with_greeks(&option, &context, request, settings.spot_shift())
         .unwrap();
     assert_eq!(actual, expected);
 }
@@ -131,7 +131,7 @@ fn native_greeks_validate_only_the_spot_shift() {
     };
     let request = GreeksRequest::all();
     let expected = engine
-        .price_with_greeks(&option, &context, request, shifts.spot_shift)
+        .price_with_greeks(&option, &context, request, shifts.spot_shift())
         .unwrap();
     let actual =
         PricingEngine::price_with_greeks(&engine, &option, &context, request, shifts).unwrap();
@@ -176,7 +176,7 @@ fn continuous_prices_and_shared_sample_greeks_match_independent_references() {
                     &option,
                     &context,
                     GreeksRequest::all(),
-                    NumericalShiftSettings::default().spot_shift,
+                    NumericalShiftSettings::default().spot_shift(),
                 )
                 .unwrap();
             assert!((result.price() - price).abs() < 0.003);
@@ -245,7 +245,7 @@ fn pseudo_random_prices_and_likelihood_greeks_match_across_seeds() {
                         &option,
                         &market(),
                         GreeksRequest::all(),
-                        NumericalShiftSettings::default().spot_shift,
+                        NumericalShiftSettings::default().spot_shift(),
                     )
                     .unwrap();
                 compare(&result, &expected, 0.12, 0.015, 0.003);
@@ -291,7 +291,7 @@ fn image_and_spectral_series_and_extreme_bands_match_analytic() {
                 &option,
                 &context,
                 GreeksRequest::all(),
-                NumericalShiftSettings::default().spot_shift,
+                NumericalShiftSettings::default().spot_shift(),
             )
             .unwrap();
         let expected = AnalyticDoubleBarrierEngine
@@ -349,7 +349,7 @@ fn continuous_rebates_and_tiny_volatility_hits_keep_values_and_derivatives() {
                     &option,
                     &context,
                     GreeksRequest::all(),
-                    NumericalShiftSettings::default().spot_shift,
+                    NumericalShiftSettings::default().spot_shift(),
                 )
                 .unwrap();
             let expected = AnalyticDoubleBarrierEngine
@@ -422,7 +422,7 @@ fn scheduled_dates_and_unobserved_expiry_leg_match_finite_difference() {
                         &option,
                         &market(),
                         GreeksRequest::all(),
-                        NumericalShiftSettings::default().spot_shift,
+                        NumericalShiftSettings::default().spot_shift(),
                     )
                     .unwrap();
                 let expected = FiniteDifferenceDoubleBarrierEngine::new(FiniteDifferenceSettings {
@@ -493,7 +493,7 @@ fn thread_and_sampling_contracts_preserve_exact_samples_and_pairing() {
                         &option,
                         &context,
                         GreeksRequest::all(),
-                        NumericalShiftSettings::default().spot_shift,
+                        NumericalShiftSettings::default().spot_shift(),
                     )
                     .unwrap();
                 std::thread::scope(|scope| {
@@ -505,7 +505,7 @@ fn thread_and_sampling_contracts_preserve_exact_samples_and_pairing() {
                                         &option,
                                         &context,
                                         GreeksRequest::all(),
-                                        NumericalShiftSettings::default().spot_shift,
+                                        NumericalShiftSettings::default().spot_shift(),
                                     )
                                     .unwrap()
                             })
@@ -593,7 +593,7 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                             &option,
                             &context,
                             GreeksRequest::all(),
-                            NumericalShiftSettings::default().spot_shift,
+                            NumericalShiftSettings::default().spot_shift(),
                         )
                         .unwrap();
                     assert!(!result.has(Greek::Delta) && !result.has(Greek::Gamma));
@@ -632,7 +632,7 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                             &known,
                             &expired,
                             GreeksRequest::all(),
-                            NumericalShiftSettings::default().spot_shift,
+                            NumericalShiftSettings::default().spot_shift(),
                         )
                         .unwrap();
                     assert_eq!(
@@ -689,7 +689,7 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                 &option,
                 &context,
                 GreeksRequest::all(),
-                NumericalShiftSettings::default().spot_shift,
+                NumericalShiftSettings::default().spot_shift(),
             )
             .unwrap();
         assert!(!result.has(Greek::Delta) && !result.has(Greek::Gamma));
@@ -839,7 +839,7 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
                     &option,
                     &curved,
                     GreeksRequest::new([]),
-                    NumericalShiftSettings::default().spot_shift,
+                    NumericalShiftSettings::default().spot_shift(),
                 )
                 .unwrap_err(),
             Error::UnsupportedOperation(_)
@@ -856,7 +856,7 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
                 &option,
                 &context,
                 GreeksRequest::new([]),
-                NumericalShiftSettings::default().spot_shift,
+                NumericalShiftSettings::default().spot_shift(),
             )
             .unwrap_err(),
         Error::InvalidInput(_)
@@ -924,7 +924,7 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
                 &option,
                 &tiny,
                 GreeksRequest::new([Greek::Rho]),
-                NumericalShiftSettings::default().spot_shift
+                NumericalShiftSettings::default().spot_shift()
             )
             .unwrap()
             .price(),
@@ -936,7 +936,7 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
                 &option,
                 &tiny,
                 GreeksRequest::new([Greek::Gamma]),
-                NumericalShiftSettings::default().spot_shift,
+                NumericalShiftSettings::default().spot_shift(),
             )
             .unwrap_err(),
         Error::ComputationFailure(_)

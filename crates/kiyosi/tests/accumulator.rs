@@ -486,7 +486,7 @@ fn greeks_match_terminal_reference_and_cached_prices_match_scalar_repricing() {
     );
     let engine = QuadratureAccumulatorEngine::default();
     let shifts = NumericalShiftSettings {
-        spot_shift: 0.2,
+        spot_shift: Some(0.2),
         volatility_shift: 0.001,
         rate_shift: 0.001,
         ..Default::default()
@@ -702,7 +702,7 @@ fn greeks_converge_under_spatial_refinement_and_smaller_bumps() {
                 &context,
                 GreeksRequest::all(),
                 NumericalShiftSettings {
-                    spot_shift: 0.005,
+                    spot_shift: Some(0.005),
                     volatility_shift: 0.00005,
                     rate_shift: 0.00005,
                     ..Default::default()

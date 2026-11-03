@@ -12,7 +12,7 @@ impl MonteCarloVanillaEngine {
     ///
     /// Exercise decisions amplify small-bump noise; sampling error and bump bias
     /// still require convergence checks. Other shifts use [`NumericalShiftSettings`] defaults.
-    /// Python uses this value when `spot_shift` is omitted or `None`.
+    /// Rust and Python use this value when `spot_shift` is automatic (`None`).
     ///
     /// # Examples
     ///
@@ -26,7 +26,7 @@ impl MonteCarloVanillaEngine {
     /// let engine = MonteCarloVanillaEngine::new(MonteCarloSettings { seed: Some(42), ..Default::default() })?;
     /// let result = engine.price_with_greeks(&put, &context,
     ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]), NumericalShiftSettings {
-    ///         spot_shift: MonteCarloVanillaEngine::default_american_spot_shift(&context),
+    ///         spot_shift: Some(MonteCarloVanillaEngine::default_american_spot_shift(&context)),
     ///         ..Default::default()
     ///     })?;
     /// assert!(result.require(Greek::Delta)? < 0.0);
@@ -215,6 +215,10 @@ impl MonteCarloVanillaEngine {
 }
 
 impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
+    fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+        Self::default_american_spot_shift(context)
+    }
+
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.bsm_parameters()?;
         <Self as PricingEngine<EuropeanOption>>::validate_applicability(self, context)
@@ -246,6 +250,14 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         <Self as PricingEngine<AmericanOption>>::validate_applicability(self, context)?;
         request.validate()?;
         settings.validate()?;
+        let settings = NumericalShiftSettings {
+            spot_shift: Some(
+                settings
+                    .spot_shift
+                    .unwrap_or_else(|| Self::default_american_spot_shift(context)),
+            ),
+            ..settings
+        };
         let engine = Self {
             settings: self.settings.with_resolved_seed()?,
             ..*self

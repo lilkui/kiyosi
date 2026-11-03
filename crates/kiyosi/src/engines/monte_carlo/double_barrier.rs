@@ -121,7 +121,7 @@ impl MonteCarloDoubleBarrierEngine {
     /// })?;
     /// let result = engine.price_with_greeks(&option, &context,
     ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-    ///     NumericalShiftSettings::default().spot_shift)?;
+    ///     NumericalShiftSettings::default().spot_shift())?;
     /// assert!((result.price() - 1.0838814592583166).abs() < 0.003);
     /// assert!(result.has(Greek::Delta));
     /// assert_eq!(engine.settings().path_count, 32768);
@@ -138,7 +138,7 @@ impl MonteCarloDoubleBarrierEngine {
         self.validate_applicability(context)?;
         request.validate()?;
         let settings = NumericalShiftSettings {
-            spot_shift,
+            spot_shift: Some(spot_shift),
             ..Default::default()
         };
         settings.validate()?;
@@ -171,7 +171,7 @@ impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request, settings.spot_shift)
+        Self::price_with_greeks(self, option, context, request, settings.spot_shift())
     }
     fn volatility_affects_price(
         &self,

@@ -280,6 +280,36 @@ class PackageTests(unittest.TestCase):
                             option, context, "delta", spot_shift=invalid
                         )
 
+    def test_numerical_spot_shift_none_uses_the_core_default(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = instruments.EuropeanOption(
+            option_type="call",
+            strike=100,
+            effective_midnight_utc=start,
+            expiry_midnight_utc=end,
+        )
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        engine = pricing.QuadratureVanillaEngine()
+        automatic = engine.price_with_greeks(option, context, "delta")
+        explicit = engine.price_with_greeks(option, context, "delta", spot_shift=0.01)
+        self.assertEqual(automatic.delta, explicit.delta)
+        self.assertEqual(
+            engine.price_with_greeks(option, context, "delta", spot_shift=None).delta,
+            explicit.delta,
+        )
+        for invalid in (0, -1, float("nan"), float("inf")):
+            with (
+                self.subTest(invalid=invalid),
+                self.assertRaises(kiyosi.InvalidInputError),
+            ):
+                engine.price_with_greeks(option, context, "delta", spot_shift=invalid)
+
     def test_native_greek_methods_expose_only_request_controls(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = market.PricingContext(

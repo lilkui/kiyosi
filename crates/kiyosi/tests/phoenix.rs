@@ -182,7 +182,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
             &ctx,
             GreeksRequest::all(),
             NumericalShiftSettings {
-                spot_shift: 0.25,
+                spot_shift: Some(0.25),
                 ..Default::default()
             },
         )

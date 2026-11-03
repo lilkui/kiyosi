@@ -322,7 +322,7 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
             let sigma = implied_volatility(&engine, &option, &context, quote, bounds).unwrap();
             assert!((sigma - 0.2).abs() < 0.001);
             let shifts = NumericalShiftSettings {
-                spot_shift: 2.0,
+                spot_shift: Some(2.0),
                 volatility_shift: 0.01,
                 ..Default::default()
             };

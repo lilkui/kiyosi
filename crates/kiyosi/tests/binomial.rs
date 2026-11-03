@@ -357,7 +357,7 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
     );
     for settings in [
         NumericalShiftSettings {
-            spot_shift: 0.0,
+            spot_shift: Some(0.0),
             ..Default::default()
         },
         NumericalShiftSettings {

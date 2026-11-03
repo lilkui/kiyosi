@@ -237,7 +237,7 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
                 &context,
                 GreeksRequest::all(),
                 NumericalShiftSettings {
-                    spot_shift: 0.0,
+                    spot_shift: Some(0.0),
                     ..Default::default()
                 }
             )

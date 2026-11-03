@@ -268,7 +268,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
             &ctx,
             GreeksRequest::all(),
             NumericalShiftSettings {
-                spot_shift: 0.25,
+                spot_shift: Some(0.25),
                 ..Default::default()
             },
         )

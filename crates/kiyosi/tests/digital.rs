@@ -429,7 +429,7 @@ fn native_gamma_speed_needs_only_a_single_positive_spot_bump() {
     let option = DigitalOption::cash_or_nothing(OptionType::Call, 1.5, 1.0, start, end).unwrap();
     let context = market(1.5, 0.05, 0.02, 0.2);
     let settings = NumericalShiftSettings {
-        spot_shift: 1.0,
+        spot_shift: Some(1.0),
         ..Default::default()
     };
     let result = AnalyticDigitalEngine
@@ -587,7 +587,7 @@ fn digital_analysis_preserves_settings_solver_and_curve_horizon_failures() {
         for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
             for settings in [
                 NumericalShiftSettings {
-                    spot_shift: bad,
+                    spot_shift: Some(bad),
                     ..Default::default()
                 },
                 NumericalShiftSettings {

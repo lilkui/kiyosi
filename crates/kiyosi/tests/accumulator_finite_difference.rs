@@ -333,7 +333,7 @@ fn spline_and_mixed_greeks_match_independent_public_repricing() {
             Greek::Theta,
         ]),
         NumericalShiftSettings {
-            spot_shift: 0.002,
+            spot_shift: Some(0.002),
             ..Default::default()
         },
     )
@@ -543,7 +543,7 @@ fn speed_propagates_nonfinite_shifted_prices_without_changing_inputs() {
                 &context,
                 GreeksRequest::new([Greek::Speed]),
                 NumericalShiftSettings {
-                    spot_shift: 2.0,
+                    spot_shift: Some(2.0),
                     ..Default::default()
                 }
             )

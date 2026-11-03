@@ -210,8 +210,10 @@ impl PricingResult {
 /// See [`crate::numerical_greeks`] for usage.
 #[derive(Clone, Copy, Debug)]
 pub struct NumericalShiftSettings {
-    /// Sets the positive absolute spot bump (default 0.01 spot units).
-    pub spot_shift: f64,
+    /// Sets a positive absolute spot bump, or `None` (default) for the engine default.
+    ///
+    /// Automatic bumps use 0.01 spot units, except American Monte Carlo uses 8% of spot.
+    pub spot_shift: Option<f64>,
     /// Sets the positive absolute volatility bump (default 0.0001 decimal units).
     pub volatility_shift: f64,
     /// Sets the positive risk-free and dividend rate bump (default 0.0001 decimal units).
@@ -222,7 +224,7 @@ pub struct NumericalShiftSettings {
 impl Default for NumericalShiftSettings {
     fn default() -> Self {
         Self {
-            spot_shift: 1e-2,
+            spot_shift: None,
             volatility_shift: 1e-4,
             rate_shift: 1e-4,
             time_shift_days: 1,
@@ -230,8 +232,15 @@ impl Default for NumericalShiftSettings {
     }
 }
 impl NumericalShiftSettings {
+    /// Returns the configured bump or the general default of 0.01 spot units.
+    ///
+    /// American Monte Carlo resolves automatic bumps before computation; see
+    /// [`crate::MonteCarloVanillaEngine::default_american_spot_shift`].
+    pub fn spot_shift(self) -> f64 {
+        self.spot_shift.unwrap_or(0.01)
+    }
     pub(crate) fn validate(self) -> Result<()> {
-        if [self.spot_shift, self.volatility_shift, self.rate_shift]
+        if [self.spot_shift(), self.volatility_shift, self.rate_shift]
             .iter()
             .any(|x| !x.is_finite() || *x <= 0.0)
             || self.time_shift_days <= 0
@@ -249,6 +258,14 @@ impl NumericalShiftSettings {
 /// The instrument parameter selects supported combinations; it defaults to
 /// [`EuropeanOption`]. See [`crate::AnalyticDigitalEngine::price`] for digital usage.
 pub trait PricingEngine<I = EuropeanOption> {
+    /// Returns the automatic absolute spot bump for this engine and contract family.
+    ///
+    /// Defaults to 0.01 spot units; American Monte Carlo uses 8% of spot.
+    /// See [`NumericalShiftSettings`] for explicit control.
+    fn default_spot_shift(&self, _context: &PricingContext) -> f64 {
+        NumericalShiftSettings::default().spot_shift()
+    }
+
     /// Checks engine applicability before numerical requests or implied-volatility validation.
     ///
     /// Coupon solves validate their settings and endpoint replacements before pricing.

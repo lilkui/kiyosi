@@ -313,7 +313,7 @@ class DigitalTests(unittest.TestCase):
                 "rate_shift",
                 "time_shift_days",
             ):
-                for value in (True, "1", None):
+                for value in (True, "1") + (() if field == "spot_shift" else (None,)):
                     with self.assertRaises(TypeError):
                         self.engine.price_with_greeks(
                             option, self.context, "delta", **{field: value}

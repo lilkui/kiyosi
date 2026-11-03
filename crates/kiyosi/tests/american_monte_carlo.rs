@@ -330,7 +330,9 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
     let put = option(OptionType::Put, 100.0);
     let context = market(0.05, 0.02, 0.2, 100.0);
     let shifts = NumericalShiftSettings {
-        spot_shift: MonteCarloVanillaEngine::default_american_spot_shift(&context),
+        spot_shift: Some(MonteCarloVanillaEngine::default_american_spot_shift(
+            &context,
+        )),
         volatility_shift: 0.02,
         rate_shift: 0.01,
         time_shift_days: 2,
@@ -384,7 +386,7 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
                     &context,
                     GreeksRequest::new([Greek::Gamma]),
                     NumericalShiftSettings {
-                        spot_shift: 200.0,
+                        spot_shift: Some(200.0),
                         ..shifts
                     },
                 )
@@ -569,5 +571,62 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
     assert_eq!(
         context.model_parameters().as_bsm().unwrap().volatility(),
         0.2
+    );
+}
+
+#[test]
+fn automatic_spot_bumps_match_explicit_product_defaults() {
+    let context = market(0.05, 0.03, 0.2, 100.0);
+    let engine = MonteCarloVanillaEngine::with_step_count(
+        MonteCarloSettings {
+            path_count: 8192,
+            seed: Some(42),
+            thread_count: 1,
+            ..Default::default()
+        },
+        20,
+    )
+    .unwrap();
+    let put = option(OptionType::Put, 100.0);
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    let automatic = engine
+        .price_with_greeks(&put, &context, request, Default::default())
+        .unwrap();
+    let explicit = engine
+        .price_with_greeks(
+            &put,
+            &context,
+            request,
+            NumericalShiftSettings {
+                spot_shift: Some(8.0),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(automatic, explicit);
+    let generic = numerical_greeks(&engine, &put, &context, request, Default::default()).unwrap();
+    assert_eq!(automatic, generic);
+    let european = EuropeanOption::new(
+        OptionType::Put,
+        100.0,
+        put.effective_midnight_utc(),
+        put.expiry_midnight_utc(),
+    )
+    .unwrap();
+    assert_eq!(
+        engine
+            .price_with_greeks(&european, &context, request, Default::default())
+            .unwrap(),
+        engine
+            .price_with_greeks(
+                &european,
+                &context,
+                request,
+                NumericalShiftSettings {
+                    spot_shift: Some(0.01),
+                    ..Default::default()
+                }
+            )
+            .unwrap()
     );
 }

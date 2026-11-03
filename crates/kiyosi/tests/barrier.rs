@@ -495,7 +495,7 @@ fn scheduled_requests_recover_volatility_and_support_concurrent_reads() {
                 &context,
                 GreeksRequest::all(),
                 NumericalShiftSettings {
-                    spot_shift: 0.0,
+                    spot_shift: Some(0.0),
                     ..Default::default()
                 }
             )

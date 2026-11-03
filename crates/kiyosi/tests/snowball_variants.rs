@@ -339,7 +339,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
                 &context,
                 GreeksRequest::all(),
                 NumericalShiftSettings {
-                    spot_shift: 0.25,
+                    spot_shift: Some(0.25),
                     ..Default::default()
                 },
             )

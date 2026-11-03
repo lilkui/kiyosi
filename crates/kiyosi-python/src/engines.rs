@@ -32,8 +32,8 @@ macro_rules! numerical_greeks_methods {
             ///     Market snapshot and valuation instant.
             /// greeks : str or iterable of str
             ///     Greek names or "all" to request every measure; duplicates are ignored.
-            /// spot_shift : float, optional
-            ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
+            /// spot_shift : float or None, optional
+            ///     Positive finite absolute spot bump; None (default) selects 0.01 spot units.
             /// volatility_shift : float, optional
             ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
             /// rate_shift : float, optional
@@ -55,7 +55,7 @@ macro_rules! numerical_greeks_methods {
             /// KiyosiError
             ///     If requests, shifts, pricing or a feasible bumped valuation fails.
             $(#[$extra_doc])*
-            #[pyo3(signature = (instrument, context, greeks, *, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
+            #[pyo3(signature = (instrument, context, greeks, *, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
             #[expect(clippy::too_many_arguments, reason = "explicit Python pricing controls")]
             fn price_with_greeks(
                 &self,
@@ -63,14 +63,14 @@ macro_rules! numerical_greeks_methods {
                 #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &$crate::market::PricingContext,
                 greeks: &pyo3::Bound<'_, pyo3::PyAny>,
-                #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
+                spot_shift: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
                 #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
                 #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
                 #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
             ) -> pyo3::PyResult<$crate::risk::PricingResult> {
                 let $request = $crate::risk::greeks_request(greeks)?;
                 let $shifts = kiyosi::NumericalShiftSettings {
-                    spot_shift, volatility_shift, rate_shift, time_shift_days,
+                    spot_shift: spot_shift.map(crate::conversions::real).transpose()?, volatility_shift, rate_shift, time_shift_days,
                 };
                 let $engine = self;
                 let $py = py;

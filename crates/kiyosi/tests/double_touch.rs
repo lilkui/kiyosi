@@ -989,7 +989,7 @@ fn greeks_iv_failures_and_concurrency_preserve_inputs() {
                     &ctx,
                     GreeksRequest::all(),
                     NumericalShiftSettings {
-                        spot_shift: 0.0,
+                        spot_shift: Some(0.0),
                         ..Default::default()
                     },
                 )

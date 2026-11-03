@@ -426,7 +426,7 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
                 &context,
                 GreeksRequest::new([Greek::Speed]),
                 NumericalShiftSettings {
-                    spot_shift: shift,
+                    spot_shift: Some(shift),
                     ..Default::default()
                 },
             )
@@ -442,7 +442,7 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
             &context,
             GreeksRequest::new([Greek::Speed]),
             NumericalShiftSettings {
-                spot_shift: 1e-300,
+                spot_shift: Some(1e-300),
                 ..Default::default()
             },
         )
@@ -459,7 +459,7 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
             &context,
             GreeksRequest::new([Greek::Speed]),
             NumericalShiftSettings {
-                spot_shift: 0.5,
+                spot_shift: Some(0.5),
                 ..Default::default()
             }
         )

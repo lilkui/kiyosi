@@ -530,7 +530,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
             &context,
             GreeksRequest::new([Greek::Delta, Greek::Vega]),
             NumericalShiftSettings {
-                spot_shift: 100.0,
+                spot_shift: Some(100.0),
                 volatility_shift: 0.2,
                 ..Default::default()
             },
@@ -647,7 +647,7 @@ fn sobol_prices_match_analytic_and_never_claim_sampling_uncertainty() {
                     &market(),
                     GreeksRequest::all(),
                     NumericalShiftSettings {
-                        spot_shift: 1.0,
+                        spot_shift: Some(1.0),
                         volatility_shift: 0.001,
                         rate_shift: 0.001,
                         ..Default::default()
@@ -905,7 +905,7 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
                     &context,
                     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
                     NumericalShiftSettings {
-                        spot_shift: 1.0,
+                        spot_shift: Some(1.0),
                         ..Default::default()
                     },
                 )

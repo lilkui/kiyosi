@@ -325,7 +325,7 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
     let quote = engine.price(&option, &context).unwrap();
     for shifts in [
         NumericalShiftSettings {
-            spot_shift: 0.0,
+            spot_shift: Some(0.0),
             ..Default::default()
         },
         NumericalShiftSettings {

@@ -61,6 +61,13 @@ def install(native: ModuleType) -> None:
             if resolved != original:
                 value.__signature__ = resolved
             if hasattr(value, "price_with_greeks"):
-                value.price_with_greeks = _wrap(value.price_with_greeks, defaults)
+                method_defaults = defaults
+                if name in ("MonteCarloBarrierEngine", "MonteCarloDoubleBarrierEngine"):
+                    method_defaults = defaults | {
+                        "spot_shift": defaults["fixed_spot_shift"]
+                    }
+                value.price_with_greeks = _wrap(
+                    value.price_with_greeks, method_defaults
+                )
         elif isbuiltin(value):
             setattr(native, name, _wrap(value, solvers.get(name, defaults)))

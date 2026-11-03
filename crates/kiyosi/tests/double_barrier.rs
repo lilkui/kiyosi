@@ -571,7 +571,7 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
                 &context,
                 GreeksRequest::all(),
                 NumericalShiftSettings {
-                    spot_shift: 0.0,
+                    spot_shift: Some(0.0),
                     ..Default::default()
                 },
             )

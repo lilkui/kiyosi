@@ -148,7 +148,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
             &context,
             GreeksRequest::all(),
             NumericalShiftSettings {
-                spot_shift: 0.25,
+                spot_shift: Some(0.25),
                 ..Default::default()
             },
         )
@@ -454,7 +454,7 @@ fn native_spot_greeks_do_not_require_a_feasible_scalar_bump() {
                     &ctx,
                     request,
                     NumericalShiftSettings {
-                        spot_shift: shift,
+                        spot_shift: Some(shift),
                         ..Default::default()
                     },
                 )

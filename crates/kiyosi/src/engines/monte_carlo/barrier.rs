@@ -122,7 +122,7 @@ impl MonteCarloBarrierEngine {
     /// })?;
     /// let result = engine.price_with_greeks(&option, &context,
     ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-    ///     NumericalShiftSettings::default().spot_shift)?;
+    ///     NumericalShiftSettings::default().spot_shift())?;
     /// assert!(result.price() > 0.0);
     /// assert!(result.has(Greek::Delta));
     /// assert_eq!(engine.settings().path_count, 32768);
@@ -139,7 +139,7 @@ impl MonteCarloBarrierEngine {
         self.validate_applicability(context)?;
         request.validate()?;
         let settings = NumericalShiftSettings {
-            spot_shift,
+            spot_shift: Some(spot_shift),
             ..Default::default()
         };
         settings.validate()?;
@@ -167,7 +167,7 @@ impl MonteCarloBarrierEngine {
         let time = context.valuation_time();
         let expiry = option.expiry_midnight_utc().start_of_day();
         let radius =
-            crate::risk::numerical::symmetric_shift(context.spot_price(), shifts.spot_shift);
+            crate::risk::numerical::symmetric_shift(context.spot_price(), shifts.spot_shift());
         let discontinuity = match contract {
             Contract::Single(option) => option.at_spot_discontinuity(context, radius),
             Contract::Double(option) => option.at_spot_discontinuity(context, radius),
@@ -501,7 +501,7 @@ impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request, settings.spot_shift)
+        Self::price_with_greeks(self, option, context, request, settings.spot_shift())
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
         option.volatility_affects_price(context)

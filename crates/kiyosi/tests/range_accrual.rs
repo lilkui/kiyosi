@@ -201,7 +201,7 @@ fn numerical_greeks_match_independent_payoff_reference() {
             })
             .unwrap();
         let shifts = NumericalShiftSettings {
-            spot_shift: 0.1,
+            spot_shift: Some(0.1),
             ..Default::default()
         };
         let expected = numerical_greeks(
@@ -587,7 +587,7 @@ fn request_and_solver_errors_preserve_inputs() {
             &context,
             GreeksRequest::new([Greek::Delta]),
             NumericalShiftSettings {
-                spot_shift: 200.0,
+                spot_shift: Some(200.0),
                 ..shifts
             },
         )

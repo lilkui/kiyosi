@@ -197,7 +197,7 @@ fn shared_sample_greeks_and_volatility_solves_preserve_inputs() {
     })
     .unwrap();
     let shifts = NumericalShiftSettings {
-        spot_shift: 0.25,
+        spot_shift: Some(0.25),
         ..Default::default()
     };
     let result = engine
@@ -224,7 +224,7 @@ fn shared_sample_greeks_and_volatility_solves_preserve_inputs() {
     let gamma = (up - 2.0 * result.price() + down) / 0.25 / 0.25;
     // Equivalent second-difference groupings can round differently.
     let rounding = 4.0 * f64::EPSILON * (up.abs() + 2.0 * result.price().abs() + down.abs())
-        / shifts.spot_shift.powi(2);
+        / shifts.spot_shift().powi(2);
     assert!((result.require(Greek::Gamma).unwrap() - gamma).abs() <= rounding);
     for greek in [
         Greek::Delta,
@@ -432,7 +432,7 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
                 &context,
                 GreeksRequest::all(),
                 NumericalShiftSettings {
-                    spot_shift: 0.0,
+                    spot_shift: Some(0.0),
                     ..Default::default()
                 }
             )

@@ -243,7 +243,7 @@ macro_rules! contract_tests {
                             &context,
                             GreeksRequest::all(),
                             NumericalShiftSettings {
-                                spot_shift: 0.0,
+                                spot_shift: Some(0.0),
                                 ..Default::default()
                             }
                         )
