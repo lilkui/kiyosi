@@ -157,7 +157,13 @@ impl PricingResult {
     pub fn values(&self) -> &[Option<f64>; Greek::ALL.len()] {
         &self.values
     }
-    pub(crate) fn new(price: f64) -> Result<Self> {
+    /// Creates a finite price with all Greeks absent.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ComputationFailure`] for a non-finite price.
+    /// See [`Self::with_greek`] for custom-engine result construction.
+    pub fn new(price: f64) -> Result<Self> {
         if !price.is_finite() {
             return Err(Error::ComputationFailure("non-finite price".into()));
         }
@@ -165,6 +171,27 @@ impl PricingResult {
             price,
             values: [None; Greek::ALL.len()],
         })
+    }
+
+    /// Returns this result with a finite Greek added or replaced.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ComputationFailure`] for a non-finite value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Greek, PricingResult};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let result = PricingResult::new(10.0)?.with_greek(Greek::Delta, 0.5)?;
+    /// assert_eq!(result.require(Greek::Delta)?, 0.5);
+    /// assert_eq!(result.get(Greek::Vega), None);
+    /// # Ok(()) }
+    /// ```
+    pub fn with_greek(mut self, greek: Greek, value: f64) -> Result<Self> {
+        self.set(GreeksRequest::new([greek]), greek, value)?;
+        Ok(self)
     }
     pub(crate) fn set(&mut self, request: GreeksRequest, greek: Greek, value: f64) -> Result<()> {
         if request.has(greek) {

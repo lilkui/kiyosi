@@ -1078,3 +1078,58 @@ fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
         Error::ComputationFailure(_)
     ));
 }
+
+#[test]
+fn custom_engines_can_return_validated_analytic_results() {
+    struct Engine;
+    impl PricingEngine for Engine {
+        fn price(&self, _: &EuropeanOption, _: &PricingContext) -> Result<f64> {
+            Ok(10.0)
+        }
+        fn price_with_greeks(
+            &self,
+            option: &EuropeanOption,
+            context: &PricingContext,
+            request: GreeksRequest,
+            _: NumericalShiftSettings,
+        ) -> Result<PricingResult> {
+            let result = PricingResult::new(self.price(option, context)?)?;
+            if request.has(Greek::Delta) {
+                result.with_greek(Greek::Delta, 0.5)
+            } else {
+                Ok(result)
+            }
+        }
+    }
+    let (option, context) = market();
+    let result = Engine
+        .price_with_greeks(
+            &option,
+            &context,
+            GreeksRequest::new([Greek::Delta]),
+            Default::default(),
+        )
+        .unwrap();
+    assert_eq!(result.price(), 10.0);
+    assert_eq!(result.require(Greek::Delta).unwrap(), 0.5);
+    assert_eq!(result.get(Greek::Vega), None);
+    assert_eq!(
+        result
+            .with_greek(Greek::Delta, 0.6)
+            .unwrap()
+            .get(Greek::Delta),
+        Some(0.6)
+    );
+    for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        assert!(matches!(
+            PricingResult::new(value),
+            Err(Error::ComputationFailure(_))
+        ));
+        assert!(matches!(
+            PricingResult::new(10.0)
+                .unwrap()
+                .with_greek(Greek::Delta, value),
+            Err(Error::ComputationFailure(_))
+        ));
+    }
+}
