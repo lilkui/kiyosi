@@ -1,7 +1,7 @@
 use crate::calendar::TradingCalendar;
 use crate::conversions::{check_integer, date, integer, python_date};
 use crate::error::domain;
-use pyo3::exceptions::{PyIndexError, PyTypeError};
+use pyo3::exceptions::{PyIndexError, PyOverflowError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDate};
 
@@ -39,7 +39,14 @@ impl ObservationSchedule {
         if index.is_instance_of::<PyBool>() {
             return Err(PyTypeError::new_err("schedule index must not be bool"));
         }
-        let index = index.extract::<isize>()?;
+        let index = py.import("operator")?.call_method1("index", (index,))?;
+        let index = index.extract::<isize>().map_err(|error| {
+            if error.is_instance_of::<PyOverflowError>(py) {
+                PyIndexError::new_err("schedule index out of range")
+            } else {
+                error
+            }
+        })?;
         let index = if index < 0 {
             self.0.len().checked_add_signed(index)
         } else {

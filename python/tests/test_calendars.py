@@ -197,9 +197,23 @@ class CalendarTests(unittest.TestCase):
         self.assertEqual(schedule[0], expected[0])
         self.assertEqual(schedule[-1], expected[-1])
         self.assertEqual(schedule[-4], expected[0])
-        for index in (4, -5):
+
+        class HugeIndex:
+            def __index__(self):
+                return 10**100
+
+        for index in (4, -5, 10**100, -(10**100), HugeIndex()):
             with self.assertRaises(IndexError):
                 _ = schedule[index]
+        failure = OverflowError("custom index failure")
+
+        class BrokenIndex:
+            def __index__(self):
+                raise failure
+
+        with self.assertRaises(OverflowError) as error:
+            _ = schedule[BrokenIndex()]
+        self.assertIs(error.exception, failure)
         copied = schedule.dates
         copied.clear()
         self.assertEqual(schedule.dates, expected)
