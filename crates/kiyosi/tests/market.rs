@@ -16,7 +16,7 @@ fn log_interpolation_and_right_hand_forwards() {
         vec![first, first * (-0.08_f64 * 185.0 / 365.0).exp()],
     )
     .unwrap();
-    assert!(!curve.is_flat());
+    assert!(!curve.is_explicitly_flat());
     assert_eq!(curve.reference_time(), Some(reference));
     assert_eq!(curve.max_time(), Some(end));
     assert_eq!(curve.nodes(), &[middle, end]);
@@ -221,7 +221,7 @@ fn flat_and_parallel_shifted_curves_preserve_coverage_and_ownership() {
     let end = at(2026, 1, 1);
     let before = at(2024, 1, 2);
     let flat = RateTermStructure::flat(-0.03, None).unwrap();
-    assert!(flat.is_flat());
+    assert!(flat.is_explicitly_flat());
     assert_eq!(flat.reference_time(), None);
     assert_eq!(flat.max_time(), None);
     assert_eq!(flat.nodes(), []);

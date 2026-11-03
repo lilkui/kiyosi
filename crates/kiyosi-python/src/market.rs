@@ -83,8 +83,8 @@ impl RateTermStructure {
     }
     /// Return whether the rate curve is explicitly flat.
     #[getter]
-    fn is_flat(&self) -> bool {
-        self.0.is_flat()
+    fn is_explicitly_flat(&self) -> bool {
+        self.0.is_explicitly_flat()
     }
     /// Return the inclusive lower coverage bound, or None if undated.
     #[getter]

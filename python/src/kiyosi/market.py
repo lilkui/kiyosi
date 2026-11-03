@@ -1,5 +1,7 @@
 """Market snapshots, calendars, and observation schedules.
 
+``RateTermStructure.is_explicitly_flat`` identifies the flat-rate representation;
+node-based curves return False even when their forward rates are constant.
 Rates use annual decimal units and continuous compounding (0.05 means 5%).
 Volatility is annualized and expressed in decimal units. Rate curves
 use the Actual/365 Fixed day-count convention; a calendar's trading-day basis
