@@ -532,7 +532,7 @@ class RateTermStructureTests(unittest.TestCase):
         curve = RateTermStructure(
             reference_time=START,
             times=(time for time in [MIDDLE, MATURITY]),
-            factors=iter([Fraction(49, 50), Fraction(47, 50)]),
+            factors=(float(value) for value in (Fraction(49, 50), Fraction(47, 50))),
         )
         self.assertEqual(curve.factors, [0.98, 0.94])
         for time in (

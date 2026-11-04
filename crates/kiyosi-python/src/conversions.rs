@@ -1,7 +1,7 @@
 use crate::error::domain;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDate, PyDateAccess, PyDateTime, PyTimeAccess};
+use pyo3::types::{PyBool, PyDate, PyDateAccess, PyDateTime, PyFloat, PyTimeAccess};
 
 pub(crate) fn instrument<'a, 'py, T>(value: &'a Bound<'py, PyAny>) -> PyResult<T>
 where
@@ -58,7 +58,13 @@ pub(crate) fn real(value: &Bound<'_, PyAny>) -> PyResult<f64> {
             "expected a real number, excluding bool",
         ));
     }
-    value.extract()
+    let converted: f64 = value.extract()?;
+    if converted.is_finite() && !value.is_instance_of::<PyFloat>() && !value.eq(converted)? {
+        return Err(PyValueError::new_err(
+            "number cannot be represented exactly as a float; convert to float explicitly to round",
+        ));
+    }
+    Ok(converted)
 }
 
 pub(crate) fn boolean(value: &Bound<'_, PyAny>) -> PyResult<bool> {

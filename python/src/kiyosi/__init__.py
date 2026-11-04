@@ -15,7 +15,9 @@ with ``tzinfo=None`` and microsecond precision. Plain dates and datetimes with
 timezone information raise ``TypeError`` for time parameters. Calendar inputs
 require ``datetime.date``, excluding datetime instances. Callers must supply a
 consistent time basis.
-Numeric inputs reject booleans and unintended lossy conversions.
+Numeric inputs reject booleans and unintended lossy conversions. Integers and
+other exact real numbers must be representable exactly as a float; use an explicit
+``float(value)`` conversion to opt into rounding.
 
 Values own their data and expose read-only properties. Default representations
 show contract terms, market inputs, engine controls and result values, with

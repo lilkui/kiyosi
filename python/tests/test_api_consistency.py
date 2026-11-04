@@ -3,12 +3,36 @@
 import pickle
 import unittest
 from datetime import datetime
+from fractions import Fraction
 
 from kiyosi import InvalidInputError, UnsupportedOperationError, market, pricing
 from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_exact_numbers_reject_implicit_rounding(self):
+        fields = {
+            "option_type": "call",
+            "effective_time": datetime(2025, 1, 1),
+            "expiry_time": datetime(2026, 1, 1),
+        }
+        original = ins.EuropeanOption(strike=100, **fields)
+        for value in (2**53 + 1, Fraction(2**53 + 1, 2**53), Fraction(1, 10)):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    ins.EuropeanOption(strike=value, **fields)
+                with self.assertRaises(ValueError):
+                    original.replace(strike=value)
+                self.assertEqual(original.strike, 100)
+                self.assertEqual(
+                    original.replace(strike=float(value)).strike, float(value)
+                )
+        for value in (2**53 + 2, Fraction(1, 2)):
+            with self.subTest(value=value):
+                self.assertEqual(
+                    ins.EuropeanOption(strike=value, **fields).strike, value
+                )
+
     def test_terminated_accumulators_have_no_remaining_cashflows(self):
         from kiyosi import InvalidInputError
 
