@@ -47,6 +47,10 @@ pub struct BlackScholesMertonParameterChanges {
 /// Owns Black-Scholes-Merton (BSM) rate curves and annualized log-return volatility.
 ///
 /// Volatility is strictly positive and expressed in decimal units.
+/// Zero volatility is outside this model's input domain, including at expiry.
+/// For exact deterministic vanilla pricing, use [`crate::HestonParameters`] with
+/// zero initial variance, long-run variance and volatility of volatility, and a
+/// Heston engine. See [`crate::AnalyticHestonEuropeanEngine::new`] for setup.
 ///
 /// See [`Self::new`] for construction.
 #[derive(Clone, Debug, PartialEq)]

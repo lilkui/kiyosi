@@ -241,6 +241,9 @@ pub(crate) fn rate(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Rate> {
 ///     Continuously compounded dividend yield or owned rate curve.
 /// volatility : float
 ///     Positive finite annualized log-return volatility in decimal units.
+///     Zero is rejected, including for contracts valued at expiry. For an exact
+///     deterministic vanilla price, use HestonParameters with zero initial_variance,
+///     long_run_variance and vol_of_vol, together with a Heston engine.
 ///
 /// Raises
 /// ------

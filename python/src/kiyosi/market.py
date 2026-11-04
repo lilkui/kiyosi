@@ -15,7 +15,12 @@ back to the ``risk_free_rate`` and ``dividend_yield`` constructor or
 scalar rate when all forwards are exactly constant, or None otherwise. Constant
 node curves retain their reference, nodes and upper coverage bound; flat-rate
 engines accept them without discarding those bounds.
-Volatility is annualized and expressed in decimal units. Rate curves
+Volatility is annualized and expressed in decimal units. BSM volatility and local
+surface values must be strictly positive; zero is rejected even at expiry.
+Heston variance parameters may be zero. For exact deterministic vanilla pricing,
+set ``initial_variance=long_run_variance=vol_of_vol=0`` and use a Heston engine.
+This is an intentional model-domain distinction, shared by Rust and Python.
+Rate curves
 use the Actual/365 Fixed day-count convention; a calendar's trading-day basis
 applies only to trading-year fractions. ``BusinessDayConvention`` accepts ``"following"``
 or ``"preceding"``, including the supplied date when it is open.
@@ -51,6 +56,21 @@ Other engines and implied-parameter solvers reject this model; requested Greeks 
 
 Examples
 --------
+Price a deterministic call with a zero-variance Heston model:
+
+>>> from datetime import datetime
+>>> from kiyosi.instruments import EuropeanOption
+>>> from kiyosi.pricing import AnalyticHestonEuropeanEngine
+>>> option = EuropeanOption(option_type="call", strike=100,
+...     effective_time=datetime(2025, 1, 1), expiry_time=datetime(2026, 1, 1))
+>>> deterministic = HestonParameters(risk_free_rate=0.05, dividend_yield=0.02,
+...     initial_variance=0, long_run_variance=0, mean_reversion_speed=0,
+...     vol_of_vol=0, correlation=0)
+>>> context = PricingContext(model_parameters=deterministic, spot_price=100,
+...     valuation_time=option.effective_time)
+>>> round(AnalyticHestonEuropeanEngine().price(option, context), 6)
+2.896925
+
 Validate an irregular schedule with exact observation times:
 
 >>> from datetime import datetime

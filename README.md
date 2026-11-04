@@ -89,6 +89,13 @@ print(f"NPV / notional: {price:.6f}")
 print(f"NPV: {price * notional:,.2f}")
 ```
 
+## 模型边界
+
+BSM 波动率及局部波动率曲面值必须严格为正，到期时也不例外。Heston 允许零方差参数。
+如需精确计算确定性路径下的香草期权价格，可将 `HestonParameters` 的
+`initial_variance`、`long_run_variance` 和 `vol_of_vol` 设为零，并使用 Heston 引擎。
+Python 的 `kiyosi.market` 文档包含可运行示例。Rust 和 Python 遵循相同的输入边界。
+
 ## 许可证
 
 [MIT](LICENSE.txt)
