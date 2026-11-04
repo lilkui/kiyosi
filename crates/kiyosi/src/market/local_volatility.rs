@@ -229,6 +229,34 @@ impl LocalVolatilityParameters {
     pub fn dividend_curve(&self) -> &RateTermStructure {
         &self.dividend_curve
     }
+    /// Returns the explicitly flat scalar risk-free rate, including dated curves.
+    ///
+    /// Use [`Self::risk_free_curve`] when preserving curve coverage; see [`Self::new`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::UnsupportedOperation`] for node-based curves.
+    pub fn risk_free_rate(&self) -> Result<f64> {
+        self.risk_free_curve
+            .flat_rate()
+            .ok_or(Error::UnsupportedOperation(
+                "risk-free curve is not explicitly flat".into(),
+            ))
+    }
+    /// Returns the explicitly flat scalar dividend yield, including dated curves.
+    ///
+    /// Use [`Self::dividend_curve`] when preserving curve coverage; see [`Self::new`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::UnsupportedOperation`] for node-based curves.
+    pub fn dividend_yield(&self) -> Result<f64> {
+        self.dividend_curve
+            .flat_rate()
+            .ok_or(Error::UnsupportedOperation(
+                "dividend curve is not explicitly flat".into(),
+            ))
+    }
     /// Borrows the fixed surface; see [`Self::new`] for construction.
     pub fn surface(&self) -> &LocalVolatilitySurface {
         &self.surface

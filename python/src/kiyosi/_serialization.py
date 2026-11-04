@@ -99,7 +99,14 @@ def _reduce(value: Any) -> tuple[Any, tuple[Any, ...]]:
             if value.is_one_touch
             else _native.cash_double_no_touch
         )
-    fields = {name: getattr(value, name) for name in signature(factory).parameters}
+    rate_fields = {
+        "risk_free_rate": "risk_free_curve",
+        "dividend_yield": "dividend_curve",
+    }
+    fields = {
+        name: getattr(value, rate_fields.get(name, name))
+        for name in signature(factory).parameters
+    }
     if isinstance(value, _native.PhoenixOption):
         for name in ("coupon_rate", "coupon_per_period"):
             if fields[name] is None:

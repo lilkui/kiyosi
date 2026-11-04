@@ -1,6 +1,54 @@
 use kiyosi::*;
 
 #[test]
+fn model_scalar_rate_queries_match_curve_representations() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = Date::new(2026, 1, 1)?.start_of_day();
+    let surface =
+        LocalVolatilitySurface::new(vec![start, end], vec![80.0, 120.0], vec![vec![0.2; 2]; 2])?;
+    for curve in [
+        RateTermStructure::flat(0.03, None)?,
+        RateTermStructure::flat(0.03, Some(start))?,
+        RateTermStructure::new(start, vec![end], vec![0.97])?,
+    ] {
+        macro_rules! check {
+            ($model:expr) => {{
+                let model = $model;
+                assert_eq!(model.risk_free_curve(), &curve);
+                assert_eq!(model.dividend_curve(), &curve);
+                for rate in [model.risk_free_rate(), model.dividend_yield()] {
+                    if curve.is_explicitly_flat() {
+                        assert_eq!(rate?, 0.03);
+                    } else {
+                        assert!(matches!(rate, Err(Error::UnsupportedOperation(_))));
+                    }
+                }
+            }};
+        }
+        check!(BlackScholesMertonParameters::new(
+            curve.clone(),
+            curve.clone(),
+            0.2
+        )?);
+        check!(HestonParameters::new(
+            curve.clone(),
+            curve.clone(),
+            0.04,
+            0.04,
+            1.0,
+            0.2,
+            -0.5
+        )?);
+        check!(LocalVolatilityParameters::new(
+            curve.clone(),
+            curve.clone(),
+            surface.clone()
+        )?);
+    }
+    Ok(())
+}
+
+#[test]
 fn terminated_accumulators_have_no_remaining_cashflows() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = Date::new(2025, 1, 10)?.start_of_day();

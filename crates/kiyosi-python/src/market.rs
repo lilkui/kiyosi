@@ -299,15 +299,21 @@ impl BlackScholesMertonParameters {
         };
         Ok(Self(domain(self.0.replace(update))?))
     }
-    /// Returns an undated scalar risk-free rate or an owned dated curve.
+    /// Returns the scalar rate for dated or undated explicitly flat curves.
+    ///
+    /// Raises UnsupportedOperationError for node-based curves; use risk_free_curve
+    /// to preserve coverage when passing rates to constructors or replacements.
     #[getter]
-    fn risk_free_rate(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        python_rate(py, self.0.risk_free_curve())
+    fn risk_free_rate(&self) -> PyResult<f64> {
+        domain(self.0.risk_free_rate())
     }
-    /// Returns an undated scalar dividend yield or an owned dated curve.
+    /// Returns the scalar yield for dated or undated explicitly flat curves.
+    ///
+    /// Raises UnsupportedOperationError for node-based curves; use dividend_curve
+    /// to preserve coverage when passing yields to constructors or replacements.
     #[getter]
-    fn dividend_yield(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        python_rate(py, self.0.dividend_curve())
+    fn dividend_yield(&self) -> PyResult<f64> {
+        domain(self.0.dividend_yield())
     }
     /// Return an owned copy of the risk-free curve.
     #[getter]
@@ -459,18 +465,6 @@ fn model_parameters_value(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::ModelPar
     Err(pyo3::exceptions::PyTypeError::new_err(
         "expected BlackScholesMertonParameters, LocalVolatilityParameters or HestonParameters",
     ))
-}
-
-pub(crate) fn python_rate(
-    py: Python<'_>,
-    curve: &kiyosi::RateTermStructure,
-) -> PyResult<Py<PyAny>> {
-    match curve.flat_rate() {
-        Some(rate) if curve.reference_time().is_none() => {
-            Ok(rate.into_pyobject(py)?.into_any().unbind())
-        }
-        _ => Ok(Py::new(py, RateTermStructure(curve.clone()))?.into_any()),
-    }
 }
 
 #[pyfunction]

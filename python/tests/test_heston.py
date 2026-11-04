@@ -474,7 +474,8 @@ class HestonTests(unittest.TestCase):
             reference_time=START, times=[END], factors=[math.exp(-0.02)]
         )
         parameters = model(risk_free_rate=risk, dividend_yield=dividend)
-        self.assertIsInstance(parameters.risk_free_rate, RateTermStructure)
+        with self.assertRaises(UnsupportedOperationError):
+            _ = parameters.risk_free_rate
         self.assertEqual(parameters.risk_free_curve.factors, risk.factors)
         actual = AnalyticHestonEuropeanEngine().price(option(), context(parameters))
         self.assertAlmostEqual(actual, 9.01127840754174, delta=1e-7)

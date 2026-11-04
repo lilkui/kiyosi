@@ -6,12 +6,12 @@ Rates use annual decimal units and continuous compounding (0.05 means 5%).
 ``RateTermStructure.factors`` allows underflow to zero and raises
 ``ComputationFailureError`` on overflow, matching ``factor()``. Underflowed factors
 cannot reconstruct a curve; pickle preserves the original factors and shift.
-Model rate properties return scalars only for undated flat curves. Dated flat
-and node-based curves remain owned RateTermStructure values, preserving coverage
-when passed back to constructors or ``replace()``.
-Use ``model.risk_free_curve.flat_rate`` or ``model.dividend_curve.flat_rate``
-for scalar arithmetic: either dated or undated flat curves return a float,
-while node-based curves return None. This matches Rust ``RateTermStructure::flat_rate``.
+Model ``risk_free_rate`` and ``dividend_yield`` properties return scalar rates
+for dated or undated explicitly flat curves and raise ``UnsupportedOperationError``
+for node-based curves, matching Rust. Use ``risk_free_curve`` and ``dividend_curve``
+for owned curves with stable return types and preserved coverage when passing them
+back to constructors or ``replace()``. Either curve's ``flat_rate`` returns the
+scalar rate for an explicitly flat curve, or None for a node-based curve.
 Volatility is annualized and expressed in decimal units. Rate curves
 use the Actual/365 Fixed day-count convention; a calendar's trading-day basis
 applies only to trading-year fractions. ``BusinessDayConvention`` accepts ``"following"``

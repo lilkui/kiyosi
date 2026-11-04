@@ -461,7 +461,7 @@ class LocalVolatilityTests(unittest.TestCase):
             )
         )
         self.assertEqual(c.model_parameters.risk_free_curve, risk)
-        self.assertEqual(c.model_parameters.dividend_yield, dividend)
+        self.assertEqual(c.model_parameters.dividend_curve, dividend)
         e = engine(200, 200)
         expected = e.price(option(), c)
         self.assertAlmostEqual(expected, 9.227005508154036, delta=0.02)
