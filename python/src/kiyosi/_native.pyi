@@ -2,10 +2,13 @@
 
 from collections.abc import Iterable, Iterator
 from datetime import date, datetime
+from numbers import Real as _RealNumber
 from types import EllipsisType
-from typing import Literal, Never, Self, overload
+from typing import Literal, Never, Self, SupportsIndex, overload
 
 from . import pricing as _pricing
+
+type _Real = float | _RealNumber
 
 __version__: str
 
@@ -23,14 +26,14 @@ def implied_coupon(
     | MonteCarloAutocallableEngine,
     instrument: SnowballOption | BinarySnowballOption | TernarySnowballOption,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
     quote_convention: _pricing.CouponQuoteConvention,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 @overload
 def implied_coupon(
@@ -39,14 +42,14 @@ def implied_coupon(
     | MonteCarloAutocallableEngine,
     instrument: PhoenixOption,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
     quote_convention: EllipsisType = ...,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 
 class EuropeanOption:
@@ -54,7 +57,7 @@ class EuropeanOption:
         self,
         *,
         option_type: Literal["call", "put"],
-        strike: float,
+        strike: _Real,
         effective_time: datetime,
         expiry_time: datetime,
     ) -> None: ...
@@ -62,7 +65,7 @@ class EuropeanOption:
         self,
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
-        strike: float | EllipsisType = ...,
+        strike: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
     ) -> EuropeanOption: ...
@@ -80,7 +83,7 @@ class AmericanOption:
         self,
         *,
         option_type: Literal["call", "put"],
-        strike: float,
+        strike: _Real,
         effective_time: datetime,
         expiry_time: datetime,
     ) -> None: ...
@@ -88,7 +91,7 @@ class AmericanOption:
         self,
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
-        strike: float | EllipsisType = ...,
+        strike: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
     ) -> AmericanOption: ...
@@ -106,8 +109,8 @@ class CashOrNothingOption:
         self,
         *,
         option_type: Literal["call", "put"],
-        strike: float,
-        payout: float,
+        strike: _Real,
+        payout: _Real,
         effective_time: datetime,
         expiry_time: datetime,
     ) -> None: ...
@@ -115,8 +118,8 @@ class CashOrNothingOption:
         self,
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
-        strike: float | EllipsisType = ...,
-        payout: float | EllipsisType = ...,
+        strike: _Real | EllipsisType = ...,
+        payout: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
     ) -> CashOrNothingOption: ...
@@ -136,7 +139,7 @@ class AssetOrNothingOption:
         self,
         *,
         option_type: Literal["call", "put"],
-        strike: float,
+        strike: _Real,
         effective_time: datetime,
         expiry_time: datetime,
     ) -> None: ...
@@ -144,7 +147,7 @@ class AssetOrNothingOption:
         self,
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
-        strike: float | EllipsisType = ...,
+        strike: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
     ) -> AssetOrNothingOption: ...
@@ -163,11 +166,11 @@ class RateTermStructure:
         *,
         reference_time: datetime,
         times: Iterable[datetime],
-        factors: Iterable[float],
+        factors: Iterable[_Real],
     ) -> None: ...
     @staticmethod
     def flat(
-        rate: float, *, reference_time: datetime | None = None
+        rate: _Real, *, reference_time: datetime | None = None
     ) -> RateTermStructure: ...
     @property
     def is_explicitly_flat(self) -> bool: ...
@@ -184,22 +187,22 @@ class RateTermStructure:
     def factor(self, start_time: datetime, end_time: datetime) -> float: ...
     def log_factor(self, start_time: datetime, end_time: datetime) -> float: ...
     def forward_rate(self, time: datetime) -> float: ...
-    def shifted(self, shift: float) -> RateTermStructure: ...
+    def shifted(self, shift: _Real) -> RateTermStructure: ...
 
 class BlackScholesMertonParameters:
     def __init__(
         self,
         *,
-        risk_free_rate: float | RateTermStructure,
-        dividend_yield: float | RateTermStructure,
-        volatility: float,
+        risk_free_rate: _Real | RateTermStructure,
+        dividend_yield: _Real | RateTermStructure,
+        volatility: _Real,
     ) -> None: ...
     def replace(
         self,
         *,
-        risk_free_rate: float | RateTermStructure | EllipsisType = ...,
-        dividend_yield: float | RateTermStructure | EllipsisType = ...,
-        volatility: float | EllipsisType = ...,
+        risk_free_rate: _Real | RateTermStructure | EllipsisType = ...,
+        dividend_yield: _Real | RateTermStructure | EllipsisType = ...,
+        volatility: _Real | EllipsisType = ...,
     ) -> BlackScholesMertonParameters: ...
     @property
     def risk_free_rate(self) -> float: ...
@@ -216,24 +219,24 @@ class HestonParameters:
     def __init__(
         self,
         *,
-        risk_free_rate: float | RateTermStructure,
-        dividend_yield: float | RateTermStructure,
-        initial_variance: float,
-        long_run_variance: float,
-        mean_reversion_speed: float,
-        vol_of_vol: float,
-        correlation: float,
+        risk_free_rate: _Real | RateTermStructure,
+        dividend_yield: _Real | RateTermStructure,
+        initial_variance: _Real,
+        long_run_variance: _Real,
+        mean_reversion_speed: _Real,
+        vol_of_vol: _Real,
+        correlation: _Real,
     ) -> None: ...
     def replace(
         self,
         *,
-        risk_free_rate: float | RateTermStructure | EllipsisType = ...,
-        dividend_yield: float | RateTermStructure | EllipsisType = ...,
-        initial_variance: float | EllipsisType = ...,
-        long_run_variance: float | EllipsisType = ...,
-        mean_reversion_speed: float | EllipsisType = ...,
-        vol_of_vol: float | EllipsisType = ...,
-        correlation: float | EllipsisType = ...,
+        risk_free_rate: _Real | RateTermStructure | EllipsisType = ...,
+        dividend_yield: _Real | RateTermStructure | EllipsisType = ...,
+        initial_variance: _Real | EllipsisType = ...,
+        long_run_variance: _Real | EllipsisType = ...,
+        mean_reversion_speed: _Real | EllipsisType = ...,
+        vol_of_vol: _Real | EllipsisType = ...,
+        correlation: _Real | EllipsisType = ...,
     ) -> HestonParameters: ...
     @property
     def risk_free_rate(self) -> float: ...
@@ -259,8 +262,8 @@ class LocalVolatilitySurface:
         self,
         *,
         times: Iterable[datetime],
-        spots: Iterable[float],
-        values: Iterable[Iterable[float]],
+        spots: Iterable[_Real],
+        values: Iterable[Iterable[_Real]],
     ) -> None: ...
     @property
     def times(self) -> list[datetime]: ...
@@ -270,21 +273,21 @@ class LocalVolatilitySurface:
     def values(self) -> list[list[float]]: ...
     @property
     def maximum_volatility(self) -> float: ...
-    def volatility(self, time: datetime, spot: float) -> float: ...
+    def volatility(self, time: datetime, spot: _Real) -> float: ...
 
 class LocalVolatilityParameters:
     def __init__(
         self,
         *,
-        risk_free_rate: float | RateTermStructure,
-        dividend_yield: float | RateTermStructure,
+        risk_free_rate: _Real | RateTermStructure,
+        dividend_yield: _Real | RateTermStructure,
         surface: LocalVolatilitySurface,
     ) -> None: ...
     def replace(
         self,
         *,
-        risk_free_rate: float | RateTermStructure | EllipsisType = ...,
-        dividend_yield: float | RateTermStructure | EllipsisType = ...,
+        risk_free_rate: _Real | RateTermStructure | EllipsisType = ...,
+        dividend_yield: _Real | RateTermStructure | EllipsisType = ...,
         surface: LocalVolatilitySurface | EllipsisType = ...,
     ) -> LocalVolatilityParameters: ...
     @property
@@ -317,7 +320,7 @@ def custom_calendar(
     base: TradingCalendar,
     closed_dates: Iterable[date] = (),
     open_dates: Iterable[date] = (),
-    trading_days_per_year: int | None = None,
+    trading_days_per_year: SupportsIndex | None = None,
 ) -> TradingCalendar: ...
 
 class ObservationSchedule:
@@ -325,21 +328,21 @@ class ObservationSchedule:
     @property
     def times(self) -> list[datetime]: ...
     def __len__(self) -> int: ...
-    def __getitem__(self, index: int) -> datetime: ...
+    def __getitem__(self, index: SupportsIndex) -> datetime: ...
     def __iter__(self) -> Iterator[datetime]: ...
 
 def fixed_interval_schedule(
     *,
     start_time: datetime,
     end_time: datetime,
-    interval_days: int,
+    interval_days: SupportsIndex,
     calendar: TradingCalendar = ...,
 ) -> ObservationSchedule: ...
 def monthly_schedule(
     *,
     start_time: datetime,
     end_time: datetime,
-    first_observation_month: int,
+    first_observation_month: SupportsIndex,
     calendar: TradingCalendar = ...,
 ) -> ObservationSchedule: ...
 
@@ -350,7 +353,7 @@ class PricingContext:
         model_parameters: BlackScholesMertonParameters
         | LocalVolatilityParameters
         | HestonParameters,
-        spot_price: float,
+        spot_price: _Real,
         valuation_time: datetime,
         calendar: TradingCalendar = ...,
     ) -> None: ...
@@ -361,7 +364,7 @@ class PricingContext:
         | LocalVolatilityParameters
         | HestonParameters
         | EllipsisType = ...,
-        spot_price: float | EllipsisType = ...,
+        spot_price: _Real | EllipsisType = ...,
         valuation_time: datetime | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> PricingContext: ...
@@ -394,9 +397,9 @@ class AnalyticHestonEuropeanEngine:
     def __init__(
         self,
         *,
-        absolute_tolerance: float = ...,
-        relative_tolerance: float = ...,
-        max_evaluations: int = ...,
+        absolute_tolerance: _Real = ...,
+        relative_tolerance: _Real = ...,
+        max_evaluations: SupportsIndex = ...,
     ) -> None: ...
     @property
     def absolute_tolerance(self) -> float: ...
@@ -421,10 +424,10 @@ class BjerksundStenslandVanillaEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class AnalyticDigitalEngine:
@@ -440,14 +443,14 @@ class AnalyticDigitalEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class CoxRossRubinsteinBarrierEngine:
-    def __init__(self, *, step_count: int = ...) -> None: ...
+    def __init__(self, *, step_count: SupportsIndex = ...) -> None: ...
     @property
     def step_count(self) -> int: ...
     def price(self, instrument: BarrierOption, context: PricingContext) -> float: ...
@@ -462,8 +465,8 @@ class QuadratureBarrierEngine:
     def __init__(
         self,
         *,
-        asset_step_count: int = ...,
-        integration_standard_deviations: float = ...,
+        asset_step_count: SupportsIndex = ...,
+        integration_standard_deviations: _Real = ...,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int: ...
@@ -476,18 +479,18 @@ class QuadratureBarrierEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class QuadratureDigitalEngine:
     def __init__(
         self,
         *,
-        asset_step_count: int = ...,
-        integration_standard_deviations: float = ...,
+        asset_step_count: SupportsIndex = ...,
+        integration_standard_deviations: _Real = ...,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int: ...
@@ -504,19 +507,19 @@ class QuadratureDigitalEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class QuadratureVanillaEngine:
     def __init__(
         self,
         *,
-        asset_step_count: int = ...,
-        time_step_count: int = ...,
-        integration_standard_deviations: float = ...,
+        asset_step_count: SupportsIndex = ...,
+        time_step_count: SupportsIndex = ...,
+        integration_standard_deviations: _Real = ...,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int: ...
@@ -533,14 +536,14 @@ class QuadratureVanillaEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class CoxRossRubinsteinVanillaEngine:
-    def __init__(self, *, step_count: int = ...) -> None: ...
+    def __init__(self, *, step_count: SupportsIndex = ...) -> None: ...
     @property
     def step_count(self) -> int: ...
     def price(
@@ -552,14 +555,14 @@ class CoxRossRubinsteinVanillaEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class CoxRossRubinsteinDigitalEngine:
-    def __init__(self, *, step_count: int = ...) -> None: ...
+    def __init__(self, *, step_count: SupportsIndex = ...) -> None: ...
     @property
     def step_count(self) -> int: ...
     def price(
@@ -578,10 +581,10 @@ class FiniteDifferenceAccumulatorEngine:
     def __init__(
         self,
         *,
-        asset_step_count: int = ...,
-        time_step_count: int = ...,
+        asset_step_count: SupportsIndex = ...,
+        time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: float | None = None,
+        asset_upper_boundary: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int: ...
@@ -598,20 +601,20 @@ class FiniteDifferenceAccumulatorEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceBarrierEngine:
     def __init__(
         self,
         *,
-        asset_step_count: int = ...,
-        time_step_count: int = ...,
+        asset_step_count: SupportsIndex = ...,
+        time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: float | None = None,
+        asset_upper_boundary: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int: ...
@@ -628,20 +631,20 @@ class FiniteDifferenceBarrierEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceDoubleBarrierEngine:
     def __init__(
         self,
         *,
-        asset_step_count: int = ...,
-        time_step_count: int = ...,
+        asset_step_count: SupportsIndex = ...,
+        time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: float | None = None,
+        asset_upper_boundary: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int: ...
@@ -660,20 +663,20 @@ class FiniteDifferenceDoubleBarrierEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceAutocallableEngine:
     def __init__(
         self,
         *,
-        asset_step_count: int = ...,
-        time_step_count: int = ...,
+        asset_step_count: SupportsIndex = ...,
+        time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: float | None = None,
+        asset_upper_boundary: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int: ...
@@ -700,20 +703,20 @@ class FiniteDifferenceAutocallableEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceDoubleTouchEngine:
     def __init__(
         self,
         *,
-        asset_step_count: int = ...,
-        time_step_count: int = ...,
+        asset_step_count: SupportsIndex = ...,
+        time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: float | None = None,
+        asset_upper_boundary: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int: ...
@@ -732,20 +735,20 @@ class FiniteDifferenceDoubleTouchEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceBinaryBarrierEngine:
     def __init__(
         self,
         *,
-        asset_step_count: int = ...,
-        time_step_count: int = ...,
+        asset_step_count: SupportsIndex = ...,
+        time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: float | None = None,
+        asset_upper_boundary: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int: ...
@@ -764,21 +767,21 @@ class FiniteDifferenceBinaryBarrierEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceHestonVanillaEngine:
     def __init__(
         self,
         *,
-        asset_step_count: int = ...,
-        variance_step_count: int = ...,
-        time_step_count: int = ...,
-        asset_upper_boundary: float | None = None,
-        variance_upper_boundary: float | None = None,
+        asset_step_count: SupportsIndex = ...,
+        variance_step_count: SupportsIndex = ...,
+        time_step_count: SupportsIndex = ...,
+        asset_upper_boundary: _Real | None = None,
+        variance_upper_boundary: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int: ...
@@ -804,10 +807,10 @@ class FiniteDifferenceVanillaEngine:
     def __init__(
         self,
         *,
-        asset_step_count: int = ...,
-        time_step_count: int = ...,
+        asset_step_count: SupportsIndex = ...,
+        time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: float | None = None,
+        asset_upper_boundary: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int: ...
@@ -826,20 +829,20 @@ class FiniteDifferenceVanillaEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceDigitalEngine:
     def __init__(
         self,
         *,
-        asset_step_count: int = ...,
-        time_step_count: int = ...,
+        asset_step_count: SupportsIndex = ...,
+        time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
-        asset_upper_boundary: float | None = None,
+        asset_upper_boundary: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int: ...
@@ -860,20 +863,20 @@ class FiniteDifferenceDigitalEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class MonteCarloVanillaEngine:
     def __init__(
         self,
         *,
-        path_count: int = ...,
-        step_count: int = ...,
-        seed: int | None = None,
-        thread_count: int = ...,
+        path_count: SupportsIndex = ...,
+        step_count: SupportsIndex = ...,
+        seed: SupportsIndex | None = None,
+        thread_count: SupportsIndex = ...,
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
@@ -901,10 +904,10 @@ class MonteCarloVanillaEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class MonteCarloEstimate:
@@ -920,9 +923,9 @@ class MonteCarloDigitalEngine:
     def __init__(
         self,
         *,
-        path_count: int = ...,
-        seed: int | None = None,
-        thread_count: int = ...,
+        path_count: SupportsIndex = ...,
+        seed: SupportsIndex | None = None,
+        thread_count: SupportsIndex = ...,
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
@@ -952,9 +955,9 @@ class MonteCarloBarrierEngine:
     def __init__(
         self,
         *,
-        path_count: int = ...,
-        seed: int | None = None,
-        thread_count: int = ...,
+        path_count: SupportsIndex = ...,
+        seed: SupportsIndex | None = None,
+        thread_count: SupportsIndex = ...,
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
@@ -979,16 +982,16 @@ class MonteCarloBarrierEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float = ...,
+        spot_shift: _Real = ...,
     ) -> PricingResult: ...
 
 class MonteCarloDoubleBarrierEngine:
     def __init__(
         self,
         *,
-        path_count: int = ...,
-        seed: int | None = None,
-        thread_count: int = ...,
+        path_count: SupportsIndex = ...,
+        seed: SupportsIndex | None = None,
+        thread_count: SupportsIndex = ...,
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
@@ -1013,16 +1016,16 @@ class MonteCarloDoubleBarrierEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float = ...,
+        spot_shift: _Real = ...,
     ) -> PricingResult: ...
 
 class MonteCarloAutocallableEngine:
     def __init__(
         self,
         *,
-        path_count: int = ...,
-        seed: int | None = None,
-        thread_count: int = ...,
+        path_count: SupportsIndex = ...,
+        seed: SupportsIndex | None = None,
+        thread_count: SupportsIndex = ...,
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
@@ -1061,19 +1064,19 @@ class MonteCarloAutocallableEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class MonteCarloAccumulatorEngine:
     def __init__(
         self,
         *,
-        path_count: int = ...,
-        seed: int | None = None,
-        thread_count: int = ...,
+        path_count: SupportsIndex = ...,
+        seed: SupportsIndex | None = None,
+        thread_count: SupportsIndex = ...,
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
@@ -1097,20 +1100,20 @@ class MonteCarloAccumulatorEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class MonteCarloAsianEngine:
     def __init__(
         self,
         *,
-        path_count: int = ...,
-        step_count: int = ...,
-        seed: int | None = None,
-        thread_count: int = ...,
+        path_count: SupportsIndex = ...,
+        step_count: SupportsIndex = ...,
+        seed: SupportsIndex | None = None,
+        thread_count: SupportsIndex = ...,
         sampling: _pricing.MonteCarloSampling = ...,
         antithetic: bool = ...,
     ) -> None: ...
@@ -1197,13 +1200,13 @@ def implied_volatility(
     | MonteCarloAccumulatorEngine,
     instrument: Accumulator,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 @overload
 def implied_volatility(
@@ -1215,26 +1218,26 @@ def implied_volatility(
     | TernarySnowballOption
     | PhoenixOption,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 @overload
 def implied_volatility(
     engine: AnalyticRangeAccrualEngine,
     instrument: RangeAccrualOption,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 @overload
 def implied_volatility(
@@ -1243,26 +1246,26 @@ def implied_volatility(
     | MonteCarloDoubleBarrierEngine,
     instrument: DoubleBarrierOption,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 @overload
 def implied_volatility(
     engine: AnalyticDoubleTouchEngine | FiniteDifferenceDoubleTouchEngine,
     instrument: DoubleTouchOption,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 @overload
 def implied_volatility(
@@ -1273,52 +1276,52 @@ def implied_volatility(
     | FiniteDifferenceBarrierEngine,
     instrument: BarrierOption,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 @overload
 def implied_volatility(
     engine: AnalyticGeometricAveragePriceEngine | MonteCarloAsianEngine,
     instrument: GeometricAveragePriceOption,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 @overload
 def implied_volatility(
     engine: TurnbullWakemanArithmeticAveragePriceEngine | MonteCarloAsianEngine,
     instrument: ArithmeticAveragePriceOption,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 @overload
 def implied_volatility(
     engine: AnalyticEuropeanEngine | MonteCarloVanillaEngine,
     instrument: EuropeanOption,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 @overload
 def implied_volatility(
@@ -1329,26 +1332,26 @@ def implied_volatility(
     | FiniteDifferenceDigitalEngine,
     instrument: CashOrNothingOption | AssetOrNothingOption,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 @overload
 def implied_volatility(
     engine: BjerksundStenslandVanillaEngine | MonteCarloVanillaEngine,
     instrument: AmericanOption,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 @overload
 def implied_volatility(
@@ -1357,26 +1360,26 @@ def implied_volatility(
     | QuadratureVanillaEngine,
     instrument: EuropeanOption | AmericanOption,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 @overload
 def implied_volatility(
     engine: AnalyticBinaryBarrierEngine | FiniteDifferenceBinaryBarrierEngine,
     instrument: BinaryBarrierOption | TouchOption,
     context: PricingContext,
-    observed_price: float,
+    observed_price: _Real,
     *,
-    lower_bound: float = ...,
-    upper_bound: float = ...,
-    price_tolerance: float = ...,
-    parameter_tolerance: float = ...,
-    max_iterations: int = ...,
+    lower_bound: _Real = ...,
+    upper_bound: _Real = ...,
+    price_tolerance: _Real = ...,
+    parameter_tolerance: _Real = ...,
+    max_iterations: SupportsIndex = ...,
 ) -> float: ...
 @overload
 def numerical_greeks(
@@ -1387,10 +1390,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: float | None = None,
-    volatility_shift: float = ...,
-    rate_shift: float = ...,
-    time_shift_days: int = ...,
+    spot_shift: _Real | None = None,
+    volatility_shift: _Real = ...,
+    rate_shift: _Real = ...,
+    time_shift_days: SupportsIndex = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1404,10 +1407,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: float | None = None,
-    volatility_shift: float = ...,
-    rate_shift: float = ...,
-    time_shift_days: int = ...,
+    spot_shift: _Real | None = None,
+    volatility_shift: _Real = ...,
+    rate_shift: _Real = ...,
+    time_shift_days: SupportsIndex = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1416,10 +1419,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: float | None = None,
-    volatility_shift: float = ...,
-    rate_shift: float = ...,
-    time_shift_days: int = ...,
+    spot_shift: _Real | None = None,
+    volatility_shift: _Real = ...,
+    rate_shift: _Real = ...,
+    time_shift_days: SupportsIndex = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1430,10 +1433,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: float | None = None,
-    volatility_shift: float = ...,
-    rate_shift: float = ...,
-    time_shift_days: int = ...,
+    spot_shift: _Real | None = None,
+    volatility_shift: _Real = ...,
+    rate_shift: _Real = ...,
+    time_shift_days: SupportsIndex = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1442,10 +1445,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: float | None = None,
-    volatility_shift: float = ...,
-    rate_shift: float = ...,
-    time_shift_days: int = ...,
+    spot_shift: _Real | None = None,
+    volatility_shift: _Real = ...,
+    rate_shift: _Real = ...,
+    time_shift_days: SupportsIndex = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1458,10 +1461,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: float | None = None,
-    volatility_shift: float = ...,
-    rate_shift: float = ...,
-    time_shift_days: int = ...,
+    spot_shift: _Real | None = None,
+    volatility_shift: _Real = ...,
+    rate_shift: _Real = ...,
+    time_shift_days: SupportsIndex = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1470,10 +1473,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: float | None = None,
-    volatility_shift: float = ...,
-    rate_shift: float = ...,
-    time_shift_days: int = ...,
+    spot_shift: _Real | None = None,
+    volatility_shift: _Real = ...,
+    rate_shift: _Real = ...,
+    time_shift_days: SupportsIndex = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1482,10 +1485,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: float | None = None,
-    volatility_shift: float = ...,
-    rate_shift: float = ...,
-    time_shift_days: int = ...,
+    spot_shift: _Real | None = None,
+    volatility_shift: _Real = ...,
+    rate_shift: _Real = ...,
+    time_shift_days: SupportsIndex = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1494,10 +1497,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: float | None = None,
-    volatility_shift: float = ...,
-    rate_shift: float = ...,
-    time_shift_days: int = ...,
+    spot_shift: _Real | None = None,
+    volatility_shift: _Real = ...,
+    rate_shift: _Real = ...,
+    time_shift_days: SupportsIndex = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1510,10 +1513,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: float | None = None,
-    volatility_shift: float = ...,
-    rate_shift: float = ...,
-    time_shift_days: int = ...,
+    spot_shift: _Real | None = None,
+    volatility_shift: _Real = ...,
+    rate_shift: _Real = ...,
+    time_shift_days: SupportsIndex = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1522,10 +1525,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: float | None = None,
-    volatility_shift: float = ...,
-    rate_shift: float = ...,
-    time_shift_days: int = ...,
+    spot_shift: _Real | None = None,
+    volatility_shift: _Real = ...,
+    rate_shift: _Real = ...,
+    time_shift_days: SupportsIndex = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1536,10 +1539,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: float | None = None,
-    volatility_shift: float = ...,
-    rate_shift: float = ...,
-    time_shift_days: int = ...,
+    spot_shift: _Real | None = None,
+    volatility_shift: _Real = ...,
+    rate_shift: _Real = ...,
+    time_shift_days: SupportsIndex = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1548,10 +1551,10 @@ def numerical_greeks(
     context: PricingContext,
     greeks: Greek | Literal["all"] | Iterable[Greek],
     *,
-    spot_shift: float | None = None,
-    volatility_shift: float = ...,
-    rate_shift: float = ...,
-    time_shift_days: int = ...,
+    spot_shift: _Real | None = None,
+    volatility_shift: _Real = ...,
+    rate_shift: _Real = ...,
+    time_shift_days: SupportsIndex = ...,
 ) -> PricingResult: ...
 
 class GeometricAveragePriceOption:
@@ -1559,24 +1562,24 @@ class GeometricAveragePriceOption:
         self,
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
-        strike: float | EllipsisType = ...,
+        strike: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         averaging_start_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        realized_average: float | None | EllipsisType = ...,
+        realized_average: _Real | None | EllipsisType = ...,
     ) -> Self: ...
     def __init__(
         self,
         *,
         option_type: Literal["call", "put"],
-        strike: float,
+        strike: _Real,
         effective_time: datetime,
         averaging_start_time: datetime,
         expiry_time: datetime,
-        realized_average: float | None = None,
+        realized_average: _Real | None = None,
     ) -> None: ...
     def replace_history(
-        self, *, realized_average: float | None | EllipsisType = ...
+        self, *, realized_average: _Real | None | EllipsisType = ...
     ) -> Self: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
@@ -1602,10 +1605,10 @@ class AnalyticGeometricAveragePriceEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class ArithmeticAveragePriceOption:
@@ -1613,24 +1616,24 @@ class ArithmeticAveragePriceOption:
         self,
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
-        strike: float | EllipsisType = ...,
+        strike: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         averaging_start_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        realized_average: float | None | EllipsisType = ...,
+        realized_average: _Real | None | EllipsisType = ...,
     ) -> Self: ...
     def __init__(
         self,
         *,
         option_type: Literal["call", "put"],
-        strike: float,
+        strike: _Real,
         effective_time: datetime,
         averaging_start_time: datetime,
         expiry_time: datetime,
-        realized_average: float | None = None,
+        realized_average: _Real | None = None,
     ) -> None: ...
     def replace_history(
-        self, *, realized_average: float | None | EllipsisType = ...
+        self, *, realized_average: _Real | None | EllipsisType = ...
     ) -> Self: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
@@ -1656,10 +1659,10 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class BarrierOption:
@@ -1667,13 +1670,13 @@ class BarrierOption:
         self,
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
-        strike: float | EllipsisType = ...,
+        strike: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        barrier_level: float | EllipsisType = ...,
+        barrier_level: _Real | EllipsisType = ...,
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"]
         | EllipsisType = ...,
-        rebate: float | EllipsisType = ...,
+        rebate: _Real | EllipsisType = ...,
         rebate_timing: Literal["at_hit", "at_expiry"] | EllipsisType = ...,
         observation_mode: Literal["continuous", "scheduled"] | EllipsisType = ...,
         observation_times: Iterable[datetime] | EllipsisType = ...,
@@ -1683,12 +1686,12 @@ class BarrierOption:
         self,
         *,
         option_type: Literal["call", "put"],
-        strike: float,
+        strike: _Real,
         effective_time: datetime,
         expiry_time: datetime,
-        barrier_level: float,
+        barrier_level: _Real,
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
-        rebate: float = ...,
+        rebate: _Real = ...,
         rebate_timing: Literal["at_hit", "at_expiry"] = ...,
         observation_mode: Literal["continuous", "scheduled"] = ...,
         observation_times: Iterable[datetime] = ...,
@@ -1737,10 +1740,10 @@ class AnalyticBarrierEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class DoubleBarrierOption:
@@ -1748,13 +1751,13 @@ class DoubleBarrierOption:
         self,
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
-        strike: float | EllipsisType = ...,
+        strike: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        lower_barrier: float | EllipsisType = ...,
-        upper_barrier: float | EllipsisType = ...,
+        lower_barrier: _Real | EllipsisType = ...,
+        upper_barrier: _Real | EllipsisType = ...,
         barrier_type: Literal["knock_in", "knock_out"] | EllipsisType = ...,
-        rebate: float | EllipsisType = ...,
+        rebate: _Real | EllipsisType = ...,
         rebate_timing: Literal["at_hit", "at_expiry"] | EllipsisType = ...,
         observation_mode: Literal["continuous", "scheduled"] | EllipsisType = ...,
         observation_times: Iterable[datetime] | EllipsisType = ...,
@@ -1764,13 +1767,13 @@ class DoubleBarrierOption:
         self,
         *,
         option_type: Literal["call", "put"],
-        strike: float,
+        strike: _Real,
         effective_time: datetime,
         expiry_time: datetime,
-        lower_barrier: float,
-        upper_barrier: float,
+        lower_barrier: _Real,
+        upper_barrier: _Real,
         barrier_type: Literal["knock_in", "knock_out"],
-        rebate: float = ...,
+        rebate: _Real = ...,
         rebate_timing: Literal["at_hit", "at_expiry"] = ...,
         observation_mode: Literal["continuous", "scheduled"] = ...,
         observation_times: Iterable[datetime] = ...,
@@ -1814,27 +1817,27 @@ class RangeAccrualOption:
     def replace(
         self,
         *,
-        notional: float | EllipsisType = ...,
-        annual_coupon_rate: float | EllipsisType = ...,
-        lower_bound: float | EllipsisType = ...,
-        upper_bound: float | EllipsisType = ...,
+        notional: _Real | EllipsisType = ...,
+        annual_coupon_rate: _Real | EllipsisType = ...,
+        lower_bound: _Real | EllipsisType = ...,
+        upper_bound: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        realized_hit_count: int | None | EllipsisType = ...,
+        realized_hit_count: SupportsIndex | None | EllipsisType = ...,
     ) -> Self: ...
     def __init__(
         self,
         *,
-        notional: float,
-        annual_coupon_rate: float,
-        lower_bound: float,
-        upper_bound: float,
+        notional: _Real,
+        annual_coupon_rate: _Real,
+        lower_bound: _Real,
+        upper_bound: _Real,
         effective_time: datetime,
         expiry_time: datetime,
-        realized_hit_count: int | None = ...,
+        realized_hit_count: SupportsIndex | None = ...,
     ) -> None: ...
     def replace_history(
-        self, *, realized_hit_count: int | None | EllipsisType = ...
+        self, *, realized_hit_count: SupportsIndex | None | EllipsisType = ...
     ) -> Self: ...
     @property
     def notional(self) -> float: ...
@@ -1862,10 +1865,10 @@ class AnalyticRangeAccrualEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class AnalyticDoubleBarrierEngine:
@@ -1879,10 +1882,10 @@ class AnalyticDoubleBarrierEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class AnalyticDoubleTouchEngine:
@@ -1896,10 +1899,10 @@ class AnalyticDoubleTouchEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class BinaryBarrierOption:
@@ -1907,16 +1910,16 @@ class BinaryBarrierOption:
         self,
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
-        strike: float | EllipsisType = ...,
+        strike: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        barrier_level: float | EllipsisType = ...,
+        barrier_level: _Real | EllipsisType = ...,
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"]
         | EllipsisType = ...,
         observation_mode: Literal["continuous", "scheduled"] | EllipsisType = ...,
         observation_times: Iterable[datetime] | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
-        payout: float | EllipsisType = ...,
+        payout: _Real | EllipsisType = ...,
     ) -> Self: ...
     def __new__(cls, _token: Never, /) -> Self: ...
     def replace_history(
@@ -1959,14 +1962,14 @@ class TouchOption:
         *,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        barrier_level: float | EllipsisType = ...,
+        barrier_level: _Real | EllipsisType = ...,
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"]
         | EllipsisType = ...,
         settlement_timing: Literal["at_hit", "at_expiry"] | EllipsisType = ...,
         observation_mode: Literal["continuous", "scheduled"] | EllipsisType = ...,
         observation_times: Iterable[datetime] | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
-        payout: float | EllipsisType = ...,
+        payout: _Real | EllipsisType = ...,
     ) -> Self: ...
     def __new__(cls, _token: Never, /) -> Self: ...
     def replace_history(
@@ -2008,12 +2011,12 @@ class TouchOption:
 def cash_binary_barrier_option(
     *,
     option_type: Literal["call", "put"],
-    strike: float,
+    strike: _Real,
     effective_time: datetime,
     expiry_time: datetime,
-    barrier_level: float,
+    barrier_level: _Real,
     barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
-    payout: float,
+    payout: _Real,
     observation_mode: Literal["continuous", "scheduled"] = ...,
     observation_times: Iterable[datetime] = ...,
     touch_state: Literal["untouched", "touched"] | None = None,
@@ -2021,10 +2024,10 @@ def cash_binary_barrier_option(
 def asset_binary_barrier_option(
     *,
     option_type: Literal["call", "put"],
-    strike: float,
+    strike: _Real,
     effective_time: datetime,
     expiry_time: datetime,
-    barrier_level: float,
+    barrier_level: _Real,
     barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
     observation_mode: Literal["continuous", "scheduled"] = ...,
     observation_times: Iterable[datetime] = ...,
@@ -2034,9 +2037,9 @@ def cash_touch_option(
     *,
     effective_time: datetime,
     expiry_time: datetime,
-    barrier_level: float,
+    barrier_level: _Real,
     barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
-    payout: float,
+    payout: _Real,
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
     observation_mode: Literal["continuous", "scheduled"] = ...,
     observation_times: Iterable[datetime] = ...,
@@ -2046,7 +2049,7 @@ def asset_touch_option(
     *,
     effective_time: datetime,
     expiry_time: datetime,
-    barrier_level: float,
+    barrier_level: _Real,
     barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
     observation_mode: Literal["continuous", "scheduled"] = ...,
@@ -2065,10 +2068,10 @@ class AnalyticBinaryBarrierEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class DoubleTouchOption:
@@ -2077,14 +2080,14 @@ class DoubleTouchOption:
         *,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
-        lower_barrier: float | EllipsisType = ...,
-        upper_barrier: float | EllipsisType = ...,
+        lower_barrier: _Real | EllipsisType = ...,
+        upper_barrier: _Real | EllipsisType = ...,
         barrier_type: Literal["knock_in", "knock_out"] | EllipsisType = ...,
         settlement_timing: Literal["at_hit", "at_expiry"] | EllipsisType = ...,
         observation_mode: Literal["continuous", "scheduled"] | EllipsisType = ...,
         observation_times: Iterable[datetime] | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
-        payout: float | EllipsisType = ...,
+        payout: _Real | EllipsisType = ...,
     ) -> Self: ...
     def __new__(cls, _token: Never, /) -> Self: ...
     def replace_history(
@@ -2121,9 +2124,9 @@ def cash_double_touch(
     *,
     effective_time: datetime,
     expiry_time: datetime,
-    lower_barrier: float,
-    upper_barrier: float,
-    payout: float,
+    lower_barrier: _Real,
+    upper_barrier: _Real,
+    payout: _Real,
     settlement_timing: Literal["at_hit", "at_expiry"] = ...,
     observation_mode: Literal["continuous", "scheduled"] = ...,
     observation_times: Iterable[datetime] = ...,
@@ -2133,9 +2136,9 @@ def cash_double_no_touch(
     *,
     effective_time: datetime,
     expiry_time: datetime,
-    lower_barrier: float,
-    upper_barrier: float,
-    payout: float,
+    lower_barrier: _Real,
+    upper_barrier: _Real,
+    payout: _Real,
     observation_mode: Literal["continuous", "scheduled"] = ...,
     observation_times: Iterable[datetime] = ...,
     touch_state: Literal["untouched", "touched"] | None = None,
@@ -2145,8 +2148,8 @@ class QuadratureAutocallableEngine:
     def __init__(
         self,
         *,
-        asset_step_count: int = ...,
-        integration_standard_deviations: float = ...,
+        asset_step_count: SupportsIndex = ...,
+        integration_standard_deviations: _Real = ...,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int: ...
@@ -2169,20 +2172,20 @@ class QuadratureAutocallableEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class AutocallableObservation:
     def __init__(
         self,
         time: datetime,
-        knock_out_level: float,
+        knock_out_level: _Real,
         *,
-        coupon_rate: float = ...,
-        coupon_barrier_level: float = ...,
+        coupon_rate: _Real = ...,
+        coupon_barrier_level: _Real = ...,
     ) -> None: ...
     @property
     def time(self) -> datetime: ...
@@ -2195,48 +2198,48 @@ class AutocallableObservation:
 
 def autocallable_observations(
     observation_times: Iterable[datetime],
-    knock_out_levels: Iterable[float],
+    knock_out_levels: Iterable[_Real],
     *,
-    knock_out_coupon_rates: Iterable[float] | None = None,
-    coupon_barrier_levels: Iterable[float] | None = None,
+    knock_out_coupon_rates: Iterable[_Real] | None = None,
+    coupon_barrier_levels: Iterable[_Real] | None = None,
 ) -> list[AutocallableObservation]: ...
 
 class SnowballOption:
     def replace(
         self,
         *,
-        maturity_coupon_rate: float | EllipsisType = ...,
-        initial_spot: float | EllipsisType = ...,
-        knock_in_level: float | EllipsisType = ...,
-        upper_strike: float | EllipsisType = ...,
-        lower_strike: float | EllipsisType = ...,
+        maturity_coupon_rate: _Real | EllipsisType = ...,
+        initial_spot: _Real | EllipsisType = ...,
+        knock_in_level: _Real | EllipsisType = ...,
+        upper_strike: _Real | EllipsisType = ...,
+        lower_strike: _Real | EllipsisType = ...,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
         | EllipsisType = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
-        principal_ratio: float | EllipsisType = ...,
+        principal_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
     ) -> Self: ...
     def with_coupon(
-        self, coupon: float, *, quote_convention: _pricing.CouponQuoteConvention
+        self, coupon: _Real, *, quote_convention: _pricing.CouponQuoteConvention
     ) -> Self: ...
     def __init__(
         self,
         *,
-        maturity_coupon_rate: float,
-        initial_spot: float,
-        knock_in_level: float,
-        upper_strike: float,
-        lower_strike: float,
+        maturity_coupon_rate: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        upper_strike: _Real,
+        lower_strike: _Real,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-        principal_ratio: float = ...,
+        principal_ratio: _Real = ...,
     ) -> None: ...
     def replace_history(
         self,
@@ -2283,18 +2286,18 @@ class PhoenixOption:
     def replace(
         self,
         *,
-        coupon_rate: float,
+        coupon_rate: _Real,
         coupon_per_period: EllipsisType = ...,
-        initial_spot: float | EllipsisType = ...,
-        knock_in_level: float | EllipsisType = ...,
-        upper_strike: float | EllipsisType = ...,
-        lower_strike: float | EllipsisType = ...,
+        initial_spot: _Real | EllipsisType = ...,
+        knock_in_level: _Real | EllipsisType = ...,
+        upper_strike: _Real | EllipsisType = ...,
+        lower_strike: _Real | EllipsisType = ...,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
         | EllipsisType = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
-        principal_ratio: float | EllipsisType = ...,
+        principal_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
@@ -2304,17 +2307,17 @@ class PhoenixOption:
         self,
         *,
         coupon_rate: EllipsisType = ...,
-        coupon_per_period: float,
-        initial_spot: float | EllipsisType = ...,
-        knock_in_level: float | EllipsisType = ...,
-        upper_strike: float | EllipsisType = ...,
-        lower_strike: float | EllipsisType = ...,
+        coupon_per_period: _Real,
+        initial_spot: _Real | EllipsisType = ...,
+        knock_in_level: _Real | EllipsisType = ...,
+        upper_strike: _Real | EllipsisType = ...,
+        lower_strike: _Real | EllipsisType = ...,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
         | EllipsisType = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
-        principal_ratio: float | EllipsisType = ...,
+        principal_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
@@ -2325,54 +2328,54 @@ class PhoenixOption:
         *,
         coupon_rate: EllipsisType = ...,
         coupon_per_period: EllipsisType = ...,
-        initial_spot: float | EllipsisType = ...,
-        knock_in_level: float | EllipsisType = ...,
-        upper_strike: float | EllipsisType = ...,
-        lower_strike: float | EllipsisType = ...,
+        initial_spot: _Real | EllipsisType = ...,
+        knock_in_level: _Real | EllipsisType = ...,
+        upper_strike: _Real | EllipsisType = ...,
+        lower_strike: _Real | EllipsisType = ...,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
         | EllipsisType = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
-        principal_ratio: float | EllipsisType = ...,
+        principal_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
     ) -> Self: ...
-    def with_coupon(self, coupon: float) -> Self: ...
+    def with_coupon(self, coupon: _Real) -> Self: ...
     @overload
     def __init__(
         self,
         *,
-        coupon_rate: float,
+        coupon_rate: _Real,
         coupon_per_period: EllipsisType = ...,
-        initial_spot: float,
-        knock_in_level: float,
-        upper_strike: float,
-        lower_strike: float,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        upper_strike: _Real,
+        lower_strike: _Real,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-        principal_ratio: float = ...,
+        principal_ratio: _Real = ...,
     ) -> None: ...
     @overload
     def __init__(
         self,
         *,
         coupon_rate: EllipsisType = ...,
-        coupon_per_period: float,
-        initial_spot: float,
-        knock_in_level: float,
-        upper_strike: float,
-        lower_strike: float,
+        coupon_per_period: _Real,
+        initial_spot: _Real,
+        knock_in_level: _Real,
+        upper_strike: _Real,
+        lower_strike: _Real,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-        principal_ratio: float = ...,
+        principal_ratio: _Real = ...,
     ) -> None: ...
     def replace_history(
         self,
@@ -2420,27 +2423,27 @@ class BinarySnowballOption:
     def replace(
         self,
         *,
-        maturity_coupon_rate: float | EllipsisType = ...,
+        maturity_coupon_rate: _Real | EllipsisType = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
-        principal_ratio: float | EllipsisType = ...,
+        principal_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
     ) -> Self: ...
     def with_coupon(
-        self, coupon: float, *, quote_convention: _pricing.CouponQuoteConvention
+        self, coupon: _Real, *, quote_convention: _pricing.CouponQuoteConvention
     ) -> Self: ...
     def __init__(
         self,
         *,
-        maturity_coupon_rate: float,
+        maturity_coupon_rate: _Real,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-        principal_ratio: float = ...,
+        principal_ratio: _Real = ...,
     ) -> None: ...
     def replace_history(
         self,
@@ -2474,34 +2477,34 @@ class TernarySnowballOption:
     def replace(
         self,
         *,
-        maturity_coupon_rate: float | EllipsisType = ...,
-        minimum_coupon_rate: float | EllipsisType = ...,
-        knock_in_level: float | EllipsisType = ...,
+        maturity_coupon_rate: _Real | EllipsisType = ...,
+        minimum_coupon_rate: _Real | EllipsisType = ...,
+        knock_in_level: _Real | EllipsisType = ...,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
         | EllipsisType = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
-        principal_ratio: float | EllipsisType = ...,
+        principal_ratio: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
     ) -> Self: ...
     def with_coupon(
-        self, coupon: float, *, quote_convention: _pricing.CouponQuoteConvention
+        self, coupon: _Real, *, quote_convention: _pricing.CouponQuoteConvention
     ) -> Self: ...
     def __init__(
         self,
         *,
-        maturity_coupon_rate: float,
-        minimum_coupon_rate: float,
-        knock_in_level: float,
+        maturity_coupon_rate: _Real,
+        minimum_coupon_rate: _Real,
+        knock_in_level: _Real,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-        principal_ratio: float = ...,
+        principal_ratio: _Real = ...,
     ) -> None: ...
     def replace_history(
         self,
@@ -2541,106 +2544,106 @@ class TernarySnowballOption:
 
 def standard_snowball(
     *,
-    coupon_rate: float,
-    initial_spot: float,
-    knock_in_level: float,
-    knock_out_level: float,
+    coupon_rate: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    knock_out_level: _Real,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: float = ...,
+    principal_ratio: _Real = ...,
 ) -> SnowballOption: ...
 def european_snowball(
     *,
-    coupon_rate: float,
-    initial_spot: float,
-    knock_in_level: float,
-    knock_out_level: float,
+    coupon_rate: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    knock_out_level: _Real,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: float = ...,
+    principal_ratio: _Real = ...,
 ) -> SnowballOption: ...
 def step_down_snowball(
     *,
-    coupon_rate: float,
-    initial_spot: float,
-    knock_in_level: float,
-    initial_knock_out_level: float,
-    knock_out_level_decrement: float,
+    coupon_rate: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    initial_knock_out_level: _Real,
+    knock_out_level_decrement: _Real,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: float = ...,
+    principal_ratio: _Real = ...,
 ) -> SnowballOption: ...
 def both_down_snowball(
     *,
-    initial_coupon_rate: float,
-    initial_spot: float,
-    knock_in_level: float,
-    initial_knock_out_level: float,
-    coupon_rate_decrement: float,
-    knock_out_level_decrement: float,
+    initial_coupon_rate: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    initial_knock_out_level: _Real,
+    coupon_rate_decrement: _Real,
+    knock_out_level_decrement: _Real,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: float = ...,
+    principal_ratio: _Real = ...,
 ) -> SnowballOption: ...
 def dual_coupon_snowball(
     *,
-    knock_out_coupon_rate: float,
-    initial_spot: float,
-    knock_in_level: float,
-    knock_out_level: float,
-    maturity_coupon_rate: float,
+    knock_out_coupon_rate: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    knock_out_level: _Real,
+    maturity_coupon_rate: _Real,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: float = ...,
+    principal_ratio: _Real = ...,
 ) -> SnowballOption: ...
 def parachute_snowball(
     *,
-    coupon_rate: float,
-    initial_spot: float,
-    knock_in_level: float,
-    knock_out_level: float,
-    final_knock_out_level: float,
+    coupon_rate: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    knock_out_level: _Real,
+    final_knock_out_level: _Real,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: float = ...,
+    principal_ratio: _Real = ...,
 ) -> SnowballOption: ...
 def otm_snowball(
     *,
-    coupon_rate: float,
-    initial_spot: float,
-    knock_in_level: float,
-    knock_out_level: float,
-    upper_strike: float,
+    coupon_rate: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    knock_out_level: _Real,
+    upper_strike: _Real,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: float = ...,
+    principal_ratio: _Real = ...,
 ) -> SnowballOption: ...
 def loss_capped_snowball(
     *,
-    coupon_rate: float,
-    initial_spot: float,
-    knock_in_level: float,
-    knock_out_level: float,
-    lower_strike: float,
+    coupon_rate: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    knock_out_level: _Real,
+    lower_strike: _Real,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: float = ...,
+    principal_ratio: _Real = ...,
 ) -> SnowballOption: ...
 
 class Accumulator:
@@ -2648,11 +2651,11 @@ class Accumulator:
         self,
         *,
         option_type: Literal["call", "put"] | EllipsisType = ...,
-        strike: float | EllipsisType = ...,
-        knock_out_level: float | EllipsisType = ...,
-        daily_quantity: float | EllipsisType = ...,
-        acceleration_factor: float | EllipsisType = ...,
-        accumulated_quantity: float | None | EllipsisType = ...,
+        strike: _Real | EllipsisType = ...,
+        knock_out_level: _Real | EllipsisType = ...,
+        daily_quantity: _Real | EllipsisType = ...,
+        acceleration_factor: _Real | EllipsisType = ...,
+        accumulated_quantity: _Real | None | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         knock_out_observation_times: Iterable[datetime] | None | EllipsisType = ...,
@@ -2661,13 +2664,13 @@ class Accumulator:
     def __init__(
         self,
         *,
-        strike: float,
-        knock_out_level: float,
-        daily_quantity: float,
-        acceleration_factor: float,
+        strike: _Real,
+        knock_out_level: _Real,
+        daily_quantity: _Real,
+        acceleration_factor: _Real,
         effective_time: datetime,
         expiry_time: datetime,
-        accumulated_quantity: float | None = None,
+        accumulated_quantity: _Real | None = None,
         option_type: Literal["call", "put"] = ...,
         knock_out_observation_times: Iterable[datetime] | None = None,
         terminated: bool = ...,
@@ -2695,7 +2698,7 @@ class Accumulator:
     def replace_history(
         self,
         *,
-        accumulated_quantity: float | None | EllipsisType = ...,
+        accumulated_quantity: _Real | None | EllipsisType = ...,
         terminated: bool | EllipsisType = ...,
     ) -> Self: ...
     def __eq__(self, other: object) -> bool: ...
@@ -2704,8 +2707,8 @@ class QuadratureAccumulatorEngine:
     def __init__(
         self,
         *,
-        asset_step_count: int = ...,
-        integration_standard_deviations: float = ...,
+        asset_step_count: SupportsIndex = ...,
+        integration_standard_deviations: _Real = ...,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int: ...
@@ -2722,79 +2725,79 @@ class QuadratureAccumulatorEngine:
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
         *,
-        spot_shift: float | None = None,
-        volatility_shift: float = ...,
-        rate_shift: float = ...,
-        time_shift_days: int = ...,
+        spot_shift: _Real | None = None,
+        volatility_shift: _Real = ...,
+        rate_shift: _Real = ...,
+        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 def fixed_coupon_note(
     *,
-    coupon_per_period: float,
-    initial_spot: float,
-    knock_in_level: float,
-    knock_out_level: float,
+    coupon_per_period: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    knock_out_level: _Real,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: float = ...,
+    principal_ratio: _Real = ...,
 ) -> PhoenixOption: ...
 def digital_coupon_note(
     *,
-    coupon_per_period: float,
-    initial_spot: float,
-    knock_in_level: float,
-    knock_out_level: float,
-    coupon_barrier_level: float,
+    coupon_per_period: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    knock_out_level: _Real,
+    coupon_barrier_level: _Real,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: float = ...,
+    principal_ratio: _Real = ...,
 ) -> PhoenixOption: ...
 def early_profit_snowball(
     *,
-    first_coupon_rate: float,
-    initial_spot: float,
-    knock_in_level: float,
-    knock_out_level: float,
-    second_coupon_rate: float,
+    first_coupon_rate: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    knock_out_level: _Real,
+    second_coupon_rate: _Real,
     first_stage_end_time: datetime,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: float = ...,
+    principal_ratio: _Real = ...,
 ) -> SnowballOption: ...
 def butterfly_snowball(
     *,
-    first_coupon_rate: float,
-    initial_spot: float,
-    knock_in_level: float,
-    knock_out_level: float,
-    second_coupon_rate: float,
-    third_coupon_rate: float,
+    first_coupon_rate: _Real,
+    initial_spot: _Real,
+    knock_in_level: _Real,
+    knock_out_level: _Real,
+    second_coupon_rate: _Real,
+    third_coupon_rate: _Real,
     first_stage_end_time: datetime,
     second_stage_end_time: datetime,
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
-    principal_ratio: float = ...,
+    principal_ratio: _Real = ...,
 ) -> SnowballOption: ...
 def _calendar_parts(
     calendar: TradingCalendar,
 ) -> tuple[str, TradingCalendar | None, list[datetime], list[datetime], int]: ...
 def _observation_schedule(dates: Iterable[datetime]) -> ObservationSchedule: ...
 def _pricing_result(
-    price: float,
-    greeks: dict[Greek, float],
+    price: _Real,
+    greeks: dict[Greek, _Real],
     *,
     requested: Iterable[Greek] | None = None,
     supported: Iterable[Greek] | None = None,
 ) -> PricingResult: ...
 def _monte_carlo_estimate(
-    *, price: float, standard_error: float | None
+    *, price: _Real, standard_error: _Real | None
 ) -> MonteCarloEstimate: ...
 def _curve_parts(curve: RateTermStructure) -> tuple[list[float], float]: ...
