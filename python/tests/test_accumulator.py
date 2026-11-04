@@ -16,7 +16,6 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     RateTermStructure,
-    all_days_calendar,
     weekdays_calendar,
 )
 from support.terminal import assert_terminal_greeks
@@ -44,16 +43,13 @@ def contract(
     )
 
 
-def market(
-    spot=100.25, valuation=None, volatility=0.2, rate=0.04, dividend=0.01, daily=False
-):
+def market(spot=100.25, valuation=None, volatility=0.2, rate=0.04, dividend=0.01):
     return PricingContext(
         model_parameters=BlackScholesMertonParameters(
             risk_free_rate=rate, dividend_yield=dividend, volatility=volatility
         ),
         spot_price=spot,
         valuation_time=valuation or datetime(2025, 1, 1, 12),
-        metadata_calendar=all_days_calendar() if daily else weekdays_calendar(),
     )
 
 

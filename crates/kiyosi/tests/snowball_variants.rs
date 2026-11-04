@@ -25,11 +25,10 @@ fn quadrature_covers_drift_into_future_knock_out() {
         autocallable_observations(&[date(6, 30), end], &[110.0; 2], Some(&[0.2; 2]), None).unwrap(),
     ))
     .unwrap();
-    let context = PricingContext::with_metadata_calendar(
+    let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.05, 0.0, 0.001).unwrap(),
         106.0,
         date(1, 1),
-        TradingCalendar::all_days(),
     )
     .unwrap();
     let engine = QuadratureAutocallableEngine::default();
@@ -62,11 +61,10 @@ fn quadrature_covers_drift_below_future_knock_out() {
         autocallable_observations(&[end], &[110.0], Some(&[0.2]), None).unwrap(),
     ))
     .unwrap();
-    let context = PricingContext::with_metadata_calendar(
+    let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.0, 0.05, 0.005).unwrap(),
         115.0,
         date(1, 1),
-        TradingCalendar::all_days(),
     )
     .unwrap();
     let price = QuadratureAutocallableEngine::new(QuadratureSettings {

@@ -86,8 +86,8 @@ pub struct DoubleBarrierOption {
 impl DoubleBarrierOption {
     /// Replaces the owned observation calendar; see [`Self::new`] for construction.
     ///
-    /// Defaults to weekdays. Construction and replacement validate scheduled observations independently
-    /// of the market context's calendar. Other terms remain unchanged.
+    /// Defaults to weekdays. Construction and replacement validate scheduled observations against
+    /// this calendar. Other terms remain unchanged.
     ///
     /// # Errors
     ///

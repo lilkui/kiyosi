@@ -437,21 +437,15 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
             sigma,
             rate,
             0.01,
-        )
-        .replace(PricingContextChanges {
-            metadata_calendar: Some(if daily {
-                TradingCalendar::all_days()
-            } else {
-                TradingCalendar::default()
-            }),
-            ..Default::default()
-        })
-        .unwrap();
-        let option = option
-            .with_calendar(context.metadata_calendar().clone())
-            .unwrap();
+        );
+        let calendar = if daily {
+            TradingCalendar::all_days()
+        } else {
+            TradingCalendar::default()
+        };
+        let option = option.with_calendar(calendar).unwrap();
         let observations =
-            ObservationSchedule::fixed_interval(day(1, 2), end, 1, context.metadata_calendar())
+            ObservationSchedule::fixed_interval(day(1, 2), end, 1, option.calendar())
                 .unwrap()
                 .len();
         let exposure = 100.0 * (3.0 + observations as f64 * acceleration.max(1.0));
@@ -714,7 +708,7 @@ fn greeks_converge_under_spatial_refinement_and_smaller_bumps() {
             )
             .unwrap();
         let observations =
-            ObservationSchedule::fixed_interval(day(1, 5), end, 1, context.metadata_calendar())
+            ObservationSchedule::fixed_interval(day(1, 5), end, 1, option.calendar())
                 .unwrap()
                 .len();
         let exposure = 100.0 * (3.0 + observations as f64 * acceleration.max(1.0));

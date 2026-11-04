@@ -294,7 +294,7 @@ class BarrierTests(unittest.TestCase):
             )
             result = engine.price_with_greeks(
                 dense,
-                self.context(time=noon, metadata_calendar=all_days_calendar()),
+                self.context(time=noon),
                 greeks="all",
             )
             for greek in ("theta", "charm", "color"):

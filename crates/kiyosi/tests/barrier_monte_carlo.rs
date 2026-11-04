@@ -871,11 +871,10 @@ fn sobol_dimensions_count_fixings_and_unobserved_expiry_leg() {
         .collect();
     t.calendar = TradingCalendar::all_days();
     let option = BarrierOption::new(t).unwrap();
-    let context = PricingContext::with_metadata_calendar(
+    let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.2).unwrap(),
         100.0,
         day(1, 1),
-        TradingCalendar::all_days(),
     )
     .unwrap();
     let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {

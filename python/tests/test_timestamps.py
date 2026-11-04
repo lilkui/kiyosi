@@ -20,7 +20,6 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     RateTermStructure,
-    all_days_calendar,
     fixed_interval_schedule,
     monthly_schedule,
     weekdays_calendar,
@@ -49,7 +48,6 @@ def market(at, spot=105):
         ),
         spot_price=spot,
         valuation_time=at,
-        metadata_calendar=all_days_calendar(),
     )
 
 

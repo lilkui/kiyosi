@@ -14,7 +14,6 @@ from kiyosi.instruments import EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
-    weekdays_calendar,
 )
 from kiyosi.pricing import AnalyticEuropeanEngine
 
@@ -233,11 +232,6 @@ class EuropeanTests(unittest.TestCase):
             self.option(),
             AnalyticEuropeanEngine(),
         )
-        self.assertEqual(
-            context.metadata_calendar.trading_days_per_year,
-            weekdays_calendar().trading_days_per_year,
-        )
-        self.assertEqual(context.metadata_calendar.trading_days_per_year, 252)
         saved = context.model_parameters
         with self.assertRaises(AttributeError):
             context.spot_price = 200

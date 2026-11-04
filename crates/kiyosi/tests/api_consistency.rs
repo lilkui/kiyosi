@@ -124,15 +124,11 @@ fn barrier_engines_require_curve_coverage_only_for_remaining_cashflows() -> Resu
 }
 
 #[test]
-fn structured_contracts_own_calendars_independently_of_market_context() -> Result<()> {
+fn structured_contract_calendars_control_observations_and_survive_replacement() -> Result<()> {
     let start = Date::new(2025, 1, 3)?.start_of_day();
     let end = start.add_days(3)?;
     let model = BlackScholesMertonParameters::new(0.0, 0.0, 1e-12)?;
     let context = PricingContext::new(model, 100.0, start)?;
-    let daily_market = context.replace(PricingContextChanges {
-        metadata_calendar: Some(TradingCalendar::all_days()),
-        ..Default::default()
-    })?;
     let range = RangeAccrualOption::new(RangeAccrualTerms::new(
         1000.0, 0.12, 90.0, 110.0, start, end,
     ))?
@@ -141,16 +137,8 @@ fn structured_contracts_own_calendars_independently_of_market_context() -> Resul
         valuation_time: Some(end),
         ..Default::default()
     })?;
-    let other_expiry = at_expiry.replace(PricingContextChanges {
-        metadata_calendar: Some(TradingCalendar::all_days()),
-        ..Default::default()
-    })?;
     let price = AnalyticRangeAccrualEngine.price(&range, &at_expiry)?;
     assert!((price - 360.0 / 365.0).abs() < 1e-12);
-    assert_eq!(
-        price,
-        AnalyticRangeAccrualEngine.price(&range, &other_expiry)?
-    );
     let daily = range
         .clone()
         .with_calendar(TradingCalendar::all_days())
@@ -167,10 +155,6 @@ fn structured_contracts_own_calendars_independently_of_market_context() -> Resul
         ..Default::default()
     };
     let engine = MonteCarloAccumulatorEngine::new(sampling)?;
-    assert_eq!(
-        engine.price(&accumulator, &context)?,
-        engine.price(&accumulator, &daily_market)?
-    );
     let daily = accumulator
         .with_calendar(TradingCalendar::all_days())
         .unwrap();
@@ -187,11 +171,6 @@ fn structured_contracts_own_calendars_independently_of_market_context() -> Resul
         end,
         vec![AutocallableObservation::new(end, 110.0)?],
     ))?;
-    let engine = MonteCarloAutocallableEngine::new(sampling)?;
-    assert_eq!(
-        engine.price(&note, &context)?,
-        engine.price(&note, &daily_market)?
-    );
     let daily = note.with_calendar(TradingCalendar::all_days()).unwrap();
     assert_eq!(
         daily
@@ -482,11 +461,10 @@ fn terminated_accumulators_have_no_remaining_cashflows() -> Result<()> {
             })?
             .terminated()
     );
-    let context = PricingContext::with_metadata_calendar(
+    let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
         100.0,
         Date::new(2025, 1, 3)?.start_of_day(),
-        TradingCalendar::all_days(),
     )?;
     let engines: Vec<Box<dyn PricingEngine<Accumulator>>> = vec![
         Box::new(QuadratureAccumulatorEngine::default()),

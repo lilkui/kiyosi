@@ -697,7 +697,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// Replaces the owned monitoring calendar; see [`Self::new`] for construction.
     ///
     /// Defaults to weekdays. Expiry and observations are validated on replacement; daily monitoring
-    /// uses this calendar independently of the market context. Other terms are retained.
+    /// uses this calendar. Other terms are retained.
     ///
     /// # Errors
     ///

@@ -17,7 +17,7 @@ from kiyosi.instruments import (
     SnowballOption,
     TernarySnowballOption,
 )
-from kiyosi.market import RateTermStructure, all_days_calendar
+from kiyosi.market import RateTermStructure
 from kiyosi.pricing import (
     MonteCarloAutocallableEngine,
     QuadratureAutocallableEngine,
@@ -40,9 +40,7 @@ class SnowballVariantTests(unittest.TestCase):
                 knock_out_coupon_rates=[0.2, 0.2],
             ),
         )
-        context = market(
-            106, volatility=0.001, rate=0.05, dividend=0, calendar=all_days_calendar()
-        )
+        context = market(106, volatility=0.001, rate=0.05, dividend=0)
         engine = QuadratureAutocallableEngine()
         expected = 1.2 * math.exp(-0.05)
         self.assertAlmostEqual(engine.price(note, context), expected, delta=1e-7)
@@ -73,9 +71,7 @@ class SnowballVariantTests(unittest.TestCase):
                 [end], [110], knock_out_coupon_rates=[0.2]
             ),
         )
-        context = market(
-            115, volatility=0.005, rate=0, dividend=0.05, calendar=all_days_calendar()
-        )
+        context = market(115, volatility=0.005, rate=0, dividend=0.05)
         d2 = (math.log(115 / 110) - 0.05 - 0.5 * 0.005**2) / 0.005
         expected = 1 + 0.1 * math.erfc(-d2 / math.sqrt(2))
         self.assertAlmostEqual(

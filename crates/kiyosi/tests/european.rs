@@ -1,6 +1,6 @@
 use kiyosi::{
     AnalyticEuropeanEngine, BlackScholesMertonParameters, Date, Error, EuropeanOption, OptionType,
-    PricingContext, Timestamp, TradingCalendar,
+    PricingContext, Timestamp,
 };
 
 #[test]
@@ -29,8 +29,6 @@ fn valuation_uses_microseconds_and_expiry_is_midnight() {
     assert_eq!(at.date(), start.date());
     assert_eq!(at.micros_since_midnight(), 43_750_123_456);
     let context = PricingContext::new(model.clone(), 110.0, at).unwrap();
-    assert_eq!(context.metadata_calendar(), &TradingCalendar::default());
-    assert_eq!(context.metadata_calendar().trading_days_per_year(), 252);
     let earlier = PricingContext::new(model.clone(), 110.0, start).unwrap();
     assert!(
         AnalyticEuropeanEngine.price(&option, &context).unwrap()

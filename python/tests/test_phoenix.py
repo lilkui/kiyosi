@@ -480,9 +480,7 @@ class PhoenixTests(unittest.TestCase):
                     knock_in_observation_mode=mode,
                 )
                 self.assertAlmostEqual(
-                    QuadratureAutocallableEngine().price(
-                        note, market(calendar=calendar)
-                    ),
+                    QuadratureAutocallableEngine().price(note, market()),
                     fine,
                     delta=1e-6,
                 )
@@ -701,7 +699,6 @@ class PhoenixTests(unittest.TestCase):
                         volatility=1e-8,
                         rate=0,
                         dividend=0,
-                        calendar=all_days_calendar(),
                     ),
                 ),
                 expected,

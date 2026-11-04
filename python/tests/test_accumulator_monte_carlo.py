@@ -14,7 +14,12 @@ from kiyosi import (
     pricing,
 )
 from kiyosi.instruments import Accumulator
-from kiyosi.market import RateTermStructure, custom_calendar, weekdays_calendar
+from kiyosi.market import (
+    RateTermStructure,
+    all_days_calendar,
+    custom_calendar,
+    weekdays_calendar,
+)
 from kiyosi.pricing import MonteCarloAccumulatorEngine as MC
 from support.terminal import assert_terminal_greeks
 from test_accumulator import START, contract, market, terminal_reference
@@ -30,9 +35,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         note = contract(
             datetime(2025, 1, 2), knock_out=200, acceleration=1, daily=0, quantity=1
         )
-        context = market(
-            spot=100, valuation=START, volatility=1, rate=0.01, dividend=0, daily=True
-        )
+        context = market(spot=100, valuation=START, volatility=1, rate=0.01, dividend=0)
         engine = MC(path_count=2, seed=0, thread_count=1)
         quantity = 6e307
         expected = engine.price_with_statistics(note, context).price * quantity
@@ -194,23 +197,23 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         holiday = custom_calendar(
             base=weekdays_calendar(), closed_dates=[(datetime(2025, 1, 3)).date()]
         )
-        for context, expected in (
-            (market(90, datetime(2025, 1, 3), 1e-20, 0, 0), -70),
+        for context, calendar, expected in (
+            (market(90, datetime(2025, 1, 3), 1e-20, 0, 0), weekdays_calendar(), -70),
             (
                 market(90, datetime(2025, 1, 3, 0, 0, 0, 1), 1e-20, 0, 0),
+                weekdays_calendar(),
                 -50,
             ),
-            (market(90, datetime(2025, 1, 4), 1e-20, 0, 0), -50),
-            (market(90, datetime(2025, 1, 3), 1e-20, 0, 0, daily=True), -110),
+            (market(90, datetime(2025, 1, 4), 1e-20, 0, 0), weekdays_calendar(), -50),
+            (market(90, datetime(2025, 1, 3), 1e-20, 0, 0), all_days_calendar(), -110),
             (
-                market(90, datetime(2025, 1, 3), 1e-20, 0, 0).replace(
-                    metadata_calendar=holiday
-                ),
+                market(90, datetime(2025, 1, 3), 1e-20, 0, 0),
+                holiday,
                 -50,
             ),
         ):
             self.assertEqual(
-                engine.price(note.replace(calendar=context.metadata_calendar), context),
+                engine.price(note.replace(calendar=calendar), context),
                 expected,
             )
         omitted = Accumulator(
@@ -377,8 +380,8 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
     def test_sobol_dimension_limit_preserves_known_settlements(self):
         engine = MC(path_count=2, seed=42, sampling="sobol")
         note = contract(datetime(2090, 1, 2))
-        context = market(valuation=START, daily=True)
-        note = note.replace(calendar=context.metadata_calendar)
+        context = market(valuation=START)
+        note = note.replace(calendar=all_days_calendar())
         self.assert_rejection(InvalidInputError, lambda: engine.price(note, context))
         result = engine.price_with_statistics(note, context.replace(spot_price=110))
         self.assertEqual(result.price, 30)

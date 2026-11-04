@@ -33,11 +33,10 @@ fn time(day: u32, hour: u32, microsecond: u32) -> Timestamp {
 }
 
 fn market(at: Timestamp, spot: f64) -> PricingContext {
-    PricingContext::with_metadata_calendar(
+    PricingContext::new(
         BlackScholesMertonParameters::new(0.0, 0.0, 0.0001).unwrap(),
         spot,
         at,
-        TradingCalendar::all_days(),
     )
     .unwrap()
 }

@@ -129,7 +129,7 @@ impl BarrierOption {
     /// Replaces the owned observation calendar, leaving other terms unchanged.
     ///
     /// Defaults to weekdays. Construction and replacement check scheduled observations against this
-    /// calendar independently of the market context; see [`Self::new`].
+    /// calendar; see [`Self::new`].
     ///
     /// # Errors
     ///

@@ -383,29 +383,19 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             context.valuation_time(),
         )
         .unwrap();
-        let holidays = context
-            .replace(PricingContextChanges {
-                metadata_calendar: Some(
-                    TradingCalendar::custom(
-                        TradingCalendar::weekdays(),
-                        vec![day(2).date()],
-                        vec![],
-                        None,
-                    )
-                    .unwrap(),
-                ),
-                ..Default::default()
-            })
-            .unwrap();
-        let holiday_option = option
-            .clone()
-            .with_calendar(holidays.metadata_calendar().clone())
-            .unwrap();
+        let holidays = TradingCalendar::custom(
+            TradingCalendar::weekdays(),
+            vec![day(2).date()],
+            vec![],
+            None,
+        )
+        .unwrap();
+        let holiday_option = option.clone().with_calendar(holidays).unwrap();
         let result = monte_carlo
-            .price_with_statistics(&holiday_option, &holidays)
+            .price_with_statistics(&holiday_option, &context)
             .unwrap();
         assert_eq!(result.standard_error(), Some(0.0));
-        assert_eq!(clipped.price(&holiday_option, &holidays).unwrap(), 0.0);
+        assert_eq!(clipped.price(&holiday_option, &context).unwrap(), 0.0);
         let engine = QuadratureAccumulatorEngine::default();
         assert!((engine.price(&option, &context).unwrap() - 20.0).abs() < 1e-7);
         let at_current_event = context
@@ -503,37 +493,14 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
     ));
     weekend_terms.calendar = TradingCalendar::all_days();
     let weekend = Accumulator::new(weekend_terms).unwrap();
-    let weekday_context = market(
+    let context = market(
         100.25,
         Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap(),
         0.2,
     );
-    let all_days_context = weekday_context
-        .replace(PricingContextChanges {
-            metadata_calendar: Some(TradingCalendar::all_days()),
-            ..Default::default()
-        })
-        .unwrap();
     for engine in engines() {
-        assert!(
-            engine
-                .price(&weekend, &weekday_context)
-                .unwrap()
-                .is_finite()
-        );
-        assert!(
-            engine
-                .price(
-                    &weekend
-                        .clone()
-                        .with_calendar(TradingCalendar::all_days())
-                        .unwrap(),
-                    &all_days_context
-                )
-                .unwrap()
-                .is_finite()
-        );
-        assert!(engine.price(&option, &weekday_context).unwrap().is_finite());
+        assert!(engine.price(&weekend, &context).unwrap().is_finite());
+        assert!(engine.price(&option, &context).unwrap().is_finite());
     }
 }
 

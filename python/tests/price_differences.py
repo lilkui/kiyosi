@@ -62,7 +62,6 @@ def price_differences(
                 ),
                 spot_price=spot + ds,
                 valuation_time=time + dt,
-                metadata_calendar=context.metadata_calendar,
             ),
         )
 

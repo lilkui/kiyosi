@@ -458,12 +458,7 @@ fn scheduled_requests_recover_volatility_and_support_concurrent_reads() {
     let context = market(
         100.25,
         Timestamp::new(t.effective_time.date(), 12, 0, 0, 0).unwrap(),
-    )
-    .replace(PricingContextChanges {
-        metadata_calendar: Some(TradingCalendar::all_days()),
-        ..Default::default()
-    })
-    .unwrap();
+    );
     let engine = AnalyticBarrierEngine;
     let result = engine
         .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
@@ -764,16 +759,6 @@ fn publicly_prepared_requests_revalidate_different_schedules_and_calendars() {
     let prepared = AnalyticBarrierEngine.prepare_request().unwrap().unwrap();
     prepared.price(&option, &context).unwrap();
     let closed = TradingCalendar::new(|_| false, 365).unwrap();
-    let restricted = context
-        .replace(PricingContextChanges {
-            metadata_calendar: Some(closed.clone()),
-            ..Default::default()
-        })
-        .unwrap();
-    assert_eq!(
-        prepared.price(&option, &restricted).unwrap(),
-        prepared.price(&option, &context).unwrap()
-    );
     assert!(matches!(
         option.with_calendar(closed),
         Err(Error::InvalidInput(_))

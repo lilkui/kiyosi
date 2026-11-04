@@ -11,7 +11,6 @@ from kiyosi.instruments import DoubleBarrierOption, EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
-    all_days_calendar,
 )
 from kiyosi.pricing import AnalyticDoubleBarrierEngine, AnalyticEuropeanEngine
 from support.terminal import assert_terminal_greeks
@@ -43,7 +42,6 @@ def market(spot=100, time=START, rate=0.04, dividend=0.01, volatility=0.2):
         ),
         spot_price=spot,
         valuation_time=time,
-        metadata_calendar=all_days_calendar(),
     )
 
 

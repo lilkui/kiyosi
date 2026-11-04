@@ -30,39 +30,6 @@ class ApiConsistencyTests(unittest.TestCase):
         self.assertIn("volatility", str(error.exception))
         self.assertEqual(model.volatility, 0.2)
 
-    def test_context_calendar_is_explicit_metadata(self):
-        import inspect
-
-        context = market.PricingContext(
-            model_parameters=market.BlackScholesMertonParameters(
-                risk_free_rate=0.02, dividend_yield=0, volatility=0.2
-            ),
-            spot_price=100,
-            valuation_time=datetime(2025, 1, 3),
-            metadata_calendar=market.all_days_calendar(),
-        )
-        self.assertIn(
-            "metadata_calendar", inspect.signature(market.PricingContext).parameters
-        )
-        self.assertEqual(context.metadata_calendar, market.all_days_calendar())
-        self.assertEqual(
-            context.replace(spot_price=101).metadata_calendar, context.metadata_calendar
-        )
-        self.assertEqual(pickle.loads(pickle.dumps(context)), context)
-        option = ins.EuropeanOption(
-            option_type="call",
-            strike=100,
-            effective_time=context.valuation_time,
-            expiry_time=datetime(2025, 1, 6),
-        )
-        engine = pricing.AnalyticEuropeanEngine()
-        self.assertEqual(
-            engine.price(option, context),
-            engine.price(
-                option, context.replace(metadata_calendar=market.weekdays_calendar())
-            ),
-        )
-
     def test_contractual_calendars_are_validated_before_pricing(self):
         start, closed, end = (datetime(2025, 1, day) for day in (3, 4, 6))
         life = {"effective_time": start, "expiry_time": end}
@@ -241,7 +208,7 @@ class ApiConsistencyTests(unittest.TestCase):
                     with self.assertRaises(InvalidInputError):
                         engine.price(settled.replace(**changes), context)
 
-    def test_structured_contract_calendars_survive_market_changes_and_reconstruction(
+    def test_structured_contract_calendars_control_observations_and_survive_reconstruction(
         self,
     ):
         start, end = datetime(2025, 1, 3), datetime(2025, 1, 6)
@@ -251,7 +218,6 @@ class ApiConsistencyTests(unittest.TestCase):
         context = market.PricingContext(
             model_parameters=model, spot_price=100, valuation_time=start
         )
-        daily_market = context.replace(metadata_calendar=market.all_days_calendar())
         accrual = ins.RangeAccrualOption(
             notional=1000,
             annual_coupon_rate=0.12,
@@ -265,12 +231,6 @@ class ApiConsistencyTests(unittest.TestCase):
         engine = pricing.AnalyticRangeAccrualEngine()
         price = engine.price(accrual, expiry)
         self.assertAlmostEqual(price, 360 / 365, delta=1e-12)
-        self.assertEqual(
-            price,
-            engine.price(
-                accrual, expiry.replace(metadata_calendar=market.all_days_calendar())
-            ),
-        )
         daily = accrual.replace(calendar=market.all_days_calendar())
         self.assertAlmostEqual(engine.price(daily, expiry), price / 3, delta=1e-12)
         accumulator = ins.Accumulator(
@@ -291,24 +251,6 @@ class ApiConsistencyTests(unittest.TestCase):
             expiry_time=end,
             calendar=market.all_days_calendar(),
         )
-        for value, engine in (
-            (
-                accumulator,
-                pricing.MonteCarloAccumulatorEngine(
-                    path_count=32, seed=42, thread_count=1
-                ),
-            ),
-            (
-                note,
-                pricing.MonteCarloAutocallableEngine(
-                    path_count=32, seed=42, thread_count=1
-                ),
-            ),
-        ):
-            with self.subTest(contract=type(value).__name__):
-                self.assertEqual(
-                    engine.price(value, context), engine.price(value, daily_market)
-                )
         for value in (daily, accumulator, note):
             self.assertEqual(value.replace().calendar, value.calendar)
             self.assertEqual(pickle.loads(pickle.dumps(value)).calendar, value.calendar)
@@ -626,7 +568,6 @@ class ApiConsistencyTests(unittest.TestCase):
             ),
             spot_price=100,
             valuation_time=datetime(2025, 1, 3),
-            metadata_calendar=market.all_days_calendar(),
         )
         for factory in (
             pricing.QuadratureAccumulatorEngine,

@@ -29,7 +29,6 @@ def context(spot=100.25, *, deterministic=False):
         ),
         spot_price=spot,
         valuation_time=START,
-        metadata_calendar=all_days_calendar(),
     )
 
 

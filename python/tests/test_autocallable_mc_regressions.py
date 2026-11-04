@@ -38,7 +38,6 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             ),
             spot_price=100,
             valuation_time=start,
-            metadata_calendar=all_days_calendar(),
         )
         engine = pricing.MonteCarloAutocallableEngine(
             path_count=2, seed=0, thread_count=1
@@ -129,7 +128,6 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 model_parameters=parameters,
                 spot_price=spot + offset * h,
                 valuation_time=datetime(2025, 1, 1, 12),
-                metadata_calendar=all_days_calendar(),
             )
             for offset in (0, 1, -1, 2, -2)
         ]
@@ -323,7 +321,6 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                                     model_parameters=parameters,
                                     spot_price=100,
                                     valuation_time=start,
-                                    metadata_calendar=calendar,
                                 ),
                             )
                             for calendar in (weekdays_calendar(), all_days_calendar())
@@ -337,7 +334,6 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                             self.assertEqual(*prices)
 
     def check_autocallable(self, note, context, expected):
-        note = note.replace(calendar=context.metadata_calendar)
         for engine in (pricing.MonteCarloAutocallableEngine(path_count=32, seed=7),):
             with self.subTest(
                 engine=type(engine).__name__, product=type(note).__name__
@@ -451,5 +447,4 @@ def cashflow_market(spot, valuation):
         ),
         spot_price=spot,
         valuation_time=valuation,
-        metadata_calendar=all_days_calendar(),
     )

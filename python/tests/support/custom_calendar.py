@@ -3,8 +3,6 @@ from datetime import date, datetime
 
 from kiyosi import InvalidInputError
 from kiyosi.market import (
-    BlackScholesMertonParameters,
-    PricingContext,
     custom_calendar,
     fixed_interval_schedule,
     sse_calendar,
@@ -58,34 +56,6 @@ class CustomCalendarTests(unittest.TestCase):
         self.assertTrue(layered.is_trading_day(start))
         self.assertFalse(layered.is_trading_day(date(2026, 10, 10)))
         self.assertEqual(layered.trading_days_per_year, 365)
-
-    def test_shifted_context_retains_overrides_after_original_owners(self):
-        def make_shifted():
-            calendar = custom_calendar(
-                base=weekdays_calendar(),
-                closed_dates=[date(2026, 10, 1)],
-                open_dates=[date(2026, 10, 10)],
-            )
-            context = PricingContext(
-                model_parameters=BlackScholesMertonParameters(
-                    risk_free_rate=0.03,
-                    dividend_yield=0.01,
-                    volatility=0.2,
-                ),
-                spot_price=100,
-                valuation_time=datetime(2026, 9, 30),
-                metadata_calendar=calendar,
-            )
-            return context.replace(spot_price=101)
-
-        shifted = make_shifted()
-        calendar = shifted.metadata_calendar
-        del shifted
-        self.assertFalse(calendar.is_trading_day(date(2026, 10, 1)))
-        self.assertTrue(calendar.is_trading_day(date(2026, 10, 10)))
-        self.assertTrue(calendar.is_trading_day(date(2026, 10, 9)))
-        self.assertFalse(calendar.is_trading_day(date(2026, 10, 11)))
-        self.assertEqual(calendar.trading_days_per_year, 252)
 
     def test_empty_overrides_inherit_base(self):
         base = sse_calendar()

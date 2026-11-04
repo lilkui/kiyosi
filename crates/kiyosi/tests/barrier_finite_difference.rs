@@ -405,12 +405,7 @@ fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
     ];
     t.barrier_level = 110.125;
     t.rebate = 2.0;
-    let context = market(100.25)
-        .replace(PricingContextChanges {
-            metadata_calendar: Some(TradingCalendar::all_days()),
-            ..Default::default()
-        })
-        .unwrap();
+    let context = market(100.25);
     for timing in [RebateTiming::AtHit, RebateTiming::AtExpiry] {
         t.rebate_timing = timing;
         let option = BarrierOption::new(BarrierOptionTerms {

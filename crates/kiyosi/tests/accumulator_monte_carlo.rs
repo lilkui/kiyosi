@@ -49,11 +49,10 @@ fn scalar_price_survives_confidence_interval_overflow() {
         ..AccumulatorTerms::new(100.0, 200.0, 0.0, 1.0, start, end)
     })
     .unwrap();
-    let context = PricingContext::with_metadata_calendar(
+    let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.01, 0.0, 1.0).unwrap(),
         100.0,
         start,
-        TradingCalendar::all_days(),
     )
     .unwrap();
     let engine = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
@@ -298,9 +297,8 @@ fn trading_midnights_intraday_history_and_calendar_control_purchases() {
             -50.0,
         ),
     ] {
-        let option = option.clone().with_calendar(calendar.clone()).unwrap();
-        let context =
-            PricingContext::with_metadata_calendar(model.clone(), 90.0, at, calendar).unwrap();
+        let option = option.clone().with_calendar(calendar).unwrap();
+        let context = PricingContext::new(model.clone(), 90.0, at).unwrap();
         assert_eq!(engine.price(&option, &context).unwrap(), expected);
     }
     let empty = option.replace_history(0.0).unwrap();
@@ -572,12 +570,7 @@ fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
     let option = option(end)
         .with_calendar(TradingCalendar::all_days())
         .unwrap();
-    let context = market(100.25, day(1, 1))
-        .replace(PricingContextChanges {
-            metadata_calendar: Some(TradingCalendar::all_days()),
-            ..Default::default()
-        })
-        .unwrap();
+    let context = market(100.25, day(1, 1));
     let engine = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
         path_count: 2,
         seed: Some(42),

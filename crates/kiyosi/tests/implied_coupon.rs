@@ -792,11 +792,10 @@ fn coupon_endpoints_can_change_daily_knock_in_layers() {
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = SnowballOption::new(terms).unwrap();
-    let context = PricingContext::with_metadata_calendar(
+    let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.03, 0.0, 0.3).unwrap(),
         100.25,
         Timestamp::new(date(1, 1).date(), 12, 0, 0, 0).unwrap(),
-        TradingCalendar::all_days(),
     )
     .unwrap();
     let quote = engine.price(&note, &context).unwrap();

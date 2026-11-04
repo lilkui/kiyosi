@@ -18,7 +18,7 @@ from kiyosi import (
     instruments,
 )
 from kiyosi.instruments import BinarySnowballOption, PhoenixOption
-from kiyosi.market import RateTermStructure, all_days_calendar
+from kiyosi.market import RateTermStructure
 from kiyosi.pricing import (
     CouponQuoteConvention,
     FiniteDifferenceAutocallableEngine,
@@ -270,7 +270,6 @@ class ImpliedCouponTests(unittest.TestCase):
             datetime(2025, 1, 1, 12),
             rate=0.03,
             dividend=0,
-            calendar=all_days_calendar(),
         )
         engine = QuadratureAutocallableEngine(asset_step_count=17)
         quote = engine.price(note, context)

@@ -21,7 +21,6 @@ from kiyosi.market import (
     RateTermStructure,
     all_days_calendar,
     custom_calendar,
-    weekdays_calendar,
 )
 from kiyosi.pricing import QuadratureAutocallableEngine, implied_volatility
 from quantlib_reference import structured
@@ -47,16 +46,13 @@ def contract(**changes):
     return SnowballOption(**fields)
 
 
-def market(
-    spot=100, valuation=START, volatility=0.3, rate=0.04, dividend=0.01, calendar=None
-):
+def market(spot=100, valuation=START, volatility=0.3, rate=0.04, dividend=0.01):
     return PricingContext(
         model_parameters=BlackScholesMertonParameters(
             risk_free_rate=rate, dividend_yield=dividend, volatility=volatility
         ),
         spot_price=spot,
         valuation_time=valuation,
-        metadata_calendar=calendar or weekdays_calendar(),
     )
 
 
@@ -321,7 +317,7 @@ class SnowballTests(unittest.TestCase):
 
     def test_daily_layers_and_domain_convergence(self):
         dates = [datetime(2025, 2, 1), datetime(2025, 3, 1), END]
-        context = market(volatility=0.3, calendar=all_days_calendar())
+        context = market(volatility=0.3)
         prices = []
         for mode in ("at_expiry", "every_trading_day"):
             note = contract(
@@ -616,7 +612,7 @@ class SnowballTests(unittest.TestCase):
                 ),
             )
             self.assertAlmostEqual(
-                QuadratureAutocallableEngine().price(note, market(calendar=calendar)),
+                QuadratureAutocallableEngine().price(note, market()),
                 fine,
                 delta=1e-6,
             )
@@ -650,7 +646,6 @@ class SnowballTests(unittest.TestCase):
                         volatility=1e-8,
                         rate=0,
                         dividend=0,
-                        calendar=all_days_calendar(),
                     ),
                 ),
                 payoff,

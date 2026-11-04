@@ -155,7 +155,7 @@ impl Accumulator {
     /// Replaces the owned accumulation calendar; see [`Self::new`] for construction.
     ///
     /// Defaults to weekdays. Construction and replacement check observations and expiry against
-    /// this calendar, independently of the market context. Other terms are retained.
+    /// this calendar. Other terms are retained.
     ///
     /// # Errors
     ///

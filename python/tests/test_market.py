@@ -451,21 +451,11 @@ class RateTermStructureTests(unittest.TestCase):
                     "model_parameters",
                     "spot_price",
                     "valuation_time",
-                    "metadata_calendar",
                 ),
             ),
         ):
             replacement = obj.replace()
-            if isinstance(obj, PricingContext):
-                self.assertEqual(replacement.model_parameters, obj.model_parameters)
-                self.assertEqual(replacement.spot_price, obj.spot_price)
-                self.assertEqual(replacement.valuation_time, obj.valuation_time)
-                self.assertEqual(
-                    replacement.metadata_calendar.trading_days_per_year,
-                    obj.metadata_calendar.trading_days_per_year,
-                )
-            else:
-                self.assertEqual(replacement, obj)
+            self.assertEqual(replacement, obj)
             self.assertIsNot(replacement, obj)
             for field in fields:
                 for value in (None, True, "invalid"):
@@ -496,10 +486,6 @@ class RateTermStructureTests(unittest.TestCase):
         )
         self.assertEqual(changed.spot_price, 105)
         self.assertEqual(changed.valuation_time, datetime(2025, 1, 6, 9))
-        self.assertEqual(
-            changed.metadata_calendar.trading_days_per_year,
-            context.metadata_calendar.trading_days_per_year,
-        )
         self.assertEqual(context.valuation_time, REFERENCE)
         self.assertEqual(context.spot_price, 100)
         self.assertEqual(context.model_parameters, model)

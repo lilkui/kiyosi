@@ -259,31 +259,18 @@ fn closed_calendars_stop_at_domain_and_schedule_bounds() {
 }
 
 #[test]
-fn predicate_calendars_and_context_clones_support_concurrent_reads() {
-    use kiyosi::{BlackScholesMertonParameters, PricingContext, PricingContextChanges};
+fn predicate_calendar_clones_support_concurrent_reads() {
     let open = day(2026, 10, 10);
     let calendar = TradingCalendar::new(move |date| date == open, 1).unwrap();
-    let context = PricingContext::with_metadata_calendar(
-        BlackScholesMertonParameters::new(0.03, 0.01, 0.2).unwrap(),
-        100.0,
-        open.into(),
-        calendar,
-    )
-    .unwrap();
-    let replaced = context
-        .replace(PricingContextChanges {
-            spot_price: Some(101.0),
-            ..Default::default()
-        })
-        .unwrap();
-    drop(context);
+    let cloned = calendar.clone();
+    drop(calendar);
     std::thread::scope(|scope| {
         for _ in 0..4 {
-            let context = &replaced;
+            let calendar = &cloned;
             scope.spawn(move || {
-                assert!(context.metadata_calendar().is_trading_day(open));
-                assert!(!context.metadata_calendar().is_trading_day(day(2026, 10, 9)));
-                assert_eq!(context.metadata_calendar().trading_days_per_year(), 1);
+                assert!(calendar.is_trading_day(open));
+                assert!(!calendar.is_trading_day(day(2026, 10, 9)));
+                assert_eq!(calendar.trading_days_per_year(), 1);
             });
         }
     });

@@ -35,7 +35,6 @@ def _wrap(callable: Any, defaults: dict[str, Any]) -> Any:
 def install(native: ModuleType) -> None:
     defaults = dict(native._signature_defaults)
     defaults["calendar"] = native.weekdays_calendar()
-    defaults["metadata_calendar"] = defaults["calendar"]
     defaults.update(observation_times=(), closed_dates=(), open_dates=())
     solvers = native._solver_signature_defaults
     for name, value in tuple(vars(native).items()):

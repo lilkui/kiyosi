@@ -17,7 +17,6 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
     all_days_calendar,
-    custom_calendar,
     weekdays_calendar,
 )
 from kiyosi.pricing import AnalyticRangeAccrualEngine, implied_volatility
@@ -48,16 +47,13 @@ def contract(**changes):
     return RangeAccrualOption(**values)
 
 
-def market(
-    valuation=START, spot=100, rate=0.04, dividend=0.01, volatility=0.2, calendar=None
-):
+def market(valuation=START, spot=100, rate=0.04, dividend=0.01, volatility=0.2):
     return PricingContext(
         model_parameters=BlackScholesMertonParameters(
             risk_free_rate=rate, dividend_yield=dividend, volatility=volatility
         ),
         spot_price=spot,
         valuation_time=valuation,
-        metadata_calendar=calendar or all_days_calendar(),
     )
 
 
@@ -339,7 +335,7 @@ class RangeAccrualTests(unittest.TestCase):
             effective_time=datetime(2025, 1, 3),
             expiry_time=datetime(2025, 1, 6),
         )
-        context = market(datetime(2025, 1, 3), calendar=weekdays_calendar())
+        context = market(datetime(2025, 1, 3))
         engine = AnalyticRangeAccrualEngine()
         self.assertAlmostEqual(
             engine.price(option, context), reference(option, context), delta=1e-12
@@ -372,10 +368,10 @@ class RangeAccrualTests(unittest.TestCase):
             ),
             market(dividend=short_curve),
         )
-        weekend = market(datetime(2025, 1, 4, 12), calendar=weekdays_calendar())
+        weekend = market(datetime(2025, 1, 4, 12))
         result = engine.price_with_greeks(option, weekend, ["theta", "charm", "color"])
-        before = market(datetime(2025, 1, 3, 12), calendar=weekdays_calendar())
-        after = market(datetime(2025, 1, 5, 12), calendar=weekdays_calendar())
+        before = market(datetime(2025, 1, 3, 12))
+        after = market(datetime(2025, 1, 5, 12))
         self.assertAlmostEqual(
             result.theta,
             (reference(option, after) - reference(option, before)) / 2,
@@ -394,28 +390,6 @@ class RangeAccrualTests(unittest.TestCase):
         option = contract()
         engine = AnalyticRangeAccrualEngine()
         context = market(rate=0.8, dividend=0.8, volatility=1e-9)
-        self.assertEqual(
-            engine.price(option, context),
-            engine.price(
-                option,
-                context.replace(
-                    metadata_calendar=custom_calendar(
-                        base=all_days_calendar(),
-                        trading_days_per_year=252,
-                    )
-                ),
-            ),
-        )
-        overrides = context.replace(
-            metadata_calendar=custom_calendar(
-                base=weekdays_calendar(),
-                closed_dates=[(START + timedelta(days=1)).date()],
-                open_dates=[(START + timedelta(days=3)).date()],
-            )
-        )
-        self.assertAlmostEqual(
-            engine.price(option, overrides), reference(option, overrides), delta=1e-12
-        )
         self.assertAlmostEqual(
             engine.price(option, context),
             120 * 16 / 365 * math.exp(-0.8 * 16 / 365),
@@ -554,7 +528,6 @@ class RangeAccrualTests(unittest.TestCase):
                 spot=99,
                 rate=rate,
                 dividend=dividend,
-                calendar=weekdays_calendar(),
             )
             engine = AnalyticRangeAccrualEngine()
             result = engine.price_with_greeks(
@@ -581,7 +554,6 @@ class RangeAccrualTests(unittest.TestCase):
                         model_parameters=model,
                         spot_price=spot,
                         valuation_time=when,
-                        metadata_calendar=context.metadata_calendar,
                     ),
                 )
 
@@ -644,10 +616,8 @@ class RangeAccrualTests(unittest.TestCase):
             times=[valuation, option.expiry_time],
             factors=[0.999, 1.002],
         )
-        context = market(valuation, rate=rate, calendar=weekdays_calendar())
-        after = market(
-            valuation + timedelta(days=1), rate=rate, calendar=weekdays_calendar()
-        )
+        context = market(valuation, rate=rate)
+        after = market(valuation + timedelta(days=1), rate=rate)
         result = AnalyticRangeAccrualEngine().price_with_greeks(
             option, context, "theta"
         )

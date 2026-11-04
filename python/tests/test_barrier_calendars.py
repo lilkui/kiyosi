@@ -19,7 +19,6 @@ class BarrierCalendarTests(unittest.TestCase):
             spot_price=100,
             valuation_time=start,
         )
-        daily_market = context.replace(metadata_calendar=market.all_days_calendar())
         common = {
             "effective_time": start,
             "expiry_time": end,
@@ -119,8 +118,7 @@ class BarrierCalendarTests(unittest.TestCase):
                     with self.assertRaises(TypeError):
                         original.replace(calendar=invalid)
                 for engine in engines:
-                    for snapshot in (context, daily_market):
-                        self.assertEqual(
-                            engine.price(owned, snapshot),
-                            engine.price(restored, daily_market),
-                        )
+                    self.assertEqual(
+                        engine.price(owned, context),
+                        engine.price(restored, context),
+                    )

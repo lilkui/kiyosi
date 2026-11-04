@@ -24,7 +24,6 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     RateTermStructure,
-    all_days_calendar,
 )
 from price_differences import price_differences
 from support.terminal import assert_terminal_greeks
@@ -48,16 +47,13 @@ def contract(factory=cash_double_touch, **changes):
     )
 
 
-def market(
-    spot=100, *, time=START, volatility=0.2, rate=0.03, dividend=0.01, calendar=None
-):
+def market(spot=100, *, time=START, volatility=0.2, rate=0.03, dividend=0.01):
     return PricingContext(
         model_parameters=BlackScholesMertonParameters(
             risk_free_rate=rate, dividend_yield=dividend, volatility=volatility
         ),
         spot_price=spot,
         valuation_time=time,
-        metadata_calendar=calendar if calendar is not None else all_days_calendar(),
     )
 
 

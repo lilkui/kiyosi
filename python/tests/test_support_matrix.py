@@ -271,7 +271,6 @@ class SupportMatrixTests(unittest.TestCase):
             ),
             spot_price=105,
             valuation_time=datetime(2026, 1, 1),
-            metadata_calendar=all_days_calendar(),
         )
 
     def test_every_exported_engine_has_an_accepted_product(self):

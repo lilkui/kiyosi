@@ -201,14 +201,14 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 self.assertEqual(
                     engine.price(
                         weekend.replace(calendar=all_days_calendar()),
-                        market(110, END, daily=True),
+                        market(110, END),
                     ),
                     40,
                 )
                 self.assertEqual(
                     engine.price(
                         weekend_expiry.replace(calendar=all_days_calendar()),
-                        market(90, datetime(2025, 1, 5), daily=True),
+                        market(90, datetime(2025, 1, 5)),
                     ),
                     -50,
                 )

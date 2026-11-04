@@ -16,10 +16,8 @@ from kiyosi.instruments import (
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
-    all_days_calendar,
     monthly_schedule,
     sse_calendar,
-    weekdays_calendar,
 )
 
 
@@ -36,7 +34,6 @@ class AutocallableAccuracyTests(unittest.TestCase):
             ),
             spot_price=100,
             valuation_time=start,
-            metadata_calendar=all_days_calendar(),
         )
         engine = pricing.FiniteDifferenceAutocallableEngine()
 
@@ -96,7 +93,6 @@ class AutocallableAccuracyTests(unittest.TestCase):
                             ),
                             spot_price=spot,
                             valuation_time=valuation,
-                            metadata_calendar=all_days_calendar(),
                         )
                         actual = engine.price_with_greeks(
                             option, context, ["delta", "gamma"]
@@ -157,7 +153,6 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 model_parameters=model,
                 spot_price=spot,
                 valuation_time=start,
-                metadata_calendar=calendar,
             )
 
         # Dealer-normalized Gamma references from an independent quadrature solve.
@@ -201,7 +196,6 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 ),
                 spot_price=350,
                 valuation_time=datetime(2026, 1, 1) - timedelta(seconds=seconds),
-                metadata_calendar=all_days_calendar(),
             )
             for count in (3, 4, 5, 10, 20, 40):
                 with self.subTest(seconds=seconds, count=count):
@@ -304,14 +298,13 @@ class AutocallableAccuracyTests(unittest.TestCase):
                     ),
                     spot_price=spot,
                     valuation_time=end,
-                    metadata_calendar=all_days_calendar(),
                 )
                 result = engine.price_with_greeks(option, context, ["delta", "gamma"])
                 self.assertEqual(result.price, expected)
                 self.assertIsNone(result.delta)
                 self.assertIsNone(result.gamma)
 
-    def test_daily_calendars_preserve_cash_carry_portfolio_across_event_restarts(self):
+    def test_cash_carry_portfolio_is_preserved_across_event_restarts(self):
         start, end = datetime(2024, 1, 1), datetime(2025, 1, 1)
         dates = [datetime(2024, 4, 1), datetime(2024, 7, 1), datetime(2024, 10, 1), end]
 
@@ -333,32 +326,28 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 knock_out_coupon_rates=[carry_rate(day) for day in dates],
             ),
         )
-        for calendar in (all_days_calendar(), weekdays_calendar()):
-            context = PricingContext(
-                model_parameters=BlackScholesMertonParameters(
-                    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
-                ),
-                spot_price=100.25,
-                valuation_time=start,
-                metadata_calendar=calendar,
-            )
-            for scheme in (
-                "crank_nicolson",
-                "rannacher",
-                "implicit_euler",
-                "explicit_euler",
-            ):
-                with self.subTest(calendar=calendar, scheme=scheme):
-                    engine = pricing.FiniteDifferenceAutocallableEngine(
-                        asset_step_count=80,
-                        time_step_count=2000,
-                        scheme=scheme,
-                        asset_upper_boundary=400,
-                    )
-                    result = engine.price_with_greeks(
-                        option, context, ["delta", "gamma"]
-                    )
-                    self.assertAlmostEqual(result.price, 1, delta=1e-5)
-                    self.assertAlmostEqual(result.delta, 0, delta=1e-6)
-                    self.assertAlmostEqual(result.gamma, 0, delta=1e-7)
-                    self.assertEqual(engine.price(option, context), result.price)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100.25,
+            valuation_time=start,
+        )
+        for scheme in (
+            "crank_nicolson",
+            "rannacher",
+            "implicit_euler",
+            "explicit_euler",
+        ):
+            with self.subTest(scheme=scheme):
+                engine = pricing.FiniteDifferenceAutocallableEngine(
+                    asset_step_count=80,
+                    time_step_count=2000,
+                    scheme=scheme,
+                    asset_upper_boundary=400,
+                )
+                result = engine.price_with_greeks(option, context, ["delta", "gamma"])
+                self.assertAlmostEqual(result.price, 1, delta=1e-5)
+                self.assertAlmostEqual(result.delta, 0, delta=1e-6)
+                self.assertAlmostEqual(result.gamma, 0, delta=1e-7)
+                self.assertEqual(engine.price(option, context), result.price)

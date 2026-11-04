@@ -9,10 +9,6 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
         100.0,
         start,
     )?;
-    let daily_market = context.replace(PricingContextChanges {
-        metadata_calendar: Some(TradingCalendar::all_days()),
-        ..Default::default()
-    })?;
     let observations = vec![start.add_days(1)?, expiry];
     let mut terms = BarrierOptionTerms::new(
         OptionType::Call,
@@ -48,7 +44,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
     ] {
         assert_eq!(
             engine.price(&owned, &context)?,
-            engine.price(&owned, &daily_market)?
+            engine.price(&option, &context)?
         );
     }
     assert_eq!(owned.replace(Default::default())?, owned);
@@ -71,7 +67,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
             ));
             assert_eq!(
                 $engine.price(&owned, &context)?,
-                $engine.price(&owned, &daily_market)?
+                $engine.price(&option, &context)?
             );
         }};
     }

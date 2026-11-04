@@ -255,7 +255,6 @@ pub(crate) fn complete_greeks(
             model_parameters: Some(parameters.into()),
             spot_price: Some(spot),
             valuation_time: Some(valuation_time),
-            ..Default::default()
         })
     };
     let price = |s, vol, r, t| -> Result<f64> {

@@ -1,4 +1,3 @@
-use crate::calendar::TradingCalendar;
 use crate::conversions::{python_date, python_timestamp, real, supplied, timestamp};
 use crate::error::domain;
 use pyo3::prelude::*;
@@ -340,9 +339,6 @@ impl BlackScholesMertonParameters {
 ///     Positive finite underlying spot price.
 /// valuation_time : datetime.datetime
 ///     Valuation time.
-/// metadata_calendar : TradingCalendar, optional
-///     Calendar metadata for callers and custom engines, defaulting to weekdays.
-///     Built-in pricing uses each contract's observation calendar instead.
 ///
 /// Raises
 /// ------
@@ -357,21 +353,17 @@ pub(crate) struct PricingContext(pub(crate) kiyosi::PricingContext);
 #[pymethods]
 impl PricingContext {
     #[new]
-    #[pyo3(signature = (*, model_parameters, spot_price, valuation_time, metadata_calendar = TradingCalendar::default()))]
+    #[pyo3(signature = (*, model_parameters, spot_price, valuation_time))]
     fn new(
         model_parameters: &Bound<'_, PyAny>,
         spot_price: &Bound<'_, PyAny>,
         valuation_time: &Bound<'_, PyAny>,
-        metadata_calendar: TradingCalendar,
     ) -> PyResult<Self> {
-        Ok(Self(domain(
-            kiyosi::PricingContext::with_metadata_calendar(
-                model_parameters_value(model_parameters)?,
-                real(spot_price)?,
-                timestamp(valuation_time)?,
-                metadata_calendar.0,
-            ),
-        )?))
+        Ok(Self(domain(kiyosi::PricingContext::new(
+            model_parameters_value(model_parameters)?,
+            real(spot_price)?,
+            timestamp(valuation_time)?,
+        ))?))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -383,8 +375,6 @@ impl PricingContext {
     ///     Positive finite underlying spot price.
     /// valuation_time : datetime.datetime, optional
     ///     Valuation time.
-    /// metadata_calendar : TradingCalendar, optional
-    ///     Replacement metadata calendar; omission retains this context's metadata calendar.
     ///
     /// Returns
     /// -------
@@ -395,21 +385,17 @@ impl PricingContext {
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, model_parameters=crate::conversions::OMITTED, spot_price=crate::conversions::OMITTED, valuation_time=crate::conversions::OMITTED, metadata_calendar=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, model_parameters=crate::conversions::OMITTED, spot_price=crate::conversions::OMITTED, valuation_time=crate::conversions::OMITTED))]
     fn replace(
         &self,
         #[pyo3(from_py_with = supplied)] model_parameters: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] spot_price: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] valuation_time: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] metadata_calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let update = kiyosi::PricingContextChanges {
             model_parameters: model_parameters.map(model_parameters_value).transpose()?,
             spot_price: spot_price.map(real).transpose()?,
             valuation_time: valuation_time.map(timestamp).transpose()?,
-            metadata_calendar: metadata_calendar
-                .map(|value| -> PyResult<_> { Ok(value.extract::<TradingCalendar>()?.0) })
-                .transpose()?,
         };
         Ok(Self(domain(self.0.replace(update))?))
     }
@@ -444,11 +430,6 @@ impl PricingContext {
     #[getter]
     fn valuation_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         python_timestamp(py, self.0.valuation_time())
-    }
-    /// Return an owned copy of the metadata calendar.
-    #[getter]
-    fn metadata_calendar(&self) -> TradingCalendar {
-        TradingCalendar(self.0.metadata_calendar().clone())
     }
 }
 

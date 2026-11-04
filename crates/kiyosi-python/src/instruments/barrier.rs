@@ -67,7 +67,7 @@ pub(crate) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::Barri
 ///     hit.
 /// calendar : TradingCalendar, optional
 ///     Owned observation calendar; defaults to weekdays on construction and is
-///     retained on replacement. PricingContext.metadata_calendar does not change it.
+///     retained on replacement.
 ///
 /// Raises
 /// ------
@@ -108,7 +108,7 @@ monitoring_properties!(
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// calendar : TradingCalendar, optional
     ///     Owned observation calendar; defaults to weekdays on construction and is
-    ///     retained on replacement. PricingContext.metadata_calendar does not change it.
+    ///     retained on replacement.
     ///
     /// Returns
     /// -------

@@ -334,13 +334,7 @@ fn prepared_pricing_rebuilds_when_the_calendar_changes_monitoring_dates() {
         ..Default::default()
     })
     .unwrap();
-    let weekdays = market(100.0, date(1, 1));
-    let all_days = weekdays
-        .replace(PricingContextChanges {
-            metadata_calendar: Some(TradingCalendar::all_days()),
-            ..Default::default()
-        })
-        .unwrap();
+    let context = market(100.0, date(1, 1));
     let prepared = engine.prepare_request().unwrap().unwrap();
     for calendar in [
         TradingCalendar::weekdays(),
@@ -348,11 +342,9 @@ fn prepared_pricing_rebuilds_when_the_calendar_changes_monitoring_dates() {
         TradingCalendar::weekdays(),
     ] {
         let note = note.clone().with_calendar(calendar).unwrap();
-        for context in [&weekdays, &all_days] {
-            assert_eq!(
-                prepared.price(&note, context).unwrap(),
-                engine.price(&note, context).unwrap()
-            );
-        }
+        assert_eq!(
+            prepared.price(&note, &context).unwrap(),
+            engine.price(&note, &context).unwrap()
+        );
     }
 }

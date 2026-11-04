@@ -5,7 +5,6 @@ from kiyosi import instruments
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
-    weekdays_calendar,
 )
 from quantlib_reference import structured
 
@@ -84,7 +83,6 @@ def market(row):
             datetime.fromisoformat(inputs["valuation"]), datetime.min.time()
         )
         + timedelta(hours=int(inputs["valuation_hour"])),
-        metadata_calendar=weekdays_calendar(),
     )
 
 

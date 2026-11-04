@@ -105,8 +105,8 @@ impl RangeAccrualOption {
 
     /// Replaces the owned observation calendar; see [`Self::new`] for construction.
     ///
-    /// Defaults to weekdays. Construction and replacement check expiry against this calendar,
-    /// independently of the market context's calendar. Other terms remain unchanged.
+    /// Defaults to weekdays. Construction and replacement check expiry against this calendar.
+    /// Other terms remain unchanged.
     ///
     /// # Errors
     ///

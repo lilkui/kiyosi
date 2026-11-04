@@ -19,7 +19,6 @@ from kiyosi.instruments import DoubleBarrierOption, EuropeanOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
-    all_days_calendar,
 )
 from support.terminal import assert_terminal_greeks
 
@@ -44,14 +43,13 @@ def contract(**changes):
     )
 
 
-def market(spot=100, *, time=START, volatility=0.2, dividend=0.01, calendar=None):
+def market(spot=100, *, time=START, volatility=0.2, dividend=0.01):
     return PricingContext(
         model_parameters=BlackScholesMertonParameters(
             risk_free_rate=0.04, dividend_yield=dividend, volatility=volatility
         ),
         spot_price=spot,
         valuation_time=time,
-        metadata_calendar=all_days_calendar() if calendar is None else calendar,
     )
 
 

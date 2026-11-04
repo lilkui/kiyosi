@@ -25,11 +25,6 @@ fn market(at: impl Into<Timestamp>, spot: f64) -> PricingContext {
         at.into(),
     )
     .unwrap()
-    .replace(PricingContextChanges {
-        metadata_calendar: Some(TradingCalendar::all_days()),
-        ..Default::default()
-    })
-    .unwrap()
 }
 
 fn civil(date: Date) -> NaiveDate {
@@ -186,7 +181,6 @@ fn numerical_greeks_match_independent_payoff_reference() {
         .unwrap();
         let context = market(day(4), 99.0)
             .replace(PricingContextChanges {
-                metadata_calendar: Some(TradingCalendar::weekdays()),
                 model_parameters: Some(
                     BlackScholesMertonParameters::new(rate, -0.01, 0.2)
                         .unwrap()
@@ -195,9 +189,7 @@ fn numerical_greeks_match_independent_payoff_reference() {
                 ..Default::default()
             })
             .unwrap();
-        let option = option
-            .with_calendar(context.metadata_calendar().clone())
-            .unwrap();
+        let option = option.with_calendar(TradingCalendar::weekdays()).unwrap();
         let shifts = NumericalShiftSettings {
             spot_shift: Some(0.1),
             ..Default::default()
@@ -277,12 +269,7 @@ fn greeks_respect_contract_life_and_observations() {
         ..terms()
     })
     .unwrap();
-    let context = market(Timestamp::new(day(4).date(), 12, 0, 0, 0).unwrap(), 100.0)
-        .replace(PricingContextChanges {
-            metadata_calendar: Some(TradingCalendar::weekdays()),
-            ..Default::default()
-        })
-        .unwrap();
+    let context = market(Timestamp::new(day(4).date(), 12, 0, 0, 0).unwrap(), 100.0);
     assert!(
         AnalyticRangeAccrualEngine
             .price_with_greeks(
@@ -473,12 +460,7 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
             Error::InvalidInput(_)
         ));
     }
-    let context = market(day(3), 100.0)
-        .replace(PricingContextChanges {
-            metadata_calendar: Some(TradingCalendar::weekdays()),
-            ..Default::default()
-        })
-        .unwrap();
+    let context = market(day(3), 100.0);
     let weekend = RangeAccrualOption::new(RangeAccrualTerms {
         calendar: TradingCalendar::all_days(),
         annual_coupon_rate: 0.0,
@@ -704,36 +686,6 @@ fn full_term_coupon_uses_calendar_days_and_one_expiry_discount() {
         .unwrap();
     let expected = 120.0 * 13.0 / 365.0 * (-0.8_f64 * 9.0 / 365.0).exp();
     assert!((engine.price(&seasoned, &live).unwrap() - expected).abs() < 1e-12);
-    let rebased = context
-        .replace(PricingContextChanges {
-            metadata_calendar: Some(
-                TradingCalendar::custom(TradingCalendar::all_days(), vec![], vec![], Some(252))
-                    .unwrap(),
-            ),
-            ..Default::default()
-        })
-        .unwrap();
-    assert_eq!(
-        engine.price(&option, &context).unwrap(),
-        engine.price(&option, &rebased).unwrap()
-    );
-    let overrides = context
-        .replace(PricingContextChanges {
-            metadata_calendar: Some(
-                TradingCalendar::custom(
-                    TradingCalendar::weekdays(),
-                    vec![day(2).date()],
-                    vec![day(4).date()],
-                    None,
-                )
-                .unwrap(),
-            ),
-            ..Default::default()
-        })
-        .unwrap();
-    assert!(
-        (engine.price(&option, &overrides).unwrap() - reference(&option, &overrides)).abs() < 1e-12
-    );
 }
 
 #[test]

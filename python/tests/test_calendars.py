@@ -8,9 +8,7 @@ from datetime import date, datetime, timedelta
 
 from kiyosi import InvalidInputError
 from kiyosi.market import (
-    BlackScholesMertonParameters,
     ObservationSchedule,
-    PricingContext,
     all_days_calendar,
     custom_calendar,
     fixed_interval_schedule,
@@ -64,7 +62,7 @@ class CalendarTests(unittest.TestCase):
         self.assertEqual(list(schedule), [at])
         self.assertEqual(pickle.loads(pickle.dumps(schedule)), schedule)
 
-    def test_equivalent_custom_calendars_and_contexts_compare_equal(self):
+    def test_equivalent_custom_calendars_compare_equal(self):
         base = weekdays_calendar()
         closed, opened = date(2026, 10, 1), date(2026, 10, 10)
         left = custom_calendar(
@@ -93,15 +91,6 @@ class CalendarTests(unittest.TestCase):
         )
         self.assertFalse(nested.is_trading_day(opened))
         self.assertTrue(nested.is_trading_day(closed))
-        context = PricingContext(
-            model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0.03, dividend_yield=0, volatility=0.2
-            ),
-            spot_price=100,
-            valuation_time=datetime.combine(closed, datetime.min.time()),
-            metadata_calendar=left,
-        )
-        self.assertEqual(context, context.replace(metadata_calendar=right))
 
     def test_counts_adjustment_and_annualization(self):
         calendar = weekdays_calendar()
