@@ -536,8 +536,8 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
     }
     for bad in [
         Vec::new(),
-        vec![AutocallableObservation::new(date(4, 2), 110.0)],
-        vec![AutocallableObservation::new(date(4, 1), 110.0); 2],
+        vec![AutocallableObservation::new(date(4, 2), 110.0).unwrap()],
+        vec![AutocallableObservation::new(date(4, 1), 110.0).unwrap(); 2],
     ] {
         assert!(matches!(
             BinarySnowballOption::new(BinarySnowballTerms::new(

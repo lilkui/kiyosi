@@ -10,6 +10,42 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_observation_construction_validates_numeric_terms_before_note_creation(
+        self,
+    ):
+        time = datetime(2026, 1, 1)
+        for level in (0, -1, float("nan"), float("inf")):
+            with self.subTest(level=level):
+                with self.assertRaises(InvalidInputError):
+                    ins.AutocallableObservation(time, level)
+                with self.assertRaises(InvalidInputError):
+                    ins.autocallable_observations([time], [level])
+        for field, keyword, invalids in (
+            (
+                "coupon_rate",
+                "knock_out_coupon_rates",
+                (float("nan"), float("inf"), -float("inf")),
+            ),
+            (
+                "coupon_barrier_level",
+                "coupon_barrier_levels",
+                (-1, float("nan"), float("inf")),
+            ),
+        ):
+            for invalid in invalids:
+                with self.subTest(field=field, invalid=invalid):
+                    with self.assertRaises(InvalidInputError):
+                        ins.AutocallableObservation(time, 110, **{field: invalid})
+                    with self.assertRaises(InvalidInputError):
+                        ins.autocallable_observations(
+                            [time], [110], **{keyword: [invalid]}
+                        )
+        records = ins.autocallable_observations(
+            [time], [110], knock_out_coupon_rates=[-0.01], coupon_barrier_levels=[0]
+        )
+        self.assertEqual(records[0].coupon_rate, -0.01)
+        self.assertEqual(records[0].coupon_barrier_level, 0)
+
     def test_asian_history_uses_optional_positive_averages(self):
         start, end = datetime(2025, 1, 1), datetime(2025, 1, 11)
         context = market.PricingContext(

@@ -151,10 +151,10 @@ class PhoenixTests(unittest.TestCase):
         for value in (-1, math.nan, math.inf):
             self.assert_rejection(
                 InvalidInputError,
-                contract,
-                observations=[
-                    AutocallableObservation(END, 110, coupon_barrier_level=value)
-                ],
+                AutocallableObservation,
+                END,
+                110,
+                coupon_barrier_level=value,
             )
         self.assert_rejection(
             InvalidInputError,

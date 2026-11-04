@@ -162,7 +162,12 @@ impl SnowballPresetTerms {
             .observation_times
             .into_iter()
             .map(|date| {
-                let mut record = AutocallableObservation::new(date, self.knock_out_level);
+                let mut record = AutocallableObservation {
+                    time: date,
+                    knock_out_level: self.knock_out_level,
+                    coupon_rate: AutocallableObservation::DEFAULT_COUPON_RATE,
+                    coupon_barrier_level: AutocallableObservation::DEFAULT_COUPON_BARRIER_LEVEL,
+                };
                 record.coupon_rate = self.coupon_rate;
                 record
             })
@@ -365,7 +370,12 @@ impl PhoenixPresetTerms {
             .observation_times
             .into_iter()
             .map(|date| {
-                let mut record = AutocallableObservation::new(date, self.knock_out_level);
+                let mut record = AutocallableObservation {
+                    time: date,
+                    knock_out_level: self.knock_out_level,
+                    coupon_rate: AutocallableObservation::DEFAULT_COUPON_RATE,
+                    coupon_barrier_level: AutocallableObservation::DEFAULT_COUPON_BARRIER_LEVEL,
+                };
                 record.coupon_barrier_level = coupon_barrier;
                 record
             })

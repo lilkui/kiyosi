@@ -1,6 +1,40 @@
 use kiyosi::*;
 
 #[test]
+fn observation_construction_validates_numeric_terms_before_note_creation() -> Result<()> {
+    let time = Date::new(2026, 1, 1)?.start_of_day();
+    for level in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+        assert!(matches!(
+            AutocallableObservation::new(time, level),
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(matches!(
+            autocallable_observations(&[time], &[level], None, None),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        assert!(matches!(
+            autocallable_observations(&[time], &[110.0], Some(&[invalid]), None),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    for invalid in [-1.0, f64::NAN, f64::INFINITY] {
+        assert!(matches!(
+            autocallable_observations(&[time], &[110.0], None, Some(&[invalid])),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    let records = autocallable_observations(&[time], &[110.0], Some(&[-0.01]), Some(&[0.0]))?;
+    assert_eq!(records[0].coupon_rate, -0.01);
+    assert_eq!(records[0].coupon_barrier_level, 0.0);
+    let mut edited = AutocallableObservation::new(time, 110.0)?;
+    edited.coupon_rate = f64::NAN;
+    assert!(matches!(edited.validate(), Err(Error::InvalidInput(_))));
+    Ok(())
+}
+
+#[test]
 fn asian_history_uses_optional_positive_averages() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(10)?;

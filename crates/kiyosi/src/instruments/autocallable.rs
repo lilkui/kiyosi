@@ -31,8 +31,9 @@ pub enum AutocallableBarrierState {
 
 /// Associates one observation time with its contractual levels and coupon.
 ///
-/// Values are validated by the note constructor, not by this input record.
-/// See [`autocallable_observations`] for sequence construction.
+/// Constructors validate numeric terms; note construction also validates ordering,
+/// life bounds and product-specific coupon constraints. Public field edits are
+/// revalidated by the note constructor. See [`autocallable_observations`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AutocallableObservation {
     /// Sets the exact observation time.
@@ -50,26 +51,61 @@ impl AutocallableObservation {
     /// Supplies a zero coupon barrier; see [`Self::new`].
     pub const DEFAULT_COUPON_BARRIER_LEVEL: f64 = 0.0;
 
-    /// Creates an input record with zero coupon and coupon barrier.
+    /// Creates a validated record with zero coupon and coupon barrier.
     ///
-    /// See [`autocallable_observations`] for an example.
-    pub fn new(time: Timestamp, knock_out_level: f64) -> Self {
-        Self {
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] unless the knock-out level is finite and positive.
+    /// See [`autocallable_observations`] for a sequence construction example.
+    pub fn new(time: Timestamp, knock_out_level: f64) -> Result<Self> {
+        let record = Self {
             time,
             knock_out_level,
             coupon_rate: Self::DEFAULT_COUPON_RATE,
             coupon_barrier_level: Self::DEFAULT_COUPON_BARRIER_LEVEL,
+        };
+        record.validate()?;
+        Ok(record)
+    }
+
+    /// Checks numeric terms independently of the note's product and observation schedule.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for a nonpositive or non-finite knock-out level,
+    /// non-finite coupon rate, or negative or non-finite coupon barrier.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{AutocallableObservation, Date};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let mut observation = AutocallableObservation::new(
+    ///     Date::new(2026, 1, 1)?.start_of_day(), 110.0)?;
+    /// observation.coupon_rate = -0.01;
+    /// observation.validate()?;
+    /// # Ok(()) }
+    /// ```
+    pub fn validate(&self) -> Result<()> {
+        finite(self.knock_out_level, true)?;
+        finite(self.coupon_rate, false)?;
+        finite(self.coupon_barrier_level, false)?;
+        if self.coupon_barrier_level < 0.0 {
+            return Err(Error::InvalidInput("negative coupon barrier".into()));
         }
+        Ok(())
     }
 }
 
 /// Associates parallel sequences, using core record defaults for omitted coupons.
 ///
-/// Contractual values and ordering are validated when constructing a note.
+/// Numeric terms are validated here. Ordering, life bounds and product-specific
+/// constraints are validated when constructing a note.
 ///
 /// # Errors
 ///
-/// Returns [`Error::InvalidInput`] for unequal sequence lengths.
+/// Returns [`Error::InvalidInput`] for unequal sequence lengths or invalid numeric
+/// terms; see [`AutocallableObservation::validate`].
 ///
 /// # Examples
 ///
@@ -95,21 +131,22 @@ pub fn autocallable_observations(
             "observation sequence lengths differ".into(),
         ));
     }
-    Ok(times
+    times
         .iter()
         .zip(levels)
         .enumerate()
         .map(|(i, (&time, &level))| {
-            let mut record = AutocallableObservation::new(time, level);
+            let mut record = AutocallableObservation::new(time, level)?;
             if let Some(values) = coupons {
                 record.coupon_rate = values[i];
             }
             if let Some(values) = coupon_barriers {
                 record.coupon_barrier_level = values[i];
             }
-            record
+            record.validate()?;
+            Ok(record)
         })
-        .collect())
+        .collect()
 }
 
 /// Supplies basic snowball terms; see [`Self::new`] and [`SnowballOption::new`].
@@ -921,7 +958,7 @@ impl sealed::View<'_> {
             }
         }
         for r in terms.observations {
-            finite(r.knock_out_level, true)?;
+            r.validate()?;
         }
         terms.validate_history(terms.barrier_state)?;
         if let Some(ki) = terms.knock_in {
@@ -938,17 +975,13 @@ impl sealed::View<'_> {
         if let Coupon::Phoenix(coupon) = terms.coupon {
             finite(coupon.value(), false)?;
             for r in terms.observations {
-                finite(r.coupon_barrier_level, false)?;
-                if r.coupon_barrier_level < 0.0 || r.coupon_rate != 0.0 {
+                if r.coupon_rate != 0.0 {
                     return Err(Error::InvalidInput(
                         "invalid Phoenix observation terms".into(),
                     ));
                 }
             }
         } else {
-            for r in terms.observations {
-                finite(r.coupon_rate, false)?;
-            }
             finite(terms.maturity_coupon_rate(), false)?;
             if terms
                 .observations

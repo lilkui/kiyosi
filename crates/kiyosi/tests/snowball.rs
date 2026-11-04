@@ -13,7 +13,7 @@ fn terms() -> SnowballTerms {
         60.0,
         date(1, 1),
         date(4, 1),
-        vec![AutocallableObservation::new(date(4, 1), 110.0)],
+        vec![AutocallableObservation::new(date(4, 1), 110.0).unwrap()],
     )
 }
 

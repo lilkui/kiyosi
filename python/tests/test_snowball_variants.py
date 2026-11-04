@@ -390,7 +390,6 @@ class SnowballVariantTests(unittest.TestCase):
                     )
             for records, expected_error in (
                 ([], InvalidInputError),
-                ([AutocallableObservation(END, 0)], InvalidInputError),
                 (
                     [AutocallableObservation(END, 110, coupon_barrier_level=1)],
                     InvalidInputError,

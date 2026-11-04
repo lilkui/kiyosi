@@ -261,7 +261,7 @@ fn daily_history_uses_expiry_clock_and_inclusive_start() {
         0.0,
         time(6, 9, 0),
         time(7, 15, 0),
-        vec![AutocallableObservation::new(time(7, 15, 0), 110.0)],
+        vec![AutocallableObservation::new(time(7, 15, 0), 110.0).unwrap()],
     ))
     .unwrap();
     assert!(
@@ -314,7 +314,7 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
         0.0,
         start,
         expiry,
-        vec![AutocallableObservation::new(time(6, 10, 0), 1000.0)],
+        vec![AutocallableObservation::new(time(6, 10, 0), 1000.0).unwrap()],
     ))
     .unwrap();
     let context = PricingContext::new(
@@ -344,7 +344,7 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
         0.0,
         start,
         expiry,
-        vec![AutocallableObservation::new(time(6, 10, 0), 110.0)],
+        vec![AutocallableObservation::new(time(6, 10, 0), 110.0).unwrap()],
     );
     terms.observations[0].coupon_rate = 0.12;
     let note = SnowballOption::new(terms).unwrap();
@@ -399,8 +399,8 @@ fn finite_difference_rejects_unresolvable_microsecond_events() {
             start,
             last,
             vec![
-                AutocallableObservation::new(first, 1000.0),
-                AutocallableObservation::new(last, 1000.0),
+                AutocallableObservation::new(first, 1000.0).unwrap(),
+                AutocallableObservation::new(last, 1000.0).unwrap(),
             ],
         )
     })

@@ -1,5 +1,10 @@
 """Validated derivative contracts, autocallable presets and observation adapters.
 
+``AutocallableObservation`` and ``autocallable_observations`` validate positive
+knock-out levels, finite signed coupon rates and nonnegative coupon barriers
+on construction. Notes additionally validate ordering, life bounds and their
+product-specific coupon rules.
+
 ``OptionType`` selects ``"call"`` or ``"put"``. Contract effective and expiry
 boundaries are inclusive ``datetime.datetime`` values. Microseconds participate
 in expiry, observation and elapsed-time calculations. Calendars classify dates

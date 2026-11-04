@@ -191,8 +191,9 @@ fn reals(values: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
 ///
 /// Notes
 /// -----
-/// This record checks Python representations only. Note construction
-/// validates contractual levels and coupons.
+/// Numeric terms are validated in Rust on construction. Note construction also
+/// validates observation ordering, life bounds and product-specific constraints.
+/// Invalid numeric terms raise InvalidInputError.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct AutocallableObservation(pub kiyosi::AutocallableObservation);
@@ -206,12 +207,13 @@ impl AutocallableObservation {
         #[pyo3(from_py_with = real)] coupon_rate: f64,
         #[pyo3(from_py_with = real)] coupon_barrier_level: f64,
     ) -> PyResult<Self> {
-        let mut record = kiyosi::AutocallableObservation::new(
+        let mut record = domain(kiyosi::AutocallableObservation::new(
             crate::conversions::timestamp(time)?,
             real(knock_out_level)?,
-        );
+        ))?;
         record.coupon_rate = coupon_rate;
         record.coupon_barrier_level = coupon_barrier_level;
+        domain(record.validate())?;
         Ok(Self(record))
     }
     /// Return exact observation time.
@@ -219,17 +221,17 @@ impl AutocallableObservation {
     fn time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         python_timestamp(py, self.0.time)
     }
-    /// Return the supplied knock-out threshold; the note constructor validates it.
+    /// Return the positive finite knock-out threshold.
     #[getter]
     fn knock_out_level(&self) -> f64 {
         self.0.knock_out_level
     }
-    /// Return the supplied annual coupon in decimal units; note construction validates it.
+    /// Return the finite signed annual coupon in decimal units.
     #[getter]
     fn coupon_rate(&self) -> f64 {
         self.0.coupon_rate
     }
-    /// Return the supplied Phoenix coupon threshold; note construction validates it.
+    /// Return the finite nonnegative Phoenix coupon threshold.
     #[getter]
     fn coupon_barrier_level(&self) -> f64 {
         self.0.coupon_barrier_level
@@ -266,11 +268,11 @@ impl AutocallableObservation {
 /// Raises
 /// ------
 /// InvalidInputError
-///     If sequence lengths differ.
+///     If sequence lengths differ or numeric levels or coupons are invalid.
 ///
 /// Notes
 /// -----
-/// The note constructor validates contractual values and ordering.
+/// The note constructor validates ordering, life bounds and product-specific constraints.
 #[pyfunction]
 #[pyo3(signature = (observation_times, knock_out_levels, *, knock_out_coupon_rates=None, coupon_barrier_levels=None))]
 pub(crate) fn autocallable_observations(

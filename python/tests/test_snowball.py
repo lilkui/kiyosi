@@ -166,9 +166,7 @@ class SnowballTests(unittest.TestCase):
             ({"expiry_time": datetime(2024, 1, 1)}, InvalidInputError),
         ):
             self.assert_rejection(expected_error, contract, **fields)
-        # Records retain input values until the authoritative note constructor validates them.
-        invalid = AutocallableObservation(END, math.nan)
-        self.assert_rejection(InvalidInputError, contract, observations=[invalid])
+        self.assert_rejection(InvalidInputError, AutocallableObservation, END, math.nan)
         engine = QuadratureAutocallableEngine()
         unknown = contract(knock_in_observation_mode="every_trading_day")
         self.assert_rejection(
