@@ -10,6 +10,31 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_heston_greeks_check_model_before_request_controls(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        option = ins.EuropeanOption(
+            option_type="call", strike=100, effective_time=start, expiry_time=end
+        )
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        for engine in (
+            pricing.AnalyticHestonEuropeanEngine(),
+            pricing.FiniteDifferenceHestonVanillaEngine(),
+        ):
+            for request in ([], "all"):
+                with (
+                    self.subTest(engine=type(engine).__name__, request=request),
+                    self.assertRaises(UnsupportedOperationError),
+                ):
+                    engine.price_with_greeks(
+                        option, context, request, time_shift_days=0
+                    )
+
     def test_built_in_pricing_requires_valuation_within_inclusive_contract_life(self):
         start, end = datetime(2025, 1, 1), datetime(2025, 1, 2)
         life = {"effective_time": start, "expiry_time": end}

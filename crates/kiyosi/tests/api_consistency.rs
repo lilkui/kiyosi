@@ -1,6 +1,37 @@
 use kiyosi::*;
 
 #[test]
+fn heston_greeks_check_model_before_request_controls() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, start.add_days(365)?)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+        100.0,
+        start,
+    )?;
+    for engine in [
+        &AnalyticHestonEuropeanEngine::default() as &dyn PricingEngine,
+        &FiniteDifferenceHestonVanillaEngine::default(),
+    ] {
+        for request in [GreeksRequest::new([]), GreeksRequest::all()] {
+            assert!(matches!(
+                engine.price_with_greeks(
+                    &option,
+                    &context,
+                    request,
+                    NumericalShiftSettings {
+                        time_shift_days: 0,
+                        ..Default::default()
+                    }
+                ),
+                Err(Error::UnsupportedOperation(_))
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn built_in_pricing_requires_valuation_within_inclusive_contract_life() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(1)?;

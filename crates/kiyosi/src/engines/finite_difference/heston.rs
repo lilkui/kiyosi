@@ -150,7 +150,8 @@ impl FiniteDifferenceHestonVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Rejects empty requests or invalid shifts with [`crate::Error::InvalidInput`] and propagates
+    /// Checks Heston applicability first, then rejects empty requests or invalid shifts
+    /// with [`crate::Error::InvalidInput`] and propagates
     /// [`Self::price`] errors. Inputs remain unchanged; valid numerical shifts are unused.
     pub fn price_with_greeks<I: OptionContract>(
         &self,
@@ -162,6 +163,7 @@ impl FiniteDifferenceHestonVanillaEngine {
     where
         Self: PricingEngine<I>,
     {
+        <Self as PricingEngine<I>>::validate_applicability(self, context)?;
         request.validate()?;
         settings.validate()?;
         PricingResult::new(self.price(option, context)?)
