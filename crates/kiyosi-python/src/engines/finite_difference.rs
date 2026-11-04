@@ -69,7 +69,8 @@ macro_rules! fd_engine {
         /// their stencils cross product events. Surface coverage follows remaining
         /// stochastic evolution; rate coverage follows required future discounting.
         /// Automatic local-volatility domains require convergence checks.
-        #[pyclass(frozen, module = "kiyosi._native")]
+        #[pyclass(frozen, eq, module = "kiyosi._native")]
+        #[derive(PartialEq)]
         pub(crate) struct $name(pub(crate) kiyosi::$name);
 
         numerical_greeks_methods!(

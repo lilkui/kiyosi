@@ -10,7 +10,8 @@ use pyo3::prelude::*;
 /// --------
 /// BinaryBarrierOption : Supported contract.
 /// TouchOption : Supported contract.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct AnalyticBinaryBarrierEngine;
 numerical_greeks_methods!(
     BinaryInstrument<'_>,

@@ -36,7 +36,8 @@ fn evaluation_count(value: &Bound<'_, PyAny>) -> PyResult<usize> {
 /// tail checks. Expiry and deterministic-variance branches need no evaluations.
 /// Requested Greeks remain None; implied-parameter solvers raise UnsupportedOperationError. Pricing releases
 /// the GIL for core computation, with independent state for concurrent calls.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct AnalyticHestonEuropeanEngine(pub(crate) kiyosi::AnalyticHestonEuropeanEngine);
 
 numerical_greeks_methods!(

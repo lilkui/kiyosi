@@ -46,7 +46,8 @@ pub(crate) use with_vanilla;
 /// Notes
 /// -----
 /// Accepts EuropeanOption and AmericanOption.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct CoxRossRubinsteinVanillaEngine(pub(crate) kiyosi::CoxRossRubinsteinVanillaEngine);
 
 numerical_greeks_methods!(
@@ -132,7 +133,8 @@ macro_rules! binomial_engine {
         /// -----
         /// Provides node delta/gamma for its product family; other Greeks are absent.
         $(#[$doc])*
-        #[pyclass(frozen, module = "kiyosi._native")]
+        #[pyclass(frozen, eq, module = "kiyosi._native")]
+        #[derive(PartialEq)]
         pub(crate) struct $name(pub(crate) kiyosi::$name);
 
         numerical_greeks_methods!(

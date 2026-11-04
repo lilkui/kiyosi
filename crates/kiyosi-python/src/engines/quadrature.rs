@@ -36,7 +36,8 @@ macro_rules! quadrature_engine {
         $(#[doc = concat!("    Also raised if ", stringify!($time), " is below 1.")])?
         ///
         $(#[$doc])*
-        #[pyclass(frozen, module = "kiyosi._native")]
+        #[pyclass(frozen, eq, module = "kiyosi._native")]
+        #[derive(PartialEq)]
         pub(crate) struct $name(pub(crate) kiyosi::$name);
 
         numerical_greeks_methods!(

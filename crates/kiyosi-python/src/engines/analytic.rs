@@ -1,7 +1,8 @@
 macro_rules! analytic_engine {
     ($(#[$doc:meta])* $engine:ident, $option:ident) => {
         $(#[$doc])*
-        #[pyclass(frozen, module = "kiyosi._native")]
+        #[pyclass(frozen, eq, module = "kiyosi._native")]
+        #[derive(PartialEq)]
         pub(crate) struct $engine;
         numerical_greeks_methods!(
             PyRef<'_, $option>,

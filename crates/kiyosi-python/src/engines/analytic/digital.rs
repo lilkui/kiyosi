@@ -10,7 +10,8 @@ use pyo3::prelude::*;
 /// --------
 /// CashOrNothingOption : Supported contract.
 /// AssetOrNothingOption : Supported contract.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct AnalyticDigitalEngine;
 
 numerical_greeks_methods!(

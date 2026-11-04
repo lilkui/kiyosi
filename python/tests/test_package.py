@@ -14,6 +14,37 @@ from kiyosi import _native, instruments, market, pricing
 
 
 class PackageTests(unittest.TestCase):
+    def test_engines_compare_by_type_and_configuration(self):
+        factories = [
+            getattr(pricing, name)
+            for name in pricing.__all__
+            if name.endswith("Engine")
+        ]
+        for index, factory in enumerate(factories):
+            engine = factory()
+            with self.subTest(engine=factory.__name__):
+                self.assertEqual(engine, factory())
+                self.assertEqual(engine, pickle.loads(pickle.dumps(engine)))
+                self.assertNotEqual(engine, factories[(index + 1) % len(factories)]())
+                self.assertNotEqual(engine, object())
+                with self.assertRaises(TypeError):
+                    hash(engine)
+                for name in inspect.signature(factory).parameters:
+                    value = getattr(engine, name)
+                    if value is None:
+                        alternate = 42 if name == "seed" else 1000.0
+                    elif isinstance(value, bool):
+                        alternate = not value
+                    elif isinstance(value, str):
+                        alternate = {
+                            "scheme": "implicit_euler",
+                            "sampling": "sobol",
+                        }[name]
+                    else:
+                        alternate = value * 2 if value else 1
+                    with self.subTest(field=name):
+                        self.assertNotEqual(engine, factory(**{name: alternate}))
+
     def test_engine_signature_defaults_can_be_forwarded(self):
         for name in pricing.__all__:
             if not name.endswith("Engine"):

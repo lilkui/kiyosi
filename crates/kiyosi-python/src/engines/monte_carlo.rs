@@ -236,7 +236,8 @@ macro_rules! sampling_settings {
 /// terminal spot rounds to the strike. American pricing uses least-squares
 /// Monte Carlo (Longstaff-Schwartz) with
 /// step_count exercise intervals and requires at least two before expiry.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct MonteCarloVanillaEngine(pub(crate) kiyosi::MonteCarloVanillaEngine);
 
 sampling_settings!(
@@ -419,7 +420,8 @@ impl MonteCarloEstimate {
 /// does not reserve workers. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
 /// Only likelihood-ratio delta and gamma are returned; other requested Greeks remain absent.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct MonteCarloDigitalEngine(pub(crate) kiyosi::MonteCarloDigitalEngine);
 
 numerical_greeks_methods!(
@@ -513,7 +515,8 @@ numerical_greeks_methods!(
 /// Geometric averages and single fixings sample exact distributions.
 /// Arithmetic averages use step_count trapezoidal intervals with the first
 /// interval integrated conditionally.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct MonteCarloAsianEngine(pub(crate) kiyosi::MonteCarloAsianEngine);
 
 numerical_greeks_methods!(
@@ -606,7 +609,8 @@ numerical_greeks_methods!(
 /// Monitoring uses continuous survival or the original fixing dates.
 /// Near-strike payoffs retain movements even when terminal spot rounds to strike.
 /// Only delta and gamma are returned.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct MonteCarloBarrierEngine(pub(crate) kiyosi::MonteCarloBarrierEngine);
 
 sampling_settings!(@barrier MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierOption>);
@@ -647,7 +651,8 @@ sampling_settings!(@barrier MonteCarloBarrierEngine, PyRef<'_, barrier::BarrierO
 /// Monitoring uses continuous survival or the original fixing dates.
 /// Near-strike payoffs retain movements even when terminal spot rounds to strike.
 /// Only delta and gamma are returned.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct MonteCarloDoubleBarrierEngine(pub(crate) kiyosi::MonteCarloDoubleBarrierEngine);
 
 sampling_settings!(@barrier MonteCarloDoubleBarrierEngine, PyRef<'_, double_barrier::DoubleBarrierOption>);
@@ -690,7 +695,8 @@ sampling_settings!(@barrier MonteCarloDoubleBarrierEngine, PyRef<'_, double_barr
 /// request; solver tolerances do not measure sampling error.
 /// Simulation uses trading days when knock-in matters, or observation
 /// dates and expiry otherwise.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct MonteCarloAutocallableEngine(pub(crate) kiyosi::MonteCarloAutocallableEngine);
 
 sampling_settings!(
@@ -734,7 +740,8 @@ sampling_settings!(
 /// request; solver tolerances do not measure sampling error.
 /// Simulation uses the future trading dates. A current knock-out settles
 /// before any purchase.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct MonteCarloAccumulatorEngine(pub(crate) kiyosi::MonteCarloAccumulatorEngine);
 
 sampling_settings!(

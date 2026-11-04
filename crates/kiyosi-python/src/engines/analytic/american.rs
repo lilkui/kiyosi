@@ -9,7 +9,8 @@ use pyo3::prelude::*;
 /// See Also
 /// --------
 /// AmericanOption : Supported contract.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct BjerksundStenslandVanillaEngine;
 
 numerical_greeks_methods!(

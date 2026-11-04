@@ -40,7 +40,8 @@ use pyo3::prelude::*;
 /// requiring an absent Greek or using an implied-parameter solver raises
 /// UnsupportedOperationError. Inputs and settings are immutable; core
 /// pricing releases the GIL and permits concurrent calls with independent state.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct FiniteDifferenceHestonVanillaEngine(
     pub(crate) kiyosi::FiniteDifferenceHestonVanillaEngine,
 );
