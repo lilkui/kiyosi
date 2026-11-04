@@ -158,7 +158,7 @@ fn price(
     context.bsm_parameters()?;
     flat_rates(context)?;
     validate_life(option, context)?;
-    validate_schedule(option.observation_schedule(), context)?;
+    validate_schedule(option.observation_schedule(), option.calendar())?;
     if let Some(value) = resolved_price(option, context)? {
         return Ok(value);
     }

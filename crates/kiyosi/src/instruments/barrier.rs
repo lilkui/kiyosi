@@ -1,7 +1,7 @@
 use super::monitoring::Monitoring;
 use crate::{
     Error, EuropeanOption, ObservationSchedule, OptionContract, OptionType, PricingContext, Result,
-    Timestamp,
+    Timestamp, TradingCalendar,
 };
 
 /// Direction and activation behavior; see [`BarrierOption::new`].
@@ -123,6 +123,21 @@ pub struct BarrierOption {
     rebate_timing: RebateTiming,
 }
 impl BarrierOption {
+    /// Replaces the owned observation calendar, leaving other terms unchanged.
+    ///
+    /// Defaults to weekdays. Pricing checks scheduled observations against this
+    /// calendar independently of the market context; see [`Self::new`].
+    #[must_use]
+    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Self {
+        self.monitoring = self.monitoring.with_calendar(calendar);
+        self
+    }
+
+    /// Borrows the contract's observation calendar; see [`Self::with_calendar`].
+    pub fn calendar(&self) -> &TradingCalendar {
+        self.monitoring.calendar()
+    }
+
     /// Creates an owning contract after validating monitoring and payoff terms.
     ///
     /// Trading-day compatibility and history relative to valuation are checked during pricing.
@@ -140,7 +155,8 @@ impl BarrierOption {
     /// # fn main() -> kiyosi::Result<()> {
     /// let terms = BarrierOptionTerms::new(OptionType::Call, 100.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut);
-    /// let option = BarrierOption::new(terms)?;
+    /// let option = BarrierOption::new(terms)?.with_calendar(kiyosi::TradingCalendar::weekdays());
+    /// assert_eq!(option.calendar(), &kiyosi::TradingCalendar::weekdays());
     /// assert_eq!(option.barrier_level(), 120.0);
     /// assert_eq!(option.touch_state(), None);
     /// # Ok(()) }
@@ -306,6 +322,8 @@ impl OptionContract for BarrierOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct BarrierOptionChanges {
+    /// Replaces the owned observation calendar; see [`BarrierOption::with_calendar`].
+    pub calendar: Option<TradingCalendar>,
     /// Replaces [`option_type`](BarrierOptionTerms::option_type).
     pub option_type: Option<OptionType>,
     /// Replaces [`strike`](BarrierOptionTerms::strike).
@@ -372,6 +390,9 @@ impl BarrierOption {
                 .observation_times
                 .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
+        })
+        .map(|option| {
+            option.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar().clone()))
         })
     }
 }

@@ -1,7 +1,7 @@
 use super::monitoring::{Monitoring, validate_upper};
 use crate::{
     BarrierTouchState, BarrierType, DoubleBarrierType, Error, ObservationMode, ObservationSchedule,
-    OptionContract, PricingContext, Result, SettlementTiming, Timestamp,
+    OptionContract, PricingContext, Result, SettlementTiming, Timestamp, TradingCalendar,
 };
 
 /// Cash double-touch inputs; see [`DoubleTouchOption::cash`] for validation and usage.
@@ -62,6 +62,21 @@ pub struct DoubleTouchOption {
     settlement_timing: SettlementTiming,
 }
 impl DoubleTouchOption {
+    /// Replaces the owned observation calendar; see [`Self::cash`] for construction.
+    ///
+    /// Defaults to weekdays. Pricing validates scheduled observations independently
+    /// of the market context's calendar. Other terms remain unchanged.
+    #[must_use]
+    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Self {
+        self.monitoring = self.monitoring.with_calendar(calendar);
+        self
+    }
+
+    /// Borrows the contract's observation calendar; see [`Self::with_calendar`].
+    pub fn calendar(&self) -> &TradingCalendar {
+        self.monitoring.calendar()
+    }
+
     /// Validates a cash double one-touch or no-touch contract before returning an owner.
     ///
     /// Calendar compatibility and valuation-relative history are checked during pricing.
@@ -228,6 +243,8 @@ impl OptionContract for DoubleTouchOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct DoubleTouchOptionChanges {
+    /// Replaces the owned observation calendar; see [`DoubleTouchOption::with_calendar`].
+    pub calendar: Option<TradingCalendar>,
     /// Replaces [`effective_time`](DoubleTouchOptionTerms::effective_time).
     pub effective_time: Option<Timestamp>,
     /// Replaces [`expiry_time`](DoubleTouchOptionTerms::expiry_time).
@@ -279,5 +296,8 @@ impl DoubleTouchOption {
             },
             changes.payout.unwrap_or(self.payout()),
         )
+        .map(|option| {
+            option.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar().clone()))
+        })
     }
 }

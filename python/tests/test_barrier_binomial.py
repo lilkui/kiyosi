@@ -21,6 +21,7 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
     all_days_calendar,
+    weekdays_calendar,
 )
 from support.terminal import assert_terminal_greeks
 
@@ -63,6 +64,7 @@ def option(kind="down_and_out", direction="call", **changes):
         "expiry_time": END,
         "barrier_level": 120 if kind.startswith("up") else 80,
         "barrier_type": kind,
+        "calendar": all_days_calendar(),
     }
     terms.update(changes)
     return BarrierOption(**terms)
@@ -404,7 +406,9 @@ class BarrierBinomialTests(unittest.TestCase):
                     math.nan,
                 )
         invalid = option(
-            observation_mode="scheduled", observation_times=[datetime(2025, 1, 4)]
+            observation_mode="scheduled",
+            observation_times=[datetime(2025, 1, 4)],
+            calendar=weekdays_calendar(),
         )
         weekdays = PricingContext(
             model_parameters=market().model_parameters,

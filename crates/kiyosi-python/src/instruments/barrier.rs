@@ -1,3 +1,4 @@
+use crate::calendar::TradingCalendar;
 use crate::conversions::{direction, real, timestamp, timestamps};
 use crate::error::domain;
 use pyo3::exceptions::PyValueError;
@@ -64,6 +65,9 @@ pub(crate) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::Barri
 /// touch_state : {'untouched', 'touched'} or None, optional
 ///     Strictly prior history. None means unknown; untouched means known no
 ///     hit.
+/// calendar : TradingCalendar, optional
+///     Owned observation calendar; defaults to weekdays on construction and is
+///     retained on replacement. PricingContext.calendar does not change it.
 ///
 /// Raises
 /// ------
@@ -102,6 +106,9 @@ monitoring_properties!(
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// touch_state : {'untouched', 'touched'} or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
+    /// calendar : TradingCalendar, optional
+    ///     Owned observation calendar; defaults to weekdays on construction and is
+    ///     retained on replacement. PricingContext.calendar does not change it.
     ///
     /// Returns
     /// -------
@@ -114,7 +121,7 @@ monitoring_properties!(
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation, field name or mutually exclusive coupon choice is invalid.
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, barrier_level=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, rebate=crate::conversions::OMITTED, rebate_timing=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_times=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, barrier_level=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, rebate=crate::conversions::OMITTED, rebate_timing=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_times=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
         reason = "explicit Python replacement fields"
@@ -144,8 +151,12 @@ monitoring_properties!(
             &Bound<'_, PyAny>,
         >,
         #[pyo3(from_py_with = crate::conversions::supplied)] touch_state: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let changes = kiyosi::BarrierOptionChanges {
+            calendar: calendar
+                .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
+                .transpose()?,
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
             effective_time: effective_time
@@ -173,7 +184,7 @@ monitoring_properties!(
         Ok(Self(domain(self.0.replace(changes))?))
     },
     #[new]
-    #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, barrier_level, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_times=Vec::new(), touch_state=None))]
+    #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, barrier_level, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_times=Vec::new(), touch_state=None, calendar=TradingCalendar::default()))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         option_type: &Bound<'_, PyAny>,
@@ -187,6 +198,7 @@ monitoring_properties!(
         #[pyo3(from_py_with = mode)] observation_mode: kiyosi::ObservationMode,
         #[pyo3(from_py_with = timestamps)] observation_times: Vec<kiyosi::Timestamp>,
         #[pyo3(from_py_with = history)] touch_state: Option<kiyosi::BarrierTouchState>,
+        calendar: TradingCalendar,
     ) -> PyResult<Self> {
         let mut terms = kiyosi::BarrierOptionTerms::new(
             direction(option_type)?,
@@ -201,7 +213,9 @@ monitoring_properties!(
         terms.observation_mode = observation_mode;
         terms.observation_times = observation_times;
         terms.touch_state = touch_state;
-        Ok(Self(domain(kiyosi::BarrierOption::new(terms))?))
+        Ok(Self(
+            domain(kiyosi::BarrierOption::new(terms))?.with_calendar(calendar.0),
+        ))
     },
     /// Return call or put payoff direction.
     #[getter]

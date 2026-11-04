@@ -12,7 +12,7 @@ without moving contract boundaries. Pricing requires valuation within the
 inclusive effective and expiry times for every built-in contract, including range accruals.
 Finite-difference pricing raises ``ComputationFailureError`` if distinct event times
 cannot be represented distinctly by its numerical grid.
-Range accruals, accumulators and autocallable notes own their ``calendar``
+Barrier and touch contracts, range accruals, accumulators and autocallable notes own their ``calendar``
 (weekdays by default). Supply the contractual calendar when constructing them or
 use ``replace(calendar=...)`` to amend it. Context calendar changes do not change
 their observations or history interpretation; replacement, coupon shifts and
@@ -86,6 +86,13 @@ only for one-touch contracts (``up_and_in`` or ``down_and_in``):
 ... )
 >>> (touch.barrier_type, touch.is_one_touch, touch.settlement_timing)
 ('down_and_out', False, 'at_expiry')
+
+Select an all-days contractual calendar independently of the market snapshot:
+
+>>> from kiyosi.market import all_days_calendar
+>>> daily_touch = touch.replace(calendar=all_days_calendar())
+>>> daily_touch.calendar == all_days_calendar()
+True
 """
 
 from typing import Literal

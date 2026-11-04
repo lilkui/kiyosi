@@ -292,6 +292,7 @@ class BarrierTests(unittest.TestCase):
                         datetime(2025, 1, 1) + timedelta(days=i) for i in range(1, 366)
                     ],
                     touch_state="untouched",
+                    calendar=all_days_calendar(),
                 )
             )
             result = engine.price_with_greeks(

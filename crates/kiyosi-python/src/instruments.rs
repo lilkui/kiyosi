@@ -3,6 +3,11 @@ macro_rules! monitoring_properties {
         #[pyo3::pymethods]
         impl $name {
             $($extra)*
+            /// Returns an owned copy of the contract's observation calendar.
+            #[getter]
+            fn calendar(&self) -> $crate::calendar::TradingCalendar {
+                $crate::calendar::TradingCalendar(self.0.calendar().clone())
+            }
             /// Returns a validated replacement without changing this value.
             ///
             /// Parameters

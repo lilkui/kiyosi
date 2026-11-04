@@ -367,7 +367,7 @@ fn native_with_model<D: Diffusion>(
     let terms = option.monitoring();
     let upper_barrier = option.upper_barrier();
     validate_life(terms, context)?;
-    validate_schedule(terms.observation_schedule(), context)?;
+    validate_schedule(terms.observation_schedule(), terms.calendar())?;
     if D::LOCAL {
         if let Some(result) = local_resolved(option, context, settings, request, shifts)? {
             return Ok(result);

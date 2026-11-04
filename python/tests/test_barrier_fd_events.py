@@ -234,6 +234,7 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
                 rebate=2,
                 rebate_timing=timing,
                 observation_mode="scheduled",
+                calendar=all_days_calendar(),
                 observation_times=[
                     START + timedelta(days=i) for i in (90, 180, 270, 360)
                 ],

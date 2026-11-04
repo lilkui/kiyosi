@@ -96,7 +96,7 @@ impl Contract<'_> {
         let dividend = model.flat_dividend_yield()?;
         let valuation = context.valuation_time();
         validate_life(option, context)?;
-        validate_schedule(option.observation_schedule(), context)?;
+        validate_schedule(option.observation_schedule(), option.calendar())?;
         let (prior, touched, finished) = self.state(context)?;
         let t = valuation.years_until(option.expiry_time());
         let knock_in = option.barrier_type().is_knock_in();

@@ -77,7 +77,6 @@ context = PricingContext(
     ),
     spot_price=100.0,
     valuation_time=start,
-    calendar=calendar,
 )
 engine = FiniteDifferenceAutocallableEngine(
     asset_step_count=800,

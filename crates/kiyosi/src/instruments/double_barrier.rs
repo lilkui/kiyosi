@@ -1,7 +1,7 @@
 use crate::{
     BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType, EuropeanOption,
     ObservationMode, ObservationSchedule, OptionContract, OptionType, PricingContext, RebateTiming,
-    Result, Timestamp,
+    Result, Timestamp, TradingCalendar,
 };
 
 /// Activation by either boundary; see [`DoubleBarrierOption::new`].
@@ -81,6 +81,21 @@ pub struct DoubleBarrierOption {
     upper: f64,
 }
 impl DoubleBarrierOption {
+    /// Replaces the owned observation calendar; see [`Self::new`] for construction.
+    ///
+    /// Defaults to weekdays. Pricing validates scheduled observations independently
+    /// of the market context's calendar. Other terms remain unchanged.
+    #[must_use]
+    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Self {
+        self.lower = self.lower.with_calendar(calendar);
+        self
+    }
+
+    /// Borrows the contract's observation calendar; see [`Self::with_calendar`].
+    pub fn calendar(&self) -> &TradingCalendar {
+        self.lower.calendar()
+    }
+
     /// Validates boundaries, life, schedule, strike and rebate before returning an owner.
     ///
     /// Calendar compatibility and history relative to valuation are checked during pricing.
@@ -265,6 +280,8 @@ impl OptionContract for DoubleBarrierOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct DoubleBarrierOptionChanges {
+    /// Replaces the owned observation calendar; see [`DoubleBarrierOption::with_calendar`].
+    pub calendar: Option<TradingCalendar>,
     /// Replaces [`option_type`](DoubleBarrierOptionTerms::option_type).
     pub option_type: Option<OptionType>,
     /// Replaces [`strike`](DoubleBarrierOptionTerms::strike).
@@ -317,6 +334,9 @@ impl DoubleBarrierOption {
                 .observation_times
                 .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
+        })
+        .map(|option| {
+            option.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar().clone()))
         })
     }
 }

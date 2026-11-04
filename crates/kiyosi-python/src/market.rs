@@ -341,7 +341,8 @@ impl BlackScholesMertonParameters {
 /// valuation_time : datetime.datetime
 ///     Valuation time.
 /// calendar : TradingCalendar, optional
-///     Trading calendar. Defaults to weekdays with a 252-day basis.
+///     Calendar metadata for callers and custom engines, defaulting to weekdays.
+///     Built-in pricing uses each contract's observation calendar instead.
 ///
 /// Raises
 /// ------

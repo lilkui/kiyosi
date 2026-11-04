@@ -769,12 +769,18 @@ fn publicly_prepared_requests_revalidate_different_schedules_and_calendars() {
     let closed = TradingCalendar::new(|_| false, 365).unwrap();
     let restricted = context
         .replace(PricingContextChanges {
-            calendar: Some(closed),
+            calendar: Some(closed.clone()),
             ..Default::default()
         })
         .unwrap();
+    assert_eq!(
+        prepared.price(&option, &restricted).unwrap(),
+        prepared.price(&option, &context).unwrap()
+    );
     assert!(matches!(
-        prepared.price(&option, &restricted).unwrap_err(),
+        prepared
+            .price(&option.with_calendar(closed), &context)
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
     t.observation_times = vec![Date::new(2025, 1, 4).unwrap().start_of_day()];

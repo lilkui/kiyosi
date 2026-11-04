@@ -20,6 +20,7 @@ pub(crate) struct Monitoring {
     barrier_type: BarrierType,
     observation_mode: ObservationMode,
     schedule: ObservationSchedule,
+    calendar: TradingCalendar,
     touch_state: Option<BarrierTouchState>,
 }
 
@@ -56,6 +57,7 @@ impl Monitoring {
             barrier_type,
             observation_mode,
             schedule,
+            calendar: TradingCalendar::default(),
             touch_state,
         })
     }
@@ -65,6 +67,13 @@ impl Monitoring {
             touch_state,
             ..self.clone()
         }
+    }
+    pub(crate) fn with_calendar(mut self, calendar: TradingCalendar) -> Self {
+        self.calendar = calendar;
+        self
+    }
+    pub(crate) fn calendar(&self) -> &TradingCalendar {
+        &self.calendar
     }
     pub(crate) fn effective_time(&self) -> Timestamp {
         self.effective_time
@@ -208,12 +217,12 @@ pub(crate) fn validate_life(
 
 pub(crate) fn validate_schedule(
     schedule: &ObservationSchedule,
-    context: &PricingContext,
+    calendar: &TradingCalendar,
 ) -> Result<()> {
     if schedule
         .times()
         .iter()
-        .any(|&d| !context.calendar().is_trading_day(d.date()))
+        .any(|&d| !calendar.is_trading_day(d.date()))
     {
         return Err(Error::InvalidInput(
             "observation is not a trading day".into(),

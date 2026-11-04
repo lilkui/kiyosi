@@ -16,7 +16,7 @@ from kiyosi import (
     pricing,
 )
 from kiyosi.instruments import EuropeanOption
-from kiyosi.market import PricingContext, RateTermStructure
+from kiyosi.market import PricingContext, RateTermStructure, weekdays_calendar
 from support.terminal import assert_terminal_greeks
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
@@ -458,6 +458,7 @@ class BarrierQuadratureTests(unittest.TestCase):
             observation_mode="scheduled",
             observation_times=[datetime(2025, 1, 4)],
             touch_state="touched",
+            calendar=weekdays_calendar(),
         )
         weekdays = PricingContext(
             model_parameters=market().model_parameters,

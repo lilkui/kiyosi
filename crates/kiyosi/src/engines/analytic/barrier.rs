@@ -84,14 +84,14 @@ fn price(
         .and_then(|schedule| schedule.get())
         .filter(|cached| {
             &cached.schedule == option.observation_schedule()
-                && cached.calendar == *context.calendar()
+                && cached.calendar == *option.calendar()
         });
     if cached.is_none() {
-        validate_schedule(option.observation_schedule(), context)?;
+        validate_schedule(option.observation_schedule(), option.calendar())?;
         if let Some(schedule) = schedule {
             let _ = schedule.set(ScheduleValidation {
                 schedule: option.observation_schedule().clone(),
-                calendar: context.calendar().clone(),
+                calendar: option.calendar().clone(),
             });
         }
     }

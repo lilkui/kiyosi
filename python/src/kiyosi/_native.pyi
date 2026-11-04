@@ -1764,6 +1764,8 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
     ) -> PricingResult: ...
 
 class BarrierOption:
+    @property
+    def calendar(self) -> TradingCalendar: ...
     def replace(
         self,
         *,
@@ -1779,6 +1781,7 @@ class BarrierOption:
         observation_mode: Literal["continuous", "scheduled"] | EllipsisType = ...,
         observation_times: Iterable[datetime] | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
     def __init__(
         self,
@@ -1794,6 +1797,7 @@ class BarrierOption:
         observation_mode: Literal["continuous", "scheduled"] = ...,
         observation_times: Iterable[datetime] = ...,
         touch_state: Literal["untouched", "touched"] | None = None,
+        calendar: TradingCalendar = ...,
     ) -> None: ...
     def replace_history(
         self,
@@ -1846,6 +1850,8 @@ class AnalyticBarrierEngine:
     ) -> PricingResult: ...
 
 class DoubleBarrierOption:
+    @property
+    def calendar(self) -> TradingCalendar: ...
     def replace(
         self,
         *,
@@ -1861,6 +1867,7 @@ class DoubleBarrierOption:
         observation_mode: Literal["continuous", "scheduled"] | EllipsisType = ...,
         observation_times: Iterable[datetime] | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
     def __init__(
         self,
@@ -1877,6 +1884,7 @@ class DoubleBarrierOption:
         observation_mode: Literal["continuous", "scheduled"] = ...,
         observation_times: Iterable[datetime] = ...,
         touch_state: Literal["untouched", "touched"] | None = None,
+        calendar: TradingCalendar = ...,
     ) -> None: ...
     def replace_history(
         self,
@@ -2012,6 +2020,8 @@ class AnalyticDoubleTouchEngine:
     ) -> PricingResult: ...
 
 class BinaryBarrierOption:
+    @property
+    def calendar(self) -> TradingCalendar: ...
     def replace(
         self,
         *,
@@ -2026,6 +2036,7 @@ class BinaryBarrierOption:
         observation_times: Iterable[datetime] | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         payout: _Real | EllipsisType = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
     def __new__(cls, _token: Never, /) -> Self: ...
     def replace_history(
@@ -2063,6 +2074,8 @@ class BinaryBarrierOption:
     def strike(self) -> float: ...
 
 class TouchOption:
+    @property
+    def calendar(self) -> TradingCalendar: ...
     def replace(
         self,
         *,
@@ -2076,6 +2089,7 @@ class TouchOption:
         observation_times: Iterable[datetime] | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         payout: _Real | EllipsisType = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
     def __new__(cls, _token: Never, /) -> Self: ...
     def replace_history(
@@ -2126,6 +2140,7 @@ def cash_binary_barrier_option(
     observation_mode: Literal["continuous", "scheduled"] = ...,
     observation_times: Iterable[datetime] = ...,
     touch_state: Literal["untouched", "touched"] | None = None,
+    calendar: TradingCalendar = ...,
 ) -> BinaryBarrierOption: ...
 def asset_binary_barrier_option(
     *,
@@ -2138,6 +2153,7 @@ def asset_binary_barrier_option(
     observation_mode: Literal["continuous", "scheduled"] = ...,
     observation_times: Iterable[datetime] = ...,
     touch_state: Literal["untouched", "touched"] | None = None,
+    calendar: TradingCalendar = ...,
 ) -> BinaryBarrierOption: ...
 def cash_touch_option(
     *,
@@ -2150,6 +2166,7 @@ def cash_touch_option(
     observation_mode: Literal["continuous", "scheduled"] = ...,
     observation_times: Iterable[datetime] = ...,
     touch_state: Literal["untouched", "touched"] | None = None,
+    calendar: TradingCalendar = ...,
 ) -> TouchOption: ...
 def asset_touch_option(
     *,
@@ -2161,6 +2178,7 @@ def asset_touch_option(
     observation_mode: Literal["continuous", "scheduled"] = ...,
     observation_times: Iterable[datetime] = ...,
     touch_state: Literal["untouched", "touched"] | None = None,
+    calendar: TradingCalendar = ...,
 ) -> TouchOption: ...
 
 class AnalyticBinaryBarrierEngine:
@@ -2182,6 +2200,8 @@ class AnalyticBinaryBarrierEngine:
     ) -> PricingResult: ...
 
 class DoubleTouchOption:
+    @property
+    def calendar(self) -> TradingCalendar: ...
     def replace(
         self,
         *,
@@ -2195,6 +2215,7 @@ class DoubleTouchOption:
         observation_times: Iterable[datetime] | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
         payout: _Real | EllipsisType = ...,
+        calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
     def __new__(cls, _token: Never, /) -> Self: ...
     def replace_history(
@@ -2238,6 +2259,7 @@ def cash_double_touch(
     observation_mode: Literal["continuous", "scheduled"] = ...,
     observation_times: Iterable[datetime] = ...,
     touch_state: Literal["untouched", "touched"] | None = None,
+    calendar: TradingCalendar = ...,
 ) -> DoubleTouchOption: ...
 def cash_double_no_touch(
     *,
@@ -2249,6 +2271,7 @@ def cash_double_no_touch(
     observation_mode: Literal["continuous", "scheduled"] = ...,
     observation_times: Iterable[datetime] = ...,
     touch_state: Literal["untouched", "touched"] | None = None,
+    calendar: TradingCalendar = ...,
 ) -> DoubleTouchOption: ...
 
 class QuadratureAutocallableEngine:

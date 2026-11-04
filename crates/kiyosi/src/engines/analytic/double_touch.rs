@@ -52,7 +52,7 @@ impl AnalyticDoubleTouchEngine {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
         validate_life(option, context)?;
-        validate_schedule(option.observation_schedule(), context)?;
+        validate_schedule(option.observation_schedule(), option.calendar())?;
         let (prior, touched, finished) = option.contract().state(context)?;
         let at_hit = option.settlement_timing() == SettlementTiming::AtHit;
         if prior && at_hit {

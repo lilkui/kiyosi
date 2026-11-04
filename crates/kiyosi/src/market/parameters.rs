@@ -256,6 +256,8 @@ pub struct PricingContextChanges {
 /// Owns a validated valuation snapshot.
 ///
 /// Contract-life validation occurs at pricing time; see [`Self::new`].
+/// The calendar is metadata for callers and custom engines. Built-in pricing
+/// uses the contract's calendar independently of this context.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PricingContext {
     model_parameters: ModelParameters,
