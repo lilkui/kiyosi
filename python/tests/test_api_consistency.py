@@ -217,3 +217,21 @@ class ApiConsistencyTests(unittest.TestCase):
             pricing.numerical_greeks(
                 pricing.AnalyticEuropeanEngine(), option, context, []
             )
+
+    def test_double_touch_barrier_type_roundtrips_through_replacement(self):
+        for factory, expected in (
+            (ins.cash_double_touch, "knock_in"),
+            (ins.cash_double_no_touch, "knock_out"),
+        ):
+            option = factory(
+                effective_time=datetime(2025, 1, 1),
+                expiry_time=datetime(2026, 1, 1),
+                lower_barrier=80,
+                upper_barrier=120,
+                payout=10,
+            )
+            self.assertEqual(option.barrier_type, expected)
+            self.assertEqual(option.replace(barrier_type=option.barrier_type), option)
+            other = "knock_out" if expected == "knock_in" else "knock_in"
+            self.assertEqual(option.replace(barrier_type=other).barrier_type, other)
+            self.assertEqual(pickle.loads(pickle.dumps(option)).barrier_type, expected)

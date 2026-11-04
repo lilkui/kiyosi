@@ -126,6 +126,14 @@ monitoring_properties!(
     fn payout(&self) -> f64 {
         self.0.payout()
     },
+    /// Return knock_in for one-touch or knock_out for no-touch payment.
+    #[getter]
+    fn barrier_type(&self) -> &'static str {
+        match self.0.barrier_type() {
+            kiyosi::DoubleBarrierType::KnockIn => "knock_in",
+            kiyosi::DoubleBarrierType::KnockOut => "knock_out",
+        }
+    },
     /// Return whether touching activates payment.
     #[getter]
     fn is_one_touch(&self) -> bool {

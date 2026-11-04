@@ -17,7 +17,8 @@ history are preserved; supplied terms are validated together in Rust.
 For example, ``barrier.replace(strike=105)`` preserves monitoring and history,
 and changing monitoring to scheduled requires supplying the observation times in the same call.
 Phoenix replacements accept at most one coupon choice and can change coupon units.
-Double-touch replacements accept ``barrier_type="knock_in"`` or ``"knock_out"``;
+Double-touch contracts expose ``barrier_type="knock_in"`` or ``"knock_out"``
+for inspection and replacement;
 asset-settled binary and touch contracts reject cash payout replacements.
 ``replace_history()`` updates only prior history on path-dependent contracts.
 Both return new contracts and expose named keyword-only fields through ``inspect.signature``.

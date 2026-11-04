@@ -228,3 +228,38 @@ fn native_greek_methods_accept_shared_shift_settings() -> Result<()> {
     check!(MonteCarloDoubleBarrierEngine::new(settings)?, &double);
     Ok(())
 }
+
+#[test]
+fn double_touch_barrier_type_roundtrips_through_replacement() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = Date::new(2026, 1, 1)?.start_of_day();
+    for kind in [DoubleBarrierType::KnockIn, DoubleBarrierType::KnockOut] {
+        let option = DoubleTouchOption::cash(
+            DoubleTouchOptionTerms::new(start, end, 80.0, 120.0, kind),
+            10.0,
+        )?;
+        assert_eq!(option.barrier_type(), kind);
+        assert_eq!(
+            option.replace(DoubleTouchOptionChanges {
+                barrier_type: Some(option.barrier_type()),
+                ..Default::default()
+            })?,
+            option
+        );
+        let other = if kind == DoubleBarrierType::KnockIn {
+            DoubleBarrierType::KnockOut
+        } else {
+            DoubleBarrierType::KnockIn
+        };
+        assert_eq!(
+            option
+                .replace(DoubleTouchOptionChanges {
+                    barrier_type: Some(other),
+                    ..Default::default()
+                })?
+                .barrier_type(),
+            other
+        );
+    }
+    Ok(())
+}

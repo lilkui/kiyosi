@@ -150,6 +150,14 @@ impl DoubleTouchOption {
     pub fn is_one_touch(&self) -> bool {
         self.monitoring.barrier_type().is_knock_in()
     }
+    /// Returns the knock-in or knock-out payment condition; see [`Self::cash`].
+    pub fn barrier_type(&self) -> DoubleBarrierType {
+        if self.is_one_touch() {
+            DoubleBarrierType::KnockIn
+        } else {
+            DoubleBarrierType::KnockOut
+        }
+    }
     /// Returns payment timing; see [`Self::cash`].
     pub fn settlement_timing(&self) -> SettlementTiming {
         self.settlement_timing
@@ -259,11 +267,7 @@ impl DoubleTouchOption {
                 expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
                 lower_barrier: changes.lower_barrier.unwrap_or(self.lower_barrier()),
                 upper_barrier: changes.upper_barrier.unwrap_or(self.upper_barrier()),
-                barrier_type: changes.barrier_type.unwrap_or(if self.is_one_touch() {
-                    DoubleBarrierType::KnockIn
-                } else {
-                    DoubleBarrierType::KnockOut
-                }),
+                barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
                 settlement_timing: changes
                     .settlement_timing
                     .unwrap_or(self.settlement_timing()),
