@@ -406,7 +406,11 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     assert_eq!(unknown.touch_state(), None);
     assert_eq!(engine.settings().step_count, 3);
 
-    let curve = RateTermStructure::new(t.effective_time, vec![t.expiry_time], vec![0.99]);
+    let curve = RateTermStructure::new(
+        t.effective_time,
+        vec![t.effective_time.add_days(1).unwrap(), t.expiry_time],
+        vec![0.995, 0.99],
+    );
     let curve = curve.unwrap();
     let nonflat = PricingContext::new(
         BlackScholesMertonParameters::new(curve, 0.01, 0.2).unwrap(),

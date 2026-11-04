@@ -275,7 +275,7 @@ fn bjerksund_call(
 /// Prices American vanilla options using the Bjerksund-Stensland 2002 approximation.
 ///
 /// This synchronous, stateless engine supports shared concurrent use. It accepts
-/// scalar or explicitly flat rates only; it never substitutes another American algorithm.
+/// scalar or constant rates only; it never substitutes another American algorithm.
 /// See [`Self::price`] for an example and applicability limits.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct BjerksundStenslandVanillaEngine;
@@ -293,7 +293,7 @@ impl BjerksundStenslandVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves (before life
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves (before life
     /// validation), negative transformed interest rates before expiry (call: rate;
     /// put: dividend), or exercise boundaries at/below strike. Returns
     /// [`Error::InvalidInput`] outside the inclusive exercise window and
@@ -326,6 +326,7 @@ impl BjerksundStenslandVanillaEngine {
         }
         let time = valuation.years_until(expiry);
         let model = context.bsm_parameters()?;
+        context.validate_curve_horizon(option.expiry_time())?;
         let (rate, dividend) = (model.flat_risk_free_rate()?, model.flat_dividend_yield()?);
         let call = option.option_type() == OptionType::Call;
         if time > 0.0 && (if call { rate } else { dividend }) < 0.0 {

@@ -591,8 +591,11 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
     ));
     let curve = RateTermStructure::new(
         option.effective_time(),
-        vec![option.expiry_time()],
-        vec![0.95],
+        vec![
+            option.expiry_time(),
+            (option.expiry_time()).add_days(1).unwrap(),
+        ],
+        vec![0.95, (0.95) * 0.99],
     )
     .unwrap();
     for risk_free in [false, true] {

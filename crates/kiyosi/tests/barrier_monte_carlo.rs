@@ -699,8 +699,11 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
     let quote = engine.price(&option, &context).unwrap();
     let curve = RateTermStructure::new(
         day(1, 1),
-        vec![option.expiry_time()],
-        vec![(-0.04_f64).exp()],
+        vec![
+            option.expiry_time(),
+            (option.expiry_time()).add_days(1).unwrap(),
+        ],
+        vec![(-0.04_f64).exp(), ((-0.04_f64).exp()) * 0.99],
     )
     .unwrap();
     for (rate, dividend) in [

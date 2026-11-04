@@ -345,8 +345,11 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
     assert!(Greek::ALL.into_iter().all(|g| !boundary.has(g)));
     let curve = RateTermStructure::new(
         context.valuation_time(),
-        vec![option.expiry_time()],
-        vec![0.95],
+        vec![
+            option.expiry_time(),
+            (option.expiry_time()).add_days(1).unwrap(),
+        ],
+        vec![0.95, (0.95) * 0.99],
     )
     .unwrap();
     let model = context

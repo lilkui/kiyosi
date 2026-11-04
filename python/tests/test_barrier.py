@@ -499,8 +499,11 @@ class BarrierTests(unittest.TestCase):
         )
         curve = RateTermStructure(
             reference_time=datetime(2025, 1, 1),
-            times=[datetime(2026, 1, 1)],
-            factors=[0.95],
+            times=[
+                datetime(2026, 1, 1),
+                datetime(2026, 1, 1) + (datetime(2026, 1, 1) - datetime(2025, 1, 1)),
+            ],
+            factors=[0.95, (0.95) * 0.5],
         )
         curved = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=curve)

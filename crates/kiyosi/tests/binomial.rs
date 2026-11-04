@@ -341,7 +341,12 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
     let cash = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
     let vanilla = CoxRossRubinsteinVanillaEngine::default();
     let digital = CoxRossRubinsteinDigitalEngine::default();
-    let nodes = RateTermStructure::new(start, vec![end], vec![(-0.05_f64).exp()]).unwrap();
+    let nodes = RateTermStructure::new(
+        start,
+        vec![start.add_days(180).unwrap(), end],
+        vec![0.99, 0.95],
+    )
+    .unwrap();
     let nonflat = PricingContext::new(
         BlackScholesMertonParameters::new(nodes, 0.02, 0.2).unwrap(),
         100.0,

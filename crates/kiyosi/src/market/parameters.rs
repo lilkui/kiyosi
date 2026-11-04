@@ -72,11 +72,11 @@ impl BlackScholesMertonParameters {
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2026, 1, 1)?.start_of_day();
-    /// let discounts = RateTermStructure::new(start, vec![end], vec![0.95])?;
+    /// let discounts = RateTermStructure::new(start, vec![start.add_days(180)?, end], vec![0.98, 0.95])?;
     /// let model = BlackScholesMertonParameters::new(discounts, 0.02, 0.2)?;
     /// assert!((model.risk_free_curve().factor(start, end)? - 0.95).abs() < 1e-14);
     /// assert_eq!(model.flat_dividend_yield()?, 0.02);
-    /// assert!(model.flat_risk_free_rate().is_err()); // Node curves have no scalar rate.
+    /// assert!(model.flat_risk_free_rate().is_err()); // This curve has varying forwards.
     /// # Ok(()) }
     /// ```
     pub fn new(
@@ -110,36 +110,34 @@ impl BlackScholesMertonParameters {
             changes.volatility.unwrap_or(self.volatility),
         )
     }
-    /// Returns the explicitly flat risk-free rate.
+    /// Returns the constant risk-free rate.
     ///
     /// This scalar omits coverage bounds; use [`Self::risk_free_curve`] when
     /// reconstructing a model.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves, even if their
-    /// forwards are constant. See [`Self::new`] for scalar-rate construction.
+    /// Returns [`Error::UnsupportedOperation`] for curves with nonconstant forwards. See [`Self::new`] for scalar-rate construction.
     pub fn flat_risk_free_rate(&self) -> Result<f64> {
         self.risk_free_curve
             .flat_rate()
             .ok_or(Error::UnsupportedOperation(
-                "risk-free curve is not explicitly flat".into(),
+                "risk-free curve is not constant".into(),
             ))
     }
-    /// Returns the explicitly flat dividend yield.
+    /// Returns the constant dividend yield.
     ///
     /// This scalar omits coverage bounds; use [`Self::dividend_curve`] when
     /// reconstructing a model.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves, even if their
-    /// forwards are constant. See [`Self::new`] for scalar-rate construction.
+    /// Returns [`Error::UnsupportedOperation`] for curves with nonconstant forwards. See [`Self::new`] for scalar-rate construction.
     pub fn flat_dividend_yield(&self) -> Result<f64> {
         self.dividend_curve
             .flat_rate()
             .ok_or(Error::UnsupportedOperation(
-                "dividend curve is not explicitly flat".into(),
+                "dividend curve is not constant".into(),
             ))
     }
     /// Borrows the risk-free curve; storage remains valid for this model's lifetime.
@@ -352,6 +350,14 @@ impl PricingContext {
     }
     pub(crate) fn bsm_parameters(&self) -> Result<&BlackScholesMertonParameters> {
         self.model_parameters.as_bsm()
+    }
+    pub(crate) fn validate_curve_horizon(&self, expiry: Timestamp) -> Result<()> {
+        self.model_parameters
+            .risk_free_curve()
+            .validate_horizon(self.valuation_time, expiry)?;
+        self.model_parameters
+            .dividend_curve()
+            .validate_horizon(self.valuation_time, expiry)
     }
     /// Returns the positive spot price; see [`Self::new`].
     pub fn spot_price(&self) -> f64 {

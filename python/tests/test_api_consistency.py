@@ -1,5 +1,6 @@
 """Public API contracts shared by Rust and Python callers."""
 
+import math
 import pickle
 import unittest
 from datetime import datetime, timedelta
@@ -10,6 +11,53 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_constant_node_curves_match_scalars_and_keep_coverage(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        option = ins.EuropeanOption(
+            option_type="call", strike=100, effective_time=start, expiry_time=end
+        )
+        curve = market.RateTermStructure(
+            reference_time=start, times=[end, end + timedelta(days=365)], factors=[1, 1]
+        )
+        self.assertEqual(curve.flat_rate, 0)
+        self.assertFalse(curve.is_explicitly_flat)
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        nodes = context.replace(
+            model_parameters=context.model_parameters.replace(
+                risk_free_rate=curve, dividend_yield=curve
+            )
+        )
+        short = context.replace(
+            model_parameters=context.model_parameters.replace(
+                risk_free_rate=market.RateTermStructure(
+                    reference_time=start,
+                    times=[start + timedelta(days=180)],
+                    factors=[1],
+                )
+            )
+        )
+        for engine in (
+            pricing.AnalyticEuropeanEngine(),
+            pricing.CoxRossRubinsteinVanillaEngine(),
+            pricing.QuadratureVanillaEngine(),
+            pricing.FiniteDifferenceVanillaEngine(),
+            pricing.MonteCarloVanillaEngine(path_count=512, seed=42, thread_count=1),
+        ):
+            with self.subTest(engine=type(engine).__name__):
+                self.assertAlmostEqual(
+                    engine.price(option, context),
+                    engine.price(option, nodes),
+                    delta=1e-9,
+                )
+                with self.assertRaises(InvalidInputError):
+                    engine.price(option, short)
+
     def test_heston_greeks_check_model_before_request_controls(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = ins.EuropeanOption(
@@ -384,7 +432,7 @@ class ApiConsistencyTests(unittest.TestCase):
         nodes = market.RateTermStructure(
             reference_time=start, times=[end], factors=[0.95]
         )
-        self.assertIsNone(nodes.flat_rate)
+        self.assertAlmostEqual(nodes.flat_rate, -math.log(0.95))
 
     def test_numerical_greeks_has_uniform_controls_across_engines(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)

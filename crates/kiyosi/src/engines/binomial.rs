@@ -89,7 +89,7 @@ impl CoxRossRubinsteinVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves before life
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves before life
     /// validation, [`Error::InvalidInput`] outside contract life, and
     /// [`Error::ComputationFailure`] for unstable probabilities, asset nodes or values.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
@@ -150,6 +150,7 @@ fn time_step(
     context: &PricingContext,
     settings: BinomialSettings,
 ) -> Result<f64> {
+    context.validate_curve_horizon(option.expiry_time())?;
     let valuation = context.valuation_time();
     let expiry = option.expiry_time();
     if valuation < option.effective_time() || valuation > expiry {

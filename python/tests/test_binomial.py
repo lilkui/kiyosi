@@ -417,7 +417,9 @@ class BinomialTests(unittest.TestCase):
 
     def test_flat_rate_applicability_validation_order_and_failures(self):
         curve = RateTermStructure(
-            reference_time=START, times=[END], factors=[math.exp(-0.05)]
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[math.exp(-0.05), (math.exp(-0.05)) * 0.5],
         )
         for kind in (*VANILLA, *DIGITAL):
             engine, option = engine_for(kind), contract(kind)

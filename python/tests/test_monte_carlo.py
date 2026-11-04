@@ -284,7 +284,11 @@ class MonteCarloTests(unittest.TestCase):
             )
         before = datetime(2025, 12, 31, 23, 59, 59, 999999)
         self.assertGreaterEqual(engine.price(option, market(valuation=before)), 0)
-        nodes = RateTermStructure(reference_time=START, times=[END], factors=[0.95])
+        nodes = RateTermStructure(
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[0.95, (0.95) * 0.5],
+        )
         node_context = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=nodes),
             valuation_time=END,
@@ -917,7 +921,9 @@ class SamplingTests(unittest.TestCase):
                         engine.price(option, market(valuation=valuation))
                     self.assertIs(type(error.exception), InvalidInputError)
                 curve = RateTermStructure(
-                    reference_time=START, times=[END], factors=[0.95]
+                    reference_time=START,
+                    times=[END, END + (END - START)],
+                    factors=[0.95, (0.95) * 0.5],
                 )
                 node = context.replace(
                     model_parameters=context.model_parameters.replace(

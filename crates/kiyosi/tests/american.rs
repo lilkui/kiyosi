@@ -341,7 +341,12 @@ fn american_applicability_and_error_order_are_preserved() {
                     .unwrap_err()
             ));
         }
-        let curve = RateTermStructure::new(start, vec![end], vec![(-0.05_f64).exp()]).unwrap();
+        let curve = RateTermStructure::new(
+            start,
+            vec![end, (end).add_days(1).unwrap()],
+            vec![(-0.05_f64).exp(), ((-0.05_f64).exp()) * 0.99],
+        )
+        .unwrap();
         for model in [
             BlackScholesMertonParameters::new(curve.clone(), 0.03, 0.2).unwrap(),
             BlackScholesMertonParameters::new(0.05, curve, 0.2).unwrap(),

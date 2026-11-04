@@ -375,7 +375,9 @@ class BarrierBinomialTests(unittest.TestCase):
     def test_flat_curve_applicability_calendar_and_validation_order(self):
         engine = pricing.CoxRossRubinsteinBarrierEngine()
         curve = RateTermStructure(
-            reference_time=START, times=[END], factors=[math.exp(-0.03 * 360 / 365)]
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[math.exp(-0.03 * 360 / 365), (math.exp(-0.03 * 360 / 365)) * 0.5],
         )
         for time in (START, END):
             for changes in ({"rate": curve}, {"dividend": curve}):

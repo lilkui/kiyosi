@@ -478,7 +478,9 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         option, context = contract(), market()
         quote = engine.price(option, context)
         curve = RateTermStructure(
-            reference_time=START, times=[END], factors=[math.exp(-0.03)]
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[math.exp(-0.03), (math.exp(-0.03)) * 0.5],
         )
         for changes in ({"rate": curve}, {"dividend": curve}):
             curved = market(**changes)

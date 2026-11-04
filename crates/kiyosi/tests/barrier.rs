@@ -550,7 +550,12 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
         .unwrap()
         .replace_history(Some(BarrierTouchState::Untouched));
     let context = market(100.0, t.effective_time);
-    let curve = RateTermStructure::new(t.effective_time, vec![t.expiry_time], vec![0.95]).unwrap();
+    let curve = RateTermStructure::new(
+        t.effective_time,
+        vec![t.expiry_time, (t.expiry_time).add_days(1).unwrap()],
+        vec![0.95, (0.95) * 0.99],
+    )
+    .unwrap();
     let model = context
         .model_parameters()
         .as_bsm()

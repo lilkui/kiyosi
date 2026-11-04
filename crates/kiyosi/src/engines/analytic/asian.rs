@@ -14,7 +14,7 @@ pub struct AnalyticGeometricAveragePriceEngine;
 
 /// Approximates continuously monitored arithmetic average-price Asian option prices.
 ///
-/// Requires explicitly flat rates before expiry, including single-fixing contracts.
+/// Requires constant rates before expiry, including single-fixing contracts.
 /// Fits a lognormal distribution to the first two moments of the remaining average,
 /// using the Turnbull-Wakeman (Levy-compatible) moment-matching approximation.
 /// Shared instances support concurrent pricing; see [`Self::price`].
@@ -156,7 +156,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     /// # Errors
     ///
     /// Reuses geometric life/history errors, then returns
-    /// [`Error::UnsupportedOperation`] for node-based rate curves before expiry,
+    /// [`Error::UnsupportedOperation`] for nonconstant rate curves before expiry,
     /// [`Error::InvalidInput`] for curve coverage, or
     /// [`Error::ComputationFailure`] for invalid moments or non-finite results.
     /// Inputs remain unchanged.
@@ -189,8 +189,8 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
             return o.settlement(context);
         }
         let model = context.bsm_parameters()?;
-        if !model.risk_free_curve().is_explicitly_flat()
-            || !model.dividend_curve().is_explicitly_flat()
+        if model.risk_free_curve().flat_rate().is_none()
+            || model.dividend_curve().flat_rate().is_none()
         {
             return Err(Error::UnsupportedOperation(
                 "Turnbull-Wakeman requires flat rates".into(),

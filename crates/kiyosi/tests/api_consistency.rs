@@ -1,6 +1,52 @@
 use kiyosi::*;
 
 #[test]
+fn constant_node_curves_price_like_scalars_and_keep_coverage() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let curve = RateTermStructure::new(start, vec![end, end.add_days(365)?], vec![1.0, 1.0])?;
+    assert_eq!(curve.flat_rate(), Some(0.0));
+    assert!(!curve.is_explicitly_flat());
+    let short = RateTermStructure::new(start, vec![start.add_days(180)?], vec![1.0])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let nodes = context.replace(PricingContextChanges {
+        model_parameters: Some(
+            BlackScholesMertonParameters::new(curve.clone(), curve, 0.2)?.into(),
+        ),
+        ..Default::default()
+    })?;
+    let short = context.replace(PricingContextChanges {
+        model_parameters: Some(BlackScholesMertonParameters::new(short, 0.0, 0.2)?.into()),
+        ..Default::default()
+    })?;
+    let sampling = MonteCarloVanillaEngine::new(MonteCarloSettings {
+        path_count: 512,
+        seed: Some(42),
+        thread_count: 1,
+        ..Default::default()
+    })?;
+    for engine in [
+        &AnalyticEuropeanEngine as &dyn PricingEngine,
+        &CoxRossRubinsteinVanillaEngine::default(),
+        &QuadratureVanillaEngine::default(),
+        &FiniteDifferenceVanillaEngine::default(),
+        &sampling,
+    ] {
+        assert!((engine.price(&option, &context)? - engine.price(&option, &nodes)?).abs() < 1e-9);
+        assert!(matches!(
+            engine.price(&option, &short),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    Ok(())
+}
+
+#[test]
 fn heston_greeks_check_model_before_request_controls() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, start.add_days(365)?)?;
@@ -178,8 +224,8 @@ fn model_scalar_rate_queries_match_curve_representations() -> Result<()> {
                 assert_eq!(model.risk_free_curve(), &curve);
                 assert_eq!(model.dividend_curve(), &curve);
                 for rate in [model.flat_risk_free_rate(), model.flat_dividend_yield()] {
-                    if curve.is_explicitly_flat() {
-                        assert_eq!(rate?, 0.03);
+                    if let Some(expected) = curve.flat_rate() {
+                        assert_eq!(rate?, expected);
                     } else {
                         assert!(matches!(rate, Err(Error::UnsupportedOperation(_))));
                     }
@@ -374,7 +420,7 @@ fn flat_rate_query_is_independent_of_reference_time() -> Result<()> {
         assert_eq!(curve.reference_time(), reference);
     }
     let nodes = RateTermStructure::new(start, vec![end], vec![(-0.05_f64).exp()])?;
-    assert_eq!(nodes.flat_rate(), None);
+    assert!((nodes.flat_rate().unwrap() - 0.05).abs() < 1e-15);
     Ok(())
 }
 

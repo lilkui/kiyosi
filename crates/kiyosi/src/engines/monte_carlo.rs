@@ -530,7 +530,7 @@ impl MonteCarloVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Rejects node-based rate curves before validating requests and shifts, then propagates
+    /// Rejects nonconstant rate curves before validating requests and shifts, then propagates
     /// [`crate::numerical_greeks`] and [`Self::price`] errors. Inputs remain unchanged.
     ///
     /// # Examples
@@ -562,7 +562,7 @@ impl MonteCarloVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves before life
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves before life
     /// validation, [`Error::InvalidInput`] outside the inclusive contract
     /// life, or [`Error::ComputationFailure`] for unstable parameters, nonpositive
     /// or non-finite terminal prices, or non-finite results. Inputs remain unchanged.
@@ -660,6 +660,7 @@ impl MonteCarloVanillaEngine {
         statistics: bool,
     ) -> Result<(Moments, Moments, f64)> {
         let model = context.bsm_parameters()?;
+        context.validate_curve_horizon(option.expiry_time())?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
         let valuation = context.valuation_time();

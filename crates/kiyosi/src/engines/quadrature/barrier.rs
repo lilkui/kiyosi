@@ -98,7 +98,7 @@ impl QuadratureBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves. Returns
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves. Returns
     /// [`Error::InvalidInput`] outside life, for nontrading fixings, or for
     /// missing or impossible history, checked in that order. Unrepresentable grids,
     /// transitions or results return [`Error::ComputationFailure`]. Inputs remain unchanged.
@@ -157,6 +157,7 @@ fn price(
     context.bsm_parameters()?;
     flat_rates(context)?;
     validate_life(option, context)?;
+    context.validate_curve_horizon(option.expiry_time())?;
     validate_schedule(option.observation_schedule(), context)?;
     if let Some(value) = resolved_price(option, context)? {
         return Ok(value);

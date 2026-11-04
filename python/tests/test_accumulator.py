@@ -275,7 +275,12 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         option = contract(datetime(2025, 1, 6))
         context = market(110, datetime(2025, 1, 6))
         curve = RateTermStructure(
-            reference_time=START, times=[datetime(2025, 2, 3)], factors=[0.99]
+            reference_time=START,
+            times=[
+                datetime(2025, 2, 3),
+                datetime(2025, 2, 3) + (datetime(2025, 2, 3) - START),
+            ],
+            factors=[0.99, (0.99) * 0.5],
         )
         for field in ("risk_free_rate", "dividend_yield"):
             curved = context.replace(

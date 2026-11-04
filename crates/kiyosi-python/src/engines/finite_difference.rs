@@ -61,7 +61,7 @@ macro_rules! fd_engine {
         /// CashOrNothingOption and AssetOrNothingOption. The binary-barrier engine
         /// also accepts TouchOption. The autocallable engine accepts all snowball
         /// variants and PhoenixOption. Other engines accept their named product.
-        /// Digital pricing requires explicitly flat rates; other families accept
+        /// Digital pricing requires constant rates; other families accept
         /// deterministic rate curves. All FD product families support local-volatility
         /// price, delta and gamma, including American exercise. Other requested Greeks remain None;
         /// implied-parameter solvers raise UnsupportedOperationError. Sigma uses

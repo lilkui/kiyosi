@@ -18,7 +18,7 @@ impl FiniteDifferenceBinaryBarrierEngine {
     ///
     /// Continuous barriers are exact grid edges; scheduled observations project event cells.
     /// Prior at-hit payments have no remaining value; resolved cash flows use exact discounts.
-    /// Accepts flat or node-based rate curves. Local volatility requires surface coverage only
+    /// Accepts flat or nonconstant rate curves. Local volatility requires surface coverage only
     /// through the remaining stochastic horizon, including the last at-hit observation.
     /// See [`Self::price_with_greeks`] for an example.
     ///
@@ -140,7 +140,7 @@ impl FiniteDifferenceDoubleTouchEngine {
     ///
     /// Fits continuous boundaries exactly and projects scheduled events simultaneously.
     /// Prior at-hit payments have zero remaining value; resolved cash uses exact discounts.
-    /// Accepts BSM or local volatility with flat or node-based rate curves. Surface coverage
+    /// Accepts BSM or local volatility with flat or nonconstant rate curves. Surface coverage
     /// follows the remaining stochastic horizon, not a previously settled payment.
     /// See [`DoubleTouchOption::cash`] for construction and pricing.
     ///

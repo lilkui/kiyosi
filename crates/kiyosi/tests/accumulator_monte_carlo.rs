@@ -442,7 +442,12 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let curve = RateTermStructure::new(day(1, 1), vec![day(1, 6)], vec![0.99]).unwrap();
+    let curve = RateTermStructure::new(
+        day(1, 1),
+        vec![day(1, 6), (day(1, 6)).add_days(1).unwrap()],
+        vec![0.99, (0.99) * 0.99],
+    )
+    .unwrap();
     let curved = context
         .replace(PricingContextChanges {
             model_parameters: Some(

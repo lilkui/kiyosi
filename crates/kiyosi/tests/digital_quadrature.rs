@@ -215,7 +215,12 @@ fn invalid_controls_and_unsupported_curves_keep_error_categories() {
     let option = &options(OptionType::Call, 100.0, 10.0, dates().1)[0];
     for at in [dates().0, dates().1] {
         for dividend_curve in [false, true] {
-            let curve = RateTermStructure::new(dates().0, vec![dates().1], vec![0.95]).unwrap();
+            let curve = RateTermStructure::new(
+                dates().0,
+                vec![dates().0.add_days(180).unwrap(), dates().1],
+                vec![0.99, 0.95],
+            )
+            .unwrap();
             let model = if dividend_curve {
                 BlackScholesMertonParameters::new(Rate::Flat(0.05), Rate::Curve(curve), 0.2)
             } else {

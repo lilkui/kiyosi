@@ -318,6 +318,7 @@ fn price<T: AutocallableTerms>(
     context.bsm_parameters()?;
     let (rate, dividend) = flat_rates(context)?;
     validate(note, context)?;
+    context.validate_curve_horizon(note.expiry_time())?;
     let state = initial(note, context);
     if let Some(value) = state
         .settlement

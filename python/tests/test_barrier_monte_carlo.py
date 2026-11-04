@@ -410,7 +410,9 @@ class BarrierMonteCarloTests(unittest.TestCase):
         contract, context = option(), market()
         quote = engine.price(contract, context)
         curve = RateTermStructure(
-            reference_time=START, times=[END], factors=[math.exp(-0.03 * 360 / 365)]
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[math.exp(-0.03 * 360 / 365), (math.exp(-0.03 * 360 / 365)) * 0.5],
         )
         for changes in ({"rate": curve}, {"dividend": curve}):
             curved = market(**changes)

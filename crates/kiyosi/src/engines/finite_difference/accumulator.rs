@@ -10,7 +10,7 @@ impl FiniteDifferenceAccumulatorEngine {
     /// Prices outstanding units and future trading-date purchases, settling at knock-out or expiry.
     ///
     /// Applies a current contractual event exactly once, with inclusive knock-out and
-    /// direction-dependent acceleration. Supports flat and node-based rate curves.
+    /// direction-dependent acceleration. Supports flat and nonconstant rate curves.
     /// Accepts BSM or local volatility; surface coverage is required only for
     /// remaining stochastic evolution, after immediate settlement is resolved.
     /// See [`Self::price_with_greeks`] for an example.

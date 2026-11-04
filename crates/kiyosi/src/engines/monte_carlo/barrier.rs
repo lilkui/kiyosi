@@ -57,7 +57,7 @@ impl MonteCarloBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::UnsupportedOperation`] for node-based rate curves,
+    /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves,
     /// [`crate::Error::InvalidInput`] outside life,
     /// [`crate::Error::InvalidInput`] for nontrading fixings,
     /// [`crate::Error::InvalidInput`] for missing history or Sobol dimensions
@@ -248,6 +248,7 @@ impl MonteCarloBarrierEngine {
             return Ok((result, error));
         }
         let model = context.bsm_parameters()?;
+        context.validate_curve_horizon(expiry)?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
         let sigma = model.volatility();

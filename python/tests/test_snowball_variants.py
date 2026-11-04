@@ -464,7 +464,11 @@ class SnowballVariantTests(unittest.TestCase):
             1 + 0.02 * 90 / 365,
         )
         # Calendar applicability is checked before history and expiry settlement.
-        curve = RateTermStructure(reference_time=START, times=[END], factors=[0.99])
+        curve = RateTermStructure(
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[0.99, (0.99) * 0.5],
+        )
         self.assert_rejection(
             UnsupportedOperationError, engine.price, binary, market(rate=curve)
         )

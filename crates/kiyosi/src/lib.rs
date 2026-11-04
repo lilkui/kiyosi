@@ -43,7 +43,7 @@
 //! no-touch options, autocallable notes and accumulators. They provide price,
 //! delta and gamma with the surface held fixed. Other Greeks remain absent. Other engine families
 //! and implied-parameter solvers reject this model. Digital pricing requires
-//! explicitly flat risk-free rates and dividend yields.
+//! constant risk-free rates and dividend yields.
 //! Future coverage follows remaining stochastic evolution and required discounts;
 //! settled cash flows do not require volatility coverage through contractual expiry.
 //! [`ModelParameters`] selects the concrete model at the pricing entry point.

@@ -13,7 +13,7 @@ use crate::{AutocallableNote, AutocallableObservation, AutocallableTerms};
 impl FiniteDifferenceAutocallableEngine {
     /// Prices remaining snowball or Phoenix cash flows on exact trading and observation dates.
     ///
-    /// Accepts flat or node-based rate curves, retains daily knock-in layers and projects future events.
+    /// Accepts flat or nonconstant rate curves, retains daily knock-in layers and projects future events.
     /// Current events use actual spot with strict knock-in and inclusive knock-out/coupon levels.
     /// Accepts BSM or local volatility. Surface coverage is required only for remaining
     /// stochastic evolution, after settlement and fixed cash flows are resolved.

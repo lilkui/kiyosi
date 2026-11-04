@@ -86,9 +86,9 @@ impl RateTermStructure {
     fn is_explicitly_flat(&self) -> bool {
         self.0.is_explicitly_flat()
     }
-    /// Return the constant scalar rate for a dated or undated flat curve.
+    /// Return the scalar rate when all implied forwards are exactly constant.
     ///
-    /// Node-based curves return None even when their forwards are constant.
+    /// Nonconstant curves return None. Node-based coverage is preserved.
     /// This query does not change the curve or its coverage bounds.
     #[getter]
     fn flat_rate(&self) -> Option<f64> {
@@ -299,17 +299,17 @@ impl BlackScholesMertonParameters {
         };
         Ok(Self(domain(self.0.replace(update))?))
     }
-    /// Returns the scalar rate for dated or undated explicitly flat curves.
+    /// Returns the scalar rate for dated or undated constant curves.
     ///
-    /// Raises UnsupportedOperationError for node-based curves; use risk_free_curve
+    /// Raises UnsupportedOperationError for nonconstant curves; use risk_free_curve
     /// to preserve coverage when passing rates to constructors or replacements.
     #[getter]
     fn flat_risk_free_rate(&self) -> PyResult<f64> {
         domain(self.0.flat_risk_free_rate())
     }
-    /// Returns the scalar yield for dated or undated explicitly flat curves.
+    /// Returns the scalar yield for dated or undated constant curves.
     ///
-    /// Raises UnsupportedOperationError for node-based curves; use dividend_curve
+    /// Raises UnsupportedOperationError for nonconstant curves; use dividend_curve
     /// to preserve coverage when passing yields to constructors or replacements.
     #[getter]
     fn flat_dividend_yield(&self) -> PyResult<f64> {

@@ -508,7 +508,12 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
             Error::InvalidInput(_)
         ));
     }
-    let curve = RateTermStructure::new(put.effective_time(), vec![expiry], vec![0.95]).unwrap();
+    let curve = RateTermStructure::new(
+        put.effective_time(),
+        vec![expiry, (expiry).add_days(1).unwrap()],
+        vec![0.95, (0.95) * 0.99],
+    )
+    .unwrap();
     let model = context
         .model_parameters()
         .as_bsm()

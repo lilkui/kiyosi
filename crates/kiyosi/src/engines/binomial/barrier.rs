@@ -41,7 +41,7 @@ impl CoxRossRubinsteinBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves or unsupported
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
     /// fixings. Returns [`Error::InvalidInput`] outside life, for nontrading
     /// fixings, or for missing or impossible history, checked in that order.
     /// Unstable tree parameters, nodes or results return [`Error::ComputationFailure`].
@@ -115,6 +115,7 @@ impl CoxRossRubinsteinBarrierEngine {
     ) -> Result<PricingResult> {
         let (rate, _) = flat_rates(context)?;
         crate::instruments::monitoring::validate_life(option, context)?;
+        context.validate_curve_horizon(option.expiry_time())?;
         crate::instruments::monitoring::validate_schedule(option.observation_schedule(), context)?;
         let steps = self.settings.step_count as usize;
         let request = if context.valuation_time() == option.expiry_time()

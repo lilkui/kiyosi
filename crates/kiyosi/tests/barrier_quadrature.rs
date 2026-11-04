@@ -388,8 +388,11 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
     }
     let curve = RateTermStructure::new(
         day(1, 1),
-        vec![option.expiry_time()],
-        vec![(-0.04_f64).exp()],
+        vec![
+            option.expiry_time(),
+            (option.expiry_time()).add_days(1).unwrap(),
+        ],
+        vec![(-0.04_f64).exp(), ((-0.04_f64).exp()) * 0.99],
     )
     .unwrap();
     let model = context

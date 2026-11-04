@@ -1028,7 +1028,11 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
 
     def test_analytic_node_curves_and_numerical_failures(self):
         engine = pricing.AnalyticDoubleTouchEngine()
-        curve = RateTermStructure(reference_time=START, times=[END], factors=[0.97])
+        curve = RateTermStructure(
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[0.97, (0.97) * 0.5],
+        )
         for rates in ({"rate": curve}, {"dividend": curve}):
             for spot in (100, 120):
                 context = market(spot, **rates)

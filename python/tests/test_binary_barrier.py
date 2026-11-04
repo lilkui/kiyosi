@@ -390,8 +390,12 @@ class BinaryBarrierTests(unittest.TestCase):
             )
             curve = RateTermStructure(
                 reference_time=datetime(2025, 1, 1),
-                times=[datetime(2026, 1, 1)],
-                factors=[0.95],
+                times=[
+                    datetime(2026, 1, 1),
+                    datetime(2026, 1, 1)
+                    + (datetime(2026, 1, 1) - datetime(2025, 1, 1)),
+                ],
+                factors=[0.95, (0.95) * 0.5],
             )
             curves = self.context(rate=curve)
             self.assert_rejection(

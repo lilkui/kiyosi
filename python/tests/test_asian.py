@@ -400,9 +400,7 @@ class AsianTests(unittest.TestCase):
         short = RateTermStructure(reference_time=START, times=[middle], factors=[0.99])
         for kind, engine_type in PAIRS:
             self.assert_rejection(
-                InvalidInputError
-                if kind is GeometricAveragePriceOption
-                else UnsupportedOperationError,
+                InvalidInputError,
                 engine_type().price,
                 kind(**terms()),
                 market(rate=short),

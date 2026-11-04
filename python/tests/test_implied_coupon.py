@@ -400,7 +400,11 @@ class ImpliedCouponTests(unittest.TestCase):
                 engine, note, late, 1, quote_convention="preserve_maturity_coupon"
             ),
         )
-        curve = RateTermStructure(reference_time=START, times=[END], factors=[0.99])
+        curve = RateTermStructure(
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[0.99, (0.99) * 0.5],
+        )
         curved = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=curve)
         )

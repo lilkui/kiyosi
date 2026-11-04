@@ -44,7 +44,7 @@ impl MonteCarloDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves before life
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves before life
     /// validation, [`Error::InvalidInput`] outside the inclusive life,
     /// and [`Error::ComputationFailure`] for non-finite parameters, samples or
     /// results. Inputs remain unchanged on success and failure.
@@ -185,6 +185,7 @@ impl MonteCarloDigitalEngine {
             return Ok((result, error));
         }
         let model = context.bsm_parameters()?;
+        context.validate_curve_horizon(option.expiry_time())?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
         let sigma = model.volatility();

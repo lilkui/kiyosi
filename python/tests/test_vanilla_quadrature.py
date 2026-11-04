@@ -271,7 +271,9 @@ class VanillaQuadratureTests(unittest.TestCase):
     def test_life_curve_rejection_and_numerical_failures_preserve_state(self):
         engine = pricing.QuadratureVanillaEngine()
         curve = RateTermStructure(
-            reference_time=START, times=[END], factors=[math.exp(-0.05)]
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[math.exp(-0.05), (math.exp(-0.05)) * 0.5],
         )
         for kind in (EuropeanOption, AmericanOption):
             option = contract(kind, "put")

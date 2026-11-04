@@ -526,8 +526,8 @@ class DoubleBarrierTests(unittest.TestCase):
         )
         node = RateTermStructure(
             reference_time=START,
-            times=[END],
-            factors=[math.exp(-0.04)],
+            times=[END, END + (END - START)],
+            factors=[math.exp(-0.04), (math.exp(-0.04)) * 0.5],
         )
         curved = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=node)

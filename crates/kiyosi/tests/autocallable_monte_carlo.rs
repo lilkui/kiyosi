@@ -415,7 +415,12 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
         }
     }
     let context = market(100.0, date(1, 1));
-    let node = RateTermStructure::new(date(1, 1), vec![date(4, 1)], vec![0.99]).unwrap();
+    let node = RateTermStructure::new(
+        date(1, 1),
+        vec![date(4, 1), (date(4, 1)).add_days(1).unwrap()],
+        vec![0.99, (0.99) * 0.99],
+    )
+    .unwrap();
     let curved = context
         .replace(PricingContextChanges {
             model_parameters: Some(

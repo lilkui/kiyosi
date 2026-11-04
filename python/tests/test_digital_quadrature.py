@@ -210,7 +210,11 @@ class DigitalQuadratureTests(unittest.TestCase):
 
     def test_strict_expiry_microsecond_life_and_rejections_preserve_state(self):
         engine = pricing.QuadratureDigitalEngine()
-        curve = RateTermStructure(reference_time=START, times=[END], factors=[0.95])
+        curve = RateTermStructure(
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[0.95, (0.95) * 0.5],
+        )
         for kind in DIGITAL:
             for direction in ("call", "put"):
                 option = contract(kind, direction)

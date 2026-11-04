@@ -201,8 +201,12 @@ class AmericanTests(unittest.TestCase):
                 )
             curve = RateTermStructure(
                 reference_time=self.terms["effective_time"],
-                times=[self.terms["expiry_time"]],
-                factors=[math.exp(-0.05)],
+                times=[
+                    self.terms["expiry_time"],
+                    self.terms["expiry_time"]
+                    + (self.terms["expiry_time"] - self.terms["effective_time"]),
+                ],
+                factors=[math.exp(-0.05), (math.exp(-0.05)) * 0.5],
             )
             for context in (
                 self.market(rate=curve),

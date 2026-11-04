@@ -441,7 +441,12 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
             )
             .is_ok()
     );
-    let curve = RateTermStructure::new(option.effective_time(), vec![expiry], vec![0.95]).unwrap();
+    let curve = RateTermStructure::new(
+        option.effective_time(),
+        vec![expiry, (expiry).add_days(1).unwrap()],
+        vec![0.95, (0.95) * 0.99],
+    )
+    .unwrap();
     let model = context
         .model_parameters()
         .as_bsm()

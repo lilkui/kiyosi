@@ -611,7 +611,8 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
             Error::UnsupportedOperation(_)
         ));
     }
-    let curve = RateTermStructure::new(day(1, 1), vec![day(2, 3)], vec![0.99]).unwrap();
+    let curve =
+        RateTermStructure::new(day(1, 1), vec![day(1, 6), day(2, 3)], vec![0.995, 0.99]).unwrap();
     let curved = boundary
         .replace(PricingContextChanges {
             model_parameters: Some(

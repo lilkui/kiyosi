@@ -10,7 +10,7 @@ use crate::instruments::monitoring::{validate_life, validate_schedule};
 use crate::{BarrierOption, DoubleBarrierOption, ObservationMode, RebateTiming};
 
 impl FiniteDifferenceBarrierEngine {
-    /// Prices a single barrier with continuous or scheduled monitoring and flat or node-based rate curves.
+    /// Prices a single barrier with continuous or scheduled monitoring and flat or nonconstant rate curves.
     ///
     /// Resolves current observations against actual spot before building a grid.
     /// Prior at-hit rebates are already paid; resolved vanilla payoffs use the selected model.
@@ -168,7 +168,7 @@ fn analysis(
 }
 
 impl FiniteDifferenceDoubleBarrierEngine {
-    /// Prices double barriers with continuous or scheduled monitoring and flat or node-based rate curves.
+    /// Prices double barriers with continuous or scheduled monitoring and flat or nonconstant rate curves.
     ///
     /// Fits both continuous edges exactly, using all configured asset steps between them.
     /// Projects scheduled boundary events simultaneously on the full spatial grid.

@@ -72,7 +72,11 @@ class LocalVolatilityFDContractTests(unittest.TestCase):
                     ).price(contract, context())
 
     def test_digital_rejects_node_rates_even_at_expiry(self):
-        curve = RateTermStructure(reference_time=START, times=[END], factors=[0.95])
+        curve = RateTermStructure(
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[0.95, (0.95) * 0.5],
+        )
         for contract, name in representatives():
             if name != "FiniteDifferenceDigitalEngine":
                 continue

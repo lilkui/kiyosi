@@ -19,11 +19,11 @@ impl AnalyticDoubleTouchEngine {
     ///
     /// At-hit payments integrate the discounted first-exit density adaptively.
     /// Prior at-hit payments have zero remaining value. Resolved payments are
-    /// returned before rejecting scheduled monitoring; node-based rate curves are always rejected.
+    /// returned before rejecting scheduled monitoring; nonconstant rate curves are always rejected.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves, then
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves, then
     /// [`Error::InvalidInput`] outside life, for nontrading observations or missing
     /// or impossible history. Unresolved scheduled monitoring then returns
     /// [`Error::UnsupportedOperation`]. Unrepresentable calculations return
@@ -51,6 +51,7 @@ impl AnalyticDoubleTouchEngine {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
         validate_life(option, context)?;
+        context.validate_curve_horizon(option.expiry_time())?;
         validate_schedule(option.observation_schedule(), context)?;
         let (prior, touched, finished) = option.contract().state(context)?;
         let at_hit = option.settlement_timing() == SettlementTiming::AtHit;

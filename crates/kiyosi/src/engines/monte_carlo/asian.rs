@@ -220,8 +220,8 @@ impl MonteCarloAsianEngine {
         }
         let model = context.bsm_parameters()?;
         if geometric
-            && (!model.risk_free_curve().is_explicitly_flat()
-                || !model.dividend_curve().is_explicitly_flat())
+            && (model.risk_free_curve().flat_rate().is_none()
+                || model.dividend_curve().flat_rate().is_none())
         {
             return Err(Error::UnsupportedOperation(
                 "geometric Asian Monte Carlo requires flat rates".into(),

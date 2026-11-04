@@ -124,6 +124,7 @@ impl MonteCarloAccumulatorEngine {
         statistics: bool,
     ) -> Result<(Moments, Moments, bool)> {
         let model = context.bsm_parameters()?;
+        context.validate_curve_horizon(option.expiry_time())?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
         option.validate_pricing(context)?;

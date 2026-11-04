@@ -136,9 +136,9 @@ fn flat_rates(context: &PricingContext) -> Result<()> {
         context.model_parameters().risk_free_curve(),
         context.model_parameters().dividend_curve(),
     ] {
-        if !curve.is_explicitly_flat() {
+        if curve.flat_rate().is_none() {
             return Err(Error::UnsupportedOperation(
-                "digital finite differences require explicitly flat rates".into(),
+                "digital finite differences require constant rates".into(),
             ));
         }
     }
@@ -343,8 +343,8 @@ fn native_model<D: Diffusion>(
         })
         .collect();
     let can_exercise = payoff.american
-        && (!model.risk_free_curve().is_explicitly_flat()
-            || !model.dividend_curve().is_explicitly_flat()
+        && (model.risk_free_curve().flat_rate().is_none()
+            || model.dividend_curve().flat_rate().is_none()
             || payoff.sign < 0.0
             || dividend.rate(0.0) > 0.0
             || risk.rate(0.0) < 0.0);
@@ -710,7 +710,7 @@ impl FiniteDifferenceVanillaEngine {
     /// Local-volatility boundaries use asymptotic values with American exercise where applicable; automatic domains
     /// use the surface maximum volatility and require domain convergence checks.
     /// Unsupported combinations return [`Error::UnsupportedOperation`], even at expiry.
-    /// Accepts flat or node-based rate curves. American automatic domains expand with volatility
+    /// Accepts flat or nonconstant rate curves. American automatic domains expand with volatility
     /// and maturity and use sinh coordinates. With automatic domains, non-explicit
     /// European grids concentrate nodes around the strike and average the payoff kink.
     /// Explicit upper boundaries retain uniform European spot grids.
@@ -857,7 +857,7 @@ vanilla_pricing!(AmericanOption, true);
 impl FiniteDifferenceDigitalEngine {
     /// Prices a digital using cell-averaged terminal payoffs, settling strictly in the money at expiry.
     ///
-    /// Rejects node-based rate curves before life validation, including at expiry.
+    /// Rejects nonconstant rate curves before life validation, including at expiry.
     /// Accepts BSM or local volatility, with cell-averaged digital payoffs in both models.
     /// Local-volatility automatic domains concentrate nodes around the strike for
     /// non-explicit schemes. BSM and explicit upper boundaries retain uniform spot grids.
@@ -865,7 +865,7 @@ impl FiniteDifferenceDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves, then reuses
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves, then reuses
     /// [`FiniteDifferenceVanillaEngine::price`] errors. Payoff-bound violations return
     /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     ///

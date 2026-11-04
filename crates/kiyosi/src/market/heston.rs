@@ -144,31 +144,31 @@ impl HestonParameters {
     pub fn dividend_curve(&self) -> &RateTermStructure {
         &self.dividend_curve
     }
-    /// Returns the explicitly flat risk-free rate; see [`Self::new`].
+    /// Returns the constant risk-free rate; see [`Self::new`].
     ///
     /// This scalar omits coverage bounds; use [`Self::risk_free_curve`] when
     /// reconstructing a model.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves.
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves.
     pub fn flat_risk_free_rate(&self) -> Result<f64> {
-        self.risk_free_curve.flat_rate().ok_or_else(|| {
-            Error::UnsupportedOperation("risk-free curve is not explicitly flat".into())
-        })
+        self.risk_free_curve
+            .flat_rate()
+            .ok_or_else(|| Error::UnsupportedOperation("risk-free curve is not constant".into()))
     }
-    /// Returns the explicitly flat dividend yield; see [`Self::new`].
+    /// Returns the constant dividend yield; see [`Self::new`].
     ///
     /// This scalar omits coverage bounds; use [`Self::dividend_curve`] when
     /// reconstructing a model.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves.
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves.
     pub fn flat_dividend_yield(&self) -> Result<f64> {
-        self.dividend_curve.flat_rate().ok_or_else(|| {
-            Error::UnsupportedOperation("dividend curve is not explicitly flat".into())
-        })
+        self.dividend_curve
+            .flat_rate()
+            .ok_or_else(|| Error::UnsupportedOperation("dividend curve is not constant".into()))
     }
     /// Returns instantaneous variance at valuation; see [`Self::new`].
     pub fn initial_variance(&self) -> f64 {

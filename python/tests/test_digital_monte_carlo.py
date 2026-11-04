@@ -294,7 +294,11 @@ class DigitalNumericalTests(unittest.TestCase):
                 ),
                 market(),
             )
-        curve = RateTermStructure(reference_time=START, times=[END], factors=[0.95])
+        curve = RateTermStructure(
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[0.95, (0.95) * 0.5],
+        )
         node = market().replace(
             model_parameters=market().model_parameters.replace(risk_free_rate=curve),
             valuation_time=END,

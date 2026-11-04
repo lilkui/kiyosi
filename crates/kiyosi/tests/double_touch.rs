@@ -428,8 +428,11 @@ fn analytic_node_curves_reject_even_resolved_payments_and_failures_preserve_inpu
     let original = option.clone();
     let curve = RateTermStructure::new(
         option.effective_time(),
-        vec![option.expiry_time()],
-        vec![0.97],
+        vec![
+            option.effective_time().add_days(180).unwrap(),
+            option.expiry_time(),
+        ],
+        vec![0.99, 0.97],
     )
     .unwrap();
     for risk_free in [false, true] {

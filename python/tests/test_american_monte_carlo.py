@@ -312,7 +312,11 @@ class AmericanMonteCarloTests(unittest.TestCase):
                 )
         with self.assertRaises(OverflowError):
             engine.price_with_greeks(option, context, "theta", time_shift_days=2**31)
-        curve = RateTermStructure(reference_time=START, times=[END], factors=[0.95])
+        curve = RateTermStructure(
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[0.95, (0.95) * 0.5],
+        )
         curved = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=curve)
         )

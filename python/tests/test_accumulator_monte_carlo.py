@@ -319,7 +319,9 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             lambda: engine.price_with_greeks(note, context, "delta", spot_shift=0),
         )
         curve = RateTermStructure(
-            reference_time=START, times=[note.expiry_time], factors=[0.99]
+            reference_time=START,
+            times=[note.expiry_time, note.expiry_time + (note.expiry_time - START)],
+            factors=[0.99, (0.99) * 0.5],
         )
         for field in ("risk_free_rate", "dividend_yield"):
             curved = context.replace(

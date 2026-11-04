@@ -22,7 +22,7 @@ impl AnalyticBinaryBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::UnsupportedOperation`] for node-based rate curves or unsupported
+    /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
     /// schedules. Returns [`crate::Error::InvalidInput`] outside life, for nontrading
     /// fixings, or for missing or impossible history, checked in that order.
     /// Non-finite results return [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
@@ -94,6 +94,7 @@ impl Contract<'_> {
         let dividend = model.flat_dividend_yield()?;
         let valuation = context.valuation_time();
         validate_life(option, context)?;
+        context.validate_curve_horizon(option.expiry_time())?;
         validate_schedule(option.observation_schedule(), context)?;
         let (prior, touched, finished) = self.state(context)?;
         let t = valuation.years_until(option.expiry_time());

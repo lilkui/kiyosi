@@ -28,7 +28,7 @@ impl AnalyticBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves or unsupported
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
     /// schedules. Returns [`Error::InvalidInput`] outside life, for nontrading
     /// fixings, or for missing or impossible history, checked in that order.
     /// Non-finite or materially negative prices return [`Error::ComputationFailure`].
@@ -79,6 +79,7 @@ fn price(
     context.bsm_parameters()?.flat_risk_free_rate()?;
     context.bsm_parameters()?.flat_dividend_yield()?;
     validate_life(option, context)?;
+    context.validate_curve_horizon(option.expiry_time())?;
     let cached = schedule
         .and_then(|schedule| schedule.get())
         .filter(|cached| {

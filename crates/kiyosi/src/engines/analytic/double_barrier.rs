@@ -22,7 +22,7 @@ impl AnalyticDoubleBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for node-based rate curves or unresolved schedules,
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unresolved schedules,
     /// [`Error::InvalidInput`] outside life, for nontrading fixings, or for
     /// missing or impossible history, checked in that order. Unrepresentable
     /// calculations return [`Error::ComputationFailure`]; series or integration
@@ -130,6 +130,7 @@ impl AbsorbingDistribution {
         context: &PricingContext,
     ) -> Result<Self> {
         let model = context.bsm_parameters()?;
+        context.validate_curve_horizon(expiry)?;
         let sigma = model.volatility();
         Ok(Self {
             initial: log_ratio(context.spot_price(), lower),

@@ -65,7 +65,7 @@ impl QuadratureDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for other models or node-based rate curves,
+    /// Returns [`Error::UnsupportedOperation`] for other models or nonconstant rate curves,
     /// before life validation. Returns [`Error::InvalidInput`] outside contract
     /// life and [`Error::ComputationFailure`] for unrepresentable transitions,
     /// weights or prices. Inputs and settings remain unchanged.
@@ -102,6 +102,7 @@ impl PricingEngine<DigitalOption> for QuadratureDigitalEngine {
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         let (rate, dividend) = flat_rates(context)?;
         validate_life(option, context)?;
+        context.validate_curve_horizon(option.expiry_time())?;
         let spot = context.spot_price();
         let call = option.option_type() == OptionType::Call;
         let time = context.valuation_time().years_until(option.expiry_time());

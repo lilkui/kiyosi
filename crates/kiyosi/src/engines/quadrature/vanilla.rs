@@ -121,7 +121,7 @@ impl QuadratureVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for other models or node-based rate curves,
+    /// Returns [`Error::UnsupportedOperation`] for other models or nonconstant rate curves,
     /// before life validation. Returns [`Error::InvalidInput`] outside inclusive
     /// contract life, and [`Error::ComputationFailure`] for unrepresentable grids,
     /// transitions, tails or prices. Inputs and engine settings remain unchanged.
@@ -164,6 +164,7 @@ macro_rules! vanilla_pricing {
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
                 let (rate, dividend) = flat_rates(context)?;
                 validate_life(option, context)?;
+                context.validate_curve_horizon(option.expiry_time())?;
                 let payoff = Payoff::vanilla(option.option_type(), option.strike(), $american);
                 let time = context
                     .valuation_time()

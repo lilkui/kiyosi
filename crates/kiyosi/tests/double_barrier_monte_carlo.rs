@@ -838,8 +838,11 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
     let quote = engine.price(&option, &context).unwrap();
     let curve = RateTermStructure::new(
         option.effective_time(),
-        vec![option.expiry_time()],
-        vec![(-0.03_f64).exp()],
+        vec![
+            option.expiry_time(),
+            (option.expiry_time()).add_days(1).unwrap(),
+        ],
+        vec![(-0.03_f64).exp(), ((-0.03_f64).exp()) * 0.99],
     )
     .unwrap();
     for (rate, dividend) in [

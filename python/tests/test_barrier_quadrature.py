@@ -443,7 +443,9 @@ class BarrierQuadratureTests(unittest.TestCase):
     def test_applicability_precedes_request_solver_and_expiry_validation(self):
         engine = pricing.QuadratureBarrierEngine()
         curve = RateTermStructure(
-            reference_time=START, times=[END], factors=[math.exp(-0.03 * 360 / 365)]
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[math.exp(-0.03 * 360 / 365), (math.exp(-0.03 * 360 / 365)) * 0.5],
         )
         for context in (market(rate=curve), market(rate=curve, valuation=END)):
             for operation, args in (

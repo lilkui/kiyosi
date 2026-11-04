@@ -111,11 +111,22 @@ impl RateTermStructure {
     pub fn is_explicitly_flat(&self) -> bool {
         self.rate.is_some()
     }
-    /// Returns the explicitly configured flat rate, or `None` for node-based rate curves.
+    /// Returns a constant rate, or `None` when the curve's forwards differ.
     ///
-    /// See [`Self::shifted`] for a flat-rate replacement example.
+    /// Node curves qualify only when every implied forward is exactly equal;
+    /// their coverage and representation remain unchanged. See [`Self::shifted`].
+    #[expect(
+        clippy::float_cmp,
+        reason = "Flat-rate algorithms require exactly constant forwards, without a numerical tolerance."
+    )]
     pub fn flat_rate(&self) -> Option<f64> {
-        self.rate
+        self.rate.or_else(|| {
+            self.forwards
+                .first()
+                .copied()
+                .filter(|rate| self.forwards.iter().all(|other| other == rate))
+                .map(|rate| rate + self.spread)
+        })
     }
     /// Returns the inclusive lower coverage bound, or `None` for undated flat rates.
     ///

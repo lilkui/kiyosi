@@ -7,12 +7,14 @@ Rates use annual decimal units and continuous compounding (0.05 means 5%).
 ``ComputationFailureError`` on overflow, matching ``factor()``. Underflowed factors
 cannot reconstruct a curve; pickle preserves the original factors and shift.
 Model ``flat_risk_free_rate`` and ``flat_dividend_yield`` properties return scalar rates
-for dated or undated explicitly flat curves and raise ``UnsupportedOperationError``
-for node-based curves, matching Rust. Use ``risk_free_curve`` and ``dividend_curve``
+for dated or undated constant curves and raise ``UnsupportedOperationError``
+for nonconstant curves, matching Rust. Use ``risk_free_curve`` and ``dividend_curve``
 for owned curves with stable return types and preserved coverage when passing them
 back to the ``risk_free_rate`` and ``dividend_yield`` constructor or
 ``replace()`` arguments. Scalar queries discard coverage bounds. Either curve's ``flat_rate`` returns the
-scalar rate for an explicitly flat curve, or None for a node-based curve.
+scalar rate when all forwards are exactly constant, or None otherwise. Constant
+node curves retain their reference, nodes and upper coverage bound; flat-rate
+engines accept them without discarding those bounds.
 Volatility is annualized and expressed in decimal units. Rate curves
 use the Actual/365 Fixed day-count convention; a calendar's trading-day basis
 applies only to trading-year fractions. ``BusinessDayConvention`` accepts ``"following"``
@@ -33,7 +35,7 @@ spot), with bilinear interpolation of local volatility, constant extrapolation
 in the spot dimension, and no time extrapolation. Context changes keep these
 absolute nodes fixed. The one-dimensional finite-difference engines support
 LocalVolatilityParameters for price, delta and gamma; digital
-finite-difference pricing requires explicitly flat risk-free rates and dividend
+finite-difference pricing requires constant risk-free rates and dividend
 yields. Other requested Greeks remain None. Other engine families and
 implied-parameter solvers reject this model with UnsupportedOperationError.
 Model and context ``replace()`` methods expose named keyword-only fields.

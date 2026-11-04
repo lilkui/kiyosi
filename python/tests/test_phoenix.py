@@ -203,7 +203,9 @@ class PhoenixTests(unittest.TestCase):
                 market(valuation=valuation),
             )
         curve = RateTermStructure(
-            reference_time=START, times=[END], factors=[math.exp(-0.04 * 90 / 365)]
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[math.exp(-0.04 * 90 / 365), (math.exp(-0.04 * 90 / 365)) * 0.5],
         )
         self.assert_rejection(
             UnsupportedOperationError,

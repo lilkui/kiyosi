@@ -97,7 +97,11 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             InvalidInputError,
             lambda: engine.price_with_greeks(note, context, "delta", spot_shift=0),
         )
-        curve = RateTermStructure(reference_time=START, times=[END], factors=[0.99])
+        curve = RateTermStructure(
+            reference_time=START,
+            times=[END, END + (END - START)],
+            factors=[0.99, (0.99) * 0.5],
+        )
         curved = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=curve)
         )

@@ -12,7 +12,7 @@ vanilla options, digitals, single and double barriers, binary barriers, touch
 and no-touch options, autocallable notes and accumulators. They provide price,
 delta and gamma, holding the absolute surface fixed. Other requested Greeks remain None, including in "all" requests.
 Other engine families and implied-parameter solvers raise UnsupportedOperationError
-for this model. Digital finite-difference pricing requires explicitly flat risk-free
+for this model. Digital finite-difference pricing requires constant risk-free
 rates and dividend yields. Delta and gamma are absent when their
 finite-difference stencils cross product events, including terminal payoff kinks.
 Surface coverage follows remaining stochastic evolution; rates must cover

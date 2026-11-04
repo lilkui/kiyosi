@@ -554,7 +554,12 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
 
 #[test]
 fn local_digital_keeps_flat_rate_restriction_before_terminal_shortcuts() {
-    let curve = RateTermStructure::new(dates().0, vec![dates().1], vec![0.95]).unwrap();
+    let curve = RateTermStructure::new(
+        dates().0,
+        vec![dates().1, (dates().1).add_days(1).unwrap()],
+        vec![0.95, (0.95) * 0.99],
+    )
+    .unwrap();
     let model =
         LocalVolatilityParameters::new(curve, 0.02, surface(vec![vec![0.2; 2]; 2])).unwrap();
     let c = PricingContext::new(model, 110.0, dates().1).unwrap();
