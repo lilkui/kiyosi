@@ -1,13 +1,13 @@
-use crate::conversions::{integer, real, supplied};
+use crate::conversions::{integer, real};
 use crate::engines::finite_difference;
 use crate::engines::monte_carlo;
 use crate::engines::quadrature::QuadratureAutocallableEngine;
+use crate::error::UnsupportedOperationError;
 use crate::error::domain;
 use crate::instruments::autocallable::{AutocallableInstrument, coupon_convention};
 use crate::market::PricingContext;
-use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-/// Solve the coupon that reproduces an observed price in the contract's units.
+/// Solves the annual snowball coupon that reproduces an observed price.
 ///
 /// Parameters
 /// ----------
@@ -15,16 +15,14 @@ use pyo3::prelude::*;
 ///     QuadratureAutocallableEngine, FiniteDifferenceAutocallableEngine or
 ///     MonteCarloAutocallableEngine.
 /// instrument : object
-///     SnowballOption, BinarySnowballOption, TernarySnowballOption or
-///     PhoenixOption; the original is unchanged.
+///     SnowballOption, BinarySnowballOption or TernarySnowballOption; the original is unchanged.
 /// context : PricingContext
 ///     Market snapshot; the original is unchanged.
 /// observed_price : float
 ///     Finite target price in the engine's payment units.
 /// quote_convention : CouponQuoteConvention
-///     Required for snowballs: shift_maturity_coupon shifts the maturity
-///     coupon with observation coupons; preserve_maturity_coupon keeps it
-///     fixed. Omit this keyword for Phoenix, or pass Ellipsis (the displayed default).
+///     Required: shift_maturity_coupon shifts the maturity coupon with observation
+///     coupons; preserve_maturity_coupon keeps it fixed.
 /// lower_bound : float, optional
 ///     Finite lower coupon in the contract's units; defaults to 0. Signed
 ///     bounds are accepted when the resulting contract terms are valid.
@@ -44,8 +42,7 @@ use pyo3::prelude::*;
 /// Returns
 /// -------
 /// float
-///     Annual coupon rate, or fixed per-period proportion for FCN/DCN and other
-///     per-period Phoenix contracts.
+///     Annual coupon rate in decimal units.
 ///
 /// Raises
 /// ------
@@ -67,19 +64,18 @@ use pyo3::prelude::*;
 /// tolerances constrain the sampled price curve, not its sampling error.
 /// Snowballs shift all observation coupons relative to the first one,
 /// including past observations. The maturity convention controls the final
-/// coupon; the ternary minimum remains fixed. Phoenix replaces its
-/// conditional coupon without changing its units. Bounds, parameter tolerance
-/// and result use the same units. Trials use affine interpolation, then bisection.
+/// coupon; the ternary minimum remains fixed. Bounds, parameter tolerance
+/// and result use annual decimal units. Trials use affine interpolation, then bisection.
 #[pyfunction]
-#[pyo3(signature = (engine, instrument, context, observed_price, *, quote_convention=crate::conversions::OMITTED, lower_bound=kiyosi::ImpliedCouponSettings::default().lower_bound, upper_bound=kiyosi::ImpliedCouponSettings::default().upper_bound, price_tolerance=kiyosi::ImpliedCouponSettings::default().price_tolerance, parameter_tolerance=kiyosi::ImpliedCouponSettings::default().parameter_tolerance, max_iterations=kiyosi::ImpliedCouponSettings::default().max_iterations))]
+#[pyo3(signature = (engine, instrument, context, observed_price, *, quote_convention, lower_bound=kiyosi::ImpliedCouponSettings::default().lower_bound, upper_bound=kiyosi::ImpliedCouponSettings::default().upper_bound, price_tolerance=kiyosi::ImpliedCouponSettings::default().price_tolerance, parameter_tolerance=kiyosi::ImpliedCouponSettings::default().parameter_tolerance, max_iterations=kiyosi::ImpliedCouponSettings::default().max_iterations))]
 #[expect(clippy::too_many_arguments, reason = "explicit Python solver controls")]
-pub(crate) fn implied_coupon(
+pub(crate) fn implied_snowball_coupon(
     py: Python<'_>,
     engine: &Bound<'_, PyAny>,
     instrument: &Bound<'_, PyAny>,
     context: &PricingContext,
     #[pyo3(from_py_with = real)] observed_price: f64,
-    #[pyo3(from_py_with = supplied)] quote_convention: Option<&Bound<'_, PyAny>>,
+    quote_convention: &Bound<'_, PyAny>,
     #[pyo3(from_py_with = real)] lower_bound: f64,
     #[pyo3(from_py_with = real)] upper_bound: f64,
     #[pyo3(from_py_with = real)] price_tolerance: f64,
@@ -93,6 +89,104 @@ pub(crate) fn implied_coupon(
         parameter_tolerance,
         max_iterations,
     };
+    dispatch_coupon(
+        py,
+        engine,
+        instrument,
+        context,
+        observed_price,
+        Some(quote_convention),
+        controls,
+    )
+}
+
+/// Solves a Phoenix coupon without changing its annual or per-period units.
+///
+/// Parameters
+/// ----------
+/// engine : object
+///     QuadratureAutocallableEngine, FiniteDifferenceAutocallableEngine or
+///     MonteCarloAutocallableEngine.
+/// instrument : PhoenixOption
+///     Contract to reprice; the original is unchanged.
+/// context : PricingContext
+///     Market snapshot; the original is unchanged.
+/// observed_price : float
+///     Finite target price in the engine's payment units.
+/// lower_bound, upper_bound : float, optional
+///     Finite coupon bracket in the contract's units, defaulting to [0, 2].
+/// price_tolerance : float, optional
+///     Positive finite price residual tolerance; defaults to 1e-8.
+/// parameter_tolerance : float, optional
+///     Positive finite bracket-width tolerance in coupon units; defaults to 1e-8.
+///     Either tolerance can stop iteration.
+/// max_iterations : int, optional
+///     Positive iteration budget, default 100; endpoint and affine evaluations are extra.
+///
+/// Returns
+/// -------
+/// float
+///     Annual rate or per-period proportion, matching the contract's coupon units.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If the quote, settings or repriced terms are invalid.
+/// UnsupportedOperationError
+///     If the combination is unsupported or the coupon is not identifiable.
+/// RootNotBracketedError
+///     If endpoints do not bracket the target.
+/// NonConvergenceError
+///     If the iteration budget is exhausted.
+/// ComputationFailureError
+///     If a price, residual or numerical evaluation is non-finite.
+///
+/// Notes
+/// -----
+/// Replaces the conditional coupon, preserving its units. Monte Carlo solves pin
+/// a seed per request; tolerances constrain the sampled curve, not sampling error.
+/// Pricing failures propagate. Trials use affine interpolation, then bisection.
+#[pyfunction]
+#[pyo3(signature = (engine, instrument, context, observed_price, *, lower_bound=kiyosi::ImpliedCouponSettings::default().lower_bound, upper_bound=kiyosi::ImpliedCouponSettings::default().upper_bound, price_tolerance=kiyosi::ImpliedCouponSettings::default().price_tolerance, parameter_tolerance=kiyosi::ImpliedCouponSettings::default().parameter_tolerance, max_iterations=kiyosi::ImpliedCouponSettings::default().max_iterations))]
+#[expect(clippy::too_many_arguments, reason = "explicit Python solver controls")]
+pub(crate) fn implied_phoenix_coupon(
+    py: Python<'_>,
+    engine: &Bound<'_, PyAny>,
+    instrument: &Bound<'_, PyAny>,
+    context: &PricingContext,
+    #[pyo3(from_py_with = real)] observed_price: f64,
+    #[pyo3(from_py_with = real)] lower_bound: f64,
+    #[pyo3(from_py_with = real)] upper_bound: f64,
+    #[pyo3(from_py_with = real)] price_tolerance: f64,
+    #[pyo3(from_py_with = real)] parameter_tolerance: f64,
+    #[pyo3(from_py_with = integer)] max_iterations: i32,
+) -> PyResult<f64> {
+    dispatch_coupon(
+        py,
+        engine,
+        instrument,
+        context,
+        observed_price,
+        None,
+        kiyosi::ImpliedCouponSettings {
+            lower_bound,
+            upper_bound,
+            price_tolerance,
+            parameter_tolerance,
+            max_iterations,
+        },
+    )
+}
+
+fn dispatch_coupon(
+    py: Python<'_>,
+    engine: &Bound<'_, PyAny>,
+    instrument: &Bound<'_, PyAny>,
+    context: &PricingContext,
+    observed_price: f64,
+    quote_convention: Option<&Bound<'_, PyAny>>,
+    controls: kiyosi::ImpliedCouponSettings,
+) -> PyResult<f64> {
     if let Ok(engine) = engine.extract::<PyRef<'_, QuadratureAutocallableEngine>>() {
         return solve_coupon(
             py,
@@ -153,8 +247,11 @@ where
     let instrument = crate::conversions::instrument::<AutocallableInstrument<'_>>(instrument)?;
     macro_rules! solve {
         ($note:expr) => {{
-            let convention = convention
-                .ok_or_else(|| PyTypeError::new_err("snowballs require quote_convention"))?;
+            let convention = convention.ok_or_else(|| {
+                UnsupportedOperationError::new_err(
+                    "Phoenix coupon solving requires a PhoenixOption",
+                )
+            })?;
             let convention = coupon_convention(convention)?;
             let note = &$note.0;
             domain(py.detach(|| {
@@ -167,8 +264,8 @@ where
     match instrument {
         AutocallableInstrument::Phoenix(note) => {
             if convention.is_some() {
-                return Err(PyTypeError::new_err(
-                    "Phoenix has no quote_convention argument",
+                return Err(UnsupportedOperationError::new_err(
+                    "snowball coupon solving requires a snowball contract",
                 ));
             }
             let note = &note.0;

@@ -446,7 +446,11 @@ class AutocallableRegressionTests(unittest.TestCase):
                             note=note,
                         ):
                             # Weak coupon exposure needs tighter price accuracy to recover the quote.
-                            return pricing.implied_coupon(
+                            return (
+                                pricing.implied_phoenix_coupon
+                                if isinstance(note, PhoenixOption)
+                                else pricing.implied_snowball_coupon
+                            )(
                                 engine,
                                 note,
                                 context,
@@ -468,7 +472,11 @@ class AutocallableRegressionTests(unittest.TestCase):
                             self.assertAlmostEqual(results[0], 0.073, delta=1e-9)
                             self.assertAlmostEqual(results[1], 0.12, delta=1e-9)
                             with self.assertRaises(InvalidInputError) as error:
-                                pricing.implied_coupon(
+                                (
+                                    pricing.implied_phoenix_coupon
+                                    if isinstance(note, PhoenixOption)
+                                    else pricing.implied_snowball_coupon
+                                )(
                                     engine,
                                     note,
                                     context,

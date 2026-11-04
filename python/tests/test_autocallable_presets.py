@@ -20,7 +20,7 @@ from kiyosi.pricing import (
     FiniteDifferenceAutocallableEngine,
     MonteCarloAutocallableEngine,
     QuadratureAutocallableEngine,
-    implied_coupon,
+    implied_phoenix_coupon,
 )
 from test_snowball import market
 
@@ -238,7 +238,7 @@ class AutocallablePresetTests(unittest.TestCase):
             for engine in engines():
                 context = market()
                 quote = engine.price(target, context)
-                solved = implied_coupon(
+                solved = implied_phoenix_coupon(
                     engine, note, context, quote, lower_bound=-0.05, upper_bound=0.05
                 )
                 self.assertAlmostEqual(solved, -0.02, places=7)

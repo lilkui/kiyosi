@@ -15,7 +15,8 @@ from kiyosi.market import RateTermStructure
 from kiyosi.pricing import MonteCarloAutocallableEngine as MC
 from kiyosi.pricing import (
     QuadratureAutocallableEngine,
-    implied_coupon,
+    implied_phoenix_coupon,
+    implied_snowball_coupon,
     implied_volatility,
 )
 from test_phoenix import contract as phoenix
@@ -82,9 +83,11 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             lambda: engine.price_with_greeks(note, context, "delta", spot_shift=True),
             lambda: implied_volatility(engine, note, context, True),
             lambda: implied_volatility(engine, note, context, 1, max_iterations=2.5),
-            lambda: implied_coupon(engine, note, context, True),
-            lambda: implied_coupon(engine, note, context, 1, max_iterations=True),
-            lambda: implied_coupon(
+            lambda: implied_phoenix_coupon(engine, note, context, True),
+            lambda: implied_phoenix_coupon(
+                engine, note, context, 1, max_iterations=True
+            ),
+            lambda: implied_phoenix_coupon(
                 engine, note, context, 1, quote_convention="shift_maturity_coupon"
             ),
         ):
@@ -203,7 +206,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             engine, note, context, quote, lower_bound=0.2, upper_bound=0.4
         )
         self.assertAlmostEqual(sigma, 0.3, delta=1e-6)
-        coupon = implied_coupon(
+        coupon = implied_phoenix_coupon(
             engine, note, context, quote, lower_bound=-0.1, upper_bound=0.5
         )
         self.assertAlmostEqual(coupon, note.coupon_rate, delta=1e-8)
@@ -218,7 +221,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             ),
         )
         for _ in range(3):
-            solved = implied_coupon(
+            solved = implied_phoenix_coupon(
                 unseeded,
                 exposed,
                 market(rate=0),
@@ -249,7 +252,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         )
         self.assert_rejection(
             UnsupportedOperationError,
-            lambda: implied_coupon(
+            lambda: implied_snowball_coupon(
                 engine,
                 fixed,
                 market(100, END),
@@ -258,10 +261,12 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             ),
         )
         self.assert_rejection(
-            InvalidInputError, lambda: implied_coupon(engine, note, context, math.nan)
+            InvalidInputError,
+            lambda: implied_phoenix_coupon(engine, note, context, math.nan),
         )
         self.assert_rejection(
-            RootNotBracketedError, lambda: implied_coupon(engine, note, context, 100)
+            RootNotBracketedError,
+            lambda: implied_phoenix_coupon(engine, note, context, 100),
         )
 
     def test_quantlib_terminal_payoff_portfolios(self):

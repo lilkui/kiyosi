@@ -250,7 +250,7 @@ class PackageTests(unittest.TestCase):
                     self.assertIsNot(parameter.default, inspect.Parameter.empty)
 
     def test_coupon_solver_exposes_keyword_controls(self):
-        signature = inspect.signature(pricing.implied_coupon)
+        signature = inspect.signature(pricing.implied_snowball_coupon)
         self.assertEqual(
             tuple(signature.parameters),
             (
@@ -265,6 +265,14 @@ class PackageTests(unittest.TestCase):
                 "parameter_tolerance",
                 "max_iterations",
             ),
+        )
+        self.assertIs(
+            signature.parameters["quote_convention"].default, inspect.Parameter.empty
+        )
+        phoenix = inspect.signature(pricing.implied_phoenix_coupon)
+        self.assertEqual(
+            tuple(phoenix.parameters),
+            tuple(name for name in signature.parameters if name != "quote_convention"),
         )
         for name in tuple(signature.parameters)[4:]:
             self.assertIs(

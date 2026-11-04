@@ -471,45 +471,38 @@ class SupportMatrixTests(unittest.TestCase):
                 engine.price_with_statistics(object(), self.context)
 
     def test_coupon_solver_rejects_unsupported_products_and_engines(self):
-        accepted = (
-            ins.SnowballOption,
-            ins.BinarySnowballOption,
-            ins.TernarySnowballOption,
-            ins.PhoenixOption,
-        )
-        note = next(
-            product for product, _, _ in self.cases if isinstance(product, accepted)
-        )
-        for name, engine in self.engines.items():
-            if name.endswith("AutocallableEngine"):
-                for product, _, _ in self.cases:
-                    if isinstance(product, accepted):
-                        continue
-                    for convention in (
-                        {},
-                        {"quote_convention": None},
-                        {"quote_convention": "preserve_maturity_coupon"},
-                    ):
+        for solver, accepted, keywords in (
+            (
+                pricing.implied_snowball_coupon,
+                (
+                    ins.SnowballOption,
+                    ins.BinarySnowballOption,
+                    ins.TernarySnowballOption,
+                ),
+                {"quote_convention": "preserve_maturity_coupon"},
+            ),
+            (pricing.implied_phoenix_coupon, (ins.PhoenixOption,), {}),
+        ):
+            note = next(
+                product for product, _, _ in self.cases if isinstance(product, accepted)
+            )
+            for name, engine in self.engines.items():
+                if name.endswith("AutocallableEngine"):
+                    for product, _, _ in self.cases:
+                        if isinstance(product, accepted):
+                            continue
                         with (
                             self.subTest(
+                                solver=solver.__name__,
                                 engine=name,
                                 instrument=type(product).__name__,
-                                convention=convention,
                             ),
                             self.assertRaises(UnsupportedOperationError),
                         ):
-                            pricing.implied_coupon(
-                                engine, product, self.context, 1, **convention
-                            )
-            else:
-                with (
-                    self.subTest(engine=name),
-                    self.assertRaises(UnsupportedOperationError),
-                ):
-                    pricing.implied_coupon(
-                        engine,
-                        note,
-                        self.context,
-                        1,
-                        quote_convention="preserve_maturity_coupon",
-                    )
+                            solver(engine, product, self.context, 1, **keywords)
+                else:
+                    with (
+                        self.subTest(solver=solver.__name__, engine=name),
+                        self.assertRaises(UnsupportedOperationError),
+                    ):
+                        solver(engine, note, self.context, 1, **keywords)

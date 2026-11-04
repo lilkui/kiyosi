@@ -223,7 +223,8 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     module.add_class::<risk::PricingResult>()?;
     module.add_function(wrap_pyfunction!(risk::implied_volatility, module)?)?;
     module.add_function(wrap_pyfunction!(risk::numerical_greeks, module)?)?;
-    module.add_function(wrap_pyfunction!(risk::implied_coupon, module)?)?;
+    module.add_function(wrap_pyfunction!(risk::implied_snowball_coupon, module)?)?;
+    module.add_function(wrap_pyfunction!(risk::implied_phoenix_coupon, module)?)?;
     module.add_function(wrap_pyfunction!(calendar::weekdays_calendar, module)?)?;
     module.add_function(wrap_pyfunction!(calendar::all_days_calendar, module)?)?;
     module.add_function(wrap_pyfunction!(calendar::sse_calendar, module)?)?;

@@ -178,8 +178,9 @@ and domain enlargement separately. Numerical failures raise
 For convergence checks across numerical engines, see the engine comparison guide:
 https://lilkui.github.io/kiyosi/guide/engines.html#compare-methods-carefully.
 
-Python ``implied_coupon`` dispatches to Rust ``implied_snowball_coupon`` for
-snowballs and ``implied_phoenix_coupon`` for Phoenix contracts.
+``implied_snowball_coupon`` and ``implied_phoenix_coupon`` mirror the Rust
+solvers. Snowball solving requires ``quote_convention``; Phoenix solving has no
+such argument.
 
 ``CouponQuoteConvention`` controls whether a snowball's maturity coupon
 shifts with observation coupons (``"shift_maturity_coupon"``) or stays fixed
@@ -187,8 +188,7 @@ shifts with observation coupons (``"shift_maturity_coupon"``) or stays fixed
 bracket with the domain that keeps the maturity coupon at or above the fixed
 minimum. A bracket with no
 nondegenerate valid interval raises ``RootNotBracketedError``.
-Phoenix coupon solves omit this choice; the displayed default ``...``
-(``Ellipsis``) also means omitted.
+Phoenix coupon solves omit this choice.
 Unsupported coupon-solver instruments are rejected before checking this choice.
 Phoenix solves preserve the contract's coupon units: annual rate for annual
 coupons, fixed per-period proportion for FCN/DCN. Bounds, parameter tolerance
@@ -239,6 +239,32 @@ Recover the model volatility from its price using a chosen bracket:
 ... )
 >>> round(sigma, 6)
 0.2
+
+Solve a snowball coupon with an explicit maturity convention:
+
+>>> from kiyosi.instruments import AutocallableObservation, BinarySnowballOption
+>>> observation = AutocallableObservation(option.expiry_time, 110)
+>>> note = BinarySnowballOption(maturity_coupon_rate=0.06,
+...     effective_time=option.effective_time, expiry_time=option.expiry_time,
+...     observations=[observation])
+>>> coupon_engine = QuadratureAutocallableEngine(asset_step_count=64)
+>>> convention = "shift_maturity_coupon"
+>>> target = coupon_engine.price(note.with_coupon(0.12,
+...     quote_convention=convention), context)
+>>> round(implied_snowball_coupon(coupon_engine, note, context, target,
+...     quote_convention=convention), 6)
+0.12
+
+Solve a Phoenix coupon in its existing per-period units:
+
+>>> from kiyosi.instruments import PhoenixOption
+>>> phoenix = PhoenixOption(coupon_per_period=0.01, initial_spot=100,
+...     knock_in_level=80, upper_strike=100, lower_strike=100,
+...     effective_time=option.effective_time, expiry_time=option.expiry_time,
+...     observations=[observation])
+>>> target = coupon_engine.price(phoenix.with_coupon(0.02), context)
+>>> round(implied_phoenix_coupon(coupon_engine, phoenix, context, target), 6)
+0.02
 
 Inspect sampling uncertainty for a cash digital using the same market snapshot:
 
@@ -298,7 +324,8 @@ from ._native import (
     QuadratureDigitalEngine,
     QuadratureVanillaEngine,
     TurnbullWakemanArithmeticAveragePriceEngine,
-    implied_coupon,
+    implied_phoenix_coupon,
+    implied_snowball_coupon,
     implied_volatility,
     numerical_greeks,
 )
@@ -350,7 +377,8 @@ __all__ = [
     "QuadratureDigitalEngine",
     "QuadratureVanillaEngine",
     "TurnbullWakemanArithmeticAveragePriceEngine",
-    "implied_coupon",
+    "implied_phoenix_coupon",
+    "implied_snowball_coupon",
     "implied_volatility",
     "numerical_greeks",
 ]

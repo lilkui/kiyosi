@@ -77,7 +77,14 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         "implied_volatility",
         kiyosi::ImpliedVolatilitySettings::default()
     );
-    solver!("implied_coupon", kiyosi::ImpliedCouponSettings::default());
+    solver!(
+        "implied_snowball_coupon",
+        kiyosi::ImpliedCouponSettings::default()
+    );
+    solver!(
+        "implied_phoenix_coupon",
+        kiyosi::ImpliedCouponSettings::default()
+    );
     module.add("_solver_signature_defaults", solvers)?;
     Ok(())
 }

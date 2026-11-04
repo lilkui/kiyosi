@@ -163,7 +163,7 @@ impl PricingResult {
 
 mod coupon;
 mod implied;
-pub(crate) use coupon::implied_coupon;
+pub(crate) use coupon::{implied_phoenix_coupon, implied_snowball_coupon};
 pub(crate) use implied::implied_volatility;
 
 #[pyfunction]

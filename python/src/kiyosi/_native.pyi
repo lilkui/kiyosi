@@ -21,8 +21,7 @@ class ComputationFailureError(KiyosiError): ...
 class RootNotBracketedError(KiyosiError): ...
 class NonConvergenceError(KiyosiError): ...
 
-@overload
-def implied_coupon(
+def implied_snowball_coupon(
     engine: QuadratureAutocallableEngine
     | FiniteDifferenceAutocallableEngine
     | MonteCarloAutocallableEngine,
@@ -37,8 +36,7 @@ def implied_coupon(
     parameter_tolerance: _Real = ...,
     max_iterations: SupportsIndex = ...,
 ) -> float: ...
-@overload
-def implied_coupon(
+def implied_phoenix_coupon(
     engine: QuadratureAutocallableEngine
     | FiniteDifferenceAutocallableEngine
     | MonteCarloAutocallableEngine,
@@ -46,7 +44,6 @@ def implied_coupon(
     context: PricingContext,
     observed_price: _Real,
     *,
-    quote_convention: EllipsisType = ...,
     lower_bound: _Real = ...,
     upper_bound: _Real = ...,
     price_tolerance: _Real = ...,

@@ -21,7 +21,7 @@ from kiyosi.market import RateTermStructure, all_days_calendar
 from kiyosi.pricing import (
     MonteCarloAutocallableEngine,
     QuadratureAutocallableEngine,
-    implied_coupon,
+    implied_snowball_coupon,
     implied_volatility,
 )
 from test_snowball import END, START, autocallable_observations, market, structured
@@ -47,7 +47,7 @@ class SnowballVariantTests(unittest.TestCase):
         expected = 1.2 * math.exp(-0.05)
         self.assertAlmostEqual(engine.price(note, context), expected, delta=1e-7)
         self.assertAlmostEqual(
-            implied_coupon(
+            implied_snowball_coupon(
                 engine,
                 note,
                 context,

@@ -8,7 +8,11 @@ from kiyosi import InvalidInputError, UnsupportedOperationError
 from kiyosi.instruments import BinarySnowballOption, autocallable_observations
 from kiyosi.market import RateTermStructure
 from kiyosi.pricing import FiniteDifferenceAutocallableEngine as FD
-from kiyosi.pricing import implied_coupon, implied_volatility
+from kiyosi.pricing import (
+    implied_phoenix_coupon,
+    implied_snowball_coupon,
+    implied_volatility,
+)
 from test_phoenix import contract as phoenix
 from test_snowball import END, START, market
 from test_snowball import contract as snowball
@@ -53,16 +57,18 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
             lambda: engine.price_with_greeks(note, market(), "delta", spot_shift=True),
             lambda: implied_volatility(engine, note, market(), True),
             lambda: implied_volatility(engine, note, market(), 1, max_iterations=2.5),
-            lambda: implied_coupon(engine, note, market(), True),
-            lambda: implied_coupon(engine, note, market(), 1, max_iterations=True),
-            lambda: implied_coupon(
+            lambda: implied_phoenix_coupon(engine, note, market(), True),
+            lambda: implied_phoenix_coupon(
+                engine, note, market(), 1, max_iterations=True
+            ),
+            lambda: implied_phoenix_coupon(
                 engine, note, market(), 1, quote_convention="shift_maturity_coupon"
             ),
         ):
             with self.assertRaises(TypeError):
                 operation()
         with self.assertRaises(OverflowError):
-            implied_coupon(engine, note, market(), 1, max_iterations=2**40)
+            implied_phoenix_coupon(engine, note, market(), 1, max_iterations=2**40)
 
     def test_native_spot_greeks_survive_infeasible_scalar_bumps(self):
         for coupon in (0, 0.1):
@@ -161,7 +167,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         )
         self.assert_rejection(
             UnsupportedOperationError,
-            lambda: implied_coupon(
+            lambda: implied_snowball_coupon(
                 engine,
                 note,
                 market(100, END),
@@ -171,7 +177,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            lambda: implied_coupon(
+            lambda: implied_snowball_coupon(
                 engine,
                 note,
                 context,
