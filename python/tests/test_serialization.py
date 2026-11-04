@@ -230,6 +230,30 @@ class SerializationTests(unittest.TestCase):
         self.assertIn(".shifted(-1000000.0)", repr(curve))
         self.assertEqual(repr(pickle.loads(pickle.dumps(curve))), repr(curve))
 
+    def test_calendar_repr_identifies_base_and_overrides(self):
+        from datetime import timedelta
+
+        base = m.weekdays_calendar()
+        calendar = m.custom_calendar(
+            base=base,
+            closed_dates=[START.date()],
+            open_dates=[datetime(2025, 1, 4).date()],
+        )
+        self.assertIn("kind='weekdays'", repr(base))
+        self.assertIn("kind='custom'", repr(calendar))
+        self.assertIn("base=TradingCalendar", repr(calendar))
+        self.assertIn("closed_dates=[datetime.date(2025, 1, 2)]", repr(calendar))
+        self.assertIn("open_dates=[datetime.date(2025, 1, 4)]", repr(calendar))
+        self.assertNotEqual(repr(calendar), repr(base))
+        self.assertFalse(calendar.is_trading_day(START.date()))
+        self.assertEqual(repr(pickle.loads(pickle.dumps(calendar))), repr(calendar))
+        large = m.custom_calendar(
+            base=base,
+            closed_dates=[START.date() + timedelta(days=n) for n in range(100)],
+        )
+        self.assertLess(len(repr(large)), 1000)
+        self.assertIn("...", repr(large))
+
     def test_nondefault_engine_settings_survive_serialization(self):
         cases = (
             (

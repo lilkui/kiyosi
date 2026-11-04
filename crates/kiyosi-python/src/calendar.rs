@@ -23,13 +23,6 @@ impl TradingCalendar {
         self.0.trading_days_per_year()
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "TradingCalendar(trading_days_per_year={})",
-            self.0.trading_days_per_year()
-        )
-    }
-
     /// Return whether a date is open in this calendar.
     ///
     /// Parameters

@@ -18,6 +18,7 @@ applies only to trading-year fractions. ``BusinessDayConvention`` accepts ``"fol
 or ``"preceding"``, including the supplied date when it is open.
 Custom calendars compare by base, normalized overrides and annualization basis;
 empty overrides compare equal to the base when the basis is unchanged.
+Calendar representations identify the base kind and abbreviate open/closed overrides.
 Observation schedules accept integer indices, including negative positions,
 and reject boolean indices with TypeError. Out-of-range indices raise IndexError.
 LocalVolatilitySurface owns a rectangular table (rows=time, columns=absolute

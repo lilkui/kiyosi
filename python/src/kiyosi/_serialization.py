@@ -114,7 +114,13 @@ _repr_formatter.maxother = 160
 def _repr(value: Any) -> str:
     factory, args = _reduce(value)
     name = type(value).__name__
-    if factory is _curve:
+    if factory is _calendar:
+        kind, base, closed, opened, basis = args
+        fields = {"kind": kind, "trading_days_per_year": basis}
+        if base is not None:
+            fields.update(base=base, closed_dates=closed, open_dates=opened)
+        suffix = ""
+    elif factory is _curve:
         reference, times, factors, shift = args
         fields = {"reference_time": reference, "times": times, "factors": factors}
         suffix = f".shifted({shift!r})"
