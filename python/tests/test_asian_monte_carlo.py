@@ -230,14 +230,17 @@ class AsianMonteCarloTests(unittest.TestCase):
                     )
                     self.assertEqual(selected.gamma, result.gamma)
                     self.assertIsNone(selected.delta)
-                    self.assert_rejection(
-                        TypeError,
-                        engine.price_with_greeks,
+                    controlled = engine.price_with_greeks(
                         instrument,
                         context,
-                        greeks="delta",
-                        spot_shift=0,
+                        "delta",
+                        spot_shift=0.1,
+                        volatility_shift=0.001,
+                        rate_shift=0.001,
+                        time_shift_days=2,
                     )
+                    self.assertEqual(controlled.price, result.price)
+                    self.assertEqual(controlled.delta, result.delta)
 
     def test_sampling_threading_concurrency_and_exact_distribution_step_invariance(
         self,
@@ -429,7 +432,7 @@ class AsianMonteCarloTests(unittest.TestCase):
                 ({"greeks": True}, TypeError),
                 ({"greeks": "delta", "spot_shift": True}, TypeError),
                 ({"greeks": "delta", "time_shift_days": 1.5}, TypeError),
-                ({"greeks": "delta", "time_shift_days": 2**40}, TypeError),
+                ({"greeks": "delta", "time_shift_days": 2**40}, OverflowError),
             ):
                 with self.assertRaises(exception):
                     engine.price_with_greeks(instrument, context, **settings)

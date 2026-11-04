@@ -39,123 +39,86 @@ fn evaluation_count(value: &Bound<'_, PyAny>) -> PyResult<usize> {
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct AnalyticHestonEuropeanEngine(pub(crate) kiyosi::AnalyticHestonEuropeanEngine);
 
-#[pymethods]
-impl AnalyticHestonEuropeanEngine {
-    #[new]
-    #[pyo3(signature = (*, absolute_tolerance=kiyosi::HestonIntegrationSettings::default().absolute_tolerance, relative_tolerance=kiyosi::HestonIntegrationSettings::default().relative_tolerance, max_evaluations=kiyosi::HestonIntegrationSettings::default().max_evaluations))]
-    fn new(
-        #[pyo3(from_py_with = real)] absolute_tolerance: f64,
-        #[pyo3(from_py_with = real)] relative_tolerance: f64,
-        #[pyo3(from_py_with = evaluation_count)] max_evaluations: usize,
-    ) -> PyResult<Self> {
-        Ok(Self(domain(kiyosi::AnalyticHestonEuropeanEngine::new(
-            kiyosi::HestonIntegrationSettings {
-                absolute_tolerance,
-                relative_tolerance,
-                max_evaluations,
-            },
-        ))?))
-    }
-    /// Return the absolute tolerance in price units.
-    #[getter]
-    fn absolute_tolerance(&self) -> f64 {
-        self.0.settings().absolute_tolerance
-    }
-    /// Return the dimensionless relative tolerance.
-    #[getter]
-    fn relative_tolerance(&self) -> f64 {
-        self.0.settings().relative_tolerance
-    }
-    /// Return the total characteristic-function budget per price request.
-    #[getter]
-    fn max_evaluations(&self) -> usize {
-        self.0.settings().max_evaluations
-    }
-
-    /// Return the price without changing the instrument or context.
-    ///
-    /// Parameters
-    /// ----------
-    /// instrument : EuropeanOption
-    ///     European call or put within its inclusive contract life.
-    /// context : PricingContext
-    ///     Heston market snapshot; initial variance is at valuation.
-    ///
-    /// Returns
-    /// -------
-    /// float
-    ///     Price, or intrinsic payoff at the expiry instant.
-    ///
-    /// Raises
-    /// ------
-    /// UnsupportedOperationError
-    ///     For unsupported instruments or models, including at expiry.
-    /// InvalidInputError
-    ///     Outside contract life or curve coverage.
-    /// NonConvergenceError
-    ///     If the budget or numerical resolution cannot meet the estimated target.
-    /// ComputationFailureError
-    ///     For invalid numerical intermediates or prices.
-    fn price(
-        &self,
-        py: Python<'_>,
-        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
-            '_,
-            EuropeanOption,
-        >,
-        context: &PricingContext,
-    ) -> PyResult<f64> {
-        self.evaluate(py, instrument, context, ScalarRequest::Price)
-    }
-
-    /// Return the Heston price with all requested sensitivities absent.
-    ///
-    /// Parameters
-    /// ----------
-    /// instrument : EuropeanOption
-    ///     European option.
-    /// context : PricingContext
-    ///     Market snapshot.
-    /// greeks : str or iterable of str
-    ///     Required Greek request; representation and names are checked first.
-    ///
-    /// Returns
-    /// -------
-    /// PricingResult
-    ///     Price with every requested Greek set to None.
-    ///
-    /// Raises
-    /// ------
-    /// UnsupportedOperationError
-    ///     If the model is unsupported; Heston currently provides no sensitivities.
-    #[expect(
-        clippy::needless_pass_by_value,
-        reason = "PyO3 extracts an owned borrow guard"
-    )]
-    ///
-    /// See Also
-    /// --------
-    /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-    ///     Heston and local-volatility models are unsupported by this helper.
-    fn price_with_greeks(
-        &self,
-        py: Python<'_>,
-        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
-            '_,
-            EuropeanOption,
-        >,
-        context: &PricingContext,
-        greeks: &Bound<'_, PyAny>,
-    ) -> PyResult<risk::PricingResult> {
-        let engine = self.0;
+numerical_greeks_methods!(
+    PyRef<'_, EuropeanOption>,
+    |binding, py, instrument, context, request, shifts| {
+        let engine = binding.0;
         let option = &instrument.0;
         let context = &context.0;
-        let request = risk::greeks_request(greeks)?;
         Ok(risk::PricingResult(domain(py.detach(|| {
-            engine.price_with_greeks(option, context, request, Default::default())
+            engine.price_with_greeks(option, context, request, shifts)
         }))?))
-    }
-}
+    },
+    [],
+    engine_methods!(
+        AnalyticHestonEuropeanEngine,
+        #[new]
+        #[pyo3(signature = (*, absolute_tolerance=kiyosi::HestonIntegrationSettings::default().absolute_tolerance, relative_tolerance=kiyosi::HestonIntegrationSettings::default().relative_tolerance, max_evaluations=kiyosi::HestonIntegrationSettings::default().max_evaluations))]
+        fn new(
+            #[pyo3(from_py_with = real)] absolute_tolerance: f64,
+            #[pyo3(from_py_with = real)] relative_tolerance: f64,
+            #[pyo3(from_py_with = evaluation_count)] max_evaluations: usize,
+        ) -> PyResult<Self> {
+            Ok(Self(domain(kiyosi::AnalyticHestonEuropeanEngine::new(
+                kiyosi::HestonIntegrationSettings {
+                    absolute_tolerance,
+                    relative_tolerance,
+                    max_evaluations,
+                },
+            ))?))
+        },
+        /// Return the absolute tolerance in price units.
+        #[getter]
+        fn absolute_tolerance(&self) -> f64 {
+            self.0.settings().absolute_tolerance
+        },
+        /// Return the dimensionless relative tolerance.
+        #[getter]
+        fn relative_tolerance(&self) -> f64 {
+            self.0.settings().relative_tolerance
+        },
+        /// Return the total characteristic-function budget per price request.
+        #[getter]
+        fn max_evaluations(&self) -> usize {
+            self.0.settings().max_evaluations
+        },
+        /// Return the price without changing the instrument or context.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : EuropeanOption
+        ///     European call or put within its inclusive contract life.
+        /// context : PricingContext
+        ///     Heston market snapshot; initial variance is at valuation.
+        ///
+        /// Returns
+        /// -------
+        /// float
+        ///     Price, or intrinsic payoff at the expiry instant.
+        ///
+        /// Raises
+        /// ------
+        /// UnsupportedOperationError
+        ///     For unsupported instruments or models, including at expiry.
+        /// InvalidInputError
+        ///     Outside contract life or curve coverage.
+        /// NonConvergenceError
+        ///     If the budget or numerical resolution cannot meet the estimated target.
+        /// ComputationFailureError
+        ///     For invalid numerical intermediates or prices.
+        fn price(
+            &self,
+            py: Python<'_>,
+            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+                '_,
+                EuropeanOption,
+            >,
+            context: &PricingContext,
+        ) -> PyResult<f64> {
+            self.evaluate(py, instrument, context, ScalarRequest::Price)
+        }
+    )
+);
 
 impl AnalyticHestonEuropeanEngine {
     #[expect(

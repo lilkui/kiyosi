@@ -228,18 +228,32 @@ class AnalyticsTests(unittest.TestCase):
         del self.context
         self.assertEqual(full.delta, 0.586851146134764)
 
-    def test_native_greeks_reject_bump_controls_and_solver_representations(self):
+    def test_native_greek_controls_and_solver_representations(self):
         for field in (
             "spot_shift",
             "volatility_shift",
             "rate_shift",
             "time_shift_days",
         ):
-            for bad in (0.01, 0, -1, math.nan, math.inf, True, "1", None, complex(1)):
+            for bad in (True, "1", complex(1)) + (
+                () if field == "spot_shift" else (None,)
+            ):
                 with self.subTest(field=field, bad=bad), self.assertRaises(TypeError):
                     self.engine.price_with_greeks(
                         self.option, self.context, "delta", **{field: bad}
                     )
+        supplied = self.engine.price_with_greeks(
+            self.option,
+            self.context,
+            "delta",
+            spot_shift=0.001,
+            volatility_shift=0.001,
+            rate_shift=0.001,
+            time_shift_days=2,
+        )
+        self.assertAlmostEqual(
+            supplied.require("delta"), 0.586851146134764, delta=1e-12
+        )
         for field in (
             "lower_bound",
             "upper_bound",

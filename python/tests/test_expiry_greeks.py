@@ -9,6 +9,55 @@ from support.terminal import assert_terminal_greeks
 
 
 class ExpiryGreekTests(unittest.TestCase):
+    def test_native_terminal_greeks_honor_spot_bumps(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100.005,
+            valuation_time=end,
+        )
+        terms = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_time": start,
+            "expiry_time": end,
+        }
+        option = ins.EuropeanOption(**terms)
+        digital = ins.CashOrNothingOption(**terms, payout=10)
+        barrier = ins.BarrierOption(
+            **terms,
+            barrier_type="up_and_out",
+            barrier_level=120,
+            touch_state="untouched",
+        )
+        cases = [
+            (pricing.AnalyticEuropeanEngine(), option, 1),
+            (pricing.CoxRossRubinsteinDigitalEngine(), digital, 0),
+            (pricing.CoxRossRubinsteinBarrierEngine(), barrier, 1),
+            (pricing.MonteCarloDigitalEngine(path_count=32, seed=42), digital, 0),
+        ]
+        for kind in (ins.GeometricAveragePriceOption, ins.ArithmeticAveragePriceOption):
+            cases.append(
+                (
+                    pricing.MonteCarloAsianEngine(path_count=32, seed=42),
+                    kind(**terms, averaging_start_time=end),
+                    1,
+                )
+            )
+        for engine, instrument, expected in cases:
+            with self.subTest(
+                engine=type(engine).__name__, instrument=type(instrument).__name__
+            ):
+                self.assertIsNone(
+                    engine.price_with_greeks(instrument, context, "delta").delta
+                )
+                result = engine.price_with_greeks(
+                    instrument, context, "delta", spot_shift=0.001
+                )
+                self.assertAlmostEqual(result.require("delta"), expected, delta=1e-10)
+
     def test_terminal_autocallable_stencils_preserve_knock_in_and_redemption_regimes(
         self,
     ):

@@ -317,7 +317,7 @@ class PackageTests(unittest.TestCase):
             ):
                 engine.price_with_greeks(option, context, "delta", spot_shift=invalid)
 
-    def test_native_greek_methods_expose_only_request_controls(self):
+    def test_native_greek_methods_accept_uniform_controls(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = market.PricingContext(
             model_parameters=market.BlackScholesMertonParameters(
@@ -364,30 +364,50 @@ class PackageTests(unittest.TestCase):
             ):
                 self.assertEqual(
                     tuple(inspect.signature(engine.price_with_greeks).parameters),
-                    ("instrument", "context", "greeks"),
+                    (
+                        "instrument",
+                        "context",
+                        "greeks",
+                        "spot_shift",
+                        "volatility_shift",
+                        "rate_shift",
+                        "time_shift_days",
+                    ),
                 )
-                for field in (
-                    "spot_shift",
-                    "volatility_shift",
-                    "rate_shift",
-                    "time_shift_days",
-                ):
-                    with self.assertRaises(TypeError):
-                        engine.price_with_greeks(option, context, "delta", **{field: 1})
+                result = engine.price_with_greeks(
+                    option,
+                    context,
+                    "delta",
+                    spot_shift=0.2,
+                    volatility_shift=0.001,
+                    rate_shift=0.001,
+                    time_shift_days=2,
+                )
+                self.assertEqual(result.price, engine.price(option, context))
                 for invalid in (1, None, True):
                     with self.assertRaises(TypeError):
                         engine.price_with_greeks(option, context, greeks=invalid)
                 with self.assertRaises(TypeError):
                     engine.price_with_greeks(option, context, "delta", unknown=True)
 
-    def test_barrier_monte_carlo_greeks_expose_only_spot_controls(self):
-        for name in ("MonteCarloBarrierEngine", "MonteCarloDoubleBarrierEngine"):
+    def test_all_engines_expose_the_same_greek_controls(self):
+        for name in pricing.__all__:
+            if not name.endswith("Engine"):
+                continue
             engine = getattr(pricing, name)()
             with self.subTest(engine=name):
                 signature = inspect.signature(engine.price_with_greeks)
                 self.assertEqual(
                     tuple(signature.parameters),
-                    ("instrument", "context", "greeks", "spot_shift"),
+                    (
+                        "instrument",
+                        "context",
+                        "greeks",
+                        "spot_shift",
+                        "volatility_shift",
+                        "rate_shift",
+                        "time_shift_days",
+                    ),
                 )
                 self.assertIs(
                     signature.parameters["spot_shift"].kind,

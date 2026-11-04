@@ -48,12 +48,16 @@ class SpotShiftDefaultTests(unittest.TestCase):
                     .parameters["spot_shift"]
                     .default
                 )
-                self.assertEqual(default, 0.01)
+                self.assertIsNone(default)
                 expected = engine.price_with_greeks(option, context, "delta")
                 actual = engine.price_with_greeks(
                     option, context, "delta", spot_shift=default
                 )
                 self.assertEqual(actual.delta, expected.delta)
+                explicit = engine.price_with_greeks(
+                    option, context, "delta", spot_shift=0.01
+                )
+                self.assertEqual(actual.delta, explicit.delta)
 
     def test_automatic_american_bump_matches_explicit_core_control(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)

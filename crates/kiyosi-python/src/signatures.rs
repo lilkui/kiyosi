@@ -5,7 +5,6 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     let defaults = PyDict::new(py);
     let shifts = kiyosi::NumericalShiftSettings::default();
     defaults.set_item("spot_shift", shifts.spot_shift)?;
-    defaults.set_item("fixed_spot_shift", shifts.spot_shift())?;
     defaults.set_item("volatility_shift", shifts.volatility_shift)?;
     defaults.set_item("rate_shift", shifts.rate_shift)?;
     defaults.set_item("time_shift_days", shifts.time_shift_days)?;

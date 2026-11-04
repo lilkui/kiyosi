@@ -29,99 +29,7 @@ macro_rules! sampling_settings {
         kiyosi::$engine::with_step_count($settings, $step)
     };
     (@barrier $engine:ident, $instrument:ty) => {
-        sampling_settings!(
-            $engine,
-            [],
-            /// Return the price without changing the instrument or context.
-            ///
-            /// Parameters
-            /// ----------
-            /// instrument : object
-            ///     Supported contract; see the engine class for accepted types.
-            /// context : PricingContext
-            ///     Market snapshot and valuation instant.
-            ///
-            /// Returns
-            /// -------
-            /// float
-            ///     Present value of remaining contractual payments.
-            ///
-            /// Raises
-            /// ------
-            /// KiyosiError
-            ///     If domain validation, engine applicability or numerical pricing fails.
-            /// OSError
-            ///     If system entropy or worker creation fails.
-            fn price(
-                &self,
-                py: Python<'_>,
-                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
-                context: &PricingContext,
-            ) -> PyResult<f64> {
-                self.evaluate(py, instrument, context, ScalarRequest::Price)
-            },
-            /// Return the price and selected sensitivities.
-            ///
-            /// Parameters
-            /// ----------
-            /// instrument : object
-            ///     Supported contract; see the engine class for accepted types.
-            /// context : PricingContext
-            ///     Market snapshot and valuation instant.
-            /// greeks : str or iterable of str
-            ///     Greek names or "all" to request every measure; duplicates are ignored.
-            /// spot_shift : float, optional
-            ///     Positive finite absolute spot bump; defaults to 0.01 spot units.
-            ///     Continuous at-hit rebates require distinct, positive bumped spots;
-            ///     otherwise delta and gamma are None for the whole contract.
-            ///
-            /// Returns
-            /// -------
-            /// PricingResult
-            ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-            ///     with time Greeks absent at expiry; other terminal Greeks follow the payoff.
-            ///
-            /// Raises
-            /// ------
-            /// KiyosiError
-            ///     If requests, shifts, pricing or a feasible bumped valuation fails.
-            /// OSError
-            ///     If system entropy or worker creation fails.
-            #[pyo3(signature = (instrument, context, greeks, *, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift()))]
-            ///
-            /// See Also
-            /// --------
-            /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            ///     Heston and local-volatility models are unsupported by this helper.
-            fn price_with_greeks(
-                &self,
-                py: Python<'_>,
-                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
-                context: &PricingContext,
-                greeks: &Bound<'_, PyAny>,
-                #[pyo3(from_py_with = crate::conversions::real)] spot_shift: f64,
-            ) -> PyResult<risk::PricingResult> {
-                let request = risk::greeks_request(greeks)?;
-                let option = &instrument.0;
-                let engine = self.0;
-                let context = &context.0;
-                Ok(risk::PricingResult(domain(py.detach(|| engine.price_with_greeks(option, context, request, kiyosi::NumericalShiftSettings { spot_shift: Some(spot_shift), ..Default::default() })))?))
-            }
-        );
-        impl $engine {
-            pub(crate) fn evaluate<R: Send>(
-                &self,
-                py: Python<'_>,
-                instrument: $instrument,
-                context: &PricingContext,
-                request: impl crate::engines::PricingRequest<R>,
-            ) -> PyResult<R> {
-                let option = &instrument.0;
-                let engine = self.0;
-                let context = &context.0;
-                domain(py.detach(|| request.evaluate(&engine, option, context)))
-            }
-        }
+        sampling_settings!(@structured $engine, $instrument, with_contract);
     };
     (@structured $engine:ident, $instrument:ty, $with:path) => {
         numerical_greeks_methods!(
@@ -513,91 +421,55 @@ impl MonteCarloEstimate {
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloDigitalEngine(pub(crate) kiyosi::MonteCarloDigitalEngine);
 
-sampling_settings!(
-    MonteCarloDigitalEngine,
-    [],
-    /// Return the price without changing the instrument or context.
-    ///
-    /// Parameters
-    /// ----------
-    /// instrument : object
-    ///     Supported contract; see the engine class for accepted types.
-    /// context : PricingContext
-    ///     Market snapshot and valuation instant.
-    ///
-    /// Returns
-    /// -------
-    /// float
-    ///     Present value of remaining contractual payments.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If domain validation, engine applicability or numerical pricing fails.
-    ///
-    /// Notes
-    /// -----
-    /// System entropy and worker-creation failures raise OSError.
-    fn price(
-        &self,
-        py: Python<'_>,
-        #[pyo3(from_py_with = crate::conversions::instrument)]
-        instrument: digital::DigitalInstrument<'_>,
-        context: &PricingContext,
-    ) -> PyResult<f64> {
-        self.evaluate(py, instrument, context, ScalarRequest::Price)
-    },
-    /// Return the price and selected sensitivities.
-    ///
-    /// Parameters
-    /// ----------
-    /// instrument : object
-    ///     Supported contract; see the engine class for accepted types.
-    /// context : PricingContext
-    ///     Market snapshot and valuation instant.
-    /// greeks : str or iterable of str
-    ///     Greek names or "all" to request every measure; duplicates are ignored.
-    ///
-    /// Returns
-    /// -------
-    /// PricingResult
-    ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-    ///     with time Greeks absent at expiry; other terminal Greeks follow the payoff.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If requests, pricing or requested derivatives fail.
-    ///
-    /// Notes
-    /// -----
-    /// System entropy and worker-creation failures raise OSError.
-    #[pyo3(signature = (instrument, context, greeks))]
-    #[expect(
-        clippy::needless_pass_by_value,
-        reason = "PyO3 extracts an owned instrument borrow guard"
-    )]
-    ///
-    /// See Also
-    /// --------
-    /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-    ///     Heston and local-volatility models are unsupported by this helper.
-    fn price_with_greeks(
-        &self,
-        py: Python<'_>,
-        #[pyo3(from_py_with = crate::conversions::instrument)]
-        instrument: digital::DigitalInstrument<'_>,
-        context: &PricingContext,
-        greeks: &Bound<'_, PyAny>,
-    ) -> PyResult<risk::PricingResult> {
-        let request = risk::greeks_request(greeks)?;
-        let engine = self.0;
+numerical_greeks_methods!(
+    digital::DigitalInstrument<'_>,
+    |binding, py, instrument, context, request, shifts| {
+        let engine = binding.0;
         let option = instrument.contract();
         let context = &context.0;
         Ok(risk::PricingResult(domain(py.detach(|| {
-            engine.price_with_greeks(option, context, request, Default::default())
+            engine.price_with_greeks(option, context, request, shifts)
         }))?))
-    }
+    },
+    [
+        /// OSError
+        ///     If system entropy or worker creation fails.
+    ],
+    sampling_settings!(
+        MonteCarloDigitalEngine,
+        [],
+        /// Return the price without changing the instrument or context.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : object
+        ///     Supported contract; see the engine class for accepted types.
+        /// context : PricingContext
+        ///     Market snapshot and valuation instant.
+        ///
+        /// Returns
+        /// -------
+        /// float
+        ///     Present value of remaining contractual payments.
+        ///
+        /// Raises
+        /// ------
+        /// KiyosiError
+        ///     If domain validation, engine applicability or numerical pricing fails.
+        ///
+        /// Notes
+        /// -----
+        /// System entropy and worker-creation failures raise OSError.
+        fn price(
+            &self,
+            py: Python<'_>,
+            #[pyo3(from_py_with = crate::conversions::instrument)]
+            instrument: digital::DigitalInstrument<'_>,
+            context: &PricingContext,
+        ) -> PyResult<f64> {
+            self.evaluate(py, instrument, context, ScalarRequest::Price)
+        }
+    )
 );
 
 /// Flat-rate CPU Monte Carlo pricing for continuous average-price options.
@@ -643,96 +515,58 @@ sampling_settings!(
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct MonteCarloAsianEngine(pub(crate) kiyosi::MonteCarloAsianEngine);
 
-sampling_settings!(
-    MonteCarloAsianEngine,
-    [step_count],
-    /// Return the price without changing the instrument or context.
-    ///
-    /// Parameters
-    /// ----------
-    /// instrument : object
-    ///     Supported contract; see the engine class for accepted types.
-    /// context : PricingContext
-    ///     Market snapshot and valuation instant.
-    ///
-    /// Returns
-    /// -------
-    /// float
-    ///     Present value of remaining contractual payments.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If domain validation, engine applicability or numerical pricing fails.
-    ///
-    /// Notes
-    /// -----
-    /// System entropy and worker-creation failures raise OSError.
-    fn price(
-        &self,
-        py: Python<'_>,
-        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: asian::AsianInstrument<
-            '_,
-        >,
-        context: &PricingContext,
-    ) -> PyResult<f64> {
-        self.evaluate(py, instrument, context, ScalarRequest::Price)
-    },
-    /// Return the price and selected sensitivities.
-    ///
-    /// Parameters
-    /// ----------
-    /// instrument : object
-    ///     Supported contract; see the engine class for accepted types.
-    /// context : PricingContext
-    ///     Market snapshot and valuation instant.
-    /// greeks : str or iterable of str
-    ///     Greek names or "all" to request every measure; duplicates are ignored.
-    ///
-    /// Returns
-    /// -------
-    /// PricingResult
-    ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-    ///     with time Greeks absent at expiry; other terminal Greeks follow the payoff.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If requests, pricing or requested derivatives fail.
-    ///
-    /// Notes
-    /// -----
-    /// System entropy and worker-creation failures raise OSError.
-    #[pyo3(signature = (instrument, context, greeks))]
-    ///
-    /// See Also
-    /// --------
-    /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-    ///     Heston and local-volatility models are unsupported by this helper.
-    fn price_with_greeks(
-        &self,
-        py: Python<'_>,
-        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: asian::AsianInstrument<
-            '_,
-        >,
-        context: &PricingContext,
-        greeks: &Bound<'_, PyAny>,
-    ) -> PyResult<risk::PricingResult> {
-        let request = risk::greeks_request(greeks)?;
-        let engine = self.0;
+numerical_greeks_methods!(
+    asian::AsianInstrument<'_>,
+    |binding, py, instrument, context, request, shifts| {
+        let engine = binding.0;
         let context = &context.0;
-        let result = asian::with_asian!(
+        asian::with_asian!(
             instrument,
             option,
-            domain(py.detach(|| engine.price_with_greeks(
-                option,
-                context,
-                request,
-                Default::default()
-            )))
-        )?;
-        Ok(risk::PricingResult(result))
-    }
+            Ok(risk::PricingResult(domain(py.detach(|| {
+                engine.price_with_greeks(option, context, request, shifts)
+            }))?))
+        )
+    },
+    [
+        /// OSError
+        ///     If system entropy or worker creation fails.
+    ],
+    sampling_settings!(
+        MonteCarloAsianEngine,
+        [step_count],
+        /// Return the price without changing the instrument or context.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : object
+        ///     Supported contract; see the engine class for accepted types.
+        /// context : PricingContext
+        ///     Market snapshot and valuation instant.
+        ///
+        /// Returns
+        /// -------
+        /// float
+        ///     Present value of remaining contractual payments.
+        ///
+        /// Raises
+        /// ------
+        /// KiyosiError
+        ///     If domain validation, engine applicability or numerical pricing fails.
+        ///
+        /// Notes
+        /// -----
+        /// System entropy and worker-creation failures raise OSError.
+        fn price(
+            &self,
+            py: Python<'_>,
+            #[pyo3(from_py_with = crate::conversions::instrument)]
+            instrument: asian::AsianInstrument<'_>,
+            context: &PricingContext,
+        ) -> PyResult<f64> {
+            self.evaluate(py, instrument, context, ScalarRequest::Price)
+        }
+    )
 );
 
 /// Flat-rate CPU Monte Carlo pricing for single-barrier vanilla options.

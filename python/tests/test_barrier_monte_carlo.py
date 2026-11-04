@@ -375,13 +375,25 @@ class BarrierMonteCarloTests(unittest.TestCase):
             self.assertEqual(factory(seed=seed).seed, seed)
         for fields in (
             {"spot_shift": True},
-            {"volatility_shift": 0.0001},
-            {"rate_shift": 0.0001},
-            {"time_shift_days": 1},
+            {"volatility_shift": True},
+            {"rate_shift": True},
+            {"time_shift_days": True},
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):
                 engine.price_with_greeks(option(), market(), "delta", **fields)
+        seeded = factory(path_count=32, seed=42)
+        expected = seeded.price_with_greeks(option(), market(), "delta")
+        controlled = seeded.price_with_greeks(
+            option(),
+            market(),
+            "delta",
+            volatility_shift=0.001,
+            rate_shift=0.001,
+            time_shift_days=2,
+        )
+        self.assertEqual(controlled.price, expected.price)
+        self.assertEqual(controlled.delta, expected.delta)
         vanilla = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )

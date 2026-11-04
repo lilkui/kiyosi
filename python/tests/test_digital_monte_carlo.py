@@ -197,14 +197,17 @@ class DigitalNumericalTests(unittest.TestCase):
                     market(),
                     [],
                 )
-                self.assert_rejection(
-                    TypeError,
-                    engine.price_with_greeks,
+                controlled = engine.price_with_greeks(
                     option,
                     market(),
                     "rho",
-                    spot_shift=0,
+                    spot_shift=0.1,
+                    volatility_shift=0.001,
+                    rate_shift=0.001,
+                    time_shift_days=2,
                 )
+                self.assertEqual(controlled.price, engine.price(option, market()))
+                self.assertEqual(controlled.status("rho"), "unsupported")
                 with self.assertRaises(TypeError):
                     engine.price_with_greeks(option, market(), "delta", spot_shift=True)
                 for valuation in (START - timedelta(days=1), END + timedelta(days=1)):

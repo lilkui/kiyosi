@@ -12,98 +12,56 @@ use pyo3::prelude::*;
 #[pyclass(frozen, module = "kiyosi._native")]
 pub(crate) struct AnalyticEuropeanEngine;
 
-#[pymethods]
-impl AnalyticEuropeanEngine {
-    #[new]
-    fn new() -> Self {
-        Self
-    }
-
-    /// Return the price and selected sensitivities.
-    ///
-    /// Parameters
-    /// ----------
-    /// instrument : object
-    ///     Supported contract; see the engine class for accepted types.
-    /// context : PricingContext
-    ///     Market snapshot and valuation instant.
-    /// greeks : str or iterable of str
-    ///     Greek names or "all" to request every measure; duplicates are ignored.
-    ///
-    /// Returns
-    /// -------
-    /// PricingResult
-    ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-    ///     with time Greeks absent at expiry; other terminal Greeks follow the payoff.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If requests, pricing or requested derivatives fail.
-    #[pyo3(signature = (instrument, context, greeks))]
-    #[expect(
-        clippy::unused_self,
-        reason = "uniform instance API for pricing engines"
-    )]
-    #[expect(
-        clippy::needless_pass_by_value,
-        reason = "PyO3 extracts an owned PyRef guard"
-    )]
-    ///
-    /// See Also
-    /// --------
-    /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-    ///     Heston and local-volatility models are unsupported by this helper.
-    fn price_with_greeks(
-        &self,
-        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
-            '_,
-            EuropeanOption,
-        >,
-        context: &PricingContext,
-        greeks: &Bound<'_, PyAny>,
-    ) -> PyResult<risk::PricingResult> {
-        let request = risk::greeks_request(greeks)?;
+numerical_greeks_methods!(
+    PyRef<'_, EuropeanOption>,
+    |_binding, _py, instrument, context, request, shifts| {
         Ok(risk::PricingResult(domain(
             kiyosi::AnalyticEuropeanEngine.price_with_greeks(
                 &instrument.0,
                 &context.0,
                 request,
-                Default::default(),
+                shifts,
             ),
         )?))
-    }
-
-    /// Return the price without changing the instrument or context.
-    ///
-    /// Parameters
-    /// ----------
-    /// instrument : object
-    ///     Supported contract; see the engine class for accepted types.
-    /// context : PricingContext
-    ///     Market snapshot and valuation instant.
-    ///
-    /// Returns
-    /// -------
-    /// float
-    ///     Present value of remaining contractual payments.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If domain validation, engine applicability or numerical pricing fails.
-    fn price(
-        &self,
-        py: Python<'_>,
-        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
-            '_,
-            EuropeanOption,
-        >,
-        context: &PricingContext,
-    ) -> PyResult<f64> {
-        self.evaluate(py, instrument, context, ScalarRequest::Price)
-    }
-}
+    },
+    [],
+    engine_methods!(
+        AnalyticEuropeanEngine,
+        #[new]
+        fn new() -> Self {
+            Self
+        },
+        /// Return the price without changing the instrument or context.
+        ///
+        /// Parameters
+        /// ----------
+        /// instrument : object
+        ///     Supported contract; see the engine class for accepted types.
+        /// context : PricingContext
+        ///     Market snapshot and valuation instant.
+        ///
+        /// Returns
+        /// -------
+        /// float
+        ///     Present value of remaining contractual payments.
+        ///
+        /// Raises
+        /// ------
+        /// KiyosiError
+        ///     If domain validation, engine applicability or numerical pricing fails.
+        fn price(
+            &self,
+            py: Python<'_>,
+            #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
+                '_,
+                EuropeanOption,
+            >,
+            context: &PricingContext,
+        ) -> PyResult<f64> {
+            self.evaluate(py, instrument, context, ScalarRequest::Price)
+        }
+    )
+);
 
 impl AnalyticEuropeanEngine {
     #[expect(

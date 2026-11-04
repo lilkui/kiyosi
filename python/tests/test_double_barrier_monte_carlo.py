@@ -440,9 +440,9 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             self.assertEqual(factory(seed=seed).seed, seed)
         for fields in (
             {"spot_shift": True},
-            {"volatility_shift": 0.0001},
-            {"rate_shift": 0.0001},
-            {"time_shift_days": 1},
+            {"volatility_shift": True},
+            {"rate_shift": True},
+            {"time_shift_days": True},
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):

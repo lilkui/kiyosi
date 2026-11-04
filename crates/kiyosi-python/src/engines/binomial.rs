@@ -135,97 +135,66 @@ macro_rules! binomial_engine {
         #[pyclass(frozen, module = "kiyosi._native")]
         pub(crate) struct $name(pub(crate) kiyosi::$name);
 
-        #[pymethods]
-        impl $name {
-            #[new]
-            #[pyo3(signature = (*, step_count=kiyosi::BinomialSettings::default().step_count))]
-            fn new(
-                #[pyo3(from_py_with = integer)] step_count: i32,
-            ) -> PyResult<Self> {
-                Ok(Self(domain(kiyosi::$name::new(kiyosi::BinomialSettings { step_count }))?))
-            }
-
-            /// Return the configured number of binomial time steps.
-            #[getter]
-            fn step_count(&self) -> i32 {
-                self.0.settings().step_count
-            }
-
-            fn __repr__(&self) -> String {
-                format!("{}(step_count={})", stringify!($name), self.step_count())
-            }
-
-            /// Return the price without changing the instrument or context.
-            ///
-            /// Parameters
-            /// ----------
-            /// instrument : object
-            ///     Supported contract; see the engine class for accepted types.
-            /// context : PricingContext
-            ///     Market snapshot and valuation instant.
-            ///
-            /// Returns
-            /// -------
-            /// float
-            ///     Present value of remaining contractual payments.
-            ///
-            /// Raises
-            /// ------
-            /// KiyosiError
-            ///     If domain validation, engine applicability or numerical pricing fails.
-            fn price(
-                &self,
-                py: Python<'_>,
-                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
-                context: &PricingContext,
-            ) -> PyResult<f64> {
-                self.evaluate(py, instrument, context, ScalarRequest::Price)
-            }
-
-            /// Return the price and selected sensitivities.
-            ///
-            /// Parameters
-            /// ----------
-            /// instrument : object
-            ///     Supported contract; see the engine class for accepted types.
-            /// context : PricingContext
-            ///     Market snapshot and valuation instant.
-            /// greeks : str or iterable of str
-            ///     Greek names or "all" to request every measure; duplicates are ignored.
-            ///
-            /// Returns
-            /// -------
-            /// PricingResult
-            ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-            ///     with time Greeks absent at expiry; other terminal Greeks follow the payoff.
-            ///
-            /// Raises
-            /// ------
-            /// KiyosiError
-            ///     If request validation or pricing fails.
-            #[pyo3(signature = (instrument, context, greeks))]
-            ///
-            /// See Also
-            /// --------
-            /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
-            ///     Heston and local-volatility models are unsupported by this helper.
-            fn price_with_greeks(
-                &self,
-                py: Python<'_>,
-                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
-                context: &PricingContext,
-                greeks: &Bound<'_, PyAny>,
-            ) -> PyResult<risk::PricingResult> {
-                let request = risk::greeks_request(greeks)?;
+        numerical_greeks_methods!(
+            $instrument,
+            |binding, py, instrument, context, request, shifts| {
                 let $value = instrument;
                 let option = $contract;
-                let engine = self.0;
+                let engine = binding.0;
                 let context = &context.0;
                 Ok(risk::PricingResult(domain(py.detach(|| {
-                    engine.price_with_greeks(option, context, request, Default::default())
+                    engine.price_with_greeks(option, context, request, shifts)
                 }))?))
-            }
-        }
+            },
+            [],
+            engine_methods!(
+                $name,
+                #[new]
+                #[pyo3(signature = (*, step_count=kiyosi::BinomialSettings::default().step_count))]
+                fn new(
+                    #[pyo3(from_py_with = integer)] step_count: i32,
+                ) -> PyResult<Self> {
+                    Ok(Self(domain(kiyosi::$name::new(kiyosi::BinomialSettings { step_count }))?))
+                },
+
+                /// Return the configured number of binomial time steps.
+                #[getter]
+                fn step_count(&self) -> i32 {
+                    self.0.settings().step_count
+                },
+
+                fn __repr__(&self) -> String {
+                    format!("{}(step_count={})", stringify!($name), self.step_count())
+                },
+
+                /// Return the price without changing the instrument or context.
+                ///
+                /// Parameters
+                /// ----------
+                /// instrument : object
+                ///     Supported contract; see the engine class for accepted types.
+                /// context : PricingContext
+                ///     Market snapshot and valuation instant.
+                ///
+                /// Returns
+                /// -------
+                /// float
+                ///     Present value of remaining contractual payments.
+                ///
+                /// Raises
+                /// ------
+                /// KiyosiError
+                ///     If domain validation, engine applicability or numerical pricing fails.
+                fn price(
+                    &self,
+                    py: Python<'_>,
+                    #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
+                    context: &PricingContext,
+                ) -> PyResult<f64> {
+                    self.evaluate(py, instrument, context, ScalarRequest::Price)
+                }
+            )
+        );
         impl $name {
             pub(crate) fn evaluate<R: Send>(
                 &self,

@@ -425,7 +425,7 @@ class BarrierBinomialTests(unittest.TestCase):
         ):
             with self.assertRaises(TypeError):
                 engine.price_with_greeks(option(), market(), "delta", **kwargs)
-        with self.assertRaises(TypeError):
+        with self.assertRaises(OverflowError):
             engine.price_with_greeks(option(), market(), "delta", time_shift_days=2**31)
         mismatch = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END

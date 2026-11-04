@@ -42,7 +42,8 @@ macro_rules! numerical_greeks_methods {
             ///     curve for dividend rho.
             /// time_shift_days : int, optional
             ///     Positive forward/backward time bump in calendar days; defaults to 1.
-            ///     All bumps are validated even when analytic Greeks are available.
+            ///     Controls unused by the native estimator are ignored. The spot bump
+            ///     controls terminal-payoff stencils at expiry.
             ///
             /// Returns
             /// -------
