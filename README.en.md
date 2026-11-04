@@ -89,15 +89,6 @@ print(f"NPV / notional: {price:.6f}")
 print(f"NPV: {price * notional:,.2f}")
 ```
 
-## Model boundaries
-
-BSM volatility and local-volatility surface values must be strictly positive,
-including at expiry. Heston accepts zero variance parameters. For exact
-deterministic vanilla pricing, use `HestonParameters` with
-`initial_variance=long_run_variance=vol_of_vol=0` and a Heston engine. The Python
-`kiyosi.market` documentation includes a working example. Rust and Python enforce
-the same boundaries.
-
 ## License
 
 [MIT](LICENSE.txt)
