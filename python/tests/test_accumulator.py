@@ -57,15 +57,15 @@ def terminal_reference(option, context):
     ).total_seconds() / (365 * 86400)
     parameters = context.model_parameters
     deviation = parameters.volatility * math.sqrt(horizon)
-    stock = context.spot_price * math.exp(-parameters.dividend_yield * horizon)
-    cash = option.strike * math.exp(-parameters.risk_free_rate * horizon)
+    stock = context.spot_price * math.exp(-parameters.flat_dividend_yield * horizon)
+    cash = option.strike * math.exp(-parameters.flat_risk_free_rate * horizon)
 
     def lower_payoff(level):
         d2 = (
             math.log(context.spot_price / level)
             + (
-                parameters.risk_free_rate
-                - parameters.dividend_yield
+                parameters.flat_risk_free_rate
+                - parameters.flat_dividend_yield
                 - parameters.volatility**2 / 2
             )
             * horizon

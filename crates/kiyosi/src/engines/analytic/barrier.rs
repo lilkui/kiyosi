@@ -76,8 +76,8 @@ fn price(
     schedule: Option<&std::cell::OnceCell<ScheduleValidation>>,
 ) -> Result<f64> {
     context.bsm_parameters()?;
-    context.bsm_parameters()?.risk_free_rate()?;
-    context.bsm_parameters()?.dividend_yield()?;
+    context.bsm_parameters()?.flat_risk_free_rate()?;
+    context.bsm_parameters()?.flat_dividend_yield()?;
     validate_life(option, context)?;
     let cached = schedule
         .and_then(|schedule| schedule.get())
@@ -156,8 +156,8 @@ pub(super) fn resolved_price_with_state(
 impl PricingEngine<BarrierOption> for AnalyticBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.bsm_parameters()?;
-        context.bsm_parameters()?.risk_free_rate()?;
-        context.bsm_parameters()?.dividend_yield()?;
+        context.bsm_parameters()?.flat_risk_free_rate()?;
+        context.bsm_parameters()?.flat_dividend_yield()?;
         Ok(())
     }
     fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
@@ -194,8 +194,8 @@ fn analytic_price(option: &BarrierOption, context: &PricingContext) -> Result<f6
     let t = context.valuation_time().years_until(option.expiry_time());
     let spot = context.spot_price();
     let model = context.bsm_parameters()?;
-    let rate = model.risk_free_rate()?;
-    let dividend = model.dividend_yield()?;
+    let rate = model.flat_risk_free_rate()?;
+    let dividend = model.flat_dividend_yield()?;
     let sigma = model.volatility();
     let upper = option.barrier_type().is_up();
     let knock_in = option.barrier_type().is_knock_in();

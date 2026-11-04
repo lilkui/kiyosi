@@ -170,8 +170,8 @@ class LocalVolatilityTests(unittest.TestCase):
         self.assertEqual(moved.model_parameters.surface, s)
         self.assertEqual(c.spot_price, 100)
         replacement = m.replace(risk_free_rate=0.07, surface=surface())
-        self.assertEqual(replacement.risk_free_rate, 0.07)
-        self.assertEqual(m.risk_free_rate, 0.05)
+        self.assertEqual(replacement.flat_risk_free_rate, 0.07)
+        self.assertEqual(m.flat_risk_free_rate, 0.05)
         self.assertEqual(m.surface, s)
         for change in [{"risk_free_rate": math.nan}, {"dividend_yield": math.inf}]:
             with self.assertRaises(InvalidInputError):

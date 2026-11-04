@@ -79,9 +79,9 @@ impl Contract<'_> {
             checked(scaled_cash(
                 self.payout.unwrap_or(context.spot_price()),
                 -if self.payout.is_some() {
-                    model.risk_free_rate()?
+                    model.flat_risk_free_rate()?
                 } else {
-                    model.dividend_yield()?
+                    model.flat_dividend_yield()?
                 } * time,
             ))
         }
@@ -90,8 +90,8 @@ impl Contract<'_> {
         context.bsm_parameters()?;
         let option = self.monitoring;
         let model = context.bsm_parameters()?;
-        let rate = model.risk_free_rate()?;
-        let dividend = model.dividend_yield()?;
+        let rate = model.flat_risk_free_rate()?;
+        let dividend = model.flat_dividend_yield()?;
         let valuation = context.valuation_time();
         validate_life(option, context)?;
         validate_schedule(option.observation_schedule(), context)?;
@@ -239,8 +239,8 @@ macro_rules! pricing_engine {
         impl PricingEngine<$contract> for AnalyticBinaryBarrierEngine {
             fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
                 context.bsm_parameters()?;
-                context.bsm_parameters()?.risk_free_rate()?;
-                context.bsm_parameters()?.dividend_yield()?;
+                context.bsm_parameters()?.flat_risk_free_rate()?;
+                context.bsm_parameters()?.flat_dividend_yield()?;
                 Ok(())
             }
             fn price(&self, option: &$contract, context: &PricingContext) -> Result<f64> {

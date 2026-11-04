@@ -236,7 +236,7 @@ impl LocalVolatilityParameters {
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for node-based curves.
-    pub fn risk_free_rate(&self) -> Result<f64> {
+    pub fn flat_risk_free_rate(&self) -> Result<f64> {
         self.risk_free_curve
             .flat_rate()
             .ok_or(Error::UnsupportedOperation(
@@ -250,7 +250,7 @@ impl LocalVolatilityParameters {
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for node-based curves.
-    pub fn dividend_yield(&self) -> Result<f64> {
+    pub fn flat_dividend_yield(&self) -> Result<f64> {
         self.dividend_curve
             .flat_rate()
             .ok_or(Error::UnsupportedOperation(

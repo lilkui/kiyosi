@@ -35,12 +35,12 @@ def price_differences(
     spot, volatility, rate = (
         context.spot_price,
         parameters.volatility,
-        parameters.risk_free_rate,
+        parameters.flat_risk_free_rate,
     )
     h = (spot + spot_shift) - spot
     v = (volatility + volatility_shift) - volatility
     r = (rate + rate_shift) - rate
-    q = (parameters.dividend_yield + rate_shift) - parameters.dividend_yield
+    q = (parameters.flat_dividend_yield + rate_shift) - parameters.flat_dividend_yield
     time = context.valuation_time
     start = datetime.combine(option.effective_time, datetime.min.time())
     end = datetime.combine(option.expiry_time, datetime.min.time())
@@ -57,7 +57,7 @@ def price_differences(
             PricingContext(
                 model_parameters=BlackScholesMertonParameters(
                     risk_free_rate=rate + dr,
-                    dividend_yield=parameters.dividend_yield + dq,
+                    dividend_yield=parameters.flat_dividend_yield + dq,
                     volatility=volatility + dv,
                 ),
                 spot_price=spot + ds,

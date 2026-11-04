@@ -57,7 +57,7 @@ impl AnalyticDoubleTouchEngine {
         if prior && at_hit {
             return Ok(0.0);
         }
-        let rate = context.bsm_parameters()?.risk_free_rate()?;
+        let rate = context.bsm_parameters()?.flat_risk_free_rate()?;
         if touched || finished {
             if touched != option.is_one_touch() {
                 return Ok(0.0);
@@ -114,8 +114,8 @@ impl AnalyticDoubleTouchEngine {
 impl PricingEngine<DoubleTouchOption> for AnalyticDoubleTouchEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.bsm_parameters()?;
-        context.bsm_parameters()?.risk_free_rate()?;
-        context.bsm_parameters()?.dividend_yield()?;
+        context.bsm_parameters()?.flat_risk_free_rate()?;
+        context.bsm_parameters()?.flat_dividend_yield()?;
         Ok(())
     }
     fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {

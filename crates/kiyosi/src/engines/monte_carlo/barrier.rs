@@ -213,8 +213,8 @@ impl MonteCarloBarrierEngine {
             return Ok(result);
         }
         let model = context.bsm_parameters()?;
-        let rate = model.risk_free_rate()?;
-        let dividend = model.dividend_yield()?;
+        let rate = model.flat_risk_free_rate()?;
+        let dividend = model.flat_dividend_yield()?;
         let sigma = model.volatility();
         let duration = time.years_until(expiry);
         let drift = rate - dividend - 0.5 * sigma * sigma;
@@ -488,8 +488,8 @@ impl MonteCarloBarrierEngine {
 impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.bsm_parameters()?;
-        context.bsm_parameters()?.risk_free_rate()?;
-        context.bsm_parameters()?.dividend_yield()?;
+        context.bsm_parameters()?.flat_risk_free_rate()?;
+        context.bsm_parameters()?.flat_dividend_yield()?;
         Ok(())
     }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<BarrierOption> + '_>>> {

@@ -292,7 +292,7 @@ fn curves_life_and_expiry_reuse_european_contracts() {
         .unwrap();
     assert_eq!(parameters.risk_free_curve(), &risk);
     assert!(matches!(
-        parameters.risk_free_rate(),
+        parameters.flat_risk_free_rate(),
         Err(Error::UnsupportedOperation(_))
     ));
     let context = context(parameters);

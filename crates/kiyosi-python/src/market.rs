@@ -304,16 +304,16 @@ impl BlackScholesMertonParameters {
     /// Raises UnsupportedOperationError for node-based curves; use risk_free_curve
     /// to preserve coverage when passing rates to constructors or replacements.
     #[getter]
-    fn risk_free_rate(&self) -> PyResult<f64> {
-        domain(self.0.risk_free_rate())
+    fn flat_risk_free_rate(&self) -> PyResult<f64> {
+        domain(self.0.flat_risk_free_rate())
     }
     /// Returns the scalar yield for dated or undated explicitly flat curves.
     ///
     /// Raises UnsupportedOperationError for node-based curves; use dividend_curve
     /// to preserve coverage when passing yields to constructors or replacements.
     #[getter]
-    fn dividend_yield(&self) -> PyResult<f64> {
-        domain(self.0.dividend_yield())
+    fn flat_dividend_yield(&self) -> PyResult<f64> {
+        domain(self.0.flat_dividend_yield())
     }
     /// Return an owned copy of the risk-free curve.
     #[getter]

@@ -57,7 +57,7 @@ impl HestonParameters {
     /// # fn main() -> kiyosi::Result<()> {
     /// let model = HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.5, 0.3, -0.7)?;
     /// assert_eq!(model.initial_variance(), 0.04);
-    /// assert_eq!(model.risk_free_rate()?, 0.05);
+    /// assert_eq!(model.flat_risk_free_rate()?, 0.05);
     /// # Ok(()) }
     /// ```
     pub fn new(
@@ -146,20 +146,26 @@ impl HestonParameters {
     }
     /// Returns the explicitly flat risk-free rate; see [`Self::new`].
     ///
+    /// This scalar omits coverage bounds; use [`Self::risk_free_curve`] when
+    /// reconstructing a model.
+    ///
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for node-based rate curves.
-    pub fn risk_free_rate(&self) -> Result<f64> {
+    pub fn flat_risk_free_rate(&self) -> Result<f64> {
         self.risk_free_curve.flat_rate().ok_or_else(|| {
             Error::UnsupportedOperation("risk-free curve is not explicitly flat".into())
         })
     }
     /// Returns the explicitly flat dividend yield; see [`Self::new`].
     ///
+    /// This scalar omits coverage bounds; use [`Self::dividend_curve`] when
+    /// reconstructing a model.
+    ///
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for node-based rate curves.
-    pub fn dividend_yield(&self) -> Result<f64> {
+    pub fn flat_dividend_yield(&self) -> Result<f64> {
         self.dividend_curve.flat_rate().ok_or_else(|| {
             Error::UnsupportedOperation("dividend curve is not explicitly flat".into())
         })

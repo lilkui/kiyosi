@@ -75,10 +75,10 @@ def reference(parameters, instrument, tolerance, *, exp_sinh=False):
     with ql.SavedSettings():
         ql.Settings.instance().evaluationDate = qstart
         risk = ql.YieldTermStructureHandle(
-            ql.FlatForward(qstart, parameters.risk_free_rate, ql.Actual365Fixed())
+            ql.FlatForward(qstart, parameters.flat_risk_free_rate, ql.Actual365Fixed())
         )
         dividend = ql.YieldTermStructureHandle(
-            ql.FlatForward(qstart, parameters.dividend_yield, ql.Actual365Fixed())
+            ql.FlatForward(qstart, parameters.flat_dividend_yield, ql.Actual365Fixed())
         )
         process = ql.HestonProcess(
             risk,
@@ -475,7 +475,7 @@ class HestonTests(unittest.TestCase):
         )
         parameters = model(risk_free_rate=risk, dividend_yield=dividend)
         with self.assertRaises(UnsupportedOperationError):
-            _ = parameters.risk_free_rate
+            _ = parameters.flat_risk_free_rate
         self.assertEqual(parameters.risk_free_curve.factors, risk.factors)
         actual = AnalyticHestonEuropeanEngine().price(option(), context(parameters))
         self.assertAlmostEqual(actual, 9.01127840754174, delta=1e-7)

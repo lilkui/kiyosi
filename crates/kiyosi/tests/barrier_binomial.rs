@@ -84,8 +84,8 @@ fn enumerated(
     let dt = days / 365.0 / steps as f64;
     let model = context.model_parameters().as_bsm().unwrap();
     let jump = model.volatility() * dt.sqrt();
-    let rate = model.risk_free_rate().unwrap();
-    let p = (((rate - model.dividend_yield().unwrap()) * dt).exp() - (-jump).exp())
+    let rate = model.flat_risk_free_rate().unwrap();
+    let p = (((rate - model.flat_dividend_yield().unwrap()) * dt).exp() - (-jump).exp())
         / (jump.exp() - (-jump).exp());
     let mut result = 0.0;
     for path in 0..(1 << (steps - initial_level)) {

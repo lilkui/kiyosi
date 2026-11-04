@@ -34,5 +34,11 @@ def numeric_protocol_inputs() -> None:
         risk_free_rate=Fraction(1, 32), dividend_yield=0, volatility=0.2
     )
     assert_type(model.volatility, float)
+    assert_type(model.flat_risk_free_rate, float)
+    assert_type(model.flat_dividend_yield, float)
+    assert_type(
+        model.replace(risk_free_rate=model.risk_free_curve),
+        BlackScholesMertonParameters,
+    )
     CoxRossRubinsteinVanillaEngine(step_count="42")  # ty: ignore[invalid-argument-type]
     option.replace(strike="100")  # ty: ignore[invalid-argument-type]

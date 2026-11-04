@@ -268,7 +268,7 @@ fn new_parameter_greeks_keep_unavailable_stencils_and_bump_errors() {
                 .model_parameters()
                 .as_bsm()
                 .unwrap()
-                .dividend_yield()?
+                .flat_dividend_yield()?
                 > 0.02
             {
                 return Err(Error::UnsupportedOperation(
@@ -323,7 +323,7 @@ fn new_parameter_greeks_keep_unavailable_stencils_and_bump_errors() {
             .model_parameters()
             .as_bsm()
             .unwrap()
-            .dividend_yield()
+            .flat_dividend_yield()
             .unwrap(),
         0.02
     );

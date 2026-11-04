@@ -67,7 +67,7 @@ fn pricing_consumes_both_curves_and_replacement_is_transactional() {
     let model = Model::new(risk.clone(), dividend.clone(), 0.2).unwrap();
     assert_eq!(model.risk_free_curve(), &risk);
     assert!(matches!(
-        model.risk_free_rate().unwrap_err(),
+        model.flat_risk_free_rate().unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     let context = PricingContext::new(model.clone(), 100.0, start).unwrap();
@@ -353,8 +353,8 @@ fn context_validation_timing_replacement_and_concurrent_owned_values() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(zero.risk_free_rate().unwrap(), 0.0);
-    assert_eq!(zero.dividend_yield().unwrap(), 0.0);
+    assert_eq!(zero.flat_risk_free_rate().unwrap(), 0.0);
+    assert_eq!(zero.flat_dividend_yield().unwrap(), 0.0);
     let short = RateTermStructure::new(start, vec![at(2025, 6, 30)], vec![0.98]).unwrap();
     let short_model = Model::new(short, 0.0, 0.2).unwrap();
     let short_context = context

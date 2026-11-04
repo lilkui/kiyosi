@@ -49,8 +49,8 @@ impl MonteCarloVanillaEngine {
         terminal_only: bool,
     ) -> Result<f64> {
         let model = context.bsm_parameters()?;
-        let rate = model.risk_free_rate()?;
-        let dividend = model.dividend_yield()?;
+        let rate = model.flat_risk_free_rate()?;
+        let dividend = model.flat_dividend_yield()?;
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
         if valuation < option.effective_time() || valuation > expiry {
@@ -276,8 +276,8 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         };
         let native = |context: &PricingContext, requested: GreeksRequest| {
             let mut result = PricingResult::new(engine.price(option, context)?)?;
-            let rate = context.bsm_parameters()?.risk_free_rate()?;
-            let dividend = context.bsm_parameters()?.dividend_yield()?;
+            let rate = context.bsm_parameters()?.flat_risk_free_rate()?;
+            let dividend = context.bsm_parameters()?.flat_dividend_yield()?;
             for (greek, value) in [(Greek::Rho, rate), (Greek::DividendRho, dividend)] {
                 if !requested.has(greek)
                     || context.valuation_time() == option.expiry_time()

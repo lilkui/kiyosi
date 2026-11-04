@@ -58,7 +58,7 @@ def vanilla(direction="call", strike=103):
 
 
 class RateTermStructureTests(unittest.TestCase):
-    def test_model_rate_queries_are_scalar_and_curves_preserve_coverage(self):
+    def test_flat_rate_queries_and_curve_roundtrips_preserve_coverage(self):
         curve = RateTermStructure.flat(0.03, reference_time=REFERENCE)
         rates = {"risk_free_rate": curve, "dividend_yield": curve}
         models = [
@@ -82,7 +82,7 @@ class RateTermStructureTests(unittest.TestCase):
         ]
         for model in models:
             with self.subTest(model=type(model).__name__):
-                for field in ("risk_free_rate", "dividend_yield"):
+                for field in ("flat_risk_free_rate", "flat_dividend_yield"):
                     self.assertEqual(getattr(model, field), 0.03)
                 for field in ("risk_free_curve", "dividend_curve"):
                     copied = getattr(model, field)
@@ -101,12 +101,12 @@ class RateTermStructureTests(unittest.TestCase):
                         valuation_time=REFERENCE - timedelta(days=1),
                     )
                 undated = model.replace(risk_free_rate=0.03, dividend_yield=0.03)
-                self.assertEqual(undated.risk_free_rate, model.risk_free_rate)
-                self.assertEqual(undated.dividend_yield, model.dividend_yield)
+                self.assertEqual(undated.flat_risk_free_rate, model.flat_risk_free_rate)
+                self.assertEqual(undated.flat_dividend_yield, model.flat_dividend_yield)
                 nodes = model.replace(
                     risk_free_rate=example_curve(), dividend_yield=example_curve()
                 )
-                for field in ("risk_free_rate", "dividend_yield"):
+                for field in ("flat_risk_free_rate", "flat_dividend_yield"):
                     with self.assertRaises(UnsupportedOperationError):
                         getattr(nodes, field)
 
@@ -339,9 +339,9 @@ class RateTermStructureTests(unittest.TestCase):
         self.assertEqual(model.risk_free_curve, risk_free)
         self.assertEqual(model.dividend_curve, dividend)
         with self.assertRaises(UnsupportedOperationError):
-            _ = model.risk_free_rate
+            _ = model.flat_risk_free_rate
         with self.assertRaises(UnsupportedOperationError):
-            _ = model.dividend_yield
+            _ = model.flat_dividend_yield
         rolled = context.replace(valuation_time=MIDDLE)
         self.assertEqual(rolled.valuation_time, MIDDLE)
         self.assertEqual(rolled.model_parameters, model)
@@ -498,7 +498,7 @@ class RateTermStructureTests(unittest.TestCase):
         self.assertEqual(context.spot_price, 100)
         self.assertEqual(context.model_parameters, model)
         zero = model.replace(risk_free_rate=0, dividend_yield=0)
-        self.assertEqual((zero.risk_free_rate, zero.dividend_yield), (0, 0))
+        self.assertEqual((zero.flat_risk_free_rate, zero.flat_dividend_yield), (0, 0))
         short = RateTermStructure(
             reference_time=REFERENCE, times=[MIDDLE], factors=[0.98]
         )

@@ -124,8 +124,8 @@ impl MonteCarloAccumulatorEngine {
         statistics: bool,
     ) -> Result<(Moments, Moments, bool)> {
         let model = context.bsm_parameters()?;
-        let rate = model.risk_free_rate()?;
-        let dividend = model.dividend_yield()?;
+        let rate = model.flat_risk_free_rate()?;
+        let dividend = model.flat_dividend_yield()?;
         option.validate_pricing(context)?;
         let (quantity, settlement) = option.initial(context);
         if let Some(value) = settlement {
@@ -254,8 +254,8 @@ impl MonteCarloAccumulatorEngine {
 impl PricingEngine<Accumulator> for MonteCarloAccumulatorEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.bsm_parameters()?;
-        context.bsm_parameters()?.risk_free_rate()?;
-        context.bsm_parameters()?.dividend_yield()?;
+        context.bsm_parameters()?.flat_risk_free_rate()?;
+        context.bsm_parameters()?.flat_dividend_yield()?;
         Ok(())
     }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<Accumulator> + '_>>> {

@@ -282,8 +282,8 @@ pub struct BjerksundStenslandVanillaEngine;
 
 impl BjerksundStenslandVanillaEngine {
     fn require_flat(context: &PricingContext) -> Result<()> {
-        context.bsm_parameters()?.risk_free_rate()?;
-        context.bsm_parameters()?.dividend_yield()?;
+        context.bsm_parameters()?.flat_risk_free_rate()?;
+        context.bsm_parameters()?.flat_dividend_yield()?;
         Ok(())
     }
 
@@ -326,7 +326,7 @@ impl BjerksundStenslandVanillaEngine {
         }
         let time = valuation.years_until(expiry);
         let model = context.bsm_parameters()?;
-        let (rate, dividend) = (model.risk_free_rate()?, model.dividend_yield()?);
+        let (rate, dividend) = (model.flat_risk_free_rate()?, model.flat_dividend_yield()?);
         let call = option.option_type() == OptionType::Call;
         if time > 0.0 && (if call { rate } else { dividend }) < 0.0 {
             return Err(Error::UnsupportedOperation(

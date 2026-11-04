@@ -200,8 +200,8 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
         if o.period() == 0.0 {
             return crate::AnalyticEuropeanEngine.price(&o.terms, context);
         }
-        let rate = model.risk_free_rate()?;
-        let carry = rate - model.dividend_yield()?;
+        let rate = model.flat_risk_free_rate()?;
+        let carry = rate - model.flat_dividend_yield()?;
         let sigma = model.volatility();
         let period = o.period();
         let lead = (tau - period).max(0.0);

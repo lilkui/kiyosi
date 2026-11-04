@@ -47,14 +47,18 @@ def terminal_reference(option, context):
     time = (end - context.valuation_time).total_seconds() / (365 * 86400)
     model = context.model_parameters
     deviation = model.volatility * math.sqrt(time)
-    stock = context.spot_price * math.exp(-model.dividend_yield * time)
-    cash = option.strike * math.exp(-model.risk_free_rate * time)
+    stock = context.spot_price * math.exp(-model.flat_dividend_yield * time)
+    cash = option.strike * math.exp(-model.flat_risk_free_rate * time)
     forward = stock - cash
 
     def below(level):
         d2 = (
             math.log(context.spot_price / level)
-            + (model.risk_free_rate - model.dividend_yield - model.volatility**2 / 2)
+            + (
+                model.flat_risk_free_rate
+                - model.flat_dividend_yield
+                - model.volatility**2 / 2
+            )
             * time
         ) / deviation
         return (
@@ -559,9 +563,9 @@ class AccumulatorExtensionTests(unittest.TestCase):
         context = market(100.25, datetime(2025, 1, 3, 12))
         time = 2.5 / 365
         model = context.model_parameters
-        discount = math.exp(-model.risk_free_rate * time)
+        discount = math.exp(-model.flat_risk_free_rate * time)
         forward = context.spot_price * math.exp(
-            (model.risk_free_rate - model.dividend_yield) * time
+            (model.flat_risk_free_rate - model.flat_dividend_yield) * time
         )
         deviation = model.volatility * math.sqrt(time)
         unit = discount * (forward - 100)

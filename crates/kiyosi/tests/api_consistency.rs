@@ -64,7 +64,7 @@ fn model_scalar_rate_queries_match_curve_representations() -> Result<()> {
                 let model = $model;
                 assert_eq!(model.risk_free_curve(), &curve);
                 assert_eq!(model.dividend_curve(), &curve);
-                for rate in [model.risk_free_rate(), model.dividend_yield()] {
+                for rate in [model.flat_risk_free_rate(), model.flat_dividend_yield()] {
                     if curve.is_explicitly_flat() {
                         assert_eq!(rate?, 0.03);
                     } else {

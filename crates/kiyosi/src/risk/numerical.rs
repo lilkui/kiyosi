@@ -611,8 +611,8 @@ mod tests {
                 PricingResult::new(
                     spot.powi(3) * (1.0 + model.volatility().powi(2))
                         + spot.powi(2) * days
-                        + model.risk_free_rate()?
-                        + 3.0 * model.dividend_yield()?,
+                        + model.flat_risk_free_rate()?
+                        + 3.0 * model.flat_dividend_yield()?,
                 )
             };
             let result = complete_greeks(

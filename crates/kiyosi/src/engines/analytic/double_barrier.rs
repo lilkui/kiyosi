@@ -80,8 +80,8 @@ impl AnalyticDoubleBarrierEngine {
 impl PricingEngine<DoubleBarrierOption> for AnalyticDoubleBarrierEngine {
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.bsm_parameters()?;
-        context.bsm_parameters()?.risk_free_rate()?;
-        context.bsm_parameters()?.dividend_yield()?;
+        context.bsm_parameters()?.flat_risk_free_rate()?;
+        context.bsm_parameters()?.flat_dividend_yield()?;
         Ok(())
     }
     fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
@@ -136,7 +136,9 @@ impl AbsorbingDistribution {
             band: log_ratio(upper, lower),
             log_lower: lower.ln(),
             volatility: sigma,
-            drift: model.risk_free_rate()? - model.dividend_yield()? - 0.5 * sigma * sigma,
+            drift: model.flat_risk_free_rate()?
+                - model.flat_dividend_yield()?
+                - 0.5 * sigma * sigma,
             time: context.valuation_time().years_until(expiry),
         })
     }
@@ -550,7 +552,7 @@ fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Res
         option.expiry_time(),
         context,
     )?;
-    let rate = context.bsm_parameters()?.risk_free_rate()?;
+    let rate = context.bsm_parameters()?.flat_risk_free_rate()?;
     let discount = -rate * density.time;
     let call = option.option_type() == OptionType::Call;
     let strike = log_ratio(option.strike(), option.lower_barrier());
@@ -599,7 +601,10 @@ pub(crate) fn hit_value(option: &DoubleBarrierOption, context: &PricingContext) 
         option.expiry_time(),
         context,
     )?
-    .hit_value(option.rebate(), context.bsm_parameters()?.risk_free_rate()?)
+    .hit_value(
+        option.rebate(),
+        context.bsm_parameters()?.flat_risk_free_rate()?,
+    )
 }
 
 #[cfg(test)]

@@ -75,8 +75,8 @@ impl BlackScholesMertonParameters {
     /// let discounts = RateTermStructure::new(start, vec![end], vec![0.95])?;
     /// let model = BlackScholesMertonParameters::new(discounts, 0.02, 0.2)?;
     /// assert!((model.risk_free_curve().factor(start, end)? - 0.95).abs() < 1e-14);
-    /// assert_eq!(model.dividend_yield()?, 0.02);
-    /// assert!(model.risk_free_rate().is_err()); // Node curves have no scalar rate.
+    /// assert_eq!(model.flat_dividend_yield()?, 0.02);
+    /// assert!(model.flat_risk_free_rate().is_err()); // Node curves have no scalar rate.
     /// # Ok(()) }
     /// ```
     pub fn new(
@@ -112,11 +112,14 @@ impl BlackScholesMertonParameters {
     }
     /// Returns the explicitly flat risk-free rate.
     ///
+    /// This scalar omits coverage bounds; use [`Self::risk_free_curve`] when
+    /// reconstructing a model.
+    ///
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for node-based rate curves, even if their
     /// forwards are constant. See [`Self::new`] for scalar-rate construction.
-    pub fn risk_free_rate(&self) -> Result<f64> {
+    pub fn flat_risk_free_rate(&self) -> Result<f64> {
         self.risk_free_curve
             .flat_rate()
             .ok_or(Error::UnsupportedOperation(
@@ -125,11 +128,14 @@ impl BlackScholesMertonParameters {
     }
     /// Returns the explicitly flat dividend yield.
     ///
+    /// This scalar omits coverage bounds; use [`Self::dividend_curve`] when
+    /// reconstructing a model.
+    ///
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for node-based rate curves, even if their
     /// forwards are constant. See [`Self::new`] for scalar-rate construction.
-    pub fn dividend_yield(&self) -> Result<f64> {
+    pub fn flat_dividend_yield(&self) -> Result<f64> {
         self.dividend_curve
             .flat_rate()
             .ok_or(Error::UnsupportedOperation(

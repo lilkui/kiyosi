@@ -215,7 +215,7 @@ impl MonteCarloAsianEngine {
         let flat = model.risk_free_curve().is_explicitly_flat()
             && model.dividend_curve().is_explicitly_flat();
         let carry = if flat {
-            model.risk_free_rate()? - model.dividend_yield()?
+            model.flat_risk_free_rate()? - model.flat_dividend_yield()?
         } else {
             0.0
         };
