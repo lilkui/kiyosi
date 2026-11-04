@@ -45,7 +45,17 @@ def _curve(reference_time: Any, times: Any, factors: Any, shift: float) -> Any:
     ).shifted(shift)
 
 
-def _reduce(value: Any) -> tuple[Any, tuple[Any, ...]]:
+class _Preview:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+    def __repr__(self) -> str:
+        return self.text
+
+
+def _reduce(
+    value: Any, previews: dict[str, str] | None = None
+) -> tuple[Any, tuple[Any, ...]]:
     factory = type(value)
     if isinstance(value, _native.TradingCalendar):
         kind, base, closed, opened, basis = _native._calendar_parts(value)
@@ -113,7 +123,9 @@ def _reduce(value: Any) -> tuple[Any, tuple[Any, ...]]:
         "dividend_yield": "dividend_curve",
     }
     fields = {
-        name: getattr(value, rate_fields.get(name, name))
+        name: _Preview(previews[name])
+        if previews and name in previews
+        else getattr(value, rate_fields.get(name, name))
         for name in signature(factory).parameters
     }
     if isinstance(value, _native.PhoenixOption):
@@ -128,7 +140,10 @@ _repr_formatter.maxother = 160
 
 
 def _repr(value: Any) -> str:
-    factory, args = _reduce(value)
+    previews = _native._repr_previews(value)
+    if "__repr__" in previews:
+        return previews["__repr__"]
+    factory, args = _reduce(value, previews)
     name = type(value).__name__
     if factory is _calendar:
         kind, base, closed, opened, basis = args
@@ -151,7 +166,8 @@ def _repr(value: Any) -> str:
         elif isinstance(value, _native.DoubleTouchOption):
             fields = {"barrier_type": value.barrier_type, **fields}
     terms = ", ".join(
-        f"{key}={_repr_formatter.repr(field)}" for key, field in fields.items()
+        f"{key}={field.text if isinstance(field, _Preview) else _repr_formatter.repr(field)}"
+        for key, field in fields.items()
     )
     return f"{name}({terms}){suffix}"
 

@@ -284,6 +284,32 @@ class SerializationTests(unittest.TestCase):
         self.assertIn(".shifted(-1000000.0)", repr(curve))
         self.assertEqual(repr(pickle.loads(pickle.dumps(curve))), repr(curve))
 
+    def test_repr_memory_is_bounded_for_surfaces_and_nested_contexts(self):
+        import tracemalloc
+        from datetime import timedelta
+
+        surface = m.LocalVolatilitySurface(
+            times=[START + timedelta(days=n) for n in range(500)],
+            spots=list(range(1, 501)),
+            values=[[0.2] * 500 for _ in range(500)],
+        )
+        model = m.LocalVolatilityParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, surface=surface
+        )
+        context = m.PricingContext(
+            model_parameters=model, spot_price=100, valuation_time=START
+        )
+        for value in (surface, model, context):
+            with self.subTest(value=type(value).__name__):
+                tracemalloc.start()
+                try:
+                    text = repr(value)
+                    _, peak = tracemalloc.get_traced_memory()
+                finally:
+                    tracemalloc.stop()
+                self.assertIn("...", text)
+                self.assertLess(peak, 256 * 1024)
+
     def test_repr_bounds_large_contract_schedules(self):
         from datetime import timedelta
 

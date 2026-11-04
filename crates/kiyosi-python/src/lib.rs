@@ -14,6 +14,7 @@ mod instruments;
 mod local_volatility;
 mod market;
 mod registration;
+mod representation;
 mod risk;
 mod schedule;
 mod signatures;

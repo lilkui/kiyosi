@@ -27,7 +27,8 @@ values raise ``TypeError`` and values outside the target integer range raise
 
 Values own their data and expose read-only properties. Default representations
 show contract terms, market inputs, engine controls and result values, with
-large arrays abbreviated for interactive inspection. Shared and distinct
+large arrays abbreviated through bounded native previews for interactive inspection.
+Representations do not copy full surfaces, curves or observation arrays. Shared and distinct
 instances support concurrent reads and pricing. Replacement creates a new
 value. ``copy.copy`` and ``copy.deepcopy`` return the same immutable value;
 pricing results compare by value, including Greek request/support metadata and
