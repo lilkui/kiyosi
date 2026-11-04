@@ -51,15 +51,20 @@ pub(crate) fn supplied<'a, 'py>(
 }
 
 pub(crate) fn real(value: &Bound<'_, PyAny>) -> PyResult<f64> {
-    if value.is_instance_of::<PyBool>()
-        || !value.is_instance(&value.py().import("numbers")?.getattr("Real")?)?
-    {
+    let numbers = value.py().import("numbers")?;
+    if value.is_instance_of::<PyBool>() || !value.is_instance(&numbers.getattr("Real")?)? {
         return Err(PyTypeError::new_err(
             "expected a real number, excluding bool",
         ));
     }
     let converted: f64 = value.extract()?;
-    if converted.is_finite() && !value.is_instance_of::<PyFloat>() && !value.eq(converted)? {
+    // Integer scalar equality may round both operands (for example, NumPy integers).
+    let exact = if value.is_instance(&numbers.getattr("Integral")?)? {
+        integer_index(value)?
+    } else {
+        value.clone()
+    };
+    if converted.is_finite() && !value.is_instance_of::<PyFloat>() && !exact.eq(converted)? {
         return Err(PyValueError::new_err(
             "number cannot be represented exactly as a float; convert to float explicitly to round",
         ));

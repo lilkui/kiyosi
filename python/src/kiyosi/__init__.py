@@ -20,6 +20,7 @@ raises ``ValueError``, including calendar adjustments past either Python limit.
 Numeric inputs reject booleans and unintended lossy conversions. Integers and
 other exact real numbers must be representable exactly as a float; use an explicit
 ``float(value)`` conversion to opt into rounding.
+This also applies to integer scalars from libraries such as NumPy.
 Integer inputs accept the ``__index__`` protocol, excluding booleans; fractional
 values raise ``TypeError`` and values outside the target integer range raise
 ``OverflowError``.

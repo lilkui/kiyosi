@@ -97,13 +97,23 @@ class ApiConsistencyTests(unittest.TestCase):
         self.assertIs(caught.exception, failure)
 
     def test_exact_numbers_reject_implicit_rounding(self):
+        class CoercingInteger(int):
+            def __eq__(self, other):
+                return float(self) == other
+
         fields = {
             "option_type": "call",
             "effective_time": datetime(2025, 1, 1),
             "expiry_time": datetime(2026, 1, 1),
         }
         original = ins.EuropeanOption(strike=100, **fields)
-        for value in (2**53 + 1, Fraction(2**53 + 1, 2**53), Fraction(1, 10)):
+        for value in (
+            2**53 + 1,
+            CoercingInteger(2**53 + 1),
+            CoercingInteger(2**63 - 1),
+            Fraction(2**53 + 1, 2**53),
+            Fraction(1, 10),
+        ):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     ins.EuropeanOption(strike=value, **fields)
@@ -113,7 +123,7 @@ class ApiConsistencyTests(unittest.TestCase):
                 self.assertEqual(
                     original.replace(strike=float(value)).strike, float(value)
                 )
-        for value in (2**53 + 2, Fraction(1, 2)):
+        for value in (2**53 + 2, CoercingInteger(2**53 + 2), Fraction(1, 2)):
             with self.subTest(value=value):
                 self.assertEqual(
                     ins.EuropeanOption(strike=value, **fields).strike, value
