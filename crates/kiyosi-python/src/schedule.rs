@@ -1,9 +1,8 @@
 use crate::calendar::TradingCalendar;
-use crate::conversions::{check_integer, integer, python_timestamp, timestamp};
+use crate::conversions::{integer, integer_index, python_timestamp, timestamp};
 use crate::error::domain;
-use pyo3::exceptions::{PyIndexError, PyOverflowError, PyTypeError};
+use pyo3::exceptions::{PyIndexError, PyOverflowError};
 use pyo3::prelude::*;
-use pyo3::types::PyBool;
 
 /// Immutable ordered observation times with sequence access.
 ///
@@ -36,10 +35,7 @@ impl ObservationSchedule {
         py: Python<'py>,
         index: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        if index.is_instance_of::<PyBool>() {
-            return Err(PyTypeError::new_err("schedule index must not be bool"));
-        }
-        let index = py.import("operator")?.call_method1("index", (index,))?;
+        let index = integer_index(index)?;
         let index = index.extract::<isize>().map_err(|error| {
             if error.is_instance_of::<PyOverflowError>(py) {
                 PyIndexError::new_err("schedule index out of range")
@@ -113,8 +109,7 @@ pub(crate) fn fixed_interval_schedule(
 ) -> PyResult<ObservationSchedule> {
     let start_time = timestamp(start_time)?;
     let end_time = timestamp(end_time)?;
-    check_integer(interval_days)?;
-    let interval_days = interval_days.extract::<i64>()?;
+    let interval_days = integer_index(interval_days)?.extract::<i64>()?;
     Ok(ObservationSchedule(domain(
         kiyosi::ObservationSchedule::fixed_interval(
             start_time,

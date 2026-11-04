@@ -1,4 +1,4 @@
-use crate::conversions::{check_integer, real};
+use crate::conversions::{integer_index, real};
 use crate::engines::ScalarRequest;
 use crate::error::domain;
 use crate::instruments::vanilla::EuropeanOption;
@@ -7,8 +7,7 @@ use crate::risk;
 use pyo3::prelude::*;
 
 fn evaluation_count(value: &Bound<'_, PyAny>) -> PyResult<usize> {
-    check_integer(value)?;
-    value.extract()
+    integer_index(value)?.extract()
 }
 
 /// Price European calls and puts under Heston by adaptive Fourier integration.

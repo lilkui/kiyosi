@@ -18,6 +18,9 @@ consistent time basis.
 Numeric inputs reject booleans and unintended lossy conversions. Integers and
 other exact real numbers must be representable exactly as a float; use an explicit
 ``float(value)`` conversion to opt into rounding.
+Integer inputs accept the ``__index__`` protocol, excluding booleans; fractional
+values raise ``TypeError`` and values outside the target integer range raise
+``OverflowError``.
 
 Values own their data and expose read-only properties. Default representations
 show contract terms, market inputs, engine controls and result values, with

@@ -290,11 +290,12 @@ class CalendarTests(unittest.TestCase):
             (fixed_interval_schedule, "interval_days", 63),
             (monthly_schedule, "first_observation_month", 31),
         ):
-            self.assertEqual(
-                factory(start_time=start, end_time=end, **{field: Index()}).times,
-                factory(start_time=start, end_time=end, **{field: 1}).times,
-            )
-            for value in (True, 1.0, 1.5, "1", None, IndexOnly()):
+            for value in (Index(), IndexOnly()):
+                self.assertEqual(
+                    factory(start_time=start, end_time=end, **{field: value}).times,
+                    factory(start_time=start, end_time=end, **{field: 1}).times,
+                )
+            for value in (True, 1.0, 1.5, "1", None):
                 with self.assertRaises(TypeError):
                     factory(start_time=start, end_time=end, **{field: value})
             for value in (-(2**bits) - 1, 2**bits):

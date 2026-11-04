@@ -10,6 +10,47 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_integer_inputs_share_the_index_protocol(self):
+        class Index:
+            def __init__(self, value):
+                self.value = value
+
+            def __index__(self):
+                return self.value
+
+        schedule = market.fixed_interval_schedule(
+            start_time=datetime(2025, 1, 1),
+            end_time=datetime(2025, 1, 10),
+            interval_days=Index(2),
+        )
+        self.assertEqual(schedule[Index(1)], datetime(2025, 1, 6))
+        self.assertEqual(
+            pricing.CoxRossRubinsteinVanillaEngine(step_count=Index(8)).step_count, 8
+        )
+        self.assertEqual(pricing.MonteCarloVanillaEngine(seed=Index(42)).seed, 42)
+        self.assertEqual(
+            pricing.AnalyticHestonEuropeanEngine(
+                max_evaluations=Index(32)
+            ).max_evaluations,
+            32,
+        )
+        for invalid in (True, 2.5):
+            with self.subTest(invalid=invalid), self.assertRaises(TypeError):
+                pricing.CoxRossRubinsteinVanillaEngine(step_count=invalid)
+        with self.assertRaises(OverflowError):
+            pricing.CoxRossRubinsteinVanillaEngine(step_count=Index(2**31))
+        with self.assertRaises(OverflowError):
+            pricing.MonteCarloVanillaEngine(seed=Index(2**64))
+        failure = RuntimeError("index conversion failed")
+
+        class FailingIndex:
+            def __index__(self):
+                raise failure
+
+        with self.assertRaises(RuntimeError) as caught:
+            pricing.MonteCarloVanillaEngine(seed=FailingIndex())
+        self.assertIs(caught.exception, failure)
+
     def test_exact_numbers_reject_implicit_rounding(self):
         fields = {
             "option_type": "call",

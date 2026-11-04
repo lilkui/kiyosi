@@ -80,17 +80,17 @@ pub(crate) fn direction(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::OptionType
 }
 
 pub(crate) fn integer(value: &Bound<'_, PyAny>) -> PyResult<i32> {
-    check_integer(value)?;
-    value.extract()
+    integer_index(value)?.extract()
 }
 
-pub(crate) fn check_integer(value: &Bound<'_, PyAny>) -> PyResult<()> {
-    if value.is_instance_of::<PyBool>()
-        || !value.is_instance(&value.py().import("numbers")?.getattr("Integral")?)?
-    {
+pub(crate) fn integer_index<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    if value.is_instance_of::<PyBool>() {
         return Err(PyTypeError::new_err("expected an integer, excluding bool"));
     }
-    Ok(())
+    value
+        .py()
+        .import("operator")?
+        .call_method1("index", (value,))
 }
 
 pub(crate) fn dates(value: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::Date>> {

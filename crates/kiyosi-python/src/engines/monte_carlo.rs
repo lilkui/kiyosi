@@ -1,4 +1,4 @@
-use crate::conversions::{boolean, check_integer, integer};
+use crate::conversions::{boolean, integer, integer_index};
 use crate::engines::ScalarRequest;
 use crate::engines::binomial;
 use crate::error::domain;
@@ -230,10 +230,7 @@ macro_rules! sampling_settings {
             ) -> PyResult<Self> {
                 let settings = kiyosi::MonteCarloSettings {
                     path_count,
-                    seed: seed.map(|value| {
-                        check_integer(value)?;
-                        value.extract::<u64>()
-                    }).transpose()?,
+                    seed: seed.map(|value| integer_index(value)?.extract::<u64>()).transpose()?,
                     thread_count,
                     sampling,
                     antithetic,

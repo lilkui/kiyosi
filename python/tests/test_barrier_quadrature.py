@@ -395,8 +395,7 @@ class BarrierQuadratureTests(unittest.TestCase):
             def __index__(self):
                 return 513
 
-        with self.assertRaises(TypeError):
-            constructor(asset_step_count=Index())
+        self.assertEqual(constructor(asset_step_count=Index()).asset_step_count, 513)
         numbers.Integral.register(Index)
         self.assertEqual(constructor(asset_step_count=Index()).asset_step_count, 513)
         with self.assertRaises(AttributeError):
