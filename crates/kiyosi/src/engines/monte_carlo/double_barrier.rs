@@ -82,9 +82,9 @@ impl MonteCarloDoubleBarrierEngine {
     ///
     /// Other Greeks remain absent. Expiry and spot stencils crossing either
     /// current monitored boundary suppress delta/gamma. The positive finite
-    /// `spot_shift` controls that availability and numerical derivatives of
+    /// `shifts.spot_shift` controls that availability and numerical derivatives of
     /// continuous at-hit rebates. Other numerical bump settings are unused by the
-    /// [`PricingEngine::price_with_greeks`] adapter.
+    /// inherent method and [`PricingEngine::price_with_greeks`] adapter.
     /// Unavailable rebate stencils leave the contract's delta/gamma absent; see
     /// [`crate::numerical_greeks`] for stencil requirements.
     /// Near-expiry likelihood estimates can have substantial sampling error.
@@ -121,7 +121,7 @@ impl MonteCarloDoubleBarrierEngine {
     /// })?;
     /// let result = engine.price_with_greeks(&option, &context,
     ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-    ///     NumericalShiftSettings::default().spot_shift())?;
+    ///     NumericalShiftSettings::default())?;
     /// assert!((result.price() - 1.0838814592583166).abs() < 0.003);
     /// assert!(result.has(Greek::Delta));
     /// assert_eq!(engine.settings().path_count, 32768);
@@ -132,13 +132,13 @@ impl MonteCarloDoubleBarrierEngine {
         option: &DoubleBarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        spot_shift: f64,
+        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
         request.validate()?;
         let settings = NumericalShiftSettings {
-            spot_shift: Some(spot_shift),
+            spot_shift: shifts.spot_shift,
             ..Default::default()
         };
         settings.validate()?;
@@ -177,7 +177,7 @@ impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request, settings.spot_shift())
+        Self::price_with_greeks(self, option, context, request, settings)
     }
     fn volatility_affects_price(
         &self,

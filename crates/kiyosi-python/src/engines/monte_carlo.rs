@@ -101,17 +101,17 @@ macro_rules! sampling_settings {
                 let option = &instrument.0;
                 let engine = self.0;
                 let context = &context.0;
-                Ok(risk::PricingResult(domain(py.detach(|| engine.price_with_greeks(option, context, request, spot_shift)))?))
+                Ok(risk::PricingResult(domain(py.detach(|| engine.price_with_greeks(option, context, request, kiyosi::NumericalShiftSettings { spot_shift: Some(spot_shift), ..Default::default() })))?))
             }
         );
         impl $engine {
-            pub(crate) fn evaluate(
+            pub(crate) fn evaluate<R: Send>(
                 &self,
                 py: Python<'_>,
                 instrument: $instrument,
                 context: &PricingContext,
-                request: ScalarRequest,
-            ) -> PyResult<f64> {
+                request: impl crate::engines::PricingRequest<R>,
+            ) -> PyResult<R> {
                 let option = &instrument.0;
                 let engine = self.0;
                 let context = &context.0;
@@ -200,13 +200,13 @@ macro_rules! sampling_settings {
             )
         );
         impl $engine {
-            pub(crate) fn evaluate(
+            pub(crate) fn evaluate<R: Send>(
                 &self,
                 py: Python<'_>,
                 instrument: $instrument,
                 context: &PricingContext,
-                request: ScalarRequest,
-            ) -> PyResult<f64> {
+                request: impl crate::engines::PricingRequest<R>,
+            ) -> PyResult<R> {
                 let engine = self.0;
                 let context = &context.0;
                 $with!(&instrument, option, domain(py.detach(|| {
@@ -620,7 +620,7 @@ sampling_settings!(
         let option = instrument.contract();
         let context = &context.0;
         Ok(risk::PricingResult(domain(py.detach(|| {
-            engine.price_with_greeks(option, context, request)
+            engine.price_with_greeks(option, context, request, Default::default())
         }))?))
     }
 );
@@ -744,7 +744,12 @@ sampling_settings!(
         let result = asian::with_asian!(
             instrument,
             option,
-            domain(py.detach(|| engine.price_with_greeks(option, context, request)))
+            domain(py.detach(|| engine.price_with_greeks(
+                option,
+                context,
+                request,
+                Default::default()
+            )))
         )?;
         Ok(risk::PricingResult(result))
     }
@@ -924,13 +929,13 @@ sampling_settings!(
 );
 
 impl MonteCarloVanillaEngine {
-    pub(crate) fn evaluate(
+    pub(crate) fn evaluate<R: Send>(
         &self,
         py: Python<'_>,
         instrument: binomial::VanillaInstrument<'_>,
         context: &PricingContext,
-        request: ScalarRequest,
-    ) -> PyResult<f64> {
+        request: impl crate::engines::PricingRequest<R>,
+    ) -> PyResult<R> {
         let engine = self.0;
         let context = &context.0;
         binomial::with_vanilla!(
@@ -946,13 +951,13 @@ impl MonteCarloDigitalEngine {
         clippy::needless_pass_by_value,
         reason = "retain the extracted Python borrow during evaluation"
     )]
-    pub(crate) fn evaluate(
+    pub(crate) fn evaluate<R: Send>(
         &self,
         py: Python<'_>,
         instrument: digital::DigitalInstrument<'_>,
         context: &PricingContext,
-        request: ScalarRequest,
-    ) -> PyResult<f64> {
+        request: impl crate::engines::PricingRequest<R>,
+    ) -> PyResult<R> {
         let engine = self.0;
         let option = instrument.contract();
         let context = &context.0;
@@ -961,13 +966,13 @@ impl MonteCarloDigitalEngine {
 }
 
 impl MonteCarloAsianEngine {
-    pub(crate) fn evaluate(
+    pub(crate) fn evaluate<R: Send>(
         &self,
         py: Python<'_>,
         instrument: asian::AsianInstrument<'_>,
         context: &PricingContext,
-        request: ScalarRequest,
-    ) -> PyResult<f64> {
+        request: impl crate::engines::PricingRequest<R>,
+    ) -> PyResult<R> {
         let engine = self.0;
         let context = &context.0;
         asian::with_asian!(

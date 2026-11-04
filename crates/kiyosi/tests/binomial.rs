@@ -23,7 +23,7 @@ fn european_tree_refines_to_analytic_price_and_node_greeks() {
     for direction in [OptionType::Call, OptionType::Put] {
         let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
         let expected = AnalyticEuropeanEngine
-            .price_with_greeks(&option, &context, GreeksRequest::all())
+            .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
             .unwrap();
         for steps in [255, 256, 4095, 4096] {
             let engine =
@@ -73,7 +73,7 @@ fn digital_tree_matches_one_step_cash_and_asset_payments() {
         ),
     ] {
         let result = engine
-            .price_with_greeks(&option, &context, GreeksRequest::all())
+            .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
             .unwrap();
         assert!((result.price() - price).abs() < 1e-10);
         assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
@@ -157,7 +157,12 @@ fn digital_odd_even_and_off_strike_grids_refine_with_negative_carry() {
                         })
                         .unwrap();
                         let actual = engine
-                            .price_with_greeks(&option, &context, GreeksRequest::all())
+                            .price_with_greeks(
+                                &option,
+                                &context,
+                                GreeksRequest::all(),
+                                Default::default(),
+                            )
                             .unwrap();
                         let budget = option.payout().unwrap_or(spot) / f64::from(steps).sqrt();
                         assert!((actual.price() - expected.price()).abs() < budget);
@@ -229,7 +234,7 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
                 DigitalOption::asset_or_nothing(direction, 100.0, start, end).unwrap(),
             ] {
                 let result = digital
-                    .price_with_greeks(&option, &context, GreeksRequest::all())
+                    .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
                     .unwrap();
                 assert_eq!(
                     result.price(),
@@ -337,7 +342,7 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
     ));
     assert!(matches!(
         digital
-            .price_with_greeks(&cash, &nonflat, GreeksRequest::new([]))
+            .price_with_greeks(&cash, &nonflat, GreeksRequest::new([]), Default::default())
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
@@ -521,7 +526,7 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
             .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
             .unwrap();
         let expected = AnalyticEuropeanEngine
-            .price_with_greeks(&option, &context, GreeksRequest::all())
+            .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
             .unwrap();
         for greek in [
             Greek::Speed,

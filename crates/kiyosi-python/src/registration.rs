@@ -8,15 +8,15 @@ macro_rules! pricing_classes {
     (@engines [$($class:ty),+ $(,)?]) => {
         pricing_classes!(register_engines, is_engine, [$($class),+]);
 
-        pub(crate) fn evaluate(
+        pub(crate) fn evaluate<R: Send, Q: engines::PricingRequest<R>>(
             py: Python<'_>,
             engine: &Bound<'_, PyAny>,
             instrument: &Bound<'_, PyAny>,
             context: &PricingContext,
-            request: engines::ScalarRequest,
-        ) -> PyResult<f64> {
+            request: impl FnOnce() -> PyResult<Q>,
+        ) -> PyResult<R> {
             $(if let Ok(engine) = engine.extract::<PyRef<'_, $class>>() {
-                return engine.evaluate(py, crate::conversions::instrument(instrument)?, context, request);
+                return engine.evaluate(py, crate::conversions::instrument(instrument)?, context, request()?);
             })+
             Err(pyo3::exceptions::PyTypeError::new_err("expected a Kiyosi pricing engine"))
         }
@@ -218,6 +218,7 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     module.add_class::<PricingContext>()?;
     module.add_class::<risk::PricingResult>()?;
     module.add_function(wrap_pyfunction!(risk::implied_volatility, module)?)?;
+    module.add_function(wrap_pyfunction!(risk::numerical_greeks, module)?)?;
     module.add_function(wrap_pyfunction!(risk::implied_coupon, module)?)?;
     module.add_function(wrap_pyfunction!(calendar::weekdays_calendar, module)?)?;
     module.add_function(wrap_pyfunction!(calendar::all_days_calendar, module)?)?;

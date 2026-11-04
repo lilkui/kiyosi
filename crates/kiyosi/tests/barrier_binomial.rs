@@ -172,7 +172,12 @@ fn prices_and_node_greeks_match_independent_paths_across_supported_terms() {
                             let mut observed = vec![!scheduled; steps + 1];
                             observed[steps] = true;
                             let result = engine
-                                .price_with_greeks(&option, &context, GreeksRequest::all())
+                                .price_with_greeks(
+                                    &option,
+                                    &context,
+                                    GreeksRequest::all(),
+                                    Default::default(),
+                                )
                                 .unwrap();
                             assert!(
                                 (result.price()
@@ -308,7 +313,12 @@ fn continuous_refinement_matches_analytic_prices_and_node_greeks() {
                 let result =
                     CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: steps })
                         .unwrap()
-                        .price_with_greeks(&option, &context, GreeksRequest::all())
+                        .price_with_greeks(
+                            &option,
+                            &context,
+                            GreeksRequest::all(),
+                            Default::default(),
+                        )
                         .unwrap();
                 assert!((result.price() - expected.price()).abs() < 0.25);
                 assert!(
@@ -383,13 +393,13 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     ));
     let hit = market(t.effective_time, 120.0, 0.04, 0.2);
     let result = engine
-        .price_with_greeks(&unknown, &hit, GreeksRequest::all())
+        .price_with_greeks(&unknown, &hit, GreeksRequest::all(), Default::default())
         .unwrap();
     assert_eq!(result.price(), 3.0);
     assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
     assert!(matches!(
         engine
-            .price_with_greeks(&unknown, &hit, GreeksRequest::new([]))
+            .price_with_greeks(&unknown, &hit, GreeksRequest::new([]), Default::default())
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -410,7 +420,12 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(&unknown, &nonflat, GreeksRequest::new([]))
+            .price_with_greeks(
+                &unknown,
+                &nonflat,
+                GreeksRequest::new([]),
+                Default::default()
+            )
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
@@ -458,7 +473,7 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
             };
             let context = market(time, 100.0, 0.04, 0.2);
             let result = engine
-                .price_with_greeks(&option, &context, GreeksRequest::all())
+                .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
                 .unwrap();
             assert_eq!(
                 result.price(),
@@ -476,7 +491,7 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
                 let option = BarrierOption::new(t.clone()).unwrap();
                 let context = market(t.expiry_time, spot, 0.04, 0.2);
                 let result = engine
-                    .price_with_greeks(&option, &context, GreeksRequest::all())
+                    .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
                     .unwrap();
                 assert_eq!(
                     result.price(),
@@ -554,7 +569,7 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
     let vanilla =
         EuropeanOption::new(t.option_type, t.strike, t.effective_time, t.expiry_time).unwrap();
     let expected = AnalyticEuropeanEngine
-        .price_with_greeks(&vanilla, &context, GreeksRequest::all())
+        .price_with_greeks(&vanilla, &context, GreeksRequest::all(), Default::default())
         .unwrap();
     assert!(
         (result.require(Greek::Vega).unwrap() - expected.require(Greek::Vega).unwrap()).abs()

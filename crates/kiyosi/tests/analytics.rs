@@ -95,7 +95,7 @@ fn numerical_greeks_validate_before_preparation_and_prepare_only_once() {
 fn analytic_greeks_and_volatility_recovery_use_public_api() {
     let (option, context) = market();
     let result = AnalyticEuropeanEngine
-        .price_with_greeks(&option, &context, GreeksRequest::all())
+        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
         .unwrap();
     assert!((result.require(Greek::Delta).unwrap() - 0.586_851_146_134_764).abs() < 1e-12);
     assert!((result.require(Greek::Gamma).unwrap() - 0.018_950_578_755_008_7).abs() < 1e-12);
@@ -117,7 +117,7 @@ fn analytic_greeks_and_volatility_recovery_use_public_api() {
 fn numerical_greeks_are_stable_across_absolute_bumps() {
     let (option, context) = market();
     let exact = AnalyticEuropeanEngine
-        .price_with_greeks(&option, &context, GreeksRequest::all())
+        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
         .unwrap();
     for bump in [0.05, 0.1, 0.2] {
         let settings = NumericalShiftSettings {
@@ -183,7 +183,7 @@ fn volga_and_dividend_rho_preserve_units_curves_and_selectivity() {
                 EuropeanOption::new(direction, 100.0, call.effective_time(), call.expiry_time())
                     .unwrap();
             let exact = AnalyticEuropeanEngine
-                .price_with_greeks(&option, &context, GreeksRequest::all())
+                .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
                 .unwrap();
             // A full year gives dividend rho = -spot * delta / 100.
             assert!(
@@ -246,7 +246,12 @@ fn volga_preserves_tiny_volatility_curvature() {
             })
             .unwrap();
         let result = AnalyticEuropeanEngine
-            .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Volga]))
+            .price_with_greeks(
+                &option,
+                &context,
+                GreeksRequest::new([Greek::Volga]),
+                Default::default(),
+            )
             .unwrap();
         // At zero carry the small-volatility limit is -S*sigma*phi(0)/40000.
         let expected = -(spot * sigma) / (40000.0 * (2.0 * std::f64::consts::PI).sqrt());
@@ -329,7 +334,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
     let (option, context) = market();
     let request = GreeksRequest::new([Greek::Delta, Greek::Vega, Greek::Delta]);
     let result = AnalyticEuropeanEngine
-        .price_with_greeks(&option, &context, request)
+        .price_with_greeks(&option, &context, request, Default::default())
         .unwrap();
     assert!(result.has(Greek::Delta) && result.has(Greek::Vega));
     assert_eq!(result.get(Greek::Gamma), None);
@@ -346,7 +351,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
         .unwrap();
     for result in [
         AnalyticEuropeanEngine
-            .price_with_greeks(&option, &expiry, GreeksRequest::all())
+            .price_with_greeks(&option, &expiry, GreeksRequest::all(), Default::default())
             .unwrap(),
         numerical_greeks(
             &AnalyticEuropeanEngine,
@@ -372,13 +377,18 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
         .unwrap();
     assert!(matches!(
         AnalyticEuropeanEngine
-            .price_with_greeks(&option, &outside, GreeksRequest::new([]))
+            .price_with_greeks(
+                &option,
+                &outside,
+                GreeksRequest::new([]),
+                Default::default()
+            )
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert!(matches!(
         AnalyticEuropeanEngine
-            .price_with_greeks(&option, &outside, request)
+            .price_with_greeks(&option, &outside, request, Default::default())
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -456,7 +466,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         &option,
         &context,
         &AnalyticEuropeanEngine
-            .price_with_greeks(&option, &context, request)
+            .price_with_greeks(&option, &context, request, Default::default())
             .unwrap(),
     );
     let settings = MonteCarloSettings {
@@ -478,7 +488,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         &digital,
         &context,
         &engine
-            .price_with_greeks(&digital, &context, request)
+            .price_with_greeks(&digital, &context, request, Default::default())
             .unwrap(),
     );
     let barrier = BarrierOption::new(BarrierOptionTerms::new(
@@ -496,7 +506,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         &barrier,
         &context,
         &engine
-            .price_with_greeks(&barrier, &context, request)
+            .price_with_greeks(&barrier, &context, request, Default::default())
             .unwrap(),
     );
     let engine = MonteCarloDigitalEngine::new(settings).unwrap();
@@ -505,7 +515,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         &digital,
         &context,
         &engine
-            .price_with_greeks(&digital, &context, request)
+            .price_with_greeks(&digital, &context, request, Default::default())
             .unwrap(),
     );
     let engine = MonteCarloAsianEngine::new(settings).unwrap();
@@ -523,7 +533,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         &geometric,
         &context,
         &engine
-            .price_with_greeks(&geometric, &context, request)
+            .price_with_greeks(&geometric, &context, request, Default::default())
             .unwrap(),
     );
     let arithmetic = ArithmeticAveragePriceOption::new(
@@ -540,7 +550,7 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         &arithmetic,
         &context,
         &engine
-            .price_with_greeks(&arithmetic, &context, request)
+            .price_with_greeks(&arithmetic, &context, request, Default::default())
             .unwrap(),
     );
 }
@@ -902,7 +912,7 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
         })
         .unwrap();
     let exact = AnalyticEuropeanEngine
-        .price_with_greeks(&option, &context, GreeksRequest::all())
+        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
         .unwrap();
     let after = context
         .replace(PricingContextChanges {
@@ -915,6 +925,7 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
             &option,
             &after,
             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+            Default::default(),
         )
         .unwrap();
     assert!(
@@ -988,7 +999,12 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
         .unwrap();
     assert!(matches!(
         AnalyticEuropeanEngine
-            .price_with_greeks(&option, &invalid, GreeksRequest::new([Greek::Delta]))
+            .price_with_greeks(
+                &option,
+                &invalid,
+                GreeksRequest::new([Greek::Delta]),
+                Default::default()
+            )
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -1015,7 +1031,12 @@ fn analytic_speed_preserves_subnormal_volatility_widths() {
         for direction in [OptionType::Call, OptionType::Put] {
             let option = EuropeanOption::new(direction, 1e160, start, end).unwrap();
             let result = AnalyticEuropeanEngine
-                .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Speed]))
+                .price_with_greeks(
+                    &option,
+                    &context,
+                    GreeksRequest::new([Greek::Speed]),
+                    Default::default(),
+                )
                 .unwrap();
             assert!((result.require(Greek::Speed).unwrap() / expected - 1.0).abs() < 1e-12);
         }
@@ -1044,7 +1065,12 @@ fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
     )
     .unwrap();
     let result = AnalyticEuropeanEngine
-        .price_with_greeks(&far, &huge, GreeksRequest::new([Greek::Vega]))
+        .price_with_greeks(
+            &far,
+            &huge,
+            GreeksRequest::new([Greek::Vega]),
+            Default::default(),
+        )
         .unwrap();
     // Independently evaluated log-density at d1 = log(1e-4)/0.2 + 0.1.
     let expected = 1.207_035_364_719_334_4e-161;
@@ -1068,12 +1094,22 @@ fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
     )
     .unwrap();
     let delta = AnalyticEuropeanEngine
-        .price_with_greeks(&tiny_option, &tiny, GreeksRequest::new([Greek::Delta]))
+        .price_with_greeks(
+            &tiny_option,
+            &tiny,
+            GreeksRequest::new([Greek::Delta]),
+            Default::default(),
+        )
         .unwrap();
     assert!((delta.require(Greek::Delta).unwrap() - 0.539_827_837_277_029).abs() < 1e-12);
     assert!(matches!(
         AnalyticEuropeanEngine
-            .price_with_greeks(&tiny_option, &tiny, GreeksRequest::all())
+            .price_with_greeks(
+                &tiny_option,
+                &tiny,
+                GreeksRequest::all(),
+                Default::default()
+            )
             .unwrap_err(),
         Error::ComputationFailure(_)
     ));

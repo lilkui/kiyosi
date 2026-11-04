@@ -242,7 +242,7 @@ fn constant_surface_matches_bsm_prices_and_native_greeks() {
             .price_with_greeks(&option, &c, request, Default::default())
             .unwrap();
         let expected = AnalyticEuropeanEngine
-            .price_with_greeks(&option, &bsm, request)
+            .price_with_greeks(&option, &bsm, request, Default::default())
             .unwrap();
         close(actual.price(), expected.price(), 0.002);
         close(
@@ -830,7 +830,7 @@ fn short_maturity_prices_and_greeks_match_bsm() {
         .price_with_greeks(&option, &c, request, Default::default())
         .unwrap();
     let expected = AnalyticEuropeanEngine
-        .price_with_greeks(&option, &bsm, request)
+        .price_with_greeks(&option, &bsm, request, Default::default())
         .unwrap();
     close(actual.price(), expected.price(), 0.001);
     close(

@@ -51,13 +51,13 @@ macro_rules! analytic_engine {
             )
         );
         impl $engine {
-            pub(crate) fn evaluate(
+            pub(crate) fn evaluate<R: Send>(
                 &self,
                 py: Python<'_>,
                 instrument: PyRef<'_, $option>,
                 context: &PricingContext,
-                request: $crate::engines::ScalarRequest,
-            ) -> PyResult<f64> {
+                request: impl crate::engines::PricingRequest<R>,
+            ) -> PyResult<R> {
                 let option = &instrument.0;
                 let context = &context.0;
                 domain(py.detach(|| request.evaluate(&kiyosi::$engine, option, context)))

@@ -60,7 +60,12 @@ impl AnalyticEuropeanEngine {
     ) -> PyResult<risk::PricingResult> {
         let request = risk::greeks_request(greeks)?;
         Ok(risk::PricingResult(domain(
-            kiyosi::AnalyticEuropeanEngine.price_with_greeks(&instrument.0, &context.0, request),
+            kiyosi::AnalyticEuropeanEngine.price_with_greeks(
+                &instrument.0,
+                &context.0,
+                request,
+                Default::default(),
+            ),
         )?))
     }
 
@@ -104,18 +109,18 @@ impl AnalyticEuropeanEngine {
         clippy::needless_pass_by_value,
         reason = "retain the extracted Python borrow during evaluation"
     )]
-    pub(crate) fn evaluate(
+    pub(crate) fn evaluate<R: Send>(
         &self,
         py: Python<'_>,
         instrument: PyRef<'_, EuropeanOption>,
         context: &PricingContext,
-        request: ScalarRequest,
-    ) -> PyResult<f64> {
+        request: impl crate::engines::PricingRequest<R>,
+    ) -> PyResult<R> {
         let option = &instrument.0;
         let context = &context.0;
         let calculate = || request.evaluate(&kiyosi::AnalyticEuropeanEngine, option, context);
         // Keep the GIL for short scalar formulas, but release it for iterative solves.
-        domain(if matches!(request, ScalarRequest::Price) {
+        domain(if request.is_price() {
             calculate()
         } else {
             py.detach(calculate)

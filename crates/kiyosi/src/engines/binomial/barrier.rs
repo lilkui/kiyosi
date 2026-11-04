@@ -72,6 +72,7 @@ impl CoxRossRubinsteinBarrierEngine {
 
     /// Returns requested node delta/gamma; other Greeks remain absent.
     ///
+    /// Numerical shift settings are accepted for the shared engine signature and ignored.
     /// One-step gamma and expiry Greeks are absent. Current barrier equality also
     /// suppresses Greeks without a prior touch.
     /// See [`Self::price`] for a pricing example.
@@ -86,6 +87,7 @@ impl CoxRossRubinsteinBarrierEngine {
         option: &BarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
+        _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         flat_rates(context)?;
@@ -129,6 +131,7 @@ impl CoxRossRubinsteinBarrierEngine {
                     option.vanilla(),
                     context,
                     request,
+                    Default::default(),
                 );
             }
             let mut result = PricingResult::new(value)?;
@@ -284,7 +287,7 @@ impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
         _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request)
+        Self::price_with_greeks(self, option, context, request, Default::default())
     }
     fn prepare_implied_volatility(
         &self,

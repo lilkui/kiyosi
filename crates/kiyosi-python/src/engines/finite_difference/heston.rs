@@ -164,13 +164,13 @@ impl FiniteDifferenceHestonVanillaEngine {
 }
 
 impl FiniteDifferenceHestonVanillaEngine {
-    pub(crate) fn evaluate(
+    pub(crate) fn evaluate<R: Send>(
         &self,
         py: Python<'_>,
         instrument: binomial::VanillaInstrument<'_>,
         context: &PricingContext,
-        request: ScalarRequest,
-    ) -> PyResult<f64> {
+        request: impl crate::engines::PricingRequest<R>,
+    ) -> PyResult<R> {
         let engine = self.0;
         let context = &context.0;
         binomial::with_vanilla!(

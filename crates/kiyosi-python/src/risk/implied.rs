@@ -73,14 +73,10 @@ pub(crate) fn implied_volatility(
         parameter_tolerance,
         max_iterations,
     };
-    crate::registration::evaluate(
-        py,
-        engine,
-        instrument,
-        context,
-        ScalarRequest::ImpliedVolatility {
+    crate::registration::evaluate(py, engine, instrument, context, || {
+        Ok(ScalarRequest::ImpliedVolatility {
             observed_price,
             settings: controls,
-        },
-    )
+        })
+    })
 }

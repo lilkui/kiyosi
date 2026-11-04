@@ -64,6 +64,7 @@ impl MonteCarloDigitalEngine {
 
     /// Returns requested likelihood-ratio delta/gamma from the price's normal draws.
     ///
+    /// Numerical shift settings are accepted for the shared engine signature and ignored.
     /// All other Greeks, and all expiry Greeks, remain absent. No numerical bumps
     /// are required. Near-expiry estimates can have substantial sampling error.
     ///
@@ -93,7 +94,7 @@ impl MonteCarloDigitalEngine {
     ///     seed: Some(42), ..Default::default()
     /// })?;
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::all())?;
+    ///     GreeksRequest::all(), Default::default())?;
     /// assert!(result.require(Greek::Delta)? > 0.0);
     /// assert!(!result.has(Greek::Vega));
     /// # Ok(()) }
@@ -103,6 +104,7 @@ impl MonteCarloDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
+        _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
@@ -235,6 +237,6 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request)
+        Self::price_with_greeks(self, option, context, request, Default::default())
     }
 }

@@ -507,6 +507,7 @@ impl CoxRossRubinsteinDigitalEngine {
 
     /// Returns requested node delta/gamma; all other Greeks remain absent.
     ///
+    /// Numerical shift settings are accepted for the shared engine signature and ignored.
     /// One-step gamma and all expiry Greeks are absent.
     ///
     /// # Errors
@@ -527,7 +528,7 @@ impl CoxRossRubinsteinDigitalEngine {
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// let result = CoxRossRubinsteinDigitalEngine::default().price_with_greeks(
-    ///     &option, &context, GreeksRequest::all())?;
+    ///     &option, &context, GreeksRequest::all(), Default::default())?;
     /// assert!(result.require(Greek::Delta)? > 0.0);
     /// assert!(!result.has(Greek::Vega));
     /// # Ok(()) }
@@ -537,6 +538,7 @@ impl CoxRossRubinsteinDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
+        _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         flat_rates(context)?;
@@ -575,7 +577,7 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
         _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request)
+        Self::price_with_greeks(self, option, context, request, Default::default())
     }
     fn prepare_implied_volatility(
         &self,

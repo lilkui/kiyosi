@@ -103,7 +103,7 @@ fn european_greeks_and_implied_volatility_use_shared_contracts() {
         .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
         .unwrap();
     let expected = AnalyticEuropeanEngine
-        .price_with_greeks(&option, &context, GreeksRequest::all())
+        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
         .unwrap();
     for greek in Greek::ALL {
         assert!(

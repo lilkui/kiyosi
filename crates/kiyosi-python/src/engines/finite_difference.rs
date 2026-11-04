@@ -153,13 +153,13 @@ macro_rules! fd_engine {
             )
         );
         impl $name {
-            pub(crate) fn evaluate(
+            pub(crate) fn evaluate<R: Send>(
                 &self,
                 py: Python<'_>,
                 instrument: $instrument,
                 context: &PricingContext,
-                request: ScalarRequest,
-            ) -> PyResult<f64> {
+                request: impl crate::engines::PricingRequest<R>,
+            ) -> PyResult<R> {
                 let engine = self.0;
                 let context = &context.0;
                 $with!(&instrument, option, domain(py.detach(|| {

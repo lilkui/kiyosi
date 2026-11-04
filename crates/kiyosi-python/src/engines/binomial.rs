@@ -217,18 +217,18 @@ macro_rules! binomial_engine {
                 let engine = self.0;
                 let context = &context.0;
                 Ok(risk::PricingResult(domain(py.detach(|| {
-                    engine.price_with_greeks(option, context, request)
+                    engine.price_with_greeks(option, context, request, Default::default())
                 }))?))
             }
         }
         impl $name {
-            pub(crate) fn evaluate(
+            pub(crate) fn evaluate<R: Send>(
                 &self,
                 py: Python<'_>,
                 instrument: $instrument,
                 context: &PricingContext,
-                request: ScalarRequest,
-            ) -> PyResult<f64> {
+                request: impl crate::engines::PricingRequest<R>,
+            ) -> PyResult<R> {
                 let $value = instrument;
                 let option = $contract;
                 let engine = self.0;
@@ -260,13 +260,13 @@ binomial_engine!(
 );
 
 impl CoxRossRubinsteinVanillaEngine {
-    pub(crate) fn evaluate(
+    pub(crate) fn evaluate<R: Send>(
         &self,
         py: Python<'_>,
         instrument: VanillaInstrument<'_>,
         context: &PricingContext,
-        request: ScalarRequest,
-    ) -> PyResult<f64> {
+        request: impl crate::engines::PricingRequest<R>,
+    ) -> PyResult<R> {
         let engine = self.0;
         let context = &context.0;
         with_vanilla!(

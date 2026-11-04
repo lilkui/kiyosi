@@ -4,7 +4,7 @@ import pickle
 import unittest
 from datetime import datetime
 
-from kiyosi import UnsupportedOperationError, market, pricing
+from kiyosi import InvalidInputError, UnsupportedOperationError, market, pricing
 from kiyosi import instruments as ins
 
 
@@ -156,3 +156,64 @@ class ApiConsistencyTests(unittest.TestCase):
             reference_time=start, times=[end], factors=[0.95]
         )
         self.assertIsNone(nodes.flat_rate)
+
+    def test_numerical_greeks_has_uniform_controls_across_engines(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        option = ins.EuropeanOption(
+            option_type="call", strike=100, effective_time=start, expiry_time=end
+        )
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        expected = (
+            pricing.AnalyticEuropeanEngine()
+            .price_with_greeks(option, context, "delta")
+            .require("delta")
+        )
+        for engine in (
+            pricing.AnalyticEuropeanEngine(),
+            pricing.QuadratureVanillaEngine(),
+            pricing.FiniteDifferenceVanillaEngine(
+                asset_step_count=100, time_step_count=100
+            ),
+            pricing.MonteCarloVanillaEngine(path_count=4096, seed=42, thread_count=1),
+        ):
+            with self.subTest(engine=type(engine).__name__):
+                result = pricing.numerical_greeks(
+                    engine, option, context, "delta", spot_shift=0.2
+                )
+                self.assertEqual(result.price, engine.price(option, context))
+                self.assertAlmostEqual(result.require("delta"), expected, delta=0.03)
+                self.assertEqual(result.requested, ["delta"])
+                with self.assertRaises(InvalidInputError):
+                    pricing.numerical_greeks(
+                        engine, option, context, "delta", rate_shift=0
+                    )
+        with self.assertRaises(TypeError):
+            pricing.numerical_greeks(
+                pricing.AnalyticEuropeanEngine(),
+                option,
+                context,
+                "delta",
+                spot_shift=True,
+            )
+        with self.assertRaises(UnsupportedOperationError):
+            pricing.numerical_greeks(
+                pricing.AnalyticEuropeanEngine(),
+                ins.AmericanOption(
+                    option_type="call",
+                    strike=100,
+                    effective_time=start,
+                    expiry_time=end,
+                ),
+                context,
+                "unknown",
+            )
+        with self.assertRaises(InvalidInputError):
+            pricing.numerical_greeks(
+                pricing.AnalyticEuropeanEngine(), option, context, []
+            )

@@ -67,13 +67,13 @@ impl AnalyticBinaryBarrierEngine {
         clippy::unused_self,
         reason = "uniform instance API for pricing engines"
     )]
-    pub(crate) fn evaluate(
+    pub(crate) fn evaluate<R: Send>(
         &self,
         py: Python<'_>,
         instrument: BinaryInstrument<'_>,
         context: &PricingContext,
-        request: ScalarRequest,
-    ) -> PyResult<f64> {
+        request: impl crate::engines::PricingRequest<R>,
+    ) -> PyResult<R> {
         let context = &context.0;
         binary_barrier::with_binary!(
             instrument,

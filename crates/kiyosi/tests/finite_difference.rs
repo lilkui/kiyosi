@@ -112,7 +112,7 @@ fn coarse_automatic_grids_resolve_short_and_annual_payoffs_and_spot_greeks() {
             for spot in [99.875, 100.0, 100.125] {
                 let context = market(spot, 0.05, 0.02, 0.2);
                 let expected = AnalyticEuropeanEngine
-                    .price_with_greeks(&option, &context, request)
+                    .price_with_greeks(&option, &context, request, Default::default())
                     .unwrap();
                 let actual = engine
                     .price_with_greeks(&option, &context, request, Default::default())
@@ -384,7 +384,7 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
         .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
         .unwrap();
     let expected = AnalyticEuropeanEngine
-        .price_with_greeks(&option, &context, GreeksRequest::all())
+        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
         .unwrap();
     for greek in Greek::ALL {
         let tolerance = expected.require(greek).unwrap().abs() * 0.02 + 1e-6;

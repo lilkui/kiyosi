@@ -119,7 +119,7 @@ impl MonteCarloAsianEngine {
     /// })?;
     /// assert!((engine.price(&option, &context)? - 5.0359).abs() < 0.2);
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     kiyosi::GreeksRequest::all())?;
+    ///     kiyosi::GreeksRequest::all(), Default::default())?;
     /// assert!(result.has(kiyosi::Greek::Delta));
     /// assert!(!result.has(kiyosi::Greek::Vega));
     /// # Ok(()) }
@@ -134,6 +134,7 @@ impl MonteCarloAsianEngine {
 
     /// Returns requested delta and gamma directly from the price's shared normal draws.
     ///
+    /// Numerical shift settings are accepted for the shared engine signature and ignored.
     /// Other Greeks and all expiry Greeks remain absent. No numerical bumps are
     /// required. For scalar differences and history-boundary stencil rules, use
     /// [`crate::numerical_greeks`], which pins a request-local seed even for unseeded
@@ -154,6 +155,7 @@ impl MonteCarloAsianEngine {
         option: &I,
         context: &PricingContext,
         request: GreeksRequest,
+        _settings: NumericalShiftSettings,
     ) -> Result<PricingResult>
     where
         Self: PricingEngine<I>,

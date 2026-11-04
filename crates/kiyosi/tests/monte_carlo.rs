@@ -630,7 +630,7 @@ fn sobol_prices_match_analytic_and_never_claim_sampling_uncertainty() {
         for direction in [OptionType::Call, OptionType::Put] {
             let option = contract(direction);
             let reference = AnalyticEuropeanEngine
-                .price_with_greeks(&option, &market(), GreeksRequest::all())
+                .price_with_greeks(&option, &market(), GreeksRequest::all(), Default::default())
                 .unwrap();
             let estimate = engine.price_with_statistics(&option, &market()).unwrap();
             assert!((estimate.price() - reference.price()).abs() < 0.005);

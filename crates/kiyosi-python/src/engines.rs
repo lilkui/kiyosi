@@ -97,8 +97,24 @@ pub(crate) enum ScalarRequest {
     },
 }
 
-impl ScalarRequest {
-    pub(crate) fn evaluate<I: kiyosi::OptionContract>(
+pub(crate) trait PricingRequest<R>: Copy + Sync {
+    fn is_price(self) -> bool {
+        false
+    }
+    fn evaluate<I: kiyosi::OptionContract>(
+        self,
+        engine: &impl kiyosi::PricingEngine<I>,
+        instrument: &I,
+        context: &kiyosi::PricingContext,
+    ) -> kiyosi::Result<R>;
+}
+
+impl PricingRequest<f64> for ScalarRequest {
+    fn is_price(self) -> bool {
+        matches!(self, Self::Price)
+    }
+
+    fn evaluate<I: kiyosi::OptionContract>(
         self,
         engine: &impl kiyosi::PricingEngine<I>,
         instrument: &I,
@@ -111,5 +127,22 @@ impl ScalarRequest {
                 settings,
             } => kiyosi::implied_volatility(engine, instrument, context, observed_price, settings),
         }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct NumericalGreeksRequest {
+    pub request: kiyosi::GreeksRequest,
+    pub settings: kiyosi::NumericalShiftSettings,
+}
+
+impl PricingRequest<kiyosi::PricingResult> for NumericalGreeksRequest {
+    fn evaluate<I: kiyosi::OptionContract>(
+        self,
+        engine: &impl kiyosi::PricingEngine<I>,
+        instrument: &I,
+        context: &kiyosi::PricingContext,
+    ) -> kiyosi::Result<kiyosi::PricingResult> {
+        kiyosi::numerical_greeks(engine, instrument, context, self.request, self.settings)
     }
 }

@@ -158,13 +158,13 @@ impl AnalyticHestonEuropeanEngine {
         clippy::needless_pass_by_value,
         reason = "retain the Python borrow during core evaluation"
     )]
-    pub(crate) fn evaluate(
+    pub(crate) fn evaluate<R: Send>(
         &self,
         py: Python<'_>,
         instrument: PyRef<'_, EuropeanOption>,
         context: &PricingContext,
-        request: ScalarRequest,
-    ) -> PyResult<f64> {
+        request: impl crate::engines::PricingRequest<R>,
+    ) -> PyResult<R> {
         let engine = self.0;
         let option = &instrument.0;
         let context = &context.0;

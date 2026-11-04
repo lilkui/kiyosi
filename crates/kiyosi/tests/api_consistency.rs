@@ -75,7 +75,8 @@ fn greek_status_distinguishes_requests_support_and_stencils() -> Result<()> {
         start,
     )?;
     let request = GreeksRequest::new([Greek::Delta]);
-    let result = AnalyticEuropeanEngine.price_with_greeks(&option, &context, request)?;
+    let result =
+        AnalyticEuropeanEngine.price_with_greeks(&option, &context, request, Default::default())?;
     assert_eq!(result.status(Greek::Delta), GreekStatus::Available);
     assert_eq!(result.status(Greek::Gamma), GreekStatus::NotRequested);
     let terminal = context.replace(PricingContextChanges {
@@ -84,7 +85,7 @@ fn greek_status_distinguishes_requests_support_and_stencils() -> Result<()> {
     })?;
     assert_eq!(
         AnalyticEuropeanEngine
-            .price_with_greeks(&option, &terminal, request)?
+            .price_with_greeks(&option, &terminal, request, Default::default())?
             .status(Greek::Delta),
         GreekStatus::Undefined
     );
@@ -165,5 +166,65 @@ fn flat_rate_query_is_independent_of_reference_time() -> Result<()> {
     }
     let nodes = RateTermStructure::new(start, vec![end], vec![(-0.05_f64).exp()])?;
     assert_eq!(nodes.flat_rate(), None);
+    Ok(())
+}
+
+#[test]
+fn native_greek_methods_accept_shared_shift_settings() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = Date::new(2026, 1, 1)?.start_of_day();
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?;
+    let asian = GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0)?;
+    let barrier = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        80.0,
+        BarrierType::DownAndOut,
+    ))?;
+    let double = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        80.0,
+        120.0,
+        DoubleBarrierType::KnockOut,
+    ))?;
+    let settings = MonteCarloSettings {
+        path_count: 1024,
+        seed: Some(42),
+        thread_count: 1,
+        ..Default::default()
+    };
+    let shifts = NumericalShiftSettings {
+        spot_shift: Some(0.2),
+        ..Default::default()
+    };
+    let request = GreeksRequest::new([Greek::Delta]);
+    macro_rules! check {
+        ($engine:expr, $option:expr) => {{
+            let engine = $engine;
+            let direct = engine.price_with_greeks($option, &context, request, shifts)?;
+            let generic =
+                PricingEngine::price_with_greeks(&engine, $option, &context, request, shifts)?;
+            assert_eq!(direct, generic);
+            assert_eq!(direct.status(Greek::Delta), GreekStatus::Available);
+        }};
+    }
+    check!(AnalyticEuropeanEngine, &vanilla);
+    check!(CoxRossRubinsteinDigitalEngine::default(), &digital);
+    check!(CoxRossRubinsteinBarrierEngine::default(), &barrier);
+    check!(MonteCarloDigitalEngine::new(settings)?, &digital);
+    check!(MonteCarloAsianEngine::new(settings)?, &asian);
+    check!(MonteCarloBarrierEngine::new(settings)?, &barrier);
+    check!(MonteCarloDoubleBarrierEngine::new(settings)?, &double);
     Ok(())
 }

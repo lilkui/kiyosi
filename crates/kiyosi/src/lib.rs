@@ -7,7 +7,9 @@
 //!
 //! Construct a contract and a [`PricingContext`], then choose an engine for that
 //! contract. [`PricingEngine`] also supports [`numerical_greeks`] and the implied
-//! parameter solvers. Contract constructors validate terms; pricing validates
+//! parameter solvers. All engine `price_with_greeks` methods take
+//! [`NumericalShiftSettings`]; native estimators ignore irrelevant controls.
+//! Contract constructors validate terms; pricing validates
 //! valuation dates, calendar consistency and required prior history. All built-in
 //! contracts support validated immutable `replace` operations; omitted terms and
 //! history remain unchanged. See [`BarrierOption::replace`] for an exotic example.
@@ -84,7 +86,7 @@
 //! let context = PricingContext::new(model, 100.0, start.into())?;
 //! assert!((AnalyticEuropeanEngine.price(&option, &context)? - 9.227005508154036).abs() < 1e-12);
 //! let result = AnalyticEuropeanEngine.price_with_greeks(&option, &context,
-//!     kiyosi::GreeksRequest::all())?;
+//!     kiyosi::GreeksRequest::all(), Default::default())?;
 //! assert!(result.require(kiyosi::Greek::Delta)? > 0.0);
 //! assert!((result.require(kiyosi::Greek::Volga)? - 0.000236882234437609).abs() < 1e-12);
 //! assert!(result.require(kiyosi::Greek::DividendRho)? < 0.0);

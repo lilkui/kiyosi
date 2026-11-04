@@ -1378,6 +1378,181 @@ def implied_volatility(
     parameter_tolerance: float = ...,
     max_iterations: int = ...,
 ) -> float: ...
+@overload
+def numerical_greeks(
+    engine: QuadratureAccumulatorEngine
+    | FiniteDifferenceAccumulatorEngine
+    | MonteCarloAccumulatorEngine,
+    instrument: Accumulator,
+    context: PricingContext,
+    greeks: Greek | Literal["all"] | Iterable[Greek],
+    *,
+    spot_shift: float | None = None,
+    volatility_shift: float = ...,
+    rate_shift: float = ...,
+    time_shift_days: int = ...,
+) -> PricingResult: ...
+@overload
+def numerical_greeks(
+    engine: QuadratureAutocallableEngine
+    | FiniteDifferenceAutocallableEngine
+    | MonteCarloAutocallableEngine,
+    instrument: SnowballOption
+    | BinarySnowballOption
+    | TernarySnowballOption
+    | PhoenixOption,
+    context: PricingContext,
+    greeks: Greek | Literal["all"] | Iterable[Greek],
+    *,
+    spot_shift: float | None = None,
+    volatility_shift: float = ...,
+    rate_shift: float = ...,
+    time_shift_days: int = ...,
+) -> PricingResult: ...
+@overload
+def numerical_greeks(
+    engine: AnalyticRangeAccrualEngine,
+    instrument: RangeAccrualOption,
+    context: PricingContext,
+    greeks: Greek | Literal["all"] | Iterable[Greek],
+    *,
+    spot_shift: float | None = None,
+    volatility_shift: float = ...,
+    rate_shift: float = ...,
+    time_shift_days: int = ...,
+) -> PricingResult: ...
+@overload
+def numerical_greeks(
+    engine: AnalyticDoubleBarrierEngine
+    | FiniteDifferenceDoubleBarrierEngine
+    | MonteCarloDoubleBarrierEngine,
+    instrument: DoubleBarrierOption,
+    context: PricingContext,
+    greeks: Greek | Literal["all"] | Iterable[Greek],
+    *,
+    spot_shift: float | None = None,
+    volatility_shift: float = ...,
+    rate_shift: float = ...,
+    time_shift_days: int = ...,
+) -> PricingResult: ...
+@overload
+def numerical_greeks(
+    engine: AnalyticDoubleTouchEngine | FiniteDifferenceDoubleTouchEngine,
+    instrument: DoubleTouchOption,
+    context: PricingContext,
+    greeks: Greek | Literal["all"] | Iterable[Greek],
+    *,
+    spot_shift: float | None = None,
+    volatility_shift: float = ...,
+    rate_shift: float = ...,
+    time_shift_days: int = ...,
+) -> PricingResult: ...
+@overload
+def numerical_greeks(
+    engine: AnalyticBarrierEngine
+    | CoxRossRubinsteinBarrierEngine
+    | MonteCarloBarrierEngine
+    | QuadratureBarrierEngine
+    | FiniteDifferenceBarrierEngine,
+    instrument: BarrierOption,
+    context: PricingContext,
+    greeks: Greek | Literal["all"] | Iterable[Greek],
+    *,
+    spot_shift: float | None = None,
+    volatility_shift: float = ...,
+    rate_shift: float = ...,
+    time_shift_days: int = ...,
+) -> PricingResult: ...
+@overload
+def numerical_greeks(
+    engine: AnalyticGeometricAveragePriceEngine | MonteCarloAsianEngine,
+    instrument: GeometricAveragePriceOption,
+    context: PricingContext,
+    greeks: Greek | Literal["all"] | Iterable[Greek],
+    *,
+    spot_shift: float | None = None,
+    volatility_shift: float = ...,
+    rate_shift: float = ...,
+    time_shift_days: int = ...,
+) -> PricingResult: ...
+@overload
+def numerical_greeks(
+    engine: TurnbullWakemanArithmeticAveragePriceEngine | MonteCarloAsianEngine,
+    instrument: ArithmeticAveragePriceOption,
+    context: PricingContext,
+    greeks: Greek | Literal["all"] | Iterable[Greek],
+    *,
+    spot_shift: float | None = None,
+    volatility_shift: float = ...,
+    rate_shift: float = ...,
+    time_shift_days: int = ...,
+) -> PricingResult: ...
+@overload
+def numerical_greeks(
+    engine: AnalyticEuropeanEngine | MonteCarloVanillaEngine,
+    instrument: EuropeanOption,
+    context: PricingContext,
+    greeks: Greek | Literal["all"] | Iterable[Greek],
+    *,
+    spot_shift: float | None = None,
+    volatility_shift: float = ...,
+    rate_shift: float = ...,
+    time_shift_days: int = ...,
+) -> PricingResult: ...
+@overload
+def numerical_greeks(
+    engine: AnalyticDigitalEngine
+    | QuadratureDigitalEngine
+    | MonteCarloDigitalEngine
+    | CoxRossRubinsteinDigitalEngine
+    | FiniteDifferenceDigitalEngine,
+    instrument: CashOrNothingOption | AssetOrNothingOption,
+    context: PricingContext,
+    greeks: Greek | Literal["all"] | Iterable[Greek],
+    *,
+    spot_shift: float | None = None,
+    volatility_shift: float = ...,
+    rate_shift: float = ...,
+    time_shift_days: int = ...,
+) -> PricingResult: ...
+@overload
+def numerical_greeks(
+    engine: BjerksundStenslandVanillaEngine | MonteCarloVanillaEngine,
+    instrument: AmericanOption,
+    context: PricingContext,
+    greeks: Greek | Literal["all"] | Iterable[Greek],
+    *,
+    spot_shift: float | None = None,
+    volatility_shift: float = ...,
+    rate_shift: float = ...,
+    time_shift_days: int = ...,
+) -> PricingResult: ...
+@overload
+def numerical_greeks(
+    engine: CoxRossRubinsteinVanillaEngine
+    | FiniteDifferenceVanillaEngine
+    | QuadratureVanillaEngine,
+    instrument: EuropeanOption | AmericanOption,
+    context: PricingContext,
+    greeks: Greek | Literal["all"] | Iterable[Greek],
+    *,
+    spot_shift: float | None = None,
+    volatility_shift: float = ...,
+    rate_shift: float = ...,
+    time_shift_days: int = ...,
+) -> PricingResult: ...
+@overload
+def numerical_greeks(
+    engine: AnalyticBinaryBarrierEngine | FiniteDifferenceBinaryBarrierEngine,
+    instrument: BinaryBarrierOption | TouchOption,
+    context: PricingContext,
+    greeks: Greek | Literal["all"] | Iterable[Greek],
+    *,
+    spot_shift: float | None = None,
+    volatility_shift: float = ...,
+    rate_shift: float = ...,
+    time_shift_days: int = ...,
+) -> PricingResult: ...
 
 class GeometricAveragePriceOption:
     def replace(

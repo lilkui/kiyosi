@@ -28,6 +28,7 @@ pub(crate) fn black_scholes_arguments(
 impl AnalyticEuropeanEngine {
     /// Returns the price and selected analytic Greeks.
     ///
+    /// Numerical shift settings are accepted for the shared engine signature and ignored.
     /// At expiry every Greek is unavailable. Time derivatives hold curve nodes
     /// fixed and use right-hand rates at knots. Native derivatives require no
     /// numerical bumps. See the [crate example](crate).
@@ -42,6 +43,7 @@ impl AnalyticEuropeanEngine {
         option: &EuropeanOption,
         context: &PricingContext,
         request: GreeksRequest,
+        _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         request.validate()?;
@@ -243,7 +245,7 @@ impl PricingEngine for AnalyticEuropeanEngine {
         _settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request)
+        Self::price_with_greeks(self, option, context, request, Default::default())
     }
 }
 

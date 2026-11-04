@@ -96,6 +96,15 @@ unavailable measures remain None. Inspect ``result.status(name)`` to distinguish
 unrequested, unsupported and undefined measures; ``result.requested`` and
 ``result.supported`` expose the request and engine/model coverage.
 
+Every engine shares ``price(instrument, context)`` and
+``price_with_greeks(instrument, context, greeks)``. Optional native bump controls
+vary by engine. For a uniform BSM numerical calculation, call
+``numerical_greeks(engine, instrument, context, greeks, spot_shift=...)``.
+It uses scalar prices and accepts the same bump controls for every supported
+engine/product pair. It can compute measures beyond a native engine's coverage;
+local-volatility and Heston models remain unsupported. Monte Carlo sampling is
+pinned within each numerical request. All numerical bumps are validated.
+
 Pricing controls are explicit keyword-only parameters, available through
 ``inspect.signature``, with defaults derived from Rust. The displayed
 defaults can be passed back explicitly. Instrument conversion and supported-family checks
@@ -235,6 +244,7 @@ from ._native import (
     TurnbullWakemanArithmeticAveragePriceEngine,
     implied_coupon,
     implied_volatility,
+    numerical_greeks,
 )
 
 CouponQuoteConvention = Literal["shift_maturity_coupon", "preserve_maturity_coupon"]
@@ -286,4 +296,5 @@ __all__ = [
     "TurnbullWakemanArithmeticAveragePriceEngine",
     "implied_coupon",
     "implied_volatility",
+    "numerical_greeks",
 ]
