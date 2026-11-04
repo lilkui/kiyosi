@@ -22,6 +22,9 @@ use pyo3::types::{PyAny, PyList};
 /// accumulated_quantity : float or None, optional
 ///     Outstanding quantity strictly before valuation. None means unknown; zero means no units.
 ///     Explicit history is required after any prior trading-date observation.
+/// terminated : bool, optional
+///     Whether a prior termination has settled; defaults to False. Stored quantity
+///     is ignored and remaining value is zero when True.
 /// option_type : {'call', 'put'}, optional
 ///     Call accumulates purchases (the default); put accumulates sales.
 /// knock_out_observation_times : iterable of datetime.datetime or None, optional
@@ -45,8 +48,8 @@ use pyo3::types::{PyAny, PyList};
 /// accumulate even beyond the barrier. At strike, the base quantity applies.
 /// Expiry settles after its event, whether or not it is a knock-out timestamp.
 /// Calls pay quantity * (settlement spot - strike); puts pay its negative.
-/// Intraday history includes that day's earlier accumulation. Do not value a
-/// contract whose settlement has already occurred.
+/// Intraday history includes that day's earlier accumulation. Record settled
+/// contracts with terminated=True.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct Accumulator(pub(crate) kiyosi::Accumulator);
@@ -69,6 +72,8 @@ impl Accumulator {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// accumulated_quantity : float or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
+    /// terminated : bool, optional
+    ///     Records a previously settled termination.
     /// effective_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// expiry_time : datetime.datetime, optional
@@ -87,7 +92,7 @@ impl Accumulator {
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation, field name or mutually exclusive coupon choice is invalid.
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, knock_out_observation_times=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, knock_out_observation_times=crate::conversions::OMITTED, terminated=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
         reason = "explicit Python replacement fields"
@@ -115,8 +120,10 @@ impl Accumulator {
         #[pyo3(from_py_with = crate::conversions::supplied)] knock_out_observation_times: Option<
             &Bound<'_, PyAny>,
         >,
+        #[pyo3(from_py_with = supplied)] terminated: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let changes = kiyosi::AccumulatorChanges {
+            terminated: terminated.map(crate::conversions::boolean).transpose()?,
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
             knock_out_level: knock_out_level.map(crate::conversions::real).transpose()?,
@@ -150,7 +157,7 @@ impl Accumulator {
         Ok(Self(domain(self.0.replace(changes))?))
     }
     #[new]
-    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None))]
+    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None, terminated=kiyosi::AccumulatorTerms::DEFAULT_TERMINATED))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         strike: &Bound<'_, PyAny>,
@@ -162,6 +169,7 @@ impl Accumulator {
         accumulated_quantity: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = direction)] option_type: kiyosi::OptionType,
         knock_out_observation_times: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::boolean)] terminated: bool,
     ) -> PyResult<Self> {
         let mut terms = kiyosi::AccumulatorTerms::new(
             real(strike)?,
@@ -171,6 +179,7 @@ impl Accumulator {
             timestamp(effective_time)?,
             timestamp(expiry_time)?,
         );
+        terms.terminated = terminated;
         terms.accumulated_quantity = accumulated_quantity.map(real).transpose()?;
         terms.option_type = option_type;
         terms.knock_out_observation_times =
@@ -183,7 +192,10 @@ impl Accumulator {
     /// ----------
     /// accumulated_quantity : float or None, optional
     ///     Outstanding quantity strictly before valuation. None means unknown; zero means no units.
-    ///     Explicit history is required after any prior trading-date observation.
+    ///     Required after a prior observation unless terminated is True.
+    ///
+    /// terminated : bool, optional
+    ///     Records a settled termination; omission retains the current state.
     ///
     /// Returns
     /// -------
@@ -194,17 +206,22 @@ impl Accumulator {
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, accumulated_quantity=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, accumulated_quantity=crate::conversions::OMITTED, terminated=crate::conversions::OMITTED))]
     fn replace_history(
         &self,
         #[pyo3(from_py_with = supplied)] accumulated_quantity: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] terminated: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let quantity = match accumulated_quantity {
             Some(value) if value.is_none() => None,
             Some(value) => Some(real(value)?),
             None => self.0.accumulated_quantity(),
         };
-        Ok(Self(domain(self.0.replace_history(quantity))?))
+        Ok(Self(domain(self.0.replace(kiyosi::AccumulatorChanges {
+            accumulated_quantity: Some(quantity),
+            terminated: terminated.map(crate::conversions::boolean).transpose()?,
+            ..Default::default()
+        }))?))
     }
     /// Returns call for purchases or put for sales.
     #[getter]
@@ -255,6 +272,11 @@ impl Accumulator {
     fn accumulated_quantity(&self) -> Option<f64> {
         self.0.accumulated_quantity()
     }
+    /// Return whether a prior termination has settled.
+    #[getter]
+    fn terminated(&self) -> bool {
+        self.0.terminated()
+    }
     /// Return inclusive first contract timestamp.
     #[getter]
     fn effective_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
@@ -271,7 +293,7 @@ impl Accumulator {
             None => "None".into(),
         };
         Ok(format!(
-            "Accumulator(strike={:?}, knock_out_level={:?}, daily_quantity={:?}, acceleration_factor={:?}, accumulated_quantity={}, effective_time={}, expiry_time={}, option_type={:?}, knock_out_observation_times={})",
+            "Accumulator(strike={:?}, knock_out_level={:?}, daily_quantity={:?}, acceleration_factor={:?}, accumulated_quantity={}, effective_time={}, expiry_time={}, option_type={:?}, knock_out_observation_times={}, terminated={})",
             self.strike(),
             self.knock_out_level(),
             self.daily_quantity(),
@@ -281,7 +303,8 @@ impl Accumulator {
             self.effective_time(py)?.repr()?,
             self.expiry_time(py)?.repr()?,
             self.option_type(),
-            observations
+            observations,
+            if self.terminated() { "True" } else { "False" }
         ))
     }
 }

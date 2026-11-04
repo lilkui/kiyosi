@@ -496,6 +496,7 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
         knock_out_level: 120.0,
         daily_quantity: 1.0,
         acceleration_factor: 2.0,
+        terminated: false,
         accumulated_quantity: Some(3.0),
         effective_time: start,
         expiry_time: end,

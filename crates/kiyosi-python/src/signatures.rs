@@ -15,6 +15,7 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
         "accumulated_quantity",
         kiyosi::AccumulatorTerms::DEFAULT_ACCUMULATED_QUANTITY,
     )?;
+    defaults.set_item("terminated", kiyosi::AccumulatorTerms::DEFAULT_TERMINATED)?;
     defaults.set_item("rebate", kiyosi::BarrierOptionTerms::DEFAULT_REBATE)?;
     defaults.set_item(
         "coupon_rate",

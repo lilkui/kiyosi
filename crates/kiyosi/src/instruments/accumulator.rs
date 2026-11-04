@@ -18,6 +18,8 @@ pub struct AccumulatorTerms {
     pub acceleration_factor: f64,
     /// Caller-asserted quantity strictly before valuation; `None` means unknown.
     pub accumulated_quantity: Option<f64>,
+    /// Records a previously settled termination; no remaining cash flows are valued.
+    pub terminated: bool,
     /// Inclusive effective time for daily observations at the expiry clock time.
     pub effective_time: Timestamp,
     /// Final observation and settlement time.
@@ -31,6 +33,9 @@ impl AccumulatorTerms {
 
     /// Supplies unknown accrued quantity; see [`Self::new`].
     pub const DEFAULT_ACCUMULATED_QUANTITY: Option<f64> = None;
+
+    /// Supplies an active contract; see [`Self::new`].
+    pub const DEFAULT_TERMINATED: bool = false;
 
     /// Creates call terms with unknown history and daily knock-out; see [`Accumulator::new`].
     pub fn new(
@@ -48,6 +53,7 @@ impl AccumulatorTerms {
             daily_quantity,
             acceleration_factor,
             accumulated_quantity: Self::DEFAULT_ACCUMULATED_QUANTITY,
+            terminated: Self::DEFAULT_TERMINATED,
             effective_time,
             expiry_time,
             knock_out_observation_times: None,
@@ -65,7 +71,8 @@ impl AccumulatorTerms {
 /// schedule disables knock-out. Calls knock out at or above the barrier,
 /// puts at or below it; knock-out adds no units at its own timestamp. A non-knock-out expiry
 /// accumulates normally before settlement. Prices exclude previously settled cash flows;
-/// callers must not value already terminated contracts. History is caller asserted,
+/// `terminated` records an already settled contract and gives zero remaining value.
+/// Accrued quantity is ignored for terminated contracts. History is caller asserted,
 /// and is required after any strictly prior trading-date observation. `None` means unknown;
 /// an explicit zero records no outstanding units. No quantity is inferred from elapsed dates.
 /// Shared reads and owning replacements support concurrent use; see [`Self::new`].
@@ -97,6 +104,10 @@ impl Accumulator {
     /// let seasoned = option.replace_history(3.0)?;
     /// assert_eq!(seasoned.accumulated_quantity(), Some(3.0));
     /// assert_eq!(option.accumulated_quantity(), None);
+    /// let settled = option.replace(kiyosi::AccumulatorChanges {
+    ///     terminated: Some(true), ..Default::default()
+    /// })?;
+    /// assert!(settled.terminated());
     /// let end = Date::new(2025, 2, 3)?.start_of_day();
     /// let mut terms = AccumulatorTerms::new(100.0, 90.0, 1.0, 2.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), end);
@@ -179,6 +190,10 @@ impl Accumulator {
     pub fn accumulated_quantity(&self) -> Option<f64> {
         self.terms.accumulated_quantity
     }
+    /// Returns whether a prior termination has settled; see [`Self::replace`].
+    pub fn terminated(&self) -> bool {
+        self.terms.terminated
+    }
     /// Returns the inclusive effective time; see [`Self::new`].
     pub fn effective_time(&self) -> Timestamp {
         self.terms.effective_time
@@ -219,7 +234,7 @@ impl Accumulator {
             || self
                 .knock_out_observation_times()
                 .is_some_and(|times| times.iter().any(|&time| time < valuation));
-        if has_prior && self.accumulated_quantity().is_none() {
+        if has_prior && !self.terminated() && self.accumulated_quantity().is_none() {
             return Err(Error::InvalidInput(
                 "prior accumulated quantity is required".into(),
             ));
@@ -248,7 +263,10 @@ impl Accumulator {
     }
 
     pub(crate) fn accrues(&self, context: &PricingContext) -> bool {
-        if self.daily_quantity() == 0.0 || context.valuation_time() >= self.expiry_time() {
+        if self.terminated()
+            || self.daily_quantity() == 0.0
+            || context.valuation_time() >= self.expiry_time()
+        {
             return false;
         }
         let Ok(schedule) = ObservationSchedule::daily(
@@ -306,6 +324,9 @@ impl Accumulator {
     }
 
     pub(crate) fn initial(&self, context: &PricingContext) -> (f64, Option<f64>) {
+        if self.terminated() {
+            return (0.0, Some(0.0));
+        }
         let mut quantity = self.accumulated_quantity().unwrap_or(0.0);
         let spot = context.spot_price();
         if self.observes_knock_out(context.valuation_time())
@@ -337,6 +358,9 @@ impl Accumulator {
         reason = "An acceleration factor of exactly one removes payoff dependence on the strike."
     )]
     pub(crate) fn volatility_affects_price(&self, context: &PricingContext) -> bool {
+        if self.terminated() {
+            return false;
+        }
         if self.observes_knock_out(context.valuation_time())
             && self.is_knock_out(context.spot_price())
             && context.calendar().is_trading_day(context.valuation_date())
@@ -385,6 +409,9 @@ impl OptionContract for Accumulator {
         reason = "An acceleration factor of exactly one removes the strike discontinuity."
     )]
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
+        if self.terminated() {
+            return false;
+        }
         let spot = context.spot_price();
         let crosses = |level| spot - radius <= level && level <= spot + radius;
         let observes = self.observes_knock_out(context.valuation_time())
@@ -401,6 +428,9 @@ impl OptionContract for Accumulator {
         before: Timestamp,
         after: Timestamp,
     ) -> bool {
+        if self.terminated() {
+            return true;
+        }
         let Ok(schedule) = ObservationSchedule::daily(
             self.effective_time(),
             self.expiry_time(),
@@ -434,6 +464,8 @@ pub struct AccumulatorChanges {
     pub acceleration_factor: Option<f64>,
     /// Replaces [`accumulated_quantity`](AccumulatorTerms::accumulated_quantity).
     pub accumulated_quantity: Option<Option<f64>>,
+    /// Replaces [`terminated`](AccumulatorTerms::terminated).
+    pub terminated: Option<bool>,
     /// Replaces [`effective_time`](AccumulatorTerms::effective_time).
     pub effective_time: Option<Timestamp>,
     /// Replaces [`expiry_time`](AccumulatorTerms::expiry_time).
@@ -446,7 +478,8 @@ impl Accumulator {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
     /// Calendar and valuation-relative history checks remain at pricing time.
-    /// See [`Accumulator::new`] for construction examples.
+    /// Set `terminated: Some(true)` to record a settled knock-out without changing
+    /// the stored accrued quantity. See [`Accumulator::new`] for construction examples.
     ///
     /// # Errors
     ///
@@ -464,6 +497,7 @@ impl Accumulator {
             accumulated_quantity: changes
                 .accumulated_quantity
                 .unwrap_or(self.accumulated_quantity()),
+            terminated: changes.terminated.unwrap_or(self.terminated()),
             effective_time: changes.effective_time.unwrap_or(self.effective_time()),
             expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
             knock_out_observation_times: changes.knock_out_observation_times.unwrap_or_else(|| {

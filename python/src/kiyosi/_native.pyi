@@ -2470,6 +2470,7 @@ class Accumulator:
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
         knock_out_observation_times: Iterable[datetime] | None | EllipsisType = ...,
+        terminated: bool | EllipsisType = ...,
     ) -> Self: ...
     def __init__(
         self,
@@ -2483,6 +2484,7 @@ class Accumulator:
         accumulated_quantity: float | None = None,
         option_type: Literal["call", "put"] = ...,
         knock_out_observation_times: Iterable[datetime] | None = None,
+        terminated: bool = ...,
     ) -> None: ...
     @property
     def option_type(self) -> Literal["call", "put"]: ...
@@ -2499,11 +2501,16 @@ class Accumulator:
     @property
     def accumulated_quantity(self) -> float | None: ...
     @property
+    def terminated(self) -> bool: ...
+    @property
     def effective_time(self) -> datetime: ...
     @property
     def expiry_time(self) -> datetime: ...
     def replace_history(
-        self, *, accumulated_quantity: float | None | EllipsisType = ...
+        self,
+        *,
+        accumulated_quantity: float | None | EllipsisType = ...,
+        terminated: bool | EllipsisType = ...,
     ) -> Self: ...
     def __eq__(self, other: object) -> bool: ...
 

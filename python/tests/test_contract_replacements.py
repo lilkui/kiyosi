@@ -194,6 +194,7 @@ UPDATES = {
     "daily_quantity": 2,
     "acceleration_factor": 3,
     "accumulated_quantity": 4,
+    "terminated": True,
     "knock_out_observation_times": [START],
     "notional": 2000,
     "annual_coupon_rate": 0.15,
@@ -315,7 +316,9 @@ class ContractReplacementTests(unittest.TestCase):
                         original.replace(**{invalid: value})
                 for field in fields:
                     with self.subTest(field=field), self.assertRaises(TypeError):
-                        original.replace(**{field: True})
+                        original.replace(
+                            **{field: 1 if field == "terminated" else True}
+                        )
                     if field not in NULLABLE:
                         with self.assertRaises(TypeError):
                             original.replace(**{field: None})

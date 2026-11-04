@@ -31,6 +31,9 @@ For autocallables, ``barrier_state=None`` means unknown history;
 ``barrier_state="no_event"`` records known absence of prior events. Accumulators
 use ``accumulated_quantity=None`` for unknown history and require an explicit
 quantity after a strictly prior trading-date observation; zero means no outstanding units.
+Set ``terminated=True`` for a previously settled accumulator. Its remaining price
+is zero; stored quantity is ignored. ``replace_history(terminated=True)`` records
+settlement without changing the original contract.
 Plain snowball, Phoenix and ternary snowball constructors default knock-in
 monitoring to ``"every_trading_day"``, matching Rust terms.
 
