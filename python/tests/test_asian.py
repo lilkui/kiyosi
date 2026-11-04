@@ -78,7 +78,7 @@ class AsianTests(unittest.TestCase):
     def test_owned_history_replacement_and_native_representation_errors(self):
         for kind, engine_type in PAIRS:
             option = kind(**terms())
-            self.assertEqual(option.realized_average, 0)
+            self.assertIsNone(option.realized_average)
             self.assertEqual(option.replace_history(), option)
             updated = option.replace_history(realized_average=Fraction(211, 2))
             self.assertEqual(updated.realized_average, 105.5)
@@ -87,12 +87,17 @@ class AsianTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError, option.replace_history, realized_average=-1
             )
-            self.assertEqual(option.realized_average, 0)
+            self.assertIsNone(option.realized_average)
             for name in (*terms(), "realized_average"):
                 with self.assertRaises(AttributeError):
                     setattr(option, name, 1)
             for name in ("strike", "realized_average"):
                 for invalid in (True, False, "100", None, 1 + 0j, object()):
+                    if name == "realized_average" and invalid is None:
+                        self.assertIsNone(
+                            kind(**terms(realized_average=None)).realized_average
+                        )
+                        continue
                     with (
                         self.subTest(kind=kind, name=name, value=invalid),
                         self.assertRaises(TypeError),
@@ -108,7 +113,7 @@ class AsianTests(unittest.TestCase):
                 kind(**terms(option_type="CALL"))
             with self.assertRaises(TypeError):
                 kind("call", 100, START, START, END)
-            for invalid in (None, True, "100"):
+            for invalid in (True, "100"):
                 with self.assertRaises(TypeError):
                     option.replace_history(realized_average=invalid)
             with self.assertRaises(TypeError):
@@ -290,7 +295,7 @@ class AsianTests(unittest.TestCase):
                     implied_volatility(
                         engine, option, context, full.price, **{field: value}
                     )
-            self.assertEqual(option.realized_average, 0)
+            self.assertIsNone(option.realized_average)
             self.assertEqual(context.model_parameters.volatility, 0.2)
 
     def test_arithmetic_solver_prices_only_the_requested_bracket(self):
@@ -429,7 +434,7 @@ class AsianTests(unittest.TestCase):
                         inputs["averaging_start_time"]
                     ),
                     expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
-                    realized_average=inputs["realized_average"],
+                    realized_average=inputs["realized_average"] or None,
                 )
             )
             context = market(

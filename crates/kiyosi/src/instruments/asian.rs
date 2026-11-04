@@ -2,13 +2,13 @@ use crate::numerics::checked;
 use crate::{Error, EuropeanOption, OptionContract, OptionType, PricingContext, Result, Timestamp};
 
 /// Denotes no realized average before averaging starts; see [`GeometricAveragePriceOption::new`].
-pub const DEFAULT_REALIZED_AVERAGE: f64 = 0.0;
+pub const DEFAULT_REALIZED_AVERAGE: Option<f64> = None;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct AverageTerms {
     pub(crate) terms: EuropeanOption,
     pub(crate) averaging_start: Timestamp,
-    pub(crate) realized: f64,
+    pub(crate) realized: Option<f64>,
 }
 
 impl AverageTerms {
@@ -25,13 +25,8 @@ impl AverageTerms {
     }
     pub(crate) fn settlement(&self, context: &PricingContext) -> Result<f64> {
         checked(
-            (self.sign()
-                * (if self.realized > 0.0 {
-                    self.realized
-                } else {
-                    context.spot_price()
-                } - self.terms.strike()))
-            .max(0.0),
+            (self.sign() * (self.realized.unwrap_or(context.spot_price()) - self.terms.strike()))
+                .max(0.0),
         )
     }
     fn new(
@@ -40,11 +35,11 @@ impl AverageTerms {
         start: Timestamp,
         averaging: Timestamp,
         end: Timestamp,
-        realized: f64,
+        realized: Option<f64>,
     ) -> Result<Self> {
-        if !realized.is_finite() || realized < 0.0 {
+        if realized.is_some_and(|value| !value.is_finite() || value <= 0.0) {
             return Err(Error::InvalidInput(
-                "realized average must be finite and non-negative".into(),
+                "realized average must be finite and positive".into(),
             ));
         }
         let terms = EuropeanOption::new(direction, strike, start, end)?;
@@ -67,7 +62,7 @@ impl AverageTerms {
                 "valuation must be within contract life".into(),
             ));
         }
-        if (valuation > self.averaging_start) == (self.realized == 0.0) {
+        if (valuation > self.averaging_start) != self.realized.is_some() {
             return Err(Error::InvalidInput(
                 "realized average must match the elapsed averaging period".into(),
             ));
@@ -87,7 +82,8 @@ impl AverageTerms {
     pub(crate) fn adjusted_strike(&self, tau: f64) -> f64 {
         let elapsed = self.period() - tau;
         if elapsed > 0.0 {
-            self.terms.strike() + elapsed / tau * (self.terms.strike() - self.realized)
+            self.terms.strike()
+                + elapsed / tau * (self.terms.strike() - self.realized.unwrap_or(0.0))
         } else {
             self.terms.strike()
         }
@@ -132,8 +128,8 @@ macro_rules! average_option {
             ///
             /// # Errors
             ///
-            /// Returns [`Error::InvalidInput`] for invalid strike, negative or non-finite
-            /// history, reversed life times, or averaging outside contract life.
+            /// Returns [`Error::InvalidInput`] for invalid strike, nonpositive or non-finite
+            /// supplied history, reversed life times, or averaging outside contract life.
             /// Diagnostic order is unspecified when several inputs are invalid.
             ///
             /// # Examples
@@ -148,7 +144,7 @@ macro_rules! average_option {
             ///     100.0, start, start, end, DEFAULT_REALIZED_AVERAGE)?;
             /// let arithmetic = ArithmeticAveragePriceOption::new(OptionType::Put,
             ///     100.0, start, start, end, DEFAULT_REALIZED_AVERAGE)?;
-            /// assert_eq!(geometric.realized_average(), 0.0);
+            /// assert_eq!(geometric.realized_average(), None);
             /// assert_eq!(arithmetic.averaging_start_time(), start);
             /// # Ok(()) }
             /// ```
@@ -158,7 +154,7 @@ macro_rules! average_option {
                 effective_time: Timestamp,
                 averaging_start_time: Timestamp,
                 expiry_time: Timestamp,
-                realized_average: f64,
+                realized_average: impl Into<Option<f64>>,
             ) -> Result<Self> {
                 Ok(Self(AverageTerms::new(
                     option_type,
@@ -166,7 +162,7 @@ macro_rules! average_option {
                     effective_time,
                     averaging_start_time,
                     expiry_time,
-                    realized_average,
+                    realized_average.into(),
                 )?))
             }
             /// Returns an owning copy with replaced history, preserving all other terms.
@@ -174,7 +170,7 @@ macro_rules! average_option {
             /// # Errors
             ///
             /// Reuses [`Self::new`] validation; failures leave this contract unchanged.
-            /// Zero denotes no elapsed history, with time consistency checked at pricing.
+            /// `None` restores unknown history; time consistency is checked at pricing.
             ///
             /// # Examples
             ///
@@ -183,13 +179,16 @@ macro_rules! average_option {
             /// # fn main() -> kiyosi::Result<()> {
             /// let start = Date::new(2025, 1, 1)?.start_of_day();
             /// let original = GeometricAveragePriceOption::new(OptionType::Call,
-            ///     100.0, start, start, Date::new(2026, 1, 1)?.start_of_day(), 0.0)?;
+            ///     100.0, start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
             /// let seasoned = original.replace_history(105.0)?;
-            /// assert_eq!(seasoned.realized_average(), 105.0);
-            /// assert_eq!(original.realized_average(), 0.0);
+            /// assert_eq!(seasoned.realized_average(), Some(105.0));
+            /// assert_eq!(original.realized_average(), None);
             /// # Ok(()) }
             /// ```
-            pub fn replace_history(&self, realized_average: f64) -> Result<Self> {
+            pub fn replace_history(
+                &self,
+                realized_average: impl Into<Option<f64>>,
+            ) -> Result<Self> {
                 Self::new(
                     self.option_type(),
                     self.strike(),
@@ -219,8 +218,8 @@ macro_rules! average_option {
             pub fn averaging_start_time(&self) -> Timestamp {
                 self.0.averaging_start
             }
-            /// Returns the caller-supplied history; see [`Self::replace_history`].
-            pub fn realized_average(&self) -> f64 {
+            /// Returns the caller-supplied history, or `None` if unknown; see [`Self::replace_history`].
+            pub fn realized_average(&self) -> Option<f64> {
                 self.0.realized
             }
         }
@@ -238,7 +237,7 @@ macro_rules! average_option {
                 after: Timestamp,
             ) -> bool {
                 let start = self.averaging_start_time();
-                if self.realized_average() == 0.0 {
+                if self.realized_average().is_none() {
                     after <= start
                 } else {
                     before > start
@@ -258,6 +257,8 @@ average_option!(
 
 /// Selects replacements for [`GeometricAveragePriceOption::replace`]; absent fields retain their values.
 ///
+/// For history, `Some(None)` restores unknown history.
+///
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AveragePriceOptionChanges {
@@ -272,5 +273,5 @@ pub struct AveragePriceOptionChanges {
     /// Replaces [`expiry_time`](GeometricAveragePriceOption::expiry_time).
     pub expiry_time: Option<Timestamp>,
     /// Replaces [`realized_average`](GeometricAveragePriceOption::realized_average).
-    pub realized_average: Option<f64>,
+    pub realized_average: Option<Option<f64>>,
 }

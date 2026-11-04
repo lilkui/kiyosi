@@ -35,7 +35,7 @@ def market(spot=100, volatility=0.2, valuation=START, rate=0.04, dividend=0.01):
     )
 
 
-def option(kind, direction="call", strike=100, averaging=START, realized=0):
+def option(kind, direction="call", strike=100, averaging=START, realized=None):
     return kind(
         option_type=direction,
         strike=strike,
@@ -92,10 +92,10 @@ class AsianMonteCarloTests(unittest.TestCase):
         instant = datetime(2025, 4, 1)
         for kind in KINDS:
             for shift in (-1, 0, 1):
-                for realized in (0, 100):
+                for realized in (None, 100):
                     instrument = option(kind, averaging=averaging, realized=realized)
                     context = market(valuation=instant + timedelta(seconds=shift))
-                    if (shift > 0) == (realized > 0):
+                    if (shift > 0) == (realized is not None):
                         self.assertGreaterEqual(engine.price(instrument, context), 0)
                     else:
                         self.assert_rejection(
@@ -178,7 +178,7 @@ class AsianMonteCarloTests(unittest.TestCase):
                         kind,
                         direction,
                         averaging=averaging,
-                        realized=105 if window == 2 else 0,
+                        realized=105 if window == 2 else None,
                     )
                     context = market(valuation=valuation, rate=-0.02)
                     result = engine.price_with_greeks(instrument, context, greeks="all")

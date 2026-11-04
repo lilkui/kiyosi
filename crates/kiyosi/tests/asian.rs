@@ -19,9 +19,10 @@ fn market(at: Timestamp) -> PricingContext {
 fn continuous_asian_prices_match_existing_independent_references() {
     let (start, end) = dates();
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0).unwrap();
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
     let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0).unwrap();
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
+            .unwrap();
     assert!(
         (AnalyticGeometricAveragePriceEngine
             .price(&geometric, &market(start))
@@ -49,7 +50,8 @@ macro_rules! contract_tests {
                 let (start, end) = dates();
                 for strike in [0.0, -1.0, f64::NAN, f64::INFINITY] {
                     assert!(matches!(
-                        $option::new(OptionType::Call, strike, start, start, end, 0.0).unwrap_err(),
+                        $option::new(OptionType::Call, strike, start, start, end, None)
+                            .unwrap_err(),
                         Error::InvalidInput(_)
                     ));
                 }
@@ -74,7 +76,7 @@ macro_rules! contract_tests {
                         start,
                         Date::new(2026, 1, 2).unwrap().start_of_day(),
                         end,
-                        0.0
+                        None
                     )
                     .unwrap_err(),
                     Error::InvalidInput(_)
@@ -94,7 +96,7 @@ macro_rules! contract_tests {
                 assert_eq!(updated.effective_time(), start);
                 assert_eq!(updated.averaging_start_time(), start);
                 assert_eq!(updated.expiry_time(), end);
-                assert_eq!(updated.realized_average(), 110.0);
+                assert_eq!(updated.realized_average(), Some(110.0));
                 assert!(matches!(
                     original.replace_history(-1.0).unwrap_err(),
                     Error::InvalidInput(_)
@@ -106,7 +108,7 @@ macro_rules! contract_tests {
                 let (start, end) = dates();
                 let averaging = Date::new(2025, 2, 1).unwrap().start_of_day();
                 let original =
-                    $option::new(OptionType::Call, 100.0, start, averaging, end, 0.0).unwrap();
+                    $option::new(OptionType::Call, 100.0, start, averaging, end, None).unwrap();
                 let seasoned = original.replace_history(110.0).unwrap();
                 for at in [start, averaging] {
                     assert!($engine.price(&original, &market(at)).is_ok());
@@ -157,7 +159,7 @@ macro_rules! contract_tests {
                     Error::UnsupportedOperation(_)
                 ));
                 for direction in [OptionType::Call, OptionType::Put] {
-                    let single = $option::new(direction, 100.0, start, end, end, 0.0).unwrap();
+                    let single = $option::new(direction, 100.0, start, end, end, None).unwrap();
                     let vanilla = EuropeanOption::new(direction, 100.0, start, end).unwrap();
                     for at in [start, Date::new(2025, 12, 31).unwrap().start_of_day(), end] {
                         assert_eq!(
@@ -176,7 +178,8 @@ macro_rules! contract_tests {
             #[test]
             fn greeks_solver_selection_errors_and_history_stencils() {
                 let (start, end) = dates();
-                let option = $option::new(OptionType::Call, 100.0, start, start, end, 0.0).unwrap();
+                let option =
+                    $option::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
                 let context = market(start);
                 let full = $engine
                     .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
@@ -261,7 +264,7 @@ macro_rules! contract_tests {
                     .price_with_greeks(&seasoned, &middle, GreeksRequest::all(), Default::default())
                     .unwrap();
                 assert!(result.values().iter().all(Option::is_some));
-                assert_eq!(option.realized_average(), 0.0);
+                assert_eq!(option.realized_average(), None);
                 assert_eq!(
                     context.model_parameters().as_bsm().unwrap().volatility(),
                     0.2
@@ -309,7 +312,7 @@ fn seasoned_and_forward_geometric_prices_match_independent_regressions() {
             start,
             averaging,
             end,
-            realized,
+            (realized != 0.0).then_some(realized),
         )
         .unwrap();
         assert!(
@@ -334,9 +337,15 @@ fn arithmetic_solver_rejects_locked_payoffs_and_moments_handle_carry_singulariti
     let context = market(Date::new(2025, 7, 2).unwrap().start_of_day());
     for direction in [OptionType::Call, OptionType::Put] {
         for realized in [100.0, 201.0, 220.0] {
-            let option =
-                ArithmeticAveragePriceOption::new(direction, 100.0, start, start, end, realized)
-                    .unwrap();
+            let option = ArithmeticAveragePriceOption::new(
+                direction,
+                100.0,
+                start,
+                start,
+                end,
+                (realized != 0.0).then_some(realized),
+            )
+            .unwrap();
             let quote = engine.price(&option, &context).unwrap();
             let implied = implied_volatility(
                 &engine,
@@ -366,7 +375,7 @@ fn arithmetic_solver_rejects_locked_payoffs_and_moments_handle_carry_singulariti
         (0.04 + 1e-6, 3.624_490_280_002),
     ] {
         let option =
-            ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0)
+            ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
                 .unwrap();
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(0.0, dividend, 0.2).unwrap(),
@@ -395,7 +404,7 @@ fn node_curves_use_weighted_geometric_carry_and_arithmetic_expiry_bypasses_appli
     )
     .unwrap();
     let option =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0).unwrap();
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
     let actual = AnalyticGeometricAveragePriceEngine
         .price(&option, &context)
         .unwrap();
@@ -410,7 +419,8 @@ fn node_curves_use_weighted_geometric_carry_and_arithmetic_expiry_bypasses_appli
         * ((drift + width * width / 2.0).exp() * cdf(drift / width + width) - cdf(drift / width));
     assert!((actual - expected).abs() < 1e-11);
     let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0).unwrap();
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
+            .unwrap();
     assert!(matches!(
         TurnbullWakemanArithmeticAveragePriceEngine
             .price(&arithmetic, &context)
@@ -435,7 +445,8 @@ fn node_curves_use_weighted_geometric_carry_and_arithmetic_expiry_bypasses_appli
 fn arithmetic_solver_prices_only_the_requested_volatility_bracket() {
     let (start, end) = dates();
     let option =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0).unwrap();
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
+            .unwrap();
     let engine = TurnbullWakemanArithmeticAveragePriceEngine;
     let quote = engine.price(&option, &market(start)).unwrap();
     let context = market(start)
@@ -494,11 +505,21 @@ fn tiny_variances_and_scaled_normal_tails_retain_representable_prices() {
                 .unwrap();
                 let realized = if window == 2 { spot } else { 0.0 };
                 let geometric = GeometricAveragePriceOption::new(
-                    direction, spot, start, averaging, end, realized,
+                    direction,
+                    spot,
+                    start,
+                    averaging,
+                    end,
+                    (realized != 0.0).then_some(realized),
                 )
                 .unwrap();
                 let arithmetic = ArithmeticAveragePriceOption::new(
-                    direction, spot, start, averaging, end, realized,
+                    direction,
+                    spot,
+                    start,
+                    averaging,
+                    end,
+                    (realized != 0.0).then_some(realized),
                 )
                 .unwrap();
                 for price in [
@@ -527,10 +548,10 @@ fn tiny_variances_and_scaled_normal_tails_retain_representable_prices() {
             )
             .unwrap();
             let geometric =
-                GeometricAveragePriceOption::new(direction, strike, start, start, end, 0.0)
+                GeometricAveragePriceOption::new(direction, strike, start, start, end, None)
                     .unwrap();
             let arithmetic =
-                ArithmeticAveragePriceOption::new(direction, strike, start, start, end, 0.0)
+                ArithmeticAveragePriceOption::new(direction, strike, start, start, end, None)
                     .unwrap();
             // Independent 90-digit normal-tail references.
             let expected_geo = if call {
@@ -652,9 +673,9 @@ fn single_fixing_preserves_independent_asset_discount_at_extreme_rates() {
     .unwrap();
     let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     let geometric =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, 0.0).unwrap();
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None).unwrap();
     let arithmetic =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, 0.0).unwrap();
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None).unwrap();
     let expected = 100.0 * (-0.02_f64).exp();
     for price in [
         AnalyticEuropeanEngine.price(&vanilla, &context).unwrap(),
@@ -673,7 +694,8 @@ fn single_fixing_preserves_independent_asset_discount_at_extreme_rates() {
 fn non_finite_small_volatility_moments_report_computation_failure() {
     let (start, end) = dates();
     let option =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0).unwrap();
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
+            .unwrap();
     for sigma in [1e-6, 0.001] {
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(400.0, 0.0, sigma).unwrap(),

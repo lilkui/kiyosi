@@ -164,7 +164,7 @@ def contracts():
         effective_time=START,
         averaging_start_time=START,
         expiry_time=END,
-        realized_average=0,
+        realized_average=None,
     )
     yield i.ArithmeticAveragePriceOption(
         option_type="call",
@@ -172,7 +172,7 @@ def contracts():
         effective_time=START,
         averaging_start_time=START,
         expiry_time=END,
-        realized_average=0,
+        realized_average=None,
     )
 
 
@@ -319,7 +319,7 @@ class ContractReplacementTests(unittest.TestCase):
                         original.replace(
                             **{field: 1 if field == "terminated" else True}
                         )
-                    if field not in NULLABLE:
+                    if field not in NULLABLE and field != "realized_average":
                         with self.assertRaises(TypeError):
                             original.replace(**{field: None})
                 with self.assertRaises(TypeError):

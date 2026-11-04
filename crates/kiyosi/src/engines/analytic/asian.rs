@@ -38,7 +38,7 @@ impl AnalyticGeometricAveragePriceEngine {
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = GeometricAveragePriceOption::new(OptionType::Call, 100.0,
-    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), 0.0)?;
+    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// assert!((AnalyticGeometricAveragePriceEngine.price(&option, &context)? - 5.035867546515384).abs() < 1e-12);
     /// # Ok(()) }
@@ -93,7 +93,8 @@ impl AnalyticGeometricAveragePriceEngine {
         let mut log_forward = carry - weight * 0.5 * sigma * sigma * (lead + future / 2.0)
             + 0.5 * deviation * deviation;
         if valuation > start {
-            log_forward += (1.0 - weight) * log_ratio(o.realized, context.spot_price());
+            log_forward +=
+                (1.0 - weight) * log_ratio(o.realized.unwrap_or(0.0), context.spot_price());
         }
         let log_discount = model.risk_free_curve().log_factor(valuation, expiry)?;
         checked(crate::engines::analytic::european::lognormal_price(
@@ -168,7 +169,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = ArithmeticAveragePriceOption::new(OptionType::Call, 100.0,
-    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), 0.0)?;
+    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// let result = TurnbullWakemanArithmeticAveragePriceEngine.price_with_greeks(
     ///     &option, &context, GreeksRequest::new([Greek::Delta]), Default::default())?;
@@ -218,7 +219,8 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
             if o.sign() < 0.0 {
                 return Ok(0.0);
             }
-            let accrued = (o.realized * (elapsed / period) - o.terms.strike()).max(0.0);
+            let accrued =
+                (o.realized.unwrap_or(0.0) * (elapsed / period) - o.terms.strike()).max(0.0);
             return checked(
                 scaled_cash(accrued, -rate * tau)
                     + scaled_cash(context.spot_price(), m1.ln() + scale.ln() - rate * tau),
@@ -226,7 +228,10 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
         }
         let overflow = !strike.is_finite();
         let cash_strike = if overflow {
-            (elapsed / period).mul_add(o.terms.strike() - o.realized, scale * o.terms.strike())
+            (elapsed / period).mul_add(
+                o.terms.strike() - o.realized.unwrap_or(0.0),
+                scale * o.terms.strike(),
+            )
         } else {
             strike
         };

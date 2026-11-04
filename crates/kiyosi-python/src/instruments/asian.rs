@@ -2,6 +2,14 @@ use crate::conversions::{direction, python_timestamp, real, supplied, timestamp}
 use crate::error::domain;
 use pyo3::prelude::*;
 
+fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<f64>> {
+    if value.is_none() {
+        Ok(None)
+    } else {
+        real(value).map(Some)
+    }
+}
+
 macro_rules! average_option {
     ($name:ident) => {
         /// Continuously monitored average-price Asian option with explicit history.
@@ -18,9 +26,9 @@ macro_rules! average_option {
         ///     First averaging timestamp, within the contract life.
         /// expiry_time : datetime.datetime
         ///     Inclusive expiry time.
-        /// realized_average : float, optional
-        ///     Nonnegative finite prior average; defaults to zero. Must be zero
-        ///     at or before averaging starts, and positive strictly after it;
+        /// realized_average : float or None, optional
+        ///     Positive finite prior average; defaults to None (unknown). Must be None
+        ///     at or before averaging starts, and supplied strictly after it;
         ///     time consistency is checked at pricing.
         ///
         /// Raises
@@ -47,7 +55,7 @@ macro_rules! average_option {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// realized_average : float, optional
+    /// realized_average : float or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     ///
     /// Returns
@@ -77,7 +85,7 @@ macro_rules! average_option {
             effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
             averaging_start_time: averaging_start_time.map(crate::conversions::timestamp).transpose()?,
             expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
-            realized_average: realized_average.map(crate::conversions::real).transpose()?,
+            realized_average: realized_average.map(history).transpose()?,
         };
         Ok(Self(domain(self.0.replace(changes))?))
     }
@@ -85,7 +93,7 @@ macro_rules! average_option {
             #[pyo3(signature = (*, option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE))]
             fn new(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
                 effective_time: &Bound<'_, PyAny>, averaging_start_time: &Bound<'_, PyAny>,
-                expiry_time: &Bound<'_, PyAny>, #[pyo3(from_py_with = real)] realized_average: f64) -> PyResult<Self> {
+                expiry_time: &Bound<'_, PyAny>, #[pyo3(from_py_with = history)] realized_average: Option<f64>) -> PyResult<Self> {
                 Ok(Self(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
                     timestamp(effective_time)?, timestamp(averaging_start_time)?, timestamp(expiry_time)?, realized_average))?))
             }
@@ -93,8 +101,8 @@ macro_rules! average_option {
             ///
             /// Parameters
             /// ----------
-            /// realized_average : float, optional
-            ///     Prior average; zero denotes no history. Pricing checks time
+            /// realized_average : float or None, optional
+            ///     Prior average; None restores unknown history. Pricing checks time
             ///     consistency.
             ///
             /// Returns
@@ -110,7 +118,7 @@ macro_rules! average_option {
             fn replace_history(&self,
                 #[pyo3(from_py_with = supplied)] realized_average: Option<&Bound<'_, PyAny>>,
             ) -> PyResult<Self> {
-                let realized = realized_average.map(real).transpose()?.unwrap_or(self.0.realized_average());
+                let realized = realized_average.map(history).transpose()?.unwrap_or(self.0.realized_average());
                 Ok(Self(domain(self.0.replace_history(realized))?))
             }
             /// Return call or put payoff direction.
@@ -121,9 +129,9 @@ macro_rules! average_option {
             /// Return the strike price in underlying price units.
             #[getter]
             fn strike(&self) -> f64 { self.0.strike() }
-            /// Return the supplied historical average; zero denotes no history.
+            /// Return the supplied historical average, or None if unknown.
             #[getter]
-            fn realized_average(&self) -> f64 { self.0.realized_average() }
+            fn realized_average(&self) -> Option<f64> { self.0.realized_average() }
             /// Return inclusive first contract timestamp.
             #[getter]
             fn effective_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> { python_timestamp(py, self.0.effective_time()) }

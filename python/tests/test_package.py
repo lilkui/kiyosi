@@ -157,10 +157,10 @@ class PackageTests(unittest.TestCase):
             instruments.CashOrNothingOption(**vanilla, payout=10),
             instruments.AssetOrNothingOption(**vanilla),
             instruments.GeometricAveragePriceOption(
-                **vanilla, averaging_start_time=start, realized_average=0
+                **vanilla, averaging_start_time=start, realized_average=None
             ),
             instruments.ArithmeticAveragePriceOption(
-                **vanilla, averaging_start_time=start, realized_average=0
+                **vanilla, averaging_start_time=start, realized_average=None
             ),
             instruments.BarrierOption(
                 **vanilla,

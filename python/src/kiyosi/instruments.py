@@ -21,6 +21,8 @@ Double-touch contracts expose ``barrier_type="knock_in"`` or ``"knock_out"``
 for inspection and replacement;
 asset-settled binary and touch contracts reject cash payout replacements.
 ``replace_history()`` updates only prior history on path-dependent contracts.
+Asian averages use ``realized_average=None`` for unknown history; supplied averages
+must be finite and positive. History is required strictly after averaging starts.
 Both return new contracts and expose named keyword-only fields through ``inspect.signature``.
 Autocallable ``with_coupon(coupon, ...)`` returns a new note using the same
 quote convention and coupon units as ``pricing.implied_coupon``. Snowballs

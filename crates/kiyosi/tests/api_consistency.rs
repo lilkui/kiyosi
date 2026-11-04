@@ -1,6 +1,54 @@
 use kiyosi::*;
 
 #[test]
+fn asian_history_uses_optional_positive_averages() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(10)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+        100.0,
+        start.add_days(1)?,
+    )?;
+    macro_rules! check {
+        ($contract:ident, $engine:expr) => {{
+            let original = $contract::new(OptionType::Call, 100.0, start, start, end, None)?;
+            assert_eq!(original.realized_average(), None);
+            assert!(matches!(
+                $engine.price(&original, &context),
+                Err(Error::InvalidInput(_))
+            ));
+            let seasoned = original.replace_history(110.0)?;
+            assert_eq!(seasoned.realized_average(), Some(110.0));
+            assert!($engine.price(&seasoned, &context)? > 0.0);
+            assert_eq!(seasoned.replace_history(None)?, original);
+            assert_eq!(
+                seasoned.replace(AveragePriceOptionChanges {
+                    realized_average: Some(None),
+                    ..Default::default()
+                })?,
+                original
+            );
+            for invalid in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+                assert!(matches!(
+                    seasoned.replace_history(invalid),
+                    Err(Error::InvalidInput(_))
+                ));
+            }
+            assert_eq!(seasoned.realized_average(), Some(110.0));
+        }};
+    }
+    check!(
+        GeometricAveragePriceOption,
+        AnalyticGeometricAveragePriceEngine
+    );
+    check!(
+        ArithmeticAveragePriceOption,
+        TurnbullWakemanArithmeticAveragePriceEngine
+    );
+    Ok(())
+}
+
+#[test]
 fn model_scalar_rate_queries_match_curve_representations() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = Date::new(2026, 1, 1)?.start_of_day();
@@ -228,7 +276,7 @@ fn native_greek_methods_accept_shared_shift_settings() -> Result<()> {
     )?;
     let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
     let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?;
-    let asian = GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0)?;
+    let asian = GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)?;
     let barrier = BarrierOption::new(BarrierOptionTerms::new(
         OptionType::Call,
         100.0,

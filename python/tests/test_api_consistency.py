@@ -10,6 +10,51 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_asian_history_uses_optional_positive_averages(self):
+        start, end = datetime(2025, 1, 1), datetime(2025, 1, 11)
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=datetime(2025, 1, 2),
+        )
+        for kind, engine in (
+            (
+                ins.GeometricAveragePriceOption,
+                pricing.AnalyticGeometricAveragePriceEngine(),
+            ),
+            (
+                ins.ArithmeticAveragePriceOption,
+                pricing.TurnbullWakemanArithmeticAveragePriceEngine(),
+            ),
+        ):
+            with self.subTest(kind=kind.__name__):
+                original = kind(
+                    option_type="call",
+                    strike=100,
+                    effective_time=start,
+                    averaging_start_time=start,
+                    expiry_time=end,
+                )
+                self.assertIsNone(original.realized_average)
+                with self.assertRaises(InvalidInputError):
+                    engine.price(original, context)
+                seasoned = original.replace_history(realized_average=110)
+                self.assertEqual(seasoned.realized_average, 110)
+                self.assertGreater(engine.price(seasoned, context), 0)
+                self.assertEqual(seasoned.replace_history(), seasoned)
+                self.assertEqual(
+                    seasoned.replace_history(realized_average=None), original
+                )
+                self.assertEqual(seasoned.replace(realized_average=None), original)
+                self.assertEqual(pickle.loads(pickle.dumps(original)), original)
+                self.assertEqual(pickle.loads(pickle.dumps(seasoned)), seasoned)
+                for invalid in (0, -1, float("nan"), float("inf")):
+                    with self.assertRaises(InvalidInputError):
+                        seasoned.replace_history(realized_average=invalid)
+                self.assertEqual(seasoned.realized_average, 110)
+
     def test_integer_inputs_share_the_index_protocol(self):
         class Index:
             def __init__(self, value):

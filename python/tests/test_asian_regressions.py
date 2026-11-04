@@ -264,7 +264,7 @@ class AsianRegressionTests(unittest.TestCase):
                             if window == 1
                             else start,
                             expiry_time=end,
-                            realized_average=spot if window == 2 else 0,
+                            realized_average=spot if window == 2 else None,
                         )
                         actual = (
                             pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
@@ -435,7 +435,7 @@ class AsianRegressionTests(unittest.TestCase):
                                 effective_time=start,
                                 averaging_start_time=averaging,
                                 expiry_time=end,
-                                realized_average=spot if window == 2 else 0,
+                                realized_average=spot if window == 2 else None,
                             )
                             actual = engine.price(option, context)
                             self.assertAlmostEqual(
@@ -475,7 +475,7 @@ class AsianRegressionTests(unittest.TestCase):
                             start + timedelta(days=120) if window == 1 else start
                         ),
                         expiry_time=end,
-                        realized_average=1e8 if window == 2 else 0,
+                        realized_average=1e8 if window == 2 else None,
                     )
                     actual = (
                         pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
@@ -557,7 +557,7 @@ class AsianRegressionTests(unittest.TestCase):
                                 effective_time=start,
                                 averaging_start_time=averaging,
                                 expiry_time=end,
-                                realized_average=spot if window == 2 else 0,
+                                realized_average=spot if window == 2 else None,
                             )
                             price = pricing.AnalyticGeometricAveragePriceEngine().price(
                                 option, context

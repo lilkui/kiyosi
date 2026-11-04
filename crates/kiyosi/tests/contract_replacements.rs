@@ -1053,7 +1053,7 @@ fn geometric_average_price_option_replacements_preserve_omissions_and_validate_e
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original =
-        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0).unwrap();
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
     let saved = original.clone();
     assert_eq!(
         original
@@ -1091,7 +1091,12 @@ fn geometric_average_price_option_replacements_preserve_omissions_and_validate_e
         expiry_time,
         Date::new(2026, 1, 2).unwrap().start_of_day()
     );
-    check_field!(original, AveragePriceOptionChanges, realized_average, 105.0);
+    check_field!(
+        original,
+        AveragePriceOptionChanges,
+        realized_average,
+        Some(105.0)
+    );
     assert!(matches!(
         original.replace(AveragePriceOptionChanges {
             strike: Some(-1.0),
@@ -1107,7 +1112,8 @@ fn arithmetic_average_price_option_replacements_preserve_omissions_and_validate_
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original =
-        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0).unwrap();
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
+            .unwrap();
     let saved = original.clone();
     assert_eq!(
         original
@@ -1145,7 +1151,12 @@ fn arithmetic_average_price_option_replacements_preserve_omissions_and_validate_
         expiry_time,
         Date::new(2026, 1, 2).unwrap().start_of_day()
     );
-    check_field!(original, AveragePriceOptionChanges, realized_average, 105.0);
+    check_field!(
+        original,
+        AveragePriceOptionChanges,
+        realized_average,
+        Some(105.0)
+    );
     assert!(matches!(
         original.replace(AveragePriceOptionChanges {
             strike: Some(-1.0),

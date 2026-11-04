@@ -111,7 +111,7 @@ impl MonteCarloAsianEngine {
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = GeometricAveragePriceOption::new(OptionType::Call, 100.0,
-    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), 0.0)?;
+    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// let engine = MonteCarloAsianEngine::new(MonteCarloSettings {
@@ -236,7 +236,7 @@ impl MonteCarloAsianEngine {
             };
             let elapsed_weight = start.years_until(valuation) / o.period();
             let accrued = elapsed_weight
-                .mul_add(o.realized, -o.terms.strike())
+                .mul_add(o.realized.unwrap_or(0.0), -o.terms.strike())
                 .max(0.0);
             let price = if flat {
                 TurnbullWakemanArithmeticAveragePriceEngine
@@ -259,7 +259,7 @@ impl MonteCarloAsianEngine {
         let mut p = Parameters {
             spot: context.spot_price(),
             strike: o.terms.strike(),
-            realized: o.realized,
+            realized: o.realized.unwrap_or(0.0),
             weight,
             log_discount,
             drift,
@@ -268,7 +268,7 @@ impl MonteCarloAsianEngine {
             log_base_width: sigma.ln() + 0.5 * variance_time.ln(),
             initial_moneyness: weight * log_ratio(context.spot_price(), o.terms.strike())
                 + if valuation > start {
-                    (1.0 - weight) * log_ratio(o.realized, o.terms.strike())
+                    (1.0 - weight) * log_ratio(o.realized.unwrap_or(0.0), o.terms.strike())
                 } else {
                     0.0
                 },
