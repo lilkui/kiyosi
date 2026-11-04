@@ -57,6 +57,11 @@ macro_rules! numerical_greeks_methods {
             $(#[$extra_doc])*
             #[pyo3(signature = (instrument, context, greeks, *, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
             #[expect(clippy::too_many_arguments, reason = "explicit Python pricing controls")]
+            ///
+            /// See Also
+            /// --------
+            /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
+            ///     Heston and local-volatility models are unsupported by this helper.
             fn price_with_greeks(
                 &self,
                 py: pyo3::Python<'_>,

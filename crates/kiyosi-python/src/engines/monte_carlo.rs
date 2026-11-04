@@ -89,6 +89,11 @@ macro_rules! sampling_settings {
             /// OSError
             ///     If system entropy or worker creation fails.
             #[pyo3(signature = (instrument, context, greeks, *, spot_shift=kiyosi::NumericalShiftSettings::default().spot_shift()))]
+            ///
+            /// See Also
+            /// --------
+            /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
+            ///     Heston and local-volatility models are unsupported by this helper.
             fn price_with_greeks(
                 &self,
                 py: Python<'_>,
@@ -443,6 +448,11 @@ sampling_settings!(
         clippy::too_many_arguments,
         reason = "explicit Python pricing controls"
     )]
+    ///
+    /// See Also
+    /// --------
+    /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
+    ///     Heston and local-volatility models are unsupported by this helper.
     fn price_with_greeks(
         &self,
         py: Python<'_>,
@@ -605,6 +615,11 @@ sampling_settings!(
         clippy::needless_pass_by_value,
         reason = "PyO3 extracts an owned instrument borrow guard"
     )]
+    ///
+    /// See Also
+    /// --------
+    /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
+    ///     Heston and local-volatility models are unsupported by this helper.
     fn price_with_greeks(
         &self,
         py: Python<'_>,
@@ -727,6 +742,11 @@ sampling_settings!(
     /// -----
     /// System entropy and worker-creation failures raise OSError.
     #[pyo3(signature = (instrument, context, greeks))]
+    ///
+    /// See Also
+    /// --------
+    /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
+    ///     Heston and local-volatility models are unsupported by this helper.
     fn price_with_greeks(
         &self,
         py: Python<'_>,

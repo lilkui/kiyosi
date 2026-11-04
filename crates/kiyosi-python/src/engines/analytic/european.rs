@@ -49,6 +49,11 @@ impl AnalyticEuropeanEngine {
         clippy::needless_pass_by_value,
         reason = "PyO3 extracts an owned PyRef guard"
     )]
+    ///
+    /// See Also
+    /// --------
+    /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
+    ///     Heston and local-volatility models are unsupported by this helper.
     fn price_with_greeks(
         &self,
         #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<

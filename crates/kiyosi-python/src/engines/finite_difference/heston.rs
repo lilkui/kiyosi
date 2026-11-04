@@ -142,6 +142,11 @@ impl FiniteDifferenceHestonVanillaEngine {
     /// -------
     /// PricingResult
     ///     Price with every requested Greek set to None.
+    ///
+    /// See Also
+    /// --------
+    /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
+    ///     Heston and local-volatility models are unsupported by this helper.
     fn price_with_greeks(
         &self,
         py: Python<'_>,

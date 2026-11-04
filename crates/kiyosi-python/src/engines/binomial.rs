@@ -204,6 +204,11 @@ macro_rules! binomial_engine {
             /// KiyosiError
             ///     If request validation or pricing fails.
             #[pyo3(signature = (instrument, context, greeks))]
+            ///
+            /// See Also
+            /// --------
+            /// numerical_greeks : Uniform numerical bump controls for supported BSM pairs.
+            ///     Heston and local-volatility models are unsupported by this helper.
             fn price_with_greeks(
                 &self,
                 py: Python<'_>,
