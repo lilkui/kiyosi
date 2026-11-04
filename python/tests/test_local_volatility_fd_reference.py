@@ -2,7 +2,7 @@
 
 import itertools
 import unittest
-from datetime import date
+from datetime import datetime
 from functools import cache
 
 import QuantLib as ql
@@ -21,7 +21,7 @@ from kiyosi.market import (
     PricingContext,
 )
 
-START, END = date(2025, 1, 1), date(2026, 1, 1)
+START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
 
 def market(spot=100, dividend=0.02):
@@ -44,8 +44,8 @@ def instrument(kind, direction):
     terms = {
         "option_type": direction,
         "strike": 100,
-        "effective_date": START,
-        "expiry_date": END,
+        "effective_time": START,
+        "expiry_time": END,
     }
     if kind == "american":
         return AmericanOption(**terms)

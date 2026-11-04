@@ -2,7 +2,7 @@
 
 import math
 import unittest
-from datetime import date
+from datetime import datetime
 
 import QuantLib as ql
 from kiyosi.instruments import AmericanOption, EuropeanOption
@@ -23,7 +23,7 @@ class VolgaDividendRhoTests(unittest.TestCase):
         self.addCleanup(lambda: saved)
         for direction in ("call", "put"):
             option = EuropeanOption(
-                option_type=direction, strike=100, effective_date=START, expiry_date=END
+                option_type=direction, strike=100, effective_time=START, expiry_time=END
             )
             for spot in (80, 100, 120):
                 for dividend in (-0.02, 0, 0.02):
@@ -32,9 +32,9 @@ class VolgaDividendRhoTests(unittest.TestCase):
                         "option": direction,
                         "spot": spot,
                         "strike": 100,
-                        "effective_date": START.isoformat(),
-                        "expiry_date": END.isoformat(),
-                        "valuation": START.isoformat(),
+                        "effective_time": START.date().isoformat(),
+                        "expiry_time": END.date().isoformat(),
+                        "valuation": START.date().isoformat(),
                         "rate": 0.05,
                         "dividend": dividend,
                         "volatility": 0.2,
@@ -80,11 +80,11 @@ class VolgaDividendRhoTests(unittest.TestCase):
 
     def test_parallel_dividend_curves_numerical_bumps_and_availability(self):
         option = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         curve = RateTermStructure(
             reference_time=START,
-            times=[date(2025, 7, 1), END],
+            times=[datetime(2025, 7, 1), END],
             factors=[math.exp(-0.01 * 181 / 365), math.exp(-0.03)],
         )
         context = market().replace(
@@ -140,7 +140,7 @@ class VolgaDividendRhoTests(unittest.TestCase):
 
     def test_american_dividend_stencil_crossing_zero_keeps_one_estimator(self):
         option = AmericanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         engine = MonteCarloVanillaEngine(path_count=2048, step_count=6, seed=42)
         shift = 1 / 8192

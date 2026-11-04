@@ -35,9 +35,9 @@ impl QuadratureDigitalEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
-    ///     start, Date::new(2026, 1, 1)?)?;
+    ///     start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// let settings = QuadratureSettings::default();
@@ -104,9 +104,7 @@ impl PricingEngine<DigitalOption> for QuadratureDigitalEngine {
         validate_life(option, context)?;
         let spot = context.spot_price();
         let call = option.option_type() == OptionType::Call;
-        let time = context
-            .valuation_time()
-            .years_until(option.expiry_date().into());
+        let time = context.valuation_time().years_until(option.expiry_time());
         if time == 0.0 {
             return Ok(
                 if (call && spot > option.strike()) || (!call && spot < option.strike()) {

@@ -1,13 +1,13 @@
 """Future threshold decisions retain movements smaller than a spot-price ULP."""
 
 import unittest
-from datetime import UTC, date, datetime
+from datetime import datetime
 
 from kiyosi import instruments as ins
 from kiyosi import pricing
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
-START, END = date(2025, 1, 1), date(2026, 1, 1)
+START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 SETTINGS = {"path_count": 65536, "seed": 42, "antithetic": True}
 
 
@@ -17,7 +17,7 @@ def market(volatility, intraday=False):
             risk_free_rate=0, dividend_yield=0, volatility=volatility
         ),
         spot_price=100,
-        valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC) if intraday else START,
+        valuation_time=datetime(2025, 1, 1, 12) if intraday else START,
     )
 
 
@@ -37,10 +37,10 @@ class MonteCarloThresholdTests(unittest.TestCase):
                     common = {
                         "option_type": direction,
                         "strike": strike,
-                        "effective_date": START,
-                        "expiry_date": END,
+                        "effective_time": START,
+                        "expiry_time": END,
                         "observation_mode": "scheduled",
-                        "observation_dates": [END],
+                        "observation_times": [END],
                         "rebate": 2,
                     }
                     with self.subTest(
@@ -67,8 +67,8 @@ class MonteCarloThresholdTests(unittest.TestCase):
     def test_snowball_thresholds_preserve_price_and_sampling_uncertainty(self):
         note = ins.BinarySnowballOption(
             maturity_coupon_rate=0.02,
-            effective_date=START,
-            expiry_date=END,
+            effective_time=START,
+            expiry_time=END,
             observations=ins.autocallable_observations(
                 [END], [100], knock_out_coupon_rates=[0.12]
             ),
@@ -92,9 +92,9 @@ class MonteCarloThresholdTests(unittest.TestCase):
                         )
 
     def test_autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements(self):
-        end = date(2025, 1, 2)
+        end = datetime(2025, 1, 2)
         engine = pricing.MonteCarloAutocallableEngine(**SETTINGS)
-        common = {"effective_date": START, "expiry_date": end}
+        common = {"effective_time": START, "expiry_time": end}
         for volatility in (1e-18, 1e-200):
             context = market(volatility, intraday=True)
             for mode in ("every_trading_day", "at_expiry"):
@@ -128,15 +128,15 @@ class MonteCarloThresholdTests(unittest.TestCase):
     def test_accumulator_thresholds_preserve_knock_out_and_accelerated_settlements(
         self,
     ):
-        end = date(2025, 1, 2)
+        end = datetime(2025, 1, 2)
         engine = pricing.MonteCarloAccumulatorEngine(**SETTINGS)
         for volatility in (1e-18, 1e-200):
             context = market(volatility, intraday=True)
             for direction, strike, barrier in (("call", 90, 120), ("put", 110, 80)):
                 common = {
                     "option_type": direction,
-                    "effective_date": START,
-                    "expiry_date": end,
+                    "effective_time": START,
+                    "expiry_time": end,
                 }
                 option = ins.Accumulator(
                     **common,

@@ -36,9 +36,9 @@ impl AnalyticGeometricAveragePriceEngine {
     /// use kiyosi::{AnalyticGeometricAveragePriceEngine, GeometricAveragePriceOption,
     ///     BlackScholesMertonParameters, PricingContext, Date, OptionType};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = GeometricAveragePriceOption::new(OptionType::Call, 100.0,
-    ///     start, start, Date::new(2026, 1, 1)?, 0.0)?;
+    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), 0.0)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// assert!((AnalyticGeometricAveragePriceEngine.price(&option, &context)? - 5.035867546515384).abs() < 1e-12);
     /// # Ok(()) }
@@ -59,8 +59,8 @@ impl AnalyticGeometricAveragePriceEngine {
             return crate::AnalyticEuropeanEngine.price(&o.terms, context);
         }
         let valuation = context.valuation_time();
-        let start = o.averaging_start.start_of_day();
-        let expiry = o.terms.expiry_date().start_of_day();
+        let start = o.averaging_start;
+        let expiry = o.terms.expiry_time();
         let period = o.period();
         let lead = valuation.years_until(start).max(0.0);
         let future = valuation.max(start).years_until(expiry);
@@ -166,9 +166,9 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     /// use kiyosi::{TurnbullWakemanArithmeticAveragePriceEngine, ArithmeticAveragePriceOption,
     ///     BlackScholesMertonParameters, PricingContext, Date, OptionType, GreeksRequest, Greek};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = ArithmeticAveragePriceOption::new(OptionType::Call, 100.0,
-    ///     start, start, Date::new(2026, 1, 1)?, 0.0)?;
+    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), 0.0)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// let result = TurnbullWakemanArithmeticAveragePriceEngine.price_with_greeks(
     ///     &option, &context, GreeksRequest::new([Greek::Delta]), Default::default())?;
@@ -353,9 +353,7 @@ impl PricingEngine<ArithmeticAveragePriceOption> for TurnbullWakemanArithmeticAv
         option: &ArithmeticAveragePriceOption,
         context: &PricingContext,
     ) -> bool {
-        let tau = context
-            .valuation_time()
-            .years_until(option.expiry_date().start_of_day());
+        let tau = context.valuation_time().years_until(option.expiry_time());
         option.0.adjusted_strike(tau) > 0.0
     }
 }

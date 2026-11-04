@@ -1,7 +1,5 @@
 use crate::numerics::checked;
-use crate::{
-    Date, Error, EuropeanOption, OptionContract, OptionType, PricingContext, Result, Timestamp,
-};
+use crate::{Error, EuropeanOption, OptionContract, OptionType, PricingContext, Result, Timestamp};
 
 /// Denotes no realized average before averaging starts; see [`GeometricAveragePriceOption::new`].
 pub const DEFAULT_REALIZED_AVERAGE: f64 = 0.0;
@@ -9,13 +7,13 @@ pub const DEFAULT_REALIZED_AVERAGE: f64 = 0.0;
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct AverageTerms {
     pub(crate) terms: EuropeanOption,
-    pub(crate) averaging_start: Date,
+    pub(crate) averaging_start: Timestamp,
     pub(crate) realized: f64,
 }
 
 impl AverageTerms {
     pub(crate) fn coverage(&self, context: &PricingContext) -> Result<()> {
-        let expiry = self.terms.expiry_date().start_of_day();
+        let expiry = self.terms.expiry_time();
         context
             .bsm_parameters()?
             .risk_free_curve()
@@ -39,9 +37,9 @@ impl AverageTerms {
     fn new(
         direction: OptionType,
         strike: f64,
-        start: Date,
-        averaging: Date,
-        end: Date,
+        start: Timestamp,
+        averaging: Timestamp,
+        end: Timestamp,
         realized: f64,
     ) -> Result<Self> {
         if !realized.is_finite() || realized < 0.0 {
@@ -63,13 +61,13 @@ impl AverageTerms {
     }
     pub(crate) fn validate(&self, context: &PricingContext) -> Result<f64> {
         let valuation = context.valuation_time();
-        let expiry = self.terms.expiry_date().start_of_day();
-        if valuation < self.terms.effective_date().start_of_day() || valuation > expiry {
+        let expiry = self.terms.expiry_time();
+        if valuation < self.terms.effective_time() || valuation > expiry {
             return Err(Error::InvalidInput(
                 "valuation must be within contract life".into(),
             ));
         }
-        if (valuation > self.averaging_start.start_of_day()) == (self.realized == 0.0) {
+        if (valuation > self.averaging_start) == (self.realized == 0.0) {
             return Err(Error::InvalidInput(
                 "realized average must match the elapsed averaging period".into(),
             ));
@@ -77,9 +75,7 @@ impl AverageTerms {
         Ok(valuation.years_until(expiry))
     }
     pub(crate) fn period(&self) -> f64 {
-        self.averaging_start
-            .start_of_day()
-            .years_until(self.terms.expiry_date().start_of_day())
+        self.averaging_start.years_until(self.terms.expiry_time())
     }
     pub(crate) fn sign(&self) -> f64 {
         if self.terms.option_type() == OptionType::Call {
@@ -121,11 +117,11 @@ macro_rules! average_option {
                 Self::new(
                     changes.option_type.unwrap_or(self.option_type()),
                     changes.strike.unwrap_or(self.strike()),
-                    changes.effective_date.unwrap_or(self.effective_date()),
+                    changes.effective_time.unwrap_or(self.effective_time()),
                     changes
-                        .averaging_start_date
-                        .unwrap_or(self.averaging_start_date()),
-                    changes.expiry_date.unwrap_or(self.expiry_date()),
+                        .averaging_start_time
+                        .unwrap_or(self.averaging_start_time()),
+                    changes.expiry_time.unwrap_or(self.expiry_time()),
                     changes.realized_average.unwrap_or(self.realized_average()),
                 )
             }
@@ -137,7 +133,7 @@ macro_rules! average_option {
             /// # Errors
             ///
             /// Returns [`Error::InvalidInput`] for invalid strike, negative or non-finite
-            /// history, reversed life dates, or averaging outside contract life.
+            /// history, reversed life times, or averaging outside contract life.
             /// Diagnostic order is unspecified when several inputs are invalid.
             ///
             /// # Examples
@@ -146,30 +142,30 @@ macro_rules! average_option {
             /// use kiyosi::{Date, OptionType, GeometricAveragePriceOption,
             ///     ArithmeticAveragePriceOption, DEFAULT_REALIZED_AVERAGE};
             /// # fn main() -> kiyosi::Result<()> {
-            /// let start = Date::new(2025, 1, 1)?;
-            /// let end = Date::new(2026, 1, 1)?;
+            /// let start = Date::new(2025, 1, 1)?.start_of_day();
+            /// let end = Date::new(2026, 1, 1)?.start_of_day();
             /// let geometric = GeometricAveragePriceOption::new(OptionType::Call,
             ///     100.0, start, start, end, DEFAULT_REALIZED_AVERAGE)?;
             /// let arithmetic = ArithmeticAveragePriceOption::new(OptionType::Put,
             ///     100.0, start, start, end, DEFAULT_REALIZED_AVERAGE)?;
             /// assert_eq!(geometric.realized_average(), 0.0);
-            /// assert_eq!(arithmetic.averaging_start_date(), start);
+            /// assert_eq!(arithmetic.averaging_start_time(), start);
             /// # Ok(()) }
             /// ```
             pub fn new(
                 option_type: OptionType,
                 strike: f64,
-                effective_date: Date,
-                averaging_start_date: Date,
-                expiry_date: Date,
+                effective_time: Timestamp,
+                averaging_start_time: Timestamp,
+                expiry_time: Timestamp,
                 realized_average: f64,
             ) -> Result<Self> {
                 Ok(Self(AverageTerms::new(
                     option_type,
                     strike,
-                    effective_date,
-                    averaging_start_date,
-                    expiry_date,
+                    effective_time,
+                    averaging_start_time,
+                    expiry_time,
                     realized_average,
                 )?))
             }
@@ -185,9 +181,9 @@ macro_rules! average_option {
             /// ```rust
             /// use kiyosi::{Date, OptionType, GeometricAveragePriceOption};
             /// # fn main() -> kiyosi::Result<()> {
-            /// let start = Date::new(2025, 1, 1)?;
+            /// let start = Date::new(2025, 1, 1)?.start_of_day();
             /// let original = GeometricAveragePriceOption::new(OptionType::Call,
-            ///     100.0, start, start, Date::new(2026, 1, 1)?, 0.0)?;
+            ///     100.0, start, start, Date::new(2026, 1, 1)?.start_of_day(), 0.0)?;
             /// let seasoned = original.replace_history(105.0)?;
             /// assert_eq!(seasoned.realized_average(), 105.0);
             /// assert_eq!(original.realized_average(), 0.0);
@@ -197,9 +193,9 @@ macro_rules! average_option {
                 Self::new(
                     self.option_type(),
                     self.strike(),
-                    self.effective_date(),
-                    self.averaging_start_date(),
-                    self.expiry_date(),
+                    self.effective_time(),
+                    self.averaging_start_time(),
+                    self.expiry_time(),
                     realized_average,
                 )
             }
@@ -211,16 +207,16 @@ macro_rules! average_option {
             pub fn strike(&self) -> f64 {
                 self.0.terms.strike()
             }
-            /// Returns the inclusive first date; see [`Self::new`].
-            pub fn effective_date(&self) -> Date {
-                self.0.terms.effective_date()
+            /// Returns the inclusive effective time; see [`Self::new`].
+            pub fn effective_time(&self) -> Timestamp {
+                self.0.terms.effective_time()
             }
-            /// Returns expiry at midnight UTC; see [`Self::new`].
-            pub fn expiry_date(&self) -> Date {
-                self.0.terms.expiry_date()
+            /// Returns the inclusive expiry timestamp; see [`Self::new`].
+            pub fn expiry_time(&self) -> Timestamp {
+                self.0.terms.expiry_time()
             }
             /// Returns the averaging start; see [`Self::new`].
-            pub fn averaging_start_date(&self) -> Date {
+            pub fn averaging_start_time(&self) -> Timestamp {
                 self.0.averaging_start
             }
             /// Returns the caller-supplied history; see [`Self::replace_history`].
@@ -229,11 +225,11 @@ macro_rules! average_option {
             }
         }
         impl OptionContract for $name {
-            fn effective_date(&self) -> Date {
-                self.effective_date()
+            fn effective_time(&self) -> Timestamp {
+                self.effective_time()
             }
-            fn expiry_date(&self) -> Date {
-                self.expiry_date()
+            fn expiry_time(&self) -> Timestamp {
+                self.expiry_time()
             }
             fn time_stencil_available(
                 &self,
@@ -241,7 +237,7 @@ macro_rules! average_option {
                 before: Timestamp,
                 after: Timestamp,
             ) -> bool {
-                let start = self.averaging_start_date().start_of_day();
+                let start = self.averaging_start_time();
                 if self.realized_average() == 0.0 {
                     after <= start
                 } else {
@@ -269,12 +265,12 @@ pub struct AveragePriceOptionChanges {
     pub option_type: Option<OptionType>,
     /// Replaces [`strike`](GeometricAveragePriceOption::strike).
     pub strike: Option<f64>,
-    /// Replaces [`effective_date`](GeometricAveragePriceOption::effective_date).
-    pub effective_date: Option<Date>,
-    /// Replaces [`averaging_start_date`](GeometricAveragePriceOption::averaging_start_date).
-    pub averaging_start_date: Option<Date>,
-    /// Replaces [`expiry_date`](GeometricAveragePriceOption::expiry_date).
-    pub expiry_date: Option<Date>,
+    /// Replaces [`effective_time`](GeometricAveragePriceOption::effective_time).
+    pub effective_time: Option<Timestamp>,
+    /// Replaces [`averaging_start_time`](GeometricAveragePriceOption::averaging_start_time).
+    pub averaging_start_time: Option<Timestamp>,
+    /// Replaces [`expiry_time`](GeometricAveragePriceOption::expiry_time).
+    pub expiry_time: Option<Timestamp>,
     /// Replaces [`realized_average`](GeometricAveragePriceOption::realized_average).
     pub realized_average: Option<f64>,
 }

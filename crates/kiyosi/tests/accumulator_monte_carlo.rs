@@ -1,10 +1,10 @@
 use kiyosi::*;
 
-fn day(month: u32, day: u32) -> Date {
-    Date::new(2025, month, day).unwrap()
+fn day(month: u32, day: u32) -> Timestamp {
+    Date::new(2025, month, day).unwrap().start_of_day()
 }
 
-fn option(end: Date) -> Accumulator {
+fn option(end: Timestamp) -> Accumulator {
     Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end)
@@ -52,7 +52,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
     let context = PricingContext::with_calendar(
         BlackScholesMertonParameters::new(0.01, 0.0, 1.0).unwrap(),
         100.0,
-        start.into(),
+        start,
         TradingCalendar::all_days(),
     )
     .unwrap();
@@ -91,13 +91,13 @@ fn simulated_cashflows_match_quadrature_with_sampling_error() {
         (
             day(1, 6),
             100.25,
-            Timestamp::new(day(1, 3), 12, 0, 0, 0).unwrap(),
+            Timestamp::new(day(1, 3).date(), 12, 0, 0, 0).unwrap(),
         ),
-        (day(2, 3), 99.0, day(1, 1).into()),
+        (day(2, 3), 99.0, day(1, 1)),
         (
             day(2, 3),
             111.0,
-            Timestamp::new(day(1, 1), 12, 0, 0, 0).unwrap(),
+            Timestamp::new(day(1, 1).date(), 12, 0, 0, 0).unwrap(),
         ),
     ] {
         let option = option(end);
@@ -189,7 +189,10 @@ fn counts_pair_uncertainty_sobol_and_threads_preserve_the_same_samples() {
 fn shared_sample_greeks_and_volatility_solves_preserve_inputs() {
     let option = option(day(1, 6));
     let original = option.clone();
-    let context = market(100.25, Timestamp::new(day(1, 3), 12, 0, 0, 0).unwrap());
+    let context = market(
+        100.25,
+        Timestamp::new(day(1, 3).date(), 12, 0, 0, 0).unwrap(),
+    );
     let engine = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
         path_count: 4096,
         seed: Some(42),
@@ -281,17 +284,17 @@ fn trading_midnights_intraday_history_and_calendar_control_purchases() {
     .unwrap();
     let model = BlackScholesMertonParameters::new(0.0, 0.0, 1e-20).unwrap();
     for (at, calendar, expected) in [
-        (day(1, 3).into(), TradingCalendar::weekdays(), -70.0),
+        (day(1, 3), TradingCalendar::weekdays(), -70.0),
         (
-            Timestamp::new(day(1, 3), 0, 0, 0, 1).unwrap(),
+            Timestamp::new(day(1, 3).date(), 0, 0, 0, 1).unwrap(),
             TradingCalendar::weekdays(),
             -50.0,
         ),
-        (day(1, 4).into(), TradingCalendar::weekdays(), -50.0),
-        (day(1, 3).into(), TradingCalendar::all_days(), -110.0),
+        (day(1, 4), TradingCalendar::weekdays(), -50.0),
+        (day(1, 3), TradingCalendar::all_days(), -110.0),
         (
-            day(1, 3).into(),
-            TradingCalendar::new(|d| d == day(1, 6), 252).unwrap(),
+            day(1, 3),
+            TradingCalendar::new(|d| d == day(1, 6).date(), 252).unwrap(),
             -50.0,
         ),
     ] {
@@ -303,7 +306,7 @@ fn trading_midnights_intraday_history_and_calendar_control_purchases() {
         engine
             .price(
                 &empty,
-                &PricingContext::new(model, 90.0, day(1, 6).into()).unwrap()
+                &PricingContext::new(model, 90.0, day(1, 6)).unwrap()
             )
             .unwrap(),
         -20.0
@@ -319,7 +322,7 @@ fn antithetic_pair_uses_both_opposite_normals_and_exact_path_counts() {
         ..AccumulatorTerms::new(100.0, 1e300, 0.0, 2.0, start, end)
     })
     .unwrap();
-    let context = market(100.25, Timestamp::new(start, 12, 0, 0, 0).unwrap());
+    let context = market(100.25, Timestamp::new(start.date(), 12, 0, 0, 0).unwrap());
     let settings = MonteCarloSettings {
         path_count: 1,
         seed: Some(42),
@@ -368,12 +371,12 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
     for (contract, context, category) in [
         (
             option.clone(),
-            market(110.0, Date::new(2024, 12, 31).unwrap()),
+            market(110.0, Date::new(2024, 12, 31).unwrap().start_of_day()),
             (|error| matches!(error, Error::InvalidInput(_))) as fn(Error) -> bool,
         ),
         (
             option.clone(),
-            market(110.0, Timestamp::new(day(1, 6), 0, 0, 0, 1).unwrap()),
+            market(110.0, Timestamp::new(day(1, 6).date(), 0, 0, 0, 1).unwrap()),
             (|error| matches!(error, Error::InvalidInput(_))) as fn(Error) -> bool,
         ),
         (
@@ -439,8 +442,7 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let curve =
-        RateTermStructure::new(day(1, 1).into(), vec![day(1, 6).into()], vec![0.99]).unwrap();
+    let curve = RateTermStructure::new(day(1, 1), vec![day(1, 6)], vec![0.99]).unwrap();
     let curved = context
         .replace(PricingContextChanges {
             model_parameters: Some(
@@ -514,7 +516,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
     let zero_rates = PricingContext::new(
         BlackScholesMertonParameters::new(0.0, 0.0, 0.2).unwrap(),
         90.0,
-        day(1, 1).into(),
+        day(1, 1),
     )
     .unwrap();
     for (contract, context, expected) in [
@@ -541,7 +543,10 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
             Error::UnsupportedOperation(_)
         ));
     }
-    let context = market(100.25, Timestamp::new(day(1, 3), 12, 0, 0, 0).unwrap());
+    let context = market(
+        100.25,
+        Timestamp::new(day(1, 3).date(), 12, 0, 0, 0).unwrap(),
+    );
     assert!(matches!(
         implied_volatility(&engine, &option, &context, f64::NAN, Default::default()).unwrap_err(),
         Error::InvalidInput(_)
@@ -554,7 +559,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
 
 #[test]
 fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
-    let end = Date::new(2090, 1, 2).unwrap();
+    let end = Date::new(2090, 1, 2).unwrap().start_of_day();
     let option = option(end);
     let context = market(100.25, day(1, 1))
         .replace(PricingContextChanges {

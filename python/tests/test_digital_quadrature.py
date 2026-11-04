@@ -4,7 +4,7 @@ import inspect
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import QuantLib as ql
 from kiyosi import (
@@ -85,8 +85,8 @@ class DigitalQuadratureTests(unittest.TestCase):
             option = kind(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
-                effective_date=date.fromisoformat(inputs["effective_date"]),
-                expiry_date=date.fromisoformat(inputs["expiry_date"]),
+                effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
                 **({"payout": inputs["payout"]} if inputs["payoff"] == "cash" else {}),
             )
             context = market(
@@ -94,11 +94,11 @@ class DigitalQuadratureTests(unittest.TestCase):
                 inputs["rate"],
                 inputs["dividend"],
                 inputs["volatility"],
-                date.fromisoformat(inputs["valuation"]),
+                datetime.fromisoformat(inputs["valuation"]),
             )
             with ql.SavedSettings():
                 reference, uncertainty = oracle.reference(inputs, digital.STABILITY)
-            smooth = (option.expiry_date - context.valuation_time.date()).days > 2
+            smooth = (option.expiry_time - context.valuation_time).days > 2
             names = (
                 tuple(reference.keys() - {"price"}) if smooth else ("delta", "gamma")
             )
@@ -175,9 +175,9 @@ class DigitalQuadratureTests(unittest.TestCase):
                     "rate": 0.04,
                     "dividend": 0.01,
                     "volatility": 0.3,
-                    "effective_date": START.isoformat(),
-                    "valuation": START.isoformat(),
-                    "expiry_date": END.isoformat(),
+                    "effective_time": START.date().isoformat(),
+                    "valuation": START.date().isoformat(),
+                    "expiry_time": END.date().isoformat(),
                 }
                 with ql.SavedSettings():
                     base = oracle.measure(inputs, "price")
@@ -228,11 +228,11 @@ class DigitalQuadratureTests(unittest.TestCase):
                     )
                 for at in (
                     START - timedelta(days=1),
-                    datetime(2026, 1, 1, 0, 0, 0, 1, UTC),
+                    datetime(2026, 1, 1, 0, 0, 0, 1),
                 ):
                     with self.assertRaises(InvalidInputError):
                         engine.price(option, market(valuation=at))
-                almost_expired = datetime(2025, 12, 31, 23, 59, 59, 999999, UTC)
+                almost_expired = datetime(2025, 12, 31, 23, 59, 59, 999999)
                 context = market(valuation=almost_expired)
                 self.assertAlmostEqual(
                     engine.price(option, context),
@@ -276,8 +276,8 @@ class DigitalQuadratureTests(unittest.TestCase):
                 option = kind(
                     option_type=direction,
                     strike=1.75e308,
-                    effective_date=START,
-                    expiry_date=END,
+                    effective_time=START,
+                    expiry_time=END,
                     **({"payout": 1.75e308} if kind is CashOrNothingOption else {}),
                 )
                 context = market(1.75e308, -0.03, -0.05)
@@ -295,8 +295,8 @@ class DigitalQuadratureTests(unittest.TestCase):
                     option = kind(
                         option_type=direction,
                         strike=amount,
-                        effective_date=START,
-                        expiry_date=END,
+                        effective_time=START,
+                        expiry_time=END,
                         **({"payout": amount} if kind is CashOrNothingOption else {}),
                     )
                     expected = pricing.AnalyticDigitalEngine().price(option, context)
@@ -308,7 +308,7 @@ class DigitalQuadratureTests(unittest.TestCase):
         for sigma in (1e-200, math.ulp(0.0)):
             for spot in (80, 100, 120):
                 context = market(
-                    spot, 0, 0, sigma, datetime(2025, 12, 31, 23, 59, 59, 999999, UTC)
+                    spot, 0, 0, sigma, datetime(2025, 12, 31, 23, 59, 59, 999999)
                 )
                 for kind in DIGITAL:
                     for direction in ("call", "put"):

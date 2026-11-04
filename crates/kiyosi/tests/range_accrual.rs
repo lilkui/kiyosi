@@ -1,8 +1,8 @@
 use chrono::{Datelike, NaiveDate};
 use kiyosi::*;
 
-fn day(day: u32) -> Date {
-    Date::new(2025, 1, day).unwrap()
+fn day(day: u32) -> Timestamp {
+    Date::new(2025, 1, day).unwrap().start_of_day()
 }
 
 fn terms() -> RangeAccrualTerms {
@@ -11,8 +11,8 @@ fn terms() -> RangeAccrualTerms {
         annual_coupon_rate: 0.12,
         lower_bound: 95.0,
         upper_bound: 110.0,
-        effective_date: day(1),
-        expiry_date: day(17),
+        effective_time: day(1),
+        expiry_time: day(17),
         realized_hit_count: None,
     }
 }
@@ -35,9 +35,11 @@ fn civil(date: Date) -> NaiveDate {
     NaiveDate::from_ymd_opt(date.year(), date.month(), date.day()).unwrap()
 }
 
-fn add(date: Date, days: i64) -> Date {
-    let next = civil(date) + chrono::Duration::days(days);
-    Date::new(next.year(), next.month(), next.day()).unwrap()
+fn add(date: Timestamp, days: i64) -> Timestamp {
+    let next = civil(date.date()) + chrono::Duration::days(days);
+    Date::new(next.year(), next.month(), next.day())
+        .unwrap()
+        .start_of_day()
 }
 
 #[expect(
@@ -58,11 +60,11 @@ fn reference(option: &RangeAccrualOption, context: &PricingContext) -> f64 {
     let mut count = 0;
     let model = context.model_parameters().as_bsm().unwrap();
     let valuation = context.valuation_time();
-    let mut date = add(option.effective_date(), 1);
+    let mut date = add(option.effective_time(), 1);
     loop {
-        if context.calendar().is_trading_day(date) {
+        if context.calendar().is_trading_day(date.date()) {
             count += 1;
-            let time = date.start_of_day();
+            let time = date;
             if time == valuation {
                 hits += f64::from(
                     option.lower_bound() <= context.spot_price()
@@ -86,19 +88,19 @@ fn reference(option: &RangeAccrualOption, context: &PricingContext) -> f64 {
                 hits += cdf(option.upper_bound()) - cdf(option.lower_bound());
             }
         }
-        if date == option.expiry_date() {
+        if date == option.expiry_time() {
             break;
         }
         date = add(date, 1);
     }
     option.notional()
         * option.annual_coupon_rate()
-        * years(option.effective_date().into(), option.expiry_date().into())
+        * years(option.effective_time(), option.expiry_time())
         * hits
         / f64::from(count)
         * model
             .risk_free_curve()
-            .factor(valuation, option.expiry_date().into())
+            .factor(valuation, option.expiry_time())
             .unwrap()
 }
 
@@ -112,18 +114,9 @@ impl PricingEngine<RangeAccrualOption> for ReferenceEngine {
 #[test]
 fn exact_marginals_match_flat_negative_and_node_curves_and_recover_volatility() {
     let option = RangeAccrualOption::new(terms()).unwrap();
-    let curve = RateTermStructure::new(
-        day(1).into(),
-        vec![day(6).into(), day(17).into()],
-        vec![1.001, 0.997],
-    )
-    .unwrap();
-    let dividend = RateTermStructure::new(
-        add(day(1), -1).into(),
-        vec![day(8).into(), day(17).into()],
-        vec![0.998, 1.002],
-    )
-    .unwrap();
+    let curve = RateTermStructure::new(day(1), vec![day(6), day(17)], vec![1.001, 0.997]).unwrap();
+    let dividend =
+        RateTermStructure::new(add(day(1), -1), vec![day(8), day(17)], vec![0.998, 1.002]).unwrap();
     for (rate, dividend) in [
         (Rate::Flat(0.04), Rate::Flat(0.01)),
         (Rate::Flat(-0.03), Rate::Flat(0.01)),
@@ -147,7 +140,7 @@ fn exact_marginals_match_flat_negative_and_node_curves_and_recover_volatility() 
         );
     }
     let annual = RangeAccrualOption::new(RangeAccrualTerms {
-        expiry_date: add(day(1), 365),
+        expiry_time: add(day(1), 365),
         ..terms()
     })
     .unwrap();
@@ -175,15 +168,11 @@ fn exact_marginals_match_flat_negative_and_node_curves_and_recover_volatility() 
 
 #[test]
 fn numerical_greeks_match_independent_payoff_reference() {
-    let curve = RateTermStructure::new(
-        add(day(1), -5).into(),
-        vec![day(4).into(), day(9).into()],
-        vec![1.001, 0.997],
-    )
-    .unwrap();
+    let curve =
+        RateTermStructure::new(add(day(1), -5), vec![day(4), day(9)], vec![1.001, 0.997]).unwrap();
     for (days, rate) in [(1, Rate::Flat(0.04)), (8, curve.into())] {
         let option = RangeAccrualOption::new(RangeAccrualTerms {
-            expiry_date: add(day(1), days),
+            expiry_time: add(day(1), days),
             ..terms()
         })
         .unwrap();
@@ -224,7 +213,7 @@ fn numerical_greeks_match_independent_payoff_reference() {
 #[test]
 fn terminal_coupon_counts_current_spot_inclusively() {
     let option = RangeAccrualOption::new(RangeAccrualTerms {
-        expiry_date: day(3),
+        expiry_time: day(3),
         realized_hit_count: Some(1),
         ..terms()
     })
@@ -240,7 +229,7 @@ fn terminal_coupon_counts_current_spot_inclusively() {
 #[test]
 fn greeks_respect_observations_and_allow_pre_effective_time() {
     let option = RangeAccrualOption::new(terms()).unwrap();
-    let before = market(Date::new(2024, 12, 29).unwrap(), 99.0);
+    let before = market(Date::new(2024, 12, 29).unwrap().start_of_day(), 99.0);
     let result = AnalyticRangeAccrualEngine
         .price_with_greeks(&option, &before, GreeksRequest::all(), Default::default())
         .unwrap();
@@ -262,12 +251,12 @@ fn greeks_respect_observations_and_allow_pre_effective_time() {
         );
     }
     let weekend = RangeAccrualOption::new(RangeAccrualTerms {
-        effective_date: day(3),
-        expiry_date: day(6),
+        effective_time: day(3),
+        expiry_time: day(6),
         ..terms()
     })
     .unwrap();
-    let context = market(Timestamp::new(day(4), 12, 0, 0, 0).unwrap(), 100.0)
+    let context = market(Timestamp::new(day(4).date(), 12, 0, 0, 0).unwrap(), 100.0)
         .replace(PricingContextChanges {
             calendar: Some(TradingCalendar::weekdays()),
             ..Default::default()
@@ -311,7 +300,7 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
                 2 => input.lower_bound = bad,
                 _ => input.upper_bound = bad,
             }
-            input.expiry_date = input.effective_date;
+            input.expiry_time = input.effective_time;
             assert!(matches!(
                 RangeAccrualOption::new(input).unwrap_err(),
                 Error::InvalidInput(_)
@@ -344,7 +333,7 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
     for end in [day(1), add(day(1), -1)] {
         assert!(matches!(
             RangeAccrualOption::new(RangeAccrualTerms {
-                expiry_date: end,
+                expiry_time: end,
                 ..terms()
             })
             .unwrap_err(),
@@ -365,12 +354,12 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
 fn history_is_strictly_prior_and_valuation_can_precede_effective_date() {
     let option = RangeAccrualOption::new(terms()).unwrap();
     for (at, hits) in [
-        (add(day(1), -3).into(), None),
-        (day(1).into(), None),
-        (Timestamp::new(day(1), 12, 0, 0, 0).unwrap(), None),
-        (day(2).into(), None),
-        (Timestamp::new(day(2), 12, 0, 0, 0).unwrap(), Some(1)),
-        (day(9).into(), Some(5)),
+        (add(day(1), -3), None),
+        (day(1), None),
+        (Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap(), None),
+        (day(2), None),
+        (Timestamp::new(day(2).date(), 12, 0, 0, 0).unwrap(), Some(1)),
+        (day(9), Some(5)),
     ] {
         let live = option.replace_history(hits).unwrap();
         let context = market(at, 100.0);
@@ -382,10 +371,10 @@ fn history_is_strictly_prior_and_valuation_can_precede_effective_date() {
         );
     }
     for (at, hits) in [
-        (day(1).into(), Some(1)),
-        (day(2).into(), Some(1)),
-        (Timestamp::new(day(2), 12, 0, 0, 0).unwrap(), Some(2)),
-        (day(3).into(), None),
+        (day(1), Some(1)),
+        (day(2), Some(1)),
+        (Timestamp::new(day(2).date(), 12, 0, 0, 0).unwrap(), Some(2)),
+        (day(3), None),
     ] {
         let live = option.replace_history(hits).unwrap();
         assert!(matches!(
@@ -395,7 +384,7 @@ fn history_is_strictly_prior_and_valuation_can_precede_effective_date() {
             Error::InvalidInput(_)
         ));
     }
-    let after = market(Timestamp::new(day(17), 0, 0, 0, 1).unwrap(), 100.0);
+    let after = market(Timestamp::new(day(17).date(), 0, 0, 0, 1).unwrap(), 100.0);
     assert!(matches!(
         AnalyticRangeAccrualEngine
             .price(&option, &after)
@@ -407,7 +396,7 @@ fn history_is_strictly_prior_and_valuation_can_precede_effective_date() {
 #[test]
 fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
     let option = RangeAccrualOption::new(terms()).unwrap();
-    let curve = RateTermStructure::new(day(1).into(), vec![day(2).into()], vec![0.999]).unwrap();
+    let curve = RateTermStructure::new(day(1), vec![day(2)], vec![0.999]).unwrap();
     for (risk, dividend) in [
         (Rate::Curve(curve.clone()), Rate::Flat(0.01)),
         (Rate::Flat(0.04), Rate::Curve(curve)),
@@ -452,7 +441,7 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
         .unwrap();
     let weekend = RangeAccrualOption::new(RangeAccrualTerms {
         annual_coupon_rate: 0.0,
-        expiry_date: day(5),
+        expiry_time: day(5),
         ..terms()
     })
     .unwrap();
@@ -463,8 +452,8 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
         Error::InvalidInput(_)
     ));
     let monday = RangeAccrualOption::new(RangeAccrualTerms {
-        effective_date: day(3),
-        expiry_date: day(6),
+        effective_time: day(3),
+        expiry_time: day(6),
         ..terms()
     })
     .unwrap();
@@ -496,7 +485,7 @@ fn tiny_volatility_and_coupon_scaling_preserve_representable_prices() {
             annual_coupon_rate: 1.0,
             lower_bound: lower,
             upper_bound: upper,
-            expiry_date: add(day(1), days.into()),
+            expiry_time: add(day(1), days.into()),
             ..terms()
         })
         .unwrap();
@@ -521,7 +510,7 @@ fn tiny_volatility_and_coupon_scaling_preserve_representable_prices() {
         annual_coupon_rate: 1e100,
         lower_bound: (mean + 40.0 * width).exp(),
         upper_bound: (mean + 41.0 * width).exp(),
-        expiry_date: day(2),
+        expiry_time: day(2),
         ..terms()
     })
     .unwrap();
@@ -641,7 +630,7 @@ fn full_term_coupon_uses_calendar_days_and_one_expiry_discount() {
     let seasoned = option.replace_history(Some(3)).unwrap();
     let live = context
         .replace(PricingContextChanges {
-            valuation_time: Some(day(8).into()),
+            valuation_time: Some(day(8)),
             ..Default::default()
         })
         .unwrap();
@@ -665,8 +654,8 @@ fn full_term_coupon_uses_calendar_days_and_one_expiry_discount() {
             calendar: Some(
                 TradingCalendar::custom(
                     TradingCalendar::weekdays(),
-                    vec![day(2)],
-                    vec![day(4)],
+                    vec![day(2).date()],
+                    vec![day(4).date()],
                     None,
                 )
                 .unwrap(),
@@ -683,7 +672,7 @@ fn full_term_coupon_uses_calendar_days_and_one_expiry_discount() {
 fn long_and_zero_lower_bound_contracts_support_shared_concurrent_reads() {
     let engine = AnalyticRangeAccrualEngine;
     let option = RangeAccrualOption::new(RangeAccrualTerms {
-        expiry_date: add(day(1), 21204),
+        expiry_time: add(day(1), 21204),
         ..terms()
     })
     .unwrap();
@@ -710,14 +699,14 @@ fn long_and_zero_lower_bound_contracts_support_shared_concurrent_reads() {
 
 #[test]
 fn unresolvable_curve_knots_fail_before_pricing_future_observations() {
-    let expiry = Date::new(2500, 1, 2).unwrap();
-    let knot = Date::new(2500, 1, 1).unwrap();
+    let expiry = Date::new(2500, 1, 2).unwrap().start_of_day();
+    let knot = Date::new(2500, 1, 1).unwrap().start_of_day();
     let curve = RateTermStructure::new(
-        day(1).into(),
+        day(1),
         vec![
-            knot.into(),
-            Timestamp::new(knot, 0, 0, 0, 1).unwrap(),
-            expiry.into(),
+            knot,
+            Timestamp::new(knot.date(), 0, 0, 0, 1).unwrap(),
+            expiry,
         ],
         vec![1.0; 3],
     )
@@ -737,8 +726,8 @@ fn unresolvable_curve_knots_fail_before_pricing_future_observations() {
             })
             .unwrap();
         let mut input = RangeAccrualTerms {
-            effective_date: Date::new(2499, 12, 31).unwrap(),
-            expiry_date: expiry,
+            effective_time: Date::new(2499, 12, 31).unwrap().start_of_day(),
+            expiry_time: expiry,
             ..terms()
         };
         let option = RangeAccrualOption::new(input).unwrap();

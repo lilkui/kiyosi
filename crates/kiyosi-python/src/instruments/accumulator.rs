@@ -1,7 +1,7 @@
-use crate::conversions::{date, dates, direction, python_date, real, supplied};
+use crate::conversions::{direction, python_timestamp, real, supplied, timestamp, timestamps};
 use crate::error::domain;
 use pyo3::prelude::*;
-use pyo3::types::{PyDate, PyList};
+use pyo3::types::{PyAny, PyList};
 
 /// Accumulates purchases or sales daily, settling at scheduled knock-out or expiry.
 ///
@@ -12,37 +12,38 @@ use pyo3::types::{PyDate, PyList};
 /// knock_out_level : float
 ///     Positive inclusive knock-out threshold.
 /// daily_quantity : float
-///     Nonnegative finite quantity bought or sold on each trading date.
+///     Nonnegative finite quantity bought or sold on each trading timestamp.
 /// acceleration_factor : float
 ///     Nonnegative multiplier below strike for calls or above strike for puts.
-/// effective_date : datetime.date
-///     Contract starts at 00:00 UTC on this date.
-/// expiry_date : datetime.date
-///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
+/// effective_time : datetime.datetime
+///     Inclusive contract start.
+/// expiry_time : datetime.datetime
+///     Inclusive expiry time.
 /// accumulated_quantity : float or None, optional
 ///     Outstanding quantity strictly before valuation. None means unknown; zero means no units.
 ///     Explicit history is required after any prior trading-date observation.
 /// option_type : {'call', 'put'}, optional
 ///     Call accumulates purchases (the default); put accumulates sales.
-/// knock_out_observation_dates : iterable of date or None, optional
-///     Strictly increasing, unique dates within the inclusive contract life.
-///     None observes knock-out every trading date; an empty sequence disables
-///     early knock-out. Dates need not include either contract endpoint.
+/// knock_out_observation_times : iterable of datetime.datetime or None, optional
+///     Strictly increasing, unique times within the inclusive contract life.
+///     None observes knock-out at the daily accumulation time; an empty sequence disables
+///     early knock-out. Times need not include either contract endpoint.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
 ///     If strike or knock-out level is invalid, quantities are negative or
-///     non-finite, expiry precedes effective_date, or explicit dates are invalid.
-///     Trading-date compatibility is checked against the calendar at pricing.
+///     non-finite, expiry precedes effective_time, or explicit times are invalid.
+///     Trading-timestamp compatibility is checked against the calendar at pricing.
 ///
 /// Notes
 /// -----
-/// Events occur at midnight UTC on trading dates. On a knock-out observation
-/// date, calls knock out at or above the barrier and puts at or below it.
-/// Knock-out precedes accumulation and adds no units. Other trading dates
+/// Daily accumulations occur at the expiry clock time on trading dates. Explicit
+/// knock-out observations occur independently at their supplied times. On a knock-out observation
+/// timestamp, calls knock out at or above the barrier and puts at or below it.
+/// Knock-out precedes accumulation and adds no units. Other trading times
 /// accumulate even beyond the barrier. At strike, the base quantity applies.
-/// Expiry settles after its event, whether or not it is a knock-out date.
+/// Expiry settles after its event, whether or not it is a knock-out timestamp.
 /// Calls pay quantity * (settlement spot - strike); puts pay its negative.
 /// Intraday history includes that day's earlier accumulation. Do not value a
 /// contract whose settlement has already occurred.
@@ -68,11 +69,11 @@ impl Accumulator {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// accumulated_quantity : float or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// effective_date : datetime.date, optional
+    /// effective_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// expiry_date : datetime.date, optional
+    /// expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// knock_out_observation_dates : Iterable[date] | None, optional
+    /// knock_out_observation_times : Iterable[datetime.datetime] | None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     ///
     /// Returns
@@ -86,7 +87,7 @@ impl Accumulator {
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation, field name or mutually exclusive coupon choice is invalid.
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_date=crate::conversions::OMITTED, expiry_date=crate::conversions::OMITTED, knock_out_observation_dates=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, knock_out_observation_times=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
         reason = "explicit Python replacement fields"
@@ -107,11 +108,11 @@ impl Accumulator {
         #[pyo3(from_py_with = crate::conversions::supplied)] accumulated_quantity: Option<
             &Bound<'_, PyAny>,
         >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] effective_date: Option<
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_time: Option<
             &Bound<'_, PyAny>,
         >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_date: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] knock_out_observation_dates: Option<
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] knock_out_observation_times: Option<
             &Bound<'_, PyAny>,
         >,
     ) -> PyResult<Self> {
@@ -132,14 +133,16 @@ impl Accumulator {
                     }
                 })
                 .transpose()?,
-            effective_date: effective_date.map(crate::conversions::date).transpose()?,
-            expiry_date: expiry_date.map(crate::conversions::date).transpose()?,
-            knock_out_observation_dates: knock_out_observation_dates
+            effective_time: effective_time
+                .map(crate::conversions::timestamp)
+                .transpose()?,
+            expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
+            knock_out_observation_times: knock_out_observation_times
                 .map(|value| {
                     if value.is_none() {
                         Ok(None)
                     } else {
-                        crate::conversions::dates(value).map(Some)
+                        crate::conversions::timestamps(value).map(Some)
                     }
                 })
                 .transpose()?,
@@ -147,30 +150,31 @@ impl Accumulator {
         Ok(Self(domain(self.0.replace(changes))?))
     }
     #[new]
-    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_date, expiry_date, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_dates=None))]
+    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         strike: &Bound<'_, PyAny>,
         knock_out_level: &Bound<'_, PyAny>,
         daily_quantity: &Bound<'_, PyAny>,
         acceleration_factor: &Bound<'_, PyAny>,
-        effective_date: &Bound<'_, PyAny>,
-        expiry_date: &Bound<'_, PyAny>,
+        effective_time: &Bound<'_, PyAny>,
+        expiry_time: &Bound<'_, PyAny>,
         accumulated_quantity: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = direction)] option_type: kiyosi::OptionType,
-        knock_out_observation_dates: Option<&Bound<'_, PyAny>>,
+        knock_out_observation_times: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let mut terms = kiyosi::AccumulatorTerms::new(
             real(strike)?,
             real(knock_out_level)?,
             real(daily_quantity)?,
             real(acceleration_factor)?,
-            date(effective_date)?,
-            date(expiry_date)?,
+            timestamp(effective_time)?,
+            timestamp(expiry_time)?,
         );
         terms.accumulated_quantity = accumulated_quantity.map(real).transpose()?;
         terms.option_type = option_type;
-        terms.knock_out_observation_dates = knock_out_observation_dates.map(dates).transpose()?;
+        terms.knock_out_observation_times =
+            knock_out_observation_times.map(timestamps).transpose()?;
         Ok(Self(domain(kiyosi::Accumulator::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
@@ -210,15 +214,20 @@ impl Accumulator {
             kiyosi::OptionType::Put => "put",
         }
     }
-    /// Returns owned knock-out dates, or None for every trading date.
+    /// Returns owned knock-out times, or None for at the daily accumulation time.
     #[getter]
-    fn knock_out_observation_dates<'py>(
+    fn knock_out_observation_times<'py>(
         &self,
         py: Python<'py>,
-    ) -> PyResult<Option<Vec<Bound<'py, PyDate>>>> {
+    ) -> PyResult<Option<Vec<Bound<'py, PyAny>>>> {
         self.0
-            .knock_out_observation_dates()
-            .map(|dates| dates.iter().map(|&date| python_date(py, date)).collect())
+            .knock_out_observation_times()
+            .map(|times| {
+                times
+                    .iter()
+                    .map(|&timestamp| python_timestamp(py, timestamp))
+                    .collect()
+            })
             .transpose()
     }
     /// Returns the purchase or sale strike in underlying price units.
@@ -231,7 +240,7 @@ impl Accumulator {
     fn knock_out_level(&self) -> f64 {
         self.0.knock_out_level()
     }
-    /// Returns the nonnegative base quantity bought or sold on each trading date.
+    /// Returns the nonnegative base quantity bought or sold on each trading timestamp.
     #[getter]
     fn daily_quantity(&self) -> f64 {
         self.0.daily_quantity()
@@ -246,31 +255,31 @@ impl Accumulator {
     fn accumulated_quantity(&self) -> Option<f64> {
         self.0.accumulated_quantity()
     }
-    /// Return inclusive first contract date.
+    /// Return inclusive first contract timestamp.
     #[getter]
-    fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.effective_date())
+    fn effective_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        python_timestamp(py, self.0.effective_time())
     }
-    /// Return final contract date; expiry is at midnight UTC.
+    /// Return inclusive expiry time.
     #[getter]
-    fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.expiry_date())
+    fn expiry_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        python_timestamp(py, self.0.expiry_time())
     }
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let observations = match self.knock_out_observation_dates(py)? {
-            Some(dates) => PyList::new(py, dates)?.repr()?.to_string(),
+        let observations = match self.knock_out_observation_times(py)? {
+            Some(times) => PyList::new(py, times)?.repr()?.to_string(),
             None => "None".into(),
         };
         Ok(format!(
-            "Accumulator(strike={:?}, knock_out_level={:?}, daily_quantity={:?}, acceleration_factor={:?}, accumulated_quantity={}, effective_date={}, expiry_date={}, option_type={:?}, knock_out_observation_dates={})",
+            "Accumulator(strike={:?}, knock_out_level={:?}, daily_quantity={:?}, acceleration_factor={:?}, accumulated_quantity={}, effective_time={}, expiry_time={}, option_type={:?}, knock_out_observation_times={})",
             self.strike(),
             self.knock_out_level(),
             self.daily_quantity(),
             self.acceleration_factor(),
             self.accumulated_quantity()
                 .map_or_else(|| "None".into(), |value| format!("{value:?}")),
-            self.effective_date(py)?.repr()?,
-            self.expiry_date(py)?.repr()?,
+            self.effective_time(py)?.repr()?,
+            self.expiry_time(py)?.repr()?,
             self.option_type(),
             observations
         ))

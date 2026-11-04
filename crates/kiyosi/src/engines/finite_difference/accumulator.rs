@@ -9,7 +9,7 @@ use crate::Accumulator;
 impl FiniteDifferenceAccumulatorEngine {
     /// Prices outstanding units and future trading-date purchases, settling at knock-out or expiry.
     ///
-    /// Applies a current midnight event exactly once, with inclusive knock-out and
+    /// Applies a current contractual event exactly once, with inclusive knock-out and
     /// direction-dependent acceleration. Supports flat and node-based rate curves.
     /// Accepts BSM or local volatility; surface coverage is required only for
     /// remaining stochastic evolution, after immediate settlement is resolved.
@@ -49,9 +49,9 @@ impl FiniteDifferenceAccumulatorEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
-    ///     start, Date::new(2025, 2, 3)?))?;
+    ///     start, Date::new(2025, 2, 3)?.start_of_day()))?;
     /// let market = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     101.0, start.into())?;
     /// let engine = FiniteDifferenceAccumulatorEngine::default();
@@ -105,9 +105,7 @@ fn default_upper(
             .max(option.knock_out_level())
             .max(context.spot_price()),
         context,
-        context
-            .valuation_time()
-            .years_until(option.expiry_date().into()),
+        context.valuation_time().years_until(option.expiry_time()),
         risk,
         dividend,
     )
@@ -157,7 +155,7 @@ fn native_with_diffusion<D: Diffusion>(
     if let Some(value) = settlement {
         return Ok((PricingResult::new(value)?, None));
     }
-    let expiry = option.expiry_date().start_of_day();
+    let expiry = option.expiry_time();
     let model = context.model_parameters();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
@@ -174,11 +172,12 @@ fn native_with_diffusion<D: Diffusion>(
             .max(option.strike())
             .max(option.knock_out_level()),
     )?;
-    let dates = option.future_observation_dates(context)?;
+    let dates = option.future_observation_times(context)?;
     let trading: Vec<_> = dates
         .iter()
-        .map(|date| context.valuation_time().years_until((*date).into()))
+        .map(|date| context.valuation_time().years_until(*date))
         .collect();
+    diffusion::validate_event_resolution(context.valuation_time(), expiry, &dates)?;
     let grid = diffusion::time_grid(
         context,
         expiry,
@@ -203,11 +202,19 @@ fn native_with_diffusion<D: Diffusion>(
     let mut breaks = vec![option.strike(), option.knock_out_level()];
     breaks.sort_by(f64::total_cmp);
     breaks.dedup();
-    let event = |asset: f64, slope: f64, intercept: f64, observe: bool| {
+    let event = |asset: f64, slope: f64, intercept: f64, observe: bool, accumulate: bool| {
         if observe && option.is_knock_out(asset) {
             [option.unit_payoff(asset), 0.0]
         } else {
-            [slope, intercept + slope * option.purchase(asset)]
+            [
+                slope,
+                intercept
+                    + if accumulate {
+                        slope * option.purchase(asset)
+                    } else {
+                        0.0
+                    },
+            ]
         }
     };
     let [slope, intercept] = &mut layers;
@@ -217,7 +224,8 @@ fn native_with_diffusion<D: Diffusion>(
                 asset,
                 option.unit_payoff(asset),
                 0.0,
-                option.observes_knock_out(option.expiry_date()),
+                option.observes_knock_out(option.expiry_time()),
+                true,
             )
         });
         *slope = value[0];
@@ -257,7 +265,13 @@ fn native_with_diffusion<D: Diffusion>(
                 let correction = super::autocallable::project(&space, &breaks, i, |asset| {
                     let slope = space.linear(&layers[0], asset);
                     let intercept = space.linear(&layers[1], asset);
-                    let value = event(asset, slope, intercept, observe);
+                    let value = event(
+                        asset,
+                        slope,
+                        intercept,
+                        observe,
+                        option.accumulates_at(dates[event_index], context.calendar()),
+                    );
                     [value[0] - slope, value[1] - intercept]
                 });
                 for layer in 0..count {

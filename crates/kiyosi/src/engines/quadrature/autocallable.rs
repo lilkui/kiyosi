@@ -5,13 +5,13 @@ use super::gaussian::{
 use super::{QuadratureSettings, flat_rates};
 use crate::instruments::autocallable::Coupon;
 use crate::instruments::autocallable::pricing::{
-    fixed_value, future_event_dates, initial, validate, volatility_affects_price,
+    fixed_value, future_event_times, initial, validate, volatility_affects_price,
 };
 use crate::numerics::log_ratio;
 use crate::{
     AutocallableNote, AutocallableObservation, AutocallableTerms, BlackScholesMertonParameters,
-    Date, Error, GreeksRequest, NumericalShiftSettings, PricingContext, PricingEngine,
-    PricingResult, Result, Timestamp,
+    Error, GreeksRequest, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
+    Result, Timestamp,
 };
 
 /// Prices snowball variants and Phoenix notes by quadrature between event dates.
@@ -39,8 +39,8 @@ impl QuadratureAutocallableEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let end = Date::new(2025, 4, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let end = Date::new(2025, 4, 1)?.start_of_day();
     /// let mut terms = SnowballTerms::new(0.08, 100.0, 80.0, 100.0, 0.0, start, end,
     ///     autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?);
     /// terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
@@ -197,7 +197,7 @@ struct PreparedCurve<T: AutocallableTerms> {
     valuation: Timestamp,
     knocked_in: bool,
     nodes: Vec<f64>,
-    dates: Vec<Date>,
+    dates: Vec<Timestamp>,
     curve: Curve,
     drift: f64,
     deviation: f64,
@@ -205,10 +205,10 @@ struct PreparedCurve<T: AutocallableTerms> {
 }
 fn event<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
-    date: Date,
+    date: Timestamp,
 ) -> Option<&AutocallableObservation> {
     note.observations()
-        .binary_search_by_key(&date, |r| r.date)
+        .binary_search_by_key(&date, |r| r.time)
         .ok()
         .map(|i| &note.observations()[i])
 }
@@ -273,7 +273,7 @@ fn terminal<T: AutocallableTerms>(
 }
 fn apply_event<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
-    date: Date,
+    date: Timestamp,
     nodes: &[f64],
     alive: &mut Curve,
     knocked: Option<&Curve>,
@@ -346,7 +346,7 @@ fn price<T: AutocallableTerms>(
         ))?;
         checked(state.coupon + value)
     };
-    let dates = future_event_dates(note, context, layers)?;
+    let dates = future_event_times(note, context, layers)?;
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *note
             && context.bsm_parameters().is_ok_and(|m| c.model == *m)
@@ -375,7 +375,7 @@ fn price<T: AutocallableTerms>(
     for r in note
         .observations()
         .iter()
-        .filter(|r| r.date.start_of_day() > context.valuation_time())
+        .filter(|r| r.time > context.valuation_time())
     {
         breaks.push(log_ratio(r.knock_out_level, anchor));
         if matches!(t.coupon, Coupon::Phoenix(_)) && r.coupon_barrier_level > 0.0 {
@@ -386,9 +386,7 @@ fn price<T: AutocallableTerms>(
     breaks.dedup();
     let sigma = context.bsm_parameters()?.volatility();
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
-    let horizon = context
-        .valuation_time()
-        .years_until(note.expiry_date().into());
+    let horizon = context.valuation_time().years_until(note.expiry_time());
     let transition = |time: f64| -> Result<(f64, f64, f64)> {
         let drift = drift_rate * time;
         let deviation = sigma * time.sqrt();
@@ -401,7 +399,7 @@ fn price<T: AutocallableTerms>(
     };
     let terminal = terminal(
         note,
-        event(note, note.expiry_date()),
+        event(note, note.expiry_time()),
         &breaks,
         state.knocked_in,
     );
@@ -427,7 +425,7 @@ fn price<T: AutocallableTerms>(
     let nodes = integration_nodes(lower, upper, settings.asset_step_count, &breaks)?;
     let interpolation = CubicInterpolation::new(&nodes);
     let terminal_in = if layers {
-        self::terminal(note, event(note, note.expiry_date()), &breaks, true)
+        self::terminal(note, event(note, note.expiry_time()), &breaks, true)
     } else {
         Vec::new()
     };
@@ -450,18 +448,16 @@ fn price<T: AutocallableTerms>(
                 dates[index],
                 &nodes,
                 &mut alive,
-                layers.then_some(&knocked),
+                (layers && note.daily_time(dates[index], context.calendar())).then_some(&knocked),
             );
             if layers {
                 apply_event(note, dates[index], &nodes, &mut knocked, None);
             }
         }
         let time = if index == 0 {
-            context.valuation_time().years_until(dates[index].into())
+            context.valuation_time().years_until(dates[index])
         } else {
-            dates[index - 1]
-                .start_of_day()
-                .years_until(dates[index].into())
+            dates[index - 1].years_until(dates[index])
         };
         let (drift, deviation, discount) = transition(time)?;
         if index == 0 {

@@ -90,8 +90,8 @@ impl QuadratureVanillaEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let end = Date::new(2026, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let end = Date::new(2026, 1, 1)?.start_of_day();
     /// let option = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
@@ -167,7 +167,7 @@ macro_rules! vanilla_pricing {
                 let payoff = Payoff::vanilla(option.option_type(), option.strike(), $american);
                 let time = context
                     .valuation_time()
-                    .years_until(option.expiry_date().into());
+                    .years_until(option.expiry_time().into());
                 if time == 0.0 {
                     return checked(payoff.value(context.spot_price()));
                 }

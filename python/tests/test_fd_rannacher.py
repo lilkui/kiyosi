@@ -1,6 +1,6 @@
 import math
 import unittest
-from datetime import date
+from datetime import datetime
 
 from kiyosi import ComputationFailureError, pricing
 from kiyosi.instruments import (
@@ -14,7 +14,7 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 class FiniteDifferenceRannacherTests(unittest.TestCase):
     def test_standard_cn_matches_one_unsmoothed_step_with_payoff_averaging(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         parameters = BlackScholesMertonParameters(
             risk_free_rate=0, dividend_yield=0, volatility=0.2
         )
@@ -27,8 +27,8 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
         terms = {
             "option_type": "call",
             "strike": 100,
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_time": start,
+            "expiry_time": end,
         }
         for option, factory, analytic, rhs_low, rhs_high in (
             (
@@ -73,13 +73,13 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
                 self.assertEqual(factory(**settings).price(option, context), damped)
 
     def test_damping_still_rejects_oscillatory_prices(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = CashOrNothingOption(
             option_type="call",
             strike=100.5,
             payout=100,
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -96,7 +96,7 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
         self.assertIs(type(rejected.exception), ComputationFailureError)
 
     def test_payoff_bounds_allow_known_carry_truncation(self):
-        start, end = date(2025, 1, 6), date(2026, 1, 6)
+        start, end = datetime(2025, 1, 6), datetime(2026, 1, 6)
         for rate in (-0.05, 0.05):
             dividend = 0.4 * rate
             context = PricingContext(
@@ -113,8 +113,8 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
                 terms = {
                     "option_type": "call",
                     "strike": 1,
-                    "effective_date": start,
-                    "expiry_date": end,
+                    "effective_time": start,
+                    "expiry_time": end,
                 }
                 for option, upper, delta in (
                     (
@@ -141,7 +141,7 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
                         self.assertAlmostEqual(actual.gamma, 0, delta=1e-8)
 
     def test_short_rannacher_grids_match_implicit_half_steps(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.12, dividend_yield=0.02, volatility=0.3
@@ -154,8 +154,8 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
                 terms = {
                     "option_type": option_type,
                     "strike": 100,
-                    "effective_date": start,
-                    "expiry_date": end,
+                    "effective_time": start,
+                    "expiry_time": end,
                 }
                 for option, factory in (
                     (EuropeanOption(**terms), pricing.FiniteDifferenceVanillaEngine),
@@ -198,7 +198,7 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
                         self.assertEqual(actual.gamma, expected.gamma)
 
     def test_coarse_rannacher_time_grids_track_analytic_greeks(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
@@ -211,8 +211,8 @@ class FiniteDifferenceRannacherTests(unittest.TestCase):
                 terms = {
                     "option_type": option_type,
                     "strike": 100,
-                    "effective_date": start,
-                    "expiry_date": end,
+                    "effective_time": start,
+                    "expiry_time": end,
                 }
                 for option, factory, analytic, tolerances in (
                     (

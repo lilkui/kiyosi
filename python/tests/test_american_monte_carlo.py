@@ -5,7 +5,7 @@ import math
 import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import QuantLib as ql
 from kiyosi import (
@@ -26,7 +26,7 @@ from test_binomial import END, GREEKS, START, market
 
 def contract(direction="put", strike=100):
     return AmericanOption(
-        option_type=direction, strike=strike, effective_date=START, expiry_date=END
+        option_type=direction, strike=strike, effective_time=START, expiry_time=END
     )
 
 
@@ -55,8 +55,8 @@ class AmericanMonteCarloTests(unittest.TestCase):
                 european = EuropeanOption(
                     option_type="call",
                     strike=100,
-                    effective_date=START,
-                    expiry_date=END,
+                    effective_time=START,
+                    expiry_time=END,
                 )
                 expected = engine.price(european, context)
                 self.assertGreater(expected, 0)
@@ -128,7 +128,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
         )
         for valuation in (
             START - timedelta(days=1),
-            datetime(2026, 1, 1, 0, 0, 0, 1, tzinfo=UTC),
+            datetime(2026, 1, 1, 0, 0, 0, 1),
         ):
             self.assert_rejection(
                 InvalidInputError,
@@ -159,7 +159,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
                         delta=1e-11,
                     )
         # A deterministic optimal exercise date lies strictly inside this three-year grid.
-        option = contract().replace(expiry_date=date(2028, 1, 1))
+        option = contract().replace(expiry_time=datetime(2028, 1, 1))
         expected = max(
             100 * math.exp(-0.05 * (3 * step / 50))
             - 30 * math.exp(-0.2 * (3 * step / 50))
@@ -178,7 +178,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
     def test_terminal_call_shortcut_and_rate_stencil_crossing_zero(self):
         call = contract("call")
         european = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         for sampling in ("pseudo_random", "sobol"):
             for antithetic in (False, True):
@@ -344,8 +344,8 @@ class AmericanMonteCarloTests(unittest.TestCase):
             option_type="call",
             strike=100,
             payout=1,
-            effective_date=START,
-            expiry_date=END,
+            effective_time=START,
+            expiry_time=END,
         )
         with self.assertRaises(UnsupportedOperationError):
             engine.price(digital, context)
@@ -372,15 +372,15 @@ class AmericanMonteCarloTests(unittest.TestCase):
             option = AmericanOption(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
-                effective_date=date.fromisoformat(inputs["effective_date"]),
-                expiry_date=date.fromisoformat(inputs["expiry_date"]),
+                effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
             )
             context = market(
                 spot=inputs["spot"],
                 rate=inputs["rate"],
                 dividend=inputs["dividend"],
                 sigma=inputs["volatility"],
-                valuation=date.fromisoformat(inputs["valuation"]),
+                valuation=datetime.fromisoformat(inputs["valuation"]),
             )
             with ql.SavedSettings():
                 reference, uncertainty = american.reference(inputs)

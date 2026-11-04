@@ -1,16 +1,16 @@
 use super::monitoring::{Monitoring, validate_upper};
 use crate::{
-    BarrierTouchState, BarrierType, Date, DoubleBarrierType, Error, ObservationMode,
-    ObservationSchedule, OptionContract, PricingContext, Result, SettlementTiming, Timestamp,
+    BarrierTouchState, BarrierType, DoubleBarrierType, Error, ObservationMode, ObservationSchedule,
+    OptionContract, PricingContext, Result, SettlementTiming, Timestamp,
 };
 
 /// Cash double-touch inputs; see [`DoubleTouchOption::cash`] for validation and usage.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleTouchOptionTerms {
-    /// Inclusive first date.
-    pub effective_date: Date,
-    /// Inclusive expiry at midnight UTC.
-    pub expiry_date: Date,
+    /// Inclusive effective time.
+    pub effective_time: Timestamp,
+    /// Inclusive the inclusive expiry timestamp.
+    pub expiry_time: Timestamp,
     /// Positive finite lower boundary; equality touches.
     pub lower_barrier: f64,
     /// Finite upper boundary, strictly above the lower boundary.
@@ -21,29 +21,29 @@ pub struct DoubleTouchOptionTerms {
     pub settlement_timing: SettlementTiming,
     /// Monitoring frequency, default continuous.
     pub observation_mode: ObservationMode,
-    /// Ordered fixing dates within life, empty for continuous monitoring.
-    pub observation_dates: Vec<Date>,
+    /// Ordered fixing times within life, empty for continuous monitoring.
+    pub observation_times: Vec<Timestamp>,
     /// Observations strictly before valuation; `None` means unknown.
     pub touch_state: Option<BarrierTouchState>,
 }
 impl DoubleTouchOptionTerms {
     /// Supplies the single-touch defaults without validation; see [`DoubleTouchOption::cash`].
     pub fn new(
-        effective_date: Date,
-        expiry_date: Date,
+        effective_time: Timestamp,
+        expiry_time: Timestamp,
         lower_barrier: f64,
         upper_barrier: f64,
         barrier_type: DoubleBarrierType,
     ) -> Self {
         Self {
-            effective_date,
-            expiry_date,
+            effective_time,
+            expiry_time,
             lower_barrier,
             upper_barrier,
             barrier_type,
             settlement_timing: SettlementTiming::default(),
             observation_mode: ObservationMode::default(),
-            observation_dates: Vec::new(),
+            observation_times: Vec::new(),
             touch_state: None,
         }
     }
@@ -78,9 +78,9 @@ impl DoubleTouchOption {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = DoubleTouchOption::cash(DoubleTouchOptionTerms::new(start,
-    ///     Date::new(2026, 1, 1)?, 80.0, 120.0, DoubleBarrierType::KnockIn), 10.0)?;
+    ///     Date::new(2026, 1, 1)?.start_of_day(), 80.0, 120.0, DoubleBarrierType::KnockIn), 10.0)?;
     /// assert!(option.is_one_touch());
     /// assert_eq!(option.settlement_timing(), SettlementTiming::AtExpiry);
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.03, 0.01, 0.2)?,
@@ -107,8 +107,8 @@ impl DoubleTouchOption {
         }
         validate_upper(terms.lower_barrier, terms.upper_barrier)?;
         let monitoring = Monitoring::new(
-            terms.effective_date,
-            terms.expiry_date,
+            terms.effective_time,
+            terms.expiry_time,
             terms.lower_barrier,
             if terms.barrier_type == DoubleBarrierType::KnockIn {
                 BarrierType::DownAndIn
@@ -116,7 +116,7 @@ impl DoubleTouchOption {
                 BarrierType::DownAndOut
             },
             terms.observation_mode,
-            terms.observation_dates,
+            terms.observation_times,
             terms.touch_state,
         )?;
         Ok(Self {
@@ -126,13 +126,13 @@ impl DoubleTouchOption {
             settlement_timing: terms.settlement_timing,
         })
     }
-    /// Returns the inclusive first date; see [`Self::cash`].
-    pub fn effective_date(&self) -> Date {
-        self.monitoring.effective_date()
+    /// Returns the inclusive effective time; see [`Self::cash`].
+    pub fn effective_time(&self) -> Timestamp {
+        self.monitoring.effective_time()
     }
-    /// Returns expiry at midnight UTC; see [`Self::cash`].
-    pub fn expiry_date(&self) -> Date {
-        self.monitoring.expiry_date()
+    /// Returns the inclusive expiry timestamp; see [`Self::cash`].
+    pub fn expiry_time(&self) -> Timestamp {
+        self.monitoring.expiry_time()
     }
     /// Returns the positive lower boundary; see [`Self::cash`].
     pub fn lower_barrier(&self) -> f64 {
@@ -162,9 +162,9 @@ impl DoubleTouchOption {
     pub fn observation_schedule(&self) -> &ObservationSchedule {
         self.monitoring.observation_schedule()
     }
-    /// Borrows immutable dates for this owner's lifetime; see [`Self::cash`].
-    pub fn observation_dates(&self) -> &[Date] {
-        self.monitoring.observation_dates()
+    /// Borrows immutable times for this owner's lifetime; see [`Self::cash`].
+    pub fn observation_times(&self) -> &[Timestamp] {
+        self.monitoring.observation_times()
     }
     /// Returns strictly prior history; see [`Self::cash`].
     pub fn touch_state(&self) -> Option<BarrierTouchState> {
@@ -194,11 +194,11 @@ impl DoubleTouchOption {
     }
 }
 impl OptionContract for DoubleTouchOption {
-    fn effective_date(&self) -> Date {
-        self.effective_date()
+    fn effective_time(&self) -> Timestamp {
+        self.effective_time()
     }
-    fn expiry_date(&self) -> Date {
-        self.expiry_date()
+    fn expiry_time(&self) -> Timestamp {
+        self.expiry_time()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         self.monitoring
@@ -220,10 +220,10 @@ impl OptionContract for DoubleTouchOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct DoubleTouchOptionChanges {
-    /// Replaces [`effective_date`](DoubleTouchOptionTerms::effective_date).
-    pub effective_date: Option<Date>,
-    /// Replaces [`expiry_date`](DoubleTouchOptionTerms::expiry_date).
-    pub expiry_date: Option<Date>,
+    /// Replaces [`effective_time`](DoubleTouchOptionTerms::effective_time).
+    pub effective_time: Option<Timestamp>,
+    /// Replaces [`expiry_time`](DoubleTouchOptionTerms::expiry_time).
+    pub expiry_time: Option<Timestamp>,
     /// Replaces [`lower_barrier`](DoubleTouchOptionTerms::lower_barrier).
     pub lower_barrier: Option<f64>,
     /// Replaces [`upper_barrier`](DoubleTouchOptionTerms::upper_barrier).
@@ -234,8 +234,8 @@ pub struct DoubleTouchOptionChanges {
     pub settlement_timing: Option<SettlementTiming>,
     /// Replaces [`observation_mode`](DoubleTouchOptionTerms::observation_mode).
     pub observation_mode: Option<ObservationMode>,
-    /// Replaces [`observation_dates`](DoubleTouchOptionTerms::observation_dates).
-    pub observation_dates: Option<Vec<Date>>,
+    /// Replaces [`observation_times`](DoubleTouchOptionTerms::observation_times).
+    pub observation_times: Option<Vec<Timestamp>>,
     /// Replaces [`touch_state`](DoubleTouchOptionTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
     /// Replaces [`payout`](DoubleTouchOption::payout).
@@ -255,8 +255,8 @@ impl DoubleTouchOption {
     pub fn replace(&self, changes: DoubleTouchOptionChanges) -> Result<Self> {
         Self::cash(
             DoubleTouchOptionTerms {
-                effective_date: changes.effective_date.unwrap_or(self.effective_date()),
-                expiry_date: changes.expiry_date.unwrap_or(self.expiry_date()),
+                effective_time: changes.effective_time.unwrap_or(self.effective_time()),
+                expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
                 lower_barrier: changes.lower_barrier.unwrap_or(self.lower_barrier()),
                 upper_barrier: changes.upper_barrier.unwrap_or(self.upper_barrier()),
                 barrier_type: changes.barrier_type.unwrap_or(if self.is_one_touch() {
@@ -268,9 +268,9 @@ impl DoubleTouchOption {
                     .settlement_timing
                     .unwrap_or(self.settlement_timing()),
                 observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
-                observation_dates: changes
-                    .observation_dates
-                    .unwrap_or_else(|| self.observation_dates().to_vec()),
+                observation_times: changes
+                    .observation_times
+                    .unwrap_or_else(|| self.observation_times().to_vec()),
                 touch_state: changes.touch_state.unwrap_or(self.touch_state()),
             },
             changes.payout.unwrap_or(self.payout()),

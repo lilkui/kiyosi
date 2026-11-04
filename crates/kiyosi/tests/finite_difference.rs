@@ -1,9 +1,9 @@
 use kiyosi::*;
 
-fn dates() -> (Date, Date) {
+fn dates() -> (Timestamp, Timestamp) {
     (
-        Date::new(2025, 1, 1).unwrap(),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
     )
 }
 
@@ -11,7 +11,7 @@ fn market(spot: f64, rate: f64, dividend: f64, sigma: f64) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(rate, dividend, sigma).unwrap(),
         spot,
-        dates().0.into(),
+        dates().0,
     )
     .unwrap()
 }
@@ -106,7 +106,7 @@ fn coarse_automatic_grids_resolve_short_and_annual_payoffs_and_spot_greeks() {
     })
     .unwrap();
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
-    for end in [Date::new(2025, 1, 2).unwrap(), annual] {
+    for end in [Date::new(2025, 1, 2).unwrap().start_of_day(), annual] {
         for direction in [OptionType::Call, OptionType::Put] {
             let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
             for spot in [99.875, 100.0, 100.125] {
@@ -506,35 +506,26 @@ fn american_exercise_and_continuation_boundaries_survive_negative_rates() {
 #[test]
 fn node_curves_align_time_steps_and_keep_optimal_intermediate_exercise() {
     let (start, end) = dates();
-    let middle = Date::new(2025, 7, 1).unwrap();
-    let risk = RateTermStructure::new(
-        start.into(),
-        vec![middle.into(), end.into()],
-        vec![0.1_f64.exp(), 1.0],
-    )
-    .unwrap();
+    let middle = Date::new(2025, 7, 1).unwrap().start_of_day();
+    let risk = RateTermStructure::new(start, vec![middle, end], vec![0.1_f64.exp(), 1.0]).unwrap();
     let model = BlackScholesMertonParameters::new(risk.clone(), 0.0, 0.2).unwrap();
     let put = AmericanOption::new(OptionType::Put, 100.0, start, end).unwrap();
     let engine = FiniteDifferenceVanillaEngine::default();
     for valuation in [
         start,
-        Date::new(2025, 4, 1).unwrap(),
+        Date::new(2025, 4, 1).unwrap().start_of_day(),
         middle,
-        Date::new(2025, 10, 1).unwrap(),
+        Date::new(2025, 10, 1).unwrap().start_of_day(),
     ] {
-        let context = PricingContext::new(model.clone(), 0.01, valuation.into()).unwrap();
-        let expected = 100.0
-            * risk
-                .factor(valuation.into(), valuation.max(middle).into())
-                .unwrap()
-            - 0.01;
+        let context = PricingContext::new(model.clone(), 0.01, valuation).unwrap();
+        let expected = 100.0 * risk.factor(valuation, valuation.max(middle)).unwrap() - 0.01;
         let actual = engine.price(&put, &context).unwrap();
         assert!(
             (actual - expected).abs() < 1e-5,
             "{valuation:?}: {actual} != {expected}"
         );
     }
-    let context = PricingContext::new(model, 100.0, start.into()).unwrap();
+    let context = PricingContext::new(model, 100.0, start).unwrap();
     for direction in [OptionType::Call, OptionType::Put] {
         let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
         assert!(
@@ -619,7 +610,7 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
     ));
     let expiry = context
         .replace(PricingContextChanges {
-            valuation_time: Some(end.into()),
+            valuation_time: Some(end),
             ..Default::default()
         })
         .unwrap();
@@ -655,7 +646,7 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
     ));
     let before = context
         .replace(PricingContextChanges {
-            valuation_time: Some(Date::new(2024, 12, 31).unwrap().into()),
+            valuation_time: Some(Date::new(2024, 12, 31).unwrap().start_of_day()),
             ..Default::default()
         })
         .unwrap();
@@ -862,7 +853,7 @@ fn scaled_digital_discounts_and_strict_expiry_payments_remain_representable() {
             ] {
                 let context = market(spot, 0.05, 0.02, 0.2)
                     .replace(PricingContextChanges {
-                        valuation_time: Some(end.into()),
+                        valuation_time: Some(end),
                         ..Default::default()
                     })
                     .unwrap();

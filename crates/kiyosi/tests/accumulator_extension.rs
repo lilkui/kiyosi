@@ -1,14 +1,14 @@
 use kiyosi::*;
 
-fn day(date: u32) -> Date {
-    Date::new(2025, 1, date).unwrap()
+fn day(date: u32) -> Timestamp {
+    Date::new(2025, 1, date).unwrap().start_of_day()
 }
 
-fn terms(direction: OptionType, dates: Option<Vec<Date>>) -> AccumulatorTerms {
+fn terms(direction: OptionType, dates: Option<Vec<Timestamp>>) -> AccumulatorTerms {
     AccumulatorTerms {
         option_type: direction,
         accumulated_quantity: Some(3.0),
-        knock_out_observation_dates: dates,
+        knock_out_observation_times: dates,
         ..AccumulatorTerms::new(
             100.0,
             if direction == OptionType::Call {
@@ -63,22 +63,22 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
             direction,
             level,
             option.strike(),
-            option.effective_date(),
-            option.expiry_date(),
+            option.effective_time(),
+            option.expiry_time(),
         )
         .unwrap();
         let asset = DigitalOption::asset_or_nothing(
             direction,
             level,
-            option.effective_date(),
-            option.expiry_date(),
+            option.effective_time(),
+            option.expiry_time(),
         )
         .unwrap();
         AnalyticDigitalEngine.price(&asset, context).unwrap()
             - AnalyticDigitalEngine.price(&cash, context).unwrap()
     };
     let model = context.model_parameters().as_bsm().unwrap();
-    let expiry = option.expiry_date().into();
+    let expiry = option.expiry_time();
     let forward = context.spot_price()
         * model
             .dividend_curve()
@@ -90,8 +90,8 @@ fn terminal_reference(option: &Accumulator, context: &PricingContext) -> f64 {
                 .factor(context.valuation_time(), expiry)
                 .unwrap();
     let observed = option
-        .knock_out_observation_dates()
-        .is_none_or(|dates| dates.contains(&option.expiry_date()));
+        .knock_out_observation_times()
+        .is_none_or(|dates| dates.contains(&option.expiry_time()));
     let accelerated = if option.option_type() == OptionType::Call {
         OptionType::Put
     } else {
@@ -138,7 +138,7 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
     ] {
         let dates = Some(if monitored { vec![day(6)] } else { Vec::new() });
         let option = Accumulator::new(terms(direction, dates)).unwrap();
-        let context = market(spot, day(6).into(), 0.2);
+        let context = market(spot, day(6), 0.2);
         for engine in engines() {
             assert_eq!(engine.price(&option, &context).unwrap(), expected);
             let result = engine
@@ -150,7 +150,7 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
     }
     for direction in [OptionType::Call, OptionType::Put] {
         let mut t = terms(direction, Some(Vec::new()));
-        t.effective_date = day(6);
+        t.effective_time = day(6);
         t.daily_quantity = 0.25;
         t.acceleration_factor = 0.5;
         t.accumulated_quantity = Some(0.5);
@@ -162,9 +162,7 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
         };
         for engine in engines() {
             assert_eq!(
-                engine
-                    .price(&option, &market(spot, day(6).into(), 0.2))
-                    .unwrap(),
+                engine.price(&option, &market(spot, day(6), 0.2)).unwrap(),
                 -6.25
             );
         }
@@ -173,7 +171,7 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
 
 #[test]
 fn sparse_dates_preserve_daily_accumulation_and_stop_only_on_selected_dates() {
-    let at = Timestamp::new(day(1), 12, 0, 0, 0).unwrap();
+    let at = Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap();
     for (direction, spot) in [(OptionType::Call, 120.0), (OptionType::Put, 80.0)] {
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(0.0, 0.0, 1e-8).unwrap(),
@@ -201,7 +199,7 @@ fn sparse_dates_preserve_daily_accumulation_and_stop_only_on_selected_dates() {
 
 #[test]
 fn quadrature_tails_discount_to_the_next_knock_out_or_expiry() {
-    let valuation = Timestamp::new(day(1), 12, 0, 0, 0).unwrap();
+    let valuation = Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap();
     let engine = QuadratureAccumulatorEngine::default();
     for (direction, spot, dates, quantity, settlement_date) in [
         (OptionType::Call, 120.0, vec![day(3)], 4.0, day(3)),
@@ -213,7 +211,7 @@ fn quadrature_tails_discount_to_the_next_knock_out_or_expiry() {
     ] {
         let option = Accumulator::new(terms(direction, Some(dates))).unwrap();
         let context = market(spot, valuation, 1e-8);
-        let time = (f64::from(settlement_date.day()) - 1.5) / 365.0;
+        let time = (f64::from(settlement_date.date().day()) - 1.5) / 365.0;
         let sign = if direction == OptionType::Call {
             1.0
         } else {
@@ -235,7 +233,7 @@ fn quadrature_tails_discount_to_the_next_knock_out_or_expiry() {
     reason = "Exact comparisons select fixed test cases and payoff boundaries."
 )]
 fn sparse_knock_out_grid_covers_drift_back_inside_the_barrier() {
-    let expiry = Date::new(2025, 2, 3).unwrap();
+    let expiry = Date::new(2025, 2, 3).unwrap().start_of_day();
     let time: f64 = 32.5 / 365.0;
     for (direction, spot, barrier, rate, dividend, sign) in [
         (OptionType::Call, 110.05, 110.0, 0.04, 0.06, 1.0),
@@ -244,7 +242,7 @@ fn sparse_knock_out_grid_covers_drift_back_inside_the_barrier() {
         let option = Accumulator::new(AccumulatorTerms {
             option_type: direction,
             accumulated_quantity: Some(3.0),
-            knock_out_observation_dates: Some(vec![day(15)]),
+            knock_out_observation_times: Some(vec![day(15)]),
             ..AccumulatorTerms::new(100.0, barrier, 1.0, 1.0, day(1), expiry)
         })
         .unwrap();
@@ -261,7 +259,7 @@ fn sparse_knock_out_grid_covers_drift_back_inside_the_barrier() {
             let context = PricingContext::new(
                 BlackScholesMertonParameters::new(rate, dividend, sigma).unwrap(),
                 spot,
-                Timestamp::new(day(1), 12, 0, 0, 0).unwrap(),
+                Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap(),
             )
             .unwrap();
             let alive_asset = AnalyticDigitalEngine.price(&asset, &context).unwrap();
@@ -308,7 +306,11 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
         ..Default::default()
     })
     .unwrap();
-    let context = market(100.0, Timestamp::new(day(1), 12, 0, 0, 0).unwrap(), 0.2);
+    let context = market(
+        100.0,
+        Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap(),
+        0.2,
+    );
     for (direction, barrier) in [(OptionType::Call, 90.0), (OptionType::Put, 110.0)] {
         for dates in [
             None,
@@ -317,7 +319,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
         ] {
             let option = Accumulator::new(AccumulatorTerms {
                 option_type: direction,
-                knock_out_observation_dates: dates,
+                knock_out_observation_times: dates,
                 accumulated_quantity: Some(0.0),
                 ..AccumulatorTerms::new(100.0, barrier, 1.0, 0.0, day(1), day(3))
             })
@@ -351,7 +353,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
         }
         let option = Accumulator::new(AccumulatorTerms {
             option_type: direction,
-            knock_out_observation_dates: Some(vec![day(3)]),
+            knock_out_observation_times: Some(vec![day(3)]),
             accumulated_quantity: Some(0.0),
             ..AccumulatorTerms::new(100.0, barrier, 1.0, 0.0, day(1), day(3))
         })
@@ -372,7 +374,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
                 calendar: Some(
                     TradingCalendar::custom(
                         TradingCalendar::weekdays(),
-                        vec![day(2)],
+                        vec![day(2).date()],
                         vec![],
                         None,
                     )
@@ -390,7 +392,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
         assert!((engine.price(&option, &context).unwrap() - 20.0).abs() < 1e-7);
         let at_current_event = context
             .replace(PricingContextChanges {
-                valuation_time: Some(day(2).into()),
+                valuation_time: Some(day(2)),
                 ..Default::default()
             })
             .unwrap();
@@ -400,7 +402,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
 
 #[test]
 fn zero_multiplier_with_inverted_barrier_still_accrues_on_non_knock_out_dates() {
-    let at = Timestamp::new(day(1), 12, 0, 0, 0).unwrap();
+    let at = Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap();
     for (direction, barrier, spot) in [
         (OptionType::Call, 95.0, 120.0),
         (OptionType::Put, 105.0, 80.0),
@@ -425,13 +427,17 @@ fn zero_multiplier_with_inverted_barrier_still_accrues_on_non_knock_out_dates() 
 
 #[test]
 fn explicit_daily_dates_preserve_default_prices_for_both_directions() {
-    let context = market(100.25, Timestamp::new(day(1), 12, 0, 0, 0).unwrap(), 0.4);
+    let context = market(
+        100.25,
+        Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap(),
+        0.4,
+    );
     for direction in [OptionType::Call, OptionType::Put] {
         let default = Accumulator::new(terms(direction, None)).unwrap();
         let explicit =
             Accumulator::new(terms(direction, Some(vec![day(1), day(2), day(3), day(6)]))).unwrap();
         assert_eq!(default.option_type(), direction);
-        assert_eq!(default.knock_out_observation_dates(), None);
+        assert_eq!(default.knock_out_observation_times(), None);
         for engine in engines() {
             assert_eq!(
                 engine.price(&default, &context).unwrap(),
@@ -446,7 +452,7 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
     for dates in [
         vec![day(3), day(2)],
         vec![day(2), day(2)],
-        vec![Date::new(2024, 12, 31).unwrap()],
+        vec![Date::new(2024, 12, 31).unwrap().start_of_day()],
         vec![day(7)],
     ] {
         assert!(matches!(
@@ -460,7 +466,7 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
     let updated = option.replace_history(0.25).unwrap();
     assert_eq!(updated.option_type(), OptionType::Put);
     assert_eq!(
-        updated.knock_out_observation_dates(),
+        updated.knock_out_observation_times(),
         Some([day(2), day(6)].as_slice())
     );
     assert_eq!(updated.accumulated_quantity().unwrap(), 0.25);
@@ -473,7 +479,11 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
         assert_eq!(updated.accumulated_quantity().unwrap(), 0.25);
     }
     let weekend = Accumulator::new(terms(OptionType::Put, Some(vec![day(4)]))).unwrap();
-    let weekday_context = market(100.25, Timestamp::new(day(1), 12, 0, 0, 0).unwrap(), 0.2);
+    let weekday_context = market(
+        100.25,
+        Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap(),
+        0.2,
+    );
     let all_days_context = weekday_context
         .replace(PricingContextChanges {
             calendar: Some(TradingCalendar::all_days()),
@@ -510,8 +520,12 @@ fn midnight_purchases_use_strict_strike_comparisons_and_intraday_history_once() 
         (OptionType::Put, 80.0, 4.0),
     ] {
         let option = Accumulator::new(terms(direction, Some(Vec::new()))).unwrap();
-        let at_event = market(spot, day(3).into(), 0.4);
-        let after_event = market(spot, Timestamp::new(day(3), 0, 0, 0, 1).unwrap(), 0.4);
+        let at_event = market(spot, day(3), 0.4);
+        let after_event = market(
+            spot,
+            Timestamp::new(day(3).date(), 0, 0, 0, 1).unwrap(),
+            0.4,
+        );
         let history = option.replace_history(quantity).unwrap();
         for engine in engines() {
             let at_price = engine.price(&option, &at_event).unwrap();
@@ -521,7 +535,11 @@ fn midnight_purchases_use_strict_strike_comparisons_and_intraday_history_once() 
                 "{direction:?}, spot {spot}: {at_price} != {after_price}"
             );
         }
-        let intraday = market(spot, Timestamp::new(day(3), 12, 0, 0, 0).unwrap(), 0.4);
+        let intraday = market(
+            spot,
+            Timestamp::new(day(3).date(), 12, 0, 0, 0).unwrap(),
+            0.4,
+        );
         let expected = terminal_reference(&history, &intraday);
         let actual = QuadratureAccumulatorEngine::default()
             .price(&history, &intraday)
@@ -537,7 +555,11 @@ fn terminal_digital_portfolio_covers_directions_barrier_orderings_and_empty_date
         integration_standard_deviations: 0.1,
     })
     .unwrap();
-    let context = market(100.25, Timestamp::new(day(3), 12, 0, 0, 0).unwrap(), 0.6);
+    let context = market(
+        100.25,
+        Timestamp::new(day(3).date(), 12, 0, 0, 0).unwrap(),
+        0.6,
+    );
     for direction in [OptionType::Call, OptionType::Put] {
         for barrier in [95.0, 100.0, 105.0] {
             for multiplier in [0.0, 0.5, 2.0] {
@@ -563,7 +585,11 @@ fn terminal_digital_portfolio_covers_directions_barrier_orderings_and_empty_date
 
 #[test]
 fn finite_difference_converges_and_monte_carlo_matches_terminal_portfolio() {
-    let context = market(100.25, Timestamp::new(day(3), 12, 0, 0, 0).unwrap(), 0.4);
+    let context = market(
+        100.25,
+        Timestamp::new(day(3).date(), 12, 0, 0, 0).unwrap(),
+        0.4,
+    );
     let monte_carlo = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
         path_count: 32768,
         seed: Some(42),
@@ -611,7 +637,11 @@ fn finite_difference_converges_and_monte_carlo_matches_terminal_portfolio() {
 
 #[test]
 fn sparse_multi_day_prices_agree_with_sampling_and_grid_refinement() {
-    let context = market(100.25, Timestamp::new(day(1), 12, 0, 0, 0).unwrap(), 0.6);
+    let context = market(
+        100.25,
+        Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap(),
+        0.6,
+    );
     let monte_carlo = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
         path_count: 65536,
         seed: Some(42),
@@ -669,7 +699,11 @@ fn sparse_multi_day_prices_agree_with_sampling_and_grid_refinement() {
 fn scheduled_decumulator_supports_greeks_and_identifiable_volatility() {
     let option = Accumulator::new(terms(OptionType::Put, Some(vec![day(6)]))).unwrap();
     let original = option.clone();
-    let context = market(100.25, Timestamp::new(day(3), 12, 0, 0, 0).unwrap(), 0.4);
+    let context = market(
+        100.25,
+        Timestamp::new(day(3).date(), 12, 0, 0, 0).unwrap(),
+        0.4,
+    );
     let h = NumericalShiftSettings::default().spot_shift();
     let shifted = |spot| {
         context
@@ -759,7 +793,7 @@ fn adjacent_barrier_levels_preserve_forward_prices_and_greeks() {
             let context = PricingContext::new(
                 BlackScholesMertonParameters::new(0.04, 0.06, sigma).unwrap(),
                 100.001,
-                Timestamp::new(day(1), 12, 0, 0, 0).unwrap(),
+                Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap(),
             )
             .unwrap();
             for barrier in levels {
@@ -806,7 +840,7 @@ fn current_greek_discontinuities_follow_the_knock_out_schedule() {
                 Some(if monitored { vec![day(3)] } else { Vec::new() }),
             ))
             .unwrap();
-            let context = market(barrier, day(3).into(), 0.4);
+            let context = market(barrier, day(3), 0.4);
             for engine in engines() {
                 let result = engine
                     .price_with_greeks(
@@ -826,7 +860,7 @@ fn current_greek_discontinuities_follow_the_knock_out_schedule() {
             let result = engine
                 .price_with_greeks(
                     &option,
-                    &market(100.0, day(3).into(), 0.4),
+                    &market(100.0, day(3), 0.4),
                     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
                     Default::default(),
                 )

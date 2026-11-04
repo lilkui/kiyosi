@@ -1,16 +1,16 @@
 use kiyosi::*;
 
-fn dates() -> (Date, Date) {
+fn dates() -> (Timestamp, Timestamp) {
     (
-        Date::new(2025, 1, 1).unwrap(),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
     )
 }
-fn market(at: Date) -> PricingContext {
+fn market(at: Timestamp) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.2).unwrap(),
         100.0,
-        at.into(),
+        at,
     )
     .unwrap()
 }
@@ -72,7 +72,7 @@ macro_rules! contract_tests {
                         OptionType::Call,
                         100.0,
                         start,
-                        Date::new(2026, 1, 2).unwrap(),
+                        Date::new(2026, 1, 2).unwrap().start_of_day(),
                         end,
                         0.0
                     )
@@ -91,9 +91,9 @@ macro_rules! contract_tests {
                 let updated = original.replace_history(110.0).unwrap();
                 assert_eq!(updated.option_type(), OptionType::Put);
                 assert_eq!(updated.strike(), 100.0);
-                assert_eq!(updated.effective_date(), start);
-                assert_eq!(updated.averaging_start_date(), start);
-                assert_eq!(updated.expiry_date(), end);
+                assert_eq!(updated.effective_time(), start);
+                assert_eq!(updated.averaging_start_time(), start);
+                assert_eq!(updated.expiry_time(), end);
                 assert_eq!(updated.realized_average(), 110.0);
                 assert!(matches!(
                     original.replace_history(-1.0).unwrap_err(),
@@ -104,7 +104,7 @@ macro_rules! contract_tests {
             #[test]
             fn history_life_single_fixing_and_expiry_boundaries() {
                 let (start, end) = dates();
-                let averaging = Date::new(2025, 2, 1).unwrap();
+                let averaging = Date::new(2025, 2, 1).unwrap().start_of_day();
                 let original =
                     $option::new(OptionType::Call, 100.0, start, averaging, end, 0.0).unwrap();
                 let seasoned = original.replace_history(110.0).unwrap();
@@ -115,7 +115,7 @@ macro_rules! contract_tests {
                         Error::InvalidInput(_)
                     ));
                 }
-                for at in [Date::new(2025, 6, 1).unwrap(), end] {
+                for at in [Date::new(2025, 6, 1).unwrap().start_of_day(), end] {
                     assert!($engine.price(&seasoned, &market(at)).is_ok());
                     assert!(matches!(
                         $engine.price(&original, &market(at)).unwrap_err(),
@@ -123,8 +123,8 @@ macro_rules! contract_tests {
                     ));
                 }
                 for at in [
-                    Date::new(2024, 12, 31).unwrap(),
-                    Date::new(2026, 1, 2).unwrap(),
+                    Date::new(2024, 12, 31).unwrap().start_of_day(),
+                    Date::new(2026, 1, 2).unwrap().start_of_day(),
                 ] {
                     assert!(matches!(
                         $engine.price(&seasoned, &market(at)).unwrap_err(),
@@ -133,7 +133,7 @@ macro_rules! contract_tests {
                 }
                 let after = market(end)
                     .replace(PricingContextChanges {
-                        valuation_time: Some(Timestamp::new(end, 0, 0, 0, 1).unwrap()),
+                        valuation_time: Some(Timestamp::new(end.date(), 0, 0, 0, 1).unwrap()),
                         ..Default::default()
                     })
                     .unwrap();
@@ -159,7 +159,7 @@ macro_rules! contract_tests {
                 for direction in [OptionType::Call, OptionType::Put] {
                     let single = $option::new(direction, 100.0, start, end, end, 0.0).unwrap();
                     let vanilla = EuropeanOption::new(direction, 100.0, start, end).unwrap();
-                    for at in [start, Date::new(2025, 12, 31).unwrap(), end] {
+                    for at in [start, Date::new(2025, 12, 31).unwrap().start_of_day(), end] {
                         assert_eq!(
                             $engine.price(&single, &market(at)).unwrap(),
                             AnalyticEuropeanEngine.price(&vanilla, &market(at)).unwrap()
@@ -256,7 +256,7 @@ macro_rules! contract_tests {
                     Error::RootNotBracketed(_)
                 ));
                 let seasoned = option.replace_history(100.0).unwrap();
-                let middle = market(Date::new(2025, 7, 1).unwrap());
+                let middle = market(Date::new(2025, 7, 1).unwrap().start_of_day());
                 let result = $engine
                     .price_with_greeks(&seasoned, &middle, GreeksRequest::all(), Default::default())
                     .unwrap();
@@ -284,7 +284,7 @@ contract_tests!(
 #[test]
 fn seasoned_and_forward_geometric_prices_match_independent_regressions() {
     let (start, end) = dates();
-    let context = market(Date::new(2025, 7, 1).unwrap())
+    let context = market(Date::new(2025, 7, 1).unwrap().start_of_day())
         .replace(PricingContextChanges {
             model_parameters: Some(
                 BlackScholesMertonParameters::new(0.05, 0.02, 0.2)
@@ -297,7 +297,11 @@ fn seasoned_and_forward_geometric_prices_match_independent_regressions() {
     for (averaging, realized, expected) in [
         (start, 80.0, 0.005_141_652_127_146_822),
         (start, 120.0, 9.472_410_353_379_193),
-        (Date::new(2025, 10, 1).unwrap(), 0.0, 5.064_920_706_779_442),
+        (
+            Date::new(2025, 10, 1).unwrap().start_of_day(),
+            0.0,
+            5.064_920_706_779_442,
+        ),
     ] {
         let option = GeometricAveragePriceOption::new(
             OptionType::Call,
@@ -327,7 +331,7 @@ fn seasoned_and_forward_geometric_prices_match_independent_regressions() {
 fn arithmetic_solver_rejects_locked_payoffs_and_moments_handle_carry_singularities() {
     let (start, end) = dates();
     let engine = TurnbullWakemanArithmeticAveragePriceEngine;
-    let context = market(Date::new(2025, 7, 2).unwrap());
+    let context = market(Date::new(2025, 7, 2).unwrap().start_of_day());
     for direction in [OptionType::Call, OptionType::Put] {
         for realized in [100.0, 201.0, 220.0] {
             let option =
@@ -367,7 +371,7 @@ fn arithmetic_solver_rejects_locked_payoffs_and_moments_handle_carry_singulariti
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(0.0, dividend, 0.2).unwrap(),
             100.0,
-            start.into(),
+            start,
         )
         .unwrap();
         assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-9);
@@ -377,17 +381,17 @@ fn arithmetic_solver_rejects_locked_payoffs_and_moments_handle_carry_singulariti
 #[test]
 fn node_curves_use_weighted_geometric_carry_and_arithmetic_expiry_bypasses_applicability() {
     let (start, end) = dates();
-    let knot = Date::new(2025, 7, 2).unwrap();
+    let knot = Date::new(2025, 7, 2).unwrap().start_of_day();
     let rates = RateTermStructure::new(
-        start.into(),
-        vec![knot.into(), end.into()],
+        start,
+        vec![knot, end],
         vec![(-0.02_f64 * 182.0 / 365.0).exp(), (-0.05_f64).exp()],
     )
     .unwrap();
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(rates, 0.0, 0.2).unwrap(),
         100.0,
-        start.into(),
+        start,
     )
     .unwrap();
     let option =
@@ -415,7 +419,7 @@ fn node_curves_use_weighted_geometric_carry_and_arithmetic_expiry_bypasses_appli
     ));
     let expired = context
         .replace(PricingContextChanges {
-            valuation_time: Some(end.into()),
+            valuation_time: Some(end),
             ..Default::default()
         })
         .unwrap();
@@ -466,12 +470,12 @@ fn tiny_variances_and_scaled_normal_tails_retain_representable_prices() {
         for (spot, sigma) in [(100.0, 1e-170), (1e160, 1e-160), (1e300, 1e-200)] {
             for window in 0..3 {
                 let at = if window == 2 {
-                    Date::new(2025, 5, 1).unwrap()
+                    Date::new(2025, 5, 1).unwrap().start_of_day()
                 } else {
                     start
                 };
                 let averaging = if window == 1 {
-                    Date::new(2025, 5, 1).unwrap()
+                    Date::new(2025, 5, 1).unwrap().start_of_day()
                 } else {
                     start
                 };
@@ -485,7 +489,7 @@ fn tiny_variances_and_scaled_normal_tails_retain_representable_prices() {
                 let context = PricingContext::new(
                     BlackScholesMertonParameters::new(0.0, 0.0, sigma).unwrap(),
                     spot,
-                    at.into(),
+                    at,
                 )
                 .unwrap();
                 let realized = if window == 2 { spot } else { 0.0 };
@@ -519,7 +523,7 @@ fn tiny_variances_and_scaled_normal_tails_retain_representable_prices() {
             let context = PricingContext::new(
                 BlackScholesMertonParameters::new(0.04, 0.01, 0.4).unwrap(),
                 spot,
-                start.into(),
+                start,
             )
             .unwrap();
             let geometric =
@@ -574,12 +578,12 @@ fn arithmetic_affine_cashflows_and_adjusted_strike_overflow_keep_original_payoff
         (1, 1e-300, -750.0, -750.0, 0.25, 3.943_870_906_091_103e25),
         (1, 100.0, 0.04, 0.01, 0.5, 48.767_324_328_074_74),
     ] {
-        let at = Date::new(2025 + elapsed, 1, 1).unwrap();
-        let end = Date::new(2026 + elapsed, 1, 1).unwrap();
+        let at = Date::new(2025 + elapsed, 1, 1).unwrap().start_of_day();
+        let end = Date::new(2026 + elapsed, 1, 1).unwrap().start_of_day();
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(rate, dividend, 0.2).unwrap(),
             amount,
-            at.into(),
+            at,
         )
         .unwrap();
         for direction in [OptionType::Call, OptionType::Put] {
@@ -600,9 +604,9 @@ fn arithmetic_affine_cashflows_and_adjusted_strike_overflow_keep_original_payoff
             }
         }
     }
-    let end = Date::new(2026, 1, 1).unwrap();
-    let effective = Date::new(2023, 1, 1).unwrap();
-    for at in [start, Date::new(2025, 12, 31).unwrap()] {
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
+    let effective = Date::new(2023, 1, 1).unwrap().start_of_day();
+    for at in [start, Date::new(2025, 12, 31).unwrap().start_of_day()] {
         for sigma in [f64::from_bits(1), 1e-200, 1e-6, 0.2, 1.0] {
             for rate in [-0.05, 0.0, 0.05] {
                 for direction in [OptionType::Call, OptionType::Put] {
@@ -619,7 +623,7 @@ fn arithmetic_affine_cashflows_and_adjusted_strike_overflow_keep_original_payoff
                         let context = PricingContext::new(
                             BlackScholesMertonParameters::new(rate, rate, sigma).unwrap(),
                             50.0 * scale,
-                            at.into(),
+                            at,
                         )
                         .unwrap();
                         engine.price(&option, &context).unwrap() / scale
@@ -643,7 +647,7 @@ fn single_fixing_preserves_independent_asset_discount_at_extreme_rates() {
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(1e16, 0.02, 0.2).unwrap(),
         100.0,
-        start.into(),
+        start,
     )
     .unwrap();
     let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
@@ -674,7 +678,7 @@ fn non_finite_small_volatility_moments_report_computation_failure() {
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(400.0, 0.0, sigma).unwrap(),
             100.0,
-            start.into(),
+            start,
         )
         .unwrap();
         assert!(matches!(

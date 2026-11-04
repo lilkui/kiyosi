@@ -1,20 +1,20 @@
 use kiyosi::*;
 
-fn dates() -> (Date, Date) {
+fn dates() -> (Timestamp, Timestamp) {
     (
-        Date::new(2025, 1, 1).unwrap(),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
     )
 }
 fn surface(values: Vec<Vec<f64>>) -> LocalVolatilitySurface {
     let (a, b) = dates();
-    LocalVolatilitySurface::new(vec![a.into(), b.into()], vec![80.0, 120.0], values).unwrap()
+    LocalVolatilitySurface::new(vec![a, b], vec![80.0, 120.0], values).unwrap()
 }
 fn context(surface: LocalVolatilitySurface) -> PricingContext {
     PricingContext::new(
         LocalVolatilityParameters::new(0.05, 0.02, surface).unwrap(),
         100.0,
-        dates().0.into(),
+        dates().0,
     )
     .unwrap()
 }
@@ -47,22 +47,19 @@ fn surface_interpolates_sigma_and_flat_price_tails_without_time_extrapolation() 
         (b, 80.0, 0.4),
         (b, 120.0, 0.8),
     ] {
-        close(s.volatility(time.into(), spot).unwrap(), expected, 1e-14);
+        close(s.volatility(time, spot).unwrap(), expected, 1e-14);
     }
     for time in [
-        Date::new(2024, 12, 31).unwrap(),
-        Date::new(2026, 1, 2).unwrap(),
+        Date::new(2024, 12, 31).unwrap().start_of_day(),
+        Date::new(2026, 1, 2).unwrap().start_of_day(),
     ] {
         assert!(matches!(
-            s.volatility(time.into(), 100.0),
+            s.volatility(time, 100.0),
             Err(Error::InvalidInput(_))
         ));
     }
     for spot in [0.0, -1.0, f64::NAN, f64::INFINITY] {
-        assert!(matches!(
-            s.volatility(a.into(), spot),
-            Err(Error::InvalidInput(_))
-        ));
+        assert!(matches!(s.volatility(a, spot), Err(Error::InvalidInput(_))));
     }
     assert_eq!(s.maximum_volatility(), 0.8);
     assert_eq!(
@@ -74,20 +71,12 @@ fn surface_interpolates_sigma_and_flat_price_tails_without_time_extrapolation() 
 #[test]
 fn invalid_table_partitions_are_rejected() {
     let (a, b) = dates();
-    let valid_times = vec![a.into(), b.into()];
+    let valid_times = vec![a, b];
     for (times, spots, values) in [
         (vec![], vec![80.0, 120.0], vec![]),
-        (vec![a.into()], vec![80.0, 120.0], vec![vec![0.2, 0.2]]),
-        (
-            vec![b.into(), a.into()],
-            vec![80.0, 120.0],
-            vec![vec![0.2; 2]; 2],
-        ),
-        (
-            vec![a.into(), a.into()],
-            vec![80.0, 120.0],
-            vec![vec![0.2; 2]; 2],
-        ),
+        (vec![a], vec![80.0, 120.0], vec![vec![0.2, 0.2]]),
+        (vec![b, a], vec![80.0, 120.0], vec![vec![0.2; 2]; 2]),
+        (vec![a, a], vec![80.0, 120.0], vec![vec![0.2; 2]; 2]),
         (valid_times.clone(), vec![80.0], vec![vec![0.2]; 2]),
         (
             valid_times.clone(),
@@ -129,7 +118,7 @@ fn interpolation_preserves_extreme_positive_constant_surfaces() {
         let s = surface(vec![vec![value; 2]; 2]);
         for spot in [80.0, 90.0, 100.0, 110.0, 140.0] {
             assert_eq!(
-                s.volatility(Date::new(2025, 7, 2).unwrap().into(), spot)
+                s.volatility(Date::new(2025, 7, 2).unwrap().start_of_day(), spot)
                     .unwrap(),
                 value
             );
@@ -154,7 +143,7 @@ fn context_replacement_checks_coverage_and_preserves_absolute_surface() {
     let later = c
         .replace(PricingContextChanges {
             spot_price: Some(140.0),
-            valuation_time: Some(Date::new(2025, 1, 2).unwrap().into()),
+            valuation_time: Some(Date::new(2025, 1, 2).unwrap().start_of_day()),
             ..Default::default()
         })
         .unwrap();
@@ -162,13 +151,13 @@ fn context_replacement_checks_coverage_and_preserves_absolute_surface() {
     assert_eq!(c.spot_price(), 100.0);
     assert!(matches!(
         c.replace(PricingContextChanges {
-            valuation_time: Some(Date::new(2026, 1, 2).unwrap().into()),
+            valuation_time: Some(Date::new(2026, 1, 2).unwrap().start_of_day()),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
     ));
     close(
-        m.surface().volatility(dates().0.into(), 100.0).unwrap(),
+        m.surface().volatility(dates().0, 100.0).unwrap(),
         0.3,
         1e-14,
     );
@@ -192,10 +181,10 @@ fn automatic_domains_ignore_surface_outside_remaining_horizon() {
     for (past, future) in [(1.5, 0.2), (0.2, 1.5), (1.5, 1.5)] {
         let extended = LocalVolatilitySurface::new(
             vec![
-                Date::new(2024, 1, 1).unwrap().into(),
-                start.into(),
-                end.into(),
-                Date::new(2030, 1, 1).unwrap().into(),
+                Date::new(2024, 1, 1).unwrap().start_of_day(),
+                start,
+                end,
+                Date::new(2030, 1, 1).unwrap().start_of_day(),
             ],
             vec![80.0, 120.0],
             vec![vec![past; 2], vec![0.2; 2], vec![0.2; 2], vec![future; 2]],
@@ -221,8 +210,8 @@ fn automatic_domains_preserve_interpolated_endpoint_volatility() {
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     let extended = LocalVolatilitySurface::new(
         vec![
-            Date::new(2024, 1, 2).unwrap().into(),
-            Date::new(2027, 1, 1).unwrap().into(),
+            Date::new(2024, 1, 2).unwrap().start_of_day(),
+            Date::new(2027, 1, 1).unwrap().start_of_day(),
         ],
         vec![80.0, 120.0],
         vec![vec![0.2; 2], vec![0.8; 2]],
@@ -243,7 +232,7 @@ fn constant_surface_matches_bsm_prices_and_native_greeks() {
     let bsm = PricingContext::new(
         BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap(),
         100.0,
-        dates().0.into(),
+        dates().0,
     )
     .unwrap();
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
@@ -277,14 +266,14 @@ fn constant_surface_matches_bsm_prices_and_native_greeks() {
 #[test]
 fn time_varying_sigma_matches_independently_integrated_variance() {
     let (a, b) = dates();
-    let mid = Date::new(2025, 7, 2).unwrap();
+    let mid = Date::new(2025, 7, 2).unwrap().start_of_day();
     let values = [0.15_f64, 0.35, 0.25];
     let variance = ((0.15_f64.powi(2) + 0.15 * 0.35 + 0.35_f64.powi(2)) * 182.0
         + (0.35_f64.powi(2) + 0.35 * 0.25 + 0.25_f64.powi(2)) * 183.0)
         / 3.0
         / 365.0;
     let s = LocalVolatilitySurface::new(
-        vec![a.into(), mid.into(), b.into()],
+        vec![a, mid, b],
         vec![80.0, 120.0],
         values.iter().map(|&v| vec![v; 2]).collect(),
     )
@@ -293,7 +282,7 @@ fn time_varying_sigma_matches_independently_integrated_variance() {
     let expected = PricingContext::new(
         BlackScholesMertonParameters::new(0.05, 0.02, variance.sqrt()).unwrap(),
         100.0,
-        a.into(),
+        a,
     )
     .unwrap();
     for direction in [OptionType::Call, OptionType::Put] {
@@ -306,7 +295,7 @@ fn time_varying_sigma_matches_independently_integrated_variance() {
     }
     let rolled = c
         .replace(PricingContextChanges {
-            valuation_time: Some(mid.into()),
+            valuation_time: Some(mid),
             ..Default::default()
         })
         .unwrap();
@@ -314,7 +303,7 @@ fn time_varying_sigma_matches_independently_integrated_variance() {
     let reference = PricingContext::new(
         BlackScholesMertonParameters::new(0.05, 0.02, remaining_sigma).unwrap(),
         100.0,
-        mid.into(),
+        mid,
     )
     .unwrap();
     let option = EuropeanOption::new(OptionType::Call, 100.0, a, b).unwrap();
@@ -374,7 +363,7 @@ fn unsupported_models_requests_and_solves_fail_even_at_expiry() {
     for c in [
         c.clone(),
         c.replace(PricingContextChanges {
-            valuation_time: Some(dates().1.into()),
+            valuation_time: Some(dates().1),
             ..Default::default()
         })
         .unwrap(),
@@ -431,7 +420,7 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
         let bsm = PricingContext::new(
             BlackScholesMertonParameters::new(r, q, 0.2).unwrap(),
             100.0,
-            dates().0.into(),
+            dates().0,
         )
         .unwrap();
         let local = bsm
@@ -489,7 +478,7 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
                 );
                 let terminal = local
                     .replace(PricingContextChanges {
-                        valuation_time: Some(dates().1.into()),
+                        valuation_time: Some(dates().1),
                         spot_price: Some(110.0),
                         ..Default::default()
                     })
@@ -520,7 +509,7 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
             }
             let terminal = local
                 .replace(PricingContextChanges {
-                    valuation_time: Some(dates().1.into()),
+                    valuation_time: Some(dates().1),
                     spot_price: Some(110.0),
                     ..Default::default()
                 })
@@ -556,11 +545,10 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
 
 #[test]
 fn local_digital_keeps_flat_rate_restriction_before_terminal_shortcuts() {
-    let curve =
-        RateTermStructure::new(dates().0.into(), vec![dates().1.into()], vec![0.95]).unwrap();
+    let curve = RateTermStructure::new(dates().0, vec![dates().1], vec![0.95]).unwrap();
     let model =
         LocalVolatilityParameters::new(curve, 0.02, surface(vec![vec![0.2; 2]; 2])).unwrap();
-    let c = PricingContext::new(model, 110.0, dates().1.into()).unwrap();
+    let c = PricingContext::new(model, 110.0, dates().1).unwrap();
     let option =
         DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, dates().0, dates().1)
             .unwrap();
@@ -584,12 +572,12 @@ fn every_fd_engine_keeps_schemes_coverage_and_explicit_stability_contracts() {
     let bsm = PricingContext::new(
         BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap(),
         100.0,
-        start.into(),
+        start,
     )
     .unwrap();
     let short = context(
         LocalVolatilitySurface::new(
-            vec![start.into(), Date::new(2025, 1, 2).unwrap().into()],
+            vec![start, Date::new(2025, 1, 2).unwrap().start_of_day()],
             vec![80.0, 120.0],
             vec![vec![0.2; 2]; 2],
         )
@@ -761,7 +749,7 @@ fn fd_expiry_coverage_stability_and_numerical_errors_are_explicit() {
     let option = EuropeanOption::new(OptionType::Call, 100.0, dates().0, dates().1).unwrap();
     let at_expiry = c
         .replace(PricingContextChanges {
-            valuation_time: Some(dates().1.into()),
+            valuation_time: Some(dates().1),
             spot_price: Some(110.0),
             ..Default::default()
         })
@@ -781,7 +769,7 @@ fn fd_expiry_coverage_stability_and_numerical_errors_are_explicit() {
         OptionType::Call,
         100.0,
         dates().0,
-        Date::new(2026, 1, 2).unwrap(),
+        Date::new(2026, 1, 2).unwrap().start_of_day(),
     )
     .unwrap();
     assert!(matches!(
@@ -828,12 +816,12 @@ fn all_existing_schemes_support_local_volatility() {
 
 #[test]
 fn short_maturity_prices_and_greeks_match_bsm() {
-    let end = Date::new(2025, 1, 2).unwrap();
+    let end = Date::new(2025, 1, 2).unwrap().start_of_day();
     let c = context(surface(vec![vec![0.2; 2]; 2]));
     let bsm = PricingContext::new(
         BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap(),
         100.0,
-        dates().0.into(),
+        dates().0,
     )
     .unwrap();
     let option = EuropeanOption::new(OptionType::Call, 100.0, dates().0, end).unwrap();

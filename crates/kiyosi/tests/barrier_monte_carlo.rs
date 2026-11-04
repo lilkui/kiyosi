@@ -1,14 +1,14 @@
 use kiyosi::*;
 
-fn day(month: u32, date: u32) -> Date {
-    Date::new(2025, month, date).unwrap()
+fn day(month: u32, date: u32) -> Timestamp {
+    Date::new(2025, month, date).unwrap().start_of_day()
 }
 fn terms(kind: BarrierType, direction: OptionType) -> BarrierOptionTerms {
     BarrierOptionTerms::new(
         direction,
         100.0,
         day(1, 1),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
         if matches!(kind, BarrierType::UpAndIn | BarrierType::UpAndOut) {
             120.0
         } else {
@@ -21,7 +21,7 @@ fn market(rate: f64) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(rate, 0.01, 0.2).unwrap(),
         100.0,
-        day(1, 1).into(),
+        day(1, 1),
     )
     .unwrap()
 }
@@ -45,7 +45,7 @@ fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(0.04, 0.01, 1.0).unwrap(),
             spot,
-            day(1, 1).into(),
+            day(1, 1),
         )
         .unwrap();
         let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
@@ -105,7 +105,7 @@ fn tiny_volatility_payoffs_match_the_vanilla_limit() {
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(0.0, 0.0, sigma).unwrap(),
             spot,
-            day(1, 1).into(),
+            day(1, 1),
         )
         .unwrap();
         let expected = spot * sigma / std::f64::consts::TAU.sqrt();
@@ -116,7 +116,7 @@ fn tiny_volatility_payoffs_match_the_vanilla_limit() {
                 t.barrier_level = 0.8 * spot;
                 t.observation_mode = mode;
                 if mode == ObservationMode::Scheduled {
-                    t.observation_dates = vec![t.expiry_date];
+                    t.observation_times = vec![t.expiry_time];
                 }
                 let option = BarrierOption::new(t).unwrap();
                 let actual = engine.price(&option, &context).unwrap();
@@ -234,9 +234,9 @@ fn scheduled_likelihood_greeks_and_early_monitoring_match_quadrature() {
             let mut t = terms(kind, OptionType::Put);
             t.rebate = 2.0;
             t.observation_mode = ObservationMode::Scheduled;
-            t.observation_dates = vec![day(4, 1), day(7, 1)];
+            t.observation_times = vec![day(4, 1), day(7, 1)];
             if !early {
-                t.observation_dates.push(t.expiry_date);
+                t.observation_times.push(t.expiry_time);
             }
             let option = BarrierOption::new(t).unwrap();
             let actual = engine
@@ -339,7 +339,7 @@ fn threads_do_not_change_samples_even_with_early_exit_and_pairing() {
         t.rebate_timing = RebateTiming::AtHit;
         if scheduled {
             t.observation_mode = ObservationMode::Scheduled;
-            t.observation_dates = vec![day(4, 1), day(7, 1)];
+            t.observation_times = vec![day(4, 1), day(7, 1)];
         }
         let option = BarrierOption::new(t).unwrap();
         let context = market(0.04);
@@ -393,7 +393,7 @@ fn odd_antithetic_counts_keep_in_out_parity_with_the_terminal_sampler() {
         OptionType::Call,
         100.0,
         day(1, 1),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
     )
     .unwrap();
     let inside = BarrierOption::new(terms(BarrierType::DownAndIn, OptionType::Call)).unwrap();
@@ -452,7 +452,7 @@ fn solver_replays_request_samples_and_rejects_fixed_cashflows() {
     );
     let later = context
         .replace(PricingContextChanges {
-            valuation_time: Some(day(1, 2).into()),
+            valuation_time: Some(day(1, 2)),
             ..Default::default()
         })
         .unwrap();
@@ -503,7 +503,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
             assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
             let later = context
                 .replace(PricingContextChanges {
-                    valuation_time: Some(Timestamp::new(day(1, 1), 0, 0, 0, 1).unwrap()),
+                    valuation_time: Some(Timestamp::new(day(1, 1).date(), 0, 0, 0, 1).unwrap()),
                     ..Default::default()
                 })
                 .unwrap();
@@ -522,7 +522,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
             );
             let expired = context
                 .replace(PricingContextChanges {
-                    valuation_time: Some(t.expiry_date.into()),
+                    valuation_time: Some(t.expiry_time),
                     ..Default::default()
                 })
                 .unwrap();
@@ -543,11 +543,11 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                 assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
             }
             t.observation_mode = ObservationMode::Scheduled;
-            t.observation_dates = vec![day(4, 1)];
+            t.observation_times = vec![day(4, 1)];
             let scheduled = BarrierOption::new(t.clone()).unwrap();
             let on_date = context
                 .replace(PricingContextChanges {
-                    valuation_time: Some(day(4, 1).into()),
+                    valuation_time: Some(day(4, 1)),
                     ..Default::default()
                 })
                 .unwrap();
@@ -557,7 +557,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
             );
             let after = on_date
                 .replace(PricingContextChanges {
-                    valuation_time: Some(Timestamp::new(day(4, 1), 0, 0, 0, 1).unwrap()),
+                    valuation_time: Some(Timestamp::new(day(4, 1).date(), 0, 0, 0, 1).unwrap()),
                     ..Default::default()
                 })
                 .unwrap();
@@ -582,7 +582,7 @@ fn scheduled_hit_rebates_use_fixing_discount_and_expiry_is_not_an_extra_fixing()
     let context = market(0.04);
     let mut t = terms(BarrierType::UpAndOut, OptionType::Put);
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = vec![day(7, 1)];
+    t.observation_times = vec![day(7, 1)];
     t.rebate = 10.0;
     t.rebate_timing = RebateTiming::AtHit;
     let with_rebate = BarrierOption::new(t.clone()).unwrap();
@@ -596,7 +596,7 @@ fn scheduled_hit_rebates_use_fixing_discount_and_expiry_is_not_an_extra_fixing()
     assert!((difference - 10.0 * (-0.04 * time).exp() * probability).abs() < 0.025);
     let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = vec![day(4, 1)];
+    t.observation_times = vec![day(4, 1)];
     t.strike = 130.0;
     // The payoff would require a touch if expiry were silently added to the schedule.
     let early = BarrierOption::new(t).unwrap();
@@ -652,8 +652,8 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
     let option = BarrierOption::new(terms(BarrierType::DownAndOut, OptionType::Call)).unwrap();
     let quote = engine.price(&option, &context).unwrap();
     let curve = RateTermStructure::new(
-        day(1, 1).into(),
-        vec![option.expiry_date().into()],
+        day(1, 1),
+        vec![option.expiry_time()],
         vec![(-0.04_f64).exp()],
     )
     .unwrap();
@@ -694,7 +694,7 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
     }
     let outside = context
         .replace(PricingContextChanges {
-            valuation_time: Some(Timestamp::new(option.expiry_date(), 0, 0, 0, 1).unwrap()),
+            valuation_time: Some(Timestamp::new(option.expiry_time().date(), 0, 0, 0, 1).unwrap()),
             ..Default::default()
         })
         .unwrap();
@@ -704,7 +704,7 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
     ));
     let mut t = terms(BarrierType::DownAndOut, OptionType::Call);
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = vec![day(1, 4)];
+    t.observation_times = vec![day(1, 4)];
     assert!(matches!(
         engine
             .price(&BarrierOption::new(t).unwrap(), &context)
@@ -766,7 +766,7 @@ fn rare_hit_samples_retain_scaled_value_and_unrequested_greeks_do_not_fail_price
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.5, 0.0, 1.0).unwrap(),
         1e300,
-        day(1, 1).into(),
+        day(1, 1),
     )
     .unwrap();
     assert!(engine.price(&option, &context).unwrap() > 0.0);
@@ -774,7 +774,7 @@ fn rare_hit_samples_retain_scaled_value_and_unrequested_greeks_do_not_fail_price
     let tiny = PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.01, 1e-200).unwrap(),
         100.0,
-        day(1, 1).into(),
+        day(1, 1),
     )
     .unwrap();
     let price = engine.price(&option, &tiny).unwrap();
@@ -806,12 +806,13 @@ fn rare_hit_samples_retain_scaled_value_and_unrequested_greeks_do_not_fail_price
 #[test]
 fn sobol_dimensions_count_fixings_and_unobserved_expiry_leg() {
     let mut t = terms(BarrierType::UpAndOut, OptionType::Put);
-    t.expiry_date = Date::new(2100, 1, 1).unwrap();
+    t.expiry_time = Date::new(2100, 1, 1).unwrap().start_of_day();
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = (2025..2100)
+    t.observation_times = (2025..2100)
         .flat_map(|year| {
-            (1..=12)
-                .flat_map(move |month| (1..=28).map(move |d| Date::new(year, month, d).unwrap()))
+            (1..=12).flat_map(move |month| {
+                (1..=28).map(move |d| Date::new(year, month, d).unwrap().start_of_day())
+            })
         })
         .filter(|d| *d > day(1, 1))
         .take(21201)
@@ -820,7 +821,7 @@ fn sobol_dimensions_count_fixings_and_unobserved_expiry_leg() {
     let context = PricingContext::with_calendar(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.2).unwrap(),
         100.0,
-        day(1, 1).into(),
+        day(1, 1),
         TradingCalendar::all_days(),
     )
     .unwrap();

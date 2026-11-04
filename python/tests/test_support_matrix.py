@@ -1,7 +1,7 @@
 """CPU product/engine dispatch and terminal contracts through the public API."""
 
 import unittest
-from datetime import date
+from datetime import datetime
 
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
 from kiyosi import instruments as ins
@@ -19,7 +19,10 @@ HESTON_ENGINES = (
 
 
 def terminal_cases():
-    dates = {"effective_date": date(2025, 1, 1), "expiry_date": date(2026, 1, 1)}
+    dates = {
+        "effective_time": datetime(2025, 1, 1),
+        "expiry_time": datetime(2026, 1, 1),
+    }
     vanilla = dict(dates, option_type="call", strike=100)
     barrier = dict(
         vanilla, barrier_type="up_and_out", barrier_level=120, touch_state="untouched"
@@ -96,7 +99,7 @@ def terminal_cases():
         (
             ins.GeometricAveragePriceOption(
                 **vanilla,
-                averaging_start_date=dates["effective_date"],
+                averaging_start_time=dates["effective_time"],
                 realized_average=110,
             ),
             ("AnalyticGeometricAveragePriceEngine", "MonteCarloAsianEngine"),
@@ -105,7 +108,7 @@ def terminal_cases():
         (
             ins.ArithmeticAveragePriceOption(
                 **vanilla,
-                averaging_start_date=dates["effective_date"],
+                averaging_start_time=dates["effective_time"],
                 realized_average=110,
             ),
             ("TurnbullWakemanArithmeticAveragePriceEngine", "MonteCarloAsianEngine"),
@@ -177,7 +180,7 @@ def terminal_cases():
     common = dict(
         dates,
         observations=ins.autocallable_observations(
-            [dates["expiry_date"]], [120], knock_out_coupon_rates=[0.08]
+            [dates["expiry_time"]], [120], knock_out_coupon_rates=[0.08]
         ),
     )
     loss = {
@@ -218,7 +221,7 @@ def terminal_cases():
                     **loss,
                     coupon_rate=0.08,
                     observations=ins.autocallable_observations(
-                        [dates["expiry_date"]], [120], coupon_barrier_levels=[90]
+                        [dates["expiry_time"]], [120], coupon_barrier_levels=[90]
                     ),
                 ),
                 notes,
@@ -243,7 +246,7 @@ class SupportMatrixTests(unittest.TestCase):
                 risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
             ),
             spot_price=105,
-            valuation_time=date(2026, 1, 1),
+            valuation_time=datetime(2026, 1, 1),
             calendar=all_days_calendar(),
         )
 
@@ -289,7 +292,7 @@ class SupportMatrixTests(unittest.TestCase):
         for instrument, supported, _ in self.cases:
             for name in supported:
                 expired = self.context_for(name).replace(
-                    valuation_time=date(2026, 1, 2)
+                    valuation_time=datetime(2026, 1, 2)
                 )
                 engine = self.engines[name]
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
@@ -301,7 +304,7 @@ class SupportMatrixTests(unittest.TestCase):
                         else InvalidInputError
                     ):
                         pricing.implied_volatility(engine, instrument, expired, 1)
-        self.assertEqual(self.context.valuation_time.date(), date(2026, 1, 1))
+        self.assertEqual(self.context.valuation_time, datetime(2026, 1, 1))
 
     def test_solver_rejects_unregistered_engine_representations(self):
         instrument = self.cases[0][0]

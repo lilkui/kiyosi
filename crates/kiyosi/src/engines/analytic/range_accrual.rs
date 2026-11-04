@@ -51,9 +51,9 @@ impl AnalyticRangeAccrualEngine {
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
     /// let option = RangeAccrualOption::new(RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
-    ///     Date::new(2025, 1, 1)?, Date::new(2025, 1, 3)?))?.replace_history(Some(1))?;
+    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 3)?.start_of_day()))?.replace_history(Some(1))?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
-    ///     95.0, option.expiry_date().into())?;
+    ///     95.0, option.expiry_time().into())?;
     /// assert!((AnalyticRangeAccrualEngine.price(&option, &context)? - 240.0 / 365.0).abs() < 1e-12);
     /// # Ok(()) }
     /// ```
@@ -65,21 +65,24 @@ impl AnalyticRangeAccrualEngine {
     pub fn price(&self, option: &RangeAccrualOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         let valuation = context.valuation_time();
-        let expiry = option.expiry_date().start_of_day();
+        let expiry = option.expiry_time();
         if valuation > expiry {
             return Err(Error::InvalidInput("valuation is after expiry".into()));
         }
-        if !context.calendar().is_trading_day(option.expiry_date()) {
+        if !context
+            .calendar()
+            .is_trading_day(option.expiry_time().date())
+        {
             return Err(Error::InvalidInput("expiry must be a trading day".into()));
         }
-        let schedule = ObservationSchedule::fixed_interval(
-            option.effective_date(),
-            option.expiry_date(),
-            1,
+        let schedule = ObservationSchedule::daily(
+            option.effective_time(),
+            option.expiry_time(),
             context.calendar(),
+            false,
         )?;
-        let dates = schedule.dates();
-        let first = dates.partition_point(|date| date.start_of_day() < valuation);
+        let dates = schedule.times();
+        let first = dates.partition_point(|date| *date < valuation);
         if (first != 0 && option.realized_hit_count().is_none())
             || option.realized_hit_count().unwrap_or(0) as usize > first
         {
@@ -89,10 +92,7 @@ impl AnalyticRangeAccrualEngine {
         }
         let mut hits = f64::from(option.realized_hit_count().unwrap_or(0));
         let mut future = first;
-        if dates
-            .get(future)
-            .is_some_and(|date| date.start_of_day() == valuation)
-        {
+        if dates.get(future).is_some_and(|date| *date == valuation) {
             hits += f64::from(
                 option.lower_bound() <= context.spot_price()
                     && context.spot_price() <= option.upper_bound(),
@@ -102,7 +102,7 @@ impl AnalyticRangeAccrualEngine {
         if option.annual_coupon_rate() == 0.0 {
             return Ok(0.0);
         }
-        let term = option.effective_date().start_of_day().years_until(expiry);
+        let term = option.effective_time().years_until(expiry);
         let mut scale = option.notional().ln() + option.annual_coupon_rate().ln() + term.ln()
             - (dates.len() as f64).ln();
         let model = context.bsm_parameters()?;
@@ -125,14 +125,10 @@ impl AnalyticRangeAccrualEngine {
         let mut value = Sum::default();
         value.add(scaled_cash(hits, scale));
         for date in &dates[future..] {
-            let time = valuation.years_until(date.start_of_day());
+            let time = valuation.years_until(*date);
             let volatility = model.volatility();
-            let drift = -model
-                .risk_free_curve()
-                .log_factor(valuation, date.start_of_day())?
-                + model
-                    .dividend_curve()
-                    .log_factor(valuation, date.start_of_day())?
+            let drift = -model.risk_free_curve().log_factor(valuation, *date)?
+                + model.dividend_curve().log_factor(valuation, *date)?
                 - 0.5 * volatility * volatility * time;
             let root = time.sqrt();
             if !drift.is_finite() || !(volatility * root).is_finite() {
@@ -160,7 +156,6 @@ impl PricingEngine<RangeAccrualOption> for AnalyticRangeAccrualEngine {
         option: &RangeAccrualOption,
         context: &PricingContext,
     ) -> bool {
-        option.annual_coupon_rate() != 0.0
-            && context.valuation_time() < option.expiry_date().start_of_day()
+        option.annual_coupon_rate() != 0.0 && context.valuation_time() < option.expiry_time()
     }
 }

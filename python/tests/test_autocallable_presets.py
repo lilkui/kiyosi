@@ -1,10 +1,10 @@
 """FCN/DCN coupon units and staged snowballs through the public Python API."""
 
-import datetime
+import datetime as datetime_module
 import inspect
 import math
 import unittest
-from datetime import date
+from datetime import UTC, datetime
 
 from kiyosi import InvalidInputError
 from kiyosi.instruments import (
@@ -24,7 +24,7 @@ from kiyosi.pricing import (
 )
 from test_snowball import market
 
-START, MIDDLE, END = date(2025, 1, 1), date(2025, 2, 3), date(2025, 4, 1)
+START, MIDDLE, END = datetime(2025, 1, 1), datetime(2025, 2, 3), datetime(2025, 4, 1)
 
 
 def terms(**changes):
@@ -32,9 +32,9 @@ def terms(**changes):
         "initial_spot": 100,
         "knock_in_level": 80,
         "knock_out_level": 110,
-        "observation_dates": [MIDDLE, END],
-        "effective_date": START,
-        "expiry_date": END,
+        "observation_times": [MIDDLE, END],
+        "effective_time": START,
+        "expiry_time": END,
     }
     fields.update(changes)
     return fields
@@ -47,8 +47,8 @@ def phoenix_fields(**changes):
         "upper_strike": 80,
         "lower_strike": 0,
         "knock_in_observation_mode": "at_expiry",
-        "effective_date": START,
-        "expiry_date": END,
+        "effective_time": START,
+        "expiry_time": END,
         "barrier_state": "no_event",
         "observations": autocallable_observations([MIDDLE, END], [110, 110]),
     }
@@ -72,7 +72,7 @@ class AutocallablePresetTests(unittest.TestCase):
         ):
             dates = [MIDDLE, END]
             note = factory(
-                coupon_per_period=0.01, **terms(observation_dates=dates), **extra
+                coupon_per_period=0.01, **terms(observation_times=dates), **extra
             )
             expected = PhoenixOption(
                 coupon_per_period=0.01,
@@ -93,7 +93,7 @@ class AutocallablePresetTests(unittest.TestCase):
             self.assertIsNone(note.barrier_state)
             self.assertEqual(note.principal_ratio, 1)
             dates.clear()
-            self.assertEqual(note.observation_dates, [MIDDLE, END])
+            self.assertEqual(note.observation_times, [MIDDLE, END])
             self.assertEqual(
                 note.replace_history(barrier_state="no_event").coupon_per_period, 0.01
             )
@@ -122,7 +122,7 @@ class AutocallablePresetTests(unittest.TestCase):
                 eval(
                     repr(note),
                     {
-                        "datetime": datetime,
+                        "datetime": datetime_module,
                         "PhoenixOption": PhoenixOption,
                         "AutocallableObservation": AutocallableObservation,
                     },
@@ -206,7 +206,7 @@ class AutocallablePresetTests(unittest.TestCase):
                         engine.price(note, context), expected, places=9
                     )
                     after = market(
-                        spot, date(2025, 2, 4), rate=0, dividend=0, volatility=1e-8
+                        spot, datetime(2025, 2, 4), rate=0, dividend=0, volatility=1e-8
                     )
                     remaining = expected - (
                         0.01 if factory is fixed_coupon_note or spot >= 90 else 0
@@ -246,12 +246,21 @@ class AutocallablePresetTests(unittest.TestCase):
                 self.assertIsNone(note.coupon_rate)
 
     def test_staged_snowballs_use_inclusive_cutoffs_and_whole_holding_coupons(self):
-        dates = [MIDDLE, date(2025, 2, 4), date(2025, 3, 3), date(2025, 3, 4), END]
+        dates = [
+            MIDDLE,
+            datetime(2025, 2, 4),
+            datetime(2025, 3, 3),
+            datetime(2025, 3, 4),
+            END,
+        ]
         cases = (
             (early_profit_snowball, {}, [0.2, 0.05, 0.05, 0.05, 0.05]),
             (
                 butterfly_snowball,
-                {"third_coupon_rate": -0.02, "second_stage_end_date": date(2025, 3, 3)},
+                {
+                    "third_coupon_rate": -0.02,
+                    "second_stage_end_time": datetime(2025, 3, 3),
+                },
                 [0.2, 0.05, 0.05, -0.02, -0.02],
             ),
         )
@@ -259,8 +268,8 @@ class AutocallablePresetTests(unittest.TestCase):
             note = factory(
                 first_coupon_rate=0.2,
                 second_coupon_rate=0.05,
-                first_stage_end_date=MIDDLE,
-                **terms(observation_dates=dates, barrier_state="no_event"),
+                first_stage_end_time=MIDDLE,
+                **terms(observation_times=dates, barrier_state="no_event"),
                 **extra,
             )
             self.assertEqual(note.knock_out_coupon_rates, rates)
@@ -280,31 +289,31 @@ class AutocallablePresetTests(unittest.TestCase):
         fields = {
             "first_coupon_rate": 0.2,
             "second_coupon_rate": -0.02,
-            "first_stage_end_date": date(2025, 2, 1),
+            "first_stage_end_time": datetime(2025, 2, 1),
         }
-        note = early_profit_snowball(**fields, **terms(observation_dates=[END]))
+        note = early_profit_snowball(**fields, **terms(observation_times=[END]))
         self.assertEqual(note.knock_out_coupon_rates, [-0.02])
         increasing = butterfly_snowball(
             first_coupon_rate=-0.02,
             second_coupon_rate=0,
             third_coupon_rate=0.2,
-            first_stage_end_date=date(2025, 2, 1),
-            second_stage_end_date=date(2025, 3, 1),
+            first_stage_end_time=datetime(2025, 2, 1),
+            second_stage_end_time=datetime(2025, 3, 1),
             **terms(),
         )
         self.assertEqual(increasing.knock_out_coupon_rates, [0, 0.2])
         self.assertEqual(increasing.maturity_coupon_rate, 0.2)
-        for cutoff in (date(2024, 12, 31), END, date(2025, 4, 2)):
+        for cutoff in (datetime(2024, 12, 31), END, datetime(2025, 4, 2)):
             with self.assertRaises(InvalidInputError):
                 early_profit_snowball(
-                    **(fields | {"first_stage_end_date": cutoff}), **terms()
+                    **(fields | {"first_stage_end_time": cutoff}), **terms()
                 )
-        for cutoff in (date(2025, 1, 31), date(2025, 2, 1), END):
+        for cutoff in (datetime(2025, 1, 31), datetime(2025, 2, 1), END):
             with self.assertRaises(InvalidInputError):
                 butterfly_snowball(
                     **fields,
                     third_coupon_rate=0.01,
-                    second_stage_end_date=cutoff,
+                    second_stage_end_time=cutoff,
                     **terms(),
                 )
         for key in ("first_coupon_rate", "second_coupon_rate"):
@@ -314,20 +323,20 @@ class AutocallablePresetTests(unittest.TestCase):
                     self.assertRaises(InvalidInputError),
                 ):
                     early_profit_snowball(
-                        **(fields | {key: value}), **terms(observation_dates=[END])
+                        **(fields | {key: value}), **terms(observation_times=[END])
                     )
         for value in (math.nan, math.inf, -math.inf):
             with self.assertRaises(InvalidInputError):
                 butterfly_snowball(
                     **fields,
                     third_coupon_rate=value,
-                    second_stage_end_date=date(2025, 3, 1),
+                    second_stage_end_time=datetime(2025, 3, 1),
                     **terms(),
                 )
-        for value in (True, "2025-02-01", datetime.datetime(2025, 2, 1)):
+        for value in (True, "2025-02-01", datetime(2025, 2, 1, tzinfo=UTC)):
             with self.assertRaises(TypeError):
                 early_profit_snowball(
-                    **(fields | {"first_stage_end_date": value}), **terms()
+                    **(fields | {"first_stage_end_time": value}), **terms()
                 )
 
     def test_preset_representation_and_domain_errors_use_native_categories(self):
@@ -342,18 +351,18 @@ class AutocallablePresetTests(unittest.TestCase):
                 digital_coupon_note(
                     coupon_per_period=0.01, coupon_barrier_level=barrier, **terms()
                 )
-        for schedule in ([], [END, MIDDLE], [MIDDLE, MIDDLE], [date(2025, 4, 2)]):
+        for schedule in ([], [END, MIDDLE], [MIDDLE, MIDDLE], [datetime(2025, 4, 2)]):
             with self.assertRaises(InvalidInputError):
                 fixed_coupon_note(
-                    coupon_per_period=0.01, **terms(observation_dates=schedule)
+                    coupon_per_period=0.01, **terms(observation_times=schedule)
                 )
         with self.assertRaises(TypeError):
             digital_coupon_note(coupon_per_period=0.01, **terms())
         for factory, parameter in (
             (fixed_coupon_note, "coupon_per_period"),
             (digital_coupon_note, "coupon_barrier_level"),
-            (early_profit_snowball, "first_stage_end_date"),
-            (butterfly_snowball, "second_stage_end_date"),
+            (early_profit_snowball, "first_stage_end_time"),
+            (butterfly_snowball, "second_stage_end_time"),
         ):
             self.assertEqual(
                 inspect.signature(factory).parameters[parameter].kind,

@@ -1,9 +1,9 @@
 use kiyosi::*;
 
-fn dates() -> (Date, Date) {
+fn dates() -> (Timestamp, Timestamp) {
     (
-        Date::new(2025, 1, 1).unwrap(),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
     )
 }
 
@@ -11,7 +11,7 @@ fn market(spot: f64, rate: f64, dividend: f64, volatility: f64) -> PricingContex
     PricingContext::new(
         BlackScholesMertonParameters::new(rate, dividend, volatility).unwrap(),
         spot,
-        dates().0.into(),
+        dates().0,
     )
     .unwrap()
 }
@@ -119,7 +119,7 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
         ] {
             let context = market(spot, 0.05, 0.02, 0.2)
                 .replace(PricingContextChanges {
-                    valuation_time: Some(end.into()),
+                    valuation_time: Some(end),
                     ..Default::default()
                 })
                 .unwrap();
@@ -171,7 +171,7 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
                 ));
                 for at in [
                     Timestamp::new(Date::new(2024, 12, 31).unwrap(), 23, 59, 59, 999_999).unwrap(),
-                    Timestamp::new(end, 0, 0, 0, 1).unwrap(),
+                    Timestamp::new(end.date(), 0, 0, 0, 1).unwrap(),
                 ] {
                     let outside = context
                         .replace(PricingContextChanges {
@@ -239,8 +239,8 @@ fn constructors_and_replacements_validate_before_returning_owned_values() {
         assert!(matches!(
             option
                 .replace(DigitalOptionChanges {
-                    effective_date: Some(end),
-                    expiry_date: Some(start),
+                    effective_time: Some(end),
+                    expiry_time: Some(start),
                     ..Default::default()
                 })
                 .unwrap_err(),
@@ -257,8 +257,8 @@ fn constructors_and_replacements_validate_before_returning_owned_values() {
         assert_eq!(updated.strike(), 105.0);
         assert_eq!(updated.payout(), option.payout());
         assert_eq!(option.strike(), 100.0);
-        assert_eq!(option.effective_date(), start);
-        assert_eq!(option.expiry_date(), end);
+        assert_eq!(option.effective_time(), start);
+        assert_eq!(option.expiry_time(), end);
     }
     assert_eq!(cash.payout(), Some(10.0));
     assert!(matches!(
@@ -632,8 +632,8 @@ fn digital_analysis_preserves_settings_solver_and_curve_horizon_failures() {
             Error::InvalidInput(_)
         ));
         let curve = RateTermStructure::new(
-            start.into(),
-            vec![Date::new(2025, 6, 1).unwrap().into()],
+            start,
+            vec![Date::new(2025, 6, 1).unwrap().start_of_day()],
             vec![0.99],
         )
         .unwrap();
@@ -686,7 +686,7 @@ fn expiry_reaching_time_stencils_use_paired_scalar_fallback() {
     let option = DigitalOption::cash_or_nothing(OptionType::Call, 1.0, 10.0, start, end).unwrap();
     let context = market(1.0, 0.05, 0.02, 0.2)
         .replace(PricingContextChanges {
-            valuation_time: Some(Date::new(2025, 12, 31).unwrap().into()),
+            valuation_time: Some(Date::new(2025, 12, 31).unwrap().start_of_day()),
             ..Default::default()
         })
         .unwrap();

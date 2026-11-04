@@ -105,35 +105,37 @@ pub(crate) fn date(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Date> {
     ))
 }
 
+pub(crate) fn timestamps(value: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::Timestamp>> {
+    value.try_iter()?.map(|item| timestamp(&item?)).collect()
+}
+
 pub(crate) fn timestamp(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Timestamp> {
-    if !value.is_instance_of::<PyDateTime>() {
-        return Ok(date(value)?.into());
+    let time = value.cast::<PyDateTime>()?;
+    if !value
+        .py()
+        .get_type::<PyDateTime>()
+        .getattr("tzinfo")?
+        .call_method1("__get__", (value,))?
+        .is_none()
+    {
+        return Err(PyTypeError::new_err("expected a timezone-free datetime"));
     }
-    let py = value.py();
-    let module = py.import("datetime")?;
-    let datetime_type = module.getattr("datetime")?;
-    // Invoke built-in descriptors so subclasses cannot shadow stored components or UTC conversion.
-    if datetime_type.call_method1("utcoffset", (value,))?.is_none() {
+    if value.hasattr("nanosecond")? && value.getattr("nanosecond")?.extract::<u32>()? != 0 {
         return Err(PyTypeError::new_err(
-            "valuation datetime must be timezone-aware",
+            "datetime precision must not exceed microseconds",
         ));
     }
-    let utc = datetime_type.call_method1(
-        "astimezone",
-        (value, module.getattr("timezone")?.getattr("utc")?),
-    )?;
-    let utc = utc.cast::<PyDateTime>()?;
     let day = domain(kiyosi::Date::new(
-        utc.get_year(),
-        utc.get_month().into(),
-        utc.get_day().into(),
+        time.get_year(),
+        time.get_month().into(),
+        time.get_day().into(),
     ))?;
     domain(kiyosi::Timestamp::new(
         day,
-        utc.get_hour().into(),
-        utc.get_minute().into(),
-        utc.get_second().into(),
-        utc.get_microsecond(),
+        time.get_hour().into(),
+        time.get_minute().into(),
+        time.get_second().into(),
+        time.get_microsecond(),
     ))
 }
 
@@ -161,6 +163,5 @@ pub(crate) fn python_timestamp(
         micros / 60_000_000 % 60,
         micros / 1_000_000 % 60,
         micros % 1_000_000,
-        module.getattr("timezone")?.getattr("utc")?,
     ))
 }

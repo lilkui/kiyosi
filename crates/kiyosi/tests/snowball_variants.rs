@@ -1,13 +1,13 @@
 use kiyosi::*;
 
-fn date(month: u32, day: u32) -> Date {
-    Date::new(2025, month, day).unwrap()
+fn date(month: u32, day: u32) -> Timestamp {
+    Date::new(2025, month, day).unwrap().start_of_day()
 }
-fn market(spot: f64, valuation: Date) -> PricingContext {
+fn market(spot: f64, valuation: Timestamp) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.3).unwrap(),
         spot,
-        valuation.into(),
+        valuation,
     )
     .unwrap()
 }
@@ -17,7 +17,7 @@ fn observations() -> Vec<AutocallableObservation> {
 
 #[test]
 fn quadrature_covers_drift_into_future_knock_out() {
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let note = BinarySnowballOption::new(BinarySnowballTerms::new(
         0.0,
         date(1, 1),
@@ -28,7 +28,7 @@ fn quadrature_covers_drift_into_future_knock_out() {
     let context = PricingContext::with_calendar(
         BlackScholesMertonParameters::new(0.05, 0.0, 0.001).unwrap(),
         106.0,
-        date(1, 1).into(),
+        date(1, 1),
         TradingCalendar::all_days(),
     )
     .unwrap();
@@ -50,7 +50,7 @@ fn quadrature_covers_drift_into_future_knock_out() {
 
 #[test]
 fn quadrature_covers_drift_below_future_knock_out() {
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let note = SnowballOption::new(SnowballTerms::new(
         0.0,
         100.0,
@@ -65,7 +65,7 @@ fn quadrature_covers_drift_below_future_knock_out() {
     let context = PricingContext::with_calendar(
         BlackScholesMertonParameters::new(0.0, 0.05, 0.005).unwrap(),
         115.0,
-        date(1, 1).into(),
+        date(1, 1),
         TradingCalendar::all_days(),
     )
     .unwrap();
@@ -263,7 +263,7 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
         let expected = SnowballOption::new(explicit).unwrap();
         let actual = base.clone().expand(preset).unwrap();
         for (a, b) in actual.observations().iter().zip(expected.observations()) {
-            assert_eq!(a.date, b.date);
+            assert_eq!(a.time, b.time);
             assert!((a.knock_out_level - b.knock_out_level).abs() < 1e-14);
             assert!((a.coupon_rate - b.coupon_rate).abs() < 1e-14);
         }
@@ -504,7 +504,7 @@ fn preset_validation_uses_expanded_terms_and_preserves_inputs() {
         assert_eq!(base, snapshot);
     }
     let mut unordered = base.clone();
-    unordered.observation_dates.reverse();
+    unordered.observation_times.reverse();
     assert!(matches!(
         unordered.expand(SnowballPreset::Standard).unwrap_err(),
         Error::InvalidInput(_)

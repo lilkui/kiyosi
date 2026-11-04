@@ -4,8 +4,8 @@ fn option(direction: OptionType, strike: f64) -> AmericanOption {
     AmericanOption::new(
         direction,
         strike,
-        Date::new(2025, 1, 1).unwrap(),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
     )
     .unwrap()
 }
@@ -14,7 +14,7 @@ fn market(rate: f64, dividend: f64, volatility: f64, spot: f64) -> PricingContex
     PricingContext::new(
         BlackScholesMertonParameters::new(rate, dividend, volatility).unwrap(),
         spot,
-        Date::new(2025, 1, 1).unwrap().into(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
     )
     .unwrap()
 }
@@ -53,7 +53,7 @@ fn american_path_storage_limit_rejects_large_grids_before_sampling() {
         ));
         let expiry = context
             .replace(PricingContextChanges {
-                valuation_time: Some(put.expiry_date().start_of_day()),
+                valuation_time: Some(put.expiry_time()),
                 spot_price: Some(90.0),
                 ..Default::default()
             })
@@ -62,8 +62,8 @@ fn american_path_storage_limit_rejects_large_grids_before_sampling() {
         let european = EuropeanOption::new(
             OptionType::Call,
             100.0,
-            put.effective_date(),
-            put.expiry_date(),
+            put.effective_time(),
+            put.expiry_time(),
         )
         .unwrap();
         let expected = engine.price(&european, &context).unwrap();
@@ -130,7 +130,7 @@ fn american_put_includes_immediate_exercise_and_validates_steps_after_expiry() {
     ));
     let expiry = context
         .replace(PricingContextChanges {
-            valuation_time: Some(put.expiry_date().start_of_day()),
+            valuation_time: Some(put.expiry_time()),
             ..Default::default()
         })
         .unwrap();
@@ -285,8 +285,8 @@ fn terminal_only_call_preserves_price_and_immediate_exercise_floor() {
     let european = EuropeanOption::new(
         OptionType::Call,
         100.0,
-        call.effective_date(),
-        call.expiry_date(),
+        call.effective_time(),
+        call.expiry_time(),
     )
     .unwrap();
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
@@ -470,7 +470,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
     )
     .unwrap();
     let price = engine.price(&put, &context).unwrap();
-    let expiry = put.expiry_date().start_of_day();
+    let expiry = put.expiry_time();
     let at_expiry = context
         .replace(PricingContextChanges {
             valuation_time: Some(expiry),
@@ -492,7 +492,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
     ));
     for time in [
         Date::new(2024, 12, 31).unwrap().start_of_day(),
-        Timestamp::new(put.expiry_date(), 0, 0, 0, 1).unwrap(),
+        Timestamp::new(put.expiry_time().date(), 0, 0, 0, 1).unwrap(),
     ] {
         let shifted = context
             .replace(PricingContextChanges {
@@ -505,8 +505,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
             Error::InvalidInput(_)
         ));
     }
-    let curve =
-        RateTermStructure::new(put.effective_date().into(), vec![expiry], vec![0.95]).unwrap();
+    let curve = RateTermStructure::new(put.effective_time(), vec![expiry], vec![0.95]).unwrap();
     let model = context
         .model_parameters()
         .as_bsm()
@@ -605,8 +604,8 @@ fn automatic_spot_bumps_match_explicit_product_defaults() {
     let european = EuropeanOption::new(
         OptionType::Put,
         100.0,
-        put.effective_date(),
-        put.expiry_date(),
+        put.effective_time(),
+        put.expiry_time(),
     )
     .unwrap();
     assert_eq!(
@@ -653,7 +652,7 @@ fn monte_carlo_step_counts_are_intervals_with_two_required_for_american_exercise
     ));
     let expiry = context
         .replace(PricingContextChanges {
-            valuation_time: Some(put.expiry_date().start_of_day()),
+            valuation_time: Some(put.expiry_time()),
             spot_price: Some(90.0),
             ..Default::default()
         })

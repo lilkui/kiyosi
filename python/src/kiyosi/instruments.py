@@ -1,19 +1,21 @@
 """Validated derivative contracts, autocallable presets and observation adapters.
 
-``OptionType`` selects ``"call"`` or ``"put"``. Contract boundaries are
-00:00 UTC on effective_date and 00:00 UTC on expiry_date, both included.
-An expiry date does not include the rest of that day. These are fixed UTC
-boundaries, independent of the trading calendar and the caller's time zone.
-Date-valued valuation inputs mean midnight UTC; aware datetimes are converted
-to UTC before checking contract life. For example, noon UTC on expiry_date
-is outside contract life, as is midnight UTC+08:00 on effective_date.
-Contract dates cannot specify an intraday expiry. Constructors validate terms; pricing validates
-their consistency with the market snapshot, calendar and supplied history.
+``OptionType`` selects ``"call"`` or ``"put"``. Contract effective and expiry
+boundaries are inclusive ``datetime.datetime`` values. Microseconds participate
+in expiry, observation and elapsed-time calculations. Calendars classify dates
+without moving contract boundaries.
+Finite-difference pricing raises ``ComputationFailureError`` if distinct event times
+cannot be represented distinctly by its numerical grid.
+Explicit observations use their supplied times; daily observations use the expiry
+clock time. Snowballs and accumulators include the effective instant; range accruals
+exclude it. Explicit accumulator knock-out observations do not add quantity;
+coincident events check knock-out before accumulating. Constructors validate terms;
+pricing validates their consistency with the market snapshot, calendar and supplied history.
 History describes events strictly before valuation; a current observation
 is evaluated from the current spot. ``replace()`` replaces constructor terms on every contract. Omitted terms and
 history are preserved; supplied terms are validated together in Rust.
 For example, ``barrier.replace(strike=105)`` preserves monitoring and history,
-and changing monitoring to scheduled requires supplying the dates in the same call.
+and changing monitoring to scheduled requires supplying the observation times in the same call.
 Phoenix replacements accept at most one coupon choice and can change coupon units.
 Double-touch replacements accept ``barrier_type="knock_in"`` or ``"knock_out"``;
 asset-settled binary and touch contracts reject cash payout replacements.
@@ -40,7 +42,7 @@ with fixed ``coupon_per_period`` and expiry-only knock-in. Explicit Phoenix
 construction requires exactly one of annual ``coupon_rate`` or fixed
 ``coupon_per_period``; the unused property is None. ``early_profit_snowball``
 and ``butterfly_snowball`` use two or three annual coupon stages with inclusive
-cutoff dates. Knock-out applies the selected rate over the whole holding period;
+cutoff times. Knock-out applies the selected rate over the whole holding period;
 maturity uses the final stage rate.
 
 Examples
@@ -48,10 +50,10 @@ Examples
 Construct a digital call, then create an independent strike replacement.
 Cash and asset digitals pay zero when the expiry spot equals the strike:
 
->>> from datetime import date
+>>> from datetime import datetime
 >>> option = CashOrNothingOption(
 ...     option_type="call", strike=100, payout=10,
-...     effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
+...     effective_time=datetime(2025, 1, 1), expiry_time=datetime(2026, 1, 1),
 ... )
 >>> replacement = option.replace(strike=105)
 >>> (option.strike, replacement.strike, replacement.payout)
@@ -62,7 +64,7 @@ Use ``asset_touch_option`` for asset settlement. At-hit settlement is available
 only for one-touch contracts (``up_and_in`` or ``down_and_in``):
 
 >>> touch = cash_touch_option(
-...     effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
+...     effective_time=datetime(2025, 1, 1), expiry_time=datetime(2026, 1, 1),
 ...     barrier_level=80, barrier_type="down_and_out", payout=10,
 ... )
 >>> (touch.barrier_type, touch.is_one_touch, touch.settlement_timing)

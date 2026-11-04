@@ -5,7 +5,7 @@ import math
 import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime
+from datetime import datetime
 from typing import get_args
 
 import QuantLib as ql
@@ -33,8 +33,8 @@ from test_snowball import contract as snowball
 def binary(coupon=0.08, maturity=0.06, **changes):
     fields = {
         "maturity_coupon_rate": maturity,
-        "effective_date": START,
-        "expiry_date": END,
+        "effective_time": START,
+        "expiry_time": END,
         "observations": autocallable_observations(
             [END], [110], knock_out_coupon_rates=[coupon]
         ),
@@ -48,7 +48,7 @@ class ImpliedCouponTests(unittest.TestCase):
         engine = QuadratureAutocallableEngine(asset_step_count=64)
         context = market()
         observations = autocallable_observations(
-            [date(2025, 2, 3), END], [110, 105], knock_out_coupon_rates=[0.08, 0.12]
+            [datetime(2025, 2, 3), END], [110, 105], knock_out_coupon_rates=[0.08, 0.12]
         )
         notes = [
             snowball(observations=observations, maturity_coupon_rate=0.06),
@@ -58,8 +58,8 @@ class ImpliedCouponTests(unittest.TestCase):
                 minimum_coupon_rate=-0.2,
                 knock_in_level=80,
                 knock_in_observation_mode="at_expiry",
-                effective_date=START,
-                expiry_date=END,
+                effective_time=START,
+                expiry_time=END,
                 observations=observations,
             ),
         ]
@@ -140,23 +140,23 @@ class ImpliedCouponTests(unittest.TestCase):
             implied_coupon(engine, note, context, quote, quote_convention=None)
 
     def test_coupon_endpoints_can_change_daily_knock_in_layers(self):
-        end = date(2025, 1, 13)
+        end = datetime(2025, 1, 13)
         note = snowball(
             maturity_coupon_rate=0.073,
             knock_in_level=99,
             lower_strike=100,
             knock_in_observation_mode="every_trading_day",
             barrier_state="no_event",
-            expiry_date=end,
+            expiry_time=end,
             observations=autocallable_observations(
-                [date(2025, 1, 7), end],
+                [datetime(2025, 1, 7), end],
                 [110, 110],
                 knock_out_coupon_rates=[0.073, 0.083],
             ),
         )
         context = market(
             100.25,
-            datetime(2025, 1, 1, 12, tzinfo=UTC),
+            datetime(2025, 1, 1, 12),
             rate=0.03,
             dividend=0,
             calendar=all_days_calendar(),
@@ -204,7 +204,7 @@ class ImpliedCouponTests(unittest.TestCase):
 
     def check_all_products(self, engine):
         context = market()
-        dates = [date(2025, 2, 3), END]
+        dates = [datetime(2025, 2, 3), END]
 
         def note(kind, coupon, convention):
             if kind == "PhoenixOption":
@@ -220,8 +220,8 @@ class ImpliedCouponTests(unittest.TestCase):
                 fields = {
                     "maturity_coupon_rate": 0.06
                     + (coupon - 0.08 if convention == "shift_maturity_coupon" else 0),
-                    "effective_date": START,
-                    "expiry_date": END,
+                    "effective_time": START,
+                    "expiry_time": END,
                     "observations": autocallable_observations(
                         dates,
                         [110, 105],
@@ -248,9 +248,9 @@ class ImpliedCouponTests(unittest.TestCase):
                 "initial_spot": 100,
                 "knock_in_level": 80,
                 "knock_out_level": 110,
-                "effective_date": START,
-                "expiry_date": END,
-                "observation_dates": dates,
+                "effective_time": START,
+                "expiry_time": END,
+                "observation_times": dates,
             }
             if kind == "step_down_snowball":
                 fields.update(
@@ -426,7 +426,9 @@ class ImpliedCouponTests(unittest.TestCase):
         known = binary(
             barrier_state="no_event",
             observations=autocallable_observations(
-                [date(2025, 2, 3), END], [110, 110], knock_out_coupon_rates=[0.08, 0.08]
+                [datetime(2025, 2, 3), END],
+                [110, 110],
+                knock_out_coupon_rates=[0.08, 0.08],
             ),
         )
         context = market(100, END)
@@ -488,8 +490,8 @@ class ImpliedCouponTests(unittest.TestCase):
             minimum_coupon_rate=0.02,
             knock_in_level=80,
             knock_in_observation_mode="at_expiry",
-            effective_date=START,
-            expiry_date=END,
+            effective_time=START,
+            expiry_time=END,
             observations=known.observations,
             barrier_state="no_event",
         )
@@ -611,7 +613,9 @@ class ImpliedCouponTests(unittest.TestCase):
         note = snowball(
             knock_in_observation_mode="every_trading_day",
             observations=autocallable_observations(
-                [date(2025, 2, 3), END], [110, 105], knock_out_coupon_rates=[0.08, 0.12]
+                [datetime(2025, 2, 3), END],
+                [110, 105],
+                knock_out_coupon_rates=[0.08, 0.12],
             ),
         )
         original = repr(note)

@@ -8,9 +8,9 @@ use pyo3::types::PyDate;
 ///
 /// Parameters
 /// ----------
-/// reference_time : datetime.date or datetime.datetime
+/// reference_time : datetime.datetime
 ///     Inclusive curve reference; factors equal one at this instant.
-/// times : iterable of datetime.date or datetime.datetime
+/// times : iterable of datetime.datetime
 ///     Strictly increasing nodes after the reference.
 /// factors : iterable of float
 ///     Positive finite factors at the nodes; log factors interpolate
@@ -61,7 +61,7 @@ impl RateTermStructure {
     /// ----------
     /// rate : float
     ///     Finite annual rate in decimal units; negative rates are allowed.
-    /// reference_time : datetime.date or datetime.datetime, optional
+    /// reference_time : datetime.datetime, optional
     ///     Inclusive lower coverage bound, or None for an undated curve.
     ///
     /// Returns
@@ -130,7 +130,7 @@ impl RateTermStructure {
     ///
     /// Parameters
     /// ----------
-    /// start, end : datetime.date or datetime.datetime
+    /// start_time, end_time : datetime.datetime
     ///     Ordered interval endpoints.
     ///
     /// Returns
@@ -144,14 +144,14 @@ impl RateTermStructure {
     ///     If endpoints are reversed or outside curve coverage.
     /// ComputationFailureError
     ///     If the log factor is non-finite or exponentiation overflows.
-    fn factor(&self, start: &Bound<'_, PyAny>, end: &Bound<'_, PyAny>) -> PyResult<f64> {
-        domain(self.0.factor(timestamp(start)?, timestamp(end)?))
+    fn factor(&self, start_time: &Bound<'_, PyAny>, end_time: &Bound<'_, PyAny>) -> PyResult<f64> {
+        domain(self.0.factor(timestamp(start_time)?, timestamp(end_time)?))
     }
     /// Return the log factor over an ordered, covered interval.
     ///
     /// Parameters
     /// ----------
-    /// start, end : datetime.date or datetime.datetime
+    /// start_time, end_time : datetime.datetime
     ///     Ordered interval endpoints.
     ///
     /// Returns
@@ -165,14 +165,21 @@ impl RateTermStructure {
     ///     If endpoints are reversed or outside curve coverage.
     /// ComputationFailureError
     ///     If the result is non-finite.
-    fn log_factor(&self, start: &Bound<'_, PyAny>, end: &Bound<'_, PyAny>) -> PyResult<f64> {
-        domain(self.0.log_factor(timestamp(start)?, timestamp(end)?))
+    fn log_factor(
+        &self,
+        start_time: &Bound<'_, PyAny>,
+        end_time: &Bound<'_, PyAny>,
+    ) -> PyResult<f64> {
+        domain(
+            self.0
+                .log_factor(timestamp(start_time)?, timestamp(end_time)?),
+        )
     }
     /// Return the right-hand instantaneous forward rate.
     ///
     /// Parameters
     /// ----------
-    /// time : datetime.date or datetime.datetime
+    /// time : datetime.datetime
     ///     Query instant. The final node uses its left interval.
     ///
     /// Returns
@@ -319,9 +326,8 @@ impl BlackScholesMertonParameters {
 ///     Validated rates and the selected volatility or variance model.
 /// spot_price : float
 ///     Positive finite underlying spot price.
-/// valuation_time : datetime.date or datetime.datetime
-///     Valuation instant. Dates mean midnight; aware datetimes convert to
-///     UTC.
+/// valuation_time : datetime.datetime
+///     Valuation time.
 /// calendar : TradingCalendar, optional
 ///     Trading calendar. Defaults to weekdays with a 252-day basis.
 ///
@@ -360,9 +366,8 @@ impl PricingContext {
     ///     Validated rates and the selected volatility or variance model.
     /// spot_price : float, optional
     ///     Positive finite underlying spot price.
-    /// valuation_time : datetime.date or datetime.datetime, optional
-    ///     Valuation instant. Dates mean midnight; aware datetimes convert to
-    ///     UTC.
+    /// valuation_time : datetime.datetime, optional
+    ///     Valuation time.
     /// calendar : TradingCalendar, optional
     ///     Replacement calendar; omission retains this context's calendar.
     ///
@@ -420,7 +425,7 @@ impl PricingContext {
     fn valuation_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
         python_date(py, self.0.valuation_date())
     }
-    /// Return valuation instant. Dates mean midnight; aware datetimes convert to UTC.
+    /// Return valuation time.
     #[getter]
     fn valuation_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         python_timestamp(py, self.0.valuation_time())

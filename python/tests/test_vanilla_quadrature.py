@@ -4,7 +4,7 @@ import inspect
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import QuantLib as ql
 from kiyosi import (
@@ -102,9 +102,9 @@ class VanillaQuadratureTests(unittest.TestCase):
             "rate": 0.05,
             "dividend": 0.02,
             "volatility": 0.2,
-            "effective_date": START.isoformat(),
-            "valuation": START.isoformat(),
-            "expiry_date": END.isoformat(),
+            "effective_time": START.date().isoformat(),
+            "valuation": START.date().isoformat(),
+            "expiry_time": END.date().isoformat(),
         }
         with ql.SavedSettings():
             reference = american.measure(inputs, "price")
@@ -151,15 +151,15 @@ class VanillaQuadratureTests(unittest.TestCase):
                 option = kind(
                     option_type=inputs["option"],
                     strike=inputs["strike"],
-                    effective_date=date.fromisoformat(inputs["effective_date"]),
-                    expiry_date=date.fromisoformat(inputs["expiry_date"]),
+                    effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                    expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
                 )
                 context = market(
                     inputs["spot"],
                     inputs["rate"],
                     inputs["dividend"],
                     inputs["volatility"],
-                    date.fromisoformat(inputs["valuation"]),
+                    datetime.fromisoformat(inputs["valuation"]),
                 )
                 with ql.SavedSettings():
                     reference, metadata = reference_fn(inputs)
@@ -220,9 +220,9 @@ class VanillaQuadratureTests(unittest.TestCase):
                 "rate": rate,
                 "dividend": dividend,
                 "volatility": 0.3,
-                "effective_date": START.isoformat(),
-                "valuation": START.isoformat(),
-                "expiry_date": END.isoformat(),
+                "effective_time": START.date().isoformat(),
+                "valuation": START.date().isoformat(),
+                "expiry_time": END.date().isoformat(),
             }
             with ql.SavedSettings():
                 expected = american.measure(inputs, "price")
@@ -247,9 +247,9 @@ class VanillaQuadratureTests(unittest.TestCase):
             "rate": 0.04,
             "dividend": 0.01,
             "volatility": 0.3,
-            "effective_date": START.isoformat(),
-            "valuation": START.isoformat(),
-            "expiry_date": END.isoformat(),
+            "effective_time": START.date().isoformat(),
+            "valuation": START.date().isoformat(),
+            "expiry_time": END.date().isoformat(),
         }
         with ql.SavedSettings():
             base = american.measure(inputs, "price")
@@ -292,7 +292,7 @@ class VanillaQuadratureTests(unittest.TestCase):
                         engine.price_with_greeks(option, context, [])
             with self.assertRaises(ComputationFailureError):
                 engine.price(option, market(sigma=1e200))
-            almost_expired = datetime(2025, 12, 31, 23, 59, 59, 999999, UTC)
+            almost_expired = datetime(2025, 12, 31, 23, 59, 59, 999999)
             self.assertGreaterEqual(
                 engine.price(option, market(spot=80, valuation=almost_expired)), 19.999
             )

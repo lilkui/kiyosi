@@ -1,5 +1,5 @@
 import unittest
-from datetime import UTC, date, datetime
+from datetime import datetime
 
 from kiyosi import pricing
 from test_accumulator import contract, exposure, market, terminal_reference
@@ -7,8 +7,8 @@ from test_accumulator import contract, exposure, market, terminal_reference
 
 class AccumulatorFiniteDifferenceAccuracyTests(unittest.TestCase):
     def test_market_greeks_and_implied_volatility_preserve_independent_results(self):
-        option = contract(date(2025, 4, 1))
-        context = market(100.25, datetime(2025, 1, 4, 12, tzinfo=UTC))
+        option = contract(datetime(2025, 4, 1))
+        context = market(100.25, datetime(2025, 1, 4, 12))
         engine = pricing.FiniteDifferenceAccumulatorEngine(
             asset_step_count=80, time_step_count=80
         )
@@ -37,7 +37,7 @@ class AccumulatorFiniteDifferenceAccuracyTests(unittest.TestCase):
         self.assertAlmostEqual(recovered, 0.2, delta=1e-6)
 
     def test_terminal_averaging_converges_against_analytic_prices_and_greeks(self):
-        context = market(100.25, datetime(2025, 1, 3, 12, tzinfo=UTC))
+        context = market(100.25, datetime(2025, 1, 3, 12))
         for scheme in (
             "explicit_euler",
             "implicit_euler",
@@ -46,7 +46,7 @@ class AccumulatorFiniteDifferenceAccuracyTests(unittest.TestCase):
         ):
             for knock_out in (99.7, 100, 100.3, 109.75, 110, 110.25):
                 with self.subTest(scheme=scheme, knock_out=knock_out):
-                    option = contract(date(2025, 1, 6), knock_out)
+                    option = contract(datetime(2025, 1, 6), knock_out)
                     expected = terminal_reference(option, context)
                     h = 0.01
                     low = terminal_reference(
@@ -82,7 +82,7 @@ class AccumulatorFiniteDifferenceAccuracyTests(unittest.TestCase):
         reference_engine = pricing.QuadratureAccumulatorEngine(asset_step_count=1024)
         for knock_out in (109.75, 110, 110.25):
             with self.subTest(knock_out=knock_out):
-                option = contract(date(2025, 4, 1), knock_out)
+                option = contract(datetime(2025, 4, 1), knock_out)
                 reference = reference_engine.price_with_greeks(
                     option, context, ["delta", "gamma"]
                 )

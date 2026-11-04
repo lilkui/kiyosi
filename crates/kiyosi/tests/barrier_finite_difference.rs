@@ -4,8 +4,8 @@ fn terms(kind: BarrierType, direction: OptionType) -> BarrierOptionTerms {
     BarrierOptionTerms::new(
         direction,
         100.0,
-        Date::new(2025, 1, 1).unwrap(),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
         if matches!(kind, BarrierType::UpAndIn | BarrierType::UpAndOut) {
             120.13
         } else {
@@ -18,7 +18,7 @@ fn market(spot: f64) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.2).unwrap(),
         spot,
-        Date::new(2025, 1, 1).unwrap().into(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
     )
     .unwrap()
 }
@@ -73,7 +73,10 @@ fn scheduled_events_match_independent_two_fixing_integrals_and_time_convergence(
             );
             t.barrier_level = if up { 110.125 } else { 90.125 };
             t.observation_mode = ObservationMode::Scheduled;
-            t.observation_dates = vec![Date::new(2025, 6, 30).unwrap(), t.expiry_date];
+            t.observation_times = vec![
+                Date::new(2025, 6, 30).unwrap().start_of_day(),
+                t.expiry_time,
+            ];
             t.rebate = 2.0;
             t.rebate_timing = timing;
             let option = BarrierOption::new(t).unwrap();
@@ -167,7 +170,7 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
     );
     let later = market(100.0)
         .replace(PricingContextChanges {
-            valuation_time: Some(Date::new(2025, 1, 2).unwrap().into()),
+            valuation_time: Some(Date::new(2025, 1, 2).unwrap().start_of_day()),
             ..Default::default()
         })
         .unwrap();
@@ -187,7 +190,7 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
     ));
     let at_expiry = later
         .replace(PricingContextChanges {
-            valuation_time: Some(t.expiry_date.into()),
+            valuation_time: Some(t.expiry_time),
             ..Default::default()
         })
         .unwrap();
@@ -326,13 +329,13 @@ fn explicit_stability_uses_the_continuous_domain_and_settings_validate_eagerly()
 #[test]
 fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
     let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
-    let first = Date::new(2025, 4, 2).unwrap();
+    let first = Date::new(2025, 4, 2).unwrap().start_of_day();
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = vec![first, t.expiry_date];
+    t.observation_times = vec![first, t.expiry_time];
     t.rebate = 7.0;
     let curve = RateTermStructure::new(
-        t.effective_date.into(),
-        vec![first.into(), t.expiry_date.into()],
+        t.effective_time,
+        vec![first, t.expiry_time],
         vec![(-0.08_f64 * 91.0 / 365.0).exp(), (-0.01_f64).exp()],
     )
     .unwrap();
@@ -363,8 +366,7 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
             };
         assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-5);
     }
-    let short =
-        RateTermStructure::new(t.effective_date.into(), vec![first.into()], vec![0.99]).unwrap();
+    let short = RateTermStructure::new(t.effective_time, vec![first], vec![0.99]).unwrap();
     let uncovered = context
         .replace(PricingContextChanges {
             model_parameters: Some(
@@ -386,13 +388,13 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
 #[test]
 fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
     let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
-    t.expiry_date = Date::new(2025, 12, 27).unwrap();
+    t.expiry_time = Date::new(2025, 12, 27).unwrap().start_of_day();
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = vec![
-        Date::new(2025, 4, 1).unwrap(),
-        Date::new(2025, 6, 30).unwrap(),
-        Date::new(2025, 9, 28).unwrap(),
-        t.expiry_date,
+    t.observation_times = vec![
+        Date::new(2025, 4, 1).unwrap().start_of_day(),
+        Date::new(2025, 6, 30).unwrap().start_of_day(),
+        Date::new(2025, 9, 28).unwrap().start_of_day(),
+        t.expiry_time,
     ];
     t.barrier_level = 110.125;
     t.rebate = 2.0;
@@ -441,7 +443,7 @@ fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
 fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
     let mut t = terms(BarrierType::UpAndOut, OptionType::Call);
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = vec![t.expiry_date];
+    t.observation_times = vec![t.expiry_time];
     let option = BarrierOption::new(t).unwrap();
     let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
         asset_step_count: 200,

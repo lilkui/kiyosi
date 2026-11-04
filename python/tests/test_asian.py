@@ -3,7 +3,7 @@
 import importlib
 import math
 import unittest
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 from fractions import Fraction
 
 import QuantLib as ql
@@ -30,7 +30,7 @@ from kiyosi.pricing import (
     implied_volatility,
 )
 
-START, END = date(2025, 1, 1), date(2026, 1, 1)
+START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 PAIRS = (
     (GeometricAveragePriceOption, AnalyticGeometricAveragePriceEngine),
     (ArithmeticAveragePriceOption, TurnbullWakemanArithmeticAveragePriceEngine),
@@ -53,9 +53,9 @@ def terms(**changes):
     return {
         "option_type": "call",
         "strike": 100,
-        "effective_date": START,
-        "averaging_start_date": START,
-        "expiry_date": END,
+        "effective_time": START,
+        "averaging_start_time": START,
+        "expiry_time": END,
     } | changes
 
 
@@ -100,8 +100,8 @@ class AsianTests(unittest.TestCase):
                         kind(**terms(**{name: invalid}))
                 with self.assertRaises(OverflowError):
                     kind(**terms(**{name: 10**400}))
-            for name in ("effective_date", "averaging_start_date", "expiry_date"):
-                for invalid in (True, "2025-01-01", datetime(2025, 1, 1, tzinfo=UTC)):
+            for name in ("effective_time", "averaging_start_time", "expiry_time"):
+                for invalid in (True, "2025-01-01", datetime(2025, 1, 1).date()):
                     with self.assertRaises(TypeError):
                         kind(**terms(**{name: invalid}))
             with self.assertRaises(ValueError):
@@ -120,8 +120,8 @@ class AsianTests(unittest.TestCase):
                 EuropeanOption(
                     option_type="call",
                     strike=100,
-                    effective_date=START,
-                    expiry_date=END,
+                    effective_time=START,
+                    expiry_time=END,
                 ),
             ):
                 with self.assertRaises(UnsupportedOperationError):
@@ -130,7 +130,7 @@ class AsianTests(unittest.TestCase):
                     implied_volatility(engine, wrong, market(), 5)
 
     def test_validation_schedule_history_life_and_single_fixing(self):
-        averaging = date(2025, 2, 1)
+        averaging = datetime(2025, 2, 1)
         for kind, engine_type in PAIRS:
             for strike in (0, -1, math.nan, math.inf):
                 self.assert_rejection(InvalidInputError, kind, **terms(strike=strike))
@@ -145,8 +145,8 @@ class AsianTests(unittest.TestCase):
                     **terms(
                         strike=strike,
                         realized_average=average,
-                        effective_date=END,
-                        expiry_date=START,
+                        effective_time=END,
+                        expiry_time=START,
                     ),
                 )
             for average in (-1, math.nan, math.inf):
@@ -159,9 +159,9 @@ class AsianTests(unittest.TestCase):
                 self.assert_rejection(
                     InvalidInputError,
                     kind,
-                    **terms(averaging_start_date=invalid),
+                    **terms(averaging_start_time=invalid),
                 )
-            original = kind(**terms(averaging_start_date=averaging))
+            original = kind(**terms(averaging_start_time=averaging))
             seasoned = original.replace_history(realized_average=110)
             engine = engine_type()
             for at in (START, averaging):
@@ -176,7 +176,7 @@ class AsianTests(unittest.TestCase):
                 )
             for at in (
                 START - timedelta(days=1),
-                datetime(2026, 1, 1, microsecond=1, tzinfo=UTC),
+                datetime(2026, 1, 1, microsecond=1),
             ):
                 self.assert_rejection(
                     InvalidInputError, engine.price, seasoned, market(at)
@@ -193,12 +193,12 @@ class AsianTests(unittest.TestCase):
                 10,
             )
             for direction in ("call", "put"):
-                single = kind(**terms(option_type=direction, averaging_start_date=END))
+                single = kind(**terms(option_type=direction, averaging_start_time=END))
                 vanilla = EuropeanOption(
                     option_type=direction,
                     strike=100,
-                    effective_date=START,
-                    expiry_date=END,
+                    effective_time=START,
+                    expiry_time=END,
                 )
                 for at in (START, END - timedelta(days=1), END):
                     self.assertEqual(
@@ -256,7 +256,7 @@ class AsianTests(unittest.TestCase):
             )
             self.assertIsNone(collapsed.delta)
             seasoned = option.replace_history(realized_average=100)
-            active = market(date(2025, 7, 1))
+            active = market(datetime(2025, 7, 1))
             result = engine.price_with_greeks(seasoned, active, greeks="all")
             self.assertTrue(all(getattr(result, g) is not None for g in GREEKS))
             self.assertAlmostEqual(
@@ -314,13 +314,13 @@ class AsianTests(unittest.TestCase):
         context = market(rate=1e16, dividend=0.02)
         expected = 100 * math.exp(-0.02)
         vanilla = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         self.assertAlmostEqual(
             AnalyticEuropeanEngine().price(vanilla, context), expected, delta=1e-12
         )
         for kind, engine_type in PAIRS:
-            option = kind(**terms(averaging_start_date=END))
+            option = kind(**terms(averaging_start_time=END))
             self.assertAlmostEqual(
                 engine_type().price(option, context), expected, delta=1e-12
             )
@@ -424,16 +424,16 @@ class AsianTests(unittest.TestCase):
                 **terms(
                     option_type=inputs["option"],
                     strike=inputs["strike"],
-                    effective_date=date.fromisoformat(inputs["effective_date"]),
-                    averaging_start_date=date.fromisoformat(
-                        inputs["averaging_start_date"]
+                    effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                    averaging_start_time=datetime.fromisoformat(
+                        inputs["averaging_start_time"]
                     ),
-                    expiry_date=date.fromisoformat(inputs["expiry_date"]),
+                    expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
                     realized_average=inputs["realized_average"],
                 )
             )
             context = market(
-                date.fromisoformat(inputs["valuation"]),
+                datetime.fromisoformat(inputs["valuation"]),
                 inputs["rate"],
                 inputs["dividend"],
                 inputs["volatility"],

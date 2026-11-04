@@ -4,7 +4,7 @@ import importlib
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime
+from datetime import datetime
 
 import QuantLib as ql
 from kiyosi import InvalidInputError, RootNotBracketedError, UnsupportedOperationError
@@ -21,8 +21,8 @@ from kiyosi.pricing import (
     implied_volatility,
 )
 
-START = date(2025, 1, 1)
-END = date(2026, 1, 1)
+START = datetime(2025, 1, 1)
+END = datetime(2026, 1, 1)
 
 
 def market(spot=100, time=START, rate=0.04, dividend=0.01, sigma=0.2):
@@ -36,7 +36,7 @@ def market(spot=100, time=START, rate=0.04, dividend=0.01, sigma=0.2):
 
 
 def touch(factory=ins.cash_touch_option, **changes):
-    terms = {"effective_date": START, "expiry_date": END, "barrier_level": 120.13}
+    terms = {"effective_time": START, "expiry_time": END, "barrier_level": 120.13}
     terms["barrier_type"] = "up_and_in"
     if factory is ins.cash_touch_option:
         terms["payout"] = 10
@@ -74,7 +74,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             self.assertEqual(
                 engine.price(
                     option.replace_history(touch_state="touched"),
-                    market(time=date(2025, 1, 2)),
+                    market(time=datetime(2025, 1, 2)),
                 ),
                 0,
             )
@@ -103,7 +103,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                         "barrier_level": 120.125 if up else 79.875,
                         "barrier_type": f"{'up' if up else 'down'}_and_{'in' if kind == 'one_touch' else 'out'}",
                         "observation_mode": "scheduled",
-                        "observation_dates": [date(2025, 6, 30), END],
+                        "observation_times": [datetime(2025, 6, 30), END],
                     }
                     if kind == "one_touch":
                         fields["settlement_timing"] = (
@@ -131,12 +131,12 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                         fields = {
                             "option_type": direction,
                             "strike": 100,
-                            "effective_date": START,
-                            "expiry_date": END,
+                            "effective_time": START,
+                            "expiry_time": END,
                             "barrier_level": 120.125 if up else 79.875,
                             "barrier_type": f"{'up' if up else 'down'}_and_{'in' if knock_in else 'out'}",
                             "observation_mode": "scheduled",
-                            "observation_dates": [date(2025, 6, 30), END],
+                            "observation_times": [datetime(2025, 6, 30), END],
                         }
                         if not asset:
                             fields["payout"] = 10
@@ -151,7 +151,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                         )
 
     def test_node_curves_and_early_at_hit_horizon(self):
-        fixing = date(2025, 6, 30)
+        fixing = datetime(2025, 6, 30)
         first = (fixing - START).days / 365
         rate1, rate2, dividend1, dividend2 = -0.02, 0.08, 0.03, -0.01
         rate = RateTermStructure(
@@ -180,7 +180,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                     ins.asset_touch_option if asset else ins.cash_touch_option,
                     barrier_level=120.125,
                     observation_mode="scheduled",
-                    observation_dates=[fixing, END],
+                    observation_times=[fixing, END],
                     settlement_timing="at_hit" if at_hit else "at_expiry",
                 )
                 expected = two_fixing_price(
@@ -202,32 +202,32 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         ctx = market(rate=short, dividend=short)
         option = touch(
             observation_mode="scheduled",
-            observation_dates=[fixing],
+            observation_times=[fixing],
             settlement_timing="at_hit",
         )
         digital = ins.CashOrNothingOption(
             option_type="call",
             strike=option.barrier_level,
             payout=10,
-            effective_date=START,
-            expiry_date=fixing,
+            effective_time=START,
+            expiry_time=fixing,
         )
         self.assertAlmostEqual(
             engine.price(option, ctx),
             AnalyticDigitalEngine().price(digital, ctx),
             delta=0.0004,
         )
-        later_payment = touch(observation_mode="scheduled", observation_dates=[fixing])
+        later_payment = touch(observation_mode="scheduled", observation_times=[fixing])
         self.assert_rejection(InvalidInputError, engine.price, later_payment, ctx)
         known = option.replace_history(touch_state="untouched")
-        after = market(130, datetime(2025, 6, 30, 0, 0, 0, 1, tzinfo=UTC))
+        after = market(130, datetime(2025, 6, 30, 0, 0, 0, 1))
         self.assert_rejection(InvalidInputError, engine.price, option, after)
         self.assertEqual(engine.price(known, after), 0)
         self.assertEqual(engine.price(option, market(130, fixing)), 10)
         no_touch = touch(
             barrier_type="up_and_out",
             observation_mode="scheduled",
-            observation_dates=[fixing],
+            observation_times=[fixing],
             touch_state="untouched",
         )
         self.assertAlmostEqual(
@@ -239,7 +239,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
     def test_history_expiry_greeks_and_solvers_preserve_inputs(self):
         engine = FiniteDifferenceBinaryBarrierEngine(asset_upper_boundary=400)
         option = touch(touch_state="untouched")
-        ctx = market(time=date(2025, 1, 2))
+        ctx = market(time=datetime(2025, 1, 2))
         result = engine.price_with_greeks(option, ctx, greeks="all")
         greeks = (
             "delta",
@@ -255,8 +255,8 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         )
         self.assertTrue(all(math.isfinite(getattr(result, g)) for g in greeks))
         h = 0.01
-        up = engine.price(option, market(100 + h, date(2025, 1, 2)))
-        down = engine.price(option, market(100 - h, date(2025, 1, 2)))
+        up = engine.price(option, market(100 + h, datetime(2025, 1, 2)))
+        down = engine.price(option, market(100 - h, datetime(2025, 1, 2)))
         self.assertAlmostEqual(result.delta, (up - down) / (2 * h), delta=1e-6)
         self.assertAlmostEqual(
             result.gamma, (up - 2 * result.price + down) / h**2, delta=1e-6
@@ -371,7 +371,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 market(),
             )
         weekend = touch(
-            observation_mode="scheduled", observation_dates=[date(2025, 1, 4)]
+            observation_mode="scheduled", observation_times=[datetime(2025, 1, 4)]
         )
         self.assert_rejection(InvalidInputError, engine.price, weekend, market())
         with self.assertRaises(TypeError):
@@ -395,8 +395,8 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             with self.subTest(identifier=identifier):
                 kind, asset = inputs["BarrierType"], inputs["asset_settlement"]
                 fields = {
-                    "effective_date": date.fromisoformat(inputs["effective_date"]),
-                    "expiry_date": date.fromisoformat(inputs["expiry_date"]),
+                    "effective_time": datetime.fromisoformat(inputs["effective_time"]),
+                    "expiry_time": datetime.fromisoformat(inputs["expiry_time"]),
                     "barrier_level": inputs["barrier"],
                     "touch_state": "untouched",
                 }
@@ -422,7 +422,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                     )
                 ctx = market(
                     inputs["spot"],
-                    date.fromisoformat(inputs["valuation"]),
+                    datetime.fromisoformat(inputs["valuation"]),
                     rate=inputs["rate"],
                     dividend=inputs["dividend"],
                     sigma=inputs["volatility"],
@@ -436,7 +436,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 if (
                     inputs["spot"],
                     inputs["strike"],
-                    (option.expiry_date - ctx.valuation_time.date()).days,
+                    (option.expiry_time - ctx.valuation_time).days,
                 ) == (100, 100, 365):
                     result = engine.price_with_greeks(
                         option, ctx, greeks="all", spot_shift=0.1
@@ -501,7 +501,7 @@ def two_fixing_price(
     float
         Independent discounted payoff value.
     """
-    first = (date(2025, 6, 30) - START).days / 365
+    first = (datetime(2025, 6, 30) - START).days / 365
     remaining = 1 - first
     level = 120.125 if up else 79.875
     sigma = 0.2

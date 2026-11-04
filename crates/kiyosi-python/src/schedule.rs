@@ -1,15 +1,15 @@
 use crate::calendar::TradingCalendar;
-use crate::conversions::{check_integer, date, integer, python_date};
+use crate::conversions::{check_integer, integer, python_timestamp, timestamp};
 use crate::error::domain;
 use pyo3::exceptions::{PyIndexError, PyOverflowError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDate};
+use pyo3::types::PyBool;
 
-/// Immutable ordered observation dates with sequence access.
+/// Immutable ordered observation times with sequence access.
 ///
 /// Notes
 /// -----
-/// Use fixed_interval_schedule or monthly_schedule. The dates property
+/// Use fixed_interval_schedule or monthly_schedule. The times property
 /// returns a copy; iteration retains the schedule owner. Integer indexing
 /// accepts negative indices, rejects bool, and raises IndexError outside the sequence.
 /// Slices are not supported. len(schedule) counts observations.
@@ -19,13 +19,13 @@ pub(crate) struct ObservationSchedule(pub(crate) kiyosi::ObservationSchedule);
 
 #[pymethods]
 impl ObservationSchedule {
-    /// Return a copy of the strictly ordered observation dates.
+    /// Return a copy of the strictly ordered observation times.
     #[getter]
-    fn dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
+    fn times<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {
         self.0
-            .dates()
+            .times()
             .iter()
-            .map(|&date| python_date(py, date))
+            .map(|&timestamp| python_timestamp(py, timestamp))
             .collect()
     }
     fn __len__(&self) -> usize {
@@ -35,7 +35,7 @@ impl ObservationSchedule {
         &self,
         py: Python<'py>,
         index: &Bound<'_, PyAny>,
-    ) -> PyResult<Bound<'py, PyDate>> {
+    ) -> PyResult<Bound<'py, PyAny>> {
         if index.is_instance_of::<PyBool>() {
             return Err(PyTypeError::new_err("schedule index must not be bool"));
         }
@@ -52,10 +52,10 @@ impl ObservationSchedule {
         } else {
             Some(index.unsigned_abs())
         };
-        let date = index
-            .and_then(|index| self.0.dates().get(index))
+        let timestamp = index
+            .and_then(|index| self.0.times().get(index))
             .ok_or_else(|| PyIndexError::new_err("schedule index out of range"))?;
-        python_date(py, *date)
+        python_timestamp(py, *timestamp)
     }
     #[expect(
         clippy::needless_pass_by_value,
@@ -72,10 +72,10 @@ impl ObservationSchedule {
 ///
 /// Parameters
 /// ----------
-/// start : datetime.date
-///     First date of the interval.
-/// end : datetime.date
-///     Last date of the interval.
+/// start_time : datetime.datetime
+///     First timestamp of the interval.
+/// end_time : datetime.datetime
+///     Last timestamp of the interval.
 /// interval_days : int
 ///     Positive calendar-day spacing of unadjusted observations, up to 2**63 - 1.
 /// calendar : TradingCalendar, optional
@@ -89,7 +89,7 @@ impl ObservationSchedule {
 /// Raises
 /// ------
 /// InvalidInputError
-///     If end precedes start or interval_days is nonpositive.
+///     If end_time precedes start_time or interval_days is nonpositive.
 /// TypeError
 ///     If interval_days is not an integer or is bool.
 /// OverflowError
@@ -97,39 +97,44 @@ impl ObservationSchedule {
 ///
 /// Notes
 /// -----
-/// Exclude start and include candidates through end. Following adjustment
-/// merges collisions and stops before crossing end; end need not appear.
+/// Exclude start_time and include candidates through end_time. Following adjustment
+/// merges collisions and stops before crossing `end_time`; `end_time` need not appear.
 #[pyfunction]
-#[pyo3(signature = (*, start, end, interval_days, calendar=TradingCalendar::default()))]
+#[pyo3(signature = (*, start_time, end_time, interval_days, calendar=TradingCalendar::default()))]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "PyO3 extracts an owned calendar and supplies its default"
 )]
 pub(crate) fn fixed_interval_schedule(
-    start: &Bound<'_, PyAny>,
-    end: &Bound<'_, PyAny>,
+    start_time: &Bound<'_, PyAny>,
+    end_time: &Bound<'_, PyAny>,
     interval_days: &Bound<'_, PyAny>,
     calendar: TradingCalendar,
 ) -> PyResult<ObservationSchedule> {
-    let start = date(start)?;
-    let end = date(end)?;
+    let start_time = timestamp(start_time)?;
+    let end_time = timestamp(end_time)?;
     check_integer(interval_days)?;
     let interval_days = interval_days.extract::<i64>()?;
     Ok(ObservationSchedule(domain(
-        kiyosi::ObservationSchedule::fixed_interval(start, end, interval_days, &calendar.0),
+        kiyosi::ObservationSchedule::fixed_interval(
+            start_time,
+            end_time,
+            interval_days,
+            &calendar.0,
+        ),
     )?))
 }
 
-/// Create monthly observations anchored to the start day.
+/// Create monthly observations anchored to the start_time day.
 ///
 /// Parameters
 /// ----------
-/// start : datetime.date
-///     First date of the interval.
-/// end : datetime.date
-///     Last date of the interval.
+/// start_time : datetime.datetime
+///     First timestamp of the interval.
+/// end_time : datetime.datetime
+///     Last timestamp of the interval.
 /// first_observation_month : int
-///     Positive month offset from start to the first observation.
+///     Positive month offset from start_time to the first observation.
 /// calendar : TradingCalendar, optional
 ///     Trading calendar. Defaults to weekdays with a 252-day basis.
 ///
@@ -141,30 +146,30 @@ pub(crate) fn fixed_interval_schedule(
 /// Raises
 /// ------
 /// InvalidInputError
-///     If end precedes start or first_observation_month is nonpositive.
+///     If end_time precedes start_time or first_observation_month is nonpositive.
 ///
 /// Notes
 /// -----
 /// Clamp each candidate to its month end while retaining the original
-/// start-day anchor for later months.
-/// Exclude start and include candidates through end. Following adjustment
-/// merges collisions and stops before crossing end; end need not appear.
+/// starting-day anchor for later months.
+/// Exclude start_time and include candidates through end_time. Following adjustment
+/// merges collisions and stops before crossing `end_time`; `end_time` need not appear.
 #[pyfunction]
-#[pyo3(signature = (*, start, end, first_observation_month, calendar=TradingCalendar::default()))]
+#[pyo3(signature = (*, start_time, end_time, first_observation_month, calendar=TradingCalendar::default()))]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "PyO3 extracts an owned calendar and supplies its default"
 )]
 pub(crate) fn monthly_schedule(
-    start: &Bound<'_, PyAny>,
-    end: &Bound<'_, PyAny>,
+    start_time: &Bound<'_, PyAny>,
+    end_time: &Bound<'_, PyAny>,
     first_observation_month: &Bound<'_, PyAny>,
     calendar: TradingCalendar,
 ) -> PyResult<ObservationSchedule> {
     Ok(ObservationSchedule(domain(
         kiyosi::ObservationSchedule::monthly(
-            date(start)?,
-            date(end)?,
+            timestamp(start_time)?,
+            timestamp(end_time)?,
             integer(first_observation_month)?,
             &calendar.0,
         ),
@@ -172,14 +177,19 @@ pub(crate) fn monthly_schedule(
 }
 
 #[pyfunction]
-pub(crate) fn _observation_schedule(dates: &Bound<'_, PyAny>) -> PyResult<ObservationSchedule> {
-    let dates = crate::conversions::dates(dates)?;
-    let start = dates
+pub(crate) fn _observation_schedule(times: &Bound<'_, PyAny>) -> PyResult<ObservationSchedule> {
+    let times = crate::conversions::timestamps(times)?;
+    let start_time = times
         .first()
         .copied()
-        .unwrap_or(domain(kiyosi::Date::new(1, 1, 1))?);
-    let end = dates.last().copied().unwrap_or(start);
+        .unwrap_or(domain(kiyosi::Date::new(1, 1, 1))?.start_of_day());
+    let end_time = times.last().copied().unwrap_or(start_time);
     Ok(ObservationSchedule(domain(
-        kiyosi::ObservationSchedule::new(dates, start, end, &kiyosi::TradingCalendar::all_days()),
+        kiyosi::ObservationSchedule::new(
+            times,
+            start_time,
+            end_time,
+            &kiyosi::TradingCalendar::all_days(),
+        ),
     )?))
 }

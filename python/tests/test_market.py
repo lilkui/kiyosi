@@ -16,10 +16,10 @@ from kiyosi.market import (
     RateTermStructure,
 )
 
-REFERENCE = datetime(2025, 1, 1, tzinfo=UTC)
+REFERENCE = datetime(2025, 1, 1)
 MIDDLE = REFERENCE + timedelta(days=180)
 MATURITY = REFERENCE + timedelta(days=365)
-START, END = REFERENCE.date(), MATURITY.date()
+START, END = REFERENCE, MATURITY
 
 
 def example_curve():
@@ -47,8 +47,8 @@ def vanilla(direction="call", strike=103):
     return EuropeanOption(
         option_type=direction,
         strike=strike,
-        effective_date=START,
-        expiry_date=END,
+        effective_time=START,
+        expiry_time=END,
     )
 
 
@@ -174,8 +174,8 @@ class RateTermStructureTests(unittest.TestCase):
         self.assertAlmostEqual(curve.factor(MIDDLE, MATURITY), 0.99 / 1.02, delta=1e-14)
 
     def test_microsecond_intervals_remain_distinct_far_from_reference(self):
-        origin = datetime(1, 1, 1, tzinfo=UTC)
-        second = datetime(9998, 1, 1, tzinfo=UTC)
+        origin = datetime(1, 1, 1)
+        second = datetime(9998, 1, 1)
         first = second - timedelta(microseconds=1)
         curve = RateTermStructure(
             reference_time=origin,
@@ -197,8 +197,8 @@ class RateTermStructureTests(unittest.TestCase):
         option = EuropeanOption(
             option_type="call",
             strike=100,
-            effective_date=first.date(),
-            expiry_date=second.date(),
+            effective_time=first,
+            expiry_time=second,
         )
         engine = pricing.AnalyticEuropeanEngine()
         self.assertAlmostEqual(
@@ -213,8 +213,8 @@ class RateTermStructureTests(unittest.TestCase):
         distant_option = EuropeanOption(
             option_type="call",
             strike=math.exp(100),
-            effective_date=origin.date(),
-            expiry_date=second.date(),
+            effective_time=origin,
+            expiry_time=second,
         )
         self.assert_rejection(
             ComputationFailureError, engine.price, distant_option, distant_context
@@ -280,18 +280,17 @@ class RateTermStructureTests(unittest.TestCase):
                 RateTermStructure(
                     reference_time=REFERENCE, times=[MIDDLE], factors=[factor]
                 )
-        for time in (True, "2025-01-01", datetime(2025, 1, 1)):
+        for time in (True, "2025-01-01", datetime(2025, 1, 1, tzinfo=UTC)):
             with self.subTest(time=time), self.assertRaises(TypeError):
                 RateTermStructure(reference_time=time, times=[MIDDLE], factors=[0.95])
         with self.assertRaises(TypeError):
             example_curve().shifted(True)
 
-    def test_timestamp_normalization_and_owned_nodes(self):
-        offset = timezone(timedelta(hours=8))
-        times = [MIDDLE.astimezone(offset), MATURITY.astimezone(offset)]
+    def test_timezone_free_timestamps_and_owned_nodes(self):
+        times = [MIDDLE, MATURITY]
         factors = [0.98, 0.94]
         curve = RateTermStructure(
-            reference_time=REFERENCE.astimezone(offset), times=times, factors=factors
+            reference_time=REFERENCE, times=times, factors=factors
         )
         times.clear()
         factors[0] = 9
@@ -466,13 +465,13 @@ class RateTermStructureTests(unittest.TestCase):
         with self.assertRaises(OverflowError):
             model.replace(volatility=10**1000)
         with self.assertRaises(TypeError):
-            context.replace(valuation_time=datetime(2025, 1, 6))
+            context.replace(valuation_time=datetime(2025, 1, 6, tzinfo=UTC))
         changed = context.replace(
             spot_price=105,
-            valuation_time=datetime(2025, 1, 6, 9, tzinfo=timezone(timedelta(hours=8))),
+            valuation_time=datetime(2025, 1, 6, 9),
         )
         self.assertEqual(changed.spot_price, 105)
-        self.assertEqual(changed.valuation_time, datetime(2025, 1, 6, 1, tzinfo=UTC))
+        self.assertEqual(changed.valuation_time, datetime(2025, 1, 6, 9))
         self.assertEqual(
             changed.calendar.trading_days_per_year,
             context.calendar.trading_days_per_year,
@@ -540,9 +539,9 @@ class RateTermStructureTests(unittest.TestCase):
             datetime.min.replace(tzinfo=timezone(timedelta(hours=1))),
             datetime.max.replace(tzinfo=timezone(-timedelta(hours=1))),
         ):
-            with self.subTest(time=time), self.assertRaises(OverflowError):
+            with self.subTest(time=time), self.assertRaises(TypeError):
                 RateTermStructure.flat(0.03, reference_time=time)
-            with self.subTest(time=time), self.assertRaises(OverflowError):
+            with self.subTest(time=time), self.assertRaises(TypeError):
                 curve.forward_rate(time)
         for operation in (curve.factor, curve.log_factor):
             with self.assertRaises(TypeError):

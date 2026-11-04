@@ -52,8 +52,8 @@ impl FiniteDifferenceBinaryBarrierEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let option = TouchOption::cash(TouchOptionTerms::new(start, Date::new(2026, 1, 1)?,
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = TouchOption::cash(TouchOptionTerms::new(start, Date::new(2026, 1, 1)?.start_of_day(),
     ///     120.0, BarrierType::UpAndIn), 10.0)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     100.0, start.into())?;
@@ -171,8 +171,8 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let mut terms = DoubleTouchOptionTerms::new(start, Date::new(2026, 1, 1)?,
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let mut terms = DoubleTouchOptionTerms::new(start, Date::new(2026, 1, 1)?.start_of_day(),
     ///     80.0, 120.0, DoubleBarrierType::KnockOut);
     /// terms.touch_state = Some(BarrierTouchState::Untouched);
     /// let option = DoubleTouchOption::cash(terms, 1.0)?;
@@ -279,7 +279,7 @@ fn native_with_diffusion<D: Diffusion>(
     if prior && at_hit {
         return PricingResult::new(0.0);
     }
-    let expiry = option.expiry_date().start_of_day();
+    let expiry = option.expiry_time();
     if context.valuation_time() == expiry {
         return PricingResult::new(if touched == knock_in {
             terminal(spot)
@@ -331,11 +331,10 @@ fn native_with_diffusion<D: Diffusion>(
     let scheduled = option.observation_mode() == ObservationMode::Scheduled;
     let horizon = if scheduled && at_hit {
         option
-            .observation_dates()
+            .observation_times()
             .last()
             .copied()
-            .unwrap_or(option.expiry_date())
-            .start_of_day()
+            .unwrap_or(option.expiry_time())
     } else {
         expiry
     };
@@ -377,11 +376,16 @@ fn native_with_diffusion<D: Diffusion>(
         )?;
     }
     let observations: Vec<_> = option
-        .observation_dates()
+        .observation_times()
         .iter()
-        .filter(|date| date.start_of_day() > context.valuation_time())
-        .map(|date| context.valuation_time().years_until(date.start_of_day()))
+        .filter(|&&date| date > context.valuation_time())
+        .map(|&date| context.valuation_time().years_until(date))
         .collect();
+    diffusion::validate_event_resolution(
+        context.valuation_time(),
+        expiry,
+        option.observation_times(),
+    )?;
     let grid = diffusion::time_grid(
         context,
         horizon,

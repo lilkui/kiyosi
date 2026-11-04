@@ -3,7 +3,7 @@
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from kiyosi import (
     InvalidInputError,
@@ -162,27 +162,27 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         # Tiny volatility makes every future observation coupon deterministic.
         note = phoenix(
             observations=autocallable_observations(
-                [date(2025, 2, 3), END], [200, 200], coupon_barrier_levels=[90, 90]
+                [datetime(2025, 2, 3), END], [200, 200], coupon_barrier_levels=[90, 90]
             )
         )
-        at_event = market(100, date(2025, 2, 3), volatility=1e-12, rate=0, dividend=0)
+        at_event = market(
+            100, datetime(2025, 2, 3), volatility=1e-12, rate=0, dividend=0
+        )
         self.assertAlmostEqual(
             engine.price(note, at_event), 1 + 0.365 * 90 / 365, delta=1e-14
         )
-        after_event = at_event.replace(
-            valuation_time=datetime(2025, 2, 3, 0, 0, 0, 1, tzinfo=UTC)
-        )
+        after_event = at_event.replace(valuation_time=datetime(2025, 2, 3, 0, 0, 0, 1))
         self.assertAlmostEqual(
             engine.price(note, after_event), 1 + 0.365 * 57 / 365, delta=1e-14
         )
-        weekend = datetime(2025, 1, 4, tzinfo=UTC)
+        weekend = datetime(2025, 1, 4)
         snow = contract(
-            expiry_date=date(2025, 1, 6),
+            expiry_time=datetime(2025, 1, 6),
             maturity_coupon_rate=0.12,
             knock_in_observation_mode="every_trading_day",
             barrier_state="no_event",
             observations=autocallable_observations(
-                [date(2025, 1, 6)], [120], knock_out_coupon_rates=[0.12]
+                [datetime(2025, 1, 6)], [120], knock_out_coupon_rates=[0.12]
             ),
         )
         first = engine.price(snow, market(79, weekend, volatility=0.2))
@@ -210,7 +210,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
             lower_strike=100,
             upper_strike=100,
             observations=autocallable_observations(
-                [date(2025, 2, 3), END], [101, 105], coupon_barrier_levels=[0, 0]
+                [datetime(2025, 2, 3), END], [101, 105], coupon_barrier_levels=[0, 0]
             ),
         )
         for _ in range(3):
@@ -228,8 +228,8 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         self.assertIsNone(unseeded.seed)
         fixed = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_date=START,
-            expiry_date=END,
+            effective_time=START,
+            expiry_time=END,
             observations=autocallable_observations(
                 [END], [110], knock_out_coupon_rates=[0]
             ),
@@ -290,9 +290,9 @@ class AutocallableMonteCarloTests(unittest.TestCase):
                 )
 
     def test_sobol_dimension_limit_uses_remaining_monitoring_dates(self):
-        end = date(2110, 1, 1)
+        end = datetime(2110, 1, 1)
         fields = {
-            "expiry_date": end,
+            "expiry_time": end,
             "observations": autocallable_observations(
                 [end], [110], knock_out_coupon_rates=[0.08]
             ),

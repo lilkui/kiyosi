@@ -105,8 +105,8 @@ impl FiniteDifferenceHestonVanillaEngine {
     /// use kiyosi::{AmericanOption, Date, FiniteDifferenceHestonVanillaEngine,
     ///     HestonFiniteDifferenceSettings, HestonParameters, OptionType, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let model = HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.5, 0.3, -0.7)?;
     /// let context = PricingContext::new(model, 100.0, start.into())?;
     /// let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings::default())?;
@@ -322,7 +322,7 @@ fn price(
     let model = context.model_parameters().as_heston()?;
     let time = time_to_expiry(option, context)?;
     let start = context.valuation_time();
-    let end = option.expiry_date().start_of_day();
+    let end = option.expiry_time();
     let risk = Curve::new(model.risk_free_curve(), start, end)?;
     let dividend = Curve::new(model.dividend_curve(), start, end)?;
     if time == 0.0 {

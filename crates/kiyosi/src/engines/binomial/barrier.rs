@@ -54,9 +54,9 @@ impl CoxRossRubinsteinBarrierEngine {
     ///     BlackScholesMertonParameters, CoxRossRubinsteinBarrierEngine, Date, OptionType,
     ///     PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
-    ///     start, Date::new(2026, 1, 1)?, 120.0, BarrierType::UpAndOut))?;
+    ///     start, Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut))?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// let engine = CoxRossRubinsteinBarrierEngine::new(BinomialSettings { step_count: 256 })?;
@@ -108,7 +108,7 @@ impl CoxRossRubinsteinBarrierEngine {
         crate::instruments::monitoring::validate_life(option, context)?;
         crate::instruments::monitoring::validate_schedule(option.observation_schedule(), context)?;
         let steps = self.settings.step_count as usize;
-        let request = if context.valuation_time() == option.expiry_date().start_of_day()
+        let request = if context.valuation_time() == option.expiry_time()
             || option.at_spot_discontinuity(context, 0.0)
         {
             GreeksRequest::new([])
@@ -135,13 +135,13 @@ impl CoxRossRubinsteinBarrierEngine {
             return Ok(result);
         }
         let time = context.valuation_time();
-        let duration = time.micros_until(option.expiry_date().start_of_day());
+        let duration = time.micros_until(option.expiry_time());
         let mut observed =
             vec![option.observation_mode() == crate::ObservationMode::Continuous; steps + 1];
         if option.observation_mode() == crate::ObservationMode::Scheduled {
             // Integer arithmetic preserves exact microsecond alignment without overflowing i64.
-            for &date in option.observation_dates() {
-                let offset = time.micros_until(date.start_of_day());
+            for &date in option.observation_times() {
+                let offset = time.micros_until(date);
                 if offset < 0 {
                     continue;
                 }

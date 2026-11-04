@@ -1,6 +1,6 @@
 """Static constructor contracts; checked with unused ignores reported as errors."""
 
-from datetime import date
+from datetime import datetime
 from typing import assert_type
 
 from kiyosi.instruments import (
@@ -18,7 +18,7 @@ DoubleTouchOption()  # ty: ignore[missing-argument]
 
 def phoenix_choices() -> None:
     # Keep date and observation types visible to the overload checker.
-    start, end = date(2025, 1, 2), date(2026, 1, 2)
+    start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
     observations = [AutocallableObservation(end, 110)]
     assert_type(
         PhoenixOption(
@@ -28,8 +28,8 @@ def phoenix_choices() -> None:
             upper_strike=100,
             lower_strike=0,
             knock_in_observation_mode="every_trading_day",
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
             observations=observations,
         ),
         PhoenixOption,
@@ -42,8 +42,8 @@ def phoenix_choices() -> None:
             upper_strike=100,
             lower_strike=0,
             knock_in_observation_mode="every_trading_day",
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
             observations=observations,
         ),
         PhoenixOption,
@@ -56,8 +56,8 @@ def phoenix_choices() -> None:
         upper_strike=100,
         lower_strike=0,
         knock_in_observation_mode="every_trading_day",
-        effective_date=start,
-        expiry_date=end,
+        effective_time=start,
+        expiry_time=end,
         observations=observations,
     )  # ty: ignore[no-matching-overload]
     PhoenixOption(
@@ -66,8 +66,8 @@ def phoenix_choices() -> None:
         upper_strike=100,
         lower_strike=0,
         knock_in_observation_mode="every_trading_day",
-        effective_date=start,
-        expiry_date=end,
+        effective_time=start,
+        expiry_time=end,
         observations=observations,
     )  # ty: ignore[no-matching-overload]
 

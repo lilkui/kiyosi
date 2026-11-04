@@ -59,8 +59,8 @@ impl FiniteDifferenceAutocallableEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let end = Date::new(2026, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let end = Date::new(2026, 1, 1)?.start_of_day();
     /// let note = BinarySnowballOption::new(BinarySnowballTerms::new(0.02, start, end,
     ///     autocallable_observations(&[end], &[100.0], Some(&[0.08]), None)?))?;
     /// let market = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
@@ -131,9 +131,7 @@ fn default_upper<T: AutocallableTerms>(
     diffusion_upper(
         highest(note).max(context.spot_price()),
         context,
-        context
-            .valuation_time()
-            .years_until(note.expiry_date().into()),
+        context.valuation_time().years_until(note.expiry_time()),
         risk,
         dividend,
     )
@@ -150,7 +148,7 @@ fn event<'a, T: AutocallableTerms>(
 ) -> Option<&'a AutocallableObservation> {
     note.observations()
         .iter()
-        .find(|r| context.valuation_time().years_until(r.date.into()) == time)
+        .find(|r| context.valuation_time().years_until(r.time) == time)
 }
 
 // Project only the jump correction, leaving smooth daily continuation unchanged.
@@ -246,32 +244,38 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
     let daily = t.daily_knock_in();
     let layered = daily && !state.knocked_in && note.knock_in_affects_payoff();
     let model = context.model_parameters();
-    let expiry = note.expiry_date().start_of_day();
+    let expiry = note.expiry_time();
     let time = context.valuation_time().years_until(expiry);
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
     let mut observations: Vec<_> = note
         .observations()
         .iter()
-        .filter(|r| r.date.start_of_day() > context.valuation_time())
-        .map(|r| context.valuation_time().years_until(r.date.into()))
+        .filter(|r| r.time > context.valuation_time())
+        .map(|r| context.valuation_time().years_until(r.time))
         .collect();
     let mut trading = Vec::new();
     if daily && (layered || settings.scheme == FiniteDifferenceScheme::ExplicitEuler) {
-        let mut date = context.valuation_date();
-        loop {
-            if date.start_of_day() > context.valuation_time()
-                && context.calendar().is_trading_day(date)
-            {
-                trading.push(context.valuation_time().years_until(date.into()));
-            }
-            if date == note.expiry_date() {
-                break;
-            }
-            date = date.add_days(1)?;
-        }
+        trading.extend(
+            crate::ObservationSchedule::daily(
+                note.effective_time(),
+                note.expiry_time(),
+                context.calendar(),
+                true,
+            )?
+            .times()
+            .iter()
+            .copied()
+            .filter(|&time| time > context.valuation_time())
+            .map(|time| context.valuation_time().years_until(time)),
+        );
     }
     observations.extend_from_slice(&trading);
+    diffusion::validate_event_resolution(
+        context.valuation_time(),
+        expiry,
+        &crate::instruments::autocallable::pricing::future_event_times(note, context, daily)?,
+    )?;
     let mut grid = diffusion::time_grid(
         context,
         expiry,
@@ -332,7 +336,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
         for r in note
             .observations()
             .iter()
-            .filter(|r| r.date.start_of_day() > context.valuation_time())
+            .filter(|r| r.time > context.valuation_time())
         {
             levels.push(r.knock_out_level);
             if matches!(t.coupon, Coupon::Phoenix(_)) {

@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 ///
 /// Parameters
 /// ----------
-/// times : iterable of datetime.date or datetime.datetime
+/// times : iterable of datetime.datetime
 ///     At least two strictly increasing instants; the first is the reference.
 /// spots : iterable of float
 ///     At least two strictly increasing positive finite prices.
@@ -26,7 +26,7 @@ use pyo3::prelude::*;
 /// extrapolation in the spot dimension holds the nearest endpoint volatility constant.
 /// Inputs are copied. Properties return owned copies; spot changes and time
 /// rolls never translate the surface. Native conversion errors reject booleans,
-/// naive datetimes and invalid iterable elements.
+/// dates, timezone-aware datetimes and invalid iterable elements.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct LocalVolatilitySurface(pub(crate) kiyosi::LocalVolatilitySurface);
@@ -60,7 +60,7 @@ impl LocalVolatilitySurface {
             times, spots, values,
         ))?))
     }
-    /// Return copied absolute time nodes as UTC datetimes.
+    /// Return copied absolute time nodes as datetimes.
     #[getter]
     fn times<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {
         self.0
@@ -88,7 +88,7 @@ impl LocalVolatilitySurface {
     ///
     /// Parameters
     /// ----------
-    /// time : datetime.date or datetime.datetime
+    /// time : datetime.datetime
     ///     Covered query instant.
     /// spot : float
     ///     Positive finite underlying price; extrapolation holds endpoint volatility constant.

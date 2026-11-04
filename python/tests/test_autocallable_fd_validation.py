@@ -1,7 +1,7 @@
 """Autocallable finite-difference engine validation precedence."""
 
 import unittest
-from datetime import date
+from datetime import datetime
 
 from kiyosi import InvalidInputError, pricing
 from kiyosi.instruments import AutocallableObservation, BinarySnowballOption
@@ -10,24 +10,24 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 class AutocallableValidationTests(unittest.TestCase):
     def test_autocallable_engines_share_domain_validation_precedence(self):
-        start, end = date(2025, 1, 1), date(2025, 1, 4)
+        start, end = datetime(2025, 1, 1), datetime(2025, 1, 4)
         for history in (None, "no_event"):
             note = BinarySnowballOption(
                 maturity_coupon_rate=0.05,
                 barrier_state=history,
-                effective_date=start,
-                expiry_date=end,
+                effective_time=start,
+                expiry_time=end,
                 observations=[
-                    AutocallableObservation(date(2025, 1, 2), 110, coupon_rate=0.08)
+                    AutocallableObservation(datetime(2025, 1, 2), 110, coupon_rate=0.08)
                 ],
             )
             for valuation, expected in (
                 (start, InvalidInputError),
                 (
-                    date(2025, 1, 3),
+                    datetime(2025, 1, 3),
                     InvalidInputError,
                 ),
-                (date(2025, 1, 5), InvalidInputError),
+                (datetime(2025, 1, 5), InvalidInputError),
             ):
                 context = PricingContext(
                     model_parameters=BlackScholesMertonParameters(

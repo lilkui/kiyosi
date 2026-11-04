@@ -111,9 +111,9 @@ impl MonteCarloBarrierEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
-    ///     start, Date::new(2026, 1, 1)?, 80.0, BarrierType::DownAndOut))?;
+    ///     start, Date::new(2026, 1, 1)?.start_of_day(), 80.0, BarrierType::DownAndOut))?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
@@ -165,7 +165,7 @@ impl MonteCarloBarrierEngine {
         validate_life(option, context)?;
         validate_schedule(option.observation_schedule(), context)?;
         let time = context.valuation_time();
-        let expiry = option.expiry_date().start_of_day();
+        let expiry = option.expiry_time();
         let radius =
             crate::risk::numerical::symmetric_shift(context.spot_price(), shifts.spot_shift());
         let discontinuity = match contract {
@@ -212,19 +212,19 @@ impl MonteCarloBarrierEngine {
             Vec::new()
         } else {
             option
-                .observation_dates()
+                .observation_times()
                 .iter()
                 .copied()
-                .filter(|date| date.start_of_day() > time)
+                .filter(|date| *date > time)
                 .collect::<Vec<_>>()
         };
-        if dates.last() != Some(&option.expiry_date()) {
-            dates.push(option.expiry_date());
+        if dates.last() != Some(&option.expiry_time()) {
+            dates.push(option.expiry_time());
         }
         let mut previous = time;
         let mut steps = Vec::with_capacity(dates.len());
         for date in dates {
-            let next = date.start_of_day();
+            let next = date;
             let dt = previous.years_until(next);
             let width = sigma * dt.sqrt();
             let increment = drift * dt;
@@ -235,7 +235,7 @@ impl MonteCarloBarrierEngine {
                 increment,
                 width,
                 -rate * time.years_until(next),
-                !continuous && option.observation_dates().binary_search(&date).is_ok(),
+                !continuous && option.observation_times().binary_search(&date).is_ok(),
             ));
             previous = next;
         }

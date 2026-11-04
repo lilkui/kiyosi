@@ -3,7 +3,7 @@
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from kiyosi import (
     InvalidInputError,
@@ -29,13 +29,15 @@ from test_snowball import END, START, autocallable_observations, market, structu
 
 class SnowballVariantTests(unittest.TestCase):
     def test_quadrature_covers_drift_into_future_knock_out(self):
-        end = date(2026, 1, 1)
+        end = datetime(2026, 1, 1)
         note = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_date=START,
-            expiry_date=end,
+            effective_time=START,
+            expiry_time=end,
             observations=autocallable_observations(
-                [date(2025, 6, 30), end], [110, 110], knock_out_coupon_rates=[0.2, 0.2]
+                [datetime(2025, 6, 30), end],
+                [110, 110],
+                knock_out_coupon_rates=[0.2, 0.2],
             ),
         )
         context = market(
@@ -57,15 +59,15 @@ class SnowballVariantTests(unittest.TestCase):
         )
 
     def test_quadrature_covers_drift_below_future_knock_out(self):
-        end = date(2026, 1, 1)
+        end = datetime(2026, 1, 1)
         note = SnowballOption(
             maturity_coupon_rate=0,
             initial_spot=100,
             knock_in_level=80,
             upper_strike=100,
             lower_strike=0,
-            effective_date=START,
-            expiry_date=end,
+            effective_time=START,
+            expiry_time=end,
             knock_in_observation_mode="every_trading_day",
             observations=autocallable_observations(
                 [end], [110], knock_out_coupon_rates=[0.2]
@@ -103,8 +105,8 @@ class SnowballVariantTests(unittest.TestCase):
         common = {
             "maturity_coupon_rate": 0.06,
             "principal_ratio": 0.5,
-            "effective_date": START,
-            "expiry_date": END,
+            "effective_time": START,
+            "expiry_time": END,
             "observations": autocallable_observations(
                 [END], [110], knock_out_coupon_rates=[0.08]
             ),
@@ -117,7 +119,7 @@ class SnowballVariantTests(unittest.TestCase):
             knock_in_observation_mode="at_expiry",
         )
         engine = QuadratureAutocallableEngine()
-        valuation = date(2025, 2, 3)
+        valuation = datetime(2025, 2, 3)
         time = (END - valuation).days / 365
         d2 = (math.log(80 / 110) + (0.04 - 0.01 - 0.3**2 / 2) * time) / (
             0.3 * math.sqrt(time)
@@ -150,8 +152,8 @@ class SnowballVariantTests(unittest.TestCase):
     def fixed(self, kind, **changes):
         fields = {
             "maturity_coupon_rate": 0.06,
-            "effective_date": START,
-            "expiry_date": END,
+            "effective_time": START,
+            "expiry_time": END,
             "observations": autocallable_observations(
                 [END], [110], knock_out_coupon_rates=[0.08]
             ),
@@ -172,13 +174,13 @@ class SnowballVariantTests(unittest.TestCase):
                 continue
             with self.subTest(name=name):
                 fields = {
-                    "effective_date": date.fromisoformat(inputs["effective_date"]),
-                    "expiry_date": date.fromisoformat(inputs["expiry_date"]),
+                    "effective_time": datetime.fromisoformat(inputs["effective_time"]),
+                    "expiry_time": datetime.fromisoformat(inputs["expiry_time"]),
                     "barrier_state": inputs["history"],
                     "principal_ratio": inputs["principal_ratio"],
                     "maturity_coupon_rate": inputs["maturity_coupon_rate"],
                     "observations": autocallable_observations(
-                        [date.fromisoformat(inputs["expiry_date"])],
+                        [datetime.fromisoformat(inputs["expiry_time"])],
                         [110],
                         knock_out_coupon_rates=[inputs["coupon_rate"]],
                     ),
@@ -192,7 +194,7 @@ class SnowballVariantTests(unittest.TestCase):
                 note = getattr(instruments, kind)(**fields)
                 ctx = market(
                     inputs["spot"],
-                    date.fromisoformat(inputs["valuation"]),
+                    datetime.fromisoformat(inputs["valuation"]),
                     volatility=inputs["volatility"],
                     rate=inputs["rate"],
                 )
@@ -201,13 +203,13 @@ class SnowballVariantTests(unittest.TestCase):
                 )
 
     def test_all_eight_presets_match_explicit_terms_prices_and_analysis(self):
-        dates = [date(2025, 2, 3), date(2025, 3, 3), END]
+        dates = [datetime(2025, 2, 3), datetime(2025, 3, 3), END]
         common = {
             "initial_spot": 100,
             "knock_in_level": 80,
-            "observation_dates": dates,
-            "effective_date": START,
-            "expiry_date": END,
+            "observation_times": dates,
+            "effective_time": START,
+            "expiry_time": END,
             "principal_ratio": 0.5,
             "barrier_state": "no_event",
         }
@@ -311,7 +313,7 @@ class SnowballVariantTests(unittest.TestCase):
             ),
         ]
         engine = QuadratureAutocallableEngine(asset_step_count=128)
-        ctx = market(100, date(2025, 1, 15))
+        ctx = market(100, datetime(2025, 1, 15))
         for name, extra, levels, coupons, maturity, upper, lower, mode in cases:
             with self.subTest(preset=name):
                 actual = getattr(instruments, name)(**common, **extra)
@@ -324,8 +326,8 @@ class SnowballVariantTests(unittest.TestCase):
                     knock_in_observation_mode=mode,
                     barrier_state="no_event",
                     principal_ratio=0.5,
-                    effective_date=START,
-                    expiry_date=END,
+                    effective_time=START,
+                    expiry_time=END,
                     observations=autocallable_observations(
                         dates, levels, knock_out_coupon_rates=coupons
                     ),
@@ -356,9 +358,9 @@ class SnowballVariantTests(unittest.TestCase):
             initial_spot=100,
             knock_in_level=80,
             knock_out_level=110,
-            observation_dates=[END],
-            effective_date=START,
-            expiry_date=END,
+            observation_times=[END],
+            effective_time=START,
+            expiry_time=END,
         )
         self.assertEqual(defaults.principal_ratio, 1)
         self.assertIsNone(defaults.barrier_state)
@@ -400,9 +402,9 @@ class SnowballVariantTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 self.fixed(kind, observations=[object()])
             with self.assertRaises(TypeError):
-                self.fixed(kind, effective_date=datetime(2025, 1, 1))
+                self.fixed(kind, effective_time=datetime(2025, 1, 1).date())
             self.assert_rejection(
-                InvalidInputError, self.fixed, kind, expiry_date=date(2024, 12, 31)
+                InvalidInputError, self.fixed, kind, expiry_time=datetime(2024, 12, 31)
             )
             self.assert_rejection(
                 InvalidInputError,
@@ -426,7 +428,7 @@ class SnowballVariantTests(unittest.TestCase):
                 InvalidInputError, engine.price_with_greeks, note, market(), []
             )
             self.assert_rejection(
-                InvalidInputError, engine.price, note, market(100, date(2025, 4, 2))
+                InvalidInputError, engine.price, note, market(100, datetime(2025, 4, 2))
             )
         binary = self.fixed(BinarySnowballOption)
         self.assert_rejection(
@@ -454,7 +456,7 @@ class SnowballVariantTests(unittest.TestCase):
             TernarySnowballOption, knock_in_observation_mode="every_trading_day"
         )
         self.assert_rejection(
-            InvalidInputError, engine.price, daily, market(100, date(2025, 1, 2))
+            InvalidInputError, engine.price, daily, market(100, datetime(2025, 1, 2))
         )
         self.assertEqual(
             engine.price(
@@ -474,9 +476,9 @@ class SnowballVariantTests(unittest.TestCase):
             "initial_spot": 100,
             "knock_in_level": 80,
             "knock_out_level": 110,
-            "observation_dates": [END],
-            "effective_date": START,
-            "expiry_date": END,
+            "observation_times": [END],
+            "effective_time": START,
+            "expiry_time": END,
         }
         for field in (
             "coupon_rate",
@@ -491,7 +493,7 @@ class SnowballVariantTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             instruments.standard_snowball,
-            **(common | {"observation_dates": []}),
+            **(common | {"observation_times": []}),
         )
         self.assert_rejection(
             InvalidInputError,
@@ -521,7 +523,7 @@ class SnowballVariantTests(unittest.TestCase):
         )
         # A negative decrement is supported if the expanded levels remain positive.
         note = instruments.step_down_snowball(
-            **(stepped | {"observation_dates": [date(2025, 2, 3), END]}),
+            **(stepped | {"observation_times": [datetime(2025, 2, 3), END]}),
             knock_out_level_decrement=-2,
         )
         self.assertEqual(note.knock_out_levels, [110, 112])
@@ -567,7 +569,7 @@ class SnowballVariantTests(unittest.TestCase):
             self.assertEqual(
                 prices, [engine.price(note, market(s)) for s in [80, 100, 120]]
             )
-            middle = date(2025, 2, 3)
+            middle = datetime(2025, 2, 3)
             note = self.fixed(
                 kind,
                 barrier_state="no_event",
@@ -588,7 +590,7 @@ class SnowballVariantTests(unittest.TestCase):
                 market(110, middle),
                 current.price,
             )
-            intraday = datetime(2025, 2, 3, 0, 0, 0, 1, UTC)
+            intraday = datetime(2025, 2, 3, 0, 0, 0, 1)
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
@@ -620,7 +622,7 @@ class SnowballVariantTests(unittest.TestCase):
             )
 
     def test_multi_event_convergence_for_fixed_variants_and_both_monitoring_modes(self):
-        dates = [date(2025, 2, 3), date(2025, 3, 3), END]
+        dates = [datetime(2025, 2, 3), datetime(2025, 3, 3), END]
         ctx = market()
         for kind, mode in (
             (BinarySnowballOption, None),
@@ -648,14 +650,14 @@ class SnowballVariantTests(unittest.TestCase):
             self.assertAlmostEqual(prices[1], prices[2], delta=1e-4)
 
     def test_signed_coupon_and_one_second_digital_regressions(self):
-        end = date(2026, 1, 1)
+        end = datetime(2026, 1, 1)
         engine = QuadratureAutocallableEngine()
         for coupon in (0.1, -4):
             for mode in ("at_expiry", "every_trading_day"):
                 for kind in (BinarySnowballOption, TernarySnowballOption):
                     note = self.fixed(
                         kind,
-                        expiry_date=end,
+                        expiry_time=end,
                         maturity_coupon_rate=0,
                         observations=autocallable_observations(
                             [end], [100], knock_out_coupon_rates=[coupon]
@@ -679,11 +681,11 @@ class SnowballVariantTests(unittest.TestCase):
                         expected,
                         delta=1e-12,
                     )
-        valuation = datetime(2026, 1, 1, tzinfo=UTC) - timedelta(seconds=1)
+        valuation = datetime(2026, 1, 1) - timedelta(seconds=1)
         t = 1 / (365 * 86400)
         note = self.fixed(
             BinarySnowballOption,
-            expiry_date=end,
+            expiry_time=end,
             maturity_coupon_rate=0,
             observations=autocallable_observations(
                 [end], [100], knock_out_coupon_rates=[0.1]

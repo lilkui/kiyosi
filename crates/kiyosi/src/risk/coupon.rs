@@ -63,8 +63,8 @@ impl Default for ImpliedCouponSettings {
 /// ```rust
 /// use kiyosi::*;
 /// # fn main() -> Result<()> {
-/// let start = Date::new(2025, 1, 1)?;
-/// let end = Date::new(2025, 4, 1)?;
+/// let start = Date::new(2025, 1, 1)?.start_of_day();
+/// let end = Date::new(2025, 4, 1)?.start_of_day();
 /// let note = BinarySnowballOption::new(BinarySnowballTerms::new(0.06, start, end,
 ///     autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?))?;
 /// let market = PricingContext::new(
@@ -115,8 +115,8 @@ pub fn implied_snowball_coupon<
 /// ```rust
 /// use kiyosi::*;
 /// # fn main() -> Result<()> {
-/// let start = Date::new(2025, 1, 1)?;
-/// let end = Date::new(2025, 4, 1)?;
+/// let start = Date::new(2025, 1, 1)?.start_of_day();
+/// let end = Date::new(2025, 4, 1)?.start_of_day();
 /// let note = PhoenixOption::new(PhoenixTerms::new(0.08, 100.0, 80.0, 100.0, 60.0,
 ///     start, end, autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?))?;
 /// let market = PricingContext::new(

@@ -2,7 +2,7 @@
 
 import math
 import unittest
-from datetime import date
+from datetime import datetime
 from itertools import product
 
 import QuantLib as ql
@@ -15,7 +15,7 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import AnalyticDoubleBarrierEngine, AnalyticEuropeanEngine
 
-START, END = date(2025, 1, 1), date(2026, 1, 1)
+START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
 
 def contract(**changes):
@@ -24,8 +24,8 @@ def contract(**changes):
             {
                 "option_type": "call",
                 "strike": 100,
-                "effective_date": START,
-                "expiry_date": END,
+                "effective_time": START,
+                "expiry_time": END,
                 "lower_barrier": 80,
                 "upper_barrier": 120,
                 "barrier_type": "knock_out",
@@ -100,7 +100,7 @@ class DoubleBarrierTests(unittest.TestCase):
                 barrier_type="knock_in" if kind == "knock_out" else "knock_out",
             )
             vanilla = EuropeanOption(
-                option_type=direction, strike=100, effective_date=START, expiry_date=END
+                option_type=direction, strike=100, effective_time=START, expiry_time=END
             )
             self.assertAlmostEqual(
                 result.price + engine.price(other, market()),
@@ -120,8 +120,8 @@ class DoubleBarrierTests(unittest.TestCase):
         single = BarrierOption(
             option_type="call",
             strike=100,
-            effective_date=START,
-            expiry_date=END,
+            effective_time=START,
+            expiry_time=END,
             barrier_level=80,
             barrier_type="down_and_out",
         )
@@ -129,7 +129,7 @@ class DoubleBarrierTests(unittest.TestCase):
             "rebate",
             "rebate_timing",
             "observation_mode",
-            "observation_dates",
+            "observation_times",
             "touch_state",
         ):
             self.assertEqual(getattr(option, field), getattr(single, field))
@@ -141,8 +141,8 @@ class DoubleBarrierTests(unittest.TestCase):
             (
                 option.option_type,
                 option.strike,
-                option.effective_date,
-                option.expiry_date,
+                option.effective_time,
+                option.expiry_time,
             ),
             ("call", 100, START, END),
         )
@@ -166,7 +166,7 @@ class DoubleBarrierTests(unittest.TestCase):
                 contract(**{field: "unknown"})
             with self.assertRaises(TypeError):
                 contract(**{field: True})
-        for field in ("effective_date", "expiry_date"):
+        for field in ("effective_time", "expiry_time"):
             with self.assertRaises(TypeError):
                 contract(**{field: "2025-01-01"})
         for values, expected_error in [
@@ -176,27 +176,27 @@ class DoubleBarrierTests(unittest.TestCase):
             ({"upper_barrier": 80}, InvalidInputError),
             ({"lower_barrier": 130}, InvalidInputError),
             ({"strike": 0}, InvalidInputError),
-            ({"expiry_date": date(2024, 1, 1)}, InvalidInputError),
+            ({"expiry_time": datetime(2024, 1, 1)}, InvalidInputError),
             ({"rebate": -1}, InvalidInputError),
             ({"rebate": math.nan}, InvalidInputError),
             (
                 {"barrier_type": "knock_in", "rebate_timing": "at_hit"},
                 InvalidInputError,
             ),
-            ({"observation_dates": [END]}, InvalidInputError),
+            ({"observation_times": [END]}, InvalidInputError),
             ({"observation_mode": "scheduled"}, InvalidInputError),
             (
-                {"observation_mode": "scheduled", "observation_dates": [END, END]},
+                {"observation_mode": "scheduled", "observation_times": [END, END]},
                 InvalidInputError,
             ),
             (
-                {"observation_mode": "scheduled", "observation_dates": [END, START]},
+                {"observation_mode": "scheduled", "observation_times": [END, START]},
                 InvalidInputError,
             ),
             (
                 {
                     "observation_mode": "scheduled",
-                    "observation_dates": [date(2026, 1, 2)],
+                    "observation_times": [datetime(2026, 1, 2)],
                 },
                 InvalidInputError,
             ),
@@ -218,17 +218,17 @@ class DoubleBarrierTests(unittest.TestCase):
         self.assertEqual(known.replace_history(touch_state=None), option)
         self.assertIsNone(option.touch_state)
         scheduled = contract(
-            observation_mode="scheduled", observation_dates=(d for d in [START, END])
+            observation_mode="scheduled", observation_times=(d for d in [START, END])
         )
-        dates = scheduled.observation_dates
+        dates = scheduled.observation_times
         dates.clear()
-        self.assertEqual(scheduled.observation_dates, [START, END])
-        self.assertEqual(scheduled.observation_schedule.dates, [START, END])
+        self.assertEqual(scheduled.observation_times, [START, END])
+        self.assertEqual(scheduled.observation_schedule.times, [START, END])
         with self.assertRaises(AttributeError):
             option.upper_barrier = 130
 
     def test_current_touch_history_rebates_expiry_and_native_time_boundaries(self):
-        from datetime import UTC, datetime, timedelta
+        from datetime import datetime, timedelta
 
         engine = AnalyticDoubleBarrierEngine()
         later = market(time=START + timedelta(days=1))
@@ -263,7 +263,7 @@ class DoubleBarrierTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError, lambda: engine.price(contract(), later)
         )
-        microsecond = market(time=datetime(2025, 1, 1, microsecond=1, tzinfo=UTC))
+        microsecond = market(time=datetime(2025, 1, 1, microsecond=1))
         self.assert_rejection(
             InvalidInputError,
             lambda: engine.price(contract(), microsecond),
@@ -279,29 +279,29 @@ class DoubleBarrierTests(unittest.TestCase):
             self.assertIsNone(result.delta)
             self.assertIsNone(result.vega)
         option = contract(touch_state="untouched")
-        after = market(time=datetime(2026, 1, 1, microsecond=1, tzinfo=UTC))
+        after = market(time=datetime(2026, 1, 1, microsecond=1))
         self.assert_rejection(InvalidInputError, lambda: engine.price(option, after))
         self.assert_rejection(
             InvalidInputError,
-            lambda: engine.price(option, market(time=date(2024, 12, 31))),
+            lambda: engine.price(option, market(time=datetime(2024, 12, 31))),
         )
         inside = contract(barrier_type="knock_in", touch_state="touched")
         vanilla = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         self.assertEqual(
             engine.price(inside, later), AnalyticEuropeanEngine().price(vanilla, later)
         )
 
     def test_schedules_validate_then_resolve_before_analytic_restrictions(self):
-        from datetime import UTC, datetime
+        from datetime import datetime
 
         from kiyosi.market import weekdays_calendar
 
         engine = AnalyticDoubleBarrierEngine()
-        first = date(2025, 6, 30)
+        first = datetime(2025, 6, 30)
         for dates in ([first], [first, END]):
-            option = contract(observation_mode="scheduled", observation_dates=dates)
+            option = contract(observation_mode="scheduled", observation_times=dates)
             self.assert_rejection(
                 UnsupportedOperationError,
                 lambda option=option: engine.price(option, market()),
@@ -316,7 +316,7 @@ class DoubleBarrierTests(unittest.TestCase):
                 barrier_type=kind,
                 rebate=3,
                 observation_mode="scheduled",
-                observation_dates=[first],
+                observation_times=[first],
             )
             self.assertAlmostEqual(
                 engine.price(option, market(120, time=first)),
@@ -324,8 +324,8 @@ class DoubleBarrierTests(unittest.TestCase):
                     EuropeanOption(
                         option_type="call",
                         strike=100,
-                        effective_date=START,
-                        expiry_date=END,
+                        effective_time=START,
+                        expiry_time=END,
                     ),
                     market(120, time=first),
                 )
@@ -333,7 +333,7 @@ class DoubleBarrierTests(unittest.TestCase):
                 else 3 * math.exp(-0.04 * 185 / 365),
                 delta=1e-12,
             )
-            intraday = market(130, time=datetime(2025, 6, 30, 12, tzinfo=UTC))
+            intraday = market(130, time=datetime(2025, 6, 30, 12))
             self.assert_rejection(
                 InvalidInputError,
                 lambda option=option, intraday=intraday: engine.price(option, intraday),
@@ -346,15 +346,15 @@ class DoubleBarrierTests(unittest.TestCase):
                     EuropeanOption(
                         option_type="call",
                         strike=100,
-                        effective_date=START,
-                        expiry_date=END,
+                        effective_time=START,
+                        expiry_time=END,
                     ),
                     intraday,
                 )
             )
             self.assertAlmostEqual(engine.price(known, intraday), expected, delta=1e-12)
         weekend = contract(
-            observation_mode="scheduled", observation_dates=[date(2025, 7, 5)]
+            observation_mode="scheduled", observation_times=[datetime(2025, 7, 5)]
         )
         restricted = market().replace(calendar=weekdays_calendar())
         self.assert_rejection(
@@ -381,7 +381,7 @@ class DoubleBarrierTests(unittest.TestCase):
                 actual, reference("call", "knock_out", spot=spot), delta=1e-9
             )
         vanilla = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         self.assertAlmostEqual(
             engine.price(contract(lower_barrier=0.01, upper_barrier=10000), market()),
@@ -556,16 +556,18 @@ class DoubleBarrierTests(unittest.TestCase):
 
     def test_settled_zero_rebates_do_not_require_representable_discount(self):
         engine = AnalyticDoubleBarrierEngine()
-        outside = contract(expiry_date=date(2027, 1, 1))
+        outside = contract(expiry_time=datetime(2027, 1, 1))
         self.assertEqual(engine.price(outside, market(120, rate=1e308, dividend=0)), 0)
         inside = contract(
-            expiry_date=date(2027, 1, 1),
+            expiry_time=datetime(2027, 1, 1),
             barrier_type="knock_in",
             observation_mode="scheduled",
-            observation_dates=[START],
+            observation_times=[START],
             touch_state="untouched",
         )
         self.assertEqual(
-            engine.price(inside, market(time=date(2025, 1, 2), rate=1e308, dividend=0)),
+            engine.price(
+                inside, market(time=datetime(2025, 1, 2), rate=1e308, dividend=0)
+            ),
             0,
         )

@@ -1,7 +1,7 @@
 use kiyosi::*;
 
-fn date(month: u32, day: u32) -> Date {
-    Date::new(2025, month, day).unwrap()
+fn date(month: u32, day: u32) -> Timestamp {
+    Date::new(2025, month, day).unwrap().start_of_day()
 }
 fn market(spot: f64, valuation: impl Into<Timestamp>) -> PricingContext {
     PricingContext::new(
@@ -14,7 +14,7 @@ fn market(spot: f64, valuation: impl Into<Timestamp>) -> PricingContext {
 
 #[test]
 fn terminal_binary_matches_independent_cash_and_digital_portfolio() {
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let note = BinarySnowballOption::new(BinarySnowballTerms::new(
         0.0,
         date(1, 1),
@@ -287,8 +287,8 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
     ));
     let ctx = market(100.0, start);
     let curve = RateTermStructure::new(
-        start.into(),
-        vec![date(2, 3).into(), end.into()],
+        start,
+        vec![date(2, 3), end],
         vec![
             (-0.04_f64 * 33.0 / 365.0).exp(),
             (-0.04_f64 * 90.0 / 365.0).exp(),
@@ -315,7 +315,7 @@ fn defaults_validation_history_and_node_curves_are_preserved() {
         (engine.price(&known, &curved).unwrap() - engine.price(&known, &ctx).unwrap()).abs()
             < 1e-12
     );
-    let short = RateTermStructure::new(start.into(), vec![date(2, 3).into()], vec![0.99]).unwrap();
+    let short = RateTermStructure::new(start, vec![date(2, 3)], vec![0.99]).unwrap();
     let short_ctx = ctx
         .replace(PricingContextChanges {
             model_parameters: Some(
@@ -370,9 +370,9 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
     }
     assert!(result.has(Greek::Vega));
     assert!(result.has(Greek::Rho));
-    let curve = RateTermStructure::new(start.into(), vec![end.into()], vec![0.99]).unwrap();
+    let curve = RateTermStructure::new(start, vec![end], vec![0.99]).unwrap();
     let model = BlackScholesMertonParameters::new(curve, 0.01, 0.2).unwrap();
-    let ctx = PricingContext::new(model, 100.0, start.into()).unwrap();
+    let ctx = PricingContext::new(model, 100.0, start).unwrap();
     let fixed = BinarySnowballOption::new(BinarySnowballTerms::new(
         0.0,
         start,
@@ -394,7 +394,7 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
 #[test]
 fn binary_domains_use_actual_levels_in_small_price_units() {
     let start = date(1, 1);
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let mut reference: Option<f64> = None;
     for level in [100.0, 1e-6, 1e-9] {
         let note = BinarySnowballOption::new(BinarySnowballTerms::new(
@@ -432,7 +432,7 @@ fn binary_domains_use_actual_levels_in_small_price_units() {
 #[test]
 fn native_spot_greeks_do_not_require_a_feasible_scalar_bump() {
     let start = date(1, 1);
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let ctx = market(100.0, start);
     let engine = FiniteDifferenceAutocallableEngine::default();
     for coupon in [0.0, 0.1] {
@@ -469,7 +469,7 @@ fn native_spot_greeks_do_not_require_a_feasible_scalar_bump() {
 #[test]
 fn explicit_uniform_grid_uses_the_top_node_stability_bound() {
     let start = date(1, 1);
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let note = BinarySnowballOption::new(BinarySnowballTerms::new(
         0.0,
         start,
@@ -480,7 +480,7 @@ fn explicit_uniform_grid_uses_the_top_node_stability_bound() {
     let ctx = PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.3).unwrap(),
         100.0,
-        start.into(),
+        start,
     )
     .unwrap();
     let engine = FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {

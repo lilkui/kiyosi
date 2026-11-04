@@ -1,7 +1,7 @@
 use kiyosi::*;
 
-fn date(month: u32, day: u32) -> Date {
-    Date::new(2025, month, day).unwrap()
+fn date(month: u32, day: u32) -> Timestamp {
+    Date::new(2025, month, day).unwrap().start_of_day()
 }
 
 fn terms() -> SnowballTerms {
@@ -17,11 +17,11 @@ fn terms() -> SnowballTerms {
     )
 }
 
-fn market(spot: f64, valuation: Date) -> PricingContext {
+fn market(spot: f64, valuation: Timestamp) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.3).unwrap(),
         spot,
-        valuation.into(),
+        valuation,
     )
     .unwrap()
 }
@@ -106,15 +106,15 @@ fn terminal_portfolios_preserve_signed_coupons_affine_tails_and_principal() {
         for lower in [0.0, 60.0] {
             for coupon in [-4.0, 0.1] {
                 let mut t = terms();
-                t.effective_date = date(1, 1);
-                t.expiry_date = Date::new(2026, 1, 1).unwrap();
+                t.effective_time = date(1, 1);
+                t.expiry_time = Date::new(2026, 1, 1).unwrap().start_of_day();
                 t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
                 t.maturity_coupon_rate = 0.0;
                 t.knock_in_level = 100.0;
                 t.lower_strike = lower;
                 t.principal_ratio = principal;
                 t.observations =
-                    autocallable_observations(&[t.expiry_date], &[100.0], Some(&[coupon]), None)
+                    autocallable_observations(&[t.expiry_time], &[100.0], Some(&[coupon]), None)
                         .unwrap();
                 let ctx = market(100.0, date(1, 1));
                 let put = |strike| {
@@ -123,8 +123,8 @@ fn terminal_portfolios_preserve_signed_coupons_affine_tails_and_principal() {
                             &EuropeanOption::new(
                                 OptionType::Put,
                                 strike,
-                                t.effective_date,
-                                t.expiry_date,
+                                t.effective_time,
+                                t.expiry_time,
                             )
                             .unwrap(),
                             &ctx,
@@ -135,8 +135,8 @@ fn terminal_portfolios_preserve_signed_coupons_affine_tails_and_principal() {
                     OptionType::Call,
                     100.0,
                     coupon.abs(),
-                    t.effective_date,
-                    t.expiry_date,
+                    t.effective_time,
+                    t.expiry_time,
                 )
                 .unwrap();
                 let expected = principal * (-0.04_f64).exp()
@@ -156,7 +156,7 @@ fn terminal_portfolios_preserve_signed_coupons_affine_tails_and_principal() {
 #[test]
 fn multi_observation_affine_tails_preserve_cash_asset_and_greeks() {
     let engine = QuadratureAutocallableEngine::default();
-    let valuation = Timestamp::new(date(1, 2), 12, 0, 0, 0).unwrap();
+    let valuation = Timestamp::new(date(1, 2).date(), 12, 0, 0, 0).unwrap();
     let time = 4.5 / 365.0;
     for (principal, rate, dividend) in [(1.0, 0.0, 0.0), (0.25, 0.04, 0.03)] {
         for (mode, history) in [
@@ -171,7 +171,7 @@ fn multi_observation_affine_tails_preserve_cash_asset_and_greeks() {
             ),
         ] {
             let mut t = terms();
-            t.expiry_date = date(1, 7);
+            t.expiry_time = date(1, 7);
             t.lower_strike = 0.0;
             t.principal_ratio = principal;
             t.maturity_coupon_rate = 0.0;
@@ -289,7 +289,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     let mut t = terms();
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     t.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    t.observations[0].date = date(2, 3);
+    t.observations[0].time = date(2, 3);
     let note = SnowballOption::new(t).unwrap();
     let result = engine
         .price_with_greeks(
@@ -319,7 +319,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
 #[test]
 fn prepared_pricing_rebuilds_when_the_calendar_changes_monitoring_dates() {
     let mut t = terms();
-    t.expiry_date = date(1, 20);
+    t.expiry_time = date(1, 20);
     t.knock_in_level = 95.0;
     t.observations = autocallable_observations(
         &[date(1, 8), date(1, 20)],

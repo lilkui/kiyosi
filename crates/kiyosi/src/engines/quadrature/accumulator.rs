@@ -5,7 +5,7 @@ use super::gaussian::{
 use super::{QuadratureSettings, flat_rates};
 use crate::numerics::log_ratio;
 use crate::{
-    Accumulator, BlackScholesMertonParameters, Date, Error, GreeksRequest, NumericalShiftSettings,
+    Accumulator, BlackScholesMertonParameters, Error, GreeksRequest, NumericalShiftSettings,
     OptionType, PricingContext, PricingEngine, PricingResult, Result, Timestamp,
 };
 
@@ -29,11 +29,11 @@ impl QuadratureAccumulatorEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
-    ///     start, Date::new(2025, 1, 6)?))?.replace_history(3.0)?;
+    ///     start, Date::new(2025, 1, 6)?.start_of_day()))?.replace_history(3.0)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
-    ///     90.0, option.expiry_date().into())?;
+    ///     90.0, option.expiry_time().into())?;
     /// let engine = QuadratureAccumulatorEngine::new(QuadratureSettings::default())?;
     /// assert_eq!(engine.settings().asset_step_count, 512);
     /// assert_eq!(engine.price(&option, &context)?, -50.0);
@@ -47,7 +47,7 @@ impl QuadratureAccumulatorEngine {
     pub fn settings(&self) -> QuadratureSettings {
         self.settings
     }
-    /// Prices outstanding cash flows, applying a current midnight trading event once.
+    /// Prices outstanding cash flows, applying a current contractual event once.
     ///
     /// Observes knock-out only on the contract's specified dates, before accumulation.
     /// Acceleration and settlement follow the contract's direction. See [`Self::new`].
@@ -129,7 +129,7 @@ struct PreparedCurve {
     option: Accumulator,
     model: BlackScholesMertonParameters,
     valuation: Timestamp,
-    dates: Vec<Date>,
+    dates: Vec<Timestamp>,
     nodes: Vec<f64>,
     layers: [Layer; 2],
     drift: f64,
@@ -149,9 +149,7 @@ fn price(
     context.bsm_parameters()?;
     let (rate, dividend) = flat_rates(context)?;
     option.validate_pricing(context)?;
-    let horizon = context
-        .valuation_time()
-        .years_until(option.expiry_date().into());
+    let horizon = context.valuation_time().years_until(option.expiry_time());
     let (quantity, settlement) = option.initial(context);
     if let Some(value) = settlement {
         return checked(value);
@@ -163,7 +161,7 @@ fn price(
             |layer: &Layer| layer.evaluate(nodes, current, strike, drift, deviation, discount);
         checked(quantity * value(&layers[0]) + value(&layers[1]))
     };
-    let dates = option.future_observation_dates(context)?;
+    let dates = option.future_observation_times(context)?;
     if let Some(curve) = prepared.as_deref().and_then(Option::as_ref).filter(|c| {
         c.option == *option
             && context.bsm_parameters().is_ok_and(|m| c.model == *m)
@@ -205,7 +203,7 @@ fn price(
         asset: sign,
     });
     if count == 2 {
-        let (live_lower, live_upper) = if option.observes_knock_out(option.expiry_date()) {
+        let (live_lower, live_upper) = if option.observes_knock_out(option.expiry_time()) {
             if sign > 0.0 {
                 (f64::NEG_INFINITY, knock_out)
             } else {
@@ -263,6 +261,7 @@ fn price(
     for event in (0..dates.len()).rev() {
         let final_event = event + 1 == dates.len();
         let observes_knock_out = option.observes_knock_out(dates[event]);
+        let accumulates = option.accumulates_at(dates[event], context.calendar());
         if observes_knock_out {
             next_knock_out = Some(event);
         }
@@ -289,11 +288,18 @@ fn price(
                     }
                     let settlement = if knock_out_side { next_knock_out } else { None };
                     let last = settlement.unwrap_or(dates.len() - 1);
-                    let remaining = dates[event].start_of_day().years_until(dates[last].into());
+                    let remaining = dates[event].years_until(dates[last]);
                     let quantity = if layer == 0 {
                         1.0
                     } else {
-                        (last - event + usize::from(settlement.is_none())) as f64 * purchase
+                        dates[event..=last]
+                            .iter()
+                            .filter(|&&time| {
+                                option.accumulates_at(time, context.calendar())
+                                    && (settlement.is_none() || time < dates[last])
+                            })
+                            .count() as f64
+                            * purchase
                     };
                     // Extreme paths settle at the next eligible knock-out, or at expiry.
                     result.exact.push(TerminalPiece {
@@ -322,7 +328,9 @@ fn price(
                 if !(observes_knock_out && knocks_out(point)) {
                     layers[0].cells[cell] = continuation[0][cell];
                     if count == 2 {
-                        let purchase = if point < 0.0 {
+                        let purchase = if !accumulates {
+                            0.0
+                        } else if point < 0.0 {
                             option.purchase(0.0)
                         } else {
                             option.purchase(f64::INFINITY)
@@ -335,11 +343,9 @@ fn price(
             }
         }
         let time = if event == 0 {
-            context.valuation_time().years_until(dates[event].into())
+            context.valuation_time().years_until(dates[event])
         } else {
-            dates[event - 1]
-                .start_of_day()
-                .years_until(dates[event].into())
+            dates[event - 1].years_until(dates[event])
         };
         let (drift, deviation, discount) = transition(time)?;
         if event == 0 {

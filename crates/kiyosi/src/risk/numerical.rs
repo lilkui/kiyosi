@@ -53,9 +53,9 @@ pub(crate) fn symmetric_shift(value: f64, requested: f64) -> f64 {
 /// use kiyosi::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
 ///     DigitalOption, OptionType, PricingContext, Greek, GreeksRequest, numerical_greeks};
 /// # fn main() -> kiyosi::Result<()> {
-/// let start = Date::new(2025, 1, 1)?;
+/// let start = Date::new(2025, 1, 1)?.start_of_day();
 /// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
-///     start, Date::new(2026, 1, 1)?)?;
+///     start, Date::new(2026, 1, 1)?.start_of_day())?;
 /// let context = PricingContext::new(
 ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
 /// let result = numerical_greeks(&AnalyticDigitalEngine, &option, &context,
@@ -121,7 +121,7 @@ pub(crate) fn complete_greeks(
     let p0 = result.price();
     let available = GreeksRequest::new(Greek::ALL.into_iter().filter(|&g| result.has(g)));
     let time = context.valuation_time();
-    if time == option.expiry_date().start_of_day() || option.all_greeks_unavailable(context) {
+    if time == option.expiry_time() || option.all_greeks_unavailable(context) {
         return Ok(result);
     }
     let want = |g| request.has(g) && !available.has(g);
@@ -345,9 +345,8 @@ pub(crate) fn complete_greeks(
     if want(Greek::Theta) || want(Greek::Charm) || want(Greek::Color) {
         let mut lower = option
             .valuation_start()
-            .unwrap_or(crate::Date::new(-32767, 1, 1)?)
-            .start_of_day();
-        let mut upper = option.expiry_date().start_of_day();
+            .unwrap_or(crate::Date::new(-32767, 1, 1)?.start_of_day());
+        let mut upper = option.expiry_time();
         for curve in [model.risk_free_curve(), model.dividend_curve()] {
             if let Some(reference) = curve.reference_time() {
                 lower = lower.max(reference);
@@ -410,14 +409,14 @@ mod tests {
     use crate::{BlackScholesMertonParameters, Date, EuropeanOption, OptionType};
 
     fn inputs() -> (EuropeanOption, PricingContext) {
-        let start = Date::new(2025, 1, 1).unwrap();
-        let end = Date::new(2026, 1, 1).unwrap();
+        let start = Date::new(2025, 1, 1).unwrap().start_of_day();
+        let end = Date::new(2026, 1, 1).unwrap().start_of_day();
         (
             EuropeanOption::new(OptionType::Call, 2.0, start, end).unwrap(),
             PricingContext::new(
                 BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap(),
                 2.0,
-                start.into(),
+                start,
             )
             .unwrap(),
         )
@@ -507,7 +506,7 @@ mod tests {
                         .unwrap()
                         .into(),
                 ),
-                valuation_time: Some(Date::new(2025, 1, 3).unwrap().into()),
+                valuation_time: Some(Date::new(2025, 1, 3).unwrap().start_of_day()),
                 ..Default::default()
             })
             .unwrap();
@@ -521,8 +520,7 @@ mod tests {
         ] {
             let evaluate = |context: &PricingContext, _| {
                 let days = option
-                    .effective_date()
-                    .start_of_day()
+                    .effective_time()
                     .micros_until(context.valuation_time()) as f64
                     / 86_400_000_000.0;
                 let spot = context.spot_price();

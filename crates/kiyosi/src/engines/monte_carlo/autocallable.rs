@@ -1,7 +1,7 @@
 use super::{Moments, MonteCarloEstimate, MonteCarloSettings};
 use super::{estimate, path_samples, scaled_value, unstable};
 use crate::instruments::autocallable::pricing::{
-    fixed_value, future_event_dates, initial, validate, volatility_affects_price,
+    fixed_value, future_event_times, initial, validate, volatility_affects_price,
 };
 use crate::numerics::log_ratio;
 use crate::{
@@ -40,8 +40,8 @@ impl MonteCarloAutocallableEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let end = Date::new(2025, 4, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let end = Date::new(2025, 4, 1)?.start_of_day();
     /// let note = BinarySnowballOption::new(BinarySnowballTerms::new(0.02, start, end,
     ///     autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?))?;
     /// let context = PricingContext::new(
@@ -153,25 +153,23 @@ impl MonteCarloAutocallableEngine {
         let terms = note.view();
         let daily = terms.daily_knock_in() && !state.knocked_in && note.knock_in_affects_payoff();
         let valuation = context.valuation_time();
-        let dates = future_event_dates(note, context, daily)?;
+        let dates = future_event_times(note, context, daily)?;
         let mut previous = valuation;
         let sigma = model.volatility();
         let initial_spot = context.spot_price();
         let knock_in = terms.knock_in.map(|ki| log_ratio(ki.level, initial_spot));
         let below_knock_in = |log_return| knock_in.is_some_and(|level| log_return < level);
         let mut steps = Vec::with_capacity(dates.len());
-        let mut next = note
-            .observations()
-            .partition_point(|r| r.date.start_of_day() <= valuation);
+        let mut next = note.observations().partition_point(|r| r.time <= valuation);
         for date in dates {
-            let time = previous.years_until(date.into());
+            let time = previous.years_until(date);
             let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
             let diffusion = sigma * time.sqrt();
-            let log_discount = -rate * valuation.years_until(date.into());
+            let log_discount = -rate * valuation.years_until(date);
             if !drift.is_finite() || !diffusion.is_finite() || !log_discount.is_finite() {
                 return Err(unstable());
             }
-            let record = note.observations().get(next).filter(|r| r.date == date);
+            let record = note.observations().get(next).filter(|r| r.time == date);
             if record.is_some() {
                 next += 1;
             }
@@ -183,8 +181,14 @@ impl MonteCarloAutocallableEngine {
                     note.period_coupon(record),
                 )
             });
-            steps.push((drift, diffusion, log_discount, record));
-            previous = date.into();
+            steps.push((
+                drift,
+                diffusion,
+                log_discount,
+                record,
+                daily && note.daily_time(date, context.calendar()),
+            ));
+            previous = date;
         }
         let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
         let ([moments], [pairs]) =
@@ -193,7 +197,8 @@ impl MonteCarloAutocallableEngine {
                 let mut log_return = 0.0;
                 let mut knocked_in = state.knocked_in;
                 let mut coupons = state.coupon;
-                for ((drift, diffusion, log_discount, record), normal) in steps.iter().zip(normals)
+                for ((drift, diffusion, log_discount, record, observe_knock_in), normal) in
+                    steps.iter().zip(normals)
                 {
                     // Keep threshold decisions before rounding the simulated spot.
                     log_return += diffusion.mul_add(*normal, *drift);
@@ -201,7 +206,7 @@ impl MonteCarloAutocallableEngine {
                     if !spot.is_finite() || spot <= 0.0 {
                         return Err(unstable());
                     }
-                    if daily {
+                    if *observe_knock_in {
                         knocked_in |= below_knock_in(log_return);
                     }
                     if let Some((record, knock_out, coupon_barrier, period_coupon)) = *record {

@@ -35,9 +35,9 @@ impl AnalyticDoubleTouchEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = DoubleTouchOption::cash(DoubleTouchOptionTerms::new(start,
-    ///     Date::new(2026, 1, 1)?, 80.0, 120.0, DoubleBarrierType::KnockOut), 1.0)?;
+    ///     Date::new(2026, 1, 1)?.start_of_day(), 80.0, 120.0, DoubleBarrierType::KnockOut), 1.0)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.03, 0.01, 0.2)?,
     ///     100.0, start.into())?;
     /// let engine = AnalyticDoubleTouchEngine;
@@ -67,10 +67,7 @@ impl AnalyticDoubleTouchEngine {
             } else {
                 checked(scaled_cash(
                     option.payout(),
-                    -rate
-                        * context
-                            .valuation_time()
-                            .years_until(option.expiry_date().start_of_day()),
+                    -rate * context.valuation_time().years_until(option.expiry_time()),
                 ))
             };
         }
@@ -82,7 +79,7 @@ impl AnalyticDoubleTouchEngine {
         let density = AbsorbingDistribution::new(
             option.lower_barrier(),
             option.upper_barrier(),
-            option.expiry_date(),
+            option.expiry_time(),
             context,
         )?;
         if at_hit {

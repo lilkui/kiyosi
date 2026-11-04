@@ -568,8 +568,8 @@ impl MonteCarloVanillaEngine {
     /// use kiyosi::{MonteCarloSettings, MonteCarloVanillaEngine, EuropeanOption,
     ///     OptionType, Date, BlackScholesMertonParameters, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// let engine = MonteCarloVanillaEngine::new(MonteCarloSettings { seed: Some(42), ..Default::default() })?;
@@ -607,8 +607,8 @@ impl MonteCarloVanillaEngine {
     /// ```rust
     /// # use kiyosi::*;
     /// # fn main() -> kiyosi::Result<()> {
-    /// # let start = Date::new(2025, 1, 1)?;
-    /// # let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?)?;
+    /// # let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// # let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// # let context = PricingContext::new(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// let engine = MonteCarloVanillaEngine::new(MonteCarloSettings { seed: Some(42), ..Default::default() })?;
     /// let estimate = engine.price_with_statistics(&option, &context)?;
@@ -628,7 +628,7 @@ impl MonteCarloVanillaEngine {
             sample,
             pairs,
             log_discount,
-            context.valuation_time() == option.expiry_date().start_of_day(),
+            context.valuation_time() == option.expiry_time(),
         )
     }
 
@@ -642,8 +642,8 @@ impl MonteCarloVanillaEngine {
         let rate = model.risk_free_rate()?;
         let dividend = model.dividend_yield()?;
         let valuation = context.valuation_time();
-        let expiry = option.expiry_date().start_of_day();
-        if valuation < option.effective_date().start_of_day() || valuation > expiry {
+        let expiry = option.expiry_time();
+        if valuation < option.effective_time() || valuation > expiry {
             return Err(Error::InvalidInput(
                 "valuation must be within contract life".into(),
             ));

@@ -109,9 +109,9 @@ impl MonteCarloAsianEngine {
     ///     GeometricAveragePriceOption, Date, OptionType,
     ///     BlackScholesMertonParameters, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = GeometricAveragePriceOption::new(OptionType::Call, 100.0,
-    ///     start, start, Date::new(2026, 1, 1)?, 0.0)?;
+    ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), 0.0)?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// let engine = MonteCarloAsianEngine::new(MonteCarloSettings {
@@ -194,8 +194,8 @@ impl MonteCarloAsianEngine {
         }
         o.coverage(context)?;
         let valuation = context.valuation_time();
-        let start = o.averaging_start.start_of_day();
-        let expiry = o.terms.expiry_date().start_of_day();
+        let start = o.averaging_start;
+        let expiry = o.terms.expiry_time();
         let single = o.period() == 0.0;
         let lead = if single {
             0.0
@@ -482,9 +482,7 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         option: &ArithmeticAveragePriceOption,
         context: &PricingContext,
     ) -> bool {
-        let tau = context
-            .valuation_time()
-            .years_until(option.expiry_date().start_of_day());
+        let tau = context.valuation_time().years_until(option.expiry_time());
         option.0.adjusted_strike(tau) > 0.0
     }
 }

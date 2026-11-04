@@ -11,11 +11,16 @@
 //! valuation dates, calendar consistency and required prior history. All built-in
 //! contracts support validated immutable `replace` operations; omitted terms and
 //! history remain unchanged. See [`BarrierOption::replace`] for an exotic example.
-//! Contract dates denote midnight UTC boundaries, not whole trading days. The
-//! effective-date and expiry-date midnights are included; later instants on the
-//! expiry date are outside contract life. Calendars do not move these boundaries.
-//! Contract dates cannot specify an intraday expiry. Python converts aware
-//! valuation datetimes to UTC before applying the same boundaries.
+//! Contract effective and expiry timestamps are inclusive and preserve microseconds.
+//! Contractual, observation and market times use [`Timestamp`] and share a
+//! caller-selected time basis. Calendars classify dates without moving contract
+//! boundaries. Pure calendar inputs remain [`Date`] values.
+//! Explicit observations use their exact timestamps. Implicit daily observations use
+//! the expiry clock time; snowballs and accumulators include the effective instant,
+//! while range accruals exclude it. Events strictly before valuation require history;
+//! events at valuation use the current spot. Finite-difference grids return
+//! [`Error::ComputationFailure`] when distinct event timestamps cannot be represented
+//! as distinct floating-point year fractions.
 //!
 //! Annual rates and annualized volatility use decimal units. Rates and dividend
 //! yields are continuously compounded. Rate curves use the Actual/365 Fixed
@@ -72,8 +77,8 @@
 //! use kiyosi::{AnalyticEuropeanEngine, BlackScholesMertonParameters, Date,
 //!                   EuropeanOption, OptionType, PricingContext};
 //! # fn main() -> kiyosi::Result<()> {
-//! let start = Date::new(2025, 1, 1)?;
-//! let expiry = Date::new(2026, 1, 1)?;
+//! let start = Date::new(2025, 1, 1)?.start_of_day();
+//! let expiry = Date::new(2026, 1, 1)?.start_of_day();
 //! let option = EuropeanOption::new(OptionType::Call, 100.0, start, expiry)?;
 //! let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
 //! let context = PricingContext::new(model, 100.0, start.into())?;

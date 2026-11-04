@@ -1,14 +1,14 @@
 use kiyosi::*;
 
-fn date(month: u32, day: u32) -> Date {
-    Date::new(2025, month, day).unwrap()
+fn date(month: u32, day: u32) -> Timestamp {
+    Date::new(2025, month, day).unwrap().start_of_day()
 }
 
-fn market(spot: f64, valuation: Date) -> PricingContext {
+fn market(spot: f64, valuation: Timestamp) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.3).unwrap(),
         spot,
-        valuation.into(),
+        valuation,
     )
     .unwrap()
 }
@@ -547,8 +547,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         Error::InvalidInput(_)
     ));
     assert_eq!(ternary.terms().maturity_coupon_rate, 0.06);
-    let curve =
-        RateTermStructure::new(date(1, 1).into(), vec![date(4, 1).into()], vec![0.99]).unwrap();
+    let curve = RateTermStructure::new(date(1, 1), vec![date(4, 1)], vec![0.99]).unwrap();
     let model = context
         .model_parameters()
         .as_bsm()
@@ -675,7 +674,7 @@ fn coupon_endpoints_can_change_daily_knock_in_layers() {
     let context = PricingContext::with_calendar(
         BlackScholesMertonParameters::new(0.03, 0.0, 0.3).unwrap(),
         100.25,
-        Timestamp::new(date(1, 1), 12, 0, 0, 0).unwrap(),
+        Timestamp::new(date(1, 1).date(), 12, 0, 0, 0).unwrap(),
         TradingCalendar::all_days(),
     )
     .unwrap();

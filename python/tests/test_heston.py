@@ -4,7 +4,7 @@ import inspect
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import QuantLib as ql
 from kiyosi import (
@@ -23,8 +23,8 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import AnalyticEuropeanEngine, AnalyticHestonEuropeanEngine
 
-START = date(2025, 1, 1)
-END = date(2026, 1, 1)
+START = datetime(2025, 1, 1)
+END = datetime(2026, 1, 1)
 PARAMETERS = {
     "risk_free_rate": 0.05,
     "dividend_yield": 0.02,
@@ -59,8 +59,8 @@ def option(**changes):
             {
                 "option_type": "call",
                 "strike": 100,
-                "effective_date": START,
-                "expiry_date": END,
+                "effective_time": START,
+                "expiry_time": END,
             }
             | changes
         )
@@ -71,7 +71,7 @@ def reference(parameters, instrument, tolerance, *, exp_sinh=False):
     """Independent QuantLib 1.43 Gatheral reference with Lobatto or exp-sinh."""
     assert ql.__version__ == "1.43"
     qstart = ql.Date(START.day, START.month, START.year)
-    end = instrument.expiry_date
+    end = instrument.expiry_time
     with ql.SavedSettings():
         ql.Settings.instance().evaluationDate = qstart
         risk = ql.YieldTermStructureHandle(
@@ -144,7 +144,7 @@ class HestonTests(unittest.TestCase):
         )
         snapshot = context(
             parameters,
-            valuation_time=datetime(2025, 12, 31, 23, 59, 59, 999999, tzinfo=UTC),
+            valuation_time=datetime(2025, 12, 31, 23, 59, 59, 999999),
         )
         for kind in ("call", "put"):
             with self.subTest(kind=kind):
@@ -215,7 +215,7 @@ class HestonTests(unittest.TestCase):
                         contract = option(
                             option_type=kind,
                             strike=strike,
-                            expiry_date=START + timedelta(days=days),
+                            expiry_time=START + timedelta(days=days),
                         )
                         with self.subTest(
                             days=days,
@@ -257,7 +257,7 @@ class HestonTests(unittest.TestCase):
     def test_tail_prices_have_relative_accuracy(self):
         # Independent QuantLib 1.43 reference is stable under 1e-10 -> 1e-12 refinement.
         contract = option(
-            option_type="put", strike=70, expiry_date=START + timedelta(days=30)
+            option_type="put", strike=70, expiry_time=START + timedelta(days=30)
         )
         expected = reference(model(), contract, 1e-12)
         self.assertAlmostEqual(expected, 3.105513031411244e-6, delta=2e-14)
@@ -448,7 +448,7 @@ class HestonTests(unittest.TestCase):
         self.assertEqual(engine.price(option(option_type="put"), terminal), 0)
         for instant in (
             START - timedelta(days=1),
-            datetime(2026, 1, 1, 0, 0, 0, 1, tzinfo=UTC),
+            datetime(2026, 1, 1, 0, 0, 0, 1),
         ):
             with self.subTest(instant=instant), self.assertRaises(InvalidInputError):
                 engine.price(option(), context(valuation_time=instant))
@@ -462,12 +462,12 @@ class HestonTests(unittest.TestCase):
             with self.assertRaises(UnsupportedOperationError):
                 AnalyticEuropeanEngine().price(option(), snapshot)
         with self.assertRaises(TypeError):
-            context(valuation_time=datetime(2025, 1, 1))
+            context(valuation_time=datetime(2025, 1, 1).date())
 
     def test_curves_and_coverage_match_equivalent_flat_rates(self):
         risk = RateTermStructure(
             reference_time=START,
-            times=[date(2025, 7, 1), END],
+            times=[datetime(2025, 7, 1), END],
             factors=[0.99, math.exp(-0.05)],
         )
         dividend = RateTermStructure(
@@ -480,7 +480,7 @@ class HestonTests(unittest.TestCase):
         self.assertAlmostEqual(actual, 9.01127840754174, delta=1e-7)
         with self.assertRaises(InvalidInputError):
             AnalyticHestonEuropeanEngine().price(
-                option(expiry_date=END + timedelta(days=1)), context(parameters)
+                option(expiry_time=END + timedelta(days=1)), context(parameters)
             )
         with self.assertRaises(InvalidInputError):
             context(parameters, valuation_time=START - timedelta(days=1))
@@ -489,7 +489,7 @@ class HestonTests(unittest.TestCase):
         parameters = model(initial_variance=1e308, long_run_variance=1e308)
         with self.assertRaises(ComputationFailureError):
             AnalyticHestonEuropeanEngine().price(
-                option(expiry_date=date(2027, 1, 1)), context(parameters)
+                option(expiry_time=datetime(2027, 1, 1)), context(parameters)
             )
 
     def test_shared_engine_supports_concurrent_independent_requests(self):

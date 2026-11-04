@@ -1,16 +1,16 @@
 use kiyosi::*;
 
-fn dates() -> (Date, Date) {
+fn dates() -> (Timestamp, Timestamp) {
     (
-        Date::new(2025, 1, 1).unwrap(),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
     )
 }
 fn model() -> HestonParameters {
     HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.5, 0.3, -0.7).unwrap()
 }
 fn context(model: HestonParameters) -> PricingContext {
-    PricingContext::new(model, 100.0, dates().0.into()).unwrap()
+    PricingContext::new(model, 100.0, dates().0).unwrap()
 }
 fn option(kind: OptionType) -> EuropeanOption {
     EuropeanOption::new(kind, 100.0, dates().0, dates().1).unwrap()
@@ -59,7 +59,7 @@ fn deterministic_variance_and_absorbing_zero_have_independent_prices() {
         let bsm = PricingContext::new(
             BlackScholesMertonParameters::new(0.05, 0.02, variance.sqrt()).unwrap(),
             100.0,
-            dates().0.into(),
+            dates().0,
         )
         .unwrap();
         let heston =
@@ -250,7 +250,7 @@ fn relative_tail_accuracy_convergence_and_monetary_scaling() {
         OptionType::Put,
         70.0,
         dates().0,
-        Date::new(2025, 1, 31).unwrap(),
+        Date::new(2025, 1, 31).unwrap().start_of_day(),
     )
     .unwrap();
     // QuantLib 1.43 adaptive Gatheral at 1e-10 and 1e-12 agrees within 2e-14.
@@ -258,7 +258,7 @@ fn relative_tail_accuracy_convergence_and_monetary_scaling() {
     let actual = tight.price(&tail, &context(model())).unwrap();
     assert!((actual / expected - 1.0).abs() < 1e-8);
     for scale in [1e-100, 1.0, 1e100] {
-        let context = PricingContext::new(model(), 100.0 * scale, dates().0.into()).unwrap();
+        let context = PricingContext::new(model(), 100.0 * scale, dates().0).unwrap();
         let option =
             EuropeanOption::new(OptionType::Call, 100.0 * scale, dates().0, dates().1).unwrap();
         let actual = tight.price(&option, &context).unwrap() / scale;
@@ -277,13 +277,12 @@ fn relative_tail_accuracy_convergence_and_monetary_scaling() {
 fn curves_life_and_expiry_reuse_european_contracts() {
     let (start, end) = dates();
     let risk = RateTermStructure::new(
-        start.into(),
-        vec![Date::new(2025, 7, 1).unwrap().into(), end.into()],
+        start,
+        vec![Date::new(2025, 7, 1).unwrap().start_of_day(), end],
         vec![0.99, (-0.05_f64).exp()],
     )
     .unwrap();
-    let dividend =
-        RateTermStructure::new(start.into(), vec![end.into()], vec![(-0.02_f64).exp()]).unwrap();
+    let dividend = RateTermStructure::new(start, vec![end], vec![(-0.02_f64).exp()]).unwrap();
     let parameters = model()
         .replace(HestonParameterChanges {
             risk_free_rate: Some(risk.clone().into()),
@@ -304,7 +303,7 @@ fn curves_life_and_expiry_reuse_european_contracts() {
     );
     let terminal = context
         .replace(PricingContextChanges {
-            valuation_time: Some(end.into()),
+            valuation_time: Some(end),
             spot_price: Some(110.0),
             ..Default::default()
         })
@@ -318,7 +317,7 @@ fn curves_life_and_expiry_reuse_european_contracts() {
         0.0
     );
     let outside = context.replace(PricingContextChanges {
-        valuation_time: Some(Timestamp::new(end, 0, 0, 0, 1).unwrap()),
+        valuation_time: Some(Timestamp::new(end.date(), 0, 0, 0, 1).unwrap()),
         ..Default::default()
     });
     assert!(matches!(outside, Err(Error::InvalidInput(_))));
@@ -326,15 +325,19 @@ fn curves_life_and_expiry_reuse_european_contracts() {
         OptionType::Call,
         100.0,
         start,
-        Date::new(2026, 1, 2).unwrap(),
+        Date::new(2026, 1, 2).unwrap().start_of_day(),
     )
     .unwrap();
     assert!(matches!(
         engine.price(&too_long, &context),
         Err(Error::InvalidInput(_))
     ));
-    let dated =
-        PricingContext::new(model(), 100.0, Timestamp::new(end, 0, 0, 0, 1).unwrap()).unwrap();
+    let dated = PricingContext::new(
+        model(),
+        100.0,
+        Timestamp::new(end.date(), 0, 0, 0, 1).unwrap(),
+    )
+    .unwrap();
     assert!(matches!(
         engine.price(&option(OptionType::Call), &dated),
         Err(Error::InvalidInput(_))
@@ -374,7 +377,7 @@ fn unsupported_requests_and_invalid_computations_preserve_categories() {
     let bsm = PricingContext::new(
         BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap(),
         100.0,
-        dates().1.into(),
+        dates().1,
     )
     .unwrap();
     assert!(matches!(
@@ -400,7 +403,7 @@ fn unsupported_requests_and_invalid_computations_preserve_categories() {
         OptionType::Call,
         100.0,
         dates().0,
-        Date::new(2027, 1, 1).unwrap(),
+        Date::new(2027, 1, 1).unwrap().start_of_day(),
     )
     .unwrap();
     assert!(matches!(
@@ -440,7 +443,7 @@ fn absorbing_variance_preserves_small_discounted_payoff_differences() {
         (OptionType::Put, 0.0, 1e-18),
     ] {
         let parameters = HestonParameters::new(risk, dividend, 0.0, 0.0, 1.0, 0.3, 0.0).unwrap();
-        let context = PricingContext::new(parameters, 1e18, dates().0.into()).unwrap();
+        let context = PricingContext::new(parameters, 1e18, dates().0).unwrap();
         let option = EuropeanOption::new(kind, 1e18, dates().0, dates().1).unwrap();
         assert!((engine.price(&option, &context).unwrap() - 1.0).abs() < 1e-12);
     }

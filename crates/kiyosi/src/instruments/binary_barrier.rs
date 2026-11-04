@@ -1,7 +1,7 @@
 use super::monitoring::Monitoring;
 use crate::{
-    BarrierTouchState, BarrierType, Date, DigitalOption, Error, ObservationMode,
-    ObservationSchedule, OptionContract, OptionType, PricingContext, Result, Timestamp,
+    BarrierTouchState, BarrierType, DigitalOption, Error, ObservationMode, ObservationSchedule,
+    OptionContract, OptionType, PricingContext, Result, Timestamp,
 };
 
 /// Payment timing for a touch contract; see [`TouchOption::cash`].
@@ -23,18 +23,18 @@ pub struct BinaryBarrierTerms {
     pub option_type: OptionType,
     /// Positive finite strike; terminal equality pays zero.
     pub strike: f64,
-    /// Inclusive first date.
-    pub effective_date: Date,
-    /// Inclusive expiry at midnight UTC.
-    pub expiry_date: Date,
+    /// Inclusive effective time.
+    pub effective_time: Timestamp,
+    /// Inclusive the inclusive expiry timestamp.
+    pub expiry_time: Timestamp,
     /// Positive finite trigger; equality touches.
     pub barrier_level: f64,
     /// Trigger direction and activation behavior.
     pub barrier_type: BarrierType,
     /// Monitoring frequency, default continuous.
     pub observation_mode: ObservationMode,
-    /// Ordered fixing dates, empty for continuous monitoring.
-    pub observation_dates: Vec<Date>,
+    /// Ordered fixing times, empty for continuous monitoring.
+    pub observation_times: Vec<Timestamp>,
     /// Observations strictly before valuation; `None` means unknown.
     pub touch_state: Option<BarrierTouchState>,
 }
@@ -45,31 +45,31 @@ impl BinaryBarrierTerms {
     pub fn new(
         option_type: OptionType,
         strike: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_time: Timestamp,
+        expiry_time: Timestamp,
         barrier_level: f64,
         barrier_type: BarrierType,
     ) -> Self {
         Self {
             option_type,
             strike,
-            effective_date,
-            expiry_date,
+            effective_time,
+            expiry_time,
             barrier_level,
             barrier_type,
             observation_mode: ObservationMode::default(),
-            observation_dates: Vec::new(),
+            observation_times: Vec::new(),
             touch_state: None,
         }
     }
     fn monitoring(self) -> Result<Monitoring> {
         Monitoring::new(
-            self.effective_date,
-            self.expiry_date,
+            self.effective_time,
+            self.expiry_time,
             self.barrier_level,
             self.barrier_type,
             self.observation_mode,
-            self.observation_dates,
+            self.observation_times,
             self.touch_state,
         )
     }
@@ -92,7 +92,7 @@ impl BinaryBarrierOption {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for invalid payout, strike, life,
-    /// barrier or fixing dates, checked in that order. History relative to valuation
+    /// barrier or fixing times, checked in that order. History relative to valuation
     /// and calendar compatibility are checked during pricing.
     ///
     /// # Examples
@@ -101,7 +101,7 @@ impl BinaryBarrierOption {
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
     /// let terms = BinaryBarrierTerms::new(OptionType::Call, 100.0,
-    ///     Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?, 120.0, BarrierType::UpAndOut);
+    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut);
     /// let option = BinaryBarrierOption::cash(terms, 10.0)?;
     /// assert_eq!(option.payout(), Some(10.0));
     /// # Ok(()) }
@@ -111,8 +111,8 @@ impl BinaryBarrierOption {
             terms.option_type,
             terms.strike,
             payout,
-            terms.effective_date,
-            terms.expiry_date,
+            terms.effective_time,
+            terms.expiry_time,
         )?;
         Ok(Self {
             monitoring: terms.monitoring()?,
@@ -131,7 +131,7 @@ impl BinaryBarrierOption {
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
     /// let option = BinaryBarrierOption::asset(BinaryBarrierTerms::new(OptionType::Put, 100.0,
-    ///     Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?, 80.0, BarrierType::DownAndIn))?;
+    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 80.0, BarrierType::DownAndIn))?;
     /// assert_eq!(option.payout(), None);
     /// # Ok(()) }
     /// ```
@@ -139,8 +139,8 @@ impl BinaryBarrierOption {
         let digital = DigitalOption::asset_or_nothing(
             terms.option_type,
             terms.strike,
-            terms.effective_date,
-            terms.expiry_date,
+            terms.effective_time,
+            terms.expiry_time,
         )?;
         Ok(Self {
             monitoring: terms.monitoring()?,
@@ -176,10 +176,10 @@ impl BinaryBarrierOption {
 /// Strike-free touch inputs; validated by [`TouchOption::cash`] or [`TouchOption::asset`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct TouchOptionTerms {
-    /// Inclusive first date.
-    pub effective_date: Date,
-    /// Inclusive expiry at midnight UTC.
-    pub expiry_date: Date,
+    /// Inclusive effective time.
+    pub effective_time: Timestamp,
+    /// Inclusive the inclusive expiry timestamp.
+    pub expiry_time: Timestamp,
     /// Positive finite barrier; equality touches.
     pub barrier_level: f64,
     /// In means one-touch, out means no-touch; up/down selects direction.
@@ -188,8 +188,8 @@ pub struct TouchOptionTerms {
     pub settlement_timing: SettlementTiming,
     /// Monitoring frequency, default continuous.
     pub observation_mode: ObservationMode,
-    /// Ordered fixing dates, empty for continuous monitoring.
-    pub observation_dates: Vec<Date>,
+    /// Ordered fixing times, empty for continuous monitoring.
+    pub observation_times: Vec<Timestamp>,
     /// Observations strictly before valuation; `None` means unknown.
     pub touch_state: Option<BarrierTouchState>,
 }
@@ -198,19 +198,19 @@ impl TouchOptionTerms {
     ///
     /// See [`TouchOption::cash`] for validation and an example.
     pub fn new(
-        effective_date: Date,
-        expiry_date: Date,
+        effective_time: Timestamp,
+        expiry_time: Timestamp,
         barrier_level: f64,
         barrier_type: BarrierType,
     ) -> Self {
         Self {
-            effective_date,
-            expiry_date,
+            effective_time,
+            expiry_time,
             barrier_level,
             barrier_type,
             settlement_timing: SettlementTiming::default(),
             observation_mode: ObservationMode::default(),
-            observation_dates: Vec::new(),
+            observation_times: Vec::new(),
             touch_state: None,
         }
     }
@@ -221,12 +221,12 @@ impl TouchOptionTerms {
             ));
         }
         Monitoring::new(
-            self.effective_date,
-            self.expiry_date,
+            self.effective_time,
+            self.expiry_time,
             self.barrier_level,
             self.barrier_type,
             self.observation_mode,
-            self.observation_dates,
+            self.observation_times,
             self.touch_state,
         )
     }
@@ -257,8 +257,8 @@ impl TouchOption {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let option = TouchOption::cash(TouchOptionTerms::new(Date::new(2025, 1, 1)?,
-    ///     Date::new(2026, 1, 1)?, 120.0, BarrierType::UpAndIn), 10.0)?;
+    /// let option = TouchOption::cash(TouchOptionTerms::new(Date::new(2025, 1, 1)?.start_of_day(),
+    ///     Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndIn), 10.0)?;
     /// assert!(option.is_one_touch());
     /// assert_eq!(option.settlement_timing(), SettlementTiming::AtExpiry);
     /// # Ok(()) }
@@ -289,8 +289,8 @@ impl TouchOption {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let option = TouchOption::asset(TouchOptionTerms::new(Date::new(2025, 1, 1)?,
-    ///     Date::new(2026, 1, 1)?, 80.0, BarrierType::DownAndOut))?;
+    /// let option = TouchOption::asset(TouchOptionTerms::new(Date::new(2025, 1, 1)?.start_of_day(),
+    ///     Date::new(2026, 1, 1)?.start_of_day(), 80.0, BarrierType::DownAndOut))?;
     /// assert!(!option.is_one_touch());
     /// assert_eq!(option.payout(), None);
     /// # Ok(()) }
@@ -337,13 +337,13 @@ impl TouchOption {
 macro_rules! monitoring_accessors {
     ($contract:ty) => {
         impl $contract {
-            /// Returns the inclusive first date; see the cash constructor.
-            pub fn effective_date(&self) -> Date {
-                self.monitoring.effective_date()
+            /// Returns the inclusive effective time; see the cash constructor.
+            pub fn effective_time(&self) -> Timestamp {
+                self.monitoring.effective_time()
             }
-            /// Returns expiry at midnight UTC; see the cash constructor.
-            pub fn expiry_date(&self) -> Date {
-                self.monitoring.expiry_date()
+            /// Returns the inclusive expiry timestamp; see the cash constructor.
+            pub fn expiry_time(&self) -> Timestamp {
+                self.monitoring.expiry_time()
             }
             /// Returns the positive barrier; see the cash constructor.
             pub fn barrier_level(&self) -> f64 {
@@ -361,9 +361,9 @@ macro_rules! monitoring_accessors {
             pub fn observation_schedule(&self) -> &ObservationSchedule {
                 self.monitoring.observation_schedule()
             }
-            /// Borrows ordered dates for this owner's lifetime; see the cash constructor.
-            pub fn observation_dates(&self) -> &[Date] {
-                self.monitoring.observation_dates()
+            /// Borrows ordered times for this owner's lifetime; see the cash constructor.
+            pub fn observation_times(&self) -> &[Timestamp] {
+                self.monitoring.observation_times()
             }
             /// Returns mean fixing spacing in Actual/365 Fixed years; see the cash constructor.
             pub fn mean_observation_year_fraction(&self) -> f64 {
@@ -375,11 +375,11 @@ macro_rules! monitoring_accessors {
             }
         }
         impl OptionContract for $contract {
-            fn effective_date(&self) -> Date {
-                self.effective_date()
+            fn effective_time(&self) -> Timestamp {
+                self.effective_time()
             }
-            fn expiry_date(&self) -> Date {
-                self.expiry_date()
+            fn expiry_time(&self) -> Timestamp {
+                self.expiry_time()
             }
             fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
                 self.monitoring.at_spot_discontinuity(context, radius)
@@ -460,18 +460,18 @@ pub struct BinaryBarrierOptionChanges {
     pub option_type: Option<OptionType>,
     /// Replaces [`strike`](BinaryBarrierTerms::strike).
     pub strike: Option<f64>,
-    /// Replaces [`effective_date`](BinaryBarrierTerms::effective_date).
-    pub effective_date: Option<Date>,
-    /// Replaces [`expiry_date`](BinaryBarrierTerms::expiry_date).
-    pub expiry_date: Option<Date>,
+    /// Replaces [`effective_time`](BinaryBarrierTerms::effective_time).
+    pub effective_time: Option<Timestamp>,
+    /// Replaces [`expiry_time`](BinaryBarrierTerms::expiry_time).
+    pub expiry_time: Option<Timestamp>,
     /// Replaces [`barrier_level`](BinaryBarrierTerms::barrier_level).
     pub barrier_level: Option<f64>,
     /// Replaces [`barrier_type`](BinaryBarrierTerms::barrier_type).
     pub barrier_type: Option<BarrierType>,
     /// Replaces [`observation_mode`](BinaryBarrierTerms::observation_mode).
     pub observation_mode: Option<ObservationMode>,
-    /// Replaces [`observation_dates`](BinaryBarrierTerms::observation_dates).
-    pub observation_dates: Option<Vec<Date>>,
+    /// Replaces [`observation_times`](BinaryBarrierTerms::observation_times).
+    pub observation_times: Option<Vec<Timestamp>>,
     /// Replaces [`touch_state`](BinaryBarrierTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
     /// Replaces [`payout`](BinaryBarrierOption::payout).
@@ -498,14 +498,14 @@ impl BinaryBarrierOption {
         let terms = BinaryBarrierTerms {
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
-            effective_date: changes.effective_date.unwrap_or(self.effective_date()),
-            expiry_date: changes.expiry_date.unwrap_or(self.expiry_date()),
+            effective_time: changes.effective_time.unwrap_or(self.effective_time()),
+            expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
             barrier_level: changes.barrier_level.unwrap_or(self.barrier_level()),
             barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
             observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
-            observation_dates: changes
-                .observation_dates
-                .unwrap_or_else(|| self.observation_dates().to_vec()),
+            observation_times: changes
+                .observation_times
+                .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
         match self.payout() {
@@ -520,10 +520,10 @@ impl BinaryBarrierOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct TouchOptionChanges {
-    /// Replaces [`effective_date`](TouchOptionTerms::effective_date).
-    pub effective_date: Option<Date>,
-    /// Replaces [`expiry_date`](TouchOptionTerms::expiry_date).
-    pub expiry_date: Option<Date>,
+    /// Replaces [`effective_time`](TouchOptionTerms::effective_time).
+    pub effective_time: Option<Timestamp>,
+    /// Replaces [`expiry_time`](TouchOptionTerms::expiry_time).
+    pub expiry_time: Option<Timestamp>,
     /// Replaces [`barrier_level`](TouchOptionTerms::barrier_level).
     pub barrier_level: Option<f64>,
     /// Replaces [`barrier_type`](TouchOptionTerms::barrier_type).
@@ -532,8 +532,8 @@ pub struct TouchOptionChanges {
     pub settlement_timing: Option<SettlementTiming>,
     /// Replaces [`observation_mode`](TouchOptionTerms::observation_mode).
     pub observation_mode: Option<ObservationMode>,
-    /// Replaces [`observation_dates`](TouchOptionTerms::observation_dates).
-    pub observation_dates: Option<Vec<Date>>,
+    /// Replaces [`observation_times`](TouchOptionTerms::observation_times).
+    pub observation_times: Option<Vec<Timestamp>>,
     /// Replaces [`touch_state`](TouchOptionTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
     /// Replaces [`payout`](TouchOption::payout).
@@ -558,17 +558,17 @@ impl TouchOption {
             ));
         }
         let terms = TouchOptionTerms {
-            effective_date: changes.effective_date.unwrap_or(self.effective_date()),
-            expiry_date: changes.expiry_date.unwrap_or(self.expiry_date()),
+            effective_time: changes.effective_time.unwrap_or(self.effective_time()),
+            expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
             barrier_level: changes.barrier_level.unwrap_or(self.barrier_level()),
             barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
             settlement_timing: changes
                 .settlement_timing
                 .unwrap_or(self.settlement_timing()),
             observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
-            observation_dates: changes
-                .observation_dates
-                .unwrap_or_else(|| self.observation_dates().to_vec()),
+            observation_times: changes
+                .observation_times
+                .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
         match self.payout() {

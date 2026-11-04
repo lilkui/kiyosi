@@ -12,14 +12,14 @@ from test_local_volatility_structured import END, OBSERVATIONS, START, market
 
 def contracts(scheduled):
     terms = {
-        "effective_date": START,
-        "expiry_date": END,
+        "effective_time": START,
+        "expiry_time": END,
         "lower_barrier": 85,
         "upper_barrier": 115,
         "touch_state": "untouched",
     }
     if scheduled:
-        terms.update(observation_mode="scheduled", observation_dates=OBSERVATIONS)
+        terms.update(observation_mode="scheduled", observation_times=OBSERVATIONS)
     result = {}
     for direction in ["call", "put"]:
         for kind in ["in", "out"]:

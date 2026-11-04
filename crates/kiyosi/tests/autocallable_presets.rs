@@ -1,14 +1,14 @@
 use kiyosi::*;
 
-fn date(month: u32, day: u32) -> Date {
-    Date::new(2025, month, day).unwrap()
+fn date(month: u32, day: u32) -> Timestamp {
+    Date::new(2025, month, day).unwrap().start_of_day()
 }
 
-fn market(spot: f64, valuation: Date) -> PricingContext {
+fn market(spot: f64, valuation: Timestamp) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.3).unwrap(),
         spot,
-        valuation.into(),
+        valuation,
     )
     .unwrap()
 }
@@ -146,7 +146,7 @@ fn fixed_period_cashflows_exclude_settled_coupons_and_preserve_annual_accrual() 
             let context = PricingContext::new(
                 BlackScholesMertonParameters::new(0.0, 0.0, 1e-8).unwrap(),
                 spot,
-                day.into(),
+                day,
             )
             .unwrap();
             for value in [
@@ -201,7 +201,7 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
         },
     ] {
         let mut input = phoenix_terms();
-        input.observation_dates = vec![end];
+        input.observation_times = vec![end];
         let note = input.expand(preset).unwrap();
         let coupon_value = match preset {
             PhoenixPreset::FixedCouponNote => 0.01 * discount,
@@ -285,7 +285,7 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
     for (preset, rates, maturity) in [
         (
             SnowballPreset::EarlyProfit {
-                first_stage_end_date: date(2, 3),
+                first_stage_end_time: date(2, 3),
                 second_coupon_rate: 0.05,
             },
             [0.2, 0.05, 0.05, 0.05, 0.05],
@@ -293,9 +293,9 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
         ),
         (
             SnowballPreset::Butterfly {
-                first_stage_end_date: date(2, 3),
+                first_stage_end_time: date(2, 3),
                 second_coupon_rate: 0.05,
-                second_stage_end_date: date(3, 3),
+                second_stage_end_time: date(3, 3),
                 third_coupon_rate: -0.02,
             },
             [0.2, 0.05, 0.05, -0.02, -0.02],
@@ -375,7 +375,7 @@ fn stage_validation_checks_unused_rates_and_allows_empty_stages_and_non_observat
         let note = base
             .clone()
             .expand(SnowballPreset::EarlyProfit {
-                first_stage_end_date: cutoff,
+                first_stage_end_time: cutoff,
                 second_coupon_rate: -0.02,
             })
             .unwrap();
@@ -385,18 +385,22 @@ fn stage_validation_checks_unused_rates_and_allows_empty_stages_and_non_observat
     increasing.coupon_rate = -0.02;
     let note = increasing
         .expand(SnowballPreset::Butterfly {
-            first_stage_end_date: date(2, 1),
+            first_stage_end_time: date(2, 1),
             second_coupon_rate: 0.0,
-            second_stage_end_date: date(3, 1),
+            second_stage_end_time: date(3, 1),
             third_coupon_rate: 0.2,
         })
         .unwrap();
     assert_eq!(note.terms().maturity_coupon_rate, 0.2);
     assert_eq!(note.observations()[0].coupon_rate, 0.2);
-    for cutoff in [Date::new(2024, 12, 31).unwrap(), date(4, 1), date(4, 2)] {
+    for cutoff in [
+        Date::new(2024, 12, 31).unwrap().start_of_day(),
+        date(4, 1),
+        date(4, 2),
+    ] {
         assert!(matches!(
             base.clone().expand(SnowballPreset::EarlyProfit {
-                first_stage_end_date: cutoff,
+                first_stage_end_time: cutoff,
                 second_coupon_rate: 0.05
             }),
             Err(Error::InvalidInput(_))
@@ -405,9 +409,9 @@ fn stage_validation_checks_unused_rates_and_allows_empty_stages_and_non_observat
     for second in [date(1, 31), date(2, 1), date(4, 1)] {
         assert!(matches!(
             base.clone().expand(SnowballPreset::Butterfly {
-                first_stage_end_date: date(2, 1),
+                first_stage_end_time: date(2, 1),
                 second_coupon_rate: 0.05,
-                second_stage_end_date: second,
+                second_stage_end_time: second,
                 third_coupon_rate: 0.02
             }),
             Err(Error::InvalidInput(_))
@@ -418,23 +422,23 @@ fn stage_validation_checks_unused_rates_and_allows_empty_stages_and_non_observat
         input.coupon_rate = rate;
         assert!(matches!(
             input.expand(SnowballPreset::EarlyProfit {
-                first_stage_end_date: date(2, 1),
+                first_stage_end_time: date(2, 1),
                 second_coupon_rate: 0.05
             }),
             Err(Error::InvalidInput(_))
         ));
         assert!(matches!(
             base.clone().expand(SnowballPreset::Butterfly {
-                first_stage_end_date: date(2, 1),
+                first_stage_end_time: date(2, 1),
                 second_coupon_rate: rate,
-                second_stage_end_date: date(3, 1),
+                second_stage_end_time: date(3, 1),
                 third_coupon_rate: 0.02
             }),
             Err(Error::InvalidInput(_))
         ));
         assert!(matches!(
             base.clone().expand(SnowballPreset::EarlyProfit {
-                first_stage_end_date: date(2, 1),
+                first_stage_end_time: date(2, 1),
                 second_coupon_rate: rate
             }),
             Err(Error::InvalidInput(_))
@@ -467,7 +471,7 @@ fn phoenix_presets_reuse_core_validation_and_history_defaults() {
         vec![date(4, 2)],
     ] {
         let mut input = phoenix_terms();
-        input.observation_dates = dates;
+        input.observation_times = dates;
         assert!(matches!(
             input.expand(PhoenixPreset::FixedCouponNote),
             Err(Error::InvalidInput(_))

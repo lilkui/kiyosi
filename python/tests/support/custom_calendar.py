@@ -40,13 +40,13 @@ class CustomCalendarTests(unittest.TestCase):
         self.assertEqual(
             list(
                 fixed_interval_schedule(
-                    start=date(2026, 10, 9),
-                    end=date(2026, 10, 11),
+                    start_time=datetime(2026, 10, 9),
+                    end_time=datetime(2026, 10, 11),
                     interval_days=1,
                     calendar=calendar,
                 )
             ),
-            [date(2026, 10, 10)],
+            [datetime(2026, 10, 10)],
         )
         layered = custom_calendar(
             base=calendar,
@@ -73,7 +73,7 @@ class CustomCalendarTests(unittest.TestCase):
                     volatility=0.2,
                 ),
                 spot_price=100,
-                valuation_time=date(2026, 9, 30),
+                valuation_time=datetime(2026, 9, 30),
                 calendar=calendar,
             )
             return context.replace(spot_price=101)

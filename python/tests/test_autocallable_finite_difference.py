@@ -2,7 +2,7 @@
 
 import math
 import unittest
-from datetime import date
+from datetime import datetime
 
 from kiyosi import InvalidInputError, UnsupportedOperationError
 from kiyosi.instruments import BinarySnowballOption, autocallable_observations
@@ -68,8 +68,8 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         for coupon in (0, 0.1):
             note = BinarySnowballOption(
                 maturity_coupon_rate=0,
-                effective_date=START,
-                expiry_date=END,
+                effective_time=START,
+                expiry_time=END,
                 observations=autocallable_observations(
                     [END], [100], knock_out_coupon_rates=[coupon]
                 ),
@@ -86,13 +86,15 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
                 self.assertIsNone(result.speed)
 
     def test_explicit_uniform_stability_uses_the_top_node_bound(self):
-        end = date(2026, 1, 1)
+        end = datetime(2026, 1, 1)
         note = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_date=START,
-            expiry_date=end,
+            effective_time=START,
+            expiry_time=end,
             observations=autocallable_observations(
-                [date(2025, 2, 3), end], [100, 100], knock_out_coupon_rates=[0.1, 0.1]
+                [datetime(2025, 2, 3), end],
+                [100, 100],
+                knock_out_coupon_rates=[0.1, 0.1],
             ),
         )
         engine = FD(
@@ -106,7 +108,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
     def test_event_greeks_node_curves_and_failed_replacement(self):
         engine = FD()
         note = phoenix()
-        context = market(90, date(2025, 2, 3))
+        context = market(90, datetime(2025, 2, 3))
         result = engine.price_with_greeks(note, context, greeks="all")
         self.assertIsNone(result.delta)
         self.assertIsNone(result.gamma)
@@ -129,7 +131,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
             engine.price(note, curved), engine.price(note, context), delta=1e-12
         )
         short = RateTermStructure(
-            reference_time=START, times=[date(2025, 2, 3)], factors=[0.99]
+            reference_time=START, times=[datetime(2025, 2, 3)], factors=[0.99]
         )
         original_price = engine.price(note, context)
         invalid = context.replace(
@@ -141,8 +143,8 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
     def test_fixed_prices_and_unidentifiable_parameters_validate_first(self):
         note = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_date=START,
-            expiry_date=END,
+            effective_time=START,
+            expiry_time=END,
             observations=autocallable_observations(
                 [END], [110], knock_out_coupon_rates=[0]
             ),
@@ -180,7 +182,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         missing = snowball(
             knock_in_observation_mode="every_trading_day", barrier_state=None
         )
-        later = market(100, date(2025, 2, 3))
+        later = market(100, datetime(2025, 2, 3))
         self.assert_rejection(InvalidInputError, lambda: engine.price(missing, later))
         self.assertIsNone(missing.barrier_state)
 

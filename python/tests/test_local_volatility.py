@@ -4,7 +4,7 @@ import inspect
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import QuantLib as ql
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
@@ -18,7 +18,7 @@ from kiyosi.market import (
 )
 from test_support_matrix import HESTON_ENGINES, terminal_cases
 
-START, END = date(2025, 1, 1), date(2026, 1, 1)
+START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
 
 def surface(values=((0.2, 0.2), (0.2, 0.2))):
@@ -37,7 +37,7 @@ def context(surf=None, spot=100):
 
 def option(direction="call", end=END):
     return EuropeanOption(
-        option_type=direction, strike=100, effective_date=START, expiry_date=end
+        option_type=direction, strike=100, effective_time=START, expiry_time=end
     )
 
 
@@ -134,7 +134,7 @@ class LocalVolatilityTests(unittest.TestCase):
             {"spots": [True, 120]},
             {"values": [[0.2, False]] * 2},
             {"values": [0.2, 0.3]},
-            {"times": [datetime(2025, 1, 1), END]},
+            {"times": [datetime(2025, 1, 1).date(), END]},
         ]:
             with self.subTest(change=change), self.assertRaises(TypeError):
                 LocalVolatilitySurface(**(base | change))
@@ -161,7 +161,7 @@ class LocalVolatilityTests(unittest.TestCase):
         copied_spots[0] = 1
         self.assertEqual(s.values, [[0.2, 0.4], [0.4, 0.8]])
         self.assertEqual(s.spots, [80, 120])
-        self.assertEqual(s.times[0], datetime(2025, 1, 1, tzinfo=UTC))
+        self.assertEqual(s.times[0], datetime(2025, 1, 1))
         c = context(s)
         m = c.model_parameters
         self.assertIsInstance(m, LocalVolatilityParameters)
@@ -191,7 +191,7 @@ class LocalVolatilityTests(unittest.TestCase):
         for past, future in [(1.5, 0.2), (0.2, 1.5), (1.5, 1.5)]:
             with self.subTest(past=past, future=future):
                 extended = LocalVolatilitySurface(
-                    times=[date(2024, 1, 1), START, END, date(2030, 1, 1)],
+                    times=[datetime(2024, 1, 1), START, END, datetime(2030, 1, 1)],
                     spots=[80, 120],
                     values=[[past] * 2, [0.2] * 2, [0.2] * 2, [future] * 2],
                 )

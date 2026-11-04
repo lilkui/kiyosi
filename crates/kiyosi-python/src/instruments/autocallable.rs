@@ -1,8 +1,7 @@
-use crate::conversions::{date, dates, python_date, real, supplied};
+use crate::conversions::{python_timestamp, real, supplied, timestamp, timestamps};
 use crate::error::domain;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::PyDate;
 
 macro_rules! autocallable_properties {
     ($name:ident, $($extra:item),* $(,)?) => {
@@ -47,13 +46,13 @@ macro_rules! autocallable_properties {
                     .map(AutocallableObservation)
                     .collect()
             }
-            /// Returns a copy of the contractual observation dates.
+            /// Returns a copy of the contractual observation times.
             #[getter]
-            fn observation_dates<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDate>>> {
+            fn observation_times<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {
                 self.0
                     .observations()
                     .iter()
-                    .map(|r| python_date(py, r.date))
+                    .map(|r| python_timestamp(py, r.time))
                     .collect()
             }
             /// Returns copied knock-out thresholds in observation order.
@@ -75,15 +74,15 @@ macro_rules! autocallable_properties {
             fn barrier_state(&self) -> Option<&'static str> {
                 state_name(self.0.barrier_state())
             }
-            /// Returns inclusive first contract date.
+            /// Returns inclusive first contract timestamp.
             #[getter]
-            fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-                python_date(py, self.0.effective_date())
+            fn effective_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+                python_timestamp(py, self.0.effective_time())
             }
-            /// Returns final contract date; expiry is at midnight UTC.
+            /// Returns inclusive expiry time.
             #[getter]
-            fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-                python_date(py, self.0.expiry_date())
+            fn expiry_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+                python_timestamp(py, self.0.expiry_time())
             }
         }
     };
@@ -181,8 +180,8 @@ fn reals(values: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
 ///
 /// Parameters
 /// ----------
-/// date : datetime.date
-///     Observation date at midnight UTC.
+/// time : datetime.datetime
+///     Exact observation time.
 /// knock_out_level : float
 ///     Positive inclusive knock-out threshold.
 /// coupon_rate : float, optional
@@ -200,25 +199,25 @@ pub(crate) struct AutocallableObservation(pub kiyosi::AutocallableObservation);
 #[pymethods]
 impl AutocallableObservation {
     #[new]
-    #[pyo3(signature = (date, knock_out_level, *, coupon_rate=kiyosi::AutocallableObservation::DEFAULT_COUPON_RATE, coupon_barrier_level=kiyosi::AutocallableObservation::DEFAULT_COUPON_BARRIER_LEVEL))]
+    #[pyo3(signature = (time, knock_out_level, *, coupon_rate=kiyosi::AutocallableObservation::DEFAULT_COUPON_RATE, coupon_barrier_level=kiyosi::AutocallableObservation::DEFAULT_COUPON_BARRIER_LEVEL))]
     fn new(
-        date: &Bound<'_, PyAny>,
+        time: &Bound<'_, PyAny>,
         knock_out_level: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = real)] coupon_rate: f64,
         #[pyo3(from_py_with = real)] coupon_barrier_level: f64,
     ) -> PyResult<Self> {
         let mut record = kiyosi::AutocallableObservation::new(
-            crate::conversions::date(date)?,
+            crate::conversions::timestamp(time)?,
             real(knock_out_level)?,
         );
         record.coupon_rate = coupon_rate;
         record.coupon_barrier_level = coupon_barrier_level;
         Ok(Self(record))
     }
-    /// Return observation date at midnight UTC.
+    /// Return exact observation time.
     #[getter]
-    fn date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> {
-        python_date(py, self.0.date)
+    fn time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        python_timestamp(py, self.0.time)
     }
     /// Return the supplied knock-out threshold; the note constructor validates it.
     #[getter]
@@ -238,7 +237,7 @@ impl AutocallableObservation {
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         Ok(format!(
             "AutocallableObservation({}, {:?}, coupon_rate={:?}, coupon_barrier_level={:?})",
-            self.date(py)?.repr()?,
+            self.time(py)?.repr()?,
             self.0.knock_out_level,
             self.0.coupon_rate,
             self.0.coupon_barrier_level
@@ -250,10 +249,10 @@ impl AutocallableObservation {
 ///
 /// Parameters
 /// ----------
-/// observation_dates : iterable of date
-///     Strictly increasing observation dates within the contract life.
+/// observation_times : iterable of datetime.datetime
+///     Strictly increasing observation times within the contract life.
 /// knock_out_levels : iterable of float
-///     Positive inclusive knock-out levels, one per observation date.
+///     Positive inclusive knock-out levels, one per observation timestamp.
 /// knock_out_coupon_rates : iterable of float or None, optional
 ///     Annual snowball coupons; None uses zero for every observation.
 /// coupon_barrier_levels : iterable of float or None, optional
@@ -273,19 +272,19 @@ impl AutocallableObservation {
 /// -----
 /// The note constructor validates contractual values and ordering.
 #[pyfunction]
-#[pyo3(signature = (observation_dates, knock_out_levels, *, knock_out_coupon_rates=None, coupon_barrier_levels=None))]
+#[pyo3(signature = (observation_times, knock_out_levels, *, knock_out_coupon_rates=None, coupon_barrier_levels=None))]
 pub(crate) fn autocallable_observations(
-    observation_dates: &Bound<'_, PyAny>,
+    observation_times: &Bound<'_, PyAny>,
     knock_out_levels: &Bound<'_, PyAny>,
     knock_out_coupon_rates: Option<&Bound<'_, PyAny>>,
     coupon_barrier_levels: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Vec<AutocallableObservation>> {
-    let dates = dates(observation_dates)?;
+    let times = timestamps(observation_times)?;
     let levels = reals(knock_out_levels)?;
     let coupons = knock_out_coupon_rates.map(reals).transpose()?;
     let barriers = coupon_barrier_levels.map(reals).transpose()?;
     Ok(domain(kiyosi::autocallable_observations(
-        &dates,
+        &times,
         &levels,
         coupons.as_deref(),
         barriers.as_deref(),
@@ -315,12 +314,12 @@ macro_rules! snowball_preset {
             #[doc = concat!(stringify!($extra), " : ", snowball_preset!(@type $convert))]
             #[doc = concat!("    ", $extra_doc)]
         )*
-        /// observation_dates : iterable of date
-        ///     Strictly increasing observation dates within the contract life.
-        /// effective_date : datetime.date
-        ///     Contract starts at 00:00 UTC on this date.
-        /// expiry_date : datetime.date
-        ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
+        /// observation_times : iterable of datetime.datetime
+        ///     Strictly increasing observation times within the contract life.
+        /// effective_time : datetime.datetime
+        ///     Inclusive contract start.
+        /// expiry_time : datetime.datetime
+        ///     Inclusive expiry time.
         /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         ///     Strictly prior events. None is unknown; the string no_event means no event.
         /// principal_ratio : float, optional
@@ -334,7 +333,7 @@ macro_rules! snowball_preset {
         /// Raises
         /// ------
         /// InvalidInputError
-        ///     If contractual amounts, life dates or observation terms are invalid.
+        ///     If contractual amounts, life times or observation terms are invalid.
         ///
         /// Notes
         /// -----
@@ -344,7 +343,7 @@ macro_rules! snowball_preset {
         /// are checked during pricing.
         #[doc = $notes]
         #[pyfunction]
-        #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* observation_dates, effective_date, expiry_date, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
+        #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* observation_times, effective_time, expiry_time, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
         pub(crate) fn $name(
             $coupon: &Bound<'_, PyAny>,
@@ -352,15 +351,15 @@ macro_rules! snowball_preset {
             knock_in_level: &Bound<'_, PyAny>,
             $level: &Bound<'_, PyAny>,
             $($extra: &Bound<'_, PyAny>,)*
-            observation_dates: &Bound<'_, PyAny>,
-            effective_date: &Bound<'_, PyAny>,
-            expiry_date: &Bound<'_, PyAny>,
+            observation_times: &Bound<'_, PyAny>,
+            effective_time: &Bound<'_, PyAny>,
+            expiry_time: &Bound<'_, PyAny>,
             barrier_state: Option<&Bound<'_, PyAny>>,
             #[pyo3(from_py_with = real)] principal_ratio: f64,
         ) -> PyResult<SnowballOption> {
             let mut terms = kiyosi::SnowballPresetTerms::new(
                 real($coupon)?, real(initial_spot)?, real(knock_in_level)?, real($level)?,
-                date(effective_date)?, date(expiry_date)?, dates(observation_dates)?,
+                timestamp(effective_time)?, timestamp(expiry_time)?, timestamps(observation_times)?,
             );
             $(let $extra = $convert($extra)?;)*
             if let Some(value) = barrier_state {
@@ -371,7 +370,7 @@ macro_rules! snowball_preset {
         }
     };
     (@type real) => { "float" };
-    (@type date) => { "datetime.date" };
+    (@type timestamp) => { "datetime.datetime" };
 }
 snowball_preset!(
     standard_snowball,
@@ -472,37 +471,37 @@ snowball_preset!(
 
 snowball_preset!(
     early_profit_snowball,
-    first_coupon_rate => "Finite signed annual coupon rate through first_stage_end_date.",
+    first_coupon_rate => "Finite signed annual coupon rate through first_stage_end_time.",
     knock_out_level => "Positive inclusive knock-out threshold.",
     [
         second_coupon_rate => "Finite signed annual coupon rate after the cutoff and at maturity." => real,
-        first_stage_end_date => "Inclusive first-stage end within life and strictly before expiry." => date
+        first_stage_end_time => "Inclusive first-stage end within life and strictly before expiry." => timestamp
     ],
-    kiyosi::SnowballPreset::EarlyProfit { first_stage_end_date, second_coupon_rate },
+    kiyosi::SnowballPreset::EarlyProfit { first_stage_end_time, second_coupon_rate },
     "Creates a two-stage early-profit snowball.",
     "on every trading day",
     r"Knock-out uses the observation's stage rate over the whole holding period.
 Maturity uses the final stage rate. Cutoffs need not be observation or trading
-dates, stages may have no observations, and rates need not decrease."
+times, stages may have no observations, and rates need not decrease."
 );
 snowball_preset!(
     butterfly_snowball,
-    first_coupon_rate => "Finite signed annual coupon rate through first_stage_end_date.",
+    first_coupon_rate => "Finite signed annual coupon rate through first_stage_end_time.",
     knock_out_level => "Positive inclusive knock-out threshold.",
     [
         second_coupon_rate => "Finite signed annual coupon in the second stage." => real,
         third_coupon_rate => "Finite signed annual coupon in the third stage and at maturity." => real,
-        first_stage_end_date => "Inclusive first-stage end within life and before second_stage_end_date." => date,
-        second_stage_end_date => "Inclusive second-stage end strictly before expiry." => date
+        first_stage_end_time => "Inclusive first-stage end within life and before second_stage_end_time." => timestamp,
+        second_stage_end_time => "Inclusive second-stage end strictly before expiry." => timestamp
     ],
     kiyosi::SnowballPreset::Butterfly {
-        first_stage_end_date, second_coupon_rate, second_stage_end_date, third_coupon_rate
+        first_stage_end_time, second_coupon_rate, second_stage_end_time, third_coupon_rate
     },
     "Creates a three-stage butterfly snowball.",
     "on every trading day",
     r"Knock-out uses the observation's stage rate over the whole holding period.
 Maturity uses the final stage rate. Cutoffs need not be observation or trading
-dates, stages may have no observations, and rates need not decrease."
+times, stages may have no observations, and rates need not decrease."
 );
 
 /// Snowball with knock-out coupons and capped knock-in downside loss.
@@ -521,10 +520,10 @@ dates, stages may have no observations, and rates need not decrease."
 ///     Nonnegative lower terminal strike, at most the upper strike.
 /// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
 ///     Observe knock-in on every trading day or only at expiry.
-/// effective_date : datetime.date
-///     Contract starts at 00:00 UTC on this date.
-/// expiry_date : datetime.date
-///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
+/// effective_time : datetime.datetime
+///     Inclusive contract start.
+/// expiry_time : datetime.datetime
+///     Inclusive expiry time.
 /// observations : iterable of AutocallableObservation
 ///     Nonempty, strictly ordered contractual observations within life.
 /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
@@ -536,7 +535,7 @@ dates, stages may have no observations, and rates need not decrease."
 /// Raises
 /// ------
 /// InvalidInputError
-///     If amounts, strikes, life dates or observation terms are invalid.
+///     If amounts, strikes, life times or observation terms are invalid.
 ///     Pricing checks the calendar and prior barrier history.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -563,9 +562,9 @@ snowball_properties! {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// principal_ratio : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// effective_date : datetime.date, optional
+    /// effective_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// expiry_date : datetime.date, optional
+    /// expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// observations : Iterable[AutocallableObservation], optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -581,7 +580,7 @@ snowball_properties! {
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation, field name or mutually exclusive coupon choice is invalid.
-    #[pyo3(signature = (*, maturity_coupon_rate=crate::conversions::OMITTED, initial_spot=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, upper_strike=crate::conversions::OMITTED, lower_strike=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_date=crate::conversions::OMITTED, expiry_date=crate::conversions::OMITTED, observations=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, maturity_coupon_rate=crate::conversions::OMITTED, initial_spot=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, upper_strike=crate::conversions::OMITTED, lower_strike=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observations=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
     fn replace(
         &self,
@@ -593,8 +592,8 @@ snowball_properties! {
         #[pyo3(from_py_with = crate::conversions::supplied)] knock_in_observation_mode: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] principal_ratio: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] effective_date: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_date: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_time: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] observations: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let changes = kiyosi::SnowballOptionChanges {
@@ -606,15 +605,15 @@ snowball_properties! {
             knock_in_observation_mode: knock_in_observation_mode.map(crate::instruments::autocallable::mode).transpose()?,
             barrier_state: barrier_state.map(crate::instruments::autocallable::state).transpose()?,
             principal_ratio: principal_ratio.map(crate::conversions::real).transpose()?,
-            effective_date: effective_date.map(crate::conversions::date).transpose()?,
-            expiry_date: expiry_date.map(crate::conversions::date).transpose()?,
+            effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
+            expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
             observations: observations.map(crate::instruments::autocallable::records).transpose()?,
         };
         Ok(Self(domain(self.0.replace(changes))?))
     }
 ,
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
+    #[pyo3(signature = (*, maturity_coupon_rate, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), effective_time, expiry_time, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         maturity_coupon_rate: &Bound<'_, PyAny>,
@@ -623,8 +622,8 @@ snowball_properties! {
         upper_strike: &Bound<'_, PyAny>,
         lower_strike: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = mode)] knock_in_observation_mode: kiyosi::KnockInObservationMode,
-        effective_date: &Bound<'_, PyAny>,
-        expiry_date: &Bound<'_, PyAny>,
+        effective_time: &Bound<'_, PyAny>,
+        expiry_time: &Bound<'_, PyAny>,
         observations: &Bound<'_, PyAny>,
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_ratio: f64,
@@ -635,8 +634,8 @@ snowball_properties! {
             real(knock_in_level)?,
             real(upper_strike)?,
             real(lower_strike)?,
-            date(effective_date)?,
-            date(expiry_date)?,
+            timestamp(effective_time)?,
+            timestamp(expiry_time)?,
             records(observations)?,
         );
         terms.knock_in_observation_mode = knock_in_observation_mode;
@@ -696,7 +695,7 @@ snowball_properties! {
             .barrier_state()
             .map_or_else(|| "None".into(), |s| format!("{s:?}"));
         Ok(format!(
-            "SnowballOption(maturity_coupon_rate={:?}, initial_spot={:?}, knock_in_level={:?}, upper_strike={:?}, lower_strike={:?}, knock_in_observation_mode={:?}, barrier_state={}, principal_ratio={:?}, effective_date={}, expiry_date={}, observations=[{}])",
+            "SnowballOption(maturity_coupon_rate={:?}, initial_spot={:?}, knock_in_level={:?}, upper_strike={:?}, lower_strike={:?}, knock_in_observation_mode={:?}, barrier_state={}, principal_ratio={:?}, effective_time={}, expiry_time={}, observations=[{}])",
             self.maturity_coupon_rate(),
             self.initial_spot(),
             self.knock_in_level(),
@@ -705,8 +704,8 @@ snowball_properties! {
             self.knock_in_observation_mode(),
             state,
             self.principal_ratio(),
-            self.effective_date(py)?.repr()?,
-            self.expiry_date(py)?.repr()?,
+            self.effective_time(py)?.repr()?,
+            self.expiry_time(py)?.repr()?,
             records
         ))
     }
@@ -718,10 +717,10 @@ snowball_properties! {
 /// ----------
 /// maturity_coupon_rate : float
 ///     Finite annual maturity coupon rate in decimal units.
-/// effective_date : datetime.date
-///     Contract starts at 00:00 UTC on this date.
-/// expiry_date : datetime.date
-///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
+/// effective_time : datetime.datetime
+///     Inclusive contract start.
+/// expiry_time : datetime.datetime
+///     Inclusive expiry time.
 /// observations : iterable of AutocallableObservation
 ///     Nonempty, strictly ordered contractual observations within life.
 /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
@@ -733,7 +732,7 @@ snowball_properties! {
 /// Raises
 /// ------
 /// InvalidInputError
-///     If coupons, principal, dates or observations are invalid, or
+///     If coupons, principal, times or observations are invalid, or
 ///     barrier_state is knocked_in; this contract has no knock-in barrier.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -750,9 +749,9 @@ snowball_properties! {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// principal_ratio : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// effective_date : datetime.date, optional
+    /// effective_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// expiry_date : datetime.date, optional
+    /// expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// observations : Iterable[AutocallableObservation], optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -768,41 +767,41 @@ snowball_properties! {
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation, field name or mutually exclusive coupon choice is invalid.
-    #[pyo3(signature = (*, maturity_coupon_rate=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_date=crate::conversions::OMITTED, expiry_date=crate::conversions::OMITTED, observations=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, maturity_coupon_rate=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observations=crate::conversions::OMITTED))]
     fn replace(
         &self,
         #[pyo3(from_py_with = crate::conversions::supplied)] maturity_coupon_rate: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] principal_ratio: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] effective_date: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_date: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_time: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] observations: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let changes = kiyosi::BinarySnowballOptionChanges {
             maturity_coupon_rate: maturity_coupon_rate.map(crate::conversions::real).transpose()?,
             barrier_state: barrier_state.map(crate::instruments::autocallable::state).transpose()?,
             principal_ratio: principal_ratio.map(crate::conversions::real).transpose()?,
-            effective_date: effective_date.map(crate::conversions::date).transpose()?,
-            expiry_date: expiry_date.map(crate::conversions::date).transpose()?,
+            effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
+            expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
             observations: observations.map(crate::instruments::autocallable::records).transpose()?,
         };
         Ok(Self(domain(self.0.replace(changes))?))
     }
 ,
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
+    #[pyo3(signature = (*, maturity_coupon_rate, effective_time, expiry_time, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     fn new(
         maturity_coupon_rate: &Bound<'_, PyAny>,
-        effective_date: &Bound<'_, PyAny>,
-        expiry_date: &Bound<'_, PyAny>,
+        effective_time: &Bound<'_, PyAny>,
+        expiry_time: &Bound<'_, PyAny>,
         observations: &Bound<'_, PyAny>,
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_ratio: f64,
     ) -> PyResult<Self> {
         let mut terms = kiyosi::BinarySnowballTerms::new(
             real(maturity_coupon_rate)?,
-            date(effective_date)?,
-            date(expiry_date)?,
+            timestamp(effective_time)?,
+            timestamp(expiry_time)?,
             records(observations)?,
         );
         if let Some(value) = barrier_state {
@@ -836,12 +835,12 @@ snowball_properties! {
             .barrier_state()
             .map_or_else(|| "None".into(), |s| format!("{s:?}"));
         Ok(format!(
-            "BinarySnowballOption(maturity_coupon_rate={:?}, principal_ratio={:?}, barrier_state={}, effective_date={}, expiry_date={}, observations=[{}])",
+            "BinarySnowballOption(maturity_coupon_rate={:?}, principal_ratio={:?}, barrier_state={}, effective_time={}, expiry_time={}, observations=[{}])",
             self.maturity_coupon_rate(),
             self.principal_ratio(),
             state,
-            self.effective_date(py)?.repr()?,
-            self.expiry_date(py)?.repr()?,
+            self.effective_time(py)?.repr()?,
+            self.expiry_time(py)?.repr()?,
             records
         ))
     }
@@ -859,10 +858,10 @@ snowball_properties! {
 ///     Positive strict downside threshold.
 /// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
 ///     Observe knock-in on every trading day or only at expiry.
-/// effective_date : datetime.date
-///     Contract starts at 00:00 UTC on this date.
-/// expiry_date : datetime.date
-///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
+/// effective_time : datetime.datetime
+///     Inclusive contract start.
+/// expiry_time : datetime.datetime
+///     Inclusive expiry time.
 /// observations : iterable of AutocallableObservation
 ///     Nonempty, strictly ordered contractual observations within life.
 /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
@@ -874,7 +873,7 @@ snowball_properties! {
 /// Raises
 /// ------
 /// InvalidInputError
-///     If coupons, principal, barriers, dates or observations are invalid.
+///     If coupons, principal, barriers, times or observations are invalid.
 ///     minimum_coupon_rate must not exceed maturity_coupon_rate.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -897,9 +896,9 @@ snowball_properties! {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// principal_ratio : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// effective_date : datetime.date, optional
+    /// effective_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// expiry_date : datetime.date, optional
+    /// expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// observations : Iterable[AutocallableObservation], optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -915,7 +914,7 @@ snowball_properties! {
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation, field name or mutually exclusive coupon choice is invalid.
-    #[pyo3(signature = (*, maturity_coupon_rate=crate::conversions::OMITTED, minimum_coupon_rate=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_date=crate::conversions::OMITTED, expiry_date=crate::conversions::OMITTED, observations=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, maturity_coupon_rate=crate::conversions::OMITTED, minimum_coupon_rate=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observations=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
     fn replace(
         &self,
@@ -925,8 +924,8 @@ snowball_properties! {
         #[pyo3(from_py_with = crate::conversions::supplied)] knock_in_observation_mode: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] principal_ratio: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] effective_date: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_date: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_time: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] observations: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let changes = kiyosi::TernarySnowballOptionChanges {
@@ -936,23 +935,23 @@ snowball_properties! {
             knock_in_observation_mode: knock_in_observation_mode.map(crate::instruments::autocallable::mode).transpose()?,
             barrier_state: barrier_state.map(crate::instruments::autocallable::state).transpose()?,
             principal_ratio: principal_ratio.map(crate::conversions::real).transpose()?,
-            effective_date: effective_date.map(crate::conversions::date).transpose()?,
-            expiry_date: expiry_date.map(crate::conversions::date).transpose()?,
+            effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
+            expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
             observations: observations.map(crate::instruments::autocallable::records).transpose()?,
         };
         Ok(Self(domain(self.0.replace(changes))?))
     }
 ,
     #[new]
-    #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
+    #[pyo3(signature = (*, maturity_coupon_rate, minimum_coupon_rate, knock_in_level, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), effective_time, expiry_time, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         maturity_coupon_rate: &Bound<'_, PyAny>,
         minimum_coupon_rate: &Bound<'_, PyAny>,
         knock_in_level: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = mode)] knock_in_observation_mode: kiyosi::KnockInObservationMode,
-        effective_date: &Bound<'_, PyAny>,
-        expiry_date: &Bound<'_, PyAny>,
+        effective_time: &Bound<'_, PyAny>,
+        expiry_time: &Bound<'_, PyAny>,
         observations: &Bound<'_, PyAny>,
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_ratio: f64,
@@ -961,8 +960,8 @@ snowball_properties! {
             real(maturity_coupon_rate)?,
             real(minimum_coupon_rate)?,
             real(knock_in_level)?,
-            date(effective_date)?,
-            date(expiry_date)?,
+            timestamp(effective_time)?,
+            timestamp(expiry_time)?,
             records(observations)?,
         );
         terms.knock_in_observation_mode = knock_in_observation_mode;
@@ -1012,15 +1011,15 @@ snowball_properties! {
             .barrier_state()
             .map_or_else(|| "None".into(), |s| format!("{s:?}"));
         Ok(format!(
-            "TernarySnowballOption(maturity_coupon_rate={:?}, minimum_coupon_rate={:?}, knock_in_level={:?}, knock_in_observation_mode={:?}, principal_ratio={:?}, barrier_state={}, effective_date={}, expiry_date={}, observations=[{}])",
+            "TernarySnowballOption(maturity_coupon_rate={:?}, minimum_coupon_rate={:?}, knock_in_level={:?}, knock_in_observation_mode={:?}, principal_ratio={:?}, barrier_state={}, effective_time={}, expiry_time={}, observations=[{}])",
             self.maturity_coupon_rate(),
             self.minimum_coupon_rate(),
             self.knock_in_level(),
             self.knock_in_observation_mode(),
             self.principal_ratio(),
             state,
-            self.effective_date(py)?.repr()?,
-            self.expiry_date(py)?.repr()?,
+            self.effective_time(py)?.repr()?,
+            self.expiry_time(py)?.repr()?,
             records
         ))
     }
@@ -1046,10 +1045,10 @@ snowball_properties! {
 ///     Nonnegative lower terminal strike, at most the upper strike.
 /// knock_in_observation_mode : {'every_trading_day', 'at_expiry'}, optional
 ///     Observe knock-in on every trading day or only at expiry.
-/// effective_date : datetime.date
-///     Contract starts at 00:00 UTC on this date.
-/// expiry_date : datetime.date
-///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
+/// effective_time : datetime.datetime
+///     Inclusive contract start.
+/// expiry_time : datetime.datetime
+///     Inclusive expiry time.
 /// observations : iterable of AutocallableObservation
 ///     Nonempty, strictly ordered contractual observations within life.
 /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
@@ -1063,14 +1062,14 @@ snowball_properties! {
 /// TypeError
 ///     If both coupon choices or neither are supplied, or a supplied value is not real.
 /// InvalidInputError
-///     If amounts, strikes, life dates or observations are invalid.
+///     If amounts, strikes, life times or observations are invalid.
 ///     Observation coupon_rate must be zero; coupon_barrier_level is nonnegative.
 ///
 /// Notes
 /// -----
 /// Annual coupons accrue over contractual observation periods on Actual/365 Fixed.
 /// Fixed per-period coupons pay once per qualifying observation, even for an
-/// observation on the effective date. Explicit None is not a coupon value.
+/// observation on the effective timestamp. Explicit None is not a coupon value.
 /// Coupon and knock-out barriers are inclusive; knock-in is strict. Past
 /// coupons are settled. There is no coupon memory or maturity coupon.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
@@ -1100,9 +1099,9 @@ autocallable_properties! {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// principal_ratio : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// effective_date : datetime.date, optional
+    /// effective_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// expiry_date : datetime.date, optional
+    /// expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// observations : Iterable[AutocallableObservation], optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -1118,7 +1117,7 @@ autocallable_properties! {
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation, field name or mutually exclusive coupon choice is invalid.
-    #[pyo3(signature = (*, coupon_rate=crate::conversions::OMITTED, coupon_per_period=crate::conversions::OMITTED, initial_spot=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, upper_strike=crate::conversions::OMITTED, lower_strike=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_date=crate::conversions::OMITTED, expiry_date=crate::conversions::OMITTED, observations=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, coupon_rate=crate::conversions::OMITTED, coupon_per_period=crate::conversions::OMITTED, initial_spot=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, upper_strike=crate::conversions::OMITTED, lower_strike=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observations=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
     fn replace(
         &self,
@@ -1131,8 +1130,8 @@ autocallable_properties! {
         #[pyo3(from_py_with = crate::conversions::supplied)] knock_in_observation_mode: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] principal_ratio: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] effective_date: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_date: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_time: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] observations: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let changes = kiyosi::PhoenixOptionChanges {
@@ -1149,15 +1148,15 @@ autocallable_properties! {
             knock_in_observation_mode: knock_in_observation_mode.map(crate::instruments::autocallable::mode).transpose()?,
             barrier_state: barrier_state.map(crate::instruments::autocallable::state).transpose()?,
             principal_ratio: principal_ratio.map(crate::conversions::real).transpose()?,
-            effective_date: effective_date.map(crate::conversions::date).transpose()?,
-            expiry_date: expiry_date.map(crate::conversions::date).transpose()?,
+            effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
+            expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
             observations: observations.map(crate::instruments::autocallable::records).transpose()?,
         };
         Ok(Self(domain(self.0.replace(changes))?))
     }
 ,
     #[new]
-    #[pyo3(signature = (*, coupon_rate=crate::conversions::OMITTED, coupon_per_period=crate::conversions::OMITTED, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), effective_date, expiry_date, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
+    #[pyo3(signature = (*, coupon_rate=crate::conversions::OMITTED, coupon_per_period=crate::conversions::OMITTED, initial_spot, knock_in_level, upper_strike, lower_strike, knock_in_observation_mode=kiyosi::KnockInObservationMode::default(), effective_time, expiry_time, observations, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         #[pyo3(from_py_with = supplied)] coupon_rate: Option<&Bound<'_, PyAny>>,
@@ -1167,8 +1166,8 @@ autocallable_properties! {
         upper_strike: &Bound<'_, PyAny>,
         lower_strike: &Bound<'_, PyAny>,
         #[pyo3(from_py_with = mode)] knock_in_observation_mode: kiyosi::KnockInObservationMode,
-        effective_date: &Bound<'_, PyAny>,
-        expiry_date: &Bound<'_, PyAny>,
+        effective_time: &Bound<'_, PyAny>,
+        expiry_time: &Bound<'_, PyAny>,
         observations: &Bound<'_, PyAny>,
         barrier_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = real)] principal_ratio: f64,
@@ -1186,8 +1185,8 @@ autocallable_properties! {
             real(knock_in_level)?,
             real(upper_strike)?,
             real(lower_strike)?,
-            date(effective_date)?,
-            date(expiry_date)?,
+            timestamp(effective_time)?,
+            timestamp(expiry_time)?,
             records(observations)?,
         );
         terms.coupon = coupon;
@@ -1282,7 +1281,7 @@ autocallable_properties! {
             kiyosi::PhoenixCoupon::PerPeriod(value) => format!("coupon_per_period={value:?}"),
         };
         Ok(format!(
-            "PhoenixOption({}, initial_spot={:?}, knock_in_level={:?}, upper_strike={:?}, lower_strike={:?}, knock_in_observation_mode={:?}, barrier_state={}, principal_ratio={:?}, effective_date={}, expiry_date={}, observations=[{}])",
+            "PhoenixOption({}, initial_spot={:?}, knock_in_level={:?}, upper_strike={:?}, lower_strike={:?}, knock_in_observation_mode={:?}, barrier_state={}, principal_ratio={:?}, effective_time={}, expiry_time={}, observations=[{}])",
             coupon,
             self.initial_spot(),
             self.knock_in_level(),
@@ -1291,8 +1290,8 @@ autocallable_properties! {
             self.knock_in_observation_mode(),
             state,
             self.principal_ratio(),
-            self.effective_date(py)?.repr()?,
-            self.expiry_date(py)?.repr()?,
+            self.effective_time(py)?.repr()?,
+            self.expiry_time(py)?.repr()?,
             records
         ))
     }
@@ -1316,12 +1315,12 @@ macro_rules! phoenix_preset {
             #[doc = concat!(stringify!($extra), " : float")]
             #[doc = concat!("    ", $extra_doc)]
         )*
-        /// observation_dates : iterable of datetime.date
-        ///     Strictly increasing observation and payment dates within life.
-        /// effective_date : datetime.date
-        ///     Contract starts at 00:00 UTC on this date.
-        /// expiry_date : datetime.date
-        ///     Final contract date at midnight UTC.
+        /// observation_times : iterable of datetime.datetime
+        ///     Strictly increasing observation and payment times within life.
+        /// effective_time : datetime.datetime
+        ///     Inclusive contract start.
+        /// expiry_time : datetime.datetime
+        ///     Inclusive expiry time.
         /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
         ///     Strictly prior events; None means unknown history.
         /// principal_ratio : float, optional
@@ -1335,17 +1334,17 @@ macro_rules! phoenix_preset {
         /// Raises
         /// ------
         /// InvalidInputError
-        ///     If numeric terms, dates or observations are invalid.
+        ///     If numeric terms, times or observations are invalid.
         ///
         /// Notes
         /// -----
         /// Coupons pay once per qualifying observation, including a qualifying knock-out,
         /// with no day accrual or memory. Knock-out and coupon barriers are inclusive;
-        /// knock-in is strict. Observation dates are payment dates; no observation
+        /// knock-in is strict. Observation times are payment times; no observation
         /// is implicitly added at expiry. Calendar and history consistency are
         /// checked during pricing. Past coupons are settled.
         #[pyfunction]
-        #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, knock_out_level, $($extra,)* observation_dates, effective_date, expiry_date, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
+        #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, knock_out_level, $($extra,)* observation_times, effective_time, expiry_time, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]
         pub(crate) fn $name(
             coupon_per_period: &Bound<'_, PyAny>,
@@ -1353,16 +1352,16 @@ macro_rules! phoenix_preset {
             knock_in_level: &Bound<'_, PyAny>,
             knock_out_level: &Bound<'_, PyAny>,
             $($extra: &Bound<'_, PyAny>,)*
-            observation_dates: &Bound<'_, PyAny>,
-            effective_date: &Bound<'_, PyAny>,
-            expiry_date: &Bound<'_, PyAny>,
+            observation_times: &Bound<'_, PyAny>,
+            effective_time: &Bound<'_, PyAny>,
+            expiry_time: &Bound<'_, PyAny>,
             barrier_state: Option<&Bound<'_, PyAny>>,
             #[pyo3(from_py_with = real)] principal_ratio: f64,
         ) -> PyResult<PhoenixOption> {
             let mut terms = kiyosi::PhoenixPresetTerms::new(
                 real(coupon_per_period)?, real(initial_spot)?, real(knock_in_level)?,
-                real(knock_out_level)?, date(effective_date)?, date(expiry_date)?,
-                dates(observation_dates)?,
+                real(knock_out_level)?, timestamp(effective_time)?, timestamp(expiry_time)?,
+                timestamps(observation_times)?,
             );
             $(let $extra = real($extra)?;)*
             if let Some(value) = barrier_state {
@@ -1381,7 +1380,7 @@ phoenix_preset!(
 );
 phoenix_preset!(
     digital_coupon_note,
-    [coupon_barrier_level => "Finite nonnegative inclusive coupon threshold, also tested on knock-out dates."],
+    [coupon_barrier_level => "Finite nonnegative inclusive coupon threshold, also tested on knock-out times."],
     kiyosi::PhoenixPreset::DigitalCouponNote { coupon_barrier_level },
     "Creates a digital coupon note (DCN) with fixed per-period coupons conditional on a barrier."
 );

@@ -2,7 +2,7 @@
 
 import math
 import unittest
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from kiyosi import pricing
 from kiyosi.instruments import (
@@ -25,7 +25,11 @@ from kiyosi.market import (
 
 class AutocallableAccuracyTests(unittest.TestCase):
     def test_nearby_barriers_preserve_prices_and_greeks(self):
-        start, middle, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
+        start, middle, end = (
+            datetime(2025, 1, 1),
+            datetime(2025, 7, 1),
+            datetime(2026, 1, 1),
+        )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
@@ -39,8 +43,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
         def price(barrier):
             option = BinarySnowballOption(
                 maturity_coupon_rate=0.02,
-                effective_date=start,
-                expiry_date=end,
+                effective_time=start,
+                expiry_time=end,
                 observations=autocallable_observations(
                     [middle, end], [100, barrier], knock_out_coupon_rates=[0.08, 0.08]
                 ),
@@ -58,11 +62,11 @@ class AutocallableAccuracyTests(unittest.TestCase):
                     )
 
     def test_near_expiry_greeks_match_an_analytic_digital(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
             observations=autocallable_observations(
                 [end], [100], knock_out_coupon_rates=[0.1]
             ),
@@ -71,15 +75,13 @@ class AutocallableAccuracyTests(unittest.TestCase):
             option_type="call",
             strike=100,
             payout=0.1,
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
         )
         engine = pricing.FiniteDifferenceAutocallableEngine()
         for volatility in (0.01, 0.2):
             for seconds in (3600, 600, 60, 1):
-                valuation = datetime(2026, 1, 1, tzinfo=UTC) - timedelta(
-                    seconds=seconds
-                )
+                valuation = datetime(2026, 1, 1) - timedelta(seconds=seconds)
                 time = seconds / (365 * 86400)
                 width = 100 * volatility * math.sqrt(time)
                 for spot in (100, 100 + 0.5 * width):
@@ -116,12 +118,15 @@ class AutocallableAccuracyTests(unittest.TestCase):
                             )
 
     def test_snowball_greeks_preserve_smooth_price_maximum_between_grid_nodes(self):
-        start, end = date(2025, 10, 23), date(2026, 10, 23)
+        start, end = datetime(2025, 10, 23), datetime(2026, 10, 23)
         calendar = sse_calendar()
         dates = list(
             monthly_schedule(
-                start=start, end=end, first_observation_month=1, calendar=calendar
-            ).dates
+                start_time=start,
+                end_time=end,
+                first_observation_month=1,
+                calendar=calendar,
+            ).times
         )
         if dates[-1] != end:
             dates.append(end)
@@ -133,8 +138,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
             lower_strike=0,
             knock_in_observation_mode="every_trading_day",
             barrier_state="no_event",
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
             observations=autocallable_observations(
                 dates, [103] * len(dates), knock_out_coupon_rates=[0.2] * len(dates)
             ),
@@ -179,11 +184,11 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 )
 
     def test_coarse_grids_preserve_positive_payoff_bounds_and_flat_greeks(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
             observations=autocallable_observations(
                 [end], [100], knock_out_coupon_rates=[0.1]
             ),
@@ -194,8 +199,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
                     risk_free_rate=0, dividend_yield=0, volatility=0.2
                 ),
                 spot_price=350,
-                valuation_time=datetime(2026, 1, 1, tzinfo=UTC)
-                - timedelta(seconds=seconds),
+                valuation_time=datetime(2026, 1, 1) - timedelta(seconds=seconds),
                 calendar=all_days_calendar(),
             )
             for count in (3, 4, 5, 10, 20, 40):
@@ -216,7 +220,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
     def test_terminal_digital_separates_space_time_domain_and_barrier_placement_errors(
         self,
     ):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.05, dividend_yield=0.01, volatility=0.2
@@ -228,8 +232,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
         def error(assets, times, upper, barrier=100):
             option = BinarySnowballOption(
                 maturity_coupon_rate=0,
-                effective_date=start,
-                expiry_date=end,
+                effective_time=start,
+                expiry_time=end,
                 observations=autocallable_observations(
                     [end], [barrier], knock_out_coupon_rates=[0.1]
                 ),
@@ -238,8 +242,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 option_type="call",
                 strike=barrier,
                 payout=0.1,
-                effective_date=start,
-                expiry_date=end,
+                effective_time=start,
+                expiry_time=end,
             )
             engine = pricing.FiniteDifferenceAutocallableEngine(
                 asset_step_count=assets,
@@ -269,7 +273,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 self.assertLessEqual(error(800, 2000, 400, barrier), 1e-5)
 
     def test_projection_preserves_exact_current_event_barrier_comparisons(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = PhoenixOption(
             coupon_rate=0.08,
             initial_spot=100,
@@ -278,8 +282,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
             lower_strike=60,
             barrier_state="no_event",
             knock_in_observation_mode="every_trading_day",
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
             observations=autocallable_observations(
                 [end], [100], coupon_barrier_levels=[100]
             ),
@@ -307,8 +311,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 self.assertIsNone(result.gamma)
 
     def test_daily_calendars_preserve_cash_carry_portfolio_across_event_restarts(self):
-        start, end = date(2024, 1, 1), date(2025, 1, 1)
-        dates = [date(2024, 4, 1), date(2024, 7, 1), date(2024, 10, 1), end]
+        start, end = datetime(2024, 1, 1), datetime(2025, 1, 1)
+        dates = [datetime(2024, 4, 1), datetime(2024, 7, 1), datetime(2024, 10, 1), end]
 
         def carry_rate(day):
             time = (day - start).days / 365
@@ -320,8 +324,8 @@ class AutocallableAccuracyTests(unittest.TestCase):
             knock_in_level=75,
             knock_in_observation_mode="every_trading_day",
             barrier_state="no_event",
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
             observations=autocallable_observations(
                 dates,
                 [110] * 4,

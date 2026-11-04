@@ -7,7 +7,7 @@ use crate::{
 
 /// Prices accumulators with exact lognormal transitions between trading dates.
 ///
-/// Applies current midnight events before simulation, with inclusive knock-out
+/// Applies current contractual events before simulation, with inclusive knock-out
 /// before accumulation and direction-dependent acceleration. Accrued units settle
 /// at knock-out or expiry. History follows [`Accumulator`]; zero prior quantity
 /// means none. Uses flat BSM rates and Actual/365 Fixed time.
@@ -37,9 +37,9 @@ impl MonteCarloAccumulatorEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
-    ///     start, Date::new(2025, 2, 3)?))?.replace_history(3.0)?;
+    ///     start, Date::new(2025, 2, 3)?.start_of_day()))?.replace_history(3.0)?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 110.0, start.into())?;
     /// let engine = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
@@ -159,11 +159,11 @@ impl MonteCarloAccumulatorEngine {
         };
         let mut previous = valuation;
         let mut steps = Vec::new();
-        for date in option.future_observation_dates(context)? {
-            let time = previous.years_until(date.into());
+        for date in option.future_observation_times(context)? {
+            let time = previous.years_until(date);
             let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
             let diffusion = sigma * time.sqrt();
-            let log_discount = -rate * valuation.years_until(date.into());
+            let log_discount = -rate * valuation.years_until(date);
             if !drift.is_finite() || !diffusion.is_finite() || !log_discount.is_finite() {
                 return Err(unstable());
             }
@@ -172,8 +172,9 @@ impl MonteCarloAccumulatorEngine {
                 diffusion,
                 log_discount,
                 option.observes_knock_out(date),
+                option.accumulates_at(date, context.calendar()),
             ));
-            previous = date.into();
+            previous = date;
         }
         let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
         let ([moments], [pairs]) =
@@ -181,7 +182,8 @@ impl MonteCarloAccumulatorEngine {
                 let mut spot = initial_spot;
                 let mut log_return = 0.0;
                 let mut quantity = quantity;
-                for ((drift, diffusion, log_discount, observe), normal) in steps.iter().zip(normals)
+                for ((drift, diffusion, log_discount, observe, accumulate), normal) in
+                    steps.iter().zip(normals)
                 {
                     log_return += diffusion.mul_add(*normal, *drift);
                     spot = scaled_value(initial_spot, 1.0, log_return)?;
@@ -195,12 +197,14 @@ impl MonteCarloAccumulatorEngine {
                             *log_discount,
                         )?]);
                     }
-                    quantity += option.daily_quantity()
-                        * if sign * log_return < sign * strike {
-                            option.acceleration_factor()
-                        } else {
-                            1.0
-                        };
+                    if *accumulate {
+                        quantity += option.daily_quantity()
+                            * if sign * log_return < sign * strike {
+                                option.acceleration_factor()
+                            } else {
+                                1.0
+                            };
+                    }
                     if !quantity.is_finite() {
                         return Err(unstable());
                     }

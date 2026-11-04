@@ -1,7 +1,7 @@
 use kiyosi::*;
 
-fn date(month: u32, day: u32) -> Date {
-    Date::new(2025, month, day).unwrap()
+fn date(month: u32, day: u32) -> Timestamp {
+    Date::new(2025, month, day).unwrap().start_of_day()
 }
 
 fn market(spot: f64, valuation: impl Into<Timestamp>) -> PricingContext {
@@ -15,7 +15,7 @@ fn market(spot: f64, valuation: impl Into<Timestamp>) -> PricingContext {
 
 #[test]
 fn binary_price_and_uncertainty_match_an_independent_terminal_portfolio() {
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let note = BinarySnowballOption::new(BinarySnowballTerms::new(
         0.0,
         date(1, 1),
@@ -44,7 +44,7 @@ fn binary_price_and_uncertainty_match_an_independent_terminal_portfolio() {
 #[test]
 fn scalar_price_survives_confidence_interval_overflow() {
     let start = date(1, 1);
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let mut terms = BinarySnowballTerms::new(
         0.0,
         start,
@@ -56,7 +56,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
     let context = PricingContext::with_calendar(
         BlackScholesMertonParameters::new(0.0, 0.0, 0.2).unwrap(),
         100.0,
-        start.into(),
+        start,
         TradingCalendar::all_days(),
     )
     .unwrap();
@@ -84,7 +84,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
 #[test]
 fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
     let start = date(1, 1);
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
         path_count: 2,
         seed: Some(1),
@@ -103,7 +103,7 @@ fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(rate, rate, 0.2).unwrap(),
             100.0,
-            start.into(),
+            start,
         )
         .unwrap();
         let expected = (principal.ln() - rate).exp();
@@ -128,7 +128,7 @@ fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(-1.0, -1.0, 0.2).unwrap(),
         100.0,
-        start.into(),
+        start,
     )
     .unwrap();
     assert_eq!(engine.price(&note, &context).unwrap(), 0.0);
@@ -408,8 +408,7 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
         assert!(Greek::ALL.iter().all(|greek| !result.has(*greek)));
     }
     let context = market(100.0, date(1, 1));
-    let node =
-        RateTermStructure::new(date(1, 1).into(), vec![date(4, 1).into()], vec![0.99]).unwrap();
+    let node = RateTermStructure::new(date(1, 1), vec![date(4, 1)], vec![0.99]).unwrap();
     let curved = context
         .replace(PricingContextChanges {
             model_parameters: Some(
@@ -436,7 +435,7 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
 #[test]
 fn sobol_dimension_limit_applies_only_to_remaining_simulation_dates() {
     let start = date(1, 1);
-    let end = Date::new(2110, 1, 1).unwrap();
+    let end = Date::new(2110, 1, 1).unwrap().start_of_day();
     let mut terms = SnowballTerms::new(
         0.06,
         100.0,

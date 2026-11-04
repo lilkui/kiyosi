@@ -4,7 +4,7 @@ import importlib
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 from itertools import product
 
 import QuantLib as ql
@@ -23,7 +23,7 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 
-START, END = date(2025, 1, 1), date(2026, 1, 1)
+START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 FIRST = START + timedelta(days=180)
 
 
@@ -33,8 +33,8 @@ def contract(**changes):
             {
                 "option_type": "call",
                 "strike": 100,
-                "effective_date": START,
-                "expiry_date": END,
+                "effective_time": START,
+                "expiry_time": END,
                 "lower_barrier": 80,
                 "upper_barrier": 120,
                 "barrier_type": "knock_out",
@@ -288,7 +288,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         self.assert_core_error(
             InvalidInputError,
             lambda: engine.price(
-                contract(), market(time=datetime(2025, 1, 1, 0, 0, 1, tzinfo=UTC))
+                contract(), market(time=datetime(2025, 1, 1, 0, 0, 1))
             ),
         )
         self.assert_core_error(
@@ -297,7 +297,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         )
         for bound, inside in ((80, math.inf), (120, 0)):
             observed = contract(
-                observation_mode="scheduled", observation_dates=[START, END], rebate=3
+                observation_mode="scheduled", observation_times=[START, END], rebate=3
             )
             actual = engine.price_with_greeks(
                 observed, market(bound), ["delta", "gamma", "vega"]
@@ -307,7 +307,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             self.assertIsNone(actual.gamma)
             self.assertIsNone(actual.vega)
             future = contract(
-                observation_mode="scheduled", observation_dates=[END], rebate=3
+                observation_mode="scheduled", observation_times=[END], rebate=3
             )
             just_inside = market(math.nextafter(bound, inside))
             self.assertEqual(
@@ -316,13 +316,13 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
 
     def test_discrete_observation_is_only_at_midnight_and_history_can_end_early(self):
         engine = pricing.FiniteDifferenceDoubleBarrierEngine()
-        time = datetime.combine(FIRST, datetime.min.time(), UTC) + timedelta(hours=12)
+        time = datetime.combine(FIRST, datetime.min.time()) + timedelta(hours=12)
         for kind in ("knock_in", "knock_out"):
             option = contract(
                 barrier_type=kind,
                 rebate=3,
                 observation_mode="scheduled",
-                observation_dates=[FIRST],
+                observation_times=[FIRST],
                 touch_state="untouched",
             )
             context = market(130, time=time)
@@ -333,8 +333,8 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                     EuropeanOption(
                         option_type="call",
                         strike=100,
-                        effective_date=START,
-                        expiry_date=END,
+                        effective_time=START,
+                        expiry_time=END,
                     ),
                     context,
                 )
@@ -347,7 +347,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                         pricing.implied_volatility(engine, option, context, expected)
                     ),
                 )
-        future = contract(observation_mode="scheduled", observation_dates=[END])
+        future = contract(observation_mode="scheduled", observation_times=[END])
         self.assertAlmostEqual(
             engine.price(future, market(125)),
             terminal_reference(125, "call", 80, 120, 1, rebate=0),
@@ -367,7 +367,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                     rebate=2,
                     rebate_timing=timing,
                     observation_mode="scheduled",
-                    observation_dates=dates,
+                    observation_times=dates,
                 )
                 if dates == [END]:
                     expected = terminal_reference(100.25, direction, 80.125, 120.125, 1)
@@ -400,7 +400,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 "option_type": direction,
                 "rebate": 2,
                 "observation_mode": mode,
-                "observation_dates": [FIRST, END] if mode == "scheduled" else [],
+                "observation_times": [FIRST, END] if mode == "scheduled" else [],
             }
             values = [
                 engine.price_with_greeks(
@@ -412,8 +412,8 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 EuropeanOption(
                     option_type=direction,
                     strike=100,
-                    effective_date=START,
-                    expiry_date=END,
+                    effective_time=START,
+                    expiry_time=END,
                 ),
                 market(),
                 ["delta", "gamma"],
@@ -470,7 +470,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         )
         scheduled = contract(
             observation_mode="scheduled",
-            observation_dates=[FIRST, END],
+            observation_times=[FIRST, END],
             touch_state="untouched",
         )
         event = engine.price_with_greeks(
@@ -506,8 +506,8 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 EuropeanOption(
                     option_type=direction,
                     strike=strike,
-                    effective_date=START,
-                    expiry_date=END,
+                    effective_time=START,
+                    expiry_time=END,
                 ),
                 market(),
             )
@@ -572,8 +572,8 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         self.assert_core_error(
             InvalidInputError, lambda: clipped.price(contract(), market())
         )
-        weekend = date(2025, 7, 5)
-        option = contract(observation_mode="scheduled", observation_dates=[weekend])
+        weekend = datetime(2025, 7, 5)
+        option = contract(observation_mode="scheduled", observation_times=[weekend])
         engine = pricing.FiniteDifferenceDoubleBarrierEngine()
         self.assert_core_error(
             InvalidInputError,
@@ -628,7 +628,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             upper_barrier=upper,
             rebate=2,
             observation_mode="scheduled",
-            observation_dates=[END],
+            observation_times=[END],
         )
         engine = pricing.FiniteDifferenceDoubleBarrierEngine(
             asset_step_count=800, time_step_count=2000, asset_upper_boundary=400
@@ -676,7 +676,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 lower_barrier=lower,
                 upper_barrier=upper,
                 observation_mode="scheduled",
-                observation_dates=[FIRST],
+                observation_times=[FIRST],
             )
             for scheme in ("crank_nicolson", "rannacher", "implicit_euler"):
                 for index, count in enumerate((800, 1600, 3200)):
@@ -701,11 +701,9 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             lower_barrier=80.24995,
             upper_barrier=120,
             observation_mode="scheduled",
-            observation_dates=[FIRST],
+            observation_times=[FIRST],
         )
-        before = datetime.combine(FIRST, datetime.min.time(), UTC) - timedelta(
-            seconds=1
-        )
+        before = datetime.combine(FIRST, datetime.min.time()) - timedelta(seconds=1)
         for scheme in ("crank_nicolson", "rannacher", "implicit_euler"):
             engine = pricing.FiniteDifferenceDoubleBarrierEngine(
                 asset_step_count=800,
@@ -816,7 +814,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 engine, instrument, context, result.price, max_iterations=1.5
             )
         vanilla = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         with self.assertRaises(UnsupportedOperationError):
             engine.price(vanilla, context)
@@ -846,7 +844,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 rebate=7,
                 rebate_timing=timing,
                 observation_mode="scheduled",
-                observation_dates=[first, END],
+                observation_times=[first, END],
             )
             expected = 7 * math.exp(-0.08 * 91 / 365 if timing == "at_hit" else -0.01)
             self.assertAlmostEqual(

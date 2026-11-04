@@ -1,9 +1,9 @@
 use kiyosi::*;
 
-fn dates() -> (Date, Date) {
+fn dates() -> (Timestamp, Timestamp) {
     (
-        Date::new(2025, 1, 1).unwrap(),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
     )
 }
 
@@ -11,7 +11,7 @@ fn market(spot: f64, rate: f64, dividend: f64, sigma: f64) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(rate, dividend, sigma).unwrap(),
         spot,
-        dates().0.into(),
+        dates().0,
     )
     .unwrap()
 }
@@ -193,7 +193,7 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
         for spot in [90.0, 100.0, 110.0] {
             let context = market(spot, 100.0, -100.0, 1e-200)
                 .replace(PricingContextChanges {
-                    valuation_time: Some(end.into()),
+                    valuation_time: Some(end),
                     ..Default::default()
                 })
                 .unwrap();
@@ -254,8 +254,8 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
             }
         }
         for time in [
-            Date::new(2024, 12, 31).unwrap().into(),
-            Timestamp::new(end, 0, 0, 0, 1).unwrap(),
+            Date::new(2024, 12, 31).unwrap().start_of_day(),
+            Timestamp::new(end.date(), 0, 0, 0, 1).unwrap(),
         ] {
             let context = market(100.0, 0.05, 0.02, 1e-200)
                 .replace(PricingContextChanges {
@@ -317,12 +317,11 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
     let cash = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
     let vanilla = CoxRossRubinsteinVanillaEngine::default();
     let digital = CoxRossRubinsteinDigitalEngine::default();
-    let nodes =
-        RateTermStructure::new(start.into(), vec![end.into()], vec![(-0.05_f64).exp()]).unwrap();
+    let nodes = RateTermStructure::new(start, vec![end], vec![(-0.05_f64).exp()]).unwrap();
     let nonflat = PricingContext::new(
         BlackScholesMertonParameters::new(nodes, 0.02, 0.2).unwrap(),
         100.0,
-        start.into(),
+        start,
     )
     .unwrap();
     assert!(matches!(
@@ -342,11 +341,11 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    let flat = RateTermStructure::flat(0.05, Some(start.into())).unwrap();
+    let flat = RateTermStructure::flat(0.05, Some(start)).unwrap();
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(flat, 0.02, 0.2).unwrap(),
         100.0,
-        start.into(),
+        start,
     )
     .unwrap();
     assert_eq!(
@@ -512,7 +511,7 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
         CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1000 }).unwrap();
     let context = market(100.0, 0.04, 0.01, 0.2)
         .replace(PricingContextChanges {
-            valuation_time: Some(Timestamp::new(start, 12, 0, 0, 0).unwrap()),
+            valuation_time: Some(Timestamp::new(start.date(), 12, 0, 0, 0).unwrap()),
             ..Default::default()
         })
         .unwrap();

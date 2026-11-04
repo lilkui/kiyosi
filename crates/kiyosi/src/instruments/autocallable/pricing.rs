@@ -1,7 +1,8 @@
 use super::{
-    AutocallableBarrierState, AutocallableNote, AutocallableTerms, Coupon, Date, Error,
-    PricingContext, Result,
+    AutocallableBarrierState, AutocallableNote, AutocallableTerms, Coupon, Error, PricingContext,
+    Result,
 };
+use crate::Timestamp;
 
 pub(crate) struct Initial {
     pub knocked_in: bool,
@@ -26,12 +27,12 @@ pub(crate) fn initial<T: AutocallableTerms>(
     let current = note
         .observations()
         .iter()
-        .find(|r| r.date.start_of_day() == context.valuation_time());
+        .find(|r| r.time == context.valuation_time());
     let coupon = current.map_or(0.0, |r| note.observation_coupon(r, context.spot_price()));
     let settlement =
         if let Some(record) = current.filter(|r| context.spot_price() >= r.knock_out_level) {
             Some(note.knock_out_payment(record) + coupon)
-        } else if context.valuation_time() == note.expiry_date().start_of_day() {
+        } else if context.valuation_time() == note.expiry_time() {
             Some(
                 coupon
                     + note.terminal(
@@ -49,37 +50,35 @@ pub(crate) fn initial<T: AutocallableTerms>(
     }
 }
 
-pub(crate) fn future_event_dates<T: AutocallableTerms>(
+pub(crate) fn future_event_times<T: AutocallableTerms>(
     note: &AutocallableNote<T>,
     context: &PricingContext,
     daily: bool,
-) -> Result<Vec<Date>> {
-    let mut dates = Vec::new();
+) -> Result<Vec<Timestamp>> {
+    let mut times: Vec<_> = note
+        .observations()
+        .iter()
+        .map(|r| r.time)
+        .filter(|&time| time > context.valuation_time())
+        .collect();
     if daily {
-        let mut date = context.valuation_date();
-        loop {
-            if date.start_of_day() > context.valuation_time()
-                && context.calendar().is_trading_day(date)
-            {
-                dates.push(date);
-            }
-            if date == note.expiry_date() {
-                break;
-            }
-            date = date.add_days(1)?;
-        }
-    } else {
-        dates.extend(
-            note.observations()
-                .iter()
-                .map(|r| r.date)
-                .filter(|d| d.start_of_day() > context.valuation_time()),
+        times.extend(
+            crate::ObservationSchedule::daily(
+                note.effective_time(),
+                note.expiry_time(),
+                context.calendar(),
+                true,
+            )?
+            .times()
+            .iter()
+            .copied()
+            .filter(|&time| time > context.valuation_time()),
         );
-        if dates.last() != Some(&note.expiry_date()) {
-            dates.push(note.expiry_date());
-        }
     }
-    Ok(dates)
+    times.push(note.expiry_time());
+    times.sort_unstable();
+    times.dedup();
+    Ok(times)
 }
 
 pub(crate) fn validate<T: AutocallableTerms>(
@@ -87,9 +86,7 @@ pub(crate) fn validate<T: AutocallableTerms>(
     context: &PricingContext,
 ) -> Result<()> {
     let valuation = context.valuation_time();
-    if valuation < note.effective_date().start_of_day()
-        || valuation > note.expiry_date().start_of_day()
-    {
+    if valuation < note.effective_time() || valuation > note.expiry_time() {
         return Err(Error::InvalidInput(
             "valuation must be within contract life".into(),
         ));
@@ -97,14 +94,14 @@ pub(crate) fn validate<T: AutocallableTerms>(
     if note
         .observations()
         .iter()
-        .any(|r| !context.calendar().is_trading_day(r.date))
+        .any(|r| !context.calendar().is_trading_day(r.time.date()))
     {
         return Err(Error::InvalidInput(
             "observation is not a trading day".into(),
         ));
     }
     note.prior(context.valuation_time(), context.calendar())?;
-    if !context.calendar().is_trading_day(note.expiry_date()) {
+    if !context.calendar().is_trading_day(note.expiry_time().date()) {
         return Err(Error::InvalidInput("expiry is not a trading day".into()));
     }
     Ok(())
@@ -136,14 +133,14 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
     } else if !knocked_in && note.knock_in_affects_payoff() {
         return None;
     }
-    let discount = |date: Date| {
+    let discount = |date: Timestamp| {
         context
             .model_parameters()
             .risk_free_curve()
-            .factor(context.valuation_time(), date.into())
+            .factor(context.valuation_time(), date)
             .ok()
     };
-    let value = note.terminal(context.spot_price(), knocked_in) * discount(note.expiry_date())?;
+    let value = note.terminal(context.spot_price(), knocked_in) * discount(note.expiry_time())?;
     if !value.is_finite() {
         return None;
     }
@@ -152,9 +149,9 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
         .observations()
         .iter()
         .rev()
-        .filter(|r| r.date.start_of_day() > context.valuation_time())
+        .filter(|r| r.time > context.valuation_time())
     {
-        let discount = discount(record.date)?;
+        let discount = discount(record.time)?;
         if !discount.is_normal() || note.knock_out_payment(record) * discount != value + coupons {
             return None;
         }
@@ -169,6 +166,6 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
             }
         }
     }
-    let discount = discount(note.expiry_date())?;
+    let discount = discount(note.expiry_time())?;
     discount.is_normal().then_some(value + coupons)
 }

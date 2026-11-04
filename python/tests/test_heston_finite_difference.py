@@ -1,3 +1,5 @@
+from datetime import datetime
+
 """Heston fixed-grid pricing and Python boundary contracts."""
 
 import inspect
@@ -5,7 +7,7 @@ import json
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 from kiyosi import ComputationFailureError, InvalidInputError, UnsupportedOperationError
@@ -43,7 +45,7 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
         self.assertLess(fixture["refinement_uncertainty"], budget / 10)
         engine = FiniteDifferenceHestonVanillaEngine()
         contract = AmericanOption(
-            option_type="put", strike=100, effective_date=START, expiry_date=END
+            option_type="put", strike=100, effective_time=START, expiry_time=END
         )
         actual = engine.price(contract, context())
         self.assertAlmostEqual(actual, reference_price, delta=budget)
@@ -58,7 +60,7 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
             actual, engine.price(option(option_type="put"), context())
         )
         call = AmericanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         snapshot = context(model(dividend_yield=0))
         expected = AnalyticHestonEuropeanEngine().price(option(), snapshot)
@@ -165,8 +167,8 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
         contract = AmericanOption(
             option_type="put",
             strike=100,
-            effective_date=START,
-            expiry_date=date(2028, 1, 1),
+            effective_time=START,
+            expiry_time=datetime(2028, 1, 1),
         )
         optimum = math.log(5 / 6) / -0.15
         expected = 100 * math.exp(-0.05 * optimum) - 30 * math.exp(-0.2 * optimum)
@@ -188,7 +190,7 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
                 1,
                 delta=1e-12,
             )
-        middle = date(2025, 7, 1)
+        middle = datetime(2025, 7, 1)
         curve = RateTermStructure(
             reference_time=START, times=[middle, END], factors=[math.exp(0.1), 1]
         )
@@ -199,7 +201,7 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
             long_run_variance=0,
         )
         contract = AmericanOption(
-            option_type="put", strike=100, effective_date=START, expiry_date=END
+            option_type="put", strike=100, effective_time=START, expiry_time=END
         )
         self.assertAlmostEqual(
             engine.price(contract, context(parameters, spot_price=0.01)),
@@ -263,7 +265,7 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
         self.assertEqual(snapshot.spot_price, 100)
         self.assertEqual(engine.time_step_count, 400)
         short = RateTermStructure(
-            reference_time=START, times=[date(2025, 7, 1)], factors=[0.98]
+            reference_time=START, times=[datetime(2025, 7, 1)], factors=[0.98]
         )
         with self.assertRaises(InvalidInputError):
             engine.price(
@@ -313,11 +315,11 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
         engine = FiniteDifferenceHestonVanillaEngine()
         for expiry, strike in (
             (START + timedelta(days=7), 100),
-            (date(2030, 1, 1), 120),
+            (datetime(2030, 1, 1), 120),
             (END, 50),
             (END, 150),
         ):
-            contract = option(expiry_date=expiry, strike=strike)
+            contract = option(expiry_time=expiry, strike=strike)
             ref = AnalyticHestonEuropeanEngine().price(contract, context())
             with self.subTest(expiry=expiry, strike=strike):
                 self.assertAlmostEqual(
@@ -326,10 +328,14 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
                     delta=1e-5 * strike + 1e-4 * ref,
                 )
         risk = RateTermStructure(
-            reference_time=START, times=[date(2025, 7, 1), END], factors=[1.01, 0.98]
+            reference_time=START,
+            times=[datetime(2025, 7, 1), END],
+            factors=[1.01, 0.98],
         )
         dividend = RateTermStructure(
-            reference_time=START, times=[date(2025, 4, 1), END], factors=[0.99, 0.97]
+            reference_time=START,
+            times=[datetime(2025, 4, 1), END],
+            factors=[0.99, 0.97],
         )
         snapshot = context(model(risk_free_rate=risk, dividend_yield=dividend))
         ref = AnalyticHestonEuropeanEngine().price(option(), snapshot)
@@ -371,7 +377,7 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
 
     def test_refined_tail_price_uses_relative_acceptance(self):
         contract = option(
-            option_type="put", strike=70, expiry_date=START + timedelta(days=30)
+            option_type="put", strike=70, expiry_time=START + timedelta(days=30)
         )
         expected = 3.105513031411244e-6
         estimates = [

@@ -1,4 +1,4 @@
-use crate::{Date, Error, OptionContract, PricingContext, Result, Timestamp};
+use crate::{Error, OptionContract, PricingContext, Result, Timestamp};
 
 /// Supplies equally weighted range-coupon terms; see [`RangeAccrualOption::new`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -11,10 +11,10 @@ pub struct RangeAccrualTerms {
     pub lower_bound: f64,
     /// Inclusive finite upper spot boundary, strictly above the lower boundary.
     pub upper_bound: f64,
-    /// First contract date, excluded from observations.
-    pub effective_date: Date,
-    /// Payment date and final observation, at midnight UTC.
-    pub expiry_date: Date,
+    /// Effective time, excluded from observations.
+    pub effective_time: Timestamp,
+    /// Payment time and final observation.
+    pub expiry_time: Timestamp,
     /// Hits strictly before valuation; `None` means unknown history.
     pub realized_hit_count: Option<i32>,
 }
@@ -26,16 +26,16 @@ impl RangeAccrualTerms {
         annual_coupon_rate: f64,
         lower_bound: f64,
         upper_bound: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_time: Timestamp,
+        expiry_time: Timestamp,
     ) -> Self {
         Self {
             notional,
             annual_coupon_rate,
             lower_bound,
             upper_bound,
-            effective_date,
-            expiry_date,
+            effective_time,
+            expiry_time,
             realized_hit_count: None,
         }
     }
@@ -43,7 +43,7 @@ impl RangeAccrualTerms {
 
 /// Owns a validated range coupon with no principal payment or early termination.
 ///
-/// Observes the context calendar's trading dates in `(effective_date, expiry_date]`.
+/// Observes at the expiry clock time on trading dates in `(effective_time, expiry_time]`.
 /// Pays `notional * annual_coupon_rate * ACT/365 * hits / observations` at expiry.
 /// Calendar and history consistency are checked during pricing. Shared reads are safe.
 /// See [`Self::new`] for an example.
@@ -67,7 +67,7 @@ impl RangeAccrualOption {
     /// use kiyosi::{Date, RangeAccrualOption, RangeAccrualTerms};
     /// # fn main() -> kiyosi::Result<()> {
     /// let terms = RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
-    ///     Date::new(2025, 1, 1)?, Date::new(2025, 1, 17)?);
+    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 17)?.start_of_day());
     /// let option = RangeAccrualOption::new(terms)?;
     /// let seasoned = option.replace_history(Some(3))?;
     /// assert_eq!(seasoned.realized_hit_count(), Some(3));
@@ -89,7 +89,7 @@ impl RangeAccrualOption {
                 "invalid range accrual amounts, bounds or history".into(),
             ));
         }
-        if terms.expiry_date <= terms.effective_date {
+        if terms.expiry_time <= terms.effective_time {
             return Err(Error::InvalidInput(
                 "range accrual requires a positive contract term".into(),
             ));
@@ -125,13 +125,13 @@ impl RangeAccrualOption {
     pub fn upper_bound(&self) -> f64 {
         self.terms.upper_bound
     }
-    /// Returns the first date, excluded from observations; see [`Self::new`].
-    pub fn effective_date(&self) -> Date {
-        self.terms.effective_date
+    /// Returns the effective time, excluded from observations; see [`Self::new`].
+    pub fn effective_time(&self) -> Timestamp {
+        self.terms.effective_time
     }
-    /// Returns payment and final observation at midnight UTC; see [`Self::new`].
-    pub fn expiry_date(&self) -> Date {
-        self.terms.expiry_date
+    /// Returns payment and final observation time; see [`Self::new`].
+    pub fn expiry_time(&self) -> Timestamp {
+        self.terms.expiry_time
     }
     /// Returns hits strictly before valuation; see [`Self::new`].
     pub fn realized_hit_count(&self) -> Option<i32> {
@@ -140,13 +140,13 @@ impl RangeAccrualOption {
 }
 
 impl OptionContract for RangeAccrualOption {
-    fn effective_date(&self) -> Date {
-        self.effective_date()
+    fn effective_time(&self) -> Timestamp {
+        self.effective_time()
     }
-    fn expiry_date(&self) -> Date {
-        self.expiry_date()
+    fn expiry_time(&self) -> Timestamp {
+        self.expiry_time()
     }
-    fn valuation_start(&self) -> Option<Date> {
+    fn valuation_start(&self) -> Option<Timestamp> {
         None
     }
     fn all_greeks_unavailable(&self, _context: &PricingContext) -> bool {
@@ -155,9 +155,9 @@ impl OptionContract for RangeAccrualOption {
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         let time = context.valuation_time();
         self.annual_coupon_rate() != 0.0
-            && time > self.effective_date().start_of_day()
-            && time <= self.expiry_date().start_of_day()
-            && time.micros_since_midnight() == 0
+            && time > self.effective_time()
+            && time <= self.expiry_time()
+            && time.micros_since_midnight() == self.expiry_time().micros_since_midnight()
             && context.calendar().is_trading_day(time.date())
             && [self.lower_bound(), self.upper_bound()]
                 .iter()
@@ -171,25 +171,18 @@ impl OptionContract for RangeAccrualOption {
         before: Timestamp,
         after: Timestamp,
     ) -> bool {
-        let mut date = before.date().max(self.effective_date());
-        let last = after.date().min(self.expiry_date());
-        while date <= last {
-            if date > self.effective_date()
-                && before <= date.start_of_day()
-                && date.start_of_day() <= after
-                && context.calendar().is_trading_day(date)
-            {
-                return false;
-            }
-            if date == last {
-                break;
-            }
-            let Ok(next) = date.add_days(1) else {
-                return false;
-            };
-            date = next;
-        }
-        true
+        let Ok(schedule) = crate::ObservationSchedule::daily(
+            self.effective_time(),
+            self.expiry_time(),
+            context.calendar(),
+            false,
+        ) else {
+            return false;
+        };
+        !schedule
+            .times()
+            .iter()
+            .any(|&time| before <= time && time <= after)
     }
 }
 
@@ -206,10 +199,10 @@ pub struct RangeAccrualOptionChanges {
     pub lower_bound: Option<f64>,
     /// Replaces [`upper_bound`](RangeAccrualTerms::upper_bound).
     pub upper_bound: Option<f64>,
-    /// Replaces [`effective_date`](RangeAccrualTerms::effective_date).
-    pub effective_date: Option<Date>,
-    /// Replaces [`expiry_date`](RangeAccrualTerms::expiry_date).
-    pub expiry_date: Option<Date>,
+    /// Replaces [`effective_time`](RangeAccrualTerms::effective_time).
+    pub effective_time: Option<Timestamp>,
+    /// Replaces [`expiry_time`](RangeAccrualTerms::expiry_time).
+    pub expiry_time: Option<Timestamp>,
     /// Replaces [`realized_hit_count`](RangeAccrualTerms::realized_hit_count).
     pub realized_hit_count: Option<Option<i32>>,
 }
@@ -232,8 +225,8 @@ impl RangeAccrualOption {
                 .unwrap_or(self.annual_coupon_rate()),
             lower_bound: changes.lower_bound.unwrap_or(self.lower_bound()),
             upper_bound: changes.upper_bound.unwrap_or(self.upper_bound()),
-            effective_date: changes.effective_date.unwrap_or(self.effective_date()),
-            expiry_date: changes.expiry_date.unwrap_or(self.expiry_date()),
+            effective_time: changes.effective_time.unwrap_or(self.effective_time()),
+            expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
             realized_hit_count: changes
                 .realized_hit_count
                 .unwrap_or(self.realized_hit_count()),

@@ -1,9 +1,10 @@
 use crate::DoubleBarrierOption;
+use crate::Timestamp;
 use crate::engines::analytic::barrier::resolved_price_with_state;
 use crate::instruments::monitoring::{validate_life, validate_schedule};
 use crate::numerics::{Sum, checked, log_interval_mass, log_ratio, scaled_cash, scaled_cdf};
 use crate::{
-    AnalyticEuropeanEngine, Date, Error, GreeksRequest, NumericalShiftSettings, ObservationMode,
+    AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationMode,
     OptionType, PricingContext, PricingEngine, PricingResult, RebateTiming, Result,
 };
 use std::f64::consts::PI;
@@ -33,9 +34,9 @@ impl AnalyticDoubleBarrierEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
-    ///     100.0, start, Date::new(2026, 1, 1)?, 80.0, 120.0, DoubleBarrierType::KnockOut))?;
+    ///     100.0, start, Date::new(2026, 1, 1)?.start_of_day(), 80.0, 120.0, DoubleBarrierType::KnockOut))?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     100.0, start.into())?;
     /// assert!((AnalyticDoubleBarrierEngine.price(&option, &context)? - 1.0838814592583166).abs() < 1e-9);
@@ -125,7 +126,7 @@ impl AbsorbingDistribution {
     pub(super) fn new(
         lower: f64,
         upper: f64,
-        expiry: Date,
+        expiry: Timestamp,
         context: &PricingContext,
     ) -> Result<Self> {
         let model = context.bsm_parameters()?;
@@ -136,7 +137,7 @@ impl AbsorbingDistribution {
             log_lower: lower.ln(),
             volatility: sigma,
             drift: model.risk_free_rate()? - model.dividend_yield()? - 0.5 * sigma * sigma,
-            time: context.valuation_time().years_until(expiry.start_of_day()),
+            time: context.valuation_time().years_until(expiry),
         })
     }
     // Integrate asset^order against the killed density; complement avoids 1-survival cancellation.
@@ -546,7 +547,7 @@ fn analytic_price(option: &DoubleBarrierOption, context: &PricingContext) -> Res
     let density = AbsorbingDistribution::new(
         option.lower_barrier(),
         option.upper_barrier(),
-        option.expiry_date(),
+        option.expiry_time(),
         context,
     )?;
     let rate = context.bsm_parameters()?.risk_free_rate()?;
@@ -595,7 +596,7 @@ pub(crate) fn hit_value(option: &DoubleBarrierOption, context: &PricingContext) 
     AbsorbingDistribution::new(
         option.lower_barrier(),
         option.upper_barrier(),
-        option.expiry_date(),
+        option.expiry_time(),
         context,
     )?
     .hit_value(option.rebate(), context.bsm_parameters()?.risk_free_rate()?)

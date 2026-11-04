@@ -3,7 +3,7 @@
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from itertools import product
 
 from kiyosi import (
@@ -39,7 +39,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 lower_barrier=0.8 * spot,
                 upper_barrier=1.2 * spot,
                 observation_mode=mode,
-                observation_dates=[END] if mode == "scheduled" else [],
+                observation_times=[END] if mode == "scheduled" else [],
             )
             context = market(spot, rate=0, dividend=0, volatility=sigma)
             expected = spot * sigma / math.sqrt(math.tau)
@@ -111,7 +111,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 rebate=2,
                 rebate_timing=timing,
                 observation_mode="scheduled",
-                observation_dates=[FIRST, END] if final else [FIRST],
+                observation_times=[FIRST, END] if final else [FIRST],
             )
             expected = first_fixing_reference(
                 100.25, direction, timing, final_fixing=final
@@ -133,7 +133,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 option_type=direction,
                 rebate=2,
                 observation_mode="scheduled",
-                observation_dates=[END],
+                observation_times=[END],
             )
             self.assertAlmostEqual(
                 engine.price(option, market()),
@@ -148,7 +148,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                     lower_barrier=80.125,
                     upper_barrier=120.125,
                     observation_mode="scheduled",
-                    observation_dates=[FIRST, END] if final else [FIRST],
+                    observation_times=[FIRST, END] if final else [FIRST],
                 )
                 expected = (
                     vanilla_reference(100.25, direction, 1)
@@ -161,7 +161,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                     engine.price(inside, market(100.25)), expected, delta=0.025
                 )
         option = contract(
-            strike=130, observation_mode="scheduled", observation_dates=[FIRST]
+            strike=130, observation_mode="scheduled", observation_times=[FIRST]
         )
         self.assertGreater(engine.price(option, market()), 0.01)
 
@@ -289,7 +289,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 rebate=3,
                 rebate_timing="at_hit",
                 **(
-                    {"observation_mode": "scheduled", "observation_dates": [FIRST]}
+                    {"observation_mode": "scheduled", "observation_times": [FIRST]}
                     if scheduled
                     else {}
                 ),
@@ -316,7 +316,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                         actual, (expected.price, expected.delta, expected.gamma)
                     )
         vanilla = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         for paths in (1, 2, 3, 5, 257):
             settings = {"path_count": paths, "seed": 42, "antithetic": True}
@@ -349,8 +349,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                     self.assertIsNone(result.delta)
                     self.assertIsNone(result.gamma)
                 later = context.replace(
-                    valuation_time=datetime(2025, 1, 1, tzinfo=UTC)
-                    + timedelta(microseconds=1)
+                    valuation_time=datetime(2025, 1, 1) + timedelta(microseconds=1)
                 )
                 self.assert_rejection(InvalidInputError, engine.price, option, later)
                 touched = option.replace_history(touch_state="touched")
@@ -370,14 +369,14 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 rebate=7,
                 rebate_timing=timing,
                 observation_mode="scheduled",
-                observation_dates=[FIRST],
+                observation_times=[FIRST],
             )
             on_date = market(120, time=FIRST)
             self.assertEqual(
                 engine.price(scheduled, on_date), analytic.price(scheduled, on_date)
             )
             after = on_date.replace(
-                valuation_time=datetime.combine(FIRST, datetime.min.time(), UTC)
+                valuation_time=datetime.combine(FIRST, datetime.min.time())
                 + timedelta(microseconds=1)
             )
             untouched = scheduled.replace_history(touch_state="untouched")
@@ -448,7 +447,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 engine.price_with_greeks(contract(), market(), "delta", **fields)
         option = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         for operation, args in (
             (engine.price, (option, market())),
@@ -540,7 +539,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             "gamma",
         )
         invalid = contract(
-            observation_mode="scheduled", observation_dates=[START + timedelta(days=3)]
+            observation_mode="scheduled", observation_times=[START + timedelta(days=3)]
         )
         self.assert_rejection(
             InvalidInputError,
@@ -587,7 +586,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         finished = contract(
             barrier_type="knock_in",
             observation_mode="scheduled",
-            observation_dates=[FIRST],
+            observation_times=[FIRST],
             touch_state="untouched",
         )
         for option, context in (
@@ -612,9 +611,9 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
     def test_sobol_dimension_limit_includes_unobserved_expiry_leg(self):
         dates = [START + timedelta(days=i) for i in range(1, 21202)]
         option = contract(
-            expiry_date=dates[-1] + timedelta(days=1),
+            expiry_time=dates[-1] + timedelta(days=1),
             observation_mode="scheduled",
-            observation_dates=dates,
+            observation_times=dates,
         )
         engine = pricing.MonteCarloDoubleBarrierEngine(
             path_count=1, seed=42, sampling="sobol"

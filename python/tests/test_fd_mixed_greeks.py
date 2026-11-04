@@ -1,5 +1,5 @@
 import unittest
-from datetime import date
+from datetime import datetime
 
 from kiyosi import pricing
 from kiyosi.instruments import EuropeanOption
@@ -8,7 +8,7 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 class FiniteDifferenceMixedGreekTests(unittest.TestCase):
     def test_one_sided_native_time_greeks_remain_selective_and_accurate(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3
@@ -20,8 +20,8 @@ class FiniteDifferenceMixedGreekTests(unittest.TestCase):
             option = EuropeanOption(
                 option_type=option_type,
                 strike=100,
-                effective_date=start,
-                expiry_date=end,
+                effective_time=start,
+                expiry_time=end,
             )
             for engine in (
                 pricing.CoxRossRubinsteinVanillaEngine(step_count=1000),
@@ -50,9 +50,9 @@ class FiniteDifferenceMixedGreekTests(unittest.TestCase):
                         )
 
     def test_charm_at_effective_date_remains_selective(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = EuropeanOption(
-            option_type="call", strike=100, effective_date=start, expiry_date=end
+            option_type="call", strike=100, effective_time=start, expiry_time=end
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -78,15 +78,15 @@ class FiniteDifferenceMixedGreekTests(unittest.TestCase):
         option = EuropeanOption(
             option_type="call",
             strike=100,
-            effective_date=date(2025, 1, 1),
-            expiry_date=date(2026, 1, 1),
+            effective_time=datetime(2025, 1, 1),
+            expiry_time=datetime(2026, 1, 1),
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3
             ),
             spot_price=100,
-            valuation_time=date(2025, 7, 1),
+            valuation_time=datetime(2025, 7, 1),
         )
         request = ["vanna", "zomma", "charm", "color"]
         expected = pricing.AnalyticEuropeanEngine().price_with_greeks(

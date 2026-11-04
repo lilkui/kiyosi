@@ -1,7 +1,7 @@
 import inspect
 import math
 import unittest
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import QuantLib as ql
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
@@ -9,7 +9,7 @@ from kiyosi.instruments import Accumulator
 from kiyosi.market import monthly_schedule, weekdays_calendar
 from test_accumulator import START, market
 
-END = date(2025, 1, 6)
+END = datetime(2025, 1, 6)
 
 
 def contract(**changes):
@@ -21,8 +21,8 @@ def contract(**changes):
                 "daily_quantity": 1,
                 "acceleration_factor": 2,
                 "accumulated_quantity": 3,
-                "effective_date": START,
-                "expiry_date": END,
+                "effective_time": START,
+                "expiry_time": END,
             }
             | changes
         )
@@ -43,7 +43,7 @@ def engines():
 
 def terminal_reference(option, context):
     """Independent truncated-lognormal expectation for one remaining event."""
-    end = datetime.combine(option.expiry_date, datetime.min.time(), UTC)
+    end = datetime.combine(option.expiry_time, datetime.min.time())
     time = (end - context.valuation_time).total_seconds() / (365 * 86400)
     model = context.model_parameters
     deviation = model.volatility * math.sqrt(time)
@@ -62,8 +62,8 @@ def terminal_reference(option, context):
             - cash * math.erfc(d2 / math.sqrt(2))
         ) / 2
 
-    observations = option.knock_out_observation_dates
-    observes = observations is None or option.expiry_date in observations
+    observations = option.knock_out_observation_times
+    observes = observations is None or option.expiry_time in observations
     strike, barrier = option.strike, option.knock_out_level
     multiplier = option.acceleration_factor
     if option.option_type == "call":
@@ -91,63 +91,63 @@ class AccumulatorExtensionTests(unittest.TestCase):
     def test_direction_dates_defaults_history_replacement_and_ownership(self):
         default = contract()
         self.assertEqual(default.option_type, "call")
-        self.assertIsNone(default.knock_out_observation_dates)
+        self.assertIsNone(default.knock_out_observation_times)
         self.assertEqual(
-            default, contract(option_type="call", knock_out_observation_dates=None)
+            default, contract(option_type="call", knock_out_observation_times=None)
         )
         source = [START, END]
-        option = contract(option_type="put", knock_out_observation_dates=source)
+        option = contract(option_type="put", knock_out_observation_times=source)
         source.clear()
-        self.assertEqual(option.knock_out_observation_dates, [START, END])
-        returned = option.knock_out_observation_dates
+        self.assertEqual(option.knock_out_observation_times, [START, END])
+        returned = option.knock_out_observation_times
         returned.clear()
-        self.assertEqual(option.knock_out_observation_dates, [START, END])
+        self.assertEqual(option.knock_out_observation_times, [START, END])
         updated = option.replace_history(accumulated_quantity=0.25)
         self.assertEqual(updated.option_type, "put")
-        self.assertEqual(updated.knock_out_observation_dates, [START, END])
+        self.assertEqual(updated.knock_out_observation_times, [START, END])
         self.assertEqual(updated.accumulated_quantity, 0.25)
         self.assertEqual(option.accumulated_quantity, 3)
         self.assertEqual(updated.replace_history(accumulated_quantity=3), option)
-        self.assertNotEqual(default, contract(knock_out_observation_dates=[]))
+        self.assertNotEqual(default, contract(knock_out_observation_times=[]))
         self.assertNotEqual(default, contract(option_type="put"))
         self.assertIn('option_type="put"', repr(option))
-        self.assertIn("knock_out_observation_dates=[datetime.date", repr(option))
-        self.assertIn("knock_out_observation_dates=None", repr(default))
+        self.assertIn("knock_out_observation_times=[datetime.date", repr(option))
+        self.assertIn("knock_out_observation_times=None", repr(default))
         self.assertIn(
-            "knock_out_observation_dates=[]",
-            repr(contract(knock_out_observation_dates=[])),
+            "knock_out_observation_times=[]",
+            repr(contract(knock_out_observation_times=[])),
         )
         for field, value in (
             ("option_type", "call"),
-            ("knock_out_observation_dates", []),
+            ("knock_out_observation_times", []),
         ):
             with self.subTest(field=field), self.assertRaises(AttributeError):
                 setattr(option, field, value)
         with self.assertRaises(InvalidInputError):
             option.replace_history(accumulated_quantity=-1)
-        self.assertEqual(option.knock_out_observation_dates, [START, END])
+        self.assertEqual(option.knock_out_observation_times, [START, END])
         signature = inspect.signature(Accumulator)
-        self.assertIsNone(signature.parameters["knock_out_observation_dates"].default)
+        self.assertIsNone(signature.parameters["knock_out_observation_times"].default)
         self.assertEqual(
             signature.parameters["option_type"].kind, inspect.Parameter.KEYWORD_ONLY
         )
         schedule = monthly_schedule(
-            start=START,
-            end=date(2025, 2, 3),
+            start_time=START,
+            end_time=datetime(2025, 2, 3),
             first_observation_month=1,
             calendar=weekdays_calendar(),
         )
         self.assertEqual(
             contract(
-                expiry_date=date(2025, 2, 3),
-                knock_out_observation_dates=schedule,
-            ).knock_out_observation_dates,
+                expiry_time=datetime(2025, 2, 3),
+                knock_out_observation_times=schedule,
+            ).knock_out_observation_times,
             list(schedule),
         )
         self.assertEqual(
             contract(
-                knock_out_observation_dates=iter([END])
-            ).knock_out_observation_dates,
+                knock_out_observation_times=iter([END])
+            ).knock_out_observation_times,
             [END],
         )
 
@@ -168,7 +168,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
             [datetime(2025, 1, 6, tzinfo=UTC)],
         ):
             with self.subTest(dates=value), self.assertRaises(TypeError):
-                contract(knock_out_observation_dates=value)
+                contract(knock_out_observation_times=value)
         for value in (
             [END, END],
             [END, START],
@@ -176,12 +176,12 @@ class AccumulatorExtensionTests(unittest.TestCase):
             [END + timedelta(days=1)],
         ):
             with self.subTest(dates=value), self.assertRaises(InvalidInputError):
-                contract(knock_out_observation_dates=value)
+                contract(knock_out_observation_times=value)
 
     def test_trading_calendar_validation_is_deferred_until_pricing(self):
-        weekend = contract(knock_out_observation_dates=[date(2025, 1, 4)])
+        weekend = contract(knock_out_observation_times=[datetime(2025, 1, 4)])
         weekend_expiry = contract(
-            expiry_date=date(2025, 1, 5), knock_out_observation_dates=[]
+            expiry_time=datetime(2025, 1, 5), knock_out_observation_times=[]
         )
         for engine in engines():
             with self.subTest(engine=type(engine).__name__):
@@ -194,7 +194,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 self.assertEqual(
                     engine.price(
                         weekend_expiry,
-                        market(90, date(2025, 1, 5), daily=True),
+                        market(90, datetime(2025, 1, 5), daily=True),
                     ),
                     -50,
                 )
@@ -226,7 +226,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     option = contract(
                         option_type=direction,
                         knock_out_level=barrier,
-                        knock_out_observation_dates=dates,
+                        knock_out_observation_times=dates,
                     )
                     self.assertEqual(engine.price(option, market(spot, END)), expected)
             for direction, spot in (("call", 90), ("put", 110)):
@@ -235,12 +235,12 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     daily_quantity=0.5,
                     acceleration_factor=0.5,
                     accumulated_quantity=0.25,
-                    knock_out_observation_dates=[],
+                    knock_out_observation_times=[],
                 )
                 self.assertEqual(engine.price(option, market(spot, END)), -5)
 
     def test_sparse_and_empty_schedules_keep_every_daily_accumulation(self):
-        end = date(2025, 1, 3)
+        end = datetime(2025, 1, 3)
         for engine in engines():
             for direction, spot, barrier in (
                 ("call", 120, 110),
@@ -261,15 +261,15 @@ class AccumulatorExtensionTests(unittest.TestCase):
                             option_type=direction,
                             knock_out_level=barrier,
                             acceleration_factor=0,
-                            expiry_date=end,
-                            knock_out_observation_dates=observations,
+                            expiry_time=end,
+                            knock_out_observation_times=observations,
                         )
                         self.assertAlmostEqual(
                             engine.price(option, context), quantity * unit, delta=1e-6
                         )
 
     def test_explicit_daily_schedule_matches_default_prices_and_greeks(self):
-        dates = [START, date(2025, 1, 2), date(2025, 1, 3), END]
+        dates = [START, datetime(2025, 1, 2), datetime(2025, 1, 3), END]
         context = market()
         for engine in engines():
             for direction, barrier in (("call", 110), ("put", 90)):
@@ -277,7 +277,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 explicit = contract(
                     option_type=direction,
                     knock_out_level=barrier,
-                    knock_out_observation_dates=dates,
+                    knock_out_observation_times=dates,
                 )
                 with self.subTest(engine=type(engine).__name__, direction=direction):
                     self.assertEqual(
@@ -293,8 +293,8 @@ class AccumulatorExtensionTests(unittest.TestCase):
                         self.assertEqual(getattr(first, field), getattr(second, field))
 
     def test_midnight_and_intraday_history_and_first_observation_knock_out(self):
-        observation = date(2025, 1, 3)
-        midnight = datetime(2025, 1, 3, tzinfo=UTC)
+        observation = datetime(2025, 1, 3)
+        midnight = datetime(2025, 1, 3)
         for engine in engines():
             for direction, spot, barrier, quantity in (
                 ("call", 100, 110, 4),
@@ -305,7 +305,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 option = contract(
                     option_type=direction,
                     knock_out_level=barrier,
-                    knock_out_observation_dates=[END],
+                    knock_out_observation_times=[END],
                 )
                 context = market(spot, midnight)
                 expected = terminal_reference(
@@ -332,14 +332,14 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 first_hit = contract(
                     option_type=direction,
                     knock_out_level=barrier,
-                    knock_out_observation_dates=[observation],
+                    knock_out_observation_times=[observation],
                 )
                 self.assertEqual(engine.price(first_hit, market(spot, observation)), 30)
 
     def test_terminal_prices_match_independent_lognormal_expectation(self):
         context = market(
             100.25,
-            datetime(2025, 1, 3, 12, tzinfo=UTC),
+            datetime(2025, 1, 3, 12),
             volatility=0.6,
             rate=-0.02,
             dividend=0.03,
@@ -357,7 +357,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                             option_type=direction,
                             knock_out_level=barrier,
                             acceleration_factor=acceleration,
-                            knock_out_observation_dates=observations,
+                            knock_out_observation_times=observations,
                         )
                         expected = terminal_reference(option, context)
                         if isinstance(engine, pricing.MonteCarloAccumulatorEngine):
@@ -383,9 +383,9 @@ class AccumulatorExtensionTests(unittest.TestCase):
                             self.assertAlmostEqual(actual, expected, delta=limit)
 
     def test_decumulator_risk_and_unidentifiable_no_knock_out_volatility(self):
-        context = market(100.25, datetime(2025, 1, 3, 12, tzinfo=UTC), volatility=0.4)
+        context = market(100.25, datetime(2025, 1, 3, 12), volatility=0.4)
         option = contract(
-            option_type="put", knock_out_level=90, knock_out_observation_dates=[]
+            option_type="put", knock_out_level=90, knock_out_observation_times=[]
         )
         for engine in engines():
             with self.subTest(engine=type(engine).__name__):
@@ -412,7 +412,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     {"daily_quantity": 0},
                 ):
                     linear = contract(
-                        option_type="put", knock_out_observation_dates=[], **terms
+                        option_type="put", knock_out_observation_times=[], **terms
                     )
                     with self.assertRaises(UnsupportedOperationError):
                         pricing.implied_volatility(
@@ -420,7 +420,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                         )
 
     def test_sparse_knock_out_prices_survive_drift_back_inside_barrier(self):
-        end = date(2025, 2, 3)
+        end = datetime(2025, 2, 3)
         time = 32.5 / 365
         for direction, spot, barrier, rate, dividend, sign in (
             ("call", 110.05, 110, 0.04, 0.06, 1),
@@ -430,8 +430,8 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 option_type=direction,
                 knock_out_level=barrier,
                 acceleration_factor=1,
-                expiry_date=end,
-                knock_out_observation_dates=[date(2025, 1, 15)],
+                expiry_time=end,
+                knock_out_observation_times=[datetime(2025, 1, 15)],
             )
             observation = 13.5 / 365
             remaining = time - observation
@@ -487,16 +487,16 @@ class AccumulatorExtensionTests(unittest.TestCase):
         for direction, barrier in (("call", 90), ("put", 110)):
             for observations in (
                 None,
-                [START, date(2025, 1, 2), date(2025, 1, 3)],
-                [date(2025, 1, 2), date(2025, 1, 3)],
+                [START, datetime(2025, 1, 2), datetime(2025, 1, 3)],
+                [datetime(2025, 1, 2), datetime(2025, 1, 3)],
             ):
                 option = contract(
                     option_type=direction,
                     knock_out_level=barrier,
                     acceleration_factor=0,
                     accumulated_quantity=0,
-                    expiry_date=date(2025, 1, 3),
-                    knock_out_observation_dates=observations,
+                    expiry_time=datetime(2025, 1, 3),
+                    knock_out_observation_times=observations,
                 )
                 with self.subTest(direction=direction, observations=observations):
                     result = monte_carlo.price_with_statistics(option, context)
@@ -539,7 +539,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                         option_type=direction,
                         knock_out_level=barrier,
                         acceleration_factor=1,
-                        knock_out_observation_dates=[],
+                        knock_out_observation_times=[],
                     )
                     for nodes in (512, 1024):
                         with self.subTest(
@@ -556,7 +556,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                             self.assertAlmostEqual(result.gamma, 0, delta=1e-6)
 
     def test_terminal_digital_portfolios_match_quantlib(self):
-        context = market(100.25, datetime(2025, 1, 3, 12, tzinfo=UTC))
+        context = market(100.25, datetime(2025, 1, 3, 12))
         time = 2.5 / 365
         model = context.model_parameters
         discount = math.exp(-model.risk_free_rate * time)
@@ -583,7 +583,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 option = contract(
                     option_type=direction,
                     knock_out_level=barrier,
-                    knock_out_observation_dates=observations,
+                    knock_out_observation_times=observations,
                 )
                 expected = sign * (
                     3 * unit

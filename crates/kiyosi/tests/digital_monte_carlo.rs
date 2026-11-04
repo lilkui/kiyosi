@@ -4,14 +4,14 @@ fn market(spot: f64, rate: f64, dividend: f64, sigma: f64) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(rate, dividend, sigma).unwrap(),
         spot,
-        Date::new(2025, 1, 1).unwrap().into(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
     )
     .unwrap()
 }
 
 fn options(direction: OptionType) -> [DigitalOption; 2] {
-    let start = Date::new(2025, 1, 1).unwrap();
-    let end = Date::new(2026, 1, 1).unwrap();
+    let start = Date::new(2025, 1, 1).unwrap().start_of_day();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     [
         DigitalOption::cash_or_nothing(direction, 100.0, 10.0, start, end).unwrap(),
         DigitalOption::asset_or_nothing(direction, 100.0, start, end).unwrap(),
@@ -144,7 +144,7 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                 let context = base
                     .replace(PricingContextChanges {
                         spot_price: Some(spot),
-                        valuation_time: Some(option.expiry_date().into()),
+                        valuation_time: Some(option.expiry_time()),
                         ..Default::default()
                     })
                     .unwrap();
@@ -179,7 +179,9 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
             }
             let outside = base
                 .replace(PricingContextChanges {
-                    valuation_time: Some(Timestamp::new(option.expiry_date(), 0, 0, 0, 1).unwrap()),
+                    valuation_time: Some(
+                        Timestamp::new(option.expiry_time().date(), 0, 0, 0, 1).unwrap(),
+                    ),
                     ..Default::default()
                 })
                 .unwrap();
@@ -194,8 +196,8 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                 Error::InvalidInput(_)
             ));
             let curve = RateTermStructure::new(
-                option.effective_date().into(),
-                vec![option.expiry_date().into()],
+                option.effective_time(),
+                vec![option.expiry_time()],
                 vec![0.95],
             )
             .unwrap();
@@ -245,8 +247,8 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
 
 #[test]
 fn discounted_samples_and_greeks_preserve_extreme_scales_and_failure_state() {
-    let start = Date::new(2025, 1, 1).unwrap();
-    let end = Date::new(2026, 1, 1).unwrap();
+    let start = Date::new(2025, 1, 1).unwrap().start_of_day();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let engine = MonteCarloDigitalEngine::new(MonteCarloSettings {
         path_count: 65536,
         sampling: MonteCarloSampling::Sobol,

@@ -1,6 +1,6 @@
 import math
 import unittest
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from itertools import product
 
 from kiyosi import pricing
@@ -16,7 +16,7 @@ from kiyosi.market import (
     all_days_calendar,
 )
 
-START, END = date(2025, 1, 1), date(2026, 1, 1)
+START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 MEASURES = ("price", "delta", "gamma")
 
 
@@ -37,14 +37,14 @@ def option(up, barrier, *, dates=(END,), timing="at_expiry", knock_in=False):
     return BarrierOption(
         option_type="call" if up else "put",
         strike=100,
-        effective_date=START,
-        expiry_date=END,
+        effective_time=START,
+        expiry_time=END,
         barrier_level=barrier,
         barrier_type=f"{'up' if up else 'down'}_and_{'in' if knock_in else 'out'}",
         rebate=2,
         rebate_timing=timing,
         observation_mode="scheduled",
-        observation_dates=dates,
+        observation_times=dates,
     )
 
 
@@ -143,8 +143,8 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
             direction = "call" if up else "put"
             common = {
                 "option_type": direction,
-                "effective_date": START,
-                "expiry_date": END,
+                "effective_time": START,
+                "expiry_time": END,
             }
             vanilla = pricing.AnalyticEuropeanEngine().price_with_greeks(
                 EuropeanOption(strike=100, **common), market, ["delta", "gamma"]
@@ -209,13 +209,13 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
             contract = BarrierOption(
                 option_type="call",
                 strike=100,
-                effective_date=START,
-                expiry_date=END,
+                effective_time=START,
+                expiry_time=END,
                 barrier_level=110,
                 barrier_type="up_and_out",
                 rebate=rebate,
                 observation_mode="scheduled",
-                observation_dates=[END],
+                observation_times=[END],
             )
             return engine.price(contract, market)
 
@@ -227,14 +227,14 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
             contract = BarrierOption(
                 option_type="call" if up else "put",
                 strike=100,
-                effective_date=START,
-                expiry_date=end,
+                effective_time=START,
+                expiry_time=end,
                 barrier_level=110.125 if up else 90.125,
                 barrier_type="up_and_out" if up else "down_and_out",
                 rebate=2,
                 rebate_timing=timing,
                 observation_mode="scheduled",
-                observation_dates=[
+                observation_times=[
                     START + timedelta(days=i) for i in (90, 180, 270, 360)
                 ],
             )
@@ -354,8 +354,8 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
                                 EuropeanOption(
                                     option_type="call" if up else "put",
                                     strike=100,
-                                    effective_date=START,
-                                    expiry_date=END,
+                                    effective_time=START,
+                                    expiry_time=END,
                                 ),
                                 market,
                             )
@@ -381,14 +381,14 @@ class BarrierFiniteDifferenceEventTests(unittest.TestCase):
             contract = BarrierOption(
                 option_type="put" if up else "call",
                 strike=100,
-                effective_date=START,
-                expiry_date=END,
+                effective_time=START,
+                expiry_time=END,
                 barrier_level=110.125 if up else 90.125,
                 barrier_type="up_and_out" if up else "down_and_out",
                 rebate=2,
                 rebate_timing=timing,
                 observation_mode="scheduled",
-                observation_dates=[START + timedelta(days=180), END],
+                observation_times=[START + timedelta(days=180), END],
             )
             expected = (
                 2 * math.exp(-0.04 * (180 / 365 if timing == "at_hit" else 1))

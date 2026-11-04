@@ -3,7 +3,7 @@
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from itertools import product
 
 from kiyosi import (
@@ -33,9 +33,9 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 direction,
                 strike=spot,
                 barrier_level=0.8 * spot,
-                expiry_date=end,
+                expiry_time=end,
                 observation_mode=mode,
-                observation_dates=[end] if mode == "scheduled" else [],
+                observation_times=[end] if mode == "scheduled" else [],
             )
             context = market(spot, rate=0, dividend=0, volatility=sigma)
             expected = spot * sigma / math.sqrt(math.tau)
@@ -131,7 +131,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     "put",
                     rebate=2,
                     observation_mode="scheduled",
-                    observation_dates=dates,
+                    observation_times=dates,
                 )
                 actual = engine.price_with_greeks(contract, market(), greeks="all")
                 expected = pricing.QuadratureBarrierEngine().price_with_greeks(
@@ -150,7 +150,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
             "up_and_out",
             strike=130,
             observation_mode="scheduled",
-            observation_dates=[START + timedelta(days=90)],
+            observation_times=[START + timedelta(days=90)],
         )
         self.assertGreater(engine.price(contract, market()), 0.01)
 
@@ -179,7 +179,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
         terms = {
             "rebate_timing": "at_hit",
             "observation_mode": "scheduled",
-            "observation_dates": [observation],
+            "observation_times": [observation],
         }
         with_rebate = option("up_and_out", "put", rebate=10, **terms)
         without_rebate = option("up_and_out", "put", **terms)
@@ -206,7 +206,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 **(
                     {
                         "observation_mode": "scheduled",
-                        "observation_dates": [START + timedelta(days=90), END],
+                        "observation_times": [START + timedelta(days=90), END],
                     }
                     if scheduled
                     else {}
@@ -241,7 +241,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                                 actual, (expected.price, expected.delta, expected.gamma)
                             )
         vanilla = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         for paths in (1, 2, 3, 5, 257):
             settings = {"path_count": paths, "seed": 42, "antithetic": True}
@@ -270,8 +270,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 for name in ("delta", "gamma", *OTHER_GREEKS):
                     self.assertIsNone(getattr(result, name))
                 later = context.replace(
-                    valuation_time=datetime(2025, 1, 1, tzinfo=UTC)
-                    + timedelta(microseconds=1)
+                    valuation_time=datetime(2025, 1, 1) + timedelta(microseconds=1)
                 )
                 self.assert_rejection(
                     InvalidInputError,
@@ -301,7 +300,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     rebate=7,
                     rebate_timing=timing,
                     observation_mode="scheduled",
-                    observation_dates=[observation],
+                    observation_times=[observation],
                 )
                 on_date = market(spot=contract.barrier_level, valuation=observation)
                 self.assertEqual(
@@ -309,9 +308,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     pricing.AnalyticBarrierEngine().price(scheduled, on_date),
                 )
                 after = on_date.replace(
-                    valuation_time=datetime.combine(
-                        observation, datetime.min.time(), UTC
-                    )
+                    valuation_time=datetime.combine(observation, datetime.min.time())
                     + timedelta(microseconds=1)
                 )
                 untouched = scheduled.replace_history(touch_state="untouched")
@@ -383,7 +380,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 engine.price_with_greeks(option(), market(), "delta", **fields)
         vanilla = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         for operation, args in (
             (engine.price, (vanilla, market())),
@@ -502,9 +499,9 @@ class BarrierMonteCarloTests(unittest.TestCase):
         dates = [START + timedelta(days=i) for i in range(1, 21202)]
         contract = option(
             "up_and_out",
-            expiry_date=dates[-1] + timedelta(days=1),
+            expiry_time=dates[-1] + timedelta(days=1),
             observation_mode="scheduled",
-            observation_dates=dates,
+            observation_times=dates,
         )
         engine = pricing.MonteCarloBarrierEngine(
             path_count=1, seed=42, sampling="sobol"
@@ -532,7 +529,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
         from kiyosi.market import weekdays_calendar
 
         invalid = option(
-            observation_mode="scheduled", observation_dates=[START + timedelta(days=3)]
+            observation_mode="scheduled", observation_times=[START + timedelta(days=3)]
         )
         self.assert_rejection(
             InvalidInputError,

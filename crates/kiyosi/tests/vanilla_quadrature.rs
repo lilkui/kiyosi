@@ -1,9 +1,9 @@
 use kiyosi::*;
 
-fn dates() -> (Date, Date) {
+fn dates() -> (Timestamp, Timestamp) {
     (
-        Date::new(2025, 1, 1).unwrap(),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
     )
 }
 
@@ -11,7 +11,7 @@ fn market(spot: f64, rate: f64, dividend: f64, sigma: f64) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(rate, dividend, sigma).unwrap(),
         spot,
-        dates().0.into(),
+        dates().0,
     )
     .unwrap()
 }
@@ -159,7 +159,7 @@ fn settings_and_life_validation_preserve_expiry_and_failure_state() {
     let context = market(80.0, 0.05, 0.02, 0.2);
     let expiry = context
         .replace(PricingContextChanges {
-            valuation_time: Some(end.into()),
+            valuation_time: Some(end),
             ..Default::default()
         })
         .unwrap();
@@ -170,7 +170,7 @@ fn settings_and_life_validation_preserve_expiry_and_failure_state() {
     assert!(Greek::ALL.into_iter().all(|greek| !result.has(greek)));
     let invalid = context
         .replace(PricingContextChanges {
-            valuation_time: Some(Date::new(2024, 12, 31).unwrap().into()),
+            valuation_time: Some(Date::new(2024, 12, 31).unwrap().start_of_day()),
             ..Default::default()
         })
         .unwrap();

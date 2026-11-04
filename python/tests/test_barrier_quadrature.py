@@ -5,7 +5,7 @@ import math
 import numbers
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import QuantLib as ql
 from kiyosi import (
@@ -32,7 +32,7 @@ class BarrierQuadratureTests(unittest.TestCase):
 
     def test_early_observation_rebate_discount(self):
         engine = pricing.QuadratureBarrierEngine()
-        observation = date(2025, 4, 1)
+        observation = datetime(2025, 4, 1)
         for rate in (-0.02, 0.04):
             for timing in ("at_hit", "at_expiry"):
                 contract = option(
@@ -41,7 +41,7 @@ class BarrierQuadratureTests(unittest.TestCase):
                     rebate=7,
                     rebate_timing=timing,
                     observation_mode="scheduled",
-                    observation_dates=[observation],
+                    observation_times=[observation],
                 )
                 time = 90 / 365
                 horizon = 360 / 365
@@ -76,21 +76,21 @@ class BarrierQuadratureTests(unittest.TestCase):
 
     def test_scheduled_touch_occurs_only_at_original_midnight(self):
         observation = START + timedelta(days=90)
-        midday = datetime.combine(
-            observation, datetime.min.time(), tzinfo=UTC
-        ) + timedelta(hours=12)
+        midday = datetime.combine(observation, datetime.min.time()) + timedelta(
+            hours=12
+        )
         for kind in KINDS:
             level = 120 if kind.startswith("up") else 80
             terms = {
                 "rebate": 5,
                 "rebate_timing": "at_hit" if kind.endswith("out") else "at_expiry",
                 "observation_mode": "scheduled",
-                "observation_dates": [observation],
+                "observation_times": [observation],
             }
             contract = option(kind, **terms)
             prior_untouched = option(kind, **terms, touch_state="untouched")
             vanilla = EuropeanOption(
-                option_type="call", strike=100, effective_date=START, expiry_date=END
+                option_type="call", strike=100, effective_time=START, expiry_time=END
             )
             at_observation = market(spot=level, valuation=observation)
             after_observation = market(spot=level, valuation=midday)
@@ -117,7 +117,7 @@ class BarrierQuadratureTests(unittest.TestCase):
         valuation = START + timedelta(days=180)
         context = market(valuation=valuation)
         vanilla = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         value = pricing.AnalyticEuropeanEngine().price(vanilla, context)
         for engine in engines():
@@ -126,7 +126,7 @@ class BarrierQuadratureTests(unittest.TestCase):
                     kind,
                     rebate=3,
                     observation_mode="scheduled",
-                    observation_dates=dates,
+                    observation_times=dates,
                     touch_state="untouched",
                 )
                 expected = (
@@ -237,9 +237,9 @@ class BarrierQuadratureTests(unittest.TestCase):
                             "BarrierType": kind,
                             "settlement": timing,
                             "monitoring": "continuous",
-                            "valuation": START.isoformat(),
-                            "effective_date": START.isoformat(),
-                            "expiry_date": END.isoformat(),
+                            "valuation": START.date().isoformat(),
+                            "effective_time": START.date().isoformat(),
+                            "expiry_time": END.date().isoformat(),
                             "option": direction,
                             "strike": 100,
                             "spot": 100,
@@ -344,7 +344,7 @@ class BarrierQuadratureTests(unittest.TestCase):
                         rebate=3,
                         rebate_timing=timing,
                         observation_mode="scheduled",
-                        observation_dates=[observation],
+                        observation_times=[observation],
                     )
                     with self.subTest(kind=kind, direction=direction, timing=timing):
                         self.assertAlmostEqual(
@@ -373,7 +373,7 @@ class BarrierQuadratureTests(unittest.TestCase):
                 strike=1e9,
                 rebate=7,
                 observation_mode="scheduled",
-                observation_dates=[
+                observation_times=[
                     START + timedelta(days=91),
                     START + timedelta(days=273),
                 ],
@@ -431,7 +431,7 @@ class BarrierQuadratureTests(unittest.TestCase):
         with self.assertRaises(OverflowError):
             engine.price_with_greeks(option(), market(), "delta", time_shift_days=2**31)
         mismatch = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         for operation, args in (
             (engine.price, (mismatch, market())),
@@ -455,7 +455,7 @@ class BarrierQuadratureTests(unittest.TestCase):
                 self.assert_rejection(UnsupportedOperationError, operation, *args)
         bad = option(
             observation_mode="scheduled",
-            observation_dates=[date(2025, 1, 4)],
+            observation_times=[datetime(2025, 1, 4)],
             touch_state="touched",
         )
         weekdays = PricingContext(
@@ -475,7 +475,7 @@ class BarrierQuadratureTests(unittest.TestCase):
             integration_standard_deviations=1e308
         )
         scheduled = option(
-            observation_mode="scheduled", observation_dates=[START + timedelta(days=91)]
+            observation_mode="scheduled", observation_times=[START + timedelta(days=91)]
         )
         self.assert_rejection(
             ComputationFailureError,
@@ -488,7 +488,7 @@ class BarrierQuadratureTests(unittest.TestCase):
         engine = pricing.QuadratureBarrierEngine(asset_step_count=256)
         contract = option(
             observation_mode="scheduled",
-            observation_dates=[START + timedelta(days=91), START + timedelta(days=273)],
+            observation_times=[START + timedelta(days=91), START + timedelta(days=273)],
         )
         context = market()
         quote = engine.price(contract, context)

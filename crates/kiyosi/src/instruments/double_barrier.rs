@@ -1,5 +1,5 @@
 use crate::{
-    BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType, Date, EuropeanOption,
+    BarrierOption, BarrierOptionTerms, BarrierTouchState, BarrierType, EuropeanOption,
     ObservationMode, ObservationSchedule, OptionContract, OptionType, PricingContext, RebateTiming,
     Result, Timestamp,
 };
@@ -20,10 +20,10 @@ pub struct DoubleBarrierOptionTerms {
     pub option_type: OptionType,
     /// Positive finite strike.
     pub strike: f64,
-    /// Inclusive first date.
-    pub effective_date: Date,
-    /// Inclusive expiry at midnight UTC.
-    pub expiry_date: Date,
+    /// Inclusive effective time.
+    pub effective_time: Timestamp,
+    /// Inclusive the inclusive expiry timestamp.
+    pub expiry_time: Timestamp,
     /// Positive finite lower boundary; equality touches.
     pub lower_barrier: f64,
     /// Finite upper boundary, strictly above the lower boundary.
@@ -36,8 +36,8 @@ pub struct DoubleBarrierOptionTerms {
     pub rebate_timing: RebateTiming,
     /// Monitoring frequency, default continuous.
     pub observation_mode: ObservationMode,
-    /// Strictly ordered dates within life, empty for continuous monitoring.
-    pub observation_dates: Vec<Date>,
+    /// Strictly ordered times within life, empty for continuous monitoring.
+    pub observation_times: Vec<Timestamp>,
     /// Prior observations; `None` means unknown, not untouched.
     pub touch_state: Option<BarrierTouchState>,
 }
@@ -48,8 +48,8 @@ impl DoubleBarrierOptionTerms {
     pub fn new(
         option_type: OptionType,
         strike: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_time: Timestamp,
+        expiry_time: Timestamp,
         lower_barrier: f64,
         upper_barrier: f64,
         barrier_type: DoubleBarrierType,
@@ -57,15 +57,15 @@ impl DoubleBarrierOptionTerms {
         Self {
             option_type,
             strike,
-            effective_date,
-            expiry_date,
+            effective_time,
+            expiry_time,
             lower_barrier,
             upper_barrier,
             barrier_type,
             rebate: BarrierOptionTerms::DEFAULT_REBATE,
             rebate_timing: RebateTiming::default(),
             observation_mode: ObservationMode::default(),
-            observation_dates: Vec::new(),
+            observation_times: Vec::new(),
             touch_state: None,
         }
     }
@@ -97,7 +97,7 @@ impl DoubleBarrierOption {
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
     /// let option = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
-    ///     100.0, Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?, 80.0, 120.0,
+    ///     100.0, Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 80.0, 120.0,
     ///     DoubleBarrierType::KnockOut))?;
     /// assert_eq!(option.upper_barrier(), 120.0);
     /// assert_eq!(option.touch_state(), None);
@@ -108,8 +108,8 @@ impl DoubleBarrierOption {
         let mut lower = BarrierOptionTerms::new(
             terms.option_type,
             terms.strike,
-            terms.effective_date,
-            terms.expiry_date,
+            terms.effective_time,
+            terms.expiry_time,
             terms.lower_barrier,
             if terms.barrier_type == DoubleBarrierType::KnockIn {
                 BarrierType::DownAndIn
@@ -120,7 +120,7 @@ impl DoubleBarrierOption {
         lower.rebate = terms.rebate;
         lower.rebate_timing = terms.rebate_timing;
         lower.observation_mode = terms.observation_mode;
-        lower.observation_dates = terms.observation_dates;
+        lower.observation_times = terms.observation_times;
         lower.touch_state = terms.touch_state;
         Ok(Self {
             lower: BarrierOption::new(lower)?,
@@ -139,7 +139,7 @@ impl DoubleBarrierOption {
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
     /// let option = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
-    ///     100.0, Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?, 80.0, 120.0,
+    ///     100.0, Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 80.0, 120.0,
     ///     DoubleBarrierType::KnockOut))?;
     /// let known = option.replace_history(Some(BarrierTouchState::Untouched));
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
@@ -161,13 +161,13 @@ impl DoubleBarrierOption {
     pub fn strike(&self) -> f64 {
         self.lower.strike()
     }
-    /// Returns the inclusive first date; see [`Self::new`].
-    pub fn effective_date(&self) -> Date {
-        self.lower.effective_date()
+    /// Returns the inclusive effective time; see [`Self::new`].
+    pub fn effective_time(&self) -> Timestamp {
+        self.lower.effective_time()
     }
-    /// Returns expiry at midnight UTC; see [`Self::new`].
-    pub fn expiry_date(&self) -> Date {
-        self.lower.expiry_date()
+    /// Returns the inclusive expiry timestamp; see [`Self::new`].
+    pub fn expiry_time(&self) -> Timestamp {
+        self.lower.expiry_time()
     }
     /// Returns the positive lower boundary; see [`Self::new`].
     pub fn lower_barrier(&self) -> f64 {
@@ -201,9 +201,9 @@ impl DoubleBarrierOption {
     pub fn observation_schedule(&self) -> &ObservationSchedule {
         self.lower.observation_schedule()
     }
-    /// Borrows immutable dates for the lifetime of the borrow; see [`Self::new`].
-    pub fn observation_dates(&self) -> &[Date] {
-        self.lower.observation_dates()
+    /// Borrows immutable times for the lifetime of the borrow; see [`Self::new`].
+    pub fn observation_times(&self) -> &[Timestamp] {
+        self.lower.observation_times()
     }
     /// Returns strictly prior history; see [`Self::new`].
     pub fn touch_state(&self) -> Option<BarrierTouchState> {
@@ -229,7 +229,7 @@ impl DoubleBarrierOption {
     }
     pub(crate) fn payoff_requires_touch(&self) -> bool {
         (self.observation_mode() == ObservationMode::Continuous
-            || self.observation_dates().last() == Some(&self.expiry_date()))
+            || self.observation_times().last() == Some(&self.expiry_time()))
             && match self.option_type() {
                 OptionType::Call => self.strike() >= self.upper,
                 OptionType::Put => self.strike() <= self.lower_barrier(),
@@ -237,11 +237,11 @@ impl DoubleBarrierOption {
     }
 }
 impl OptionContract for DoubleBarrierOption {
-    fn effective_date(&self) -> Date {
-        self.effective_date()
+    fn effective_time(&self) -> Timestamp {
+        self.effective_time()
     }
-    fn expiry_date(&self) -> Date {
-        self.expiry_date()
+    fn expiry_time(&self) -> Timestamp {
+        self.expiry_time()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         self.lower
@@ -267,10 +267,10 @@ pub struct DoubleBarrierOptionChanges {
     pub option_type: Option<OptionType>,
     /// Replaces [`strike`](DoubleBarrierOptionTerms::strike).
     pub strike: Option<f64>,
-    /// Replaces [`effective_date`](DoubleBarrierOptionTerms::effective_date).
-    pub effective_date: Option<Date>,
-    /// Replaces [`expiry_date`](DoubleBarrierOptionTerms::expiry_date).
-    pub expiry_date: Option<Date>,
+    /// Replaces [`effective_time`](DoubleBarrierOptionTerms::effective_time).
+    pub effective_time: Option<Timestamp>,
+    /// Replaces [`expiry_time`](DoubleBarrierOptionTerms::expiry_time).
+    pub expiry_time: Option<Timestamp>,
     /// Replaces [`lower_barrier`](DoubleBarrierOptionTerms::lower_barrier).
     pub lower_barrier: Option<f64>,
     /// Replaces [`upper_barrier`](DoubleBarrierOptionTerms::upper_barrier).
@@ -283,8 +283,8 @@ pub struct DoubleBarrierOptionChanges {
     pub rebate_timing: Option<RebateTiming>,
     /// Replaces [`observation_mode`](DoubleBarrierOptionTerms::observation_mode).
     pub observation_mode: Option<ObservationMode>,
-    /// Replaces [`observation_dates`](DoubleBarrierOptionTerms::observation_dates).
-    pub observation_dates: Option<Vec<Date>>,
+    /// Replaces [`observation_times`](DoubleBarrierOptionTerms::observation_times).
+    pub observation_times: Option<Vec<Timestamp>>,
     /// Replaces [`touch_state`](DoubleBarrierOptionTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
 }
@@ -303,17 +303,17 @@ impl DoubleBarrierOption {
         Self::new(DoubleBarrierOptionTerms {
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
-            effective_date: changes.effective_date.unwrap_or(self.effective_date()),
-            expiry_date: changes.expiry_date.unwrap_or(self.expiry_date()),
+            effective_time: changes.effective_time.unwrap_or(self.effective_time()),
+            expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
             lower_barrier: changes.lower_barrier.unwrap_or(self.lower_barrier()),
             upper_barrier: changes.upper_barrier.unwrap_or(self.upper_barrier()),
             barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
             rebate: changes.rebate.unwrap_or(self.rebate()),
             rebate_timing: changes.rebate_timing.unwrap_or(self.rebate_timing()),
             observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
-            observation_dates: changes
-                .observation_dates
-                .unwrap_or_else(|| self.observation_dates().to_vec()),
+            observation_times: changes
+                .observation_times
+                .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         })
     }

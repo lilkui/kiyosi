@@ -269,7 +269,7 @@ impl PricingContext {
     /// use kiyosi::{BlackScholesMertonParameters, Date, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
     /// let model = BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
-    /// let context = PricingContext::new(model, 100.0, Date::new(2025, 1, 1)?.into())?;
+    /// let context = PricingContext::new(model, 100.0, Date::new(2025, 1, 1)?.start_of_day().into())?;
     /// assert_eq!(context.spot_price(), 100.0);
     /// # Ok(()) }
     /// ```

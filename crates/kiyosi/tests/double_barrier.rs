@@ -1,7 +1,7 @@
 use kiyosi::*;
 
-fn day(y: i32, m: u32, d: u32) -> Date {
-    Date::new(y, m, d).unwrap()
+fn day(y: i32, m: u32, d: u32) -> Timestamp {
+    Date::new(y, m, d).unwrap().start_of_day()
 }
 fn terms(direction: OptionType, kind: DoubleBarrierType) -> DoubleBarrierOptionTerms {
     DoubleBarrierOptionTerms::new(
@@ -14,11 +14,11 @@ fn terms(direction: OptionType, kind: DoubleBarrierType) -> DoubleBarrierOptionT
         kind,
     )
 }
-fn market(spot: f64, time: Date, sigma: f64, rate: f64, dividend: f64) -> PricingContext {
+fn market(spot: f64, time: Timestamp, sigma: f64, rate: f64, dividend: f64) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(rate, dividend, sigma).unwrap(),
         spot,
-        time.into(),
+        time,
     )
     .unwrap()
 }
@@ -60,8 +60,8 @@ fn continuous_prices_and_greeks_match_independent_quantlib_regressions() {
         let vanilla = EuropeanOption::new(
             direction,
             100.0,
-            option.effective_date(),
-            option.expiry_date(),
+            option.effective_time(),
+            option.expiry_time(),
         )
         .unwrap();
         assert!(
@@ -79,15 +79,15 @@ fn construction_validates_boundaries_schedules_and_rebates_in_core() {
     let defaults = BarrierOptionTerms::new(
         OptionType::Call,
         100.0,
-        base.effective_date,
-        base.expiry_date,
+        base.effective_time,
+        base.expiry_time,
         80.0,
         BarrierType::DownAndOut,
     );
     assert_eq!(base.rebate, defaults.rebate);
     assert_eq!(base.rebate_timing, defaults.rebate_timing);
     assert_eq!(base.observation_mode, defaults.observation_mode);
-    assert_eq!(base.observation_dates, defaults.observation_dates);
+    assert_eq!(base.observation_times, defaults.observation_times);
     assert_eq!(base.touch_state, defaults.touch_state);
     for (lower, upper) in [
         (0.0, 120.0),
@@ -116,7 +116,7 @@ fn construction_validates_boundaries_schedules_and_rebates_in_core() {
         Error::InvalidInput(_)
     ));
     let mut t = base.clone();
-    t.expiry_date = day(2024, 1, 1);
+    t.expiry_time = day(2024, 1, 1);
     assert!(matches!(
         DoubleBarrierOption::new(t).unwrap_err(),
         Error::InvalidInput(_)
@@ -137,22 +137,22 @@ fn construction_validates_boundaries_schedules_and_rebates_in_core() {
         Error::InvalidInput(_)
     ));
     for (mode, dates) in [
-        (ObservationMode::Continuous, vec![base.expiry_date]),
+        (ObservationMode::Continuous, vec![base.expiry_time]),
         (ObservationMode::Scheduled, vec![]),
         (
             ObservationMode::Scheduled,
-            vec![base.expiry_date, base.expiry_date],
+            vec![base.expiry_time, base.expiry_time],
         ),
         (
             ObservationMode::Scheduled,
-            vec![base.expiry_date, base.effective_date],
+            vec![base.expiry_time, base.effective_time],
         ),
         (ObservationMode::Scheduled, vec![day(2024, 12, 31)]),
         (ObservationMode::Scheduled, vec![day(2026, 1, 2)]),
     ] {
         let mut t = base.clone();
         t.observation_mode = mode;
-        t.observation_dates = dates;
+        t.observation_times = dates;
         assert!(matches!(
             DoubleBarrierOption::new(t).unwrap_err(),
             Error::InvalidInput(_)
@@ -260,8 +260,8 @@ fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows(
                         &EuropeanOption::new(
                             option.option_type(),
                             option.strike(),
-                            option.effective_date(),
-                            option.expiry_date()
+                            option.effective_time(),
+                            option.expiry_time()
                         )
                         .unwrap(),
                         &context
@@ -279,11 +279,11 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
     let context = market(100.0, day(2025, 1, 1), 0.2, 0.04, 0.01);
     let mut t = terms(OptionType::Call, DoubleBarrierType::KnockOut);
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = vec![first];
+    t.observation_times = vec![first];
     t.rebate = 3.0;
     let option = DoubleBarrierOption::new(t.clone()).unwrap();
-    assert_eq!(option.observation_dates(), &[first]);
-    assert_eq!(option.observation_schedule().dates(), &[first]);
+    assert_eq!(option.observation_times(), &[first]);
+    assert_eq!(option.observation_schedule().times(), &[first]);
     assert!(matches!(
         engine.price(&option, &context).unwrap_err(),
         Error::UnsupportedOperation(_)
@@ -298,7 +298,7 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
     assert!((engine.price(&option, &at_fixing).unwrap() - expected).abs() < 1e-12);
     let intraday = at_fixing
         .replace(PricingContextChanges {
-            valuation_time: Some(Timestamp::new(first, 12, 0, 0, 0).unwrap()),
+            valuation_time: Some(Timestamp::new(first.date(), 12, 0, 0, 0).unwrap()),
             ..Default::default()
         })
         .unwrap();
@@ -311,7 +311,7 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
         engine.price(&known, &intraday).unwrap(),
         AnalyticEuropeanEngine
             .price(
-                &EuropeanOption::new(OptionType::Call, 100.0, t.effective_date, t.expiry_date)
+                &EuropeanOption::new(OptionType::Call, 100.0, t.effective_time, t.expiry_time)
                     .unwrap(),
                 &intraday
             )
@@ -325,7 +325,7 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
         (engine.price(&inside, &intraday).unwrap() - 3.0 * (-0.04_f64 * 184.5 / 365.0).exp()).abs()
             < 1e-12
     );
-    t.observation_dates = vec![day(2025, 7, 5)];
+    t.observation_times = vec![day(2025, 7, 5)];
     let weekend = DoubleBarrierOption::new(t).unwrap();
     assert!(matches!(
         engine.price(&weekend, &context).unwrap_err(),
@@ -346,7 +346,7 @@ fn image_spectral_switch_and_band_limits_preserve_independent_values() {
         let actual = engine
             .price(
                 &option,
-                &market(100.0, option.effective_date(), sigma, 0.04, 0.01),
+                &market(100.0, option.effective_time(), sigma, 0.04, 0.01),
             )
             .unwrap();
         assert!((actual - expected).abs() < 1e-9);
@@ -356,7 +356,7 @@ fn image_spectral_switch_and_band_limits_preserve_independent_values() {
         t.lower_barrier = lower;
         t.upper_barrier = upper;
         let option = DoubleBarrierOption::new(t).unwrap();
-        let context = market(100.0, option.effective_date(), 0.2, 0.04, 0.01);
+        let context = market(100.0, option.effective_time(), 0.2, 0.04, 0.01);
         let expected = if lower > 99.0 {
             0.0
         } else {
@@ -365,8 +365,8 @@ fn image_spectral_switch_and_band_limits_preserve_independent_values() {
                     &EuropeanOption::new(
                         OptionType::Call,
                         100.0,
-                        option.effective_date(),
-                        option.expiry_date(),
+                        option.effective_time(),
+                        option.expiry_time(),
                     )
                     .unwrap(),
                     &context,
@@ -379,7 +379,7 @@ fn image_spectral_switch_and_band_limits_preserve_independent_values() {
         let mut t = terms(direction, DoubleBarrierType::KnockOut);
         t.strike = strike;
         let option = DoubleBarrierOption::new(t.clone()).unwrap();
-        let context = market(100.0, option.effective_date(), 0.2, 0.04, 0.01);
+        let context = market(100.0, option.effective_time(), 0.2, 0.04, 0.01);
         assert_eq!(engine.price(&option, &context).unwrap(), 0.0);
         t.barrier_type = DoubleBarrierType::KnockIn;
         assert_eq!(
@@ -391,8 +391,8 @@ fn image_spectral_switch_and_band_limits_preserve_independent_values() {
                     &EuropeanOption::new(
                         direction,
                         strike,
-                        option.effective_date(),
-                        option.expiry_date()
+                        option.effective_time(),
+                        option.expiry_time()
                     )
                     .unwrap(),
                     &context
@@ -440,7 +440,7 @@ fn rebates_match_independent_exit_series_including_negative_rates() {
             t.upper_barrier = 125.0;
             t.rebate_timing = timing;
             let option = DoubleBarrierOption::new(t.clone()).unwrap();
-            let context = market(100.0, option.effective_date(), 0.2, rate, rate - 0.02);
+            let context = market(100.0, option.effective_time(), 0.2, rate, rate - 0.02);
             let base = engine.price(&option, &context).unwrap();
             t.rebate = 3.0;
             let actual = engine
@@ -467,7 +467,7 @@ fn tiny_positive_volatility_preserves_future_hit_timing_and_surviving_payoff() {
             t.rebate_timing = timing;
             let context = market(
                 100.0,
-                t.effective_date,
+                t.effective_time,
                 1e-12,
                 0.04,
                 if up { 0.01 } else { 0.07 },
@@ -500,7 +500,7 @@ fn tiny_positive_volatility_preserves_future_hit_timing_and_surviving_payoff() {
     t.lower_barrier = 99.5;
     t.upper_barrier = 100.5;
     t.strike = 90.0;
-    let context = market(100.0, t.effective_date, 1e-12, 0.04, 0.04);
+    let context = market(100.0, t.effective_time, 1e-12, 0.04, 0.04);
     assert!(
         (engine
             .price(&DoubleBarrierOption::new(t).unwrap(), &context)
@@ -518,7 +518,7 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
     t.lower_barrier = 50.0;
     t.upper_barrier = 200.0;
     let option = DoubleBarrierOption::new(t.clone()).unwrap();
-    let context = market(100.0, t.effective_date, 0.2, 0.04, 0.01);
+    let context = market(100.0, t.effective_time, 0.2, 0.04, 0.01);
     let original = (option.clone(), context.clone());
     let quote = engine.price(&option, &context).unwrap();
     let solved = implied_volatility(
@@ -583,8 +583,8 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
         Error::UnsupportedOperation(_)
     ));
     let curve = RateTermStructure::new(
-        option.effective_date().into(),
-        vec![option.expiry_date().into()],
+        option.effective_time(),
+        vec![option.expiry_time()],
         vec![0.95],
     )
     .unwrap();
@@ -621,7 +621,7 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
             Error::UnsupportedOperation(_)
         ));
     }
-    let enormous = market(100.0, option.effective_date(), f64::MAX, 0.04, 0.01);
+    let enormous = market(100.0, option.effective_time(), f64::MAX, 0.04, 0.01);
     assert!(matches!(
         engine.price(&option, &enormous).unwrap_err(),
         Error::ComputationFailure(_)
@@ -637,7 +637,7 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
     let narrow =
         DoubleBarrierOption::new(terms(OptionType::Call, DoubleBarrierType::KnockOut)).unwrap();
     for spot in [80.005, 119.995] {
-        let context = market(spot, option.effective_date(), 0.2, 0.04, 0.01);
+        let context = market(spot, option.effective_time(), 0.2, 0.04, 0.01);
         let result = engine
             .price_with_greeks(
                 &narrow,
@@ -665,13 +665,13 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
 fn settled_zero_rebates_do_not_require_a_representable_discount() {
     let engine = AnalyticDoubleBarrierEngine;
     let mut t = terms(OptionType::Call, DoubleBarrierType::KnockOut);
-    t.expiry_date = day(2027, 1, 1);
-    let context = market(120.0, t.effective_date, 0.2, 1e308, 0.0);
+    t.expiry_time = day(2027, 1, 1);
+    let context = market(120.0, t.effective_time, 0.2, 1e308, 0.0);
     let outside = DoubleBarrierOption::new(t.clone()).unwrap();
     assert_eq!(engine.price(&outside, &context).unwrap(), 0.0);
     t.barrier_type = DoubleBarrierType::KnockIn;
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = vec![t.effective_date];
+    t.observation_times = vec![t.effective_time];
     t.touch_state = Some(BarrierTouchState::Untouched);
     let inside = DoubleBarrierOption::new(t).unwrap();
     let later = market(100.0, day(2025, 1, 2), 0.2, 1e308, 0.0);

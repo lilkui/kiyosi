@@ -1,7 +1,7 @@
 use super::monitoring::Monitoring;
 use crate::{
-    Date, Error, EuropeanOption, ObservationSchedule, OptionContract, OptionType, PricingContext,
-    Result, Timestamp,
+    Error, EuropeanOption, ObservationSchedule, OptionContract, OptionType, PricingContext, Result,
+    Timestamp,
 };
 
 /// Direction and activation behavior; see [`BarrierOption::new`].
@@ -31,7 +31,7 @@ pub enum ObservationMode {
     /// Observes throughout the inclusive contract life (the default).
     #[default]
     Continuous,
-    /// Observes only at midnight UTC on the supplied dates.
+    /// Observes only at the supplied timestamps.
     Scheduled,
 }
 
@@ -61,10 +61,10 @@ pub struct BarrierOptionTerms {
     pub option_type: OptionType,
     /// Positive finite strike.
     pub strike: f64,
-    /// Inclusive first date.
-    pub effective_date: Date,
-    /// Inclusive expiry at midnight UTC.
-    pub expiry_date: Date,
+    /// Inclusive effective time.
+    pub effective_time: Timestamp,
+    /// Inclusive the inclusive expiry timestamp.
+    pub expiry_time: Timestamp,
     /// Positive finite trigger level; equality touches.
     pub barrier_level: f64,
     /// Trigger direction and activation behavior.
@@ -75,8 +75,8 @@ pub struct BarrierOptionTerms {
     pub rebate_timing: RebateTiming,
     /// Monitoring frequency, default continuous.
     pub observation_mode: ObservationMode,
-    /// Strictly ordered dates within life, empty for continuous monitoring.
-    pub observation_dates: Vec<Date>,
+    /// Strictly ordered times within life, empty for continuous monitoring.
+    pub observation_times: Vec<Timestamp>,
     /// Prior observations; `None` means unknown, not untouched.
     pub touch_state: Option<BarrierTouchState>,
 }
@@ -90,22 +90,22 @@ impl BarrierOptionTerms {
     pub fn new(
         option_type: OptionType,
         strike: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_time: Timestamp,
+        expiry_time: Timestamp,
         barrier_level: f64,
         barrier_type: BarrierType,
     ) -> Self {
         Self {
             option_type,
             strike,
-            effective_date,
-            expiry_date,
+            effective_time,
+            expiry_time,
             barrier_level,
             barrier_type,
             rebate: Self::DEFAULT_REBATE,
             rebate_timing: RebateTiming::default(),
             observation_mode: ObservationMode::default(),
-            observation_dates: Vec::new(),
+            observation_times: Vec::new(),
             touch_state: None,
         }
     }
@@ -130,7 +130,7 @@ impl BarrierOption {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for invalid level or rebate, reversed
-    /// life, incompatible or invalid fixing dates, invalid strike, or an at-hit
+    /// life, incompatible or invalid fixing times, invalid strike, or an at-hit
     /// knock-in rebate. Diagnostic order is unspecified when several inputs are invalid.
     ///
     /// # Examples
@@ -139,7 +139,7 @@ impl BarrierOption {
     /// use kiyosi::{BarrierOption, BarrierOptionTerms, BarrierType, Date, OptionType};
     /// # fn main() -> kiyosi::Result<()> {
     /// let terms = BarrierOptionTerms::new(OptionType::Call, 100.0,
-    ///     Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?, 120.0, BarrierType::UpAndOut);
+    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut);
     /// let option = BarrierOption::new(terms)?;
     /// assert_eq!(option.barrier_level(), 120.0);
     /// assert_eq!(option.touch_state(), None);
@@ -147,19 +147,19 @@ impl BarrierOption {
     /// ```
     pub fn new(terms: BarrierOptionTerms) -> Result<Self> {
         let monitoring = Monitoring::new(
-            terms.effective_date,
-            terms.expiry_date,
+            terms.effective_time,
+            terms.expiry_time,
             terms.barrier_level,
             terms.barrier_type,
             terms.observation_mode,
-            terms.observation_dates,
+            terms.observation_times,
             terms.touch_state,
         )?;
         let vanilla = EuropeanOption::new(
             terms.option_type,
             terms.strike,
-            terms.effective_date,
-            terms.expiry_date,
+            terms.effective_time,
+            terms.expiry_time,
         )?;
         if !terms.rebate.is_finite() || terms.rebate < 0.0 {
             return Err(Error::InvalidInput(
@@ -190,7 +190,7 @@ impl BarrierOption {
     /// use kiyosi::{BarrierOption, BarrierOptionTerms, BarrierType, BarrierTouchState, Date, OptionType};
     /// # fn main() -> kiyosi::Result<()> {
     /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
-    ///     Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?, 120.0, BarrierType::UpAndOut))?;
+    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut))?;
     /// let known = option.replace_history(Some(BarrierTouchState::Untouched));
     /// assert_eq!(known.touch_state(), Some(BarrierTouchState::Untouched));
     /// assert_eq!(option.touch_state(), None);
@@ -213,13 +213,13 @@ impl BarrierOption {
     pub fn strike(&self) -> f64 {
         self.vanilla.strike()
     }
-    /// Returns the inclusive first date; see [`Self::new`].
-    pub fn effective_date(&self) -> Date {
-        self.vanilla.effective_date()
+    /// Returns the inclusive effective time; see [`Self::new`].
+    pub fn effective_time(&self) -> Timestamp {
+        self.vanilla.effective_time()
     }
-    /// Returns expiry at midnight UTC; see [`Self::new`].
-    pub fn expiry_date(&self) -> Date {
-        self.vanilla.expiry_date()
+    /// Returns the inclusive expiry timestamp; see [`Self::new`].
+    pub fn expiry_time(&self) -> Timestamp {
+        self.vanilla.expiry_time()
     }
     /// Returns the positive trigger level; see [`Self::new`].
     pub fn barrier_level(&self) -> f64 {
@@ -245,9 +245,9 @@ impl BarrierOption {
     pub fn observation_schedule(&self) -> &ObservationSchedule {
         self.monitoring.observation_schedule()
     }
-    /// Borrows ordered dates from this owner; see [`Self::observation_schedule`].
-    pub fn observation_dates(&self) -> &[Date] {
-        self.monitoring.observation_dates()
+    /// Borrows ordered times from this owner; see [`Self::observation_schedule`].
+    pub fn observation_times(&self) -> &[Timestamp] {
+        self.monitoring.observation_times()
     }
     /// Returns prior history; see [`Self::replace_history`].
     pub fn touch_state(&self) -> Option<BarrierTouchState> {
@@ -255,7 +255,7 @@ impl BarrierOption {
     }
     /// Returns mean spacing in Actual/365 Fixed years, or zero for continuous monitoring.
     ///
-    /// Scheduled spacing includes effective date to first fixing; see [`Self::new`].
+    /// Scheduled spacing includes effective time to first fixing; see [`Self::new`].
     pub fn mean_observation_year_fraction(&self) -> f64 {
         self.monitoring.mean_observation_year_fraction()
     }
@@ -280,11 +280,11 @@ impl BarrierOption {
     }
 }
 impl OptionContract for BarrierOption {
-    fn effective_date(&self) -> Date {
-        self.effective_date()
+    fn effective_time(&self) -> Timestamp {
+        self.effective_time()
     }
-    fn expiry_date(&self) -> Date {
-        self.expiry_date()
+    fn expiry_time(&self) -> Timestamp {
+        self.expiry_time()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         self.monitoring.at_spot_discontinuity(context, radius)
@@ -309,10 +309,10 @@ pub struct BarrierOptionChanges {
     pub option_type: Option<OptionType>,
     /// Replaces [`strike`](BarrierOptionTerms::strike).
     pub strike: Option<f64>,
-    /// Replaces [`effective_date`](BarrierOptionTerms::effective_date).
-    pub effective_date: Option<Date>,
-    /// Replaces [`expiry_date`](BarrierOptionTerms::expiry_date).
-    pub expiry_date: Option<Date>,
+    /// Replaces [`effective_time`](BarrierOptionTerms::effective_time).
+    pub effective_time: Option<Timestamp>,
+    /// Replaces [`expiry_time`](BarrierOptionTerms::expiry_time).
+    pub expiry_time: Option<Timestamp>,
     /// Replaces [`barrier_level`](BarrierOptionTerms::barrier_level).
     pub barrier_level: Option<f64>,
     /// Replaces [`barrier_type`](BarrierOptionTerms::barrier_type).
@@ -323,8 +323,8 @@ pub struct BarrierOptionChanges {
     pub rebate_timing: Option<RebateTiming>,
     /// Replaces [`observation_mode`](BarrierOptionTerms::observation_mode).
     pub observation_mode: Option<ObservationMode>,
-    /// Replaces [`observation_dates`](BarrierOptionTerms::observation_dates).
-    pub observation_dates: Option<Vec<Date>>,
+    /// Replaces [`observation_times`](BarrierOptionTerms::observation_times).
+    pub observation_times: Option<Vec<Timestamp>>,
     /// Replaces [`touch_state`](BarrierOptionTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
 }
@@ -346,7 +346,7 @@ impl BarrierOption {
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
     /// let original = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call,
-    ///     100.0, Date::new(2025, 1, 1)?, Date::new(2026, 1, 1)?,
+    ///     100.0, Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(),
     ///     120.0, BarrierType::UpAndOut))?.replace_history(Some(BarrierTouchState::Untouched));
     /// let changed = original.replace(BarrierOptionChanges {
     ///     strike: Some(105.0), ..Default::default()
@@ -360,16 +360,16 @@ impl BarrierOption {
         Self::new(BarrierOptionTerms {
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
-            effective_date: changes.effective_date.unwrap_or(self.effective_date()),
-            expiry_date: changes.expiry_date.unwrap_or(self.expiry_date()),
+            effective_time: changes.effective_time.unwrap_or(self.effective_time()),
+            expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
             barrier_level: changes.barrier_level.unwrap_or(self.barrier_level()),
             barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
             rebate: changes.rebate.unwrap_or(self.rebate()),
             rebate_timing: changes.rebate_timing.unwrap_or(self.rebate_timing()),
             observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
-            observation_dates: changes
-                .observation_dates
-                .unwrap_or_else(|| self.observation_dates().to_vec()),
+            observation_times: changes
+                .observation_times
+                .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         })
     }

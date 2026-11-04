@@ -1,4 +1,4 @@
-use crate::conversions::{date, dates, direction, real};
+use crate::conversions::{direction, real, timestamp, timestamps};
 use crate::error::domain;
 use crate::instruments::barrier;
 use pyo3::exceptions::PyValueError;
@@ -64,9 +64,9 @@ binary_properties!(
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// strike : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// effective_date : datetime.date, optional
+    /// effective_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// expiry_date : datetime.date, optional
+    /// expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// barrier_level : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -74,7 +74,7 @@ binary_properties!(
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// observation_mode : {'continuous', 'scheduled'}, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// observation_dates : Iterable[date], optional
+    /// observation_times : Iterable[datetime.datetime], optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// touch_state : {'untouched', 'touched'} or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -92,7 +92,7 @@ binary_properties!(
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation, field name or mutually exclusive coupon choice is invalid.
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_date=crate::conversions::OMITTED, expiry_date=crate::conversions::OMITTED, barrier_level=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_dates=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED, payout=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, barrier_level=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_times=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED, payout=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
         reason = "explicit Python replacement fields"
@@ -101,10 +101,10 @@ binary_properties!(
         &self,
         #[pyo3(from_py_with = crate::conversions::supplied)] option_type: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] strike: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] effective_date: Option<
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_time: Option<
             &Bound<'_, PyAny>,
         >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_date: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] barrier_level: Option<
             &Bound<'_, PyAny>,
         >,
@@ -114,7 +114,7 @@ binary_properties!(
         #[pyo3(from_py_with = crate::conversions::supplied)] observation_mode: Option<
             &Bound<'_, PyAny>,
         >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] observation_dates: Option<
+        #[pyo3(from_py_with = crate::conversions::supplied)] observation_times: Option<
             &Bound<'_, PyAny>,
         >,
         #[pyo3(from_py_with = crate::conversions::supplied)] touch_state: Option<&Bound<'_, PyAny>>,
@@ -123,8 +123,10 @@ binary_properties!(
         let changes = kiyosi::BinaryBarrierOptionChanges {
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
-            effective_date: effective_date.map(crate::conversions::date).transpose()?,
-            expiry_date: expiry_date.map(crate::conversions::date).transpose()?,
+            effective_time: effective_time
+                .map(crate::conversions::timestamp)
+                .transpose()?,
+            expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
             barrier_level: barrier_level.map(crate::conversions::real).transpose()?,
             barrier_type: barrier_type
                 .map(crate::instruments::barrier::kind)
@@ -132,8 +134,8 @@ binary_properties!(
             observation_mode: observation_mode
                 .map(crate::instruments::barrier::mode)
                 .transpose()?,
-            observation_dates: observation_dates
-                .map(crate::conversions::dates)
+            observation_times: observation_times
+                .map(crate::conversions::timestamps)
                 .transpose()?,
             touch_state: touch_state
                 .map(crate::instruments::barrier::history)
@@ -163,9 +165,9 @@ binary_properties!(
     ///
     /// Parameters
     /// ----------
-    /// effective_date : datetime.date, optional
+    /// effective_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// expiry_date : datetime.date, optional
+    /// expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// barrier_level : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -175,7 +177,7 @@ binary_properties!(
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// observation_mode : {'continuous', 'scheduled'}, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// observation_dates : Iterable[date], optional
+    /// observation_times : Iterable[datetime.datetime], optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// touch_state : {'untouched', 'touched'} or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -193,17 +195,17 @@ binary_properties!(
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation, field name or mutually exclusive coupon choice is invalid.
-    #[pyo3(signature = (*, effective_date=crate::conversions::OMITTED, expiry_date=crate::conversions::OMITTED, barrier_level=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, settlement_timing=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_dates=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED, payout=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, barrier_level=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, settlement_timing=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_times=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED, payout=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
         reason = "explicit Python replacement fields"
     )]
     fn replace(
         &self,
-        #[pyo3(from_py_with = crate::conversions::supplied)] effective_date: Option<
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_time: Option<
             &Bound<'_, PyAny>,
         >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_date: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] barrier_level: Option<
             &Bound<'_, PyAny>,
         >,
@@ -216,15 +218,17 @@ binary_properties!(
         #[pyo3(from_py_with = crate::conversions::supplied)] observation_mode: Option<
             &Bound<'_, PyAny>,
         >,
-        #[pyo3(from_py_with = crate::conversions::supplied)] observation_dates: Option<
+        #[pyo3(from_py_with = crate::conversions::supplied)] observation_times: Option<
             &Bound<'_, PyAny>,
         >,
         #[pyo3(from_py_with = crate::conversions::supplied)] touch_state: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] payout: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let changes = kiyosi::TouchOptionChanges {
-            effective_date: effective_date.map(crate::conversions::date).transpose()?,
-            expiry_date: expiry_date.map(crate::conversions::date).transpose()?,
+            effective_time: effective_time
+                .map(crate::conversions::timestamp)
+                .transpose()?,
+            expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
             barrier_level: barrier_level.map(crate::conversions::real).transpose()?,
             barrier_type: barrier_type
                 .map(crate::instruments::barrier::kind)
@@ -235,8 +239,8 @@ binary_properties!(
             observation_mode: observation_mode
                 .map(crate::instruments::barrier::mode)
                 .transpose()?,
-            observation_dates: observation_dates
-                .map(crate::conversions::dates)
+            observation_times: observation_times
+                .map(crate::conversions::timestamps)
                 .transpose()?,
             touch_state: touch_state
                 .map(crate::instruments::barrier::history)
@@ -269,21 +273,21 @@ macro_rules! binary_factory {
     ($name:ident, $constructor:ident $(, $payout:ident)?, $doc:literal) => {
         #[doc = $doc]
         #[pyfunction]
-        #[pyo3(signature = (*, option_type, strike, effective_date, expiry_date, barrier_level, barrier_type, $($payout,)? observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+        #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, barrier_level, barrier_type, $($payout,)? observation_mode=kiyosi::ObservationMode::default(), observation_times=Vec::new(), touch_state=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
         pub(crate) fn $name(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
-            effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
+            effective_time: &Bound<'_, PyAny>, expiry_time: &Bound<'_, PyAny>,
             barrier_level: &Bound<'_, PyAny>, barrier_type: &Bound<'_, PyAny>,
             $($payout: &Bound<'_, PyAny>,)?
             #[pyo3(from_py_with = barrier::mode)] observation_mode: kiyosi::ObservationMode,
-            #[pyo3(from_py_with = dates)] observation_dates: Vec<kiyosi::Date>,
+            #[pyo3(from_py_with = timestamps)] observation_times: Vec<kiyosi::Timestamp>,
             #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
         ) -> PyResult<BinaryBarrierOption> {
             let mut terms = kiyosi::BinaryBarrierTerms::new(direction(option_type)?, real(strike)?,
-                date(effective_date)?, date(expiry_date)?, real(barrier_level)?, barrier::kind(barrier_type)?);
+                timestamp(effective_time)?, timestamp(expiry_time)?, real(barrier_level)?, barrier::kind(barrier_type)?);
             $(let $payout = real($payout)?;)?
             terms.observation_mode = observation_mode;
-            terms.observation_dates = observation_dates;
+            terms.observation_times = observation_times;
             terms.touch_state = touch_state;
             Ok(BinaryBarrierOption(domain(kiyosi::BinaryBarrierOption::$constructor(terms $(, $payout)?))?))
         }
@@ -302,10 +306,10 @@ option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive finite exercise or purchase price.
-effective_date : datetime.date
-    Contract starts at 00:00 UTC on this date.
-expiry_date : datetime.date
-    Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
+effective_time : datetime.datetime
+    Inclusive contract start.
+expiry_time : datetime.datetime
+    Inclusive expiry time.
 barrier_level : float
     Positive finite trigger level; equality counts as a touch.
 barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
@@ -313,9 +317,9 @@ barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
 payout : float
     Positive finite cash payment.
 observation_mode : {'continuous', 'scheduled'}, optional
-    Continuous monitoring or observations on the supplied dates.
-observation_dates : iterable of date, optional
-    Strictly increasing observation dates within the contract life.
+    Continuous monitoring or observations on the supplied times.
+observation_times : iterable of datetime.datetime, optional
+    Strictly increasing observation times within the contract life.
 touch_state : {'untouched', 'touched'} or None, optional
     Strictly prior history. None means unknown; untouched means known no
     hit.
@@ -328,7 +332,7 @@ BinaryBarrierOption
 Raises
 ------
 InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
+    If contractual amounts, life times or observation terms are invalid.
 
 Notes
 -----
@@ -348,18 +352,18 @@ option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive finite exercise or purchase price.
-effective_date : datetime.date
-    Contract starts at 00:00 UTC on this date.
-expiry_date : datetime.date
-    Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
+effective_time : datetime.datetime
+    Inclusive contract start.
+expiry_time : datetime.datetime
+    Inclusive expiry time.
 barrier_level : float
     Positive finite trigger level; equality counts as a touch.
 barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
     Trigger direction and knock-in or knock-out behavior.
 observation_mode : {'continuous', 'scheduled'}, optional
-    Continuous monitoring or observations on the supplied dates.
-observation_dates : iterable of date, optional
-    Strictly increasing observation dates within the contract life.
+    Continuous monitoring or observations on the supplied times.
+observation_times : iterable of datetime.datetime, optional
+    Strictly increasing observation times within the contract life.
 touch_state : {'untouched', 'touched'} or None, optional
     Strictly prior history. None means unknown; untouched means known no
     hit.
@@ -372,7 +376,7 @@ BinaryBarrierOption
 Raises
 ------
 InvalidInputError
-    If contractual amounts, life dates or observation terms are invalid.
+    If contractual amounts, life times or observation terms are invalid.
 
 Notes
 -----
@@ -395,10 +399,10 @@ macro_rules! touch_factory {
         ///
         /// Parameters
         /// ----------
-        /// effective_date : datetime.date
-        ///     Contract starts at 00:00 UTC on this date.
-        /// expiry_date : datetime.date
-        ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
+        /// effective_time : datetime.datetime
+        ///     Inclusive contract start.
+        /// expiry_time : datetime.datetime
+        ///     Inclusive expiry time.
         /// barrier_level : float
         ///     Positive finite trigger level; equality counts as a touch.
         /// barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
@@ -410,9 +414,9 @@ macro_rules! touch_factory {
         /// settlement_timing : {'at_hit', 'at_expiry'}, optional
         ///     Defaults to expiry. At-hit settlement requires a one-touch contract.
         /// observation_mode : {'continuous', 'scheduled'}, optional
-        ///     Continuous monitoring or observations on the supplied dates.
-        /// observation_dates : iterable of date, optional
-        ///     Strictly increasing observation dates within the contract life.
+        ///     Continuous monitoring or observations on the supplied times.
+        /// observation_times : iterable of datetime.datetime, optional
+        ///     Strictly increasing observation times within the contract life.
         /// touch_state : {'untouched', 'touched'} or None, optional
         ///     Strictly prior history. None is unknown; untouched means known no hit.
         ///
@@ -424,7 +428,7 @@ macro_rules! touch_factory {
         /// Raises
         /// ------
         /// InvalidInputError
-        ///     If amounts, life dates or observation terms are invalid, or at-hit
+        ///     If amounts, life times or observation terms are invalid, or at-hit
         ///     settlement is requested for a no-touch contract.
         ///
         /// Notes
@@ -434,21 +438,21 @@ macro_rules! touch_factory {
         /// transfers spot; a future continuous asset hit transfers the barrier amount.
         /// See the kiyosi.instruments module examples for construction.
         #[pyfunction]
-        #[pyo3(signature = (*, effective_date, expiry_date, barrier_level, barrier_type, $($payout,)? settlement_timing=kiyosi::SettlementTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_dates=Vec::new(), touch_state=None))]
+        #[pyo3(signature = (*, effective_time, expiry_time, barrier_level, barrier_type, $($payout,)? settlement_timing=kiyosi::SettlementTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_times=Vec::new(), touch_state=None))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
-        pub(crate) fn $name(effective_date: &Bound<'_, PyAny>, expiry_date: &Bound<'_, PyAny>,
+        pub(crate) fn $name(effective_time: &Bound<'_, PyAny>, expiry_time: &Bound<'_, PyAny>,
             barrier_level: &Bound<'_, PyAny>, barrier_type: &Bound<'_, PyAny>,
             $($payout: &Bound<'_, PyAny>,)?
             #[pyo3(from_py_with = settlement)] settlement_timing: kiyosi::SettlementTiming,
             #[pyo3(from_py_with = barrier::mode)] observation_mode: kiyosi::ObservationMode,
-            #[pyo3(from_py_with = dates)] observation_dates: Vec<kiyosi::Date>,
+            #[pyo3(from_py_with = timestamps)] observation_times: Vec<kiyosi::Timestamp>,
             #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
         ) -> PyResult<TouchOption> {
-            let mut terms = kiyosi::TouchOptionTerms::new(date(effective_date)?, date(expiry_date)?, real(barrier_level)?, barrier::kind(barrier_type)?);
+            let mut terms = kiyosi::TouchOptionTerms::new(timestamp(effective_time)?, timestamp(expiry_time)?, real(barrier_level)?, barrier::kind(barrier_type)?);
             $(let $payout = real($payout)?;)?
             terms.settlement_timing = settlement_timing;
             terms.observation_mode = observation_mode;
-            terms.observation_dates = observation_dates;
+            terms.observation_times = observation_times;
             terms.touch_state = touch_state;
             Ok(TouchOption(domain(kiyosi::TouchOption::$constructor(terms $(, $payout)?))?))
         }

@@ -1,6 +1,6 @@
 use crate::{
-    BarrierTouchState, BarrierType, Date, Error, ObservationMode, ObservationSchedule,
-    OptionContract, OptionType, PricingContext, Result, Timestamp, TradingCalendar,
+    BarrierTouchState, BarrierType, Error, ObservationMode, ObservationSchedule, OptionContract,
+    OptionType, PricingContext, Result, Timestamp, TradingCalendar,
 };
 
 pub(crate) fn validate_upper(lower: f64, upper: f64) -> Result<()> {
@@ -14,8 +14,8 @@ pub(crate) fn validate_upper(lower: f64, upper: f64) -> Result<()> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Monitoring {
-    effective_date: Date,
-    expiry_date: Date,
+    effective_time: Timestamp,
+    expiry_time: Timestamp,
     barrier_level: f64,
     barrier_type: BarrierType,
     observation_mode: ObservationMode,
@@ -25,12 +25,12 @@ pub(crate) struct Monitoring {
 
 impl Monitoring {
     pub(crate) fn new(
-        effective_date: Date,
-        expiry_date: Date,
+        effective_time: Timestamp,
+        expiry_time: Timestamp,
         barrier_level: f64,
         barrier_type: BarrierType,
         observation_mode: ObservationMode,
-        observation_dates: Vec<Date>,
+        observation_times: Vec<Timestamp>,
         touch_state: Option<BarrierTouchState>,
     ) -> Result<Self> {
         if !barrier_level.is_finite() || barrier_level <= 0.0 {
@@ -38,20 +38,20 @@ impl Monitoring {
                 "barrier level must be finite and positive".into(),
             ));
         }
-        if (observation_mode == ObservationMode::Continuous) != observation_dates.is_empty() {
+        if (observation_mode == ObservationMode::Continuous) != observation_times.is_empty() {
             return Err(Error::InvalidInput(
                 "monitoring mode and dates disagree".into(),
             ));
         }
         let schedule = ObservationSchedule::new(
-            observation_dates,
-            effective_date,
-            expiry_date,
+            observation_times,
+            effective_time,
+            expiry_time,
             &TradingCalendar::all_days(),
         )?;
         Ok(Self {
-            effective_date,
-            expiry_date,
+            effective_time,
+            expiry_time,
             barrier_level,
             barrier_type,
             observation_mode,
@@ -66,11 +66,11 @@ impl Monitoring {
             ..self.clone()
         }
     }
-    pub(crate) fn effective_date(&self) -> Date {
-        self.effective_date
+    pub(crate) fn effective_time(&self) -> Timestamp {
+        self.effective_time
     }
-    pub(crate) fn expiry_date(&self) -> Date {
-        self.expiry_date
+    pub(crate) fn expiry_time(&self) -> Timestamp {
+        self.expiry_time
     }
     pub(crate) fn barrier_level(&self) -> f64 {
         self.barrier_level
@@ -84,8 +84,8 @@ impl Monitoring {
     pub(crate) fn observation_schedule(&self) -> &ObservationSchedule {
         &self.schedule
     }
-    pub(crate) fn observation_dates(&self) -> &[Date] {
-        self.schedule.dates()
+    pub(crate) fn observation_times(&self) -> &[Timestamp] {
+        self.schedule.times()
     }
     pub(crate) fn touch_state(&self) -> Option<BarrierTouchState> {
         self.touch_state
@@ -95,25 +95,23 @@ impl Monitoring {
         reason = "Day and observation counts are bounded by the supported calendar range and fit exactly in f64."
     )]
     pub(crate) fn mean_observation_year_fraction(&self) -> f64 {
-        self.observation_dates().last().map_or(0.0, |&last| {
-            self.effective_date().days_until(last) as f64 / 365.0 / self.schedule.len() as f64
+        self.observation_times().last().map_or(0.0, |&last| {
+            self.effective_time().years_until(last) / self.schedule.len() as f64
         })
     }
     pub(crate) fn continuous(&self) -> bool {
         self.observation_mode() == ObservationMode::Continuous
     }
     pub(crate) fn monitored(&self, time: Timestamp) -> bool {
-        time >= self.effective_date().start_of_day()
-            && time <= self.expiry_date().start_of_day()
-            && (self.continuous()
-                || self.observation_dates().binary_search(&time.date()).is_ok()
-                    && time == time.date().start_of_day())
+        time >= self.effective_time()
+            && time <= self.expiry_time()
+            && (self.continuous() || self.observation_times().binary_search(&time).is_ok())
     }
     pub(crate) fn prior(&self, time: Timestamp) -> Result<bool> {
         let had = if self.continuous() {
-            time > self.effective_date().start_of_day()
+            time > self.effective_time()
         } else {
-            self.observation_dates()[0].start_of_day() < time
+            self.observation_times()[0] < time
         };
         if !had && self.touch_state() == Some(BarrierTouchState::Touched) {
             return Err(Error::InvalidInput("touch predates monitoring".into()));
@@ -140,16 +138,13 @@ impl Monitoring {
         Ok((
             prior,
             prior || self.monitored(time) && hit,
-            time == self.expiry_date().start_of_day()
+            time == self.expiry_time()
                 || !self.continuous()
-                    && self
-                        .observation_dates()
-                        .last()
-                        .is_some_and(|d| d.start_of_day() <= time),
+                    && self.observation_times().last().is_some_and(|d| *d <= time),
         ))
     }
     pub(crate) fn payoff_requires_touch(&self, option_type: OptionType, strike: f64) -> bool {
-        (self.continuous() || self.observation_dates().last() == Some(&self.expiry_date()))
+        (self.continuous() || self.observation_times().last() == Some(&self.expiry_time()))
             && if self.barrier_type().is_up() {
                 option_type == OptionType::Call && strike >= self.barrier_level()
             } else {
@@ -172,11 +167,11 @@ impl Monitoring {
     }
 }
 impl OptionContract for Monitoring {
-    fn effective_date(&self) -> Date {
-        self.effective_date()
+    fn effective_time(&self) -> Timestamp {
+        self.effective_time()
     }
-    fn expiry_date(&self) -> Date {
-        self.expiry_date()
+    fn expiry_time(&self) -> Timestamp {
+        self.expiry_time()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         self.spot_discontinuity(context, radius, None)
@@ -192,9 +187,9 @@ impl OptionContract for Monitoring {
             && (self.continuous()
                 || self.touch_state() == Some(BarrierTouchState::Touched)
                 || !self
-                    .observation_dates()
+                    .observation_times()
                     .iter()
-                    .any(|d| before <= d.start_of_day() && d.start_of_day() <= after))
+                    .any(|d| before <= *d && *d <= after))
     }
 }
 
@@ -203,7 +198,7 @@ pub(crate) fn validate_life(
     context: &PricingContext,
 ) -> Result<()> {
     let time = context.valuation_time();
-    if time < option.effective_date().start_of_day() || time > option.expiry_date().start_of_day() {
+    if time < option.effective_time() || time > option.expiry_time() {
         return Err(Error::InvalidInput(
             "valuation outside contract life".into(),
         ));
@@ -216,9 +211,9 @@ pub(crate) fn validate_schedule(
     context: &PricingContext,
 ) -> Result<()> {
     if schedule
-        .dates()
+        .times()
         .iter()
-        .any(|&d| !context.calendar().is_trading_day(d))
+        .any(|&d| !context.calendar().is_trading_day(d.date()))
     {
         return Err(Error::InvalidInput(
             "observation is not a trading day".into(),

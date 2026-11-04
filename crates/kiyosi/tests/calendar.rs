@@ -121,33 +121,34 @@ fn sse_history_forecast_and_fallback_follow_calendar_rules() {
 #[test]
 fn schedules_exclude_start_adjust_merge_and_clamp_months() {
     let weekdays = TradingCalendar::default();
-    let fixed = ObservationSchedule::fixed_interval(day(2025, 1, 3), day(2025, 1, 7), 1, &weekdays)
-        .unwrap();
-    assert_eq!(fixed.dates(), &[day(2025, 1, 6), day(2025, 1, 7)]);
+    let fixed =
+        ObservationSchedule::fixed_interval(time(2025, 1, 3), time(2025, 1, 7), 1, &weekdays)
+            .unwrap();
+    assert_eq!(fixed.times(), &[time(2025, 1, 6), time(2025, 1, 7)]);
     let monthly =
-        ObservationSchedule::monthly(day(2025, 1, 31), day(2025, 4, 30), 1, &weekdays).unwrap();
+        ObservationSchedule::monthly(time(2025, 1, 31), time(2025, 4, 30), 1, &weekdays).unwrap();
     assert_eq!(
-        monthly.dates(),
-        &[day(2025, 2, 28), day(2025, 3, 31), day(2025, 4, 30)]
+        monthly.times(),
+        &[time(2025, 2, 28), time(2025, 3, 31), time(2025, 4, 30)]
     );
     let monthly =
-        ObservationSchedule::monthly(day(2025, 1, 1), day(2025, 3, 1), 1, &weekdays).unwrap();
-    assert_eq!(monthly.dates(), &[day(2025, 2, 3)]);
-    let reopening = day(2025, 4, 1);
-    let calendar = TradingCalendar::new(move |date| date >= reopening, 252).unwrap();
+        ObservationSchedule::monthly(time(2025, 1, 1), time(2025, 3, 1), 1, &weekdays).unwrap();
+    assert_eq!(monthly.times(), &[time(2025, 2, 3)]);
+    let reopening = time(2025, 4, 1);
+    let calendar = TradingCalendar::new(move |date| date >= reopening.date(), 252).unwrap();
     for schedule in [
-        ObservationSchedule::monthly(day(2025, 1, 1), day(2025, 4, 2), 1, &calendar).unwrap(),
-        ObservationSchedule::fixed_interval(day(2025, 1, 1), day(2025, 4, 2), 31, &calendar)
+        ObservationSchedule::monthly(time(2025, 1, 1), time(2025, 4, 2), 1, &calendar).unwrap(),
+        ObservationSchedule::fixed_interval(time(2025, 1, 1), time(2025, 4, 2), 31, &calendar)
             .unwrap(),
     ] {
-        assert_eq!(schedule.dates(), &[reopening]);
+        assert_eq!(schedule.times(), &[reopening]);
     }
 }
 
 #[test]
 fn schedule_validation_and_boundaries_preserve_error_timing() {
-    let start = day(2025, 1, 1);
-    let end = day(2025, 2, 1);
+    let start = time(2025, 1, 1);
+    let end = time(2025, 2, 1);
     let calendar = TradingCalendar::default();
     for interval in [0, -1, i64::MIN] {
         assert!(matches!(
@@ -172,8 +173,8 @@ fn schedule_validation_and_boundaries_preserve_error_timing() {
     for dates in [
         vec![end, start],
         vec![start, start],
-        vec![day(2024, 12, 31)],
-        vec![day(2025, 2, 2)],
+        vec![time(2024, 12, 31)],
+        vec![time(2025, 2, 2)],
     ] {
         assert!(matches!(
             ObservationSchedule::new(dates, start, end, &calendar).unwrap_err(),
@@ -181,13 +182,13 @@ fn schedule_validation_and_boundaries_preserve_error_timing() {
         ));
     }
     assert!(matches!(
-        ObservationSchedule::new(vec![day(2025, 1, 4)], start, end, &calendar).unwrap_err(),
+        ObservationSchedule::new(vec![time(2025, 1, 4)], start, end, &calendar).unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert_eq!(
         ObservationSchedule::new(vec![start, end], start, end, &TradingCalendar::all_days())
             .unwrap()
-            .dates(),
+            .times(),
         &[start, end]
     );
     assert!(
@@ -202,8 +203,8 @@ fn schedule_validation_and_boundaries_preserve_error_timing() {
     );
     for (start, end) in [
         (start, end),
-        (day(-32767, 1, 1), day(-32767, 1, 2)),
-        (day(32767, 12, 30), day(32767, 12, 31)),
+        (time(-32767, 1, 1), time(-32767, 1, 2)),
+        (time(32767, 12, 30), time(32767, 12, 31)),
     ] {
         assert!(
             ObservationSchedule::fixed_interval(start, end, i64::MAX, &calendar)
@@ -230,27 +231,29 @@ fn closed_calendars_stop_at_domain_and_schedule_bounds() {
             Error::InvalidInput(_)
         ));
     }
-    let start = day(32767, 12, 30);
-    let end = day(32767, 12, 31);
+    let start = time(32767, 12, 30);
+    let end = time(32767, 12, 31);
     assert!(
         ObservationSchedule::fixed_interval(start, end, 1, &closed)
             .unwrap()
             .is_empty()
     );
     assert!(
-        ObservationSchedule::monthly(day(32767, 11, 30), end, 1, &closed)
+        ObservationSchedule::monthly(time(32767, 11, 30), end, 1, &closed)
             .unwrap()
             .is_empty()
     );
     assert!(matches!(
-        closed.trading_days_between(end, start).unwrap_err(),
+        closed
+            .trading_days_between(end.date(), start.date())
+            .unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let end_only = TradingCalendar::new(move |date| date == end, 1).unwrap();
+    let end_only = TradingCalendar::new(move |date| date == end.date(), 1).unwrap();
     assert_eq!(
         ObservationSchedule::fixed_interval(start, end, 1, &end_only)
             .unwrap()
-            .dates(),
+            .times(),
         &[end]
     );
 }
@@ -330,4 +333,8 @@ fn calendar_override_components_borrow_normalized_owned_storage() {
     assert_eq!(open_dates, &[opened]);
     assert_eq!(calendar.trading_days_per_year(), 260);
     assert!(TradingCalendar::weekdays().overrides().is_none());
+}
+
+fn time(year: i32, month: u32, day_of_month: u32) -> kiyosi::Timestamp {
+    day(year, month, day_of_month).start_of_day()
 }

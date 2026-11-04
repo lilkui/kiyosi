@@ -306,8 +306,8 @@ impl BjerksundStenslandVanillaEngine {
     /// use kiyosi::{AmericanOption, BjerksundStenslandVanillaEngine,
     ///     BlackScholesMertonParameters, Date, OptionType, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.03, 0.2)?, 100.0, start.into())?;
     /// let price = BjerksundStenslandVanillaEngine.price(&option, &context)?;
@@ -318,8 +318,8 @@ impl BjerksundStenslandVanillaEngine {
         context.bsm_parameters()?;
         Self::require_flat(context)?;
         let valuation = context.valuation_time();
-        let expiry = option.expiry_date().start_of_day();
-        if valuation < option.effective_date().start_of_day() || valuation > expiry {
+        let expiry = option.expiry_time();
+        if valuation < option.effective_time() || valuation > expiry {
             return Err(Error::InvalidInput(
                 "valuation must be within the contract life".into(),
             ));
@@ -381,8 +381,8 @@ impl BjerksundStenslandVanillaEngine {
     /// use kiyosi::{AmericanOption, BjerksundStenslandVanillaEngine,
     ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.03, 0.2)?, 100.0, start.into())?;
     /// let result = BjerksundStenslandVanillaEngine.price_with_greeks(&option, &context,

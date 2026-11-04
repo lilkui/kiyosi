@@ -1,13 +1,14 @@
+use kiyosi::Timestamp;
 use kiyosi::{
     AmericanOption, AnalyticHestonEuropeanEngine, Date, Error, EuropeanOption,
     FiniteDifferenceHestonVanillaEngine, GreeksRequest, HestonFiniteDifferenceSettings,
     HestonParameters, OptionType, PricingContext, RateTermStructure,
 };
 
-fn dates() -> (Date, Date) {
+fn dates() -> (Timestamp, Timestamp) {
     (
-        Date::new(2025, 1, 1).unwrap(),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
     )
 }
 
@@ -15,7 +16,7 @@ fn context(xi: f64, correlation: f64) -> PricingContext {
     PricingContext::new(
         HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.5, xi, correlation).unwrap(),
         100.0,
-        dates().0.into(),
+        dates().0,
     )
     .unwrap()
 }
@@ -55,7 +56,7 @@ fn american_prices_match_reference_and_exercise_bounds() {
     }
     let call = AmericanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     let model = HestonParameters::new(0.03, 0.1, 0.04, 0.04, 1.5, 0.3, -0.7).unwrap();
-    let ctx = PricingContext::new(model, 200.0, start.into()).unwrap();
+    let ctx = PricingContext::new(model, 200.0, start).unwrap();
     assert!((engine.price(&call, &ctx).unwrap() - 100.0).abs() < 1e-10);
 }
 
@@ -65,18 +66,18 @@ fn deterministic_variance_path_and_absorbing_zero_are_priced() {
     let engine = FiniteDifferenceHestonVanillaEngine::default();
     let call = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     let model = HestonParameters::new(0.05, 0.02, 0.01, 0.09, 1.5, 0.0, 1.0).unwrap();
-    let ctx = PricingContext::new(model, 100.0, start.into()).unwrap();
+    let ctx = PricingContext::new(model, 100.0, start).unwrap();
     let reference = AnalyticHestonEuropeanEngine::default()
         .price(&call, &ctx)
         .unwrap();
     assert!((engine.price(&call, &ctx).unwrap() - reference).abs() < 0.002);
     let zero = HestonParameters::new(0.05, 0.2, 0.0, 0.0, 0.0, 0.9, -1.0).unwrap();
-    let ctx = PricingContext::new(zero, 30.0, start.into()).unwrap();
+    let ctx = PricingContext::new(zero, 30.0, start).unwrap();
     let american = AmericanOption::new(
         OptionType::Put,
         100.0,
         start,
-        Date::new(2028, 1, 1).unwrap(),
+        Date::new(2028, 1, 1).unwrap().start_of_day(),
     )
     .unwrap();
     let optimum = (5.0_f64 / 6.0).ln() / -0.15;
@@ -88,7 +89,7 @@ fn deterministic_variance_path_and_absorbing_zero_are_priced() {
         (OptionType::Put, 0.0, 1e-18),
     ] {
         let model = HestonParameters::new(risk, dividend, 0.0, 0.0, 1.0, 0.3, 0.0).unwrap();
-        let ctx = PricingContext::new(model, 1e18, start.into()).unwrap();
+        let ctx = PricingContext::new(model, 1e18, start).unwrap();
         let option = EuropeanOption::new(side, 1e18, start, end).unwrap();
         assert!((engine.price(&option, &ctx).unwrap() - 1.0).abs() < 1e-12);
     }
@@ -110,7 +111,7 @@ fn zero_variance_can_restart_and_correlation_endpoints_are_supported() {
         (0.04, 0.0, 1.5, -0.7),
     ] {
         let model = HestonParameters::new(0.05, 0.02, v0, theta, kappa, 0.3, rho).unwrap();
-        let ctx = PricingContext::new(model, 100.0, start.into()).unwrap();
+        let ctx = PricingContext::new(model, 100.0, start).unwrap();
         let reference = AnalyticHestonEuropeanEngine::default()
             .price(&option, &ctx)
             .unwrap();
@@ -127,18 +128,13 @@ fn zero_variance_can_restart_and_correlation_endpoints_are_supported() {
 #[test]
 fn node_curves_keep_optimal_exercise_under_negative_rates() {
     let (start, end) = dates();
-    let middle = Date::new(2025, 7, 1).unwrap();
-    let risk = RateTermStructure::new(
-        start.into(),
-        vec![middle.into(), end.into()],
-        vec![0.1_f64.exp(), 1.0],
-    )
-    .unwrap();
+    let middle = Date::new(2025, 7, 1).unwrap().start_of_day();
+    let risk = RateTermStructure::new(start, vec![middle, end], vec![0.1_f64.exp(), 1.0]).unwrap();
     for xi in [0.0, 0.3] {
         let model = HestonParameters::new(risk.clone(), 0.0, 0.04, 0.04, 1.5, xi, -0.7).unwrap();
-        let ctx = PricingContext::new(model, 0.01, start.into()).unwrap();
+        let ctx = PricingContext::new(model, 0.01, start).unwrap();
         let put = AmericanOption::new(OptionType::Put, 100.0, start, end).unwrap();
-        let expected = 100.0 * risk.factor(start.into(), middle.into()).unwrap() - 0.01;
+        let expected = 100.0 * risk.factor(start, middle).unwrap() - 0.01;
         let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
             time_step_count: 31,
             ..Default::default()
@@ -157,7 +153,7 @@ fn expiry_and_validation_order_preserve_input_state() {
     let ctx = context(0.3, -0.7)
         .replace(kiyosi::PricingContextChanges {
             spot_price: Some(110.0),
-            valuation_time: Some(end.into()),
+            valuation_time: Some(end),
             ..Default::default()
         })
         .unwrap();
@@ -165,7 +161,7 @@ fn expiry_and_validation_order_preserve_input_state() {
     let bsm = PricingContext::new(
         kiyosi::BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap(),
         110.0,
-        end.into(),
+        end,
     )
     .unwrap();
     assert!(matches!(
@@ -174,7 +170,7 @@ fn expiry_and_validation_order_preserve_input_state() {
     ));
     let after = ctx
         .replace(kiyosi::PricingContextChanges {
-            valuation_time: Some(Date::new(2026, 1, 2).unwrap().into()),
+            valuation_time: Some(Date::new(2026, 1, 2).unwrap().start_of_day()),
             ..Default::default()
         })
         .unwrap();
@@ -212,7 +208,7 @@ fn numerical_failure_is_distinct_from_invalid_model_inputs() {
         Err(Error::ComputationFailure(_))
     ));
     let model = HestonParameters::new(0.0, 0.0, 2000.0, 2000.0, 0.0, 0.0, 0.0).unwrap();
-    let ctx = PricingContext::new(model, 1e200, start.into()).unwrap();
+    let ctx = PricingContext::new(model, 1e200, start).unwrap();
     let put = EuropeanOption::new(OptionType::Put, 1e-200, start, end).unwrap();
     let reference = AnalyticHestonEuropeanEngine::default()
         .price(&put, &ctx)
@@ -231,7 +227,7 @@ fn refined_tail_price_retains_relative_accuracy() {
         OptionType::Put,
         70.0,
         start,
-        Date::new(2025, 1, 31).unwrap(),
+        Date::new(2025, 1, 31).unwrap().start_of_day(),
     )
     .unwrap();
     let engine = FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
@@ -255,8 +251,8 @@ fn maturity_and_moneyness_scenarios_match_analytic_prices() {
     let (start, end) = dates();
     let ctx = context(0.3, -0.7);
     for (expiry, strike) in [
-        (Date::new(2025, 1, 8).unwrap(), 100.0),
-        (Date::new(2030, 1, 1).unwrap(), 120.0),
+        (Date::new(2025, 1, 8).unwrap().start_of_day(), 100.0),
+        (Date::new(2030, 1, 1).unwrap().start_of_day(), 120.0),
         (end, 50.0),
         (end, 150.0),
     ] {

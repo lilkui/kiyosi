@@ -35,23 +35,23 @@ macro_rules! monitoring_properties {
                 };
                 Ok(Self(self.0.replace_history(state)))
             }
-            /// Returns the date of the 00:00 UTC contract start.
+            /// Returns the inclusive contract start.
             #[getter]
-            fn effective_date<'py>(
+            fn effective_time<'py>(
                 &self,
                 py: pyo3::Python<'py>,
-            ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyDate>> {
-                $crate::conversions::python_date(py, self.0.effective_date())
+            ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyAny>> {
+                $crate::conversions::python_timestamp(py, self.0.effective_time())
             }
-            /// Returns the expiry date; only 00:00 UTC on this date is within contract life.
+            /// Returns the inclusive expiry time.
             #[getter]
-            fn expiry_date<'py>(
+            fn expiry_time<'py>(
                 &self,
                 py: pyo3::Python<'py>,
-            ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyDate>> {
-                $crate::conversions::python_date(py, self.0.expiry_date())
+            ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyAny>> {
+                $crate::conversions::python_timestamp(py, self.0.expiry_time())
             }
-            /// Returns continuous monitoring or observations on the supplied dates.
+            /// Returns continuous monitoring or observations on the supplied times.
             #[getter]
             fn observation_mode(&self) -> &'static str {
                 match self.0.observation_mode() {
@@ -64,16 +64,16 @@ macro_rules! monitoring_properties {
             fn observation_schedule(&self) -> $crate::schedule::ObservationSchedule {
                 $crate::schedule::ObservationSchedule(self.0.observation_schedule().clone())
             }
-            /// Returns a copy of the contractual observation dates.
+            /// Returns a copy of the contractual observation times.
             #[getter]
-            fn observation_dates<'py>(
+            fn observation_times<'py>(
                 &self,
                 py: pyo3::Python<'py>,
-            ) -> pyo3::PyResult<Vec<pyo3::Bound<'py, pyo3::types::PyDate>>> {
+            ) -> pyo3::PyResult<Vec<pyo3::Bound<'py, pyo3::types::PyAny>>> {
                 self.0
-                    .observation_dates()
+                    .observation_times()
                     .iter()
-                    .map(|&d| $crate::conversions::python_date(py, d))
+                    .map(|&d| $crate::conversions::python_timestamp(py, d))
                     .collect()
             }
             /// Returns strictly prior touch history, or None if unknown.

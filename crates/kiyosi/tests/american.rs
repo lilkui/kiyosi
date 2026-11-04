@@ -1,14 +1,14 @@
 use kiyosi::*;
 
-fn day(year: i32, month: u32, day: u32) -> Date {
-    Date::new(year, month, day).unwrap()
+fn day(year: i32, month: u32, day: u32) -> Timestamp {
+    Date::new(year, month, day).unwrap().start_of_day()
 }
 
 fn market(spot: f64, rate: f64, dividend: f64, volatility: f64) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(rate, dividend, volatility).unwrap(),
         spot,
-        day(2025, 1, 1).into(),
+        day(2025, 1, 1),
     )
     .unwrap()
 }
@@ -39,8 +39,8 @@ fn american_construction_and_replacement_validate_without_mutating() {
     assert!(matches!(
         option
             .replace(AmericanOptionChanges {
-                expiry_date: Some(start),
-                effective_date: Some(end),
+                expiry_time: Some(start),
+                effective_time: Some(end),
                 ..Default::default()
             })
             .unwrap_err(),
@@ -51,14 +51,14 @@ fn american_construction_and_replacement_validate_without_mutating() {
         .replace(AmericanOptionChanges {
             option_type: Some(OptionType::Call),
             strike: Some(105.0),
-            effective_date: Some(end),
-            expiry_date: Some(end),
+            effective_time: Some(end),
+            expiry_time: Some(end),
         })
         .unwrap();
     assert_eq!(replaced.option_type(), OptionType::Call);
     assert_eq!(replaced.strike(), 105.0);
-    assert_eq!(replaced.effective_date(), end);
-    assert_eq!(replaced.expiry_date(), end);
+    assert_eq!(replaced.effective_time(), end);
+    assert_eq!(replaced.expiry_time(), end);
     assert_eq!(
         option,
         AmericanOption::new(OptionType::Put, 100.0, start, end).unwrap()
@@ -101,7 +101,7 @@ fn american_expiry_and_exercise_window_are_inclusive() {
         for spot in [90.0, 100.0, 110.0] {
             let context = market(spot, -0.05, -0.03, 0.2)
                 .replace(PricingContextChanges {
-                    valuation_time: Some(end.into()),
+                    valuation_time: Some(end),
                     ..Default::default()
                 })
                 .unwrap();
@@ -123,8 +123,8 @@ fn american_expiry_and_exercise_window_are_inclusive() {
             ));
         }
         for time in [
-            Timestamp::new(day(2024, 12, 31), 23, 59, 59, 999_999).unwrap(),
-            Timestamp::new(end, 0, 0, 0, 1).unwrap(),
+            Timestamp::new(day(2024, 12, 31).date(), 23, 59, 59, 999_999).unwrap(),
+            Timestamp::new(end.date(), 0, 0, 0, 1).unwrap(),
         ] {
             let context = market(100.0, 0.05, 0.03, 0.2)
                 .replace(PricingContextChanges {
@@ -140,7 +140,7 @@ fn american_expiry_and_exercise_window_are_inclusive() {
         let context = market(100.0, 0.05, 0.03, 0.2)
             .replace(PricingContextChanges {
                 valuation_time: Some(
-                    Timestamp::new(day(2025, 12, 31), 23, 59, 59, 999_999).unwrap(),
+                    Timestamp::new(day(2025, 12, 31).date(), 23, 59, 59, 999_999).unwrap(),
                 ),
                 ..Default::default()
             })
@@ -328,13 +328,12 @@ fn american_applicability_and_error_order_are_preserved() {
                     .unwrap_err()
             ));
         }
-        let curve = RateTermStructure::new(start.into(), vec![end.into()], vec![(-0.05_f64).exp()])
-            .unwrap();
+        let curve = RateTermStructure::new(start, vec![end], vec![(-0.05_f64).exp()]).unwrap();
         for model in [
             BlackScholesMertonParameters::new(curve.clone(), 0.03, 0.2).unwrap(),
             BlackScholesMertonParameters::new(0.05, curve, 0.2).unwrap(),
         ] {
-            let context = PricingContext::new(model, 100.0, end.into()).unwrap();
+            let context = PricingContext::new(model, 100.0, end).unwrap();
             assert!(matches!(
                 engine.price(&option, &context).unwrap_err(),
                 Error::UnsupportedOperation(_)

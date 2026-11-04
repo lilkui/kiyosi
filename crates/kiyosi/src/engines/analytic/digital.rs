@@ -32,9 +32,9 @@ impl AnalyticDigitalEngine {
     /// use kiyosi::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
     ///     DigitalOption, OptionType, PricingContext, Greek, GreeksRequest};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = DigitalOption::asset_or_nothing(OptionType::Call, 100.0,
-    ///     start, Date::new(2026, 1, 1)?)?;
+    ///     start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// let result = AnalyticDigitalEngine.price_with_greeks(&option, &context,
@@ -77,9 +77,9 @@ impl AnalyticDigitalEngine {
     /// use kiyosi::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
     ///     DigitalOption, OptionType, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
-    ///     start, Date::new(2026, 1, 1)?)?;
+    ///     start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// assert!((AnalyticDigitalEngine.price(&option, &context)? - 4.945810910532236).abs() < 1e-12);
@@ -96,8 +96,8 @@ impl AnalyticDigitalEngine {
         request: GreeksRequest,
     ) -> Result<PricingResult> {
         let valuation = context.valuation_time();
-        let expiry = option.expiry_date().start_of_day();
-        if valuation < option.effective_date().start_of_day() || valuation > expiry {
+        let expiry = option.expiry_time();
+        if valuation < option.effective_time() || valuation > expiry {
             return Err(Error::InvalidInput(
                 "valuation must be within the contract life".into(),
             ));

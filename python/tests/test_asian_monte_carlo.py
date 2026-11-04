@@ -5,7 +5,7 @@ import sys
 import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from kiyosi import (
     InvalidInputError,
@@ -21,7 +21,7 @@ from kiyosi.market import (
     RateTermStructure,
 )
 
-START, END = date(2025, 1, 1), date(2026, 1, 1)
+START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 KINDS = (ArithmeticAveragePriceOption, GeometricAveragePriceOption)
 
 
@@ -39,9 +39,9 @@ def option(kind, direction="call", strike=100, averaging=START, realized=0):
     return kind(
         option_type=direction,
         strike=strike,
-        effective_date=START,
-        averaging_start_date=averaging,
-        expiry_date=END,
+        effective_time=START,
+        averaging_start_time=averaging,
+        expiry_time=END,
         realized_average=realized,
     )
 
@@ -89,7 +89,7 @@ class AsianMonteCarloTests(unittest.TestCase):
     def test_history_start_intraday_life_and_expiry(self):
         engine = pricing.MonteCarloAsianEngine(path_count=32, seed=42)
         averaging = START + timedelta(days=90)
-        instant = datetime(2025, 4, 1, tzinfo=UTC)
+        instant = datetime(2025, 4, 1)
         for kind in KINDS:
             for shift in (-1, 0, 1):
                 for realized in (0, 100):
@@ -479,7 +479,7 @@ class AsianMonteCarloTests(unittest.TestCase):
         from kiyosi.instruments import EuropeanOption
 
         wrong = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         with self.assertRaises(UnsupportedOperationError):
             engine.price(wrong, market())
@@ -537,9 +537,9 @@ class AsianMonteCarloTests(unittest.TestCase):
         instrument = ArithmeticAveragePriceOption(
             option_type="put",
             strike=100,
-            effective_date=START,
-            averaging_start_date=START,
-            expiry_date=date(2035, 1, 1),
+            effective_time=START,
+            averaging_start_time=START,
+            expiry_time=datetime(2035, 1, 1),
         )
         engine = pricing.MonteCarloAsianEngine(path_count=1, step_count=100, seed=42)
         self.assertAlmostEqual(

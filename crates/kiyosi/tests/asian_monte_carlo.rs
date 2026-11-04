@@ -1,7 +1,7 @@
 use kiyosi::*;
 
-fn date(month: u32, day: u32) -> Date {
-    Date::new(2025, month, day).unwrap()
+fn date(month: u32, day: u32) -> Timestamp {
+    Date::new(2025, month, day).unwrap().start_of_day()
 }
 
 fn market(spot: f64, sigma: f64, valuation: Timestamp) -> PricingContext {
@@ -16,12 +16,12 @@ fn market(spot: f64, sigma: f64, valuation: Timestamp) -> PricingContext {
 #[test]
 fn geometric_exact_sampling_matches_analytic_and_ignores_steps() {
     let start = date(1, 1);
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     for averaging in [start, date(5, 1), end] {
         let option =
             GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, averaging, end, 0.0)
                 .unwrap();
-        let context = market(100.0, 0.2, start.into());
+        let context = market(100.0, 0.2, start);
         let settings = MonteCarloSettings {
             path_count: 16384,
             sampling: MonteCarloSampling::Sobol,
@@ -50,7 +50,7 @@ fn geometric_exact_sampling_matches_analytic_and_ignores_steps() {
 #[test]
 fn arithmetic_retains_conditioned_integration_and_converges() {
     let start = date(1, 1);
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let option =
         ArithmeticAveragePriceOption::new(OptionType::Call, 2.0, start, start, end, 0.0).unwrap();
     let settings = MonteCarloSettings {
@@ -64,7 +64,7 @@ fn arithmetic_retains_conditioned_integration_and_converges() {
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(0.05, 0.0, 0.5).unwrap(),
             spot,
-            start.into(),
+            start,
         )
         .unwrap();
         let fine = MonteCarloAsianEngine::with_step_count(settings, 64)
@@ -83,7 +83,7 @@ fn arithmetic_retains_conditioned_integration_and_converges() {
 #[test]
 fn native_greeks_use_all_future_spots_and_fixed_history() {
     let start = date(1, 1);
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let engine = MonteCarloAsianEngine::with_step_count(
         MonteCarloSettings {
             path_count: 32768,
@@ -107,17 +107,17 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
             let g =
                 GeometricAveragePriceOption::new(direction, 100.0, start, averaging, end, history)
                     .unwrap();
-            let context = market(100.0, 0.2, valuation.into());
+            let context = market(100.0, 0.2, valuation);
             let result = engine
                 .price_with_greeks(&a, &context, GreeksRequest::all())
                 .unwrap();
             assert_eq!(result.price(), engine.price(&a, &context).unwrap());
             for h in [0.05, 0.025] {
                 let up = engine
-                    .price(&a, &market(100.0 + h, 0.2, valuation.into()))
+                    .price(&a, &market(100.0 + h, 0.2, valuation))
                     .unwrap();
                 let down = engine
-                    .price(&a, &market(100.0 - h, 0.2, valuation.into()))
+                    .price(&a, &market(100.0 - h, 0.2, valuation))
                     .unwrap();
                 assert!(
                     (result.require(Greek::Delta).unwrap() - (up - down) / (2.0 * h)).abs()
@@ -162,7 +162,7 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
             let solved = implied_volatility(
                 &engine,
                 &a,
-                &market(100.0, 0.35, valuation.into()),
+                &market(100.0, 0.35, valuation),
                 quote,
                 ImpliedVolatilitySettings {
                     lower_bound: 0.1,
@@ -184,12 +184,12 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
 #[test]
 fn sampling_exact_counts_threads_and_shared_calls_agree() {
     let start = date(1, 1);
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let a =
         ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0).unwrap();
     let g =
         GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 0.0).unwrap();
-    let context = market(100.0, 0.2, start.into());
+    let context = market(100.0, 0.2, start);
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         for antithetic in [false, true] {
             let settings = MonteCarloSettings {
@@ -269,7 +269,7 @@ fn sampling_exact_counts_threads_and_shared_calls_agree() {
 fn history_life_expiry_and_validation_precedence_preserve_state() {
     let start = date(1, 1);
     let averaging = date(4, 1);
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let engine = MonteCarloAsianEngine::new(MonteCarloSettings {
         path_count: 16,
         seed: Some(42),
@@ -278,16 +278,24 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
     .unwrap();
     for (valuation, history, rejects) in [
         (
-            Timestamp::new(date(3, 31), 23, 59, 59, 999_999).unwrap(),
+            Timestamp::new(date(3, 31).date(), 23, 59, 59, 999_999).unwrap(),
             100.0,
             true,
         ),
-        (averaging.into(), 0.0, false),
-        (averaging.into(), 100.0, true),
-        (Timestamp::new(averaging, 0, 0, 0, 1).unwrap(), 0.0, true),
-        (Timestamp::new(averaging, 0, 0, 0, 1).unwrap(), 100.0, false),
-        (Date::new(2024, 12, 31).unwrap().into(), 100.0, true),
-        (Timestamp::new(end, 0, 0, 0, 1).unwrap(), 100.0, true),
+        (averaging, 0.0, false),
+        (averaging, 100.0, true),
+        (
+            Timestamp::new(averaging.date(), 0, 0, 0, 1).unwrap(),
+            0.0,
+            true,
+        ),
+        (
+            Timestamp::new(averaging.date(), 0, 0, 0, 1).unwrap(),
+            100.0,
+            false,
+        ),
+        (Date::new(2024, 12, 31).unwrap().start_of_day(), 100.0, true),
+        (Timestamp::new(end.date(), 0, 0, 0, 1).unwrap(), 100.0, true),
     ] {
         let a = ArithmeticAveragePriceOption::new(
             OptionType::Call,
@@ -338,7 +346,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             history,
         )
         .unwrap();
-        let context = market(100.0, 0.2, end.into());
+        let context = market(100.0, 0.2, end);
         for result in [
             engine.price_with_greeks(&a, &context, GreeksRequest::all()),
             engine.price_with_greeks(&g, &context, GreeksRequest::all()),
@@ -382,7 +390,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
 #[test]
 fn tiny_volatility_scaling_and_seasoned_negative_gamma_survive() {
     let start = date(1, 1);
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let engine = MonteCarloAsianEngine::with_step_count(
         MonteCarloSettings {
             path_count: 65536,
@@ -404,7 +412,7 @@ fn tiny_volatility_scaling_and_seasoned_negative_gamma_survive() {
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(0.0, 0.0, sigma).unwrap(),
             spot,
-            start.into(),
+            start,
         )
         .unwrap();
         for direction in [OptionType::Call, OptionType::Put] {
@@ -425,7 +433,7 @@ fn tiny_volatility_scaling_and_seasoned_negative_gamma_survive() {
     }
     let g =
         GeometricAveragePriceOption::new(OptionType::Call, 10.0, start, start, end, 100.0).unwrap();
-    let context = market(100.0, 0.2, date(7, 1).into());
+    let context = market(100.0, 0.2, date(7, 1));
     let actual = engine
         .price_with_greeks(&g, &context, GreeksRequest::new([Greek::Gamma]))
         .unwrap();
@@ -447,11 +455,11 @@ fn tiny_volatility_scaling_and_seasoned_negative_gamma_survive() {
 #[test]
 fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
     let start = date(1, 1);
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let knot = date(7, 1);
     let curve = RateTermStructure::new(
-        start.into(),
-        vec![knot.into(), end.into()],
+        start,
+        vec![knot, end],
         vec![(-0.04_f64 * 181.0 / 365.0).exp(), (-0.04_f64).exp()],
     )
     .unwrap();
@@ -490,25 +498,23 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
             history,
         )
         .unwrap();
-        let context = PricingContext::new(model.clone(), 100.0, valuation.into()).unwrap();
+        let context = PricingContext::new(model.clone(), 100.0, valuation).unwrap();
         let actual = engine.price(&a, &context).unwrap();
-        let expected = engine
-            .price(&a, &market(100.0, 0.2, valuation.into()))
-            .unwrap();
+        let expected = engine.price(&a, &market(100.0, 0.2, valuation)).unwrap();
         assert!((actual - expected).abs() < 1e-10);
         assert!(matches!(
             engine.price(&g, &context).unwrap_err(),
             Error::UnsupportedOperation(_)
         ));
     }
-    let context = PricingContext::new(model, 100.0, end.into()).unwrap();
+    let context = PricingContext::new(model, 100.0, end).unwrap();
     let g = GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, 110.0)
         .unwrap();
     assert_eq!(engine.price(&g, &context).unwrap(), 10.0);
     let affine =
         ArithmeticAveragePriceOption::new(OptionType::Call, 25.0, start, start, end, 100.0)
             .unwrap();
-    let context = market(100.0, 0.2, knot.into());
+    let context = market(100.0, 0.2, knot);
     let result = engine
         .price_with_greeks(&affine, &context, GreeksRequest::all())
         .unwrap();
@@ -533,15 +539,15 @@ fn arithmetic_curves_single_fixing_and_affine_history_keep_their_support() {
     let node_context = PricingContext::new(
         BlackScholesMertonParameters::new(curve, 0.01, 0.2).unwrap(),
         100.0,
-        knot.into(),
+        knot,
     )
     .unwrap();
     assert!((engine.price(&affine, &node_context).unwrap() - result.price()).abs() < 1e-11);
-    let short = RateTermStructure::new(start.into(), vec![knot.into()], vec![0.98]).unwrap();
+    let short = RateTermStructure::new(start, vec![knot], vec![0.98]).unwrap();
     let short_context = PricingContext::new(
         BlackScholesMertonParameters::new(short, 0.01, 0.2).unwrap(),
         100.0,
-        start.into(),
+        start,
     )
     .unwrap();
     let a = affine.replace_history(0.0).unwrap();
@@ -571,7 +577,7 @@ fn conditioned_arithmetic_agrees_with_independent_raw_path_statistics() {
     };
     let mut normal = || (-2.0 * uniform().ln()).sqrt() * (std::f64::consts::TAU * uniform()).cos();
     let start = date(1, 1);
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let steps = 32;
     let paths = 131_072;
     for (averaging, valuation, history) in [
@@ -640,7 +646,7 @@ fn conditioned_arithmetic_agrees_with_independent_raw_path_statistics() {
             let result = engine
                 .price_with_greeks(
                     &option,
-                    &market(100.0, 0.2, valuation.into()),
+                    &market(100.0, 0.2, valuation),
                     GreeksRequest::all(),
                 )
                 .unwrap();
@@ -673,11 +679,11 @@ fn unseeded_analyses_pin_request_samples_without_mutation() {
         100.0,
         start,
         start,
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
         0.0,
     )
     .unwrap();
-    let context = market(100.0, 0.2, start.into());
+    let context = market(100.0, 0.2, start);
     let engine = MonteCarloAsianEngine::with_step_count(
         MonteCarloSettings {
             path_count: 32768,
@@ -730,14 +736,14 @@ fn arithmetic_validates_interval_drift_without_rejecting_a_finite_payoff() {
         100.0,
         start,
         start,
-        Date::new(2035, 1, 1).unwrap(),
+        Date::new(2035, 1, 1).unwrap().start_of_day(),
         0.0,
     )
     .unwrap();
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.0, 0.0, 1e154).unwrap(),
         100.0,
-        start.into(),
+        start,
     )
     .unwrap();
     let engine = MonteCarloAsianEngine::with_step_count(
@@ -756,7 +762,7 @@ fn arithmetic_validates_interval_drift_without_rejecting_a_finite_payoff() {
 #[test]
 fn node_curve_affine_history_preserves_the_fused_accrual_residual() {
     let start = date(1, 1);
-    let end = Date::new(2026, 1, 1).unwrap();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let option = ArithmeticAveragePriceOption::new(
         OptionType::Call,
         (90.0 / 365.0) * 1e308,
@@ -766,11 +772,11 @@ fn node_curve_affine_history_preserves_the_fused_accrual_residual() {
         1e308,
     )
     .unwrap();
-    let curve = RateTermStructure::new(start.into(), vec![end.into()], vec![1.0]).unwrap();
+    let curve = RateTermStructure::new(start, vec![end], vec![1.0]).unwrap();
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(curve, 0.0, 0.2).unwrap(),
         1e-100,
-        date(4, 1).into(),
+        date(4, 1),
     )
     .unwrap();
     let engine = MonteCarloAsianEngine::new(MonteCarloSettings {

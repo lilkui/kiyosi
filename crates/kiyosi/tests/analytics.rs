@@ -1,14 +1,14 @@
 use kiyosi::*;
 
 fn market() -> (EuropeanOption, PricingContext) {
-    let start = Date::new(2025, 1, 1).unwrap();
-    let end = Date::new(2026, 1, 1).unwrap();
+    let start = Date::new(2025, 1, 1).unwrap().start_of_day();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     (
         EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap(),
         PricingContext::new(
             BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap(),
             100.0,
-            start.into(),
+            start,
         )
         .unwrap(),
     )
@@ -150,8 +150,8 @@ fn numerical_greeks_are_stable_across_absolute_bumps() {
 #[test]
 fn volga_and_dividend_rho_preserve_units_curves_and_selectivity() {
     let (call, original) = market();
-    let start = call.effective_date().start_of_day();
-    let end = call.expiry_date().start_of_day();
+    let start = call.effective_time();
+    let end = call.expiry_time();
     let middle = Date::new(2025, 7, 1).unwrap().start_of_day();
     let curve = RateTermStructure::new(
         start,
@@ -180,7 +180,7 @@ fn volga_and_dividend_rho_preserve_units_curves_and_selectivity() {
         let saved = context.clone();
         for direction in [OptionType::Call, OptionType::Put] {
             let option =
-                EuropeanOption::new(direction, 100.0, call.effective_date(), call.expiry_date())
+                EuropeanOption::new(direction, 100.0, call.effective_time(), call.expiry_time())
                     .unwrap();
             let exact = AnalyticEuropeanEngine
                 .price_with_greeks(&option, &context, GreeksRequest::all())
@@ -230,8 +230,8 @@ fn volga_preserves_tiny_volatility_curvature() {
         let option = EuropeanOption::new(
             OptionType::Call,
             spot,
-            original.effective_date(),
-            original.expiry_date(),
+            original.effective_time(),
+            original.expiry_time(),
         )
         .unwrap();
         let context = context
@@ -339,7 +339,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
     ));
     let expiry = context
         .replace(PricingContextChanges {
-            valuation_time: Some(option.expiry_date().into()),
+            valuation_time: Some(option.expiry_time()),
             spot_price: Some(110.0),
             ..Default::default()
         })
@@ -366,7 +366,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
     }
     let outside = context
         .replace(PricingContextChanges {
-            valuation_time: Some(Date::new(2024, 12, 31).unwrap().into()),
+            valuation_time: Some(Date::new(2024, 12, 31).unwrap().start_of_day()),
             ..Default::default()
         })
         .unwrap();
@@ -468,8 +468,8 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         OptionType::Call,
         100.0,
         10.0,
-        option.effective_date(),
-        option.expiry_date(),
+        option.effective_time(),
+        option.expiry_time(),
     )
     .unwrap();
     let engine = CoxRossRubinsteinDigitalEngine::default();
@@ -484,8 +484,8 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
     let barrier = BarrierOption::new(BarrierOptionTerms::new(
         OptionType::Call,
         100.0,
-        option.effective_date(),
-        option.expiry_date(),
+        option.effective_time(),
+        option.expiry_time(),
         120.0,
         BarrierType::UpAndOut,
     ))
@@ -512,9 +512,9 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
     let geometric = GeometricAveragePriceOption::new(
         OptionType::Call,
         100.0,
-        option.effective_date(),
-        option.effective_date(),
-        option.expiry_date(),
+        option.effective_time(),
+        option.effective_time(),
+        option.expiry_time(),
         0.0,
     )
     .unwrap();
@@ -529,9 +529,9 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
     let arithmetic = ArithmeticAveragePriceOption::new(
         OptionType::Call,
         100.0,
-        option.effective_date(),
-        option.effective_date(),
-        option.expiry_date(),
+        option.effective_time(),
+        option.effective_time(),
+        option.expiry_time(),
         0.0,
     )
     .unwrap();
@@ -652,7 +652,7 @@ fn solver_categories_bounds_and_failure_state_are_stable() {
     ));
     let expiry = context
         .replace(PricingContextChanges {
-            valuation_time: Some(option.expiry_date().into()),
+            valuation_time: Some(option.expiry_time()),
             ..Default::default()
         })
         .unwrap();
@@ -662,7 +662,7 @@ fn solver_categories_bounds_and_failure_state_are_stable() {
     ));
     let outside = context
         .replace(PricingContextChanges {
-            valuation_time: Some(Timestamp::new(option.expiry_date(), 0, 0, 0, 1).unwrap()),
+            valuation_time: Some(Timestamp::new(option.expiry_time().date(), 0, 0, 0, 1).unwrap()),
             ..Default::default()
         })
         .unwrap();
@@ -707,8 +707,8 @@ fn non_finite_solver_values_and_pricing_errors_report_computation_failure() {
     let put = EuropeanOption::new(
         OptionType::Put,
         option.strike(),
-        option.effective_date(),
-        option.expiry_date(),
+        option.effective_time(),
+        option.expiry_time(),
     )
     .unwrap();
     assert!(matches!(
@@ -769,8 +769,8 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
                 return EuropeanOption::new(
                     OptionType::Call,
                     -1.0,
-                    option.effective_date(),
-                    option.expiry_date(),
+                    option.effective_time(),
+                    option.expiry_time(),
                 )
                 .map(|_| 0.0);
             }
@@ -871,9 +871,9 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
 #[test]
 fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
     let (option, original) = market();
-    let start = option.effective_date().start_of_day();
+    let start = option.effective_time();
     let middle = Date::new(2025, 6, 30).unwrap().start_of_day();
-    let end = option.expiry_date().start_of_day();
+    let end = option.expiry_time();
     let curve = RateTermStructure::new(
         start,
         vec![middle, end],
@@ -996,14 +996,14 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
 
 #[test]
 fn analytic_speed_preserves_subnormal_volatility_widths() {
-    let start = Date::new(2025, 1, 1).unwrap();
-    let end = Date::new(2026, 1, 1).unwrap();
+    let start = Date::new(2025, 1, 1).unwrap().start_of_day();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let near_expiry =
         Timestamp::new(Date::new(2025, 12, 31).unwrap(), 23, 59, 59, 999_999).unwrap();
     // Independent 80-digit references for ATM, zero-rate speed = -3 * gamma / (2 * spot).
     for (volatility, valuation, expected) in [
-        (f64::from_bits(1), start.into(), -1_211.202_247_392_103_8),
-        (f64::from_bits(3), start.into(), -403.734_082_464_034_6),
+        (f64::from_bits(1), start, -1_211.202_247_392_103_8),
+        (f64::from_bits(3), start, -403.734_082_464_034_6),
         (f64::from_bits(1), near_expiry, -6_801_739_133.529_686),
     ] {
         let context = PricingContext::new(
@@ -1039,8 +1039,8 @@ fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
     let far = EuropeanOption::new(
         OptionType::Call,
         1e304,
-        option.effective_date(),
-        option.expiry_date(),
+        option.effective_time(),
+        option.expiry_time(),
     )
     .unwrap();
     let result = AnalyticEuropeanEngine
@@ -1063,8 +1063,8 @@ fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
     let tiny_option = EuropeanOption::new(
         OptionType::Call,
         1e-300,
-        option.effective_date(),
-        option.expiry_date(),
+        option.effective_time(),
+        option.expiry_time(),
     )
     .unwrap();
     let delta = AnalyticEuropeanEngine

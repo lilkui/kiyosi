@@ -40,7 +40,7 @@ Wheels require no Rust; source builds require Rust/Cargo and native build tools.
 Price a standard snowball with the finite-difference (FD) engine:
 
 ```python
-from datetime import date
+from datetime import datetime
 
 from kiyosi.instruments import standard_snowball
 from kiyosi.market import (
@@ -51,11 +51,11 @@ from kiyosi.market import (
 )
 from kiyosi.pricing import FiniteDifferenceAutocallableEngine
 
-start, end = date(2025, 1, 2), date(2026, 1, 5)
+start, end = datetime(2025, 1, 2, 15), datetime(2026, 1, 5, 15)
 calendar = sse_calendar()
 observations = monthly_schedule(
-    start=start,
-    end=end,
+    start_time=start,
+    end_time=end,
     first_observation_month=1,
     calendar=calendar,
 )
@@ -64,9 +64,9 @@ snowball = standard_snowball(
     initial_spot=100.0,
     knock_in_level=80.0,
     knock_out_level=103.0,
-    observation_dates=observations,
-    effective_date=start,
-    expiry_date=end,
+    observation_times=observations,
+    effective_time=start,
+    expiry_time=end,
 )
 context = PricingContext(
     model_parameters=BlackScholesMertonParameters(

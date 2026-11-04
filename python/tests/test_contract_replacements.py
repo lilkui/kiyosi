@@ -2,94 +2,94 @@
 
 import inspect
 import unittest
-from datetime import date
+from datetime import datetime
 
 from kiyosi import InvalidInputError, UnsupportedOperationError
 from kiyosi import instruments as i
 
-START, END = date(2025, 1, 1), date(2026, 1, 1)
+START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
 
 def contracts():
     yield i.BarrierOption(
         option_type="call",
         strike=100,
-        effective_date=START,
-        expiry_date=END,
+        effective_time=START,
+        expiry_time=END,
         barrier_level=120,
         barrier_type="up_and_out",
         rebate=0,
         rebate_timing="at_expiry",
         observation_mode="continuous",
-        observation_dates=[],
+        observation_times=[],
         touch_state="untouched",
     )
     yield i.DoubleBarrierOption(
         option_type="call",
         strike=100,
-        effective_date=START,
-        expiry_date=END,
+        effective_time=START,
+        expiry_time=END,
         lower_barrier=80,
         upper_barrier=120,
         barrier_type="knock_out",
         rebate=0,
         rebate_timing="at_expiry",
         observation_mode="continuous",
-        observation_dates=[],
+        observation_times=[],
         touch_state="untouched",
     )
     yield i.cash_binary_barrier_option(
         option_type="call",
         strike=100,
-        effective_date=START,
-        expiry_date=END,
+        effective_time=START,
+        expiry_time=END,
         barrier_level=120,
         barrier_type="up_and_out",
         observation_mode="continuous",
-        observation_dates=[],
+        observation_times=[],
         touch_state="untouched",
         payout=10,
     )
     yield i.asset_binary_barrier_option(
         option_type="call",
         strike=100,
-        effective_date=START,
-        expiry_date=END,
+        effective_time=START,
+        expiry_time=END,
         barrier_level=120,
         barrier_type="up_and_out",
         observation_mode="continuous",
-        observation_dates=[],
+        observation_times=[],
         touch_state="untouched",
     )
     yield i.cash_touch_option(
-        effective_date=START,
-        expiry_date=END,
+        effective_time=START,
+        expiry_time=END,
         barrier_level=120,
         barrier_type="up_and_in",
         settlement_timing="at_expiry",
         observation_mode="continuous",
-        observation_dates=[],
+        observation_times=[],
         touch_state="untouched",
         payout=10,
     )
     yield i.asset_touch_option(
-        effective_date=START,
-        expiry_date=END,
+        effective_time=START,
+        expiry_time=END,
         barrier_level=120,
         barrier_type="up_and_in",
         settlement_timing="at_expiry",
         observation_mode="continuous",
-        observation_dates=[],
+        observation_times=[],
         touch_state="untouched",
     )
     yield i.cash_double_touch(
-        effective_date=START,
-        expiry_date=END,
+        effective_time=START,
+        expiry_time=END,
         lower_barrier=80,
         upper_barrier=120,
         settlement_timing="at_expiry",
         observation_mode="continuous",
-        observation_dates=[],
+        observation_times=[],
         touch_state="untouched",
         payout=10,
     )
@@ -100,17 +100,17 @@ def contracts():
         daily_quantity=1,
         acceleration_factor=2,
         accumulated_quantity=3,
-        effective_date=START,
-        expiry_date=END,
-        knock_out_observation_dates=[END],
+        effective_time=START,
+        expiry_time=END,
+        knock_out_observation_times=[END],
     )
     yield i.RangeAccrualOption(
         notional=1000,
         annual_coupon_rate=0.12,
         lower_bound=90,
         upper_bound=110,
-        effective_date=START,
-        expiry_date=END,
+        effective_time=START,
+        expiry_time=END,
         realized_hit_count=1,
     )
     yield i.SnowballOption(
@@ -122,8 +122,8 @@ def contracts():
         knock_in_observation_mode="every_trading_day",
         barrier_state="no_event",
         principal_ratio=1,
-        effective_date=START,
-        expiry_date=END,
+        effective_time=START,
+        expiry_time=END,
         observations=[i.AutocallableObservation(END, 110)],
     )
     yield i.PhoenixOption(
@@ -135,16 +135,16 @@ def contracts():
         knock_in_observation_mode="every_trading_day",
         barrier_state="no_event",
         principal_ratio=1,
-        effective_date=START,
-        expiry_date=END,
+        effective_time=START,
+        expiry_time=END,
         observations=[i.AutocallableObservation(END, 110)],
     )
     yield i.BinarySnowballOption(
         maturity_coupon_rate=0.1,
         barrier_state="no_event",
         principal_ratio=1,
-        effective_date=START,
-        expiry_date=END,
+        effective_time=START,
+        expiry_time=END,
         observations=[i.AutocallableObservation(END, 110)],
     )
     yield i.TernarySnowballOption(
@@ -154,24 +154,24 @@ def contracts():
         knock_in_observation_mode="every_trading_day",
         barrier_state="no_event",
         principal_ratio=1,
-        effective_date=START,
-        expiry_date=END,
+        effective_time=START,
+        expiry_time=END,
         observations=[i.AutocallableObservation(END, 110)],
     )
     yield i.GeometricAveragePriceOption(
         option_type="call",
         strike=100,
-        effective_date=START,
-        averaging_start_date=START,
-        expiry_date=END,
+        effective_time=START,
+        averaging_start_time=START,
+        expiry_time=END,
         realized_average=0,
     )
     yield i.ArithmeticAveragePriceOption(
         option_type="call",
         strike=100,
-        effective_date=START,
-        averaging_start_date=START,
-        expiry_date=END,
+        effective_time=START,
+        averaging_start_time=START,
+        expiry_time=END,
         realized_average=0,
     )
 
@@ -179,9 +179,9 @@ def contracts():
 UPDATES = {
     "option_type": "put",
     "strike": 105,
-    "effective_date": date(2025, 1, 2),
-    "expiry_date": date(2026, 1, 2),
-    "averaging_start_date": date(2025, 1, 2),
+    "effective_time": datetime(2025, 1, 2),
+    "expiry_time": datetime(2026, 1, 2),
+    "averaging_start_time": datetime(2025, 1, 2),
     "barrier_level": 125,
     "lower_barrier": 85,
     "upper_barrier": 125,
@@ -194,7 +194,7 @@ UPDATES = {
     "daily_quantity": 2,
     "acceleration_factor": 3,
     "accumulated_quantity": 4,
-    "knock_out_observation_dates": [START],
+    "knock_out_observation_times": [START],
     "notional": 2000,
     "annual_coupon_rate": 0.15,
     "lower_bound": 85,
@@ -219,7 +219,7 @@ NULLABLE = {
     "barrier_state",
     "realized_hit_count",
     "accumulated_quantity",
-    "knock_out_observation_dates",
+    "knock_out_observation_times",
 }
 
 
@@ -240,7 +240,7 @@ class ContractReplacementTests(unittest.TestCase):
                 }
                 self.assertEqual(original.replace(**forwarded), original)
             for name in inspect.signature(original.replace).parameters:
-                if name in ("observation_mode", "observation_dates"):
+                if name in ("observation_mode", "observation_times"):
                     continue
                 value = UPDATES.get(name)
                 if name == "barrier_type":
@@ -259,11 +259,11 @@ class ContractReplacementTests(unittest.TestCase):
                             original.replace(payout=value)
                         continue
                     updates = {name: value}
-                    if name == "effective_date" and isinstance(
+                    if name == "effective_time" and isinstance(
                         original,
                         (i.GeometricAveragePriceOption, i.ArithmeticAveragePriceOption),
                     ):
-                        updates["averaging_start_date"] = value
+                        updates["averaging_start_time"] = value
                     changed = original.replace(**updates)
                     if (
                         isinstance(original, i.DoubleTouchOption)
@@ -323,13 +323,13 @@ class ContractReplacementTests(unittest.TestCase):
                     original.replace(unknown=1)
                 with self.assertRaises(TypeError):
                     original.replace(1)
-                if "observation_dates" in fields:
+                if "observation_times" in fields:
                     with self.assertRaises(InvalidInputError):
-                        original.replace(observation_dates=[END])
+                        original.replace(observation_times=[END])
                     scheduled = original.replace(
-                        observation_mode="scheduled", observation_dates=[END]
+                        observation_mode="scheduled", observation_times=[END]
                     )
-                    self.assertEqual(scheduled.observation_dates, [END])
+                    self.assertEqual(scheduled.observation_times, [END])
                     self.assertEqual(scheduled.observation_mode, "scheduled")
 
     def test_replaced_sequences_are_owned_and_phoenix_coupon_choices_are_exclusive(

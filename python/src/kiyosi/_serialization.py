@@ -1,7 +1,7 @@
 """Copy and reconstruct immutable native values through validated constructors."""
 
 import copyreg
-from datetime import date
+from datetime import datetime
 from inspect import isclass, signature
 from types import ModuleType
 from typing import Any, get_args
@@ -50,11 +50,11 @@ def _reduce(value: Any) -> tuple[Any, tuple[Any, ...]]:
         kind, base, closed, opened, basis = _native._calendar_parts(value)
         return _calendar, (kind, base, closed, opened, basis)
     if isinstance(value, _native.ObservationSchedule):
-        return _restore, (_native._observation_schedule, {"dates": value.dates})
+        return _restore, (_native._observation_schedule, {"times": value.times})
     if isinstance(value, _native.RateTermStructure):
         if value.is_explicitly_flat:
             fields = {
-                "rate": value.forward_rate(value.reference_time or date(1, 1, 1)),
+                "rate": value.forward_rate(value.reference_time or datetime(1, 1, 1)),
                 "reference_time": value.reference_time,
             }
             return _restore, (_native.RateTermStructure.flat, fields)

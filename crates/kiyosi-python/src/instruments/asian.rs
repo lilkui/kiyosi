@@ -1,7 +1,6 @@
-use crate::conversions::{date, direction, python_date, real, supplied};
+use crate::conversions::{direction, python_timestamp, real, supplied, timestamp};
 use crate::error::domain;
 use pyo3::prelude::*;
-use pyo3::types::PyDate;
 
 macro_rules! average_option {
     ($name:ident) => {
@@ -13,12 +12,12 @@ macro_rules! average_option {
         ///     Call or put payoff direction.
         /// strike : float
         ///     Positive finite strike price.
-        /// effective_date : datetime.date
-        ///     Contract starts at 00:00 UTC on this date.
-        /// averaging_start_date : datetime.date
-        ///     First averaging date, within the contract life.
-        /// expiry_date : datetime.date
-        ///     Expiry boundary at 00:00 UTC; later instants on this date are outside contract life.
+        /// effective_time : datetime.datetime
+        ///     Inclusive contract start.
+        /// averaging_start_time : datetime.datetime
+        ///     First averaging timestamp, within the contract life.
+        /// expiry_time : datetime.datetime
+        ///     Inclusive expiry time.
         /// realized_average : float, optional
         ///     Nonnegative finite prior average; defaults to zero. Must be zero
         ///     at or before averaging starts, and positive strictly after it;
@@ -27,7 +26,7 @@ macro_rules! average_option {
         /// Raises
         /// ------
         /// InvalidInputError
-        ///     If strike, realized_average, life dates or the averaging window are invalid.
+        ///     If strike, realized_average, life times or the averaging window are invalid.
         #[pyclass(frozen, eq, module = "kiyosi._native")]
         #[derive(Clone, PartialEq)]
         pub(crate) struct $name(pub kiyosi::$name);
@@ -42,11 +41,11 @@ macro_rules! average_option {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// strike : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// effective_date : datetime.date, optional
+    /// effective_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// averaging_start_date : datetime.date, optional
+    /// averaging_start_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// expiry_date : datetime.date, optional
+    /// expiry_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// realized_average : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -62,33 +61,33 @@ macro_rules! average_option {
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation, field name or mutually exclusive coupon choice is invalid.
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_date=crate::conversions::OMITTED, averaging_start_date=crate::conversions::OMITTED, expiry_date=crate::conversions::OMITTED, realized_average=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, averaging_start_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, realized_average=crate::conversions::OMITTED))]
     fn replace(
         &self,
         #[pyo3(from_py_with = crate::conversions::supplied)] option_type: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] strike: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] effective_date: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] averaging_start_date: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_date: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] effective_time: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] averaging_start_time: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] realized_average: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let changes = kiyosi::AveragePriceOptionChanges {
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
-            effective_date: effective_date.map(crate::conversions::date).transpose()?,
-            averaging_start_date: averaging_start_date.map(crate::conversions::date).transpose()?,
-            expiry_date: expiry_date.map(crate::conversions::date).transpose()?,
+            effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
+            averaging_start_time: averaging_start_time.map(crate::conversions::timestamp).transpose()?,
+            expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
             realized_average: realized_average.map(crate::conversions::real).transpose()?,
         };
         Ok(Self(domain(self.0.replace(changes))?))
     }
             #[new]
-            #[pyo3(signature = (*, option_type, strike, effective_date, averaging_start_date, expiry_date, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE))]
+            #[pyo3(signature = (*, option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE))]
             fn new(option_type: &Bound<'_, PyAny>, strike: &Bound<'_, PyAny>,
-                effective_date: &Bound<'_, PyAny>, averaging_start_date: &Bound<'_, PyAny>,
-                expiry_date: &Bound<'_, PyAny>, #[pyo3(from_py_with = real)] realized_average: f64) -> PyResult<Self> {
+                effective_time: &Bound<'_, PyAny>, averaging_start_time: &Bound<'_, PyAny>,
+                expiry_time: &Bound<'_, PyAny>, #[pyo3(from_py_with = real)] realized_average: f64) -> PyResult<Self> {
                 Ok(Self(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
-                    date(effective_date)?, date(averaging_start_date)?, date(expiry_date)?, realized_average))?))
+                    timestamp(effective_time)?, timestamp(averaging_start_time)?, timestamp(expiry_time)?, realized_average))?))
             }
             /// Return a validated replacement without changing this value.
             ///
@@ -125,15 +124,15 @@ macro_rules! average_option {
             /// Return the supplied historical average; zero denotes no history.
             #[getter]
             fn realized_average(&self) -> f64 { self.0.realized_average() }
-            /// Return inclusive first contract date.
+            /// Return inclusive first contract timestamp.
             #[getter]
-            fn effective_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> { python_date(py, self.0.effective_date()) }
-            /// Return first averaging date, within the contract life.
+            fn effective_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> { python_timestamp(py, self.0.effective_time()) }
+            /// Return first averaging timestamp, within the contract life.
             #[getter]
-            fn averaging_start_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> { python_date(py, self.0.averaging_start_date()) }
-            /// Return final contract date; expiry is at midnight UTC.
+            fn averaging_start_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> { python_timestamp(py, self.0.averaging_start_time()) }
+            /// Return inclusive expiry time.
             #[getter]
-            fn expiry_date<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDate>> { python_date(py, self.0.expiry_date()) }
+            fn expiry_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> { python_timestamp(py, self.0.expiry_time()) }
         }
     };
 }

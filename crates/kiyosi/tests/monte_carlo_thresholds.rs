@@ -1,11 +1,11 @@
 use kiyosi::*;
 
 fn context(volatility: f64, intraday: bool) -> PricingContext {
-    let start = Date::new(2025, 1, 1).unwrap();
+    let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     PricingContext::new(
         BlackScholesMertonParameters::new(0.0, 0.0, volatility).unwrap(),
         100.0,
-        Timestamp::new(start, if intraday { 12 } else { 0 }, 0, 0, 0).unwrap(),
+        Timestamp::new(start.date(), if intraday { 12 } else { 0 }, 0, 0, 0).unwrap(),
     )
     .unwrap()
 }
@@ -21,8 +21,8 @@ fn settings(antithetic: bool) -> MonteCarloSettings {
 
 #[test]
 fn scheduled_barriers_preserve_sub_ulp_threshold_movements() {
-    let start = Date::new(2025, 1, 1).unwrap();
-    let end = Date::new(2026, 1, 1).unwrap();
+    let start = Date::new(2025, 1, 1).unwrap().start_of_day();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let single = MonteCarloBarrierEngine::new(settings(true)).unwrap();
     let double = MonteCarloDoubleBarrierEngine::new(settings(true)).unwrap();
     for volatility in [1e-18, 1e-200] {
@@ -36,7 +36,7 @@ fn scheduled_barriers_preserve_sub_ulp_threshold_movements() {
             ] {
                 let mut terms = BarrierOptionTerms::new(direction, strike, start, end, 100.0, kind);
                 terms.observation_mode = ObservationMode::Scheduled;
-                terms.observation_dates = vec![end];
+                terms.observation_times = vec![end];
                 terms.rebate = 2.0;
                 let option = BarrierOption::new(terms).unwrap();
                 assert!((single.price(&option, &context).unwrap() - 6.0).abs() < 1e-12);
@@ -49,7 +49,7 @@ fn scheduled_barriers_preserve_sub_ulp_threshold_movements() {
                     direction, strike, start, end, lower, upper, kind,
                 );
                 terms.observation_mode = ObservationMode::Scheduled;
-                terms.observation_dates = vec![end];
+                terms.observation_times = vec![end];
                 terms.rebate = 2.0;
                 let option = DoubleBarrierOption::new(terms).unwrap();
                 assert!((double.price(&option, &context).unwrap() - 6.0).abs() < 1e-12);
@@ -60,8 +60,8 @@ fn scheduled_barriers_preserve_sub_ulp_threshold_movements() {
 
 #[test]
 fn snowball_thresholds_preserve_price_and_sampling_uncertainty() {
-    let start = Date::new(2025, 1, 1).unwrap();
-    let end = Date::new(2026, 1, 1).unwrap();
+    let start = Date::new(2025, 1, 1).unwrap().start_of_day();
+    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let note = BinarySnowballOption::new(BinarySnowballTerms::new(
         0.02,
         start,
@@ -89,8 +89,8 @@ fn snowball_thresholds_preserve_price_and_sampling_uncertainty() {
 
 #[test]
 fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
-    let start = Date::new(2025, 1, 1).unwrap();
-    let end = Date::new(2025, 1, 2).unwrap();
+    let start = Date::new(2025, 1, 1).unwrap().start_of_day();
+    let end = Date::new(2025, 1, 2).unwrap().start_of_day();
     let engine = MonteCarloAutocallableEngine::new(settings(true)).unwrap();
     for volatility in [1e-18, 1e-200] {
         let context = context(volatility, true);
@@ -130,8 +130,8 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
 
 #[test]
 fn accumulator_thresholds_preserve_knock_out_and_accelerated_settlements() {
-    let start = Date::new(2025, 1, 1).unwrap();
-    let end = Date::new(2025, 1, 2).unwrap();
+    let start = Date::new(2025, 1, 1).unwrap().start_of_day();
+    let end = Date::new(2025, 1, 2).unwrap().start_of_day();
     let engine = MonteCarloAccumulatorEngine::new(settings(true)).unwrap();
     for volatility in [1e-18, 1e-200] {
         let context = context(volatility, true);

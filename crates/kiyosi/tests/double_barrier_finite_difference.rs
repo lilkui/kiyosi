@@ -4,8 +4,8 @@ fn terms(kind: DoubleBarrierType, direction: OptionType) -> DoubleBarrierOptionT
     DoubleBarrierOptionTerms::new(
         direction,
         100.0,
-        Date::new(2025, 1, 1).unwrap(),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
         79.87,
         120.13,
         kind,
@@ -16,7 +16,7 @@ fn market(spot: f64) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.2).unwrap(),
         spot,
-        Date::new(2025, 1, 1).unwrap().into(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
     )
     .unwrap()
 }
@@ -97,7 +97,7 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
     );
     let later = market(100.0)
         .replace(PricingContextChanges {
-            valuation_time: Some(Date::new(2025, 1, 2).unwrap().into()),
+            valuation_time: Some(Date::new(2025, 1, 2).unwrap().start_of_day()),
             ..Default::default()
         })
         .unwrap();
@@ -117,7 +117,7 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
     ));
     let at_expiry = later
         .replace(PricingContextChanges {
-            valuation_time: Some(t.expiry_date.into()),
+            valuation_time: Some(t.expiry_time),
             ..Default::default()
         })
         .unwrap();
@@ -207,13 +207,13 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
 #[test]
 fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
     let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
-    let first = Date::new(2025, 4, 2).unwrap();
+    let first = Date::new(2025, 4, 2).unwrap().start_of_day();
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = vec![first, t.expiry_date];
+    t.observation_times = vec![first, t.expiry_time];
     t.rebate = 7.0;
     let curve = RateTermStructure::new(
-        t.effective_date.into(),
-        vec![first.into(), t.expiry_date.into()],
+        t.effective_time,
+        vec![first, t.expiry_time],
         vec![(-0.08_f64 * 91.0 / 365.0).exp(), (-0.01_f64).exp()],
     )
     .unwrap();
@@ -244,8 +244,7 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
             };
         assert!((engine.price(&option, &context).unwrap() - expected).abs() < 1e-5);
     }
-    let short =
-        RateTermStructure::new(t.effective_date.into(), vec![first.into()], vec![0.99]).unwrap();
+    let short = RateTermStructure::new(t.effective_time, vec![first], vec![0.99]).unwrap();
     let uncovered = context
         .replace(PricingContextChanges {
             model_parameters: Some(
@@ -267,13 +266,13 @@ fn node_curves_align_with_observations_and_preserve_rebate_discounts() {
 #[test]
 fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
     let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
-    t.expiry_date = Date::new(2025, 12, 27).unwrap();
+    t.expiry_time = Date::new(2025, 12, 27).unwrap().start_of_day();
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = vec![
-        Date::new(2025, 4, 1).unwrap(),
-        Date::new(2025, 6, 30).unwrap(),
-        Date::new(2025, 9, 28).unwrap(),
-        t.expiry_date,
+    t.observation_times = vec![
+        Date::new(2025, 4, 1).unwrap().start_of_day(),
+        Date::new(2025, 6, 30).unwrap().start_of_day(),
+        Date::new(2025, 9, 28).unwrap().start_of_day(),
+        t.expiry_time,
     ];
     t.upper_barrier = 110.125;
     t.rebate = 2.0;
@@ -322,7 +321,7 @@ fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
 fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
     let mut t = terms(DoubleBarrierType::KnockOut, OptionType::Call);
     t.observation_mode = ObservationMode::Scheduled;
-    t.observation_dates = vec![t.expiry_date];
+    t.observation_times = vec![t.expiry_time];
     let option = DoubleBarrierOption::new(t).unwrap();
     let engine = FiniteDifferenceDoubleBarrierEngine::new(FiniteDifferenceSettings {
         asset_step_count: 200,
@@ -377,12 +376,12 @@ fn one_two_and_early_fixings_match_independent_lognormal_integrals() {
             t.rebate = 2.0;
             t.rebate_timing = timing;
             t.observation_mode = ObservationMode::Scheduled;
-            let first = Date::new(2025, 6, 30).unwrap();
-            for (index, dates) in [vec![t.expiry_date], vec![first, t.expiry_date], vec![first]]
+            let first = Date::new(2025, 6, 30).unwrap().start_of_day();
+            for (index, dates) in [vec![t.expiry_time], vec![first, t.expiry_time], vec![first]]
                 .into_iter()
                 .enumerate()
             {
-                t.observation_dates = dates;
+                t.observation_times = dates;
                 let option = DoubleBarrierOption::new(t.clone()).unwrap();
                 let actual = engine.price(&option, &market(100.25)).unwrap();
                 assert!(
@@ -408,7 +407,7 @@ fn narrow_interim_event_cells_remain_positive_and_converge() {
         t.lower_barrier = lower;
         t.upper_barrier = upper;
         t.observation_mode = ObservationMode::Scheduled;
-        t.observation_dates = vec![Date::new(2025, 6, 30).unwrap()];
+        t.observation_times = vec![Date::new(2025, 6, 30).unwrap().start_of_day()];
         let option = DoubleBarrierOption::new(t).unwrap();
         for scheme in [
             FiniteDifferenceScheme::CrankNicolson,

@@ -88,8 +88,8 @@ impl AnalyticHestonEuropeanEngine {
     /// use kiyosi::{AnalyticHestonEuropeanEngine, Date, EuropeanOption, HestonParameters,
     ///     HestonIntegrationSettings, OptionType, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let model = HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.5, 0.3, -0.7)?;
     /// let context = PricingContext::new(model, 100.0, start.into())?;
     /// let engine = AnalyticHestonEuropeanEngine::new(HestonIntegrationSettings::default())?;
@@ -125,7 +125,7 @@ impl AnalyticHestonEuropeanEngine {
         let model = context.model_parameters().as_heston()?;
         validate_life(option, context)?;
         let start = context.valuation_time();
-        let end = option.expiry_date().start_of_day();
+        let end = option.expiry_time();
         model.risk_free_curve().validate_horizon(start, end)?;
         model.dividend_curve().validate_horizon(start, end)?;
         let spot = context.spot_price();

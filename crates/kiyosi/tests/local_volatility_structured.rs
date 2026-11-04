@@ -1,7 +1,7 @@
 use kiyosi::*;
 
-fn date(month: u32, day: u32) -> Date {
-    Date::new(2025, month, day).unwrap()
+fn date(month: u32, day: u32) -> Timestamp {
+    Date::new(2025, month, day).unwrap().start_of_day()
 }
 
 fn surface(end: Timestamp, skew: bool) -> LocalVolatilitySurface {
@@ -11,7 +11,7 @@ fn surface(end: Timestamp, skew: bool) -> LocalVolatilitySurface {
         vec![0.2; 3]
     };
     LocalVolatilitySurface::new(
-        vec![date(1, 1).into(), end],
+        vec![date(1, 1), end],
         vec![60.0, 100.0, 160.0],
         vec![row.clone(), row],
     )
@@ -25,9 +25,9 @@ fn context(
     skew: bool,
 ) -> PricingContext {
     PricingContext::new(
-        LocalVolatilityParameters::new(risk, dividend, surface(date(4, 1).into(), skew)).unwrap(),
+        LocalVolatilityParameters::new(risk, dividend, surface(date(4, 1), skew)).unwrap(),
         spot,
-        date(1, 1).into(),
+        date(1, 1),
     )
     .unwrap()
 }
@@ -86,12 +86,8 @@ fn parity<I: OptionContract, E: PricingEngine<I>>(engine: &E, option: &I, local:
 fn constant_surface_matches_accumulator_directions_schedules_and_rate_curves() {
     let engine = FiniteDifferenceAccumulatorEngine::new(settings()).unwrap();
     let end = date(4, 1);
-    let curve = RateTermStructure::new(
-        date(1, 1).into(),
-        vec![date(2, 3).into(), end.into()],
-        vec![1.002, 0.995],
-    )
-    .unwrap();
+    let curve =
+        RateTermStructure::new(date(1, 1), vec![date(2, 3), end], vec![1.002, 0.995]).unwrap();
     for risk in [Rate::Flat(0.04), Rate::Flat(-0.03), Rate::Curve(curve)] {
         let local = context(risk, -0.01, 101.0, false);
         for direction in [OptionType::Call, OptionType::Put] {
@@ -99,7 +95,7 @@ fn constant_surface_matches_accumulator_directions_schedules_and_rate_curves() {
                 let option = Accumulator::new(AccumulatorTerms {
                     option_type: direction,
                     accumulated_quantity: Some(3.0),
-                    knock_out_observation_dates: schedule,
+                    knock_out_observation_times: schedule,
                     ..AccumulatorTerms::new(
                         100.0,
                         if direction == OptionType::Call {
@@ -132,12 +128,7 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
         None,
     )
     .unwrap();
-    let curve = RateTermStructure::new(
-        start.into(),
-        vec![date(2, 3).into(), end.into()],
-        vec![1.002, 0.995],
-    )
-    .unwrap();
+    let curve = RateTermStructure::new(start, vec![date(2, 3), end], vec![1.002, 0.995]).unwrap();
     for risk in [Rate::Flat(0.04), Rate::Flat(-0.03), Rate::Curve(curve)] {
         let local = context(risk, -0.01, 101.0, false);
         for mode in [
@@ -204,10 +195,9 @@ fn constant_surface_matches_every_autocallable_variant_and_knock_in_mode() {
 fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settlement() {
     let start = date(1, 1);
     let end = date(4, 1);
-    let short =
-        LocalVolatilityParameters::new(0.04, 0.01, surface(date(1, 2).into(), true)).unwrap();
-    let live = PricingContext::new(short.clone(), 101.0, start.into()).unwrap();
-    let settled = PricingContext::new(short, 120.0, start.into()).unwrap();
+    let short = LocalVolatilityParameters::new(0.04, 0.01, surface(date(1, 2), true)).unwrap();
+    let live = PricingContext::new(short.clone(), 101.0, start).unwrap();
+    let settled = PricingContext::new(short, 120.0, start).unwrap();
     let acc = Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, end)
@@ -239,9 +229,9 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
         .replace_history(Some(AutocallableBarrierState::KnockedOut))
         .unwrap();
     let later = PricingContext::new(
-        LocalVolatilityParameters::new(0.04, 0.01, surface(date(2, 4).into(), true)).unwrap(),
+        LocalVolatilityParameters::new(0.04, 0.01, surface(date(2, 4), true)).unwrap(),
         101.0,
-        date(2, 4).into(),
+        date(2, 4),
     )
     .unwrap();
     assert_eq!(engine.price(&knocked_out, &later).unwrap(), 0.0);
@@ -269,11 +259,11 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
         autocallable_observations(&[end], &[110.0], None, None).unwrap(),
     ))
     .unwrap();
-    let risk = RateTermStructure::new(start.into(), vec![end.into()], vec![0.99]).unwrap();
+    let risk = RateTermStructure::new(start, vec![end], vec![0.99]).unwrap();
     let local = PricingContext::new(
-        LocalVolatilityParameters::new(risk, 0.01, surface(date(1, 2).into(), true)).unwrap(),
+        LocalVolatilityParameters::new(risk, 0.01, surface(date(1, 2), true)).unwrap(),
         101.0,
-        start.into(),
+        start,
     )
     .unwrap();
     let result = engine
@@ -304,7 +294,7 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
     let engine = FiniteDifferenceAutocallableEngine::new(settings()).unwrap();
     let local = context(0.04, 0.01, 90.0, true)
         .replace(PricingContextChanges {
-            valuation_time: Some(date(2, 3).into()),
+            valuation_time: Some(date(2, 3)),
             ..Default::default()
         })
         .unwrap();
@@ -315,7 +305,7 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
     assert_eq!(result.get(Greek::Gamma), None);
     let expired = local
         .replace(PricingContextChanges {
-            valuation_time: Some(end.into()),
+            valuation_time: Some(end),
             ..Default::default()
         })
         .unwrap();
@@ -356,8 +346,8 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
 fn early_surface_knots_survive_autocallable_time_refinement() {
     let start = date(1, 1);
     let end = date(4, 1);
-    let first = Timestamp::new(start, 7, 13, 0, 0).unwrap();
-    let times = vec![start.into(), first, date(1, 2).into(), end.into()];
+    let first = Timestamp::new(start.date(), 7, 13, 0, 0).unwrap();
+    let times = vec![start, first, date(1, 2), end];
     let sigmas: [f64; 4] = [1.5, 0.1, 0.2, 0.2];
     let surface = LocalVolatilitySurface::new(
         times,
@@ -368,7 +358,7 @@ fn early_surface_knots_survive_autocallable_time_refinement() {
     let local = PricingContext::new(
         LocalVolatilityParameters::new(0.04, 0.01, surface).unwrap(),
         103.0,
-        start.into(),
+        start,
     )
     .unwrap();
     let first_days = (7.0 * 60.0 + 13.0) / (24.0 * 60.0);
@@ -382,7 +372,7 @@ fn early_surface_knots_survive_autocallable_time_refinement() {
     let bsm = PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.01, (variance / (90.0 / 365.0)).sqrt()).unwrap(),
         103.0,
-        start.into(),
+        start,
     )
     .unwrap();
     let coupon = 0.5;

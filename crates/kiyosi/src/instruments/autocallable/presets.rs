@@ -3,8 +3,9 @@ use super::{
     KnockInObservationMode, PhoenixCoupon, PhoenixOption, PhoenixTerms, SnowballOption,
     SnowballTerms,
 };
+use crate::Timestamp;
 use crate::error::finite;
-use crate::{Date, Error, Result};
+use crate::{Error, Result};
 
 /// Selects a named convention expanded by [`SnowballPresetTerms::expand`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -48,18 +49,18 @@ pub enum SnowballPreset {
     /// Uses two annual coupon stages; see [`SnowballPresetTerms::expand`].
     EarlyProfit {
         /// Sets the inclusive end of the first stage, within life and before expiry.
-        first_stage_end_date: Date,
+        first_stage_end_time: Timestamp,
         /// Sets the finite signed annual coupon rate for the second stage and maturity.
         second_coupon_rate: f64,
     },
     /// Uses three annual coupon stages; see [`SnowballPresetTerms::expand`].
     Butterfly {
         /// Sets the inclusive end of the first stage, within life and before expiry.
-        first_stage_end_date: Date,
+        first_stage_end_time: Timestamp,
         /// Sets the finite signed annual coupon rate for the second stage.
         second_coupon_rate: f64,
         /// Sets the inclusive end of the second stage, after the first and before expiry.
-        second_stage_end_date: Date,
+        second_stage_end_time: Timestamp,
         /// Sets the finite signed annual coupon rate for the third stage and maturity.
         third_coupon_rate: f64,
     },
@@ -82,12 +83,12 @@ pub struct SnowballPresetTerms {
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets nonnegative normalized principal, independently of coupon and loss components.
     pub principal_ratio: f64,
-    /// Sets the inclusive first date.
-    pub effective_date: Date,
-    /// Sets expiry at midnight UTC.
-    pub expiry_date: Date,
-    /// Supplies nonempty, strictly increasing observation dates within life.
-    pub observation_dates: Vec<Date>,
+    /// Sets the inclusive effective time.
+    pub effective_time: Timestamp,
+    /// Sets the inclusive expiry timestamp.
+    pub expiry_time: Timestamp,
+    /// Supplies nonempty, strictly increasing observation times within life.
+    pub observation_times: Vec<Timestamp>,
 }
 impl SnowballPresetTerms {
     /// Creates input terms with the core snowball history and principal defaults.
@@ -98,9 +99,9 @@ impl SnowballPresetTerms {
         initial_spot: f64,
         knock_in_level: f64,
         knock_out_level: f64,
-        effective_date: Date,
-        expiry_date: Date,
-        observation_dates: Vec<Date>,
+        effective_time: Timestamp,
+        expiry_time: Timestamp,
+        observation_times: Vec<Timestamp>,
     ) -> Self {
         Self {
             coupon_rate,
@@ -109,9 +110,9 @@ impl SnowballPresetTerms {
             knock_out_level,
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_date,
-            expiry_date,
-            observation_dates,
+            effective_time,
+            expiry_time,
+            observation_times,
         }
     }
     /// Expands a named convention into an ordinary validated [`SnowballOption`].
@@ -120,7 +121,7 @@ impl SnowballPresetTerms {
     /// knock-in monitoring unless overridden by the selected convention.
     /// Signed coupons and decrements are accepted when every expanded term is valid.
     /// The returned note owns its terms and uses the usual history and replacement rules.
-    /// Early-profit and butterfly presets select the coupon by observation date,
+    /// Early-profit and butterfly presets select the coupon by observation time,
     /// with each stage end included in that stage. Cutoffs need not be observation
     /// or trading dates; stages may have no observations. Knock-out uses the chosen
     /// annual rate over the entire holding period; maturity uses the last stage rate.
@@ -129,8 +130,8 @@ impl SnowballPresetTerms {
     /// # Errors
     ///
     /// Propagates [`SnowballOption::new`] errors for invalid expanded terms,
-    /// schedules or life dates. Returns [`Error::InvalidInput`] for non-finite stage
-    /// rates or unordered cutoffs outside `[effective_date, expiry_date)`.
+    /// schedules or life times. Returns [`Error::InvalidInput`] for non-finite stage
+    /// rates or unordered cutoffs outside `[effective_time, expiry_time)`.
     /// Inputs are consumed on failure.
     ///
     /// # Examples
@@ -138,8 +139,8 @@ impl SnowballPresetTerms {
     /// ```rust
     /// use kiyosi::{Date, SnowballPreset, SnowballPresetTerms};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let end = Date::new(2026, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let end = Date::new(2026, 1, 1)?.start_of_day();
     /// let terms = SnowballPresetTerms::new(0.08, 100.0, 80.0, 110.0,
     ///     start, end, vec![end]);
     /// let note = terms.expand(SnowballPreset::LossCapped { lower_strike: 60.0 })?;
@@ -147,7 +148,7 @@ impl SnowballPresetTerms {
     /// let terms = SnowballPresetTerms::new(0.20, 100.0, 80.0, 110.0,
     ///     start, end, vec![end]);
     /// let note = terms.expand(SnowballPreset::EarlyProfit {
-    ///     first_stage_end_date: Date::new(2025, 7, 1)?, second_coupon_rate: 0.05,
+    ///     first_stage_end_time: Date::new(2025, 7, 1)?.start_of_day(), second_coupon_rate: 0.05,
     /// })?;
     /// assert_eq!(note.observations()[0].coupon_rate, 0.05);
     /// # Ok(()) }
@@ -158,7 +159,7 @@ impl SnowballPresetTerms {
     )]
     pub fn expand(self, preset: SnowballPreset) -> Result<SnowballOption> {
         let observations = self
-            .observation_dates
+            .observation_times
             .into_iter()
             .map(|date| {
                 let mut record = AutocallableObservation::new(date, self.knock_out_level);
@@ -172,8 +173,8 @@ impl SnowballPresetTerms {
             self.knock_in_level,
             self.initial_spot,
             0.0,
-            self.effective_date,
-            self.expiry_date,
+            self.effective_time,
+            self.expiry_time,
             observations,
         );
         terms.barrier_state = self.barrier_state;
@@ -214,23 +215,23 @@ impl SnowballPresetTerms {
             SnowballPreset::Otm { upper_strike } => terms.upper_strike = upper_strike,
             SnowballPreset::LossCapped { lower_strike } => terms.lower_strike = lower_strike,
             SnowballPreset::EarlyProfit {
-                first_stage_end_date,
+                first_stage_end_time,
                 second_coupon_rate,
             } => staged_coupons(
                 &mut terms,
-                &[(first_stage_end_date, self.coupon_rate)],
+                &[(first_stage_end_time, self.coupon_rate)],
                 second_coupon_rate,
             )?,
             SnowballPreset::Butterfly {
-                first_stage_end_date,
+                first_stage_end_time,
                 second_coupon_rate,
-                second_stage_end_date,
+                second_stage_end_time,
                 third_coupon_rate,
             } => staged_coupons(
                 &mut terms,
                 &[
-                    (first_stage_end_date, self.coupon_rate),
-                    (second_stage_end_date, second_coupon_rate),
+                    (first_stage_end_time, self.coupon_rate),
+                    (second_stage_end_time, second_coupon_rate),
                 ],
                 third_coupon_rate,
             )?,
@@ -241,14 +242,14 @@ impl SnowballPresetTerms {
 
 fn staged_coupons(
     terms: &mut SnowballTerms,
-    stages: &[(Date, f64)],
+    stages: &[(Timestamp, f64)],
     final_rate: f64,
 ) -> Result<()> {
     finite(final_rate, false)?;
     for (i, &(date, rate)) in stages.iter().enumerate() {
         finite(rate, false)?;
-        if date < terms.effective_date
-            || date >= terms.expiry_date
+        if date < terms.effective_time
+            || date >= terms.expiry_time
             || i > 0 && date <= stages[i - 1].0
         {
             return Err(Error::InvalidInput(
@@ -259,7 +260,7 @@ fn staged_coupons(
     for record in &mut terms.observations {
         record.coupon_rate = stages
             .iter()
-            .find(|(end, _)| record.date <= *end)
+            .find(|(end, _)| record.time <= *end)
             .map_or(final_rate, |(_, rate)| *rate);
     }
     terms.maturity_coupon_rate = final_rate;
@@ -293,12 +294,12 @@ pub struct PhoenixPresetTerms {
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets nonnegative normalized principal, independently of coupon and loss components.
     pub principal_ratio: f64,
-    /// Sets the inclusive first date.
-    pub effective_date: Date,
-    /// Sets expiry at midnight UTC.
-    pub expiry_date: Date,
-    /// Supplies nonempty, strictly increasing observation dates within life.
-    pub observation_dates: Vec<Date>,
+    /// Sets the inclusive effective time.
+    pub effective_time: Timestamp,
+    /// Sets the inclusive expiry timestamp.
+    pub expiry_time: Timestamp,
+    /// Supplies nonempty, strictly increasing observation times within life.
+    pub observation_times: Vec<Timestamp>,
 }
 impl PhoenixPresetTerms {
     /// Creates FCN/DCN input terms with unknown history and unit principal.
@@ -309,9 +310,9 @@ impl PhoenixPresetTerms {
         initial_spot: f64,
         knock_in_level: f64,
         knock_out_level: f64,
-        effective_date: Date,
-        expiry_date: Date,
-        observation_dates: Vec<Date>,
+        effective_time: Timestamp,
+        expiry_time: Timestamp,
+        observation_times: Vec<Timestamp>,
     ) -> Self {
         Self {
             coupon_per_period,
@@ -320,9 +321,9 @@ impl PhoenixPresetTerms {
             knock_out_level,
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_date,
-            expiry_date,
-            observation_dates,
+            effective_time,
+            expiry_time,
+            observation_times,
         }
     }
 
@@ -332,12 +333,12 @@ impl PhoenixPresetTerms {
     /// loss strike and zero lower strike. Coupons are fixed per observation,
     /// including a qualifying knock-out observation, with no memory. Coupon and
     /// principal amounts are normalized to initial notional; downside is the
-    /// capped price difference divided by initial spot. Observation dates are
-    /// payment dates, with no implicit observation added at expiry.
+    /// capped price difference divided by initial spot. Observation times are
+    /// payment times, with no implicit observation added at expiry.
     ///
     /// # Errors
     ///
-    /// Propagates [`PhoenixOption::new`] errors for invalid numeric terms, dates
+    /// Propagates [`PhoenixOption::new`] errors for invalid numeric terms, times
     /// or schedules. Inputs are consumed on failure.
     ///
     /// # Examples
@@ -345,8 +346,8 @@ impl PhoenixPresetTerms {
     /// ```rust
     /// use kiyosi::{Date, PhoenixCoupon, PhoenixPreset, PhoenixPresetTerms};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let end = Date::new(2026, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let end = Date::new(2026, 1, 1)?.start_of_day();
     /// let terms = PhoenixPresetTerms::new(0.01, 100.0, 80.0, 110.0,
     ///     start, end, vec![end]);
     /// let note = terms.expand(PhoenixPreset::FixedCouponNote)?;
@@ -361,7 +362,7 @@ impl PhoenixPresetTerms {
             } => coupon_barrier_level,
         };
         let observations = self
-            .observation_dates
+            .observation_times
             .into_iter()
             .map(|date| {
                 let mut record = AutocallableObservation::new(date, self.knock_out_level);
@@ -375,8 +376,8 @@ impl PhoenixPresetTerms {
             self.knock_in_level,
             self.knock_in_level,
             0.0,
-            self.effective_date,
-            self.expiry_date,
+            self.effective_time,
+            self.expiry_time,
             observations,
         );
         terms.coupon = PhoenixCoupon::PerPeriod(self.coupon_per_period);

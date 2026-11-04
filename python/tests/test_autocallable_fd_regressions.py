@@ -2,7 +2,7 @@
 
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from kiyosi import InvalidInputError, RootNotBracketedError, pricing
 from kiyosi.instruments import (
@@ -26,7 +26,7 @@ class AutocallableRegressionTests(unittest.TestCase):
     def test_finite_difference_greek_workspaces_preserve_independent_prices(self):
         from price_differences import price_differences
 
-        start, end = date(2025, 1, 1), date(2025, 1, 13)
+        start, end = datetime(2025, 1, 1), datetime(2025, 1, 13)
         engine = pricing.FiniteDifferenceAutocallableEngine(
             asset_step_count=80, time_step_count=80, asset_upper_boundary=400
         )
@@ -35,7 +35,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                 risk_free_rate=-0.02, dividend_yield=0.01, volatility=0.3
             ),
             spot_price=100.25,
-            valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+            valuation_time=datetime(2025, 1, 1, 12),
             calendar=all_days_calendar(),
         )
         shifts = {"spot_shift": 0.25, "volatility_shift": 0.002, "rate_shift": 0.001}
@@ -48,10 +48,10 @@ class AutocallableRegressionTests(unittest.TestCase):
                 lower_strike=60,
                 knock_in_observation_mode=mode,
                 barrier_state="no_event",
-                effective_date=start,
-                expiry_date=end,
+                effective_time=start,
+                expiry_time=end,
                 observations=autocallable_observations(
-                    [date(2025, 1, 3), end],
+                    [datetime(2025, 1, 3), end],
                     [110, 105],
                     knock_out_coupon_rates=[0.08, 0.08],
                 ),
@@ -69,7 +69,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                     self.assertEqual(getattr(single, greek), getattr(actual, greek))
 
     def test_automatic_domains_converge_to_volatile_terminal_portfolios(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0, dividend_yield=0, volatility=2
@@ -79,8 +79,8 @@ class AutocallableRegressionTests(unittest.TestCase):
         )
         binary = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
             observations=autocallable_observations(
                 [end], [100], knock_out_coupon_rates=[0.1]
             ),
@@ -89,8 +89,8 @@ class AutocallableRegressionTests(unittest.TestCase):
             option_type="call",
             strike=100,
             payout=0.1,
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
         )
         expected = 1 + pricing.AnalyticDigitalEngine().price(digital, context)
         for steps in (200, 2000):
@@ -102,15 +102,15 @@ class AutocallableRegressionTests(unittest.TestCase):
                     engine.price(binary, context), expected, delta=0.0003
                 )
         common = {
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_time": start,
+            "expiry_time": end,
             "knock_in_level": 100,
             "knock_in_observation_mode": "every_trading_day",
         }
         downside = {"initial_spot": 100, "upper_strike": 100, "lower_strike": 60}
         put = lambda strike: pricing.AnalyticEuropeanEngine().price(
             EuropeanOption(
-                option_type="put", strike=strike, effective_date=start, expiry_date=end
+                option_type="put", strike=strike, effective_time=start, expiry_time=end
             ),
             context,
         )
@@ -194,18 +194,18 @@ class AutocallableRegressionTests(unittest.TestCase):
     def test_finite_difference_volatility_trials_refresh_operators_and_isolate_requests(
         self,
     ):
-        start, end = date(2025, 1, 1), date(2025, 1, 13)
-        observation_dates = [date(2025, 1, 3), date(2025, 1, 8), end]
+        start, end = datetime(2025, 1, 1), datetime(2025, 1, 13)
+        observation_times = [datetime(2025, 1, 3), datetime(2025, 1, 8), end]
         knock_out_levels = [101, 100, 99]
         common = {
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_time": start,
+            "expiry_time": end,
             "barrier_state": "no_event",
         }
         coupons = {
             "maturity_coupon_rate": 0.06,
             "observations": autocallable_observations(
-                observation_dates, knock_out_levels, knock_out_coupon_rates=[0.08] * 3
+                observation_times, knock_out_levels, knock_out_coupon_rates=[0.08] * 3
             ),
         }
 
@@ -215,7 +215,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                     risk_free_rate=0.04, dividend_yield=0.01, volatility=volatility
                 ),
                 spot_price=100.25,
-                valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+                valuation_time=datetime(2025, 1, 1, 12),
                 calendar=all_days_calendar(),
             )
 
@@ -233,7 +233,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                         lower_strike=60,
                         coupon_rate=0.08,
                         observations=autocallable_observations(
-                            observation_dates,
+                            observation_times,
                             knock_out_levels,
                             coupon_barrier_levels=[100, 99, 98],
                         ),
@@ -308,18 +308,18 @@ class AutocallableRegressionTests(unittest.TestCase):
     def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(
         self,
     ):
-        start, end = date(2025, 1, 1), date(2025, 1, 13)
-        observation_dates = [date(2025, 1, 7), end]
+        start, end = datetime(2025, 1, 1), datetime(2025, 1, 13)
+        observation_times = [datetime(2025, 1, 7), end]
         knock_out_levels = [110, 110]
         common = {
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_time": start,
+            "expiry_time": end,
             "barrier_state": "no_event",
         }
         coupons = {
             "maturity_coupon_rate": 0.073,
             "observations": autocallable_observations(
-                observation_dates,
+                observation_times,
                 knock_out_levels,
                 knock_out_coupon_rates=[0.073, 0.083],
             ),
@@ -329,7 +329,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                 risk_free_rate=0.03, dividend_yield=0, volatility=0.3
             ),
             spot_price=100.25,
-            valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+            valuation_time=datetime(2025, 1, 1, 12),
             calendar=all_days_calendar(),
         )
         for mode in ("at_expiry", "every_trading_day"):
@@ -344,7 +344,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                         lower_strike=60,
                         coupon_rate=0.073,
                         observations=autocallable_observations(
-                            observation_dates,
+                            observation_times,
                             knock_out_levels,
                             coupon_barrier_levels=[90, 90],
                         ),
@@ -425,7 +425,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                             alternate_terms["coupon_rate"] = 0.12
                         else:
                             alternate_terms["observations"] = autocallable_observations(
-                                observation_dates,
+                                observation_times,
                                 knock_out_levels,
                                 knock_out_coupon_rates=[0.12, 0.13],
                             )
@@ -484,15 +484,15 @@ class AutocallableRegressionTests(unittest.TestCase):
                             self.assertEqual(solve(quote), results[0])
 
     def test_autocallable_requests_revalidate_contracts_and_calendars(self):
-        start, end = date(2025, 1, 1), date(2025, 1, 13)
+        start, end = datetime(2025, 1, 1), datetime(2025, 1, 13)
         dates = [start + timedelta(days=index) for index in range(1, 13)]
-        observation_dates = dates
+        observation_times = dates
         knock_out_levels = [110] * len(dates)
-        common = {"effective_date": start, "expiry_date": end}
+        common = {"effective_time": start, "expiry_time": end}
         coupons = {
             "maturity_coupon_rate": 0.06,
             "observations": autocallable_observations(
-                observation_dates,
+                observation_times,
                 knock_out_levels,
                 knock_out_coupon_rates=[0.08] * len(dates),
             ),
@@ -522,7 +522,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                     **downside,
                     "coupon_rate": 0.08,
                     "observations": autocallable_observations(
-                        observation_dates,
+                        observation_times,
                         knock_out_levels,
                         coupon_barrier_levels=[100] * len(dates),
                     ),
@@ -536,7 +536,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                     risk_free_rate=rate, dividend_yield=0.01, volatility=volatility
                 ),
                 spot_price=100.25,
-                valuation_time=datetime(2025, 1, 12, 12, tzinfo=UTC),
+                valuation_time=datetime(2025, 1, 12, 12),
                 calendar=calendar or all_days_calendar(),
             )
 
@@ -606,7 +606,7 @@ class AutocallableRegressionTests(unittest.TestCase):
     def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(self):
         import math
 
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = SnowballOption(
             maturity_coupon_rate=0,
             initial_spot=100,
@@ -615,16 +615,16 @@ class AutocallableRegressionTests(unittest.TestCase):
             lower_strike=100,
             barrier_state="no_event",
             knock_in_observation_mode="every_trading_day",
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
             observations=autocallable_observations(
                 [end], [110], knock_out_coupon_rates=[0]
             ),
         )
         for engine in (pricing.FiniteDifferenceAutocallableEngine(),):
             for time in (
-                datetime(2025, 1, 1, tzinfo=UTC),
-                datetime(2025, 1, 2, 12, tzinfo=UTC),
+                datetime(2025, 1, 1),
+                datetime(2025, 1, 2, 12),
             ):
                 with self.subTest(engine=type(engine).__name__, time=time):
                     context = PricingContext(
@@ -637,9 +637,9 @@ class AutocallableRegressionTests(unittest.TestCase):
                     result = engine.price_with_greeks(
                         note, context, ["delta", "gamma", "theta", "charm", "color"]
                     )
-                    years = (
-                        datetime(2026, 1, 1, tzinfo=UTC) - time
-                    ).total_seconds() / (365 * 86400)
+                    years = (datetime(2026, 1, 1) - time).total_seconds() / (
+                        365 * 86400
+                    )
                     self.assertAlmostEqual(
                         result.price, math.exp(-0.04 * years), delta=1e-12
                     )
@@ -653,13 +653,13 @@ class AutocallableRegressionTests(unittest.TestCase):
                     )
 
     def test_completed_knock_in_preserves_time_greeks_without_hiding_live_events(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
             ),
             spot_price=75,
-            valuation_time=datetime(2025, 1, 2, 12, tzinfo=UTC),
+            valuation_time=datetime(2025, 1, 2, 12),
         )
         for engine in (pricing.FiniteDifferenceAutocallableEngine(),):
             for state in ("no_event", "knocked_in"):
@@ -671,8 +671,8 @@ class AutocallableRegressionTests(unittest.TestCase):
                         upper_strike=100,
                         lower_strike=60,
                         barrier_state=state,
-                        effective_date=start,
-                        expiry_date=end,
+                        effective_time=start,
+                        expiry_time=end,
                         knock_in_observation_mode="every_trading_day",
                         observations=autocallable_observations(
                             [end], [110], knock_out_coupon_rates=[0.08]
@@ -687,7 +687,7 @@ class AutocallableRegressionTests(unittest.TestCase):
     def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(self):
         import math
 
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
@@ -695,13 +695,13 @@ class AutocallableRegressionTests(unittest.TestCase):
             spot_price=100,
             valuation_time=start,
         )
-        observation_dates = [end]
+        observation_times = [end]
         knock_out_levels = [110]
         common = {
             "knock_in_level": 100,
             "knock_in_observation_mode": "at_expiry",
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_time": start,
+            "expiry_time": end,
         }
         snowball = SnowballOption(
             **common,
@@ -710,7 +710,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             upper_strike=100,
             lower_strike=60,
             observations=autocallable_observations(
-                observation_dates, knock_out_levels, knock_out_coupon_rates=[0.06]
+                observation_times, knock_out_levels, knock_out_coupon_rates=[0.06]
             ),
         )
         phoenix = PhoenixOption(
@@ -720,7 +720,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             upper_strike=100,
             lower_strike=60,
             observations=autocallable_observations(
-                observation_dates, knock_out_levels, coupon_barrier_levels=[0]
+                observation_times, knock_out_levels, coupon_barrier_levels=[0]
             ),
         )
         ternary = TernarySnowballOption(
@@ -728,7 +728,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             maturity_coupon_rate=0.06,
             minimum_coupon_rate=0.02,
             observations=autocallable_observations(
-                observation_dates, knock_out_levels, knock_out_coupon_rates=[0.06]
+                observation_times, knock_out_levels, knock_out_coupon_rates=[0.06]
             ),
         )
         put_prices = [
@@ -736,8 +736,8 @@ class AutocallableRegressionTests(unittest.TestCase):
                 EuropeanOption(
                     option_type="put",
                     strike=strike,
-                    effective_date=start,
-                    expiry_date=end,
+                    effective_time=start,
+                    expiry_time=end,
                 ),
                 context,
             )
@@ -750,8 +750,8 @@ class AutocallableRegressionTests(unittest.TestCase):
                 option_type="call",
                 strike=100,
                 payout=1,
-                effective_date=start,
-                expiry_date=end,
+                effective_time=start,
+                expiry_time=end,
             ),
             context,
         )
@@ -789,15 +789,19 @@ class AutocallableRegressionTests(unittest.TestCase):
                     self.assertAlmostEqual(actual, expected, delta=0.002)
 
     def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(self):
-        start, middle, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
+        start, middle, end = (
+            datetime(2025, 1, 1),
+            datetime(2025, 7, 1),
+            datetime(2026, 1, 1),
+        )
         terms = {
             "maturity_coupon_rate": 0,
             "initial_spot": 100,
             "knock_in_level": 75,
             "upper_strike": 100,
             "lower_strike": 100,
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_time": start,
+            "expiry_time": end,
             "observations": autocallable_observations(
                 [middle, end], [110, 104], knock_out_coupon_rates=[0.08, 0.08]
             ),
@@ -853,11 +857,11 @@ class AutocallableRegressionTests(unittest.TestCase):
     def test_fixed_finite_difference_autocallables_retain_rate_sensitivity(self):
         import math
 
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = BinarySnowballOption(
             maturity_coupon_rate=0,
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
             observations=autocallable_observations(
                 [end], [110], knock_out_coupon_rates=[0]
             ),

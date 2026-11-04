@@ -32,8 +32,8 @@ impl AnalyticBinaryBarrierEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let mut terms = TouchOptionTerms::new(start, Date::new(2026, 1, 1)?, 120.0, BarrierType::UpAndIn);
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let mut terms = TouchOptionTerms::new(start, Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndIn);
     /// terms.settlement_timing = SettlementTiming::AtHit;
     /// let option = TouchOption::cash(terms, 10.0)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 120.0, start.into())?;
@@ -96,7 +96,7 @@ impl Contract<'_> {
         validate_life(option, context)?;
         validate_schedule(option.observation_schedule(), context)?;
         let (prior, touched, finished) = self.state(context)?;
-        let t = valuation.years_until(option.expiry_date().start_of_day());
+        let t = valuation.years_until(option.expiry_time());
         let knock_in = option.barrier_type().is_knock_in();
         let at_hit = self.timing == SettlementTiming::AtHit;
         if prior && at_hit {

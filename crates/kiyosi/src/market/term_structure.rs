@@ -201,21 +201,21 @@ impl RateTermStructure {
     /// Returns [`Error::InvalidInput`] for uncovered endpoints or a reversed
     /// interval, and [`Error::ComputationFailure`] for a non-finite result.
     /// See [`Self::factor`] for interval usage.
-    pub fn log_factor(&self, start: Timestamp, end: Timestamp) -> Result<f64> {
-        self.validate_time(start)?;
-        self.validate_time(end)?;
-        if end < start {
+    pub fn log_factor(&self, start_time: Timestamp, end_time: Timestamp) -> Result<f64> {
+        self.validate_time(start_time)?;
+        self.validate_time(end_time)?;
+        if end_time < start_time {
             return Err(Error::InvalidInput("curve interval is reversed".into()));
         }
-        let mut value = -self.rate.unwrap_or(self.spread) * start.years_until(end);
+        let mut value = -self.rate.unwrap_or(self.spread) * start_time.years_until(end_time);
         if !self.is_explicitly_flat() {
             let mut index = self
                 .nodes
-                .partition_point(|&node| node <= start)
+                .partition_point(|&node| node <= start_time)
                 .min(self.nodes.len() - 1);
-            let mut current = start;
-            while current < end {
-                let next = end.min(self.nodes[index]);
+            let mut current = start_time;
+            while current < end_time {
+                let next = end_time.min(self.nodes[index]);
                 // Subtract timestamps before conversion to preserve distant microsecond intervals.
                 value -= self.forwards[index] * current.years_until(next);
                 current = next;
@@ -235,8 +235,8 @@ impl RateTermStructure {
     ///
     /// Propagates [`Self::log_factor`] errors; overflow returns
     /// [`Error::ComputationFailure`]. See [`Self::flat`] for an example.
-    pub fn factor(&self, start: Timestamp, end: Timestamp) -> Result<f64> {
-        let value = self.log_factor(start, end)?.exp();
+    pub fn factor(&self, start_time: Timestamp, end_time: Timestamp) -> Result<f64> {
+        let value = self.log_factor(start_time, end_time)?.exp();
         if !value.is_finite() {
             return Err(Error::ComputationFailure(
                 "value must be finite and in its valid range".into(),

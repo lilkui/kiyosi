@@ -5,7 +5,7 @@ import math
 import numbers
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import QuantLib as ql
 from kiyosi import (
@@ -23,7 +23,7 @@ from kiyosi.market import (
     all_days_calendar,
 )
 
-START = date(2025, 1, 1)
+START = datetime(2025, 1, 1)
 
 END = START + timedelta(days=360)
 
@@ -58,8 +58,8 @@ def option(kind="down_and_out", direction="call", **changes):
     terms = {
         "option_type": direction,
         "strike": 100,
-        "effective_date": START,
-        "expiry_date": END,
+        "effective_time": START,
+        "expiry_time": END,
         "barrier_level": 120 if kind.startswith("up") else 80,
         "barrier_type": kind,
     }
@@ -80,7 +80,7 @@ class BarrierBinomialTests(unittest.TestCase):
     def test_crr_requires_exact_future_observation_alignment(self):
         contract = option(
             observation_mode="scheduled",
-            observation_dates=[START + timedelta(days=91), END],
+            observation_times=[START + timedelta(days=91), END],
         )
         self.assert_rejection(
             UnsupportedOperationError,
@@ -90,7 +90,7 @@ class BarrierBinomialTests(unittest.TestCase):
         )
         aligned = pricing.CoxRossRubinsteinBarrierEngine(step_count=360)
         self.assertGreater(aligned.price(contract, market()), 0)
-        intraday = datetime(2025, 1, 1, 12, tzinfo=UTC)
+        intraday = datetime(2025, 1, 1, 12)
         self.assert_rejection(
             UnsupportedOperationError,
             aligned.price,
@@ -118,21 +118,21 @@ class BarrierBinomialTests(unittest.TestCase):
 
     def test_scheduled_touch_occurs_only_at_original_midnight(self):
         observation = START + timedelta(days=90)
-        midday = datetime.combine(
-            observation, datetime.min.time(), tzinfo=UTC
-        ) + timedelta(hours=12)
+        midday = datetime.combine(observation, datetime.min.time()) + timedelta(
+            hours=12
+        )
         for kind in KINDS:
             level = 120 if kind.startswith("up") else 80
             terms = {
                 "rebate": 5,
                 "rebate_timing": "at_hit" if kind.endswith("out") else "at_expiry",
                 "observation_mode": "scheduled",
-                "observation_dates": [observation],
+                "observation_times": [observation],
             }
             contract = option(kind, **terms)
             prior_untouched = option(kind, **terms, touch_state="untouched")
             vanilla = EuropeanOption(
-                option_type="call", strike=100, effective_date=START, expiry_date=END
+                option_type="call", strike=100, effective_time=START, expiry_time=END
             )
             at_observation = market(spot=level, valuation=observation)
             after_observation = market(spot=level, valuation=midday)
@@ -159,7 +159,7 @@ class BarrierBinomialTests(unittest.TestCase):
         valuation = START + timedelta(days=180)
         context = market(valuation=valuation)
         vanilla = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         value = pricing.AnalyticEuropeanEngine().price(vanilla, context)
         for engine in engines():
@@ -168,7 +168,7 @@ class BarrierBinomialTests(unittest.TestCase):
                     kind,
                     rebate=3,
                     observation_mode="scheduled",
-                    observation_dates=dates,
+                    observation_times=dates,
                     touch_state="untouched",
                 )
                 expected = (
@@ -235,11 +235,11 @@ class BarrierBinomialTests(unittest.TestCase):
     def test_expiry_only_observation_matches_one_step_payment(self):
         contract = option(
             "up_and_out",
-            expiry_date=START + timedelta(days=2),
+            expiry_time=START + timedelta(days=2),
             barrier_level=101,
             rebate=2,
             observation_mode="scheduled",
-            observation_dates=[START + timedelta(days=2)],
+            observation_times=[START + timedelta(days=2)],
         )
         context = market(rate=0, dividend=0)
         up = math.exp(0.2 * math.sqrt(2 / 365))
@@ -312,7 +312,7 @@ class BarrierBinomialTests(unittest.TestCase):
                     rebate=7,
                     rebate_timing=timing,
                     observation_mode="scheduled",
-                    observation_dates=[START, START + timedelta(days=1), END],
+                    observation_times=[START, START + timedelta(days=1), END],
                 )
                 context = market(spot=level)
                 expected = pricing.AnalyticBarrierEngine().price(contract, context)
@@ -338,12 +338,12 @@ class BarrierBinomialTests(unittest.TestCase):
         end = START + timedelta(days=4)
         contract = option(
             "up_and_out",
-            expiry_date=end,
+            expiry_time=end,
             observation_mode="scheduled",
-            observation_dates=[START + timedelta(days=2)],
+            observation_times=[START + timedelta(days=2)],
         )
         engine = pricing.CoxRossRubinsteinBarrierEngine(step_count=7)
-        time = datetime(2025, 1, 1, 12, tzinfo=UTC)
+        time = datetime(2025, 1, 1, 12)
         context = market(valuation=time)
         self.assertGreater(engine.price(contract, context), 0)
         self.assert_rejection(
@@ -358,10 +358,10 @@ class BarrierBinomialTests(unittest.TestCase):
                 contract = option(
                     "up_and_out" if up else "down_and_out",
                     "call" if up else "put",
-                    expiry_date=START + timedelta(days=2),
+                    expiry_time=START + timedelta(days=2),
                     barrier_level=100 * math.exp(jump if up else -jump),
                     observation_mode="scheduled",
-                    observation_dates=[START + timedelta(days=1)],
+                    observation_times=[START + timedelta(days=1)],
                 )
                 # The sole ITM path is knocked out at its first move, including equality.
                 self.assertAlmostEqual(
@@ -402,7 +402,7 @@ class BarrierBinomialTests(unittest.TestCase):
                     math.nan,
                 )
         invalid = option(
-            observation_mode="scheduled", observation_dates=[date(2025, 1, 4)]
+            observation_mode="scheduled", observation_times=[datetime(2025, 1, 4)]
         )
         weekdays = PricingContext(
             model_parameters=market().model_parameters,
@@ -428,7 +428,7 @@ class BarrierBinomialTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             engine.price_with_greeks(option(), market(), "delta", time_shift_days=2**31)
         mismatch = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         for operation, args in (
             (engine.price, (mismatch, market())),
@@ -518,9 +518,9 @@ class BarrierBinomialTests(unittest.TestCase):
                             "BarrierType": kind,
                             "settlement": timing,
                             "monitoring": "continuous",
-                            "valuation": START.isoformat(),
-                            "effective_date": START.isoformat(),
-                            "expiry_date": END.isoformat(),
+                            "valuation": START.date().isoformat(),
+                            "effective_time": START.date().isoformat(),
+                            "expiry_time": END.date().isoformat(),
                             "option": direction,
                             "strike": 100,
                             "spot": 100,

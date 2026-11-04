@@ -2,7 +2,7 @@
 
 import inspect
 import unittest
-from datetime import date
+from datetime import datetime
 
 from kiyosi import instruments as i
 from kiyosi import market as m
@@ -11,12 +11,12 @@ from kiyosi import pricing as p
 
 class SpotShiftDefaultTests(unittest.TestCase):
     def test_barrier_greek_signature_defaults_can_be_forwarded(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         vanilla = {
             "option_type": "call",
             "strike": 100,
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_time": start,
+            "expiry_time": end,
         }
         context = m.PricingContext(
             model_parameters=m.BlackScholesMertonParameters(
@@ -56,12 +56,12 @@ class SpotShiftDefaultTests(unittest.TestCase):
                 self.assertEqual(actual.delta, expected.delta)
 
     def test_automatic_american_bump_matches_explicit_core_control(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = i.AmericanOption(
             option_type="put",
             strike=100,
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
         )
         context = m.PricingContext(
             model_parameters=m.BlackScholesMertonParameters(

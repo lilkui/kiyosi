@@ -1,6 +1,6 @@
 import math
 import unittest
-from datetime import date
+from datetime import datetime
 
 from kiyosi import pricing
 from kiyosi.instruments import CashOrNothingOption
@@ -9,7 +9,7 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 class FiniteDifferenceDiscountTests(unittest.TestCase):
     def test_finite_difference_digital_preserves_scaled_discounts(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         payout = 1e-308
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -27,8 +27,8 @@ class FiniteDifferenceDiscountTests(unittest.TestCase):
                     option_type=direction,
                     strike=100,
                     payout=payout,
-                    effective_date=start,
-                    expiry_date=end,
+                    effective_time=start,
+                    expiry_time=end,
                 )
                 expected = (
                     math.exp(math.log(payout) + 710)

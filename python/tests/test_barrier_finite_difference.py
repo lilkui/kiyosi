@@ -4,7 +4,7 @@ import importlib
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import QuantLib as ql
 from kiyosi import (
@@ -48,21 +48,21 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
 
     def test_scheduled_touch_occurs_only_at_original_midnight(self):
         observation = START + timedelta(days=90)
-        midday = datetime.combine(
-            observation, datetime.min.time(), tzinfo=UTC
-        ) + timedelta(hours=12)
+        midday = datetime.combine(observation, datetime.min.time()) + timedelta(
+            hours=12
+        )
         for kind in KINDS:
             level = 120 if kind.startswith("up") else 80
             terms = {
                 "rebate": 5,
                 "rebate_timing": "at_hit" if kind.endswith("out") else "at_expiry",
                 "observation_mode": "scheduled",
-                "observation_dates": [observation],
+                "observation_times": [observation],
             }
             contract = option(kind, **terms)
             prior_untouched = option(kind, **terms, touch_state="untouched")
             vanilla = EuropeanOption(
-                option_type="call", strike=100, effective_date=START, expiry_date=END
+                option_type="call", strike=100, effective_time=START, expiry_time=END
             )
             at_observation = market(spot=level, valuation=observation)
             after_observation = market(spot=level, valuation=midday)
@@ -89,7 +89,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         valuation = START + timedelta(days=180)
         context = market(valuation=valuation)
         vanilla = EuropeanOption(
-            option_type="call", strike=100, effective_date=START, expiry_date=END
+            option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         value = pricing.AnalyticEuropeanEngine().price(vanilla, context)
         for engine in engines():
@@ -98,7 +98,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                     kind,
                     rebate=3,
                     observation_mode="scheduled",
-                    observation_dates=dates,
+                    observation_times=dates,
                     touch_state="untouched",
                 )
                 expected = (
@@ -190,9 +190,9 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                             "BarrierType": kind,
                             "settlement": timing,
                             "monitoring": "continuous",
-                            "valuation": START.isoformat(),
-                            "effective_date": START.isoformat(),
-                            "expiry_date": END.isoformat(),
+                            "valuation": START.date().isoformat(),
+                            "effective_time": START.date().isoformat(),
+                            "expiry_time": END.date().isoformat(),
                             "option": direction,
                             "strike": 100,
                             "spot": 100,
@@ -297,7 +297,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                         rebate=3,
                         rebate_timing=timing,
                         observation_mode="scheduled",
-                        observation_dates=[observation],
+                        observation_times=[observation],
                     )
                     with self.subTest(kind=kind, direction=direction, timing=timing):
                         self.assertAlmostEqual(
@@ -308,7 +308,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         engine = pricing.FiniteDifferenceBarrierEngine(asset_step_count=256)
         contract = option(
             observation_mode="scheduled",
-            observation_dates=[START + timedelta(days=91), START + timedelta(days=273)],
+            observation_times=[START + timedelta(days=91), START + timedelta(days=273)],
         )
         context = market()
         quote = engine.price(contract, context)
@@ -379,7 +379,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                 rebate=7,
                 rebate_timing=timing,
                 observation_mode="scheduled",
-                observation_dates=[START + timedelta(days=91), END],
+                observation_times=[START + timedelta(days=91), END],
             )
             expected = 7 * math.exp(
                 -0.08 * 91 / 365 if timing == "at_hit" else -0.01 * 360 / 365
@@ -450,9 +450,9 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
 
         engine = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=400)
         contract = option(
-            "up_and_out", observation_mode="scheduled", observation_dates=[END]
+            "up_and_out", observation_mode="scheduled", observation_times=[END]
         )
-        common = {"option_type": "call", "effective_date": START, "expiry_date": END}
+        common = {"option_type": "call", "effective_time": START, "expiry_time": END}
         lower = EuropeanOption(strike=100, **common)
         upper = EuropeanOption(strike=120, **common)
         cash = CashOrNothingOption(strike=120, payout=20, **common)
@@ -483,12 +483,12 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
             )
 
     def test_scheduled_explicit_stability_retains_the_uniform_grid_bound(self):
-        end = date(2026, 1, 1)
+        end = datetime(2026, 1, 1)
         contract = option(
             "up_and_out",
-            expiry_date=end,
+            expiry_time=end,
             observation_mode="scheduled",
-            observation_dates=[end],
+            observation_times=[end],
         )
         engine = pricing.FiniteDifferenceBarrierEngine(
             asset_step_count=200,

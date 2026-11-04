@@ -41,28 +41,28 @@ Examples
 Build monthly observations from a month-end anchor. February is clamped
 without moving the March anchor:
 
->>> from datetime import date
+>>> from datetime import datetime
 >>> schedule = monthly_schedule(
-...     start=date(2025, 1, 31), end=date(2025, 3, 31),
+...     start_time=datetime(2025, 1, 31), end_time=datetime(2025, 3, 31),
 ...     first_observation_month=1, calendar=all_days_calendar(),
 ... )
 >>> list(schedule)
-[datetime.date(2025, 2, 28), datetime.date(2025, 3, 31)]
+[datetime.datetime(2025, 2, 28, 0, 0), datetime.datetime(2025, 3, 31, 0, 0)]
 
 Combine a discount curve with a scalar dividend yield:
 
 >>> curve = RateTermStructure(
-...     reference_time=date(2025, 1, 1), times=[date(2026, 1, 1)],
+...     reference_time=datetime(2025, 1, 1), times=[datetime(2026, 1, 1)],
 ...     factors=[0.95],
 ... )
 >>> model = BlackScholesMertonParameters(
 ...     risk_free_rate=curve, dividend_yield=0.02, volatility=0.2,
 ... )
 >>> context = PricingContext(
-...     model_parameters=model, spot_price=100, valuation_time=date(2025, 1, 1),
+...     model_parameters=model, spot_price=100, valuation_time=datetime(2025, 1, 1),
 ... )
 >>> round(context.model_parameters.risk_free_curve.factor(
-...     date(2025, 1, 1), date(2026, 1, 1),
+...     datetime(2025, 1, 1), datetime(2026, 1, 1),
 ... ), 2)
 0.95
 """

@@ -3,7 +3,7 @@
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from kiyosi import (
     ComputationFailureError,
@@ -15,7 +15,7 @@ from kiyosi import (
 from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
-START, END = (date(2025, 1, 1), date(2026, 1, 1))
+START, END = (datetime(2025, 1, 1), datetime(2026, 1, 1))
 GREEKS = (
     "delta",
     "gamma",
@@ -45,8 +45,8 @@ def options():
         terms = {
             "option_type": direction,
             "strike": 100,
-            "effective_date": START,
-            "expiry_date": END,
+            "effective_time": START,
+            "expiry_time": END,
         }
         yield (CashOrNothingOption(**terms, payout=10), False)
         yield (AssetOrNothingOption(**terms), True)
@@ -219,8 +219,7 @@ class DigitalNumericalTests(unittest.TestCase):
                     volatility=sigma,
                     rate=0,
                     dividend=0,
-                    valuation=datetime(2026, 1, 1, tzinfo=UTC)
-                    - timedelta(microseconds=1),
+                    valuation=datetime(2026, 1, 1) - timedelta(microseconds=1),
                 )
                 engine = pricing.MonteCarloDigitalEngine(
                     path_count=2, seed=42, antithetic=True
@@ -287,8 +286,8 @@ class DigitalNumericalTests(unittest.TestCase):
                 EuropeanOption(
                     option_type="call",
                     strike=100,
-                    effective_date=START,
-                    expiry_date=END,
+                    effective_time=START,
+                    expiry_time=END,
                 ),
                 market(),
             )
@@ -414,8 +413,8 @@ class DigitalNumericalTests(unittest.TestCase):
                 option = cls(
                     option_type="call",
                     strike=spot,
-                    effective_date=START,
-                    expiry_date=END,
+                    effective_time=START,
+                    expiry_time=END,
                     **({"payout": amount} if cls is CashOrNothingOption else {}),
                 )
                 context = market(spot=spot, rate=rate, dividend=rate)
@@ -429,8 +428,8 @@ class DigitalNumericalTests(unittest.TestCase):
             option_type="call",
             strike=1e-200,
             payout=1e100,
-            effective_date=START,
-            expiry_date=END,
+            effective_time=START,
+            expiry_time=END,
         )
         context = market(spot=1e-200, rate=0, dividend=0)
         delta = engine.price_with_greeks(option, context, "delta")
@@ -448,8 +447,8 @@ class DigitalNumericalTests(unittest.TestCase):
             option_type="call",
             strike=100,
             payout=1e308,
-            effective_date=START,
-            expiry_date=END,
+            effective_time=START,
+            expiry_time=END,
         )
         self.assert_rejection(
             ComputationFailureError,
@@ -478,14 +477,14 @@ class DigitalNumericalTests(unittest.TestCase):
             option = cls(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
-                effective_date=date.fromisoformat(inputs["effective_date"]),
-                expiry_date=date.fromisoformat(inputs["expiry_date"]),
+                effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
                 **({"payout": inputs["payout"]} if inputs["payoff"] == "cash" else {}),
             )
             context = market(
                 spot=inputs["spot"],
                 volatility=inputs["volatility"],
-                valuation=date.fromisoformat(inputs["valuation"]),
+                valuation=datetime.fromisoformat(inputs["valuation"]),
                 rate=inputs["rate"],
                 dividend=inputs["dividend"],
             )
@@ -494,7 +493,7 @@ class DigitalNumericalTests(unittest.TestCase):
             actual = pricing.MonteCarloDigitalEngine(
                 path_count=65536, seed=42, sampling="sobol"
             ).price_with_greeks(option, context, ["delta", "gamma"])
-            time = (option.expiry_date - context.valuation_time.date()).days / 365
+            time = (option.expiry_time - context.valuation_time).days / 365
             scale = inputs.get("payout", inputs["spot"])
             width = inputs["volatility"] * math.sqrt(time)
             for name, error in (

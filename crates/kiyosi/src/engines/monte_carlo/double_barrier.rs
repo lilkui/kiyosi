@@ -110,9 +110,9 @@ impl MonteCarloDoubleBarrierEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
-    ///     100.0, start, Date::new(2026, 1, 1)?, 80.0, 120.0, DoubleBarrierType::KnockOut))?;
+    ///     100.0, start, Date::new(2026, 1, 1)?.start_of_day(), 80.0, 120.0, DoubleBarrierType::KnockOut))?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// let engine = MonteCarloDoubleBarrierEngine::new(MonteCarloSettings {

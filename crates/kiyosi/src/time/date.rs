@@ -72,15 +72,16 @@ impl Date {
         }
     }
 
-    /// Returns midnight as a timezone-free, UTC-like [`Timestamp`].
+    /// Returns midnight as a [`Timestamp`].
     pub fn start_of_day(self) -> Timestamp {
         Timestamp(i64::from(self.0.num_days_from_ce()) * MICROS_PER_DAY)
     }
 }
 
-/// Represents a timezone-free, UTC-like instant with microsecond resolution.
+/// Represents a date and time with microsecond resolution.
 ///
-/// See [`Self::new`] for construction; timezone conversion belongs to the caller.
+/// Timestamps carry no timezone information; callers must use a consistent time
+/// basis. See [`Self::new`] for construction.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Timestamp(i64);
 
@@ -110,6 +111,14 @@ impl Timestamp {
                 + i64::from((hour * 60 + minute) * 60 + second) * 1_000_000
                 + i64::from(microsecond),
         ))
+    }
+
+    pub(crate) fn on_date(self, date: Date) -> Self {
+        Self(date.start_of_day().0 + self.0.rem_euclid(MICROS_PER_DAY))
+    }
+
+    pub(crate) fn add_days(self, days: i64) -> Result<Self> {
+        Ok(self.on_date(self.date().add_days(days)?))
     }
 
     /// Returns the date containing this instant, including dates before the common era.

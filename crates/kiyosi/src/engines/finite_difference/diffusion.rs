@@ -1,5 +1,5 @@
 use super::{Curve, PricingContext, Result, SpatialGrid, Stepper, TimeGrid, local_volatility};
-use crate::{LocalVolatilitySurface, Timestamp};
+use crate::{Error, LocalVolatilitySurface, Timestamp};
 
 pub(super) trait Diffusion: Copy {
     const LOCAL: bool;
@@ -92,4 +92,28 @@ pub(super) fn time_grid(
     } else {
         Ok(TimeGrid::with_events(time, count, risk, dividend, events))
     }
+}
+
+pub(super) fn validate_event_resolution(
+    valuation: Timestamp,
+    expiry: Timestamp,
+    events: &[Timestamp],
+) -> Result<()> {
+    let mut previous = valuation;
+    let mut previous_years = 0.0;
+    for &time in events
+        .iter()
+        .chain(std::iter::once(&expiry))
+        .filter(|&&time| time > valuation)
+    {
+        let years = valuation.years_until(time);
+        if time != previous && years <= previous_years {
+            return Err(Error::ComputationFailure(
+                "finite-difference event times are not representably distinct".into(),
+            ));
+        }
+        previous = time;
+        previous_years = years;
+    }
+    Ok(())
 }

@@ -4,7 +4,7 @@ import importlib
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import QuantLib as ql
 from kiyosi import InvalidInputError, UnsupportedOperationError
@@ -36,8 +36,8 @@ class BinaryBarrierTests(unittest.TestCase):
         return {
             "option_type": "call",
             "strike": 100,
-            "effective_date": date(2025, 1, 1),
-            "expiry_date": date(2026, 1, 1),
+            "effective_time": datetime(2025, 1, 1),
+            "expiry_time": datetime(2026, 1, 1),
             "barrier_level": 120,
             "barrier_type": "up_and_out",
         } | changes
@@ -54,7 +54,7 @@ class BinaryBarrierTests(unittest.TestCase):
     def context(
         self,
         spot=100,
-        time=date(2025, 1, 1),
+        time=datetime(2025, 1, 1),
         *,
         rate=0.04,
         dividend=0.01,
@@ -95,7 +95,7 @@ class BinaryBarrierTests(unittest.TestCase):
                 self.assert_rejection(
                     InvalidInputError,
                     lambda option=option: engine.price(
-                        option, self.context(130, date(2025, 1, 2))
+                        option, self.context(130, datetime(2025, 1, 2))
                     ),
                 )
                 known = option.replace_history(touch_state="touched")
@@ -103,7 +103,7 @@ class BinaryBarrierTests(unittest.TestCase):
                     InvalidInputError,
                     lambda known=known: engine.price(known, self.context(130)),
                 )
-                context = self.context(time=date(2025, 7, 1))
+                context = self.context(time=datetime(2025, 7, 1))
                 expected = (
                     0
                     if timing == "at_hit"
@@ -135,12 +135,12 @@ class BinaryBarrierTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 lambda option=option: engine.price(
-                    option, self.context(130, date(2025, 7, 1))
+                    option, self.context(130, datetime(2025, 7, 1))
                 ),
             )
             known = option.replace_history(touch_state="touched")
             self.assertEqual(
-                engine.price(known, self.context(100, date(2025, 7, 1))) == 0,
+                engine.price(known, self.context(100, datetime(2025, 7, 1))) == 0,
                 kind == "up_and_out",
             )
             self.assertEqual(known.replace_history(touch_state=None), option)
@@ -172,20 +172,20 @@ class BinaryBarrierTests(unittest.TestCase):
             for fields, expected_error in (
                 ({"strike": 0, "barrier_level": 0}, InvalidInputError),
                 ({"barrier_level": 0}, InvalidInputError),
-                ({"expiry_date": date(2024, 1, 1)}, InvalidInputError),
+                ({"expiry_time": datetime(2024, 1, 1)}, InvalidInputError),
                 ({"observation_mode": "scheduled"}, InvalidInputError),
-                ({"observation_dates": [date(2025, 1, 2)]}, InvalidInputError),
+                ({"observation_times": [datetime(2025, 1, 2)]}, InvalidInputError),
                 (
                     {
                         "observation_mode": "scheduled",
-                        "observation_dates": [date(2026, 1, 2)],
+                        "observation_times": [datetime(2026, 1, 2)],
                     },
                     InvalidInputError,
                 ),
                 (
                     {
                         "observation_mode": "scheduled",
-                        "observation_dates": [date(2025, 1, 2)] * 2,
+                        "observation_times": [datetime(2025, 1, 2)] * 2,
                     },
                     InvalidInputError,
                 ),
@@ -233,7 +233,7 @@ class BinaryBarrierTests(unittest.TestCase):
         with self.assertRaises(InvalidInputError):
             self.touch(barrier_type="up_and_out", settlement_timing="at_hit")
         with self.assertRaises(TypeError):
-            self.touch(effective_date=datetime(2025, 1, 1, tzinfo=UTC))
+            self.touch(effective_time=datetime(2025, 1, 1).date())
         with self.assertRaises(TypeError):
             AnalyticBinaryBarrierEngine().price(object(), self.context())
 
@@ -276,13 +276,13 @@ class BinaryBarrierTests(unittest.TestCase):
 
     def test_scheduled_boundaries_history_and_owned_dates(self):
         engine = AnalyticBinaryBarrierEngine()
-        fixing = date(2025, 1, 2)
+        fixing = datetime(2025, 1, 2)
         for kind in ("up_and_in", "up_and_out"):
             one = kind == "up_and_in"
             option = self.touch(
                 barrier_type=kind,
                 observation_mode="scheduled",
-                observation_dates=(d for d in [fixing]),
+                observation_times=(d for d in [fixing]),
             )
             self.assert_rejection(
                 UnsupportedOperationError,
@@ -299,7 +299,7 @@ class BinaryBarrierTests(unittest.TestCase):
             self.assertAlmostEqual(
                 engine.price(option, self.context(120, fixing)), expected, delta=1e-12
             )
-            noon = datetime(2025, 1, 2, 12, tzinfo=UTC)
+            noon = datetime(2025, 1, 2, 12)
             self.assert_rejection(
                 InvalidInputError,
                 lambda option=option, noon=noon: engine.price(
@@ -309,23 +309,23 @@ class BinaryBarrierTests(unittest.TestCase):
             known = option.replace_history(touch_state="untouched")
             expected = 0 if one else 10 * math.exp(-0.04 * 363 / 365)
             self.assertAlmostEqual(
-                engine.price(known, self.context(130, date(2025, 1, 3))),
+                engine.price(known, self.context(130, datetime(2025, 1, 3))),
                 expected,
                 delta=1e-12,
             )
-            dates = known.observation_dates
+            dates = known.observation_times
             dates.clear()
-            self.assertEqual(known.observation_schedule.dates, [fixing])
-            self.assertEqual(known.observation_dates, [fixing])
+            self.assertEqual(known.observation_schedule.times, [fixing])
+            self.assertEqual(known.observation_times, [fixing])
             self.assertAlmostEqual(known.mean_observation_year_fraction, 1 / 365)
         weekend = self.touch(
             observation_mode="scheduled",
-            observation_dates=[date(2025, 1, 4)],
+            observation_times=[datetime(2025, 1, 4)],
             touch_state="touched",
         )
         self.assert_rejection(
             InvalidInputError,
-            lambda: engine.price(weekend, self.context(time=date(2025, 1, 5))),
+            lambda: engine.price(weekend, self.context(time=datetime(2025, 1, 5))),
         )
 
     def test_sensitivities_solve_expiry_curves_and_concurrent_reads(self):
@@ -337,7 +337,7 @@ class BinaryBarrierTests(unittest.TestCase):
             self.touch(touch_state="untouched"),
         ]
         for option in options:
-            context = self.context(time=date(2025, 7, 1))
+            context = self.context(time=datetime(2025, 7, 1))
             result = engine.price_with_greeks(option, context, greeks="all")
             self.assertTrue(all(getattr(result, g) is not None for g in GREEKS))
             sigma = implied_volatility(
@@ -367,7 +367,7 @@ class BinaryBarrierTests(unittest.TestCase):
             self.assertIsNone(near.delta)
             self.assertIsNone(near.speed)
             self.assertIsNotNone(near.vega)
-            expiry = self.context(time=date(2026, 1, 1))
+            expiry = self.context(time=datetime(2026, 1, 1))
             terminal = engine.price_with_greeks(option, expiry, greeks="all")
             self.assertTrue(all(getattr(terminal, g) is None for g in GREEKS))
             self.assert_rejection(
@@ -380,12 +380,12 @@ class BinaryBarrierTests(unittest.TestCase):
                 InvalidInputError,
                 lambda option=option: engine.price(
                     option,
-                    self.context(time=datetime(2026, 1, 1, 0, 0, 0, 1, tzinfo=UTC)),
+                    self.context(time=datetime(2026, 1, 1, 0, 0, 0, 1)),
                 ),
             )
             curve = RateTermStructure(
-                reference_time=date(2025, 1, 1),
-                times=[date(2026, 1, 1)],
+                reference_time=datetime(2025, 1, 1),
+                times=[datetime(2026, 1, 1)],
                 factors=[0.95],
             )
             curves = self.context(rate=curve)
@@ -411,16 +411,14 @@ class BinaryBarrierTests(unittest.TestCase):
             self.assertTrue(all(p == result.price for p in prices))
         dense = self.touch(
             observation_mode="scheduled",
-            observation_dates=[
-                date(2025, 1, 1) + timedelta(days=i) for i in range(1, 366)
+            observation_times=[
+                datetime(2025, 1, 1) + timedelta(days=i) for i in range(1, 366)
             ],
             touch_state="untouched",
         )
         result = engine.price_with_greeks(
             dense,
-            self.context(
-                time=datetime(2025, 1, 1, 12, tzinfo=UTC), calendar=all_days_calendar()
-            ),
+            self.context(time=datetime(2025, 1, 1, 12), calendar=all_days_calendar()),
             greeks="all",
         )
         self.assertTrue(
@@ -439,8 +437,8 @@ class BinaryBarrierTests(unittest.TestCase):
                 kind = inputs["BarrierType"]
                 asset = inputs["asset_settlement"]
                 terms = {
-                    "effective_date": date.fromisoformat(inputs["effective_date"]),
-                    "expiry_date": date.fromisoformat(inputs["expiry_date"]),
+                    "effective_time": datetime.fromisoformat(inputs["effective_time"]),
+                    "expiry_time": datetime.fromisoformat(inputs["expiry_time"]),
                     "barrier_level": inputs["barrier"],
                     "touch_state": "untouched",
                 }
@@ -467,7 +465,7 @@ class BinaryBarrierTests(unittest.TestCase):
                     )
                 context = self.context(
                     inputs["spot"],
-                    date.fromisoformat(inputs["valuation"]),
+                    datetime.fromisoformat(inputs["valuation"]),
                     rate=inputs["rate"],
                     dividend=inputs["dividend"],
                     sigma=inputs["volatility"],

@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 from functools import cache
 
 from kiyosi import instruments
@@ -19,8 +19,8 @@ def contract(row):
     inputs = row["inputs"]
     number = lambda key: float(inputs[key])
     common = {
-        key: date.fromisoformat(inputs[key])
-        for key in ("effective_date", "expiry_date")
+        key: datetime.fromisoformat(inputs[key])
+        for key in ("effective_time", "expiry_time")
     }
     if row["instrument"] == "Accumulator":
         return instruments.Accumulator(
@@ -41,7 +41,7 @@ def contract(row):
         principal_ratio=number("principal_ratio"),
         barrier_state=inputs["history"],
         observations=instruments.autocallable_observations(
-            [common["expiry_date"]],
+            [common["expiry_time"]],
             [number("knock_out_level")],
             **(
                 {"coupon_barrier_levels": [number("coupon_barrier_level")]}
@@ -81,7 +81,7 @@ def market(row):
         ),
         spot_price=float(inputs["spot"]),
         valuation_time=datetime.combine(
-            date.fromisoformat(inputs["valuation"]), datetime.min.time(), UTC
+            datetime.fromisoformat(inputs["valuation"]), datetime.min.time()
         )
         + timedelta(hours=int(inputs["valuation_hour"])),
         calendar=weekdays_calendar(),

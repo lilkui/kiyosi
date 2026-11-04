@@ -6,14 +6,14 @@ import multiprocessing
 import pickle
 import unittest
 from concurrent.futures import ProcessPoolExecutor
-from datetime import date
+from datetime import datetime
 
 from kiyosi import InvalidInputError
 from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
 
-START, END = date(2025, 1, 2), date(2025, 1, 10)
+START, END = datetime(2025, 1, 2), datetime(2025, 1, 10)
 
 
 def price_in_worker(engine, option, context):
@@ -21,7 +21,7 @@ def price_in_worker(engine, option, context):
 
 
 def values():
-    life = {"effective_date": START, "expiry_date": END}
+    life = {"effective_time": START, "expiry_time": END}
     vanilla = {"option_type": "call", "strike": 100, **life}
     curve = m.RateTermStructure(
         reference_time=START, times=[END], factors=[0.99]
@@ -33,11 +33,13 @@ def values():
         risk_free_rate=curve, dividend_yield=0.02, volatility=0.2
     )
     calendar = m.custom_calendar(
-        base=m.custom_calendar(base=m.sse_calendar(), closed_dates=[START]),
-        open_dates=[date(2025, 1, 4)],
+        base=m.custom_calendar(base=m.sse_calendar(), closed_dates=[START.date()]),
+        open_dates=[datetime(2025, 1, 4).date()],
         trading_days_per_year=260,
     )
-    schedule = m.monthly_schedule(start=START, end=END, first_observation_month=1)
+    schedule = m.monthly_schedule(
+        start_time=START, end_time=END, first_observation_month=1
+    )
     common = {
         "initial_spot": 100,
         "knock_in_level": 80,
@@ -68,7 +70,7 @@ def values():
         m.weekdays_calendar(),
         m.all_days_calendar(),
         schedule,
-        m.fixed_interval_schedule(start=START, end=END, interval_days=2),
+        m.fixed_interval_schedule(start_time=START, end_time=END, interval_days=2),
         m.PricingContext(
             model_parameters=model,
             spot_price=100,
@@ -80,13 +82,13 @@ def values():
         i.AmericanOption(**vanilla),
         i.CashOrNothingOption(payout=10, **vanilla),
         i.AssetOrNothingOption(**vanilla),
-        i.GeometricAveragePriceOption(averaging_start_date=START, **vanilla),
-        i.ArithmeticAveragePriceOption(averaging_start_date=START, **vanilla),
+        i.GeometricAveragePriceOption(averaging_start_time=START, **vanilla),
+        i.ArithmeticAveragePriceOption(averaging_start_time=START, **vanilla),
         i.BarrierOption(
             barrier_level=120,
             barrier_type="up_and_out",
             observation_mode="scheduled",
-            observation_dates=[END],
+            observation_times=[END],
             touch_state="untouched",
             **vanilla,
         ),
@@ -114,7 +116,7 @@ def values():
             daily_quantity=1,
             acceleration_factor=2,
             accumulated_quantity=3,
-            knock_out_observation_dates=[],
+            knock_out_observation_times=[],
             **life,
         ),
         i.SnowballOption(maturity_coupon_rate=0.1, **common),
@@ -204,8 +206,8 @@ class SerializationTests(unittest.TestCase):
         option = i.EuropeanOption(
             option_type="call",
             strike=100,
-            effective_date=START,
-            expiry_date=END,
+            effective_time=START,
+            expiry_time=END,
         )
         context = m.PricingContext(
             model_parameters=m.BlackScholesMertonParameters(
@@ -243,7 +245,7 @@ class SerializationTests(unittest.TestCase):
                 {
                     "option_type": "call",
                     "strike": -1,
-                    "effective_date": START,
-                    "expiry_date": END,
+                    "effective_time": START,
+                    "expiry_time": END,
                 },
             )

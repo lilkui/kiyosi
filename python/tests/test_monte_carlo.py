@@ -6,7 +6,7 @@ import sys
 import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 from fractions import Fraction
 
 import QuantLib as ql
@@ -29,7 +29,7 @@ from test_binomial import END, GREEKS, START, market
 
 def contract(direction="call", strike=100):
     return EuropeanOption(
-        option_type=direction, strike=strike, effective_date=START, expiry_date=END
+        option_type=direction, strike=strike, effective_time=START, expiry_time=END
     )
 
 
@@ -127,8 +127,8 @@ class MonteCarloTests(unittest.TestCase):
                                     american = AmericanOption(
                                         option_type=direction,
                                         strike=amount,
-                                        effective_date=START,
-                                        expiry_date=END,
+                                        effective_time=START,
+                                        expiry_time=END,
                                     )
                                     self.assertEqual(
                                         engine.price(american, context), estimate.price
@@ -228,9 +228,7 @@ class MonteCarloTests(unittest.TestCase):
                     engine = MonteCarloVanillaEngine(
                         path_count=paths, seed=seed, thread_count=4
                     )
-                    context = market(
-                        spot=100.25, valuation=datetime(2025, 1, 1, 12, tzinfo=UTC)
-                    )
+                    context = market(spot=100.25, valuation=datetime(2025, 1, 1, 12))
                     expected = differences(engine, option, context, **shifts)
                     actual = engine.price_with_greeks(
                         option, context, greeks="all", **shifts
@@ -276,7 +274,7 @@ class MonteCarloTests(unittest.TestCase):
         )
         for valuation in (
             START - timedelta(days=1),
-            datetime(2026, 1, 1, 0, 0, 0, 1, tzinfo=UTC),
+            datetime(2026, 1, 1, 0, 0, 0, 1),
         ):
             self.assert_rejection(
                 InvalidInputError,
@@ -284,7 +282,7 @@ class MonteCarloTests(unittest.TestCase):
                 option,
                 market(valuation=valuation),
             )
-        before = datetime(2025, 12, 31, 23, 59, 59, 999999, tzinfo=UTC)
+        before = datetime(2025, 12, 31, 23, 59, 59, 999999)
         self.assertGreaterEqual(engine.price(option, market(valuation=before)), 0)
         nodes = RateTermStructure(reference_time=START, times=[END], factors=[0.95])
         node_context = context.replace(
@@ -444,21 +442,21 @@ class MonteCarloTests(unittest.TestCase):
             option = EuropeanOption(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
-                effective_date=date.fromisoformat(inputs["effective_date"]),
-                expiry_date=date.fromisoformat(inputs["expiry_date"]),
+                effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
             )
             context = market(
                 inputs["spot"],
                 inputs["rate"],
                 inputs["dividend"],
                 inputs["volatility"],
-                date.fromisoformat(inputs["valuation"]),
+                datetime.fromisoformat(inputs["valuation"]),
             )
             with ql.SavedSettings():
                 reference, uncertainty = oracle.reference(inputs)
             engine = MonteCarloVanillaEngine(**profile["settings"], thread_count=4)
             # Wide bumps are biased at one-day expiries.
-            wrapped = inputs["spot"] == 100 and inputs["expiry_date"] == "2026-01-06"
+            wrapped = inputs["spot"] == 100 and inputs["expiry_time"] == "2026-01-06"
             names = sorted(reference.keys() - {"price"}) if wrapped else []
             result = (
                 engine.price_with_greeks(option, context, names, **profile["shifts"])

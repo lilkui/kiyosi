@@ -1,13 +1,13 @@
 use kiyosi::*;
 
-fn start() -> Date {
-    Date::new(2025, 1, 1).unwrap()
+fn start() -> Timestamp {
+    Date::new(2025, 1, 1).unwrap().start_of_day()
 }
-fn end() -> Date {
-    Date::new(2026, 1, 1).unwrap()
+fn end() -> Timestamp {
+    Date::new(2026, 1, 1).unwrap().start_of_day()
 }
-fn middle() -> Date {
-    Date::new(2025, 6, 30).unwrap()
+fn middle() -> Timestamp {
+    Date::new(2025, 6, 30).unwrap().start_of_day()
 }
 
 fn settings() -> FiniteDifferenceSettings {
@@ -19,9 +19,9 @@ fn settings() -> FiniteDifferenceSettings {
     }
 }
 
-fn surface(last: Date, skew: bool) -> LocalVolatilitySurface {
+fn surface(last: Timestamp, skew: bool) -> LocalVolatilitySurface {
     LocalVolatilitySurface::new(
-        vec![start().into(), last.into()],
+        vec![start(), last],
         vec![60.0, 100.0, 140.0],
         if skew {
             vec![vec![0.32, 0.24, 0.16], vec![0.36, 0.26, 0.18]]
@@ -36,7 +36,7 @@ fn local(skew: bool) -> PricingContext {
     PricingContext::new(
         LocalVolatilityParameters::new(0.04, 0.01, surface(end(), skew)).unwrap(),
         100.0,
-        start().into(),
+        start(),
     )
     .unwrap()
 }
@@ -45,7 +45,7 @@ fn bsm() -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.2).unwrap(),
         100.0,
-        start().into(),
+        start(),
     )
     .unwrap()
 }
@@ -66,7 +66,7 @@ fn constant_binary_surfaces_match_bsm_for_cash_asset_directions_and_monitoring()
                         BinaryBarrierTerms::new(direction, 100.0, start(), end(), level, kind);
                     if scheduled {
                         terms.observation_mode = ObservationMode::Scheduled;
-                        terms.observation_dates = vec![middle(), end()];
+                        terms.observation_times = vec![middle(), end()];
                     }
                     let option = if asset {
                         BinaryBarrierOption::asset(terms)
@@ -110,7 +110,7 @@ fn constant_touch_surfaces_match_bsm_for_settlement_and_double_boundaries() {
                     terms.settlement_timing = timing;
                     if scheduled {
                         terms.observation_mode = ObservationMode::Scheduled;
-                        terms.observation_dates = vec![middle(), end()];
+                        terms.observation_times = vec![middle(), end()];
                     }
                     let option = if asset {
                         TouchOption::asset(terms)
@@ -136,7 +136,7 @@ fn constant_touch_surfaces_match_bsm_for_settlement_and_double_boundaries() {
             terms.settlement_timing = timing;
             if scheduled {
                 terms.observation_mode = ObservationMode::Scheduled;
-                terms.observation_dates = vec![middle(), end()];
+                terms.observation_times = vec![middle(), end()];
             }
             let option = DoubleTouchOption::cash(terms, 10.0).unwrap();
             let expected = double.price(&option, &bsm()).unwrap();
@@ -171,7 +171,7 @@ fn skew_binary_in_out_parity_uses_unrestricted_digital_continuation() {
                     );
                     if scheduled {
                         terms.observation_mode = ObservationMode::Scheduled;
-                        terms.observation_dates = vec![middle(), end()];
+                        terms.observation_times = vec![middle(), end()];
                     }
                     if asset {
                         BinaryBarrierOption::asset(terms)
@@ -223,16 +223,16 @@ fn skew_binary_in_out_parity_uses_unrestricted_digital_continuation() {
 #[test]
 fn local_touch_coverage_follows_observations_and_known_cashflows() {
     let engine = FiniteDifferenceBinaryBarrierEngine::new(settings()).unwrap();
-    let curve = RateTermStructure::new(start().into(), vec![middle().into()], vec![0.97]).unwrap();
+    let curve = RateTermStructure::new(start(), vec![middle()], vec![0.97]).unwrap();
     let context = PricingContext::new(
         LocalVolatilityParameters::new(curve.clone(), curve, surface(middle(), true)).unwrap(),
         100.0,
-        start().into(),
+        start(),
     )
     .unwrap();
     let mut terms = TouchOptionTerms::new(start(), end(), 120.0, BarrierType::UpAndIn);
     terms.observation_mode = ObservationMode::Scheduled;
-    terms.observation_dates = vec![middle()];
+    terms.observation_times = vec![middle()];
     terms.settlement_timing = SettlementTiming::AtHit;
     let hit = TouchOption::cash(terms.clone(), 10.0).unwrap();
     let price = engine.price(&hit, &context).unwrap();
@@ -243,10 +243,14 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
         engine.price(&expiry, &context),
         Err(Error::InvalidInput(_))
     ));
-    let past = Timestamp::new(middle(), 0, 0, 0, 1).unwrap();
+    let past = Timestamp::new(middle().date(), 0, 0, 0, 1).unwrap();
     let settled_context = PricingContext::new(
-        LocalVolatilityParameters::new(0.04, 0.01, surface(Date::new(2025, 7, 1).unwrap(), true))
-            .unwrap(),
+        LocalVolatilityParameters::new(
+            0.04,
+            0.01,
+            surface(Date::new(2025, 7, 1).unwrap().start_of_day(), true),
+        )
+        .unwrap(),
         100.0,
         past,
     )
@@ -297,7 +301,7 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
     let option = BinaryBarrierOption::cash(terms, 10.0).unwrap();
     let context = local(true)
         .replace(PricingContextChanges {
-            valuation_time: Some(Date::new(2025, 1, 2).unwrap().into()),
+            valuation_time: Some(Date::new(2025, 1, 2).unwrap().start_of_day()),
             ..Default::default()
         })
         .unwrap();
@@ -340,7 +344,7 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
     assert_eq!(result.get(Greek::Gamma), None);
     let expiry = boundary
         .replace(PricingContextChanges {
-            valuation_time: Some(end().into()),
+            valuation_time: Some(end()),
             ..Default::default()
         })
         .unwrap();
@@ -409,7 +413,7 @@ fn skew_touch_greeks_hold_absolute_surface_fixed() {
 #[test]
 fn remote_binary_knock_in_remains_nonnegative_at_low_volatility() {
     let surface = LocalVolatilitySurface::new(
-        vec![start().into(), end().into()],
+        vec![start(), end()],
         vec![50.0, 160.0],
         vec![vec![0.05; 2]; 2],
     )
@@ -417,7 +421,7 @@ fn remote_binary_knock_in_remains_nonnegative_at_low_volatility() {
     let context = PricingContext::new(
         LocalVolatilityParameters::new(0.04, 0.01, surface).unwrap(),
         100.0,
-        start().into(),
+        start(),
     )
     .unwrap();
     let engine = FiniteDifferenceBinaryBarrierEngine::new(settings()).unwrap();
@@ -446,14 +450,14 @@ fn skew_binary_barriers_match_independent_quantlib_fd() {
         0.05,
         0.02,
         LocalVolatilitySurface::new(
-            vec![start().into(), end().into()],
+            vec![start(), end()],
             vec![80.0, 120.0],
             vec![vec![0.3, 0.15], vec![0.35, 0.2]],
         )
         .unwrap(),
     )
     .unwrap();
-    let context = PricingContext::new(model, 100.0, start().into()).unwrap();
+    let context = PricingContext::new(model, 100.0, start()).unwrap();
     let engine = FiniteDifferenceBinaryBarrierEngine::new(FiniteDifferenceSettings {
         asset_step_count: 1600,
         time_step_count: 1600,
@@ -519,19 +523,19 @@ fn skew_binary_barriers_match_independent_quantlib_fd() {
 
 #[test]
 fn skew_double_boundaries_match_independent_path_estimates() {
-    let expiry = Date::new(2025, 4, 1).unwrap();
+    let expiry = Date::new(2025, 4, 1).unwrap().start_of_day();
     let model = LocalVolatilityParameters::new(
         0.04,
         0.01,
         LocalVolatilitySurface::new(
-            vec![start().into(), expiry.into()],
+            vec![start(), expiry],
             vec![60.0, 100.0, 160.0],
             vec![vec![0.32, 0.24, 0.16]; 2],
         )
         .unwrap(),
     )
     .unwrap();
-    let context = PricingContext::new(model, 101.0, start().into()).unwrap();
+    let context = PricingContext::new(model, 101.0, start()).unwrap();
     let settings = FiniteDifferenceSettings {
         asset_step_count: 1600,
         time_step_count: 1600,

@@ -54,7 +54,7 @@ class CalendarTests(unittest.TestCase):
                 risk_free_rate=0.03, dividend_yield=0, volatility=0.2
             ),
             spot_price=100,
-            valuation_time=closed,
+            valuation_time=datetime.combine(closed, datetime.min.time()),
             calendar=left,
         )
         self.assertEqual(context, context.replace(calendar=right))
@@ -96,65 +96,71 @@ class CalendarTests(unittest.TestCase):
 
     def test_schedule_endpoints_clamping_offsets_and_empty_results(self):
         fixed = fixed_interval_schedule(
-            start=date(2025, 1, 3), end=date(2025, 1, 7), interval_days=1
+            start_time=datetime(2025, 1, 3),
+            end_time=datetime(2025, 1, 7),
+            interval_days=1,
         )
-        self.assertEqual(fixed.dates, [date(2025, 1, 6), date(2025, 1, 7)])
+        self.assertEqual(fixed.times, [datetime(2025, 1, 6), datetime(2025, 1, 7)])
         self.assertEqual(
             monthly_schedule(
-                start=date(2025, 1, 1), end=date(2025, 3, 1), first_observation_month=1
-            ).dates,
-            [date(2025, 2, 3)],
-        )
-        self.assertEqual(
-            monthly_schedule(
-                start=date(2025, 1, 31),
-                end=date(2025, 4, 30),
+                start_time=datetime(2025, 1, 1),
+                end_time=datetime(2025, 3, 1),
                 first_observation_month=1,
-            ).dates,
-            [date(2025, 2, 28), date(2025, 3, 31), date(2025, 4, 30)],
+            ).times,
+            [datetime(2025, 2, 3)],
         )
         self.assertEqual(
             monthly_schedule(
-                start=date(2024, 1, 31),
-                end=date(2024, 3, 31),
+                start_time=datetime(2025, 1, 31),
+                end_time=datetime(2025, 4, 30),
+                first_observation_month=1,
+            ).times,
+            [datetime(2025, 2, 28), datetime(2025, 3, 31), datetime(2025, 4, 30)],
+        )
+        self.assertEqual(
+            monthly_schedule(
+                start_time=datetime(2024, 1, 31),
+                end_time=datetime(2024, 3, 31),
                 first_observation_month=1,
                 calendar=all_days_calendar(),
-            ).dates,
-            [date(2024, 2, 29), date(2024, 3, 31)],
+            ).times,
+            [datetime(2024, 2, 29), datetime(2024, 3, 31)],
         )
         self.assertEqual(
             monthly_schedule(
-                start=date(2025, 1, 2), end=date(2025, 4, 2), first_observation_month=2
-            ).dates,
-            [date(2025, 3, 3), date(2025, 4, 2)],
+                start_time=datetime(2025, 1, 2),
+                end_time=datetime(2025, 4, 2),
+                first_observation_month=2,
+            ).times,
+            [datetime(2025, 3, 3), datetime(2025, 4, 2)],
         )
         for start, end in (
-            (date(2025, 1, 1), date(2025, 1, 1)),
-            (date(2025, 1, 1), date(2026, 1, 1)),
-            (date(9999, 11, 1), date.max),
+            (datetime(2025, 1, 1), datetime(2025, 1, 1)),
+            (datetime(2025, 1, 1), datetime(2026, 1, 1)),
+            (datetime(9999, 11, 1), datetime(9999, 12, 31)),
         ):
             for interval in (2**31 - 1, 2**31, 2**40, 2**63 - 1):
-                with self.subTest(start=start, end=end, interval=interval):
+                with self.subTest(start_time=start, end_time=end, interval=interval):
                     self.assertEqual(
                         fixed_interval_schedule(
-                            start=start, end=end, interval_days=interval
-                        ).dates,
+                            start_time=start, end_time=end, interval_days=interval
+                        ).times,
                         [],
                     )
             self.assertEqual(
                 monthly_schedule(
-                    start=start, end=end, first_observation_month=2**31 - 1
-                ).dates,
+                    start_time=start, end_time=end, first_observation_month=2**31 - 1
+                ).times,
                 [],
             )
         self.assertEqual(
             fixed_interval_schedule(
-                start=date(9999, 12, 30),
-                end=date.max,
+                start_time=datetime(9999, 12, 30),
+                end_time=datetime(9999, 12, 31),
                 interval_days=1,
                 calendar=all_days_calendar(),
-            ).dates,
-            [date.max],
+            ).times,
+            [datetime(9999, 12, 31)],
         )
 
     def test_closures_merge_candidates_and_stop_at_end(self):
@@ -162,37 +168,37 @@ class CalendarTests(unittest.TestCase):
         calendar = custom_calendar(base=all_days_calendar(), closed_dates=closed)
         for schedule in (
             monthly_schedule(
-                start=date(2025, 1, 1),
-                end=date(2025, 4, 2),
+                start_time=datetime(2025, 1, 1),
+                end_time=datetime(2025, 4, 2),
                 first_observation_month=1,
                 calendar=calendar,
             ),
             fixed_interval_schedule(
-                start=date(2025, 1, 1),
-                end=date(2025, 4, 2),
+                start_time=datetime(2025, 1, 1),
+                end_time=datetime(2025, 4, 2),
                 interval_days=31,
                 calendar=calendar,
             ),
         ):
-            self.assertEqual(schedule.dates, [date(2025, 4, 1)])
+            self.assertEqual(schedule.times, [datetime(2025, 4, 1)])
         self.assertEqual(
             fixed_interval_schedule(
-                start=date(2025, 1, 1),
-                end=date(2025, 3, 31),
+                start_time=datetime(2025, 1, 1),
+                end_time=datetime(2025, 3, 31),
                 interval_days=1,
                 calendar=calendar,
-            ).dates,
+            ).times,
             [],
         )
 
     def test_schedule_iteration_indexing_and_owning_copies(self):
         schedule = fixed_interval_schedule(
-            start=date(2025, 1, 1),
-            end=date(2025, 1, 5),
+            start_time=datetime(2025, 1, 1),
+            end_time=datetime(2025, 1, 5),
             interval_days=1,
             calendar=all_days_calendar(),
         )
-        expected = [date(2025, 1, i) for i in range(2, 6)]
+        expected = [datetime(2025, 1, i) for i in range(2, 6)]
         self.assertEqual(len(schedule), 4)
         self.assertEqual(schedule[0], expected[0])
         self.assertEqual(schedule[-1], expected[-1])
@@ -214,11 +220,11 @@ class CalendarTests(unittest.TestCase):
         with self.assertRaises(OverflowError) as error:
             _ = schedule[BrokenIndex()]
         self.assertIs(error.exception, failure)
-        copied = schedule.dates
+        copied = schedule.times
         copied.clear()
-        self.assertEqual(schedule.dates, expected)
+        self.assertEqual(schedule.times, expected)
         with self.assertRaises(AttributeError):
-            schedule.dates = []
+            schedule.times = []
         first, second = iter(schedule), schedule.__iter__()
         self.assertIs(iter(first), first)
         self.assertEqual(next(first), expected[0])
@@ -231,8 +237,8 @@ class CalendarTests(unittest.TestCase):
 
     def test_schedule_indices_reject_booleans_and_nonintegers(self):
         schedule = fixed_interval_schedule(
-            start=date(2025, 1, 1),
-            end=date(2025, 1, 5),
+            start_time=datetime(2025, 1, 1),
+            end_time=datetime(2025, 1, 5),
             interval_days=1,
             calendar=all_days_calendar(),
         )
@@ -241,35 +247,35 @@ class CalendarTests(unittest.TestCase):
             def __index__(self):
                 return -1
 
-        self.assertEqual(schedule[Index()], date(2025, 1, 5))
+        self.assertEqual(schedule[Index()], datetime(2025, 1, 5))
         for index in (True, False, 1.0, 1.5, "1", None, slice(None)):
             with self.subTest(index=index), self.assertRaises(TypeError):
                 _ = schedule[index]
-        self.assertEqual(list(schedule), [date(2025, 1, i) for i in range(2, 6)])
+        self.assertEqual(list(schedule), [datetime(2025, 1, i) for i in range(2, 6)])
 
     def test_validation_errors_and_order(self):
-        start, end = date(2025, 1, 1), date(2025, 2, 1)
+        start, end = datetime(2025, 1, 1), datetime(2025, 2, 1)
         for factory, field, minimum in (
             (fixed_interval_schedule, "interval_days", -(2**63)),
             (monthly_schedule, "first_observation_month", -(2**31)),
         ):
             for value in (0, -1, minimum):
                 with self.assertRaises(InvalidInputError) as error:
-                    factory(start=start, end=end, **{field: value})
+                    factory(start_time=start, end_time=end, **{field: value})
                 self.assertIs(type(error.exception), InvalidInputError)
                 with self.assertRaises(InvalidInputError) as error:
-                    factory(start=end, end=start, **{field: value})
+                    factory(start_time=end, end_time=start, **{field: value})
                 self.assertIs(type(error.exception), InvalidInputError)
         for operation in (
             weekdays_calendar().trading_days_between,
             weekdays_calendar().trading_year_fraction,
         ):
             with self.assertRaises(InvalidInputError) as error:
-                operation(end, start)
+                operation(end.date(), start.date())
             self.assertIs(type(error.exception), InvalidInputError)
 
     def test_representations_use_native_errors_and_integer_protocol(self):
-        start, end = date(2025, 1, 1), date(2025, 2, 1)
+        start, end = datetime(2025, 1, 1), datetime(2025, 2, 1)
 
         @numbers.Integral.register
         class Index:
@@ -285,22 +291,22 @@ class CalendarTests(unittest.TestCase):
             (monthly_schedule, "first_observation_month", 31),
         ):
             self.assertEqual(
-                factory(start=start, end=end, **{field: Index()}).dates,
-                factory(start=start, end=end, **{field: 1}).dates,
+                factory(start_time=start, end_time=end, **{field: Index()}).times,
+                factory(start_time=start, end_time=end, **{field: 1}).times,
             )
             for value in (True, 1.0, 1.5, "1", None, IndexOnly()):
                 with self.assertRaises(TypeError):
-                    factory(start=start, end=end, **{field: value})
+                    factory(start_time=start, end_time=end, **{field: value})
             for value in (-(2**bits) - 1, 2**bits):
                 with self.assertRaises(OverflowError):
-                    factory(start=start, end=end, **{field: value})
-            for value in (datetime(2025, 1, 1), "2025-01-01", True):
+                    factory(start_time=start, end_time=end, **{field: value})
+            for value in (date(2025, 1, 1), "2025-01-01", True):
                 with self.assertRaises(TypeError):
-                    factory(start=value, end=end, **{field: 1})
+                    factory(start_time=value, end_time=end, **{field: 1})
         with self.assertRaises(ValueError):
-            weekdays_calendar().adjust(start, "modified_following")
+            weekdays_calendar().adjust(start.date(), "modified_following")
         with self.assertRaises(TypeError):
-            weekdays_calendar().adjust(start, True)
+            weekdays_calendar().adjust(start.date(), True)
 
     def test_shared_and_distinct_calendars_support_concurrent_reads(self):
         calendar = custom_calendar(
@@ -337,8 +343,8 @@ class CalendarTests(unittest.TestCase):
 
         with self.assertRaises(ConversionFailure):
             fixed_interval_schedule(
-                start=date(2025, 1, 1),
-                end=date(2025, 2, 1),
+                start_time=datetime(2025, 1, 1),
+                end_time=datetime(2025, 2, 1),
                 interval_days=BrokenInteger(),
             )
 

@@ -104,8 +104,8 @@ fn unstable() -> Error {
 
 fn time_to_expiry(option: &impl OptionContract, context: &PricingContext) -> Result<f64> {
     let valuation = context.valuation_time();
-    let expiry = option.expiry_date().start_of_day();
-    if valuation < option.effective_date().start_of_day() || valuation > expiry {
+    let expiry = option.expiry_time();
+    if valuation < option.effective_time() || valuation > expiry {
         return Err(Error::InvalidInput(
             "valuation must be within contract life".into(),
         ));
@@ -250,7 +250,7 @@ fn native_model<D: Diffusion>(
         return Ok((PricingResult::new(payoff.value(spot))?, None));
     }
     let model = context.model_parameters();
-    let expiry = option.expiry_date().start_of_day();
+    let expiry = option.expiry_time();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
     let upper = match settings.asset_upper_boundary {
@@ -533,9 +533,7 @@ fn complete_greeks(
         );
     }
     let request = local_volatility::validate_request(context, request)?;
-    if context.valuation_time() == option.expiry_date().start_of_day()
-        || option.all_greeks_unavailable(context)
-    {
+    if context.valuation_time() == option.expiry_time() || option.all_greeks_unavailable(context) {
         return Ok(result);
     }
     let missing_delta = request.has(Greek::Delta) && !result.has(Greek::Delta);
@@ -728,8 +726,8 @@ impl FiniteDifferenceVanillaEngine {
     /// use kiyosi::{FiniteDifferenceVanillaEngine, EuropeanOption, OptionType,
     ///     BlackScholesMertonParameters, Date, PricingContext, Greek, GreeksRequest};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// let result = FiniteDifferenceVanillaEngine::default().price_with_greeks(
     ///     &option, &context, GreeksRequest::new([Greek::Delta]), Default::default())?;
@@ -847,9 +845,9 @@ impl FiniteDifferenceDigitalEngine {
     /// use kiyosi::{FiniteDifferenceDigitalEngine, DigitalOption, OptionType,
     ///     BlackScholesMertonParameters, Date, PricingContext};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
-    ///     start, Date::new(2026, 1, 1)?)?;
+    ///     start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// assert!((FiniteDifferenceDigitalEngine::default().price(&option, &context)? - 4.945810910532236).abs() < 0.001);
     /// # Ok(()) }

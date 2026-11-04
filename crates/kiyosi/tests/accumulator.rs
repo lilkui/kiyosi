@@ -1,9 +1,9 @@
 use kiyosi::*;
 
-fn day(month: u32, date: u32) -> Date {
-    Date::new(2025, month, date).unwrap()
+fn day(month: u32, date: u32) -> Timestamp {
+    Date::new(2025, month, date).unwrap().start_of_day()
 }
-fn terms(end: Date) -> AccumulatorTerms {
+fn terms(end: Timestamp) -> AccumulatorTerms {
     AccumulatorTerms {
         accumulated_quantity: Some(0.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end)
@@ -26,14 +26,14 @@ impl PricingEngine<Accumulator> for TerminalReference {
                 OptionType::Put,
                 level,
                 option.strike(),
-                option.effective_date(),
-                option.expiry_date(),
+                option.effective_time(),
+                option.expiry_time(),
             )?;
             let asset = DigitalOption::asset_or_nothing(
                 OptionType::Put,
                 level,
-                option.effective_date(),
-                option.expiry_date(),
+                option.effective_time(),
+                option.expiry_time(),
             )?;
             Ok(AnalyticDigitalEngine.price(&asset, context)?
                 - AnalyticDigitalEngine.price(&cash, context)?)
@@ -43,11 +43,11 @@ impl PricingEngine<Accumulator> for TerminalReference {
             * (context.spot_price()
                 * model
                     .dividend_curve()
-                    .factor(context.valuation_time(), option.expiry_date().into())?
+                    .factor(context.valuation_time(), option.expiry_time())?
                 - option.strike()
                     * model
                         .risk_free_curve()
-                        .factor(context.valuation_time(), option.expiry_date().into())?);
+                        .factor(context.valuation_time(), option.expiry_time())?);
         let purchase = if option.knock_out_level() > option.strike() {
             lower(option.knock_out_level())?
                 + (option.acceleration_factor() - 1.0) * lower(option.strike())?
@@ -77,7 +77,7 @@ fn single_observation_matches_terminal_digital_portfolio_without_grid_error() {
             for spot in [80.0, 100.0, 120.0] {
                 let context = market(
                     spot,
-                    Timestamp::new(day(1, 3), 12, 0, 0, 0).unwrap(),
+                    Timestamp::new(day(1, 3).date(), 12, 0, 0, 0).unwrap(),
                     0.6,
                     -0.02,
                     0.03,
@@ -114,8 +114,8 @@ fn history_replacement_owns_validated_values_and_preserves_terms() {
     assert_eq!(option.knock_out_level(), 110.0);
     assert_eq!(option.daily_quantity(), 1.0);
     assert_eq!(option.acceleration_factor(), 2.0);
-    assert_eq!(option.effective_date(), day(1, 1));
-    assert_eq!(option.expiry_date(), day(2, 3));
+    assert_eq!(option.effective_time(), day(1, 1));
+    assert_eq!(option.expiry_time(), day(2, 3));
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn validation_categories_and_order_preserve_accepted_degenerate_terms() {
     t.daily_quantity = 0.0;
     t.acceleration_factor = 0.0;
     assert!(Accumulator::new(t.clone()).is_ok());
-    t.expiry_date = Date::new(2024, 12, 31).unwrap();
+    t.expiry_time = Date::new(2024, 12, 31).unwrap().start_of_day();
     assert!(matches!(
         Accumulator::new(t.clone()).unwrap_err(),
         Error::InvalidInput(_)
@@ -170,7 +170,7 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
         (f64::from_bits(110.0_f64.to_bits() - 1), 4.0),
         (f64::from_bits(110.0_f64.to_bits() + 1), 3.0),
     ] {
-        let context = market(spot, day(1, 6).into(), 0.2, 0.04, 0.01);
+        let context = market(spot, day(1, 6), 0.2, 0.04, 0.01);
         assert_eq!(
             engine.price(&option, &context).unwrap(),
             quantity * (spot - 100.0)
@@ -185,7 +185,7 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
         );
     }
     for spot in [90.0, 100.0, 109.0] {
-        let context = market(spot, day(1, 3).into(), 0.2, 0.04, 0.01);
+        let context = market(spot, day(1, 3), 0.2, 0.04, 0.01);
         let updated = option
             .replace_history(if spot < 100.0 { 5.0 } else { 4.0 })
             .unwrap();
@@ -198,13 +198,13 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
     }
     assert_eq!(
         engine
-            .price(&option, &market(110.0, day(1, 1).into(), 0.2, 0.04, 0.01))
+            .price(&option, &market(110.0, day(1, 1), 0.2, 0.04, 0.01))
             .unwrap(),
         30.0
     );
     for at in [
-        Date::new(2024, 12, 31).unwrap().into(),
-        Timestamp::new(day(1, 6), 0, 0, 0, 1).unwrap(),
+        Date::new(2024, 12, 31).unwrap().start_of_day(),
+        Timestamp::new(day(1, 6).date(), 0, 0, 0, 1).unwrap(),
     ] {
         assert!(matches!(
             engine
@@ -216,14 +216,14 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
     let weekend = Accumulator::new(terms(day(1, 5))).unwrap();
     assert!(matches!(
         engine
-            .price(&weekend, &market(100.0, day(1, 3).into(), 0.2, 0.04, 0.01))
+            .price(&weekend, &market(100.0, day(1, 3), 0.2, 0.04, 0.01))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     let huge = option.replace_history(f64::MAX).unwrap();
     assert!(matches!(
         engine
-            .price(&huge, &market(111.0, day(1, 6).into(), 0.2, 0.04, 0.01))
+            .price(&huge, &market(111.0, day(1, 6), 0.2, 0.04, 0.01))
             .unwrap_err(),
         Error::ComputationFailure(_)
     ));
@@ -233,7 +233,7 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
                 &option,
                 &market(
                     100.0,
-                    Timestamp::new(day(1, 3), 12, 0, 0, 0).unwrap(),
+                    Timestamp::new(day(1, 3).date(), 12, 0, 0, 0).unwrap(),
                     1e308,
                     0.04,
                     0.01
@@ -261,7 +261,7 @@ fn two_observations_match_independent_conditional_terminal_portfolio() {
         .unwrap();
         let context = market(
             100.25,
-            Timestamp::new(day(1, 1), 12, 0, 0, 0).unwrap(),
+            Timestamp::new(day(1, 1).date(), 12, 0, 0, 0).unwrap(),
             0.6,
             -0.02,
             0.03,
@@ -283,7 +283,7 @@ fn two_observations_match_independent_conditional_terminal_portfolio() {
                 TerminalReference
                     .price(
                         &option.replace_history(quantity).unwrap(),
-                        &market(spot, day(1, 2).into(), 0.6, -0.02, 0.03),
+                        &market(spot, day(1, 2), 0.6, -0.02, 0.03),
                     )
                     .unwrap()
             };
@@ -318,7 +318,7 @@ fn two_observations_match_independent_conditional_terminal_portfolio() {
 fn affine_history_zero_limits_and_tiny_volatility_tails() {
     let engine = QuadratureAccumulatorEngine::default();
     let option = Accumulator::new(terms(day(2, 3))).unwrap();
-    let at = Timestamp::new(day(1, 1), 12, 0, 0, 0).unwrap();
+    let at = Timestamp::new(day(1, 1).date(), 12, 0, 0, 0).unwrap();
     let context = market(90.0, at, 0.2, 0.04, 0.01);
     let values = [0.0, 3.0, 6.0].map(|q| {
         engine
@@ -364,7 +364,7 @@ fn discounted_low_tail_preserves_large_finite_quantities() {
     let engine = QuadratureAccumulatorEngine::default();
     let context = market(
         90.0,
-        Timestamp::new(day(1, 1), 12, 0, 0, 0).unwrap(),
+        Timestamp::new(day(1, 1).date(), 12, 0, 0, 0).unwrap(),
         0.2,
         1000.0,
         1000.0,
@@ -406,7 +406,7 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
         })
         .unwrap(),
     ];
-    let year = Date::new(2026, 1, 1).unwrap();
+    let year = Date::new(2026, 1, 1).unwrap().start_of_day();
     for (end, spot, sigma, ko, acceleration, rate, daily) in [
         (day(2, 3), 80.0, 0.05, 105.0, 2.0, 0.04, false),
         (day(2, 3), 100.0, 0.2, 110.0, 2.0, 0.04, false),
@@ -434,7 +434,7 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
         .unwrap();
         let context = market(
             spot,
-            Timestamp::new(day(1, 1), 12, 0, 0, 0).unwrap(),
+            Timestamp::new(day(1, 1).date(), 12, 0, 0, 0).unwrap(),
             sigma,
             rate,
             0.01,
@@ -480,7 +480,7 @@ fn greeks_match_terminal_reference_and_cached_prices_match_scalar_repricing() {
         .unwrap();
     let context = market(
         101.5,
-        Timestamp::new(day(1, 4), 12, 0, 0, 0).unwrap(),
+        Timestamp::new(day(1, 4).date(), 12, 0, 0, 0).unwrap(),
         0.6,
         0.04,
         0.01,
@@ -520,9 +520,9 @@ fn greeks_match_terminal_reference_and_cached_prices_match_scalar_repricing() {
     })
     .unwrap();
     for at in [
-        Timestamp::new(day(1, 4), 12, 0, 0, 0).unwrap(),
-        Timestamp::new(day(1, 5), 23, 59, 59, 0).unwrap(),
-        day(1, 6).into(),
+        Timestamp::new(day(1, 4).date(), 12, 0, 0, 0).unwrap(),
+        Timestamp::new(day(1, 5).date(), 23, 59, 59, 0).unwrap(),
+        day(1, 6),
     ] {
         for spot in [90.0, 100.0, 100.25, 109.9, 110.0] {
             let context = market(spot, at, 0.3, -0.02, 0.01);
@@ -549,7 +549,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
         .unwrap()
         .replace_history(3.0)
         .unwrap();
-    let boundary = market(100.0, day(1, 1).into(), 0.2, 0.04, 0.01);
+    let boundary = market(100.0, day(1, 1), 0.2, 0.04, 0.01);
     let result = engine
         .price_with_greeks(&option, &boundary, GreeksRequest::all(), Default::default())
         .unwrap();
@@ -573,7 +573,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
         .unwrap();
     let context = market(
         100.0,
-        Timestamp::new(day(1, 3), 12, 0, 0, 0).unwrap(),
+        Timestamp::new(day(1, 3).date(), 12, 0, 0, 0).unwrap(),
         0.4,
         0.04,
         0.01,
@@ -590,14 +590,8 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
     );
     assert_eq!(engine.price(&option, &context).unwrap(), quote);
     for (option, context) in [
-        (
-            option.clone(),
-            market(110.0, day(1, 3).into(), 0.2, 0.04, 0.01),
-        ),
-        (
-            option.clone(),
-            market(100.0, day(1, 6).into(), 0.2, 0.04, 0.01),
-        ),
+        (option.clone(), market(110.0, day(1, 3), 0.2, 0.04, 0.01)),
+        (option.clone(), market(100.0, day(1, 6), 0.2, 0.04, 0.01)),
         (
             Accumulator::new(AccumulatorTerms {
                 daily_quantity: 0.0,
@@ -606,7 +600,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
             .unwrap()
             .replace_history(3.0)
             .unwrap(),
-            market(90.0, day(1, 3).into(), 0.2, 0.0, 0.0),
+            market(90.0, day(1, 3), 0.2, 0.0, 0.0),
         ),
     ] {
         let quote = engine.price(&option, &context).unwrap();
@@ -615,8 +609,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
             Error::UnsupportedOperation(_)
         ));
     }
-    let curve =
-        RateTermStructure::new(day(1, 1).into(), vec![day(2, 3).into()], vec![0.99]).unwrap();
+    let curve = RateTermStructure::new(day(1, 1), vec![day(2, 3)], vec![0.99]).unwrap();
     let curved = boundary
         .replace(PricingContextChanges {
             model_parameters: Some(
@@ -677,10 +670,17 @@ fn greeks_converge_under_spatial_refinement_and_smaller_bumps() {
         ..Default::default()
     })
     .unwrap();
-    let at = Timestamp::new(day(1, 4), 12, 0, 0, 0).unwrap();
+    let at = Timestamp::new(day(1, 4).date(), 12, 0, 0, 0).unwrap();
     for (end, ko, acceleration, spot, sigma, rate) in [
         (day(2, 3), 110.0, 2.0, 100.25, 0.2, 0.04),
-        (Date::new(2026, 1, 1).unwrap(), 105.0, 2.0, 80.0, 0.05, 0.04),
+        (
+            Date::new(2026, 1, 1).unwrap().start_of_day(),
+            105.0,
+            2.0,
+            80.0,
+            0.05,
+            0.04,
+        ),
         (day(4, 1), 150.0, 1.0, 120.0, 0.6, -0.02),
     ] {
         let option = Accumulator::new(AccumulatorTerms {
@@ -755,11 +755,11 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
         .unwrap();
         assert_eq!(option.accumulated_quantity(), None);
         let first = if start == day(1, 4) { day(1, 6) } else { start };
-        let current = market(100.0, first.start_of_day(), 0.2, 0.0, 0.0);
+        let current = market(100.0, first, 0.2, 0.0, 0.0);
         assert!(engine.price(&option, &current).is_ok());
         let prior = current
             .replace(PricingContextChanges {
-                valuation_time: Some(Timestamp::new(first, 12, 0, 0, 0).unwrap()),
+                valuation_time: Some(Timestamp::new(first.date(), 12, 0, 0, 0).unwrap()),
                 ..Default::default()
             })
             .unwrap();
@@ -772,7 +772,7 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
                 .price(&option.replace_history(0.0).unwrap(), &prior)
                 .is_ok()
         );
-        let expiry = market(100.0, day(1, 7).start_of_day(), 0.2, 0.0, 0.0);
+        let expiry = market(100.0, day(1, 7), 0.2, 0.0, 0.0);
         assert!(matches!(
             engine.price(&option, &expiry),
             Err(Error::InvalidInput(_))

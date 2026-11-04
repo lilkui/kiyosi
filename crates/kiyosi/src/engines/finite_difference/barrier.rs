@@ -53,9 +53,9 @@ impl FiniteDifferenceBarrierEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
-    ///     start, Date::new(2026, 1, 1)?, 120.0, BarrierType::UpAndOut))?;
+    ///     start, Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut))?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     100.0, start.into())?;
     /// let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings::default())?;
@@ -209,9 +209,9 @@ impl FiniteDifferenceDoubleBarrierEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(OptionType::Call,
-    ///     100.0, start, Date::new(2026, 1, 1)?, 80.0, 120.0, DoubleBarrierType::KnockOut))?;
+    ///     100.0, start, Date::new(2026, 1, 1)?.start_of_day(), 80.0, 120.0, DoubleBarrierType::KnockOut))?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     100.0, start.into())?;
     /// let engine = FiniteDifferenceDoubleBarrierEngine::default();
@@ -310,7 +310,7 @@ fn local_resolved(
             context
                 .model_parameters()
                 .risk_free_curve()
-                .log_factor(context.valuation_time(), terms.expiry_date().start_of_day())?,
+                .log_factor(context.valuation_time(), terms.expiry_time())?,
         ))
     };
     if touched && !knock_in {
@@ -375,11 +375,9 @@ fn native_with_model<D: Diffusion>(
     } else if let Some(value) = option.resolved_price(context)? {
         return PricingResult::new(value);
     }
-    let time = context
-        .valuation_time()
-        .years_until(option.expiry_date().start_of_day());
+    let time = context.valuation_time().years_until(option.expiry_time());
     let model = context.model_parameters();
-    let expiry = option.expiry_date().start_of_day();
+    let expiry = option.expiry_time();
     let risk = Curve::new(model.risk_free_curve(), context.valuation_time(), expiry)?;
     let dividend = Curve::new(model.dividend_curve(), context.valuation_time(), expiry)?;
     let upper = if let Some(upper) = settings.asset_upper_boundary {
@@ -420,11 +418,16 @@ fn native_with_model<D: Diffusion>(
         }
     }
     let observations: Vec<_> = terms
-        .observation_dates()
+        .observation_times()
         .iter()
-        .filter(|date| date.start_of_day() > context.valuation_time())
-        .map(|date| context.valuation_time().years_until(date.start_of_day()))
+        .filter(|&&date| date > context.valuation_time())
+        .map(|&date| context.valuation_time().years_until(date))
         .collect();
+    diffusion::validate_event_resolution(
+        context.valuation_time(),
+        expiry,
+        terms.observation_times(),
+    )?;
     let grid = diffusion::time_grid(
         context,
         expiry,

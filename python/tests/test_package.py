@@ -6,7 +6,7 @@ import inspect
 import pickle
 import tomllib
 import unittest
-from datetime import date
+from datetime import datetime
 from pathlib import Path
 
 import kiyosi
@@ -32,12 +32,12 @@ class PackageTests(unittest.TestCase):
                     self.assertEqual(getattr(replay, field), default)
 
     def test_contract_schedule_and_solver_signature_defaults_can_be_forwarded(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         required = {
             "option_type": "call",
             "strike": 100,
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_time": start,
+            "expiry_time": end,
             "barrier_level": 120,
             "barrier_type": "up_and_out",
         }
@@ -47,22 +47,22 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(option.rebate, 0)
         self.assertEqual(option.rebate_timing, "at_expiry")
         self.assertEqual(option.observation_mode, "continuous")
-        self.assertEqual(option.observation_dates, [])
+        self.assertEqual(option.observation_times, [])
         arguments = inspect.signature(market.monthly_schedule).bind(
-            start=start,
-            end=date(2025, 3, 3),
+            start_time=start,
+            end_time=datetime(2025, 3, 3),
             first_observation_month=1,
         )
         arguments.apply_defaults()
         self.assertEqual(
             list(market.monthly_schedule(*arguments.args, **arguments.kwargs)),
-            [date(2025, 2, 3), date(2025, 3, 3)],
+            [datetime(2025, 2, 3), datetime(2025, 3, 3)],
         )
         option = instruments.EuropeanOption(
             option_type="call",
             strike=100,
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
         )
         context = market.PricingContext(
             model_parameters=market.BlackScholesMertonParameters(
@@ -90,8 +90,8 @@ class PackageTests(unittest.TestCase):
             option_type="call",
             strike=100,
             payout=10,
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
         )
         engine = pricing.AnalyticDigitalEngine()
         arguments = inspect.signature(engine.price_with_greeks).bind(
@@ -142,8 +142,8 @@ class PackageTests(unittest.TestCase):
                         self.assertIs(parameter.default, Ellipsis)
 
     def test_replacement_signature_defaults_can_be_forwarded(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
-        dates = {"effective_date": start, "expiry_date": end}
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        dates = {"effective_time": start, "expiry_time": end}
         vanilla = dict(dates, option_type="call", strike=100)
         model = market.BlackScholesMertonParameters(
             risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
@@ -157,10 +157,10 @@ class PackageTests(unittest.TestCase):
             instruments.CashOrNothingOption(**vanilla, payout=10),
             instruments.AssetOrNothingOption(**vanilla),
             instruments.GeometricAveragePriceOption(
-                **vanilla, averaging_start_date=start, realized_average=0
+                **vanilla, averaging_start_time=start, realized_average=0
             ),
             instruments.ArithmeticAveragePriceOption(
-                **vanilla, averaging_start_date=start, realized_average=0
+                **vanilla, averaging_start_time=start, realized_average=0
             ),
             instruments.BarrierOption(
                 **vanilla,
@@ -241,7 +241,7 @@ class PackageTests(unittest.TestCase):
             )
 
     def test_monte_carlo_spot_shift_none_selects_each_product_default(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = market.PricingContext(
             model_parameters=market.BlackScholesMertonParameters(
                 risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
@@ -252,8 +252,8 @@ class PackageTests(unittest.TestCase):
         terms = {
             "option_type": "put",
             "strike": 100,
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_time": start,
+            "expiry_time": end,
         }
         engine = pricing.MonteCarloVanillaEngine(path_count=256, step_count=4, seed=42)
         for kind, shift in (
@@ -288,12 +288,12 @@ class PackageTests(unittest.TestCase):
                         )
 
     def test_numerical_spot_shift_none_uses_the_core_default(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = instruments.EuropeanOption(
             option_type="call",
             strike=100,
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
         )
         context = market.PricingContext(
             model_parameters=market.BlackScholesMertonParameters(
@@ -318,7 +318,7 @@ class PackageTests(unittest.TestCase):
                 engine.price_with_greeks(option, context, "delta", spot_shift=invalid)
 
     def test_native_greek_methods_expose_only_request_controls(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = market.PricingContext(
             model_parameters=market.BlackScholesMertonParameters(
                 risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
@@ -329,8 +329,8 @@ class PackageTests(unittest.TestCase):
         terms = {
             "option_type": "call",
             "strike": 100,
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_time": start,
+            "expiry_time": end,
         }
         for engine, option in (
             (pricing.AnalyticEuropeanEngine(), instruments.EuropeanOption(**terms)),
@@ -351,7 +351,7 @@ class PackageTests(unittest.TestCase):
             *(
                 (
                     pricing.MonteCarloAsianEngine(path_count=32, seed=42),
-                    kind(**terms, averaging_start_date=start),
+                    kind(**terms, averaging_start_time=start),
                 )
                 for kind in (
                     instruments.GeometricAveragePriceOption,
@@ -452,11 +452,11 @@ class PackageTests(unittest.TestCase):
                         )
 
     def test_autocallable_monitoring_defaults_match_explicit_daily_monitoring(self):
-        start, end = date(2025, 1, 2), date(2026, 1, 2)
+        start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
         common = {
             "knock_in_level": 80,
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_time": start,
+            "expiry_time": end,
             "observations": [instruments.AutocallableObservation(end, 110)],
         }
         for cls, extra in (
@@ -573,15 +573,15 @@ class PackageTests(unittest.TestCase):
                             factory(antithetic=value)
 
     def test_domain_rejections_preserve_native_conversion_exceptions(self):
-        from datetime import date
+        from datetime import datetime
 
         from kiyosi.instruments import EuropeanOption
 
         terms = {
             "option_type": "call",
             "strike": 100,
-            "effective_date": date(2025, 1, 1),
-            "expiry_date": date(2026, 1, 1),
+            "effective_time": datetime(2025, 1, 1),
+            "expiry_time": datetime(2026, 1, 1),
         }
         with self.assertRaises(kiyosi.InvalidInputError) as rejection:
             EuropeanOption(**(terms | {"strike": -1}))

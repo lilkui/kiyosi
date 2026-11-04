@@ -1,16 +1,16 @@
 use kiyosi::*;
 
-fn start() -> Date {
-    Date::new(2025, 1, 1).unwrap()
+fn start() -> Timestamp {
+    Date::new(2025, 1, 1).unwrap().start_of_day()
 }
-fn end() -> Date {
-    Date::new(2026, 1, 1).unwrap()
+fn end() -> Timestamp {
+    Date::new(2026, 1, 1).unwrap().start_of_day()
 }
 fn market() -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.2).unwrap(),
         100.0,
-        start().into(),
+        start(),
     )
     .unwrap()
 }
@@ -137,7 +137,7 @@ fn scheduled_single_expiry_observation_matches_digital_portfolios() {
             for kind in [inside, outside] {
                 let mut terms = TouchOptionTerms::new(start(), end(), level, kind);
                 terms.observation_mode = ObservationMode::Scheduled;
-                terms.observation_dates = vec![end()];
+                terms.observation_times = vec![end()];
                 let option = if asset {
                     TouchOption::asset(terms)
                 } else {
@@ -157,7 +157,7 @@ fn scheduled_single_expiry_observation_matches_digital_portfolios() {
                     let mut terms =
                         BinaryBarrierTerms::new(direction, 100.0, start(), end(), level, kind);
                     terms.observation_mode = ObservationMode::Scheduled;
-                    terms.observation_dates = vec![end()];
+                    terms.observation_times = vec![end()];
                     let option = if asset {
                         BinaryBarrierOption::asset(terms)
                     } else {
@@ -213,12 +213,7 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
                 amount * (-if asset { 0.01_f64 } else { 0.04_f64 }).exp()
             };
             assert!(
-                (engine
-                    .price(&option, &context(130.0, start().into()))
-                    .unwrap()
-                    - expected)
-                    .abs()
-                    < 1e-12
+                (engine.price(&option, &context(130.0, start())).unwrap() - expected).abs() < 1e-12
             );
             let tomorrow = Date::new(2025, 1, 2).unwrap().start_of_day();
             assert!(matches!(
@@ -249,7 +244,7 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
             ));
             let untouched = option.replace_history(Some(BarrierTouchState::Untouched));
             for spot in [100.0, 120.0, 130.0] {
-                let ctx = context(spot, end().into());
+                let ctx = context(spot, end());
                 let expected = if spot >= 120.0 {
                     if asset { spot } else { 10.0 }
                 } else {
@@ -281,13 +276,8 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
             }
             .unwrap()
             .replace_history(Some(BarrierTouchState::Untouched));
-            assert_eq!(
-                engine
-                    .price(&option, &context(100.0, end().into()))
-                    .unwrap(),
-                0.0
-            );
-            let ctx = context(110.0, end().into());
+            assert_eq!(engine.price(&option, &context(100.0, end())).unwrap(), 0.0);
+            let ctx = context(110.0, end());
             assert_eq!(
                 engine.price(&option, &ctx).unwrap(),
                 if kind == BarrierType::UpAndOut {
@@ -302,8 +292,8 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
 
 #[test]
 fn early_scheduled_at_hit_horizon_and_resolved_flows_use_only_required_curves() {
-    let fixing = Date::new(2025, 6, 30).unwrap();
-    let curve = RateTermStructure::new(start().into(), vec![fixing.into()], vec![0.97]).unwrap();
+    let fixing = Date::new(2025, 6, 30).unwrap().start_of_day();
+    let curve = RateTermStructure::new(start(), vec![fixing], vec![0.97]).unwrap();
     let model = BlackScholesMertonParameters::new(curve.clone(), curve, 0.2).unwrap();
     let ctx = market()
         .replace(PricingContextChanges {
@@ -313,7 +303,7 @@ fn early_scheduled_at_hit_horizon_and_resolved_flows_use_only_required_curves() 
         .unwrap();
     let mut terms = TouchOptionTerms::new(start(), end(), 120.125, BarrierType::UpAndIn);
     terms.observation_mode = ObservationMode::Scheduled;
-    terms.observation_dates = vec![fixing];
+    terms.observation_times = vec![fixing];
     terms.settlement_timing = SettlementTiming::AtHit;
     let option = TouchOption::cash(terms.clone(), 10.0).unwrap();
     let digital = DigitalOption::cash_or_nothing(
@@ -333,9 +323,9 @@ fn early_scheduled_at_hit_horizon_and_resolved_flows_use_only_required_curves() 
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let at = context(130.0, fixing.into());
+    let at = context(130.0, fixing);
     assert_eq!(engine(400).price(&option, &at).unwrap(), 10.0);
-    let after = context(130.0, Timestamp::new(fixing, 0, 0, 0, 1).unwrap());
+    let after = context(130.0, Timestamp::new(fixing.date(), 0, 0, 0, 1).unwrap());
     assert!(matches!(
         engine(400).price(&option, &after).unwrap_err(),
         Error::InvalidInput(_)
@@ -357,7 +347,7 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
     terms.touch_state = Some(BarrierTouchState::Untouched);
     let option = TouchOption::cash(terms, 10.0).unwrap();
     let engine = engine(800);
-    let ctx = context(100.0, Date::new(2025, 1, 2).unwrap().into());
+    let ctx = context(100.0, Date::new(2025, 1, 2).unwrap().start_of_day());
     let result = engine
         .price_with_greeks(&option, &ctx, GreeksRequest::all(), Default::default())
         .unwrap();
@@ -399,7 +389,7 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let at = context(120.13, start().into());
+    let at = context(120.13, start());
     let unknown = option.replace_history(None);
     let result_at = engine
         .price_with_greeks(&unknown, &at, GreeksRequest::all(), Default::default())
@@ -448,7 +438,7 @@ fn grids_schedules_and_validation_fail_before_mutating_inputs() {
         ));
     }
     terms.observation_mode = ObservationMode::Scheduled;
-    terms.observation_dates = vec![Date::new(2025, 1, 4).unwrap()];
+    terms.observation_times = vec![Date::new(2025, 1, 4).unwrap().start_of_day()];
     terms.touch_state = Some(BarrierTouchState::Touched);
     let weekend = TouchOption::cash(terms.clone(), 10.0).unwrap();
     assert!(matches!(
@@ -514,7 +504,8 @@ fn two_fixing_cash_asset_and_settlement_prices_match_independent_integrals() {
             {
                 let mut terms = TouchOptionTerms::new(start(), end(), level, kind);
                 terms.observation_mode = ObservationMode::Scheduled;
-                terms.observation_dates = vec![Date::new(2025, 6, 30).unwrap(), end()];
+                terms.observation_times =
+                    vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end()];
                 terms.settlement_timing = timing;
                 let option = if asset {
                     TouchOption::asset(terms)

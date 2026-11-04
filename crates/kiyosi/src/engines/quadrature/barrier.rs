@@ -67,9 +67,9 @@ impl QuadratureBarrierEngine {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = BarrierOption::new(BarrierOptionTerms::new(OptionType::Call, 100.0,
-    ///     start, Date::new(2026, 1, 1)?, 120.0, BarrierType::UpAndOut))?;
+    ///     start, Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut))?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     100.0, start.into())?;
     /// let engine = QuadratureBarrierEngine::new(QuadratureSettings {
@@ -196,9 +196,7 @@ fn continuous_price(
     settings: QuadratureSettings,
 ) -> Result<f64> {
     let (rate, dividend) = flat_rates(context)?;
-    let time = context
-        .valuation_time()
-        .years_until(option.expiry_date().start_of_day());
+    let time = context.valuation_time().years_until(option.expiry_time());
     let sigma = context.bsm_parameters()?.volatility();
     let width = sigma * time.sqrt();
     let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
@@ -377,14 +375,12 @@ fn event_limit(
 fn event_layer(
     option: &BarrierOption,
     context: &PricingContext,
-    date: crate::Date,
+    date: crate::Timestamp,
     nodes: &[f64],
     interpolation: &CubicInterpolation,
     continuation: &[f64],
 ) -> Result<Layer> {
-    let remaining = date
-        .start_of_day()
-        .years_until(option.expiry_date().start_of_day());
+    let remaining = date.years_until(option.expiry_time());
     let knock_in = option.barrier_type().is_knock_in();
     let (rate, _) = flat_rates(context)?;
     let rebate = scaled(
@@ -409,7 +405,7 @@ fn event_layer(
                 }
                 let shifted = context.replace(crate::PricingContextChanges {
                     spot_price: Some(spot),
-                    valuation_time: Some(date.into()),
+                    valuation_time: Some(date),
                     ..Default::default()
                 })?;
                 crate::AnalyticEuropeanEngine.price(vanilla, &shifted)
@@ -503,21 +499,19 @@ fn scheduled_price(
         }
     }
     let dates: Vec<_> = option
-        .observation_dates()
+        .observation_times()
         .iter()
         .copied()
-        .filter(|date| date.start_of_day() > context.valuation_time())
+        .filter(|&date| date > context.valuation_time())
         .collect();
     let (rate, dividend) = flat_rates(context)?;
     let sigma = context.bsm_parameters()?.volatility();
     let drift_rate = rate - dividend - 0.5 * sigma * sigma;
-    let horizon = context
-        .valuation_time()
-        .years_until(option.expiry_date().start_of_day());
+    let horizon = context.valuation_time().years_until(option.expiry_time());
     let extent = settings.integration_standard_deviations * sigma * horizon.sqrt();
     let barrier = log_ratio(option.barrier_level(), option.strike());
     let current = log_ratio(context.spot_price(), option.strike());
-    if dates.len() == 1 && dates[0] == option.expiry_date() {
+    if dates.len() == 1 && dates[0] == option.expiry_time() {
         let deviation = sigma * horizon.sqrt();
         let drift = drift_rate * horizon;
         if deviation <= 0.0 || !deviation.is_finite() || !drift.is_finite() {
@@ -540,7 +534,7 @@ fn scheduled_price(
     let mut transitions = TransitionCache::default();
     for event in (0..dates.len()).rev() {
         let final_event = event + 1 == dates.len();
-        let layer = if final_event && dates[event] == option.expiry_date() {
+        let layer = if final_event && dates[event] == option.expiry_time() {
             Layer {
                 cells: Vec::new(),
                 exact: terminal_layer(option),
@@ -556,13 +550,9 @@ fn scheduled_price(
             )?
         };
         let time = if event == 0 {
-            context
-                .valuation_time()
-                .years_until(dates[event].start_of_day())
+            context.valuation_time().years_until(dates[event])
         } else {
-            dates[event - 1]
-                .start_of_day()
-                .years_until(dates[event].start_of_day())
+            dates[event - 1].years_until(dates[event])
         };
         let drift = drift_rate * time;
         let deviation = sigma * time.sqrt();

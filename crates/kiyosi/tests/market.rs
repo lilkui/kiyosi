@@ -1,7 +1,7 @@
 use kiyosi::{Date, Error, RateTermStructure, Timestamp};
 
 fn at(year: i32, month: u32, day: u32) -> Timestamp {
-    Date::new(year, month, day).unwrap().into()
+    Date::new(year, month, day).unwrap().start_of_day()
 }
 
 #[test]
@@ -71,7 +71,7 @@ fn pricing_consumes_both_curves_and_replacement_is_transactional() {
         Error::UnsupportedOperation(_)
     ));
     let context = PricingContext::new(model.clone(), 100.0, start).unwrap();
-    let call = EuropeanOption::new(OptionType::Call, 103.0, start.date(), end.date()).unwrap();
+    let call = EuropeanOption::new(OptionType::Call, 103.0, start, end).unwrap();
     let equivalent = PricingContext::new(
         Model::new(
             (0.02 * 180.0 + 0.08 * 185.0) / 365.0,
@@ -281,7 +281,7 @@ fn distant_microsecond_nodes_remain_distinct_and_pricing_rejects_unresolved_hori
         first,
     )
     .unwrap();
-    let call = EuropeanOption::new(OptionType::Call, 100.0, first.date(), second.date()).unwrap();
+    let call = EuropeanOption::new(OptionType::Call, 100.0, first, second).unwrap();
     assert!(
         (AnalyticEuropeanEngine.price(&call, &context).unwrap() - 100.0 * (1.0 - (-1_f64).exp()))
             .abs()
@@ -293,13 +293,7 @@ fn distant_microsecond_nodes_remain_distinct_and_pricing_rejects_unresolved_hori
         origin,
     )
     .unwrap();
-    let call = EuropeanOption::new(
-        OptionType::Call,
-        100_f64.exp(),
-        origin.date(),
-        second.date(),
-    )
-    .unwrap();
+    let call = EuropeanOption::new(OptionType::Call, 100_f64.exp(), origin, second).unwrap();
     assert!(matches!(
         AnalyticEuropeanEngine.price(&call, &context).unwrap_err(),
         Error::ComputationFailure(_)
@@ -369,7 +363,7 @@ fn context_validation_timing_replacement_and_concurrent_owned_values() {
             ..Default::default()
         })
         .unwrap();
-    let call = EuropeanOption::new(OptionType::Call, 100.0, start.date(), end.date()).unwrap();
+    let call = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     assert!(matches!(
         AnalyticEuropeanEngine
             .price(&call, &short_context)

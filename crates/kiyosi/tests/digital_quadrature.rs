@@ -1,9 +1,9 @@
 use kiyosi::*;
 
-fn dates() -> (Date, Date) {
+fn dates() -> (Timestamp, Timestamp) {
     (
-        Date::new(2025, 1, 1).unwrap(),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
     )
 }
 
@@ -11,12 +11,12 @@ fn market(spot: f64, rate: f64, dividend: f64, sigma: f64) -> PricingContext {
     PricingContext::new(
         BlackScholesMertonParameters::new(rate, dividend, sigma).unwrap(),
         spot,
-        dates().0.into(),
+        dates().0,
     )
     .unwrap()
 }
 
-fn options(direction: OptionType, strike: f64, payout: f64, end: Date) -> [DigitalOption; 2] {
+fn options(direction: OptionType, strike: f64, payout: f64, end: Timestamp) -> [DigitalOption; 2] {
     [
         DigitalOption::cash_or_nothing(direction, strike, payout, dates().0, end).unwrap(),
         DigitalOption::asset_or_nothing(direction, strike, dates().0, end).unwrap(),
@@ -35,9 +35,12 @@ fn prices_match_analytic_across_payoffs_moneyness_maturity_and_carry() {
             for spot in [80.0, 100.0, 120.0] {
                 for (rate, dividend) in [(0.04, 0.01), (-0.02, -0.03)] {
                     let context = market(spot, rate, dividend, 0.3);
-                    for option in
-                        options(direction, 100.0, 10.0, Date::new(year, month, day).unwrap())
-                    {
+                    for option in options(
+                        direction,
+                        100.0,
+                        10.0,
+                        Date::new(year, month, day).unwrap().start_of_day(),
+                    ) {
                         let expected = AnalyticDigitalEngine.price(&option, &context).unwrap();
                         let actual = engine.price(&option, &context).unwrap();
                         assert!(
@@ -120,7 +123,7 @@ fn expiry_is_strict_and_life_validation_preserves_state() {
             for spot in [80.0, 100.0, 120.0] {
                 let context = market(spot, 0.05, 0.02, 0.2)
                     .replace(PricingContextChanges {
-                        valuation_time: Some(end.into()),
+                        valuation_time: Some(end),
                         ..Default::default()
                     })
                     .unwrap();
@@ -138,8 +141,10 @@ fn expiry_is_strict_and_life_validation_preserves_state() {
                 assert!(Greek::ALL.into_iter().all(|g| result.get(g).is_none()));
             }
             for at in [
-                Date::new(start.year() - 1, 12, 31).unwrap().into(),
-                Timestamp::new(end, 0, 0, 0, 1).unwrap(),
+                Date::new(start.date().year() - 1, 12, 31)
+                    .unwrap()
+                    .start_of_day(),
+                Timestamp::new(end.date(), 0, 0, 0, 1).unwrap(),
             ] {
                 let invalid = original
                     .replace(PricingContextChanges {
@@ -203,16 +208,14 @@ fn invalid_controls_and_unsupported_curves_keep_error_categories() {
     let option = &options(OptionType::Call, 100.0, 10.0, dates().1)[0];
     for at in [dates().0, dates().1] {
         for dividend_curve in [false, true] {
-            let curve =
-                RateTermStructure::new(dates().0.into(), vec![dates().1.into()], vec![0.95])
-                    .unwrap();
+            let curve = RateTermStructure::new(dates().0, vec![dates().1], vec![0.95]).unwrap();
             let model = if dividend_curve {
                 BlackScholesMertonParameters::new(Rate::Flat(0.05), Rate::Curve(curve), 0.2)
             } else {
                 BlackScholesMertonParameters::new(Rate::Curve(curve), Rate::Flat(0.02), 0.2)
             }
             .unwrap();
-            let context = PricingContext::new(model, 100.0, at.into()).unwrap();
+            let context = PricingContext::new(model, 100.0, at).unwrap();
             assert!(matches!(
                 engine.price(option, &context),
                 Err(Error::UnsupportedOperation(_))
@@ -243,7 +246,7 @@ fn invalid_controls_and_unsupported_curves_keep_error_categories() {
                 OptionType::Call,
                 100.0,
                 10.0,
-                Date::new(2027, 1, 1).unwrap()
+                Date::new(2027, 1, 1).unwrap().start_of_day()
             )[0],
             &market(100.0, 0.05, 0.02, f64::MAX)
         ),

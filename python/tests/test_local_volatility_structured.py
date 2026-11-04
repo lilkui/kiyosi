@@ -3,6 +3,7 @@
 import json
 import math
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 import QuantLib as ql
@@ -24,6 +25,11 @@ from quantlib_reference.local_volatility_paths import (
     trading_dates,
 )
 
+START, END = (datetime.combine(value, datetime.min.time()) for value in (START, END))
+OBSERVATIONS = tuple(
+    datetime.combine(value, datetime.min.time()) for value in OBSERVATIONS
+)
+
 
 def market(spot=101):
     return PricingContext(
@@ -42,7 +48,7 @@ def market(spot=101):
 
 
 def contracts():
-    dates = {"effective_date": START, "expiry_date": END}
+    dates = {"effective_time": START, "expiry_time": END}
     observations = ins.autocallable_observations(
         OBSERVATIONS, KNOCK_OUT_LEVELS, knock_out_coupon_rates=[0.08] * 3
     )
@@ -103,7 +109,7 @@ def engine(name, space=1600, time=1600, upper=440):
 
 class LocalVolatilityStructuredTests(unittest.TestCase):
     def test_independent_payoff_evaluator_on_known_paths(self):
-        grid = ql.TimeGrid([(day - START).days / 365 for day in trading_dates()])
+        grid = ql.TimeGrid([(day - START.date()).days / 365 for day in trading_dates()])
         records = events(grid)
         maturity = (END - START).days / 365
         discount = math.exp(-0.04 * maturity)

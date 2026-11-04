@@ -3,7 +3,7 @@
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from kiyosi import (
     InvalidInputError,
@@ -26,7 +26,7 @@ from kiyosi.market import (
 from kiyosi.pricing import QuadratureAutocallableEngine, implied_volatility
 from quantlib_reference import structured
 
-START, END = date(2025, 1, 1), date(2025, 4, 1)
+START, END = datetime(2025, 1, 1), datetime(2025, 4, 1)
 
 
 def contract(**changes):
@@ -36,8 +36,8 @@ def contract(**changes):
         "knock_in_level": 80,
         "upper_strike": 100,
         "lower_strike": 60,
-        "effective_date": START,
-        "expiry_date": END,
+        "effective_time": START,
+        "expiry_time": END,
         "knock_in_observation_mode": "at_expiry",
         "observations": autocallable_observations(
             [END], [110], knock_out_coupon_rates=[0.08]
@@ -89,7 +89,7 @@ class SnowballTests(unittest.TestCase):
         observations.clear()
         copy = note.observations
         copy.clear()
-        self.assertEqual(note.observation_dates, [END])
+        self.assertEqual(note.observation_times, [END])
         self.assertEqual(note.knock_out_levels, [110])
         self.assertEqual(note.knock_out_coupon_rates, [0])
         known = note.replace_history(barrier_state="no_event")
@@ -119,7 +119,7 @@ class SnowballTests(unittest.TestCase):
             {"initial_spot": "100"},
             {"principal_ratio": None},
             {"observations": [(END, 110)]},
-            {"effective_date": datetime(2025, 1, 1)},
+            {"effective_time": datetime(2025, 1, 1).date()},
             {"knock_in_observation_mode": 1},
         ):
             with self.subTest(fields=fields), self.assertRaises(TypeError):
@@ -163,7 +163,7 @@ class SnowballTests(unittest.TestCase):
                 },
                 InvalidInputError,
             ),
-            ({"expiry_date": date(2024, 1, 1)}, InvalidInputError),
+            ({"expiry_time": datetime(2024, 1, 1)}, InvalidInputError),
         ):
             self.assert_rejection(expected_error, contract, **fields)
         # Records retain input values until the authoritative note constructor validates them.
@@ -175,7 +175,7 @@ class SnowballTests(unittest.TestCase):
             InvalidInputError,
             engine.price,
             unknown,
-            market(valuation=date(2025, 1, 2)),
+            market(valuation=datetime(2025, 1, 2)),
         )
         impossible = contract(barrier_state="knocked_in")
         self.assert_rejection(
@@ -189,27 +189,27 @@ class SnowballTests(unittest.TestCase):
         )
         # Non-trading observations precede history checks; missing history precedes expiry checks.
         nontrading = contract(
-            expiry_date=date(2025, 4, 5),
-            observations=[AutocallableObservation(date(2025, 2, 1), 110)],
+            expiry_time=datetime(2025, 4, 5),
+            observations=[AutocallableObservation(datetime(2025, 2, 1), 110)],
         )
         self.assert_rejection(InvalidInputError, engine.price, nontrading, market())
         nontrading = contract(
-            expiry_date=date(2025, 4, 5),
-            observations=[AutocallableObservation(date(2025, 2, 3), 110)],
+            expiry_time=datetime(2025, 4, 5),
+            observations=[AutocallableObservation(datetime(2025, 2, 3), 110)],
         )
         self.assert_rejection(
             InvalidInputError,
             engine.price,
             nontrading,
-            market(valuation=date(2025, 3, 3)),
+            market(valuation=datetime(2025, 3, 3)),
         )
         self.assert_rejection(
             InvalidInputError,
             engine.price,
             nontrading.replace_history(barrier_state="no_event"),
-            market(valuation=date(2025, 3, 3)),
+            market(valuation=datetime(2025, 3, 3)),
         )
-        for valuation in (date(2024, 12, 31), datetime(2025, 4, 1, 0, 0, 0, 1, UTC)):
+        for valuation in (datetime(2024, 12, 31), datetime(2025, 4, 1, 0, 0, 0, 1)):
             self.assert_rejection(
                 InvalidInputError,
                 engine.price,
@@ -248,12 +248,12 @@ class SnowballTests(unittest.TestCase):
                 continue
             with self.subTest(name=name):
                 start, end, valuation = (
-                    date.fromisoformat(inputs[k])
-                    for k in ("effective_date", "expiry_date", "valuation")
+                    datetime.fromisoformat(inputs[k])
+                    for k in ("effective_time", "expiry_time", "valuation")
                 )
                 note = contract(
-                    effective_date=start,
-                    expiry_date=end,
+                    effective_time=start,
+                    expiry_time=end,
                     maturity_coupon_rate=inputs["maturity_coupon_rate"],
                     principal_ratio=inputs["principal_ratio"],
                     barrier_state=inputs["history"],
@@ -276,7 +276,7 @@ class SnowballTests(unittest.TestCase):
         # High-volatility affine-tail portfolio regression.
         import QuantLib as ql
 
-        end = date(2026, 1, 1)
+        end = datetime(2026, 1, 1)
         context = market(20, volatility=2)
         discount = math.exp(-0.04)
         forward = 20 * math.exp(0.03)
@@ -284,7 +284,7 @@ class SnowballTests(unittest.TestCase):
             ql.PlainVanillaPayoff(ql.Option.Put, 100), forward, 2, discount
         ).value()
         note = contract(
-            expiry_date=end,
+            expiry_time=end,
             principal_ratio=0.25,
             lower_strike=0,
             knock_in_level=100,
@@ -297,7 +297,7 @@ class SnowballTests(unittest.TestCase):
 
     def test_multi_observation_affine_tails_preserve_cash_asset_and_greeks(self):
         engine = QuadratureAutocallableEngine()
-        valuation = datetime(2025, 1, 2, 12, tzinfo=UTC)
+        valuation = datetime(2025, 1, 2, 12)
         time = 4.5 / 365
         for principal, rate, dividend in ((1, 0, 0), (0.25, 0.04, 0.03)):
             for mode, history in (
@@ -307,14 +307,18 @@ class SnowballTests(unittest.TestCase):
             ):
                 with self.subTest(principal=principal, mode=mode, history=history):
                     note = contract(
-                        expiry_date=date(2025, 1, 7),
+                        expiry_time=datetime(2025, 1, 7),
                         lower_strike=0,
                         principal_ratio=principal,
                         maturity_coupon_rate=0,
                         knock_in_observation_mode=mode,
                         barrier_state=history,
                         observations=autocallable_observations(
-                            [date(2025, 1, 3), date(2025, 1, 6), date(2025, 1, 7)],
+                            [
+                                datetime(2025, 1, 3),
+                                datetime(2025, 1, 6),
+                                datetime(2025, 1, 7),
+                            ],
                             [110] * 3,
                         ),
                     )
@@ -329,7 +333,7 @@ class SnowballTests(unittest.TestCase):
                     self.assertAlmostEqual(result.delta, delta, delta=1e-8)
 
     def test_daily_layers_and_domain_convergence(self):
-        dates = [date(2025, 2, 1), date(2025, 3, 1), END]
+        dates = [datetime(2025, 2, 1), datetime(2025, 3, 1), END]
         context = market(volatility=0.3, calendar=all_days_calendar())
         prices = []
         for mode in ("at_expiry", "every_trading_day"):
@@ -352,7 +356,7 @@ class SnowballTests(unittest.TestCase):
         self.assertLess(prices[1], prices[0] - 0.001)
 
     def test_current_events_history_and_unavailable_sensitivities(self):
-        middle = date(2025, 2, 3)
+        middle = datetime(2025, 2, 3)
         note = contract(
             barrier_state="no_event",
             observations=autocallable_observations(
@@ -375,7 +379,7 @@ class SnowballTests(unittest.TestCase):
             current,
             result.price,
         )
-        past = market(110, datetime(2025, 2, 3, 0, 0, 0, 1, UTC))
+        past = market(110, datetime(2025, 2, 3, 0, 0, 0, 1))
         self.assert_rejection(
             InvalidInputError,
             engine.price,
@@ -384,7 +388,7 @@ class SnowballTests(unittest.TestCase):
         )
         settled = note.replace_history(barrier_state="knocked_out")
         result = engine.price_with_greeks(
-            settled, market(valuation=date(2025, 3, 3)), greeks="all"
+            settled, market(valuation=datetime(2025, 3, 3)), greeks="all"
         )
         self.assertEqual(result.price, 0)
         for greek in (
@@ -408,7 +412,7 @@ class SnowballTests(unittest.TestCase):
         self.assertEqual(engine.price(daily, market(90, END)), 0.9)
         # Midnight KI is strict; intraday spot does not create a historical breach.
         daily = daily.replace_history(barrier_state="no_event")
-        for when, has_theta in ((datetime(2025, 1, 2, 12, tzinfo=UTC), False),):
+        for when, has_theta in ((datetime(2025, 1, 2, 12), False),):
             result = engine.price_with_greeks(daily, market(80, when), "theta")
             self.assertEqual(result.theta is not None, has_theta)
 
@@ -444,9 +448,9 @@ class SnowballTests(unittest.TestCase):
 
     def test_all_greeks_and_volatility_recovery_against_digital_formula(self):
         # Equal terminal strikes remove KI dependence, leaving cash plus a digital.
-        end = date(2026, 1, 1)
+        end = datetime(2026, 1, 1)
         note = contract(
-            expiry_date=end,
+            expiry_time=end,
             lower_strike=100,
             maturity_coupon_rate=0,
             observations=autocallable_observations(
@@ -541,11 +545,11 @@ class SnowballTests(unittest.TestCase):
             self.assertAlmostEqual(actual, value(s=s), delta=1e-12)
 
     def test_two_event_prices_match_independent_conditional_payoff_integral(self):
-        middle = date(2025, 2, 3)
+        middle = datetime(2025, 2, 3)
         calendar = custom_calendar(
             base=all_days_calendar(),
             closed_dates=[
-                START + timedelta(days=i)
+                (START + timedelta(days=i)).date()
                 for i in range(91)
                 if START + timedelta(days=i) not in (START, middle, END)
             ],
@@ -631,7 +635,7 @@ class SnowballTests(unittest.TestCase):
     def test_dense_deterministic_ladders_and_short_terminal_transition(self):
         dates = [START + timedelta(days=i) for i in range(1, 33)]
         note = contract(
-            expiry_date=dates[-1],
+            expiry_time=dates[-1],
             barrier_state="no_event",
             principal_ratio=0.5,
             observations=autocallable_observations(
@@ -662,7 +666,7 @@ class SnowballTests(unittest.TestCase):
                 payoff,
                 delta=1e-8,
             )
-        valuation = datetime(2025, 4, 1, tzinfo=UTC) - timedelta(seconds=1)
+        valuation = datetime(2025, 4, 1) - timedelta(seconds=1)
         note = contract(
             lower_strike=100,
             maturity_coupon_rate=0,
@@ -683,15 +687,17 @@ class SnowballTests(unittest.TestCase):
             )
 
     def test_multi_event_greeks_stay_stable_across_grid_and_bump_refinement(self):
-        end = date(2026, 1, 1)
+        end = datetime(2026, 1, 1)
         note = contract(
-            expiry_date=end,
+            expiry_time=end,
             barrier_state="no_event",
             observations=autocallable_observations(
-                [date(2025, 6, 2), end], [110, 105], knock_out_coupon_rates=[0.08, 0.08]
+                [datetime(2025, 6, 2), end],
+                [110, 105],
+                knock_out_coupon_rates=[0.08, 0.08],
             ),
         )
-        context = market(101.5, date(2025, 1, 15), volatility=0.25)
+        context = market(101.5, datetime(2025, 1, 15), volatility=0.25)
         coarse = {"spot_shift": 0.5, "volatility_shift": 0.002, "rate_shift": 0.001}
         fine = {"spot_shift": 0.25, "volatility_shift": 0.001, "rate_shift": 0.0005}
         standard = QuadratureAutocallableEngine().price_with_greeks(

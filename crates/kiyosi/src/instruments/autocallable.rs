@@ -3,7 +3,7 @@ pub(crate) mod pricing;
 pub use presets::{PhoenixPreset, PhoenixPresetTerms, SnowballPreset, SnowballPresetTerms};
 
 use crate::error::finite;
-use crate::{Date, Error, OptionContract, PricingContext, Result, Timestamp, TradingCalendar};
+use crate::{Error, OptionContract, PricingContext, Result, Timestamp, TradingCalendar};
 
 /// Supplies unit principal for autocallable terms; see [`SnowballTerms::new`].
 pub const DEFAULT_PRINCIPAL_RATIO: f64 = 1.0;
@@ -11,7 +11,7 @@ pub const DEFAULT_PRINCIPAL_RATIO: f64 = 1.0;
 /// Selects strict downside monitoring; see [`SnowballTerms::new`] for construction.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum KnockInObservationMode {
-    /// Observes at midnight on each trading date, including the effective date.
+    /// Observes at the expiry clock time on trading times within the inclusive contract life.
     #[default]
     EveryTradingDay,
     /// Observes only at expiry.
@@ -29,14 +29,14 @@ pub enum AutocallableBarrierState {
     KnockedIn,
 }
 
-/// Associates one observation date with its contractual levels and coupon.
+/// Associates one observation time with its contractual levels and coupon.
 ///
 /// Values are validated by the note constructor, not by this input record.
 /// See [`autocallable_observations`] for sequence construction.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AutocallableObservation {
-    /// Sets the observation at midnight UTC.
-    pub date: Date,
+    /// Sets the exact observation time.
+    pub time: Timestamp,
     /// Sets the positive inclusive knock-out threshold.
     pub knock_out_level: f64,
     /// Sets the finite annual snowball knock-out coupon; must be zero for Phoenix.
@@ -53,9 +53,9 @@ impl AutocallableObservation {
     /// Creates an input record with zero coupon and coupon barrier.
     ///
     /// See [`autocallable_observations`] for an example.
-    pub fn new(date: Date, knock_out_level: f64) -> Self {
+    pub fn new(time: Timestamp, knock_out_level: f64) -> Self {
         Self {
-            date,
+            time,
             knock_out_level,
             coupon_rate: Self::DEFAULT_COUPON_RATE,
             coupon_barrier_level: Self::DEFAULT_COUPON_BARRIER_LEVEL,
@@ -76,31 +76,31 @@ impl AutocallableObservation {
 /// ```rust
 /// use kiyosi::{Date, autocallable_observations};
 /// # fn main() -> kiyosi::Result<()> {
-/// let dates = [Date::new(2026, 1, 1)?];
-/// let records = autocallable_observations(&dates, &[110.0], Some(&[0.08]), None)?;
+/// let times = [Date::new(2026, 1, 1)?.start_of_day()];
+/// let records = autocallable_observations(&times, &[110.0], Some(&[0.08]), None)?;
 /// assert_eq!(records[0].coupon_rate, 0.08);
 /// # Ok(()) }
 /// ```
 pub fn autocallable_observations(
-    dates: &[Date],
+    times: &[Timestamp],
     levels: &[f64],
     coupons: Option<&[f64]>,
     coupon_barriers: Option<&[f64]>,
 ) -> Result<Vec<AutocallableObservation>> {
-    if dates.len() != levels.len()
-        || coupons.is_some_and(|v| v.len() != dates.len())
-        || coupon_barriers.is_some_and(|v| v.len() != dates.len())
+    if times.len() != levels.len()
+        || coupons.is_some_and(|v| v.len() != times.len())
+        || coupon_barriers.is_some_and(|v| v.len() != times.len())
     {
         return Err(Error::InvalidInput(
             "observation sequence lengths differ".into(),
         ));
     }
-    Ok(dates
+    Ok(times
         .iter()
         .zip(levels)
         .enumerate()
-        .map(|(i, (&date, &level))| {
-            let mut record = AutocallableObservation::new(date, level);
+        .map(|(i, (&time, &level))| {
+            let mut record = AutocallableObservation::new(time, level);
             if let Some(values) = coupons {
                 record.coupon_rate = values[i];
             }
@@ -131,10 +131,10 @@ pub struct SnowballTerms {
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons and losses.
     pub principal_ratio: f64,
-    /// Sets the inclusive first date.
-    pub effective_date: Date,
-    /// Sets the inclusive final date, which must be a trading day when pricing.
-    pub expiry_date: Date,
+    /// Sets the inclusive effective time.
+    pub effective_time: Timestamp,
+    /// Sets the inclusive expiry time, which must be a trading day when pricing.
+    pub expiry_time: Timestamp,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
 }
@@ -152,8 +152,8 @@ impl SnowballTerms {
         knock_in_level: f64,
         upper_strike: f64,
         lower_strike: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_time: Timestamp,
+        expiry_time: Timestamp,
         observations: Vec<AutocallableObservation>,
     ) -> Self {
         Self {
@@ -165,8 +165,8 @@ impl SnowballTerms {
             knock_in_observation_mode: KnockInObservationMode::default(),
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_date,
-            expiry_date,
+            effective_time,
+            expiry_time,
             observations,
         }
     }
@@ -209,10 +209,10 @@ pub struct PhoenixTerms {
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons and losses.
     pub principal_ratio: f64,
-    /// Sets the inclusive first date.
-    pub effective_date: Date,
-    /// Sets the inclusive final date, which must be a trading day when pricing.
-    pub expiry_date: Date,
+    /// Sets the inclusive effective time.
+    pub effective_time: Timestamp,
+    /// Sets the inclusive expiry time, which must be a trading day when pricing.
+    pub expiry_time: Timestamp,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
 }
@@ -230,8 +230,8 @@ impl PhoenixTerms {
         knock_in_level: f64,
         upper_strike: f64,
         lower_strike: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_time: Timestamp,
+        expiry_time: Timestamp,
         observations: Vec<AutocallableObservation>,
     ) -> Self {
         Self {
@@ -243,8 +243,8 @@ impl PhoenixTerms {
             knock_in_observation_mode: KnockInObservationMode::default(),
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_date,
-            expiry_date,
+            effective_time,
+            expiry_time,
             observations,
         }
     }
@@ -266,10 +266,10 @@ pub struct BinarySnowballTerms {
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons.
     pub principal_ratio: f64,
-    /// Sets the inclusive first date.
-    pub effective_date: Date,
-    /// Sets the inclusive final date, which must be a trading day when pricing.
-    pub expiry_date: Date,
+    /// Sets the inclusive effective time.
+    pub effective_time: Timestamp,
+    /// Sets the inclusive expiry time, which must be a trading day when pricing.
+    pub expiry_time: Timestamp,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
 }
@@ -279,16 +279,16 @@ impl BinarySnowballTerms {
     /// Validation occurs in [`BinarySnowballOption::new`]; see its example.
     pub fn new(
         maturity_coupon_rate: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_time: Timestamp,
+        expiry_time: Timestamp,
         observations: Vec<AutocallableObservation>,
     ) -> Self {
         Self {
             maturity_coupon_rate,
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_date,
-            expiry_date,
+            effective_time,
+            expiry_time,
             observations,
         }
     }
@@ -315,10 +315,10 @@ pub struct TernarySnowballTerms {
     pub barrier_state: Option<AutocallableBarrierState>,
     /// Sets the nonnegative normalized principal, independently of coupons.
     pub principal_ratio: f64,
-    /// Sets the inclusive first date.
-    pub effective_date: Date,
-    /// Sets the inclusive final date, which must be a trading day when pricing.
-    pub expiry_date: Date,
+    /// Sets the inclusive effective time.
+    pub effective_time: Timestamp,
+    /// Sets the inclusive expiry time, which must be a trading day when pricing.
+    pub expiry_time: Timestamp,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
 }
@@ -330,8 +330,8 @@ impl TernarySnowballTerms {
         maturity_coupon_rate: f64,
         minimum_coupon_rate: f64,
         knock_in_level: f64,
-        effective_date: Date,
-        expiry_date: Date,
+        effective_time: Timestamp,
+        expiry_time: Timestamp,
         observations: Vec<AutocallableObservation>,
     ) -> Self {
         Self {
@@ -341,8 +341,8 @@ impl TernarySnowballTerms {
             knock_in_observation_mode: KnockInObservationMode::default(),
             barrier_state: None,
             principal_ratio: DEFAULT_PRINCIPAL_RATIO,
-            effective_date,
-            expiry_date,
+            effective_time,
+            expiry_time,
             observations,
         }
     }
@@ -359,7 +359,7 @@ pub type TernarySnowballOption = AutocallableNote<TernarySnowballTerms>;
 /// Pays the signed [`PhoenixCoupon`] when spot is at or above its coupon barrier,
 /// including on knock-out. Annual coupons use each observation period's Actual/365
 /// Fixed length; fixed per-period coupons pay once without day accrual.
-/// The first annual period starts at the effective date; later periods start at
+/// The first annual period starts at the effective time; later periods start at
 /// the preceding contractual observation, even when pricing a seasoned note.
 /// Otherwise expiry pays principal, less capped downside loss after knock-in.
 /// Past coupons are settled; current coupons are included once. Zero coupon
@@ -441,8 +441,8 @@ impl PhoenixOption {
 
 mod sealed {
     use super::{
-        AutocallableBarrierState, AutocallableObservation, Date, KnockInObservationMode,
-        PhoenixCoupon,
+        AutocallableBarrierState, AutocallableObservation, KnockInObservationMode, PhoenixCoupon,
+        Timestamp,
     };
     pub trait Terms {
         fn view(&self) -> View<'_>;
@@ -478,8 +478,8 @@ mod sealed {
         pub coupon: Coupon,
         pub barrier_state: Option<AutocallableBarrierState>,
         pub principal_ratio: f64,
-        pub effective_date: Date,
-        pub expiry_date: Date,
+        pub effective_time: Timestamp,
+        pub expiry_time: Timestamp,
         pub observations: &'a [AutocallableObservation],
     }
 }
@@ -506,8 +506,8 @@ macro_rules! terms_view {
                     coupon: $coupon(self.$rate),
                     barrier_state: self.barrier_state,
                     principal_ratio: self.principal_ratio,
-                    effective_date: self.effective_date,
-                    expiry_date: self.expiry_date,
+                    effective_time: self.effective_time,
+                    expiry_time: self.expiry_time,
                     observations: &self.observations,
                 }
             }
@@ -527,8 +527,8 @@ impl sealed::Terms for BinarySnowballTerms {
             coupon: Coupon::Snowball(self.maturity_coupon_rate),
             barrier_state: self.barrier_state,
             principal_ratio: self.principal_ratio,
-            effective_date: self.effective_date,
-            expiry_date: self.expiry_date,
+            effective_time: self.effective_time,
+            expiry_time: self.expiry_time,
             observations: &self.observations,
         }
     }
@@ -548,8 +548,8 @@ impl sealed::Terms for TernarySnowballTerms {
             coupon: Coupon::Snowball(self.maturity_coupon_rate),
             barrier_state: self.barrier_state,
             principal_ratio: self.principal_ratio,
-            effective_date: self.effective_date,
-            expiry_date: self.expiry_date,
+            effective_time: self.effective_time,
+            expiry_time: self.expiry_time,
             observations: &self.observations,
         }
     }
@@ -577,8 +577,8 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// ```rust
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let end = Date::new(2026, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let end = Date::new(2026, 1, 1)?.start_of_day();
     /// let terms = PhoenixTerms::new(0.08, 100.0, 80.0, 100.0, 0.0, start, end,
     ///     autocallable_observations(&[end], &[110.0], None, Some(&[90.0]))?);
     /// let note = PhoenixOption::new(terms)?;
@@ -626,13 +626,13 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     pub fn barrier_state(&self) -> Option<AutocallableBarrierState> {
         self.view().barrier_state
     }
-    /// Returns the inclusive first date; see [`Self::new`].
-    pub fn effective_date(&self) -> Date {
-        self.view().effective_date
+    /// Returns the inclusive effective time; see [`Self::new`].
+    pub fn effective_time(&self) -> Timestamp {
+        self.view().effective_time
     }
-    /// Returns expiry at midnight UTC; see [`Self::new`].
-    pub fn expiry_date(&self) -> Date {
-        self.view().expiry_date
+    /// Returns the inclusive expiry timestamp; see [`Self::new`].
+    pub fn expiry_time(&self) -> Timestamp {
+        self.view().expiry_time
     }
 
     pub(crate) fn view(&self) -> sealed::View<'_> {
@@ -652,13 +652,13 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
             Coupon::Phoenix(PhoenixCoupon::PerPeriod(value)) => return value,
             Coupon::Phoenix(PhoenixCoupon::Annual(rate)) => rate,
         };
-        let i = t.observations.partition_point(|r| r.date < record.date);
+        let i = t.observations.partition_point(|r| r.time < record.time);
         let previous = if i == 0 {
-            t.effective_date
+            t.effective_time
         } else {
-            t.observations[i - 1].date
+            t.observations[i - 1].time
         };
-        rate * previous.start_of_day().years_until(record.date.into())
+        rate * previous.years_until(record.time)
     }
     #[expect(
         clippy::float_cmp,
@@ -674,18 +674,17 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         })
     }
     pub(crate) fn prior(&self, time: Timestamp, calendar: &TradingCalendar) -> Result<bool> {
-        let had_out = self.observations()[0].date.start_of_day() < time;
-        let mut had_in = false;
-        if self.view().daily_knock_in() {
-            let mut date = self.effective_date();
-            while date.start_of_day() < time {
-                if calendar.is_trading_day(date) {
-                    had_in = true;
-                    break;
-                }
-                date = date.add_days(1)?;
-            }
-        }
+        let had_out = self.observations()[0].time < time;
+        let had_in = self.view().daily_knock_in()
+            && crate::ObservationSchedule::daily(
+                self.effective_time(),
+                self.expiry_time(),
+                calendar,
+                true,
+            )?
+            .times()
+            .iter()
+            .any(|&event| event < time);
         match self.barrier_state() {
             None if had_out || had_in => {
                 return Err(Error::InvalidInput(
@@ -706,9 +705,15 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     }
     pub(crate) fn daily_at(&self, context: &PricingContext) -> bool {
         self.view().daily_knock_in()
-            && context.valuation_time() == context.valuation_date().start_of_day()
-            && context.calendar().is_trading_day(context.valuation_date())
+            && self.daily_time(context.valuation_time(), context.calendar())
     }
+    pub(crate) fn daily_time(&self, time: Timestamp, calendar: &TradingCalendar) -> bool {
+        time >= self.effective_time()
+            && time <= self.expiry_time()
+            && time.micros_since_midnight() == self.expiry_time().micros_since_midnight()
+            && calendar.is_trading_day(time.date())
+    }
+
     pub(crate) fn terminal(&self, spot: f64, knocked_in: bool) -> f64 {
         let t = self.view();
         let coupon = if knocked_in {
@@ -723,11 +728,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         } else {
             t.maturity_coupon_rate()
         };
-        t.principal_ratio
-            + coupon
-                * t.effective_date
-                    .start_of_day()
-                    .years_until(t.expiry_date.into())
+        t.principal_ratio + coupon * t.effective_time.years_until(t.expiry_time)
     }
     pub(crate) fn knock_out_payment(&self, record: &AutocallableObservation) -> f64 {
         let t = self.view();
@@ -736,26 +737,21 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
                 0.0
             } else {
                 record.coupon_rate
-            } * self
-                .effective_date()
-                .start_of_day()
-                .years_until(record.date.into())
+            } * self.effective_time().years_until(record.time)
     }
 }
 impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
-    fn effective_date(&self) -> Date {
-        self.effective_date()
+    fn effective_time(&self) -> Timestamp {
+        self.effective_time()
     }
-    fn expiry_date(&self) -> Date {
-        self.expiry_date()
+    fn expiry_time(&self) -> Timestamp {
+        self.expiry_time()
     }
     fn all_greeks_unavailable(&self, _context: &PricingContext) -> bool {
         false
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
-        if context.valuation_time() != context.valuation_date().start_of_day()
-            || self.barrier_state() == Some(AutocallableBarrierState::KnockedOut)
-        {
+        if self.barrier_state() == Some(AutocallableBarrierState::KnockedOut) {
             return false;
         }
         let spot = context.spot_price();
@@ -763,7 +759,7 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
         if let Some(record) = self
             .observations()
             .iter()
-            .find(|r| r.date == context.valuation_date())
+            .find(|r| r.time == context.valuation_time())
         {
             if matches!(self.view().coupon, Coupon::Phoenix(_))
                 && self.period_coupon(record) != 0.0
@@ -799,7 +795,7 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
         if self
             .observations()
             .iter()
-            .any(|r| before <= r.date.start_of_day() && r.date.start_of_day() <= after)
+            .any(|r| before <= r.time && r.time <= after)
         {
             return false;
         }
@@ -809,7 +805,8 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
         {
             let mut date = before.date();
             loop {
-                if before <= date.start_of_day() && context.calendar().is_trading_day(date) {
+                let event = self.expiry_time().on_date(date);
+                if before <= event && event <= after && self.daily_time(event, context.calendar()) {
                     return false;
                 }
                 if date == after.date() {
@@ -893,16 +890,16 @@ impl sealed::View<'_> {
                 "negative autocallable principal".into(),
             ));
         }
-        if terms.expiry_date < terms.effective_date {
+        if terms.expiry_time < terms.effective_time {
             return Err(Error::InvalidInput("expiry precedes effective date".into()));
         }
         if terms.observations.is_empty() {
             return Err(Error::InvalidInput("empty autocallable schedule".into()));
         }
         for (i, r) in terms.observations.iter().enumerate() {
-            if r.date < terms.effective_date
-                || r.date > terms.expiry_date
-                || i > 0 && r.date <= terms.observations[i - 1].date
+            if r.time < terms.effective_time
+                || r.time > terms.expiry_time
+                || i > 0 && r.time <= terms.observations[i - 1].time
             {
                 return Err(Error::InvalidInput(
                     "observations must be ordered within life".into(),
@@ -974,10 +971,10 @@ pub struct SnowballOptionChanges {
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_ratio`](SnowballTerms::principal_ratio).
     pub principal_ratio: Option<f64>,
-    /// Replaces [`effective_date`](SnowballTerms::effective_date).
-    pub effective_date: Option<Date>,
-    /// Replaces [`expiry_date`](SnowballTerms::expiry_date).
-    pub expiry_date: Option<Date>,
+    /// Replaces [`effective_time`](SnowballTerms::effective_time).
+    pub effective_time: Option<Timestamp>,
+    /// Replaces [`expiry_time`](SnowballTerms::expiry_time).
+    pub expiry_time: Option<Timestamp>,
     /// Replaces [`observations`](SnowballTerms::observations).
     pub observations: Option<Vec<AutocallableObservation>>,
 }
@@ -1006,8 +1003,8 @@ impl SnowballOption {
                 .unwrap_or(self.0.knock_in_observation_mode),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
             principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
-            effective_date: changes.effective_date.unwrap_or(self.0.effective_date),
-            expiry_date: changes.expiry_date.unwrap_or(self.0.expiry_date),
+            effective_time: changes.effective_time.unwrap_or(self.0.effective_time),
+            expiry_time: changes.expiry_time.unwrap_or(self.0.expiry_time),
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
@@ -1036,10 +1033,10 @@ pub struct PhoenixOptionChanges {
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_ratio`](PhoenixTerms::principal_ratio).
     pub principal_ratio: Option<f64>,
-    /// Replaces [`effective_date`](PhoenixTerms::effective_date).
-    pub effective_date: Option<Date>,
-    /// Replaces [`expiry_date`](PhoenixTerms::expiry_date).
-    pub expiry_date: Option<Date>,
+    /// Replaces [`effective_time`](PhoenixTerms::effective_time).
+    pub effective_time: Option<Timestamp>,
+    /// Replaces [`expiry_time`](PhoenixTerms::expiry_time).
+    pub expiry_time: Option<Timestamp>,
     /// Replaces [`observations`](PhoenixTerms::observations).
     pub observations: Option<Vec<AutocallableObservation>>,
 }
@@ -1066,8 +1063,8 @@ impl PhoenixOption {
                 .unwrap_or(self.0.knock_in_observation_mode),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
             principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
-            effective_date: changes.effective_date.unwrap_or(self.0.effective_date),
-            expiry_date: changes.expiry_date.unwrap_or(self.0.expiry_date),
+            effective_time: changes.effective_time.unwrap_or(self.0.effective_time),
+            expiry_time: changes.expiry_time.unwrap_or(self.0.expiry_time),
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
@@ -1086,10 +1083,10 @@ pub struct BinarySnowballOptionChanges {
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_ratio`](BinarySnowballTerms::principal_ratio).
     pub principal_ratio: Option<f64>,
-    /// Replaces [`effective_date`](BinarySnowballTerms::effective_date).
-    pub effective_date: Option<Date>,
-    /// Replaces [`expiry_date`](BinarySnowballTerms::expiry_date).
-    pub expiry_date: Option<Date>,
+    /// Replaces [`effective_time`](BinarySnowballTerms::effective_time).
+    pub effective_time: Option<Timestamp>,
+    /// Replaces [`expiry_time`](BinarySnowballTerms::expiry_time).
+    pub expiry_time: Option<Timestamp>,
     /// Replaces [`observations`](BinarySnowballTerms::observations).
     pub observations: Option<Vec<AutocallableObservation>>,
 }
@@ -1111,8 +1108,8 @@ impl BinarySnowballOption {
                 .unwrap_or(self.0.maturity_coupon_rate),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
             principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
-            effective_date: changes.effective_date.unwrap_or(self.0.effective_date),
-            expiry_date: changes.expiry_date.unwrap_or(self.0.expiry_date),
+            effective_time: changes.effective_time.unwrap_or(self.0.effective_time),
+            expiry_time: changes.expiry_time.unwrap_or(self.0.expiry_time),
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
@@ -1137,10 +1134,10 @@ pub struct TernarySnowballOptionChanges {
     pub barrier_state: Option<Option<AutocallableBarrierState>>,
     /// Replaces [`principal_ratio`](TernarySnowballTerms::principal_ratio).
     pub principal_ratio: Option<f64>,
-    /// Replaces [`effective_date`](TernarySnowballTerms::effective_date).
-    pub effective_date: Option<Date>,
-    /// Replaces [`expiry_date`](TernarySnowballTerms::expiry_date).
-    pub expiry_date: Option<Date>,
+    /// Replaces [`effective_time`](TernarySnowballTerms::effective_time).
+    pub effective_time: Option<Timestamp>,
+    /// Replaces [`expiry_time`](TernarySnowballTerms::expiry_time).
+    pub expiry_time: Option<Timestamp>,
     /// Replaces [`observations`](TernarySnowballTerms::observations).
     pub observations: Option<Vec<AutocallableObservation>>,
 }
@@ -1169,8 +1166,8 @@ impl TernarySnowballOption {
                 .unwrap_or(self.0.knock_in_observation_mode),
             barrier_state: changes.barrier_state.unwrap_or(self.0.barrier_state),
             principal_ratio: changes.principal_ratio.unwrap_or(self.0.principal_ratio),
-            effective_date: changes.effective_date.unwrap_or(self.0.effective_date),
-            expiry_date: changes.expiry_date.unwrap_or(self.0.expiry_date),
+            effective_time: changes.effective_time.unwrap_or(self.0.effective_time),
+            expiry_time: changes.expiry_time.unwrap_or(self.0.expiry_time),
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),

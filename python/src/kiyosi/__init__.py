@@ -10,10 +10,12 @@ and signature errors use native Python exceptions; reported operational
 failures use `OSError`. Internal Rust panics are separate from domain
 exceptions; allocation exhaustion may terminate the process.
 
-Contract and calendar dates require `datetime.date`, excluding datetime
-instances. Instant inputs accept dates at midnight UTC or timezone-aware
-datetimes normalized to UTC; naive datetimes are rejected. Numeric inputs
-reject booleans and unintended lossy conversions.
+Contract, valuation, curve and observation times use ``datetime.datetime``
+with ``tzinfo=None`` and microsecond precision. Plain dates and datetimes with
+timezone information raise ``TypeError`` for time parameters. Calendar inputs
+require ``datetime.date``, excluding datetime instances. Callers must supply a
+consistent time basis.
+Numeric inputs reject booleans and unintended lossy conversions.
 
 Values own their data and expose read-only properties. Shared and distinct
 instances support concurrent reads and pricing. Replacement creates a new

@@ -4,7 +4,7 @@ import importlib
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 from fractions import Fraction
 
 import QuantLib as ql
@@ -45,15 +45,15 @@ class DigitalTests(unittest.TestCase):
         self.terms = {
             "option_type": "call",
             "strike": 100,
-            "effective_date": date(2025, 1, 1),
-            "expiry_date": date(2026, 1, 1),
+            "effective_time": datetime(2025, 1, 1),
+            "expiry_time": datetime(2026, 1, 1),
         }
         self.context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
             ),
             spot_price=100,
-            valuation_time=self.terms["effective_date"],
+            valuation_time=self.terms["effective_time"],
         )
         self.engine = AnalyticDigitalEngine()
 
@@ -95,8 +95,8 @@ class DigitalTests(unittest.TestCase):
                 )
             self.assertEqual(option.option_type, "call")
             self.assertEqual(option.strike, 100)
-            self.assertEqual(option.effective_date, self.terms["effective_date"])
-            self.assertEqual(option.expiry_date, self.terms["expiry_date"])
+            self.assertEqual(option.effective_time, self.terms["effective_time"])
+            self.assertEqual(option.expiry_time, self.terms["expiry_time"])
             self.assertEqual(option, cls(**self.terms, **extra))
             with self.assertRaises(AttributeError):
                 option.strike = 105
@@ -117,8 +117,8 @@ class DigitalTests(unittest.TestCase):
             option = cls(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
-                effective_date=date.fromisoformat(inputs["effective_date"]),
-                expiry_date=date.fromisoformat(inputs["expiry_date"]),
+                effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
                 **({"payout": inputs["payout"]} if inputs["payoff"] == "cash" else {}),
             )
             context = PricingContext(
@@ -128,12 +128,12 @@ class DigitalTests(unittest.TestCase):
                     volatility=inputs["volatility"],
                 ),
                 spot_price=inputs["spot"],
-                valuation_time=date.fromisoformat(inputs["valuation"]),
+                valuation_time=datetime.fromisoformat(inputs["valuation"]),
             )
             with ql.SavedSettings():
                 reference, uncertainty = oracle.reference(inputs, digital.STABILITY)
             # Reference time Greeks are unavailable when a whole-day stencil reaches expiry.
-            smooth = (option.expiry_date - context.valuation_time.date()).days > 2
+            smooth = (option.expiry_time - context.valuation_time).days > 2
             names = (
                 tuple(reference.keys() - {"price"}) if smooth else ("delta", "gamma")
             )
@@ -165,7 +165,7 @@ class DigitalTests(unittest.TestCase):
                             )
 
     def test_strict_expiry_payoffs_and_valuation_boundaries(self):
-        end = self.terms["expiry_date"]
+        end = self.terms["expiry_time"]
         for direction in ("call", "put"):
             for spot in (
                 99,
@@ -199,8 +199,8 @@ class DigitalTests(unittest.TestCase):
                     )
         for option in self.options():
             for time in (
-                datetime(2024, 12, 31, 23, 59, 59, 999999, tzinfo=UTC),
-                datetime(2026, 1, 1, 0, 0, 0, 1, tzinfo=UTC),
+                datetime(2024, 12, 31, 23, 59, 59, 999999),
+                datetime(2026, 1, 1, 0, 0, 0, 1),
             ):
                 outside = self.context.replace(valuation_time=time)
                 self.assert_rejection(
@@ -235,7 +235,7 @@ class DigitalTests(unittest.TestCase):
             self.assert_rejection(
                 InvalidInputError,
                 cls,
-                **dict(self.terms, expiry_date=date(2024, 1, 1)),
+                **dict(self.terms, expiry_time=datetime(2024, 1, 1)),
                 **extra,
             )
             for field in ("strike", *extra):
@@ -252,12 +252,12 @@ class DigitalTests(unittest.TestCase):
                     cls(**dict(self.terms, option_type=value), **extra)
             with self.assertRaises(ValueError):
                 cls(**dict(self.terms, option_type="Call"), **extra)
-            for field in ("effective_date", "expiry_date"):
-                for value in ("2025-01-01", None, datetime(2025, 1, 1)):
+            for field in ("effective_time", "expiry_time"):
+                for value in ("2025-01-01", None, datetime(2025, 1, 1).date()):
                     with self.assertRaises(TypeError):
                         cls(**dict(self.terms, **{field: value}), **extra)
             with self.assertRaises(TypeError):
-                cls("call", 100, date(2025, 1, 1), date(2026, 1, 1))
+                cls("call", 100, datetime(2025, 1, 1), datetime(2026, 1, 1))
         for payout in (0, -1, math.nan, math.inf):
             self.assert_rejection(
                 InvalidInputError,
@@ -370,7 +370,7 @@ class DigitalTests(unittest.TestCase):
             self.engine.price(EuropeanOption(**self.terms), self.context)
 
     def test_curves_coverage_time_knots_and_concurrency(self):
-        start, end = self.terms["effective_date"], self.terms["expiry_date"]
+        start, end = self.terms["effective_time"], self.terms["expiry_time"]
         knot = start + timedelta(days=180)
         curve = RateTermStructure(
             reference_time=start,
@@ -524,8 +524,7 @@ class DigitalTests(unittest.TestCase):
         )
         for sigma in (1e-200, math.ulp(0.0)):
             context = self.context.replace(
-                valuation_time=datetime(2026, 1, 1, tzinfo=UTC)
-                - timedelta(microseconds=1),
+                valuation_time=datetime(2026, 1, 1) - timedelta(microseconds=1),
                 model_parameters=BlackScholesMertonParameters(
                     risk_free_rate=0, dividend_yield=0, volatility=sigma
                 ),
@@ -605,7 +604,9 @@ class DigitalTests(unittest.TestCase):
     def test_expiry_reaching_time_stencils_use_scalar_derivatives_on_both_sides(self):
 
         differences = importlib.import_module("price_differences").price_differences
-        context = self.context.replace(spot_price=1, valuation_time=date(2025, 12, 31))
+        context = self.context.replace(
+            spot_price=1, valuation_time=datetime(2025, 12, 31)
+        )
         for direction in ("call", "put"):
             for option in self.options(option_type=direction, strike=1):
                 actual = self.engine.price_with_greeks(

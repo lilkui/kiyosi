@@ -4,7 +4,7 @@ import importlib
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 from fractions import Fraction
 from typing import get_args
 
@@ -30,15 +30,15 @@ class AnalyticsTests(unittest.TestCase):
         self.option = EuropeanOption(
             option_type="call",
             strike=100,
-            effective_date=date(2025, 1, 1),
-            expiry_date=date(2026, 1, 1),
+            effective_time=datetime(2025, 1, 1),
+            expiry_time=datetime(2026, 1, 1),
         )
         self.context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
             ),
             spot_price=100,
-            valuation_time=date(2025, 1, 1),
+            valuation_time=datetime(2025, 1, 1),
         )
         self.engine = AnalyticEuropeanEngine()
 
@@ -110,12 +110,12 @@ class AnalyticsTests(unittest.TestCase):
             option = EuropeanOption(
                 option_type=inputs["option"],
                 strike=inputs["strike"],
-                effective_date=date.fromisoformat(inputs["effective_date"]),
-                expiry_date=date.fromisoformat(inputs["expiry_date"]),
+                effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
             )
             context = self.context.replace(
                 spot_price=inputs["spot"],
-                valuation_time=date.fromisoformat(inputs["valuation"]),
+                valuation_time=datetime.fromisoformat(inputs["valuation"]),
                 model_parameters=BlackScholesMertonParameters(
                     risk_free_rate=inputs["rate"],
                     dividend_yield=inputs["dividend"],
@@ -140,7 +140,7 @@ class AnalyticsTests(unittest.TestCase):
             numeric_budget = scenario["numerical_tolerances"]
             bumps = (
                 (0.008, 0.01)
-                if (option.expiry_date - context.valuation_time.date()).days <= 2
+                if (option.expiry_time - context.valuation_time).days <= 2
                 else (0.01, 0.012)
             )
             for bump in bumps:
@@ -182,7 +182,7 @@ class AnalyticsTests(unittest.TestCase):
                 selected.require("gamma")
             self.assertIs(type(error.exception), UnsupportedOperationError)
         expiry = self.context.replace(
-            spot_price=110, valuation_time=self.option.expiry_date
+            spot_price=110, valuation_time=self.option.expiry_time
         )
         result = self.engine.price_with_greeks(self.option, expiry, greeks="all")
         self.assertEqual(result.price, 10)
@@ -303,13 +303,11 @@ class AnalyticsTests(unittest.TestCase):
         with self.assertRaises(NonConvergenceError) as error:
             solve(max_iterations=1, price_tolerance=1e-15, parameter_tolerance=1e-15)
         self.assertIs(type(error.exception), NonConvergenceError)
-        expiry = self.context.replace(valuation_time=self.option.expiry_date)
+        expiry = self.context.replace(valuation_time=self.option.expiry_time)
         with self.assertRaises(UnsupportedOperationError) as error:
             solve(expiry, 0)
         self.assertIs(type(error.exception), UnsupportedOperationError)
-        outside = self.context.replace(
-            valuation_time=datetime(2026, 1, 1, 0, 0, 0, 1, tzinfo=UTC)
-        )
+        outside = self.context.replace(valuation_time=datetime(2026, 1, 1, 0, 0, 0, 1))
         with self.assertRaises(InvalidInputError) as error:
             solve(outside, 0)
         self.assertIs(type(error.exception), InvalidInputError)
@@ -330,8 +328,8 @@ class AnalyticsTests(unittest.TestCase):
                 vol,
                 delta=1e-8,
             )
-        reference = datetime(2025, 1, 1, tzinfo=UTC)
-        end = datetime(2026, 1, 1, tzinfo=UTC)
+        reference = datetime(2025, 1, 1)
+        end = datetime(2026, 1, 1)
         knot = reference + timedelta(days=180)
         curve = RateTermStructure(
             reference_time=reference,
@@ -369,11 +367,11 @@ class AnalyticsTests(unittest.TestCase):
     def test_analytic_speed_preserves_subnormal_volatility_widths(self):
         # Independent 80-digit references for ATM, zero-rate speed = -3 * gamma / (2 * spot).
         for volatility, valuation, expected in (
-            (math.ulp(0.0), date(2025, 1, 1), -1211.2022473921038),
-            (3 * math.ulp(0.0), date(2025, 1, 1), -403.7340824640346),
+            (math.ulp(0.0), datetime(2025, 1, 1), -1211.2022473921038),
+            (3 * math.ulp(0.0), datetime(2025, 1, 1), -403.7340824640346),
             (
                 math.ulp(0.0),
-                datetime(2025, 12, 31, 23, 59, 59, 999999, tzinfo=UTC),
+                datetime(2025, 12, 31, 23, 59, 59, 999999),
                 -6801739133.529686,
             ),
         ):
@@ -391,8 +389,8 @@ class AnalyticsTests(unittest.TestCase):
                     option = EuropeanOption(
                         option_type=direction,
                         strike=1e160,
-                        effective_date=self.option.effective_date,
-                        expiry_date=self.option.expiry_date,
+                        effective_time=self.option.effective_time,
+                        expiry_time=self.option.expiry_time,
                     )
                     result = self.engine.price_with_greeks(option, context, "speed")
                     self.assertAlmostEqual(result.speed / expected, 1, delta=1e-12)
@@ -406,8 +404,8 @@ class AnalyticsTests(unittest.TestCase):
             option = EuropeanOption(
                 option_type="call",
                 strike=strike,
-                effective_date=self.option.effective_date,
-                expiry_date=self.option.expiry_date,
+                effective_time=self.option.effective_time,
+                expiry_time=self.option.expiry_time,
             )
             context = self.context.replace(
                 spot_price=spot,

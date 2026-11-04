@@ -53,9 +53,9 @@ impl Default for ImpliedVolatilitySettings {
 /// use kiyosi::{AnalyticDigitalEngine, BlackScholesMertonParameters, Date,
 ///     DigitalOption, OptionType, PricingContext, ImpliedVolatilitySettings, implied_volatility};
 /// # fn main() -> kiyosi::Result<()> {
-/// let start = Date::new(2025, 1, 1)?;
+/// let start = Date::new(2025, 1, 1)?.start_of_day();
 /// let option = DigitalOption::asset_or_nothing(OptionType::Call, 100.0,
-///     start, Date::new(2026, 1, 1)?)?;
+///     start, Date::new(2026, 1, 1)?.start_of_day())?;
 /// let context = PricingContext::new(
 ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
 /// let quote = AnalyticDigitalEngine.price(&option, &context)?;
@@ -118,7 +118,7 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     };
     let (mut a, mut b) = (s.lower_bound, s.upper_bound);
     let (mut fa, mut fb) = (evaluate(a)?, evaluate(b)?);
-    if context.valuation_time() == option.expiry_date().start_of_day()
+    if context.valuation_time() == option.expiry_time()
         || !engine.volatility_affects_price(option, context)
     {
         return Err(Error::UnsupportedOperation(

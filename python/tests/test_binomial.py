@@ -7,7 +7,7 @@ import sys
 import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import QuantLib as ql
 from kiyosi import (
@@ -35,7 +35,7 @@ from kiyosi.pricing import (
     implied_volatility,
 )
 
-START, END = date(2025, 1, 1), date(2026, 1, 1)
+START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 GREEKS = (
     "delta",
     "gamma",
@@ -58,8 +58,8 @@ def contract(kind, direction="call", strike=100):
     terms = {
         "option_type": direction,
         "strike": strike,
-        "effective_date": START,
-        "expiry_date": END,
+        "effective_time": START,
+        "expiry_time": END,
     }
     if kind is CashOrNothingOption:
         terms["payout"] = 10
@@ -222,15 +222,15 @@ class BinomialTests(unittest.TestCase):
         option = EuropeanOption(
             option_type="call",
             strike=100,
-            effective_date=date(2025, 1, 1),
-            expiry_date=date(2026, 1, 1),
+            effective_time=datetime(2025, 1, 1),
+            expiry_time=datetime(2026, 1, 1),
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
             ),
             spot_price=100,
-            valuation_time=date(2025, 1, 1),
+            valuation_time=datetime(2025, 1, 1),
         )
         engine = CoxRossRubinsteinVanillaEngine()
         self.assertEqual(engine.step_count, 256)
@@ -399,7 +399,7 @@ class BinomialTests(unittest.TestCase):
                     )
                 for time in (
                     START - timedelta(days=1),
-                    datetime(2026, 1, 1, tzinfo=UTC) + timedelta(microseconds=1),
+                    datetime(2026, 1, 1) + timedelta(microseconds=1),
                 ):
                     self.assert_rejection(
                         InvalidInputError,
@@ -646,15 +646,15 @@ class BinomialTests(unittest.TestCase):
                 option = kind(
                     option_type=inputs["option"],
                     strike=inputs["strike"],
-                    effective_date=date.fromisoformat(inputs["effective_date"]),
-                    expiry_date=date.fromisoformat(inputs["expiry_date"]),
+                    effective_time=datetime.fromisoformat(inputs["effective_time"]),
+                    expiry_time=datetime.fromisoformat(inputs["expiry_time"]),
                 )
                 context = market(
                     inputs["spot"],
                     inputs["rate"],
                     inputs["dividend"],
                     inputs["volatility"],
-                    date.fromisoformat(inputs["valuation"]),
+                    datetime.fromisoformat(inputs["valuation"]),
                 )
                 with ql.SavedSettings():
                     reference, metadata = (

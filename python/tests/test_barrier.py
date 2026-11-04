@@ -2,7 +2,7 @@
 
 import math
 import unittest
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import QuantLib as ql
 from kiyosi import InvalidInputError, RootNotBracketedError, UnsupportedOperationError
@@ -25,13 +25,13 @@ class BarrierTests(unittest.TestCase):
         return {
             "option_type": "call",
             "strike": 100,
-            "effective_date": date(2025, 1, 1),
-            "expiry_date": date(2026, 1, 1),
+            "effective_time": datetime(2025, 1, 1),
+            "expiry_time": datetime(2026, 1, 1),
             "barrier_level": 120,
             "barrier_type": "up_and_out",
         } | changes
 
-    def context(self, spot=100, time=date(2025, 1, 1), **changes):
+    def context(self, spot=100, time=datetime(2025, 1, 1), **changes):
         return PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
@@ -48,10 +48,12 @@ class BarrierTests(unittest.TestCase):
         self.assertEqual(option.observation_mode, "continuous")
         self.assertEqual(engine.price(option, self.context(120)), 7)
         with self.assertRaises(InvalidInputError) as error:
-            engine.price(option, self.context(time=date(2025, 1, 2)))
+            engine.price(option, self.context(time=datetime(2025, 1, 2)))
         self.assertIs(type(error.exception), InvalidInputError)
         touched = option.replace_history(touch_state="touched")
-        self.assertEqual(engine.price(touched, self.context(time=date(2025, 1, 2))), 0)
+        self.assertEqual(
+            engine.price(touched, self.context(time=datetime(2025, 1, 2))), 0
+        )
         self.assertIsNone(option.touch_state)
         self.assertEqual(touched.replace_history(touch_state=None), option)
 
@@ -86,24 +88,24 @@ class BarrierTests(unittest.TestCase):
             ({"strike": 0}, InvalidInputError),
             ({"rebate": -1}, InvalidInputError),
             ({"rebate": float("inf")}, InvalidInputError),
-            ({"expiry_date": date(2024, 1, 1)}, InvalidInputError),
+            ({"expiry_time": datetime(2024, 1, 1)}, InvalidInputError),
             (
                 {"barrier_type": "up_and_in", "rebate_timing": "at_hit"},
                 InvalidInputError,
             ),
             ({"observation_mode": "scheduled"}, InvalidInputError),
-            ({"observation_dates": [date(2025, 1, 2)]}, InvalidInputError),
+            ({"observation_times": [datetime(2025, 1, 2)]}, InvalidInputError),
             (
                 {
                     "observation_mode": "scheduled",
-                    "observation_dates": [date(2026, 1, 2)],
+                    "observation_times": [datetime(2026, 1, 2)],
                 },
                 InvalidInputError,
             ),
             (
                 {
                     "observation_mode": "scheduled",
-                    "observation_dates": [date(2025, 1, 2)] * 2,
+                    "observation_times": [datetime(2025, 1, 2)] * 2,
                 },
                 InvalidInputError,
             ),
@@ -154,7 +156,7 @@ class BarrierTests(unittest.TestCase):
                             if kind.endswith("_in")
                             else (rebate if hit else 20)
                         )
-                        context = self.context(time=option.expiry_date)
+                        context = self.context(time=option.expiry_time)
                         with self.subTest(
                             kind=kind, state=state, level=level, timing=timing
                         ):
@@ -177,7 +179,7 @@ class BarrierTests(unittest.TestCase):
             option = BarrierOption(
                 **self.terms(rebate=7, rebate_timing=timing, touch_state="touched")
             )
-            context = self.context(time=date(2025, 1, 2))
+            context = self.context(time=datetime(2025, 1, 2))
             expected = 0 if timing == "at_hit" else 7 * math.exp(-0.05 * 364 / 365)
             self.assertAlmostEqual(engine.price(option, context), expected, delta=1e-12)
             self.assert_rejection(
@@ -189,10 +191,10 @@ class BarrierTests(unittest.TestCase):
 
     def test_scheduled_fixing_occurs_only_at_midnight_and_history_is_strict(self):
         engine = AnalyticBarrierEngine()
-        fixing = date(2025, 1, 2)
+        fixing = datetime(2025, 1, 2)
         option = BarrierOption(
             **self.terms(
-                observation_mode="scheduled", observation_dates=[fixing], rebate=7
+                observation_mode="scheduled", observation_times=[fixing], rebate=7
             )
         )
         self.assert_rejection(
@@ -209,7 +211,7 @@ class BarrierTests(unittest.TestCase):
             7 * math.exp(-0.05 * 364 / 365),
             delta=1e-12,
         )
-        noon = datetime(2025, 1, 2, 12, tzinfo=UTC)
+        noon = datetime(2025, 1, 2, 12)
         self.assert_rejection(
             InvalidInputError, lambda: engine.price(option, self.context(150, noon))
         )
@@ -217,28 +219,28 @@ class BarrierTests(unittest.TestCase):
         vanilla = EuropeanOption(
             option_type="call",
             strike=100,
-            effective_date=option.effective_date,
-            expiry_date=option.expiry_date,
+            effective_time=option.effective_time,
+            expiry_time=option.expiry_time,
         )
         self.assertEqual(
             engine.price(untouched, self.context(150, noon)),
             AnalyticEuropeanEngine().price(vanilla, self.context(150, noon)),
         )
-        dates = untouched.observation_dates
+        dates = untouched.observation_times
         dates.clear()
-        self.assertEqual(untouched.observation_dates, [fixing])
-        self.assertEqual(untouched.observation_schedule.dates, [fixing])
+        self.assertEqual(untouched.observation_times, [fixing])
+        self.assertEqual(untouched.observation_schedule.times, [fixing])
         self.assertAlmostEqual(untouched.mean_observation_year_fraction, 1 / 365)
         weekend = BarrierOption(
             **self.terms(
                 observation_mode="scheduled",
-                observation_dates=[date(2025, 1, 4)],
+                observation_times=[datetime(2025, 1, 4)],
                 touch_state="touched",
             )
         )
         self.assert_rejection(
             InvalidInputError,
-            lambda: engine.price(weekend, self.context(time=date(2025, 1, 5))),
+            lambda: engine.price(weekend, self.context(time=datetime(2025, 1, 5))),
         )
 
     def test_scheduled_bgk_domain_and_event_sensitive_greeks(self):
@@ -251,7 +253,7 @@ class BarrierTests(unittest.TestCase):
                     barrier_type=kind,
                     barrier_level=level,
                     observation_mode="scheduled",
-                    observation_dates=[date(2026, 1, 1)],
+                    observation_times=[datetime(2026, 1, 1)],
                     touch_state="untouched",
                 )
             )
@@ -263,7 +265,7 @@ class BarrierTests(unittest.TestCase):
                     touch_state="untouched",
                 )
             )
-            noon = datetime(2025, 1, 1, 12, tzinfo=UTC)
+            noon = datetime(2025, 1, 1, 12)
             context = self.context(time=noon)
             self.assertAlmostEqual(
                 engine.price(scheduled, context),
@@ -281,8 +283,8 @@ class BarrierTests(unittest.TestCase):
                     barrier_type=kind,
                     barrier_level=level,
                     observation_mode="scheduled",
-                    observation_dates=[
-                        date(2025, 1, 1) + timedelta(days=i) for i in range(1, 366)
+                    observation_times=[
+                        datetime(2025, 1, 1) + timedelta(days=i) for i in range(1, 366)
                     ],
                     touch_state="untouched",
                 )
@@ -491,7 +493,9 @@ class BarrierTests(unittest.TestCase):
             ),
         )
         curve = RateTermStructure(
-            reference_time=date(2025, 1, 1), times=[date(2026, 1, 1)], factors=[0.95]
+            reference_time=datetime(2025, 1, 1),
+            times=[datetime(2026, 1, 1)],
+            factors=[0.95],
         )
         curved = context.replace(
             model_parameters=context.model_parameters.replace(risk_free_rate=curve)
@@ -544,9 +548,9 @@ KINDS = {
 
 def reference(terms, spot=100, sigma=0.2, rate=0.05, dividend=0.02, days=0):
     with ql.SavedSettings():
-        valuation = terms["effective_date"] + timedelta(days=days)
+        valuation = terms["effective_time"] + timedelta(days=days)
         today = ql.Date(valuation.day, valuation.month, valuation.year)
-        end = terms["expiry_date"]
+        end = terms["expiry_time"]
         expiry = ql.Date(end.day, end.month, end.year)
         ql.Settings.instance().evaluationDate = today
         process = ql.BlackScholesMertonProcess(

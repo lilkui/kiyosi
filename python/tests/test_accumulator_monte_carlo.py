@@ -4,7 +4,7 @@ import math
 import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from kiyosi import (
     ComputationFailureError,
@@ -27,7 +27,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
 
     def test_scalar_price_survives_confidence_interval_overflow(self):
         note = contract(
-            date(2025, 1, 2), knock_out=200, acceleration=1, daily=0, quantity=1
+            datetime(2025, 1, 2), knock_out=200, acceleration=1, daily=0, quantity=1
         )
         context = market(
             spot=100, valuation=START, volatility=1, rate=0.01, dividend=0, daily=True
@@ -43,7 +43,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             engine.price_with_statistics(scaled, context)
 
     def test_current_events_settle_before_sampling(self):
-        end = date(2025, 1, 6)
+        end = datetime(2025, 1, 6)
         engine = MC()
         for spot, expected in ((90, -50), (100, 0), (105, 20), (110, 30)):
             result = engine.price_with_statistics(contract(end), market(spot, end))
@@ -55,8 +55,8 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         engine = MC(path_count=32768, seed=42)
         for option, context, reference in (
             (
-                contract(date(2025, 1, 6)),
-                market(valuation=datetime(2025, 1, 3, 12, tzinfo=UTC)),
+                contract(datetime(2025, 1, 6)),
+                market(valuation=datetime(2025, 1, 3, 12)),
                 terminal_reference,
             ),
             (
@@ -189,19 +189,22 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
 
     def test_midnight_intraday_calendar_and_omitted_history(self):
         engine = MC(path_count=2, seed=42)
-        note = contract(date(2025, 1, 6))
+        note = contract(datetime(2025, 1, 6))
         holiday = custom_calendar(
-            base=weekdays_calendar(), closed_dates=[date(2025, 1, 3)]
+            base=weekdays_calendar(), closed_dates=[(datetime(2025, 1, 3)).date()]
         )
         for context, expected in (
-            (market(90, date(2025, 1, 3), 1e-20, 0, 0), -70),
+            (market(90, datetime(2025, 1, 3), 1e-20, 0, 0), -70),
             (
-                market(90, datetime(2025, 1, 3, 0, 0, 0, 1, tzinfo=UTC), 1e-20, 0, 0),
+                market(90, datetime(2025, 1, 3, 0, 0, 0, 1), 1e-20, 0, 0),
                 -50,
             ),
-            (market(90, date(2025, 1, 4), 1e-20, 0, 0), -50),
-            (market(90, date(2025, 1, 3), 1e-20, 0, 0, daily=True), -110),
-            (market(90, date(2025, 1, 3), 1e-20, 0, 0).replace(calendar=holiday), -50),
+            (market(90, datetime(2025, 1, 4), 1e-20, 0, 0), -50),
+            (market(90, datetime(2025, 1, 3), 1e-20, 0, 0, daily=True), -110),
+            (
+                market(90, datetime(2025, 1, 3), 1e-20, 0, 0).replace(calendar=holiday),
+                -50,
+            ),
         ):
             self.assertEqual(engine.price(note, context), expected)
         omitted = Accumulator(
@@ -209,25 +212,25 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             knock_out_level=110,
             daily_quantity=1,
             acceleration_factor=2,
-            effective_date=START,
-            expiry_date=date(2025, 1, 6),
+            effective_time=START,
+            expiry_time=datetime(2025, 1, 6),
         )
         self.assert_rejection(
             InvalidInputError,
-            lambda: engine.price(omitted, market(90, omitted.expiry_date)),
+            lambda: engine.price(omitted, market(90, omitted.expiry_time)),
         )
         self.assertEqual(
             engine.price(
                 omitted.replace_history(accumulated_quantity=0),
-                market(90, omitted.expiry_date),
+                market(90, omitted.expiry_time),
             ),
             -20,
         )
         self.assertIsNone(omitted.accumulated_quantity)
 
     def test_shared_greeks_scalar_bumps_and_implied_volatility(self):
-        note = contract(date(2025, 1, 6))
-        context = market(valuation=datetime(2025, 1, 3, 12, tzinfo=UTC))
+        note = contract(datetime(2025, 1, 6))
+        context = market(valuation=datetime(2025, 1, 3, 12))
         engine = MC(path_count=4096, seed=42)
         result = engine.price_with_greeks(note, context, greeks="all", spot_shift=0.25)
         self.assertEqual(result.price, engine.price(note, context))
@@ -268,7 +271,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             self.assertIsNotNone(boundary.vega)
             self.assertIsNotNone(boundary.rho)
         expired = engine.price_with_greeks(
-            note, market(90, note.expiry_date), greeks="all"
+            note, market(90, note.expiry_time), greeks="all"
         )
         for greek in (
             "delta",
@@ -287,7 +290,9 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         self.assertEqual(note.accumulated_quantity, 3)
         self.assertEqual(context.model_parameters.volatility, 0.2)
         unseeded = MC(path_count=1024)
-        smooth = contract(date(2025, 1, 6), knock_out=1e300, acceleration=1, quantity=0)
+        smooth = contract(
+            datetime(2025, 1, 6), knock_out=1e300, acceleration=1, quantity=0
+        )
         shared = unseeded.price_with_greeks(
             smooth, context, ["delta", "gamma"], spot_shift=0.25
         )
@@ -296,15 +301,15 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
 
     def test_validation_fixed_payoffs_and_failure_reuse(self):
         engine = MC(path_count=32, seed=42)
-        note, context = contract(date(2025, 1, 6)), market()
+        note, context = contract(datetime(2025, 1, 6)), market()
         for instrument, invalid, expected_error in (
             (note, market(110, START - timedelta(days=1)), InvalidInputError),
             (
                 note,
-                market(110, datetime(2025, 1, 6, 0, 0, 0, 1, tzinfo=UTC)),
+                market(110, datetime(2025, 1, 6, 0, 0, 0, 1)),
                 InvalidInputError,
             ),
-            (contract(date(2025, 1, 5)), market(110, START), InvalidInputError),
+            (contract(datetime(2025, 1, 5)), market(110, START), InvalidInputError),
             (
                 contract(quantity=sys.float_info.max),
                 market(111, START),
@@ -325,7 +330,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             lambda: engine.price_with_greeks(note, context, "delta", spot_shift=0),
         )
         curve = RateTermStructure(
-            reference_time=START, times=[note.expiry_date], factors=[0.99]
+            reference_time=START, times=[note.expiry_time], factors=[0.99]
         )
         for field in ("risk_free_rate", "dividend_yield"):
             curved = context.replace(
@@ -347,7 +352,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             )
         for instrument, fixed, expected in (
             (note, market(110, START), 30),
-            (note, market(90, note.expiry_date), -50),
+            (note, market(90, note.expiry_time), -50),
             (contract(daily=0), market(90, START, rate=0, dividend=0), -30),
             (contract(daily=0, quantity=0), context, 0),
             (contract(knock_out=100, acceleration=0, quantity=0), context, 0),
@@ -376,19 +381,19 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
 
     def test_sobol_dimension_limit_preserves_known_settlements(self):
         engine = MC(path_count=2, seed=42, sampling="sobol")
-        note = contract(date(2090, 1, 2))
+        note = contract(datetime(2090, 1, 2))
         context = market(valuation=START, daily=True)
         self.assert_rejection(InvalidInputError, lambda: engine.price(note, context))
         result = engine.price_with_statistics(note, context.replace(spot_price=110))
         self.assertEqual(result.price, 30)
         self.assertIsNone(result.standard_error)
         self.assertIsNone(result.confidence_interval)
-        zero = contract(date(2090, 1, 2), daily=0, quantity=0)
+        zero = contract(datetime(2090, 1, 2), daily=0, quantity=0)
         self.assertEqual(engine.price(zero, context), 0)
 
     def test_rate_volatility_and_mixed_greeks_match_seeded_scalar_repricing(self):
-        note = contract(date(2025, 1, 13))
-        context = market(valuation=datetime(2025, 1, 3, 12, tzinfo=UTC))
+        note = contract(datetime(2025, 1, 13))
+        context = market(valuation=datetime(2025, 1, 3, 12))
         engine = MC(path_count=1024, seed=42, antithetic=True)
         h = 0.25
         v = (0.2 + 0.002) - 0.2

@@ -1,7 +1,7 @@
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 
 from kiyosi import (
     ComputationFailureError,
@@ -16,9 +16,9 @@ from kiyosi.pricing import implied_volatility
 
 class AsianRegressionTests(unittest.TestCase):
     def test_arithmetic_prices_survive_adjusted_strike_overflow(self):
-        start, end = date(2023, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2023, 1, 1), datetime(2026, 1, 1)
         engine = pricing.TurnbullWakemanArithmeticAveragePriceEngine()
-        for valuation in (date(2025, 1, 1), end - timedelta(days=1)):
+        for valuation in (datetime(2025, 1, 1), end - timedelta(days=1)):
             for volatility in (math.ulp(0.0), 1e-200, 1e-6, 0.2, 1.0):
                 for rate in (-0.05, 0, 0.05):
                     parameters = BlackScholesMertonParameters(
@@ -36,9 +36,9 @@ class AsianRegressionTests(unittest.TestCase):
                                 option = ArithmeticAveragePriceOption(
                                     option_type=direction,
                                     strike=100 * scale,
-                                    effective_date=start,
-                                    averaging_start_date=start,
-                                    expiry_date=end,
+                                    effective_time=start,
+                                    averaging_start_time=start,
+                                    expiry_time=end,
                                     realized_average=50 * scale,
                                 )
                                 context = PricingContext(
@@ -53,7 +53,7 @@ class AsianRegressionTests(unittest.TestCase):
                             )
 
     def test_vanna_survives_underflow_of_combined_stencil_scales(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0, dividend_yield=0, volatility=1e-200
@@ -75,9 +75,9 @@ class AsianRegressionTests(unittest.TestCase):
                 option = kind(
                     option_type="call",
                     strike=5e-201,
-                    effective_date=start,
-                    averaging_start_date=start,
-                    expiry_date=end,
+                    effective_time=start,
+                    averaging_start_time=start,
+                    expiry_time=end,
                 )
                 result = engine.price_with_greeks(
                     option,
@@ -90,7 +90,7 @@ class AsianRegressionTests(unittest.TestCase):
                 self.assertEqual(result.vanna, 0)
 
     def test_concurrent_asian_delta_requests_preserve_results_and_errors(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
@@ -115,9 +115,9 @@ class AsianRegressionTests(unittest.TestCase):
             option = kind(
                 option_type="call",
                 strike=100,
-                effective_date=start,
-                averaging_start_date=start,
-                expiry_date=end,
+                effective_time=start,
+                averaging_start_time=start,
+                expiry_time=end,
             )
 
             def calculate(selection, engine=engine, option=option):
@@ -148,7 +148,7 @@ class AsianRegressionTests(unittest.TestCase):
                     self.assertIs(type(error.exception), InvalidInputError)
 
     def test_accrued_arithmetic_calls_retain_representable_discounted_prices(self):
-        start = date(2025, 1, 1)
+        start = datetime(2025, 1, 1)
         # Independent 80-digit discounted expected arithmetic payoffs.
         cases = (
             (2, 1e308, 0, 0, 0.25, 7.5e307),
@@ -166,9 +166,9 @@ class AsianRegressionTests(unittest.TestCase):
                     option = ArithmeticAveragePriceOption(
                         option_type=direction,
                         strike=amount * strike_fraction,
-                        effective_date=start,
-                        averaging_start_date=start,
-                        expiry_date=valuation + timedelta(days=365),
+                        effective_time=start,
+                        averaging_start_time=start,
+                        expiry_time=valuation + timedelta(days=365),
                         realized_average=amount,
                     )
                     context = PricingContext(
@@ -188,9 +188,9 @@ class AsianRegressionTests(unittest.TestCase):
         option = ArithmeticAveragePriceOption(
             option_type="call",
             strike=25,
-            effective_date=start,
-            averaging_start_date=start,
-            expiry_date=start + timedelta(days=730),
+            effective_time=start,
+            averaging_start_time=start,
+            expiry_time=start + timedelta(days=730),
             realized_average=100,
         )
         context = PricingContext(
@@ -205,7 +205,7 @@ class AsianRegressionTests(unittest.TestCase):
         self.assertIs(type(error.exception), ComputationFailureError)
 
     def test_asian_terms_preserve_validation_precedence(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         for option_type in (GeometricAveragePriceOption, ArithmeticAveragePriceOption):
             for strike, average, expected_error in (
                 (0, -1, InvalidInputError),
@@ -220,16 +220,16 @@ class AsianRegressionTests(unittest.TestCase):
                             option_type="call",
                             strike=strike,
                             realized_average=average,
-                            effective_date=end,
-                            averaging_start_date=start,
-                            expiry_date=start,
+                            effective_time=end,
+                            averaging_start_time=start,
+                            expiry_time=start,
                         )
                     self.assertIs(type(error.exception), expected_error)
 
     def test_arithmetic_asians_retain_time_value_when_squared_volatility_underflows(
         self,
     ):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         for direction in ("call", "put"):
             for spot, sigma in ((100, 1e-170), (1e160, 1e-160), (1e300, 1e-200)):
                 for window in (0, 1, 2):
@@ -259,11 +259,11 @@ class AsianRegressionTests(unittest.TestCase):
                         option = ArithmeticAveragePriceOption(
                             option_type=direction,
                             strike=spot,
-                            effective_date=start,
-                            averaging_start_date=start + timedelta(days=120)
+                            effective_time=start,
+                            averaging_start_time=start + timedelta(days=120)
                             if window == 1
                             else start,
-                            expiry_date=end,
+                            expiry_time=end,
                             realized_average=spot if window == 2 else 0,
                         )
                         actual = (
@@ -274,7 +274,7 @@ class AsianRegressionTests(unittest.TestCase):
                         self.assertAlmostEqual(actual, expected, delta=expected * 1e-12)
 
     def test_asian_analytic_prices_retain_scaled_normal_tails(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         parameters = BlackScholesMertonParameters(
             risk_free_rate=0.04, dividend_yield=0.01, volatility=0.4
         )
@@ -291,9 +291,9 @@ class AsianRegressionTests(unittest.TestCase):
                 terms = {
                     "option_type": direction,
                     "strike": strike * scale,
-                    "effective_date": start,
-                    "averaging_start_date": start,
-                    "expiry_date": end,
+                    "effective_time": start,
+                    "averaging_start_time": start,
+                    "expiry_time": end,
                 }
                 for engine, option, expected in (
                     (
@@ -320,7 +320,7 @@ class AsianRegressionTests(unittest.TestCase):
                         )
 
     def test_arithmetic_asian_implied_volatility_rejects_locked_realized_payoffs(self):
-        start = date(2025, 1, 1)
+        start = datetime(2025, 1, 1)
         end, valuation = start + timedelta(days=364), start + timedelta(days=182)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -336,9 +336,9 @@ class AsianRegressionTests(unittest.TestCase):
             terms = {
                 "option_type": direction,
                 "strike": 100,
-                "effective_date": start,
-                "averaging_start_date": start,
-                "expiry_date": end,
+                "effective_time": start,
+                "averaging_start_time": start,
+                "expiry_time": end,
             }
             for realized in (100, 200, 220):
                 with self.subTest(direction=direction, realized=realized):
@@ -388,7 +388,7 @@ class AsianRegressionTests(unittest.TestCase):
     def test_arithmetic_asians_retain_small_moment_variance_across_averaging_windows(
         self,
     ):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         engine = pricing.TurnbullWakemanArithmeticAveragePriceEngine()
         for direction in ("call", "put"):
             for spot in (100, 1e8, 1e14):
@@ -432,9 +432,9 @@ class AsianRegressionTests(unittest.TestCase):
                             option = ArithmeticAveragePriceOption(
                                 option_type=direction,
                                 strike=spot,
-                                effective_date=start,
-                                averaging_start_date=averaging,
-                                expiry_date=end,
+                                effective_time=start,
+                                averaging_start_time=averaging,
+                                expiry_time=end,
                                 realized_average=spot if window == 2 else 0,
                             )
                             actual = engine.price(option, context)
@@ -443,7 +443,7 @@ class AsianRegressionTests(unittest.TestCase):
                             )
 
     def test_arithmetic_asian_small_variance_prices_preserve_nonzero_carry(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         # Independent 75-digit evaluation of the integrated moments and normal CDF.
         cases = (
             (0.02, 0, 101006700.13377905, 0.22861156554028925, 0.2286115636758159),
@@ -470,11 +470,11 @@ class AsianRegressionTests(unittest.TestCase):
                     option = ArithmeticAveragePriceOption(
                         option_type=direction,
                         strike=strike,
-                        effective_date=start,
-                        averaging_start_date=(
+                        effective_time=start,
+                        averaging_start_time=(
                             start + timedelta(days=120) if window == 1 else start
                         ),
-                        expiry_date=end,
+                        expiry_time=end,
                         realized_average=1e8 if window == 2 else 0,
                     )
                     actual = (
@@ -495,9 +495,9 @@ class AsianRegressionTests(unittest.TestCase):
         oversized = ArithmeticAveragePriceOption(
             option_type="call",
             strike=1e308,
-            effective_date=start,
-            averaging_start_date=start,
-            expiry_date=end,
+            effective_time=start,
+            averaging_start_time=start,
+            expiry_time=end,
             realized_average=1,
         )
         self.assertEqual(
@@ -510,7 +510,7 @@ class AsianRegressionTests(unittest.TestCase):
     def test_geometric_asians_retain_small_positive_variance_across_averaging_windows(
         self,
     ):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         for direction in ("call", "put"):
             for spot in (100, 1e8, 1e14):
                 for sigma in (1e-160, 1e-13, 1e-12, 1e-8, 1e-4, 0.2):
@@ -554,9 +554,9 @@ class AsianRegressionTests(unittest.TestCase):
                             option = GeometricAveragePriceOption(
                                 option_type=direction,
                                 strike=spot,
-                                effective_date=start,
-                                averaging_start_date=averaging,
-                                expiry_date=end,
+                                effective_time=start,
+                                averaging_start_time=averaging,
+                                expiry_time=end,
                                 realized_average=spot if window == 2 else 0,
                             )
                             price = pricing.AnalyticGeometricAveragePriceEngine().price(
@@ -567,7 +567,7 @@ class AsianRegressionTests(unittest.TestCase):
                             )
 
     def test_single_fixing_geometric_asians_retain_european_time_value(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         engine = pricing.AnalyticGeometricAveragePriceEngine()
         for direction in ("call", "put"):
             for sigma in (1e-13, 0.2):
@@ -584,9 +584,9 @@ class AsianRegressionTests(unittest.TestCase):
                     terms = {
                         "option_type": direction,
                         "strike": 1e14,
-                        "effective_date": start,
-                        "averaging_start_date": end,
-                        "expiry_date": end,
+                        "effective_time": start,
+                        "averaging_start_time": end,
+                        "expiry_time": end,
                     }
                     actual = engine.price(GeometricAveragePriceOption(**terms), context)
                     expected = 1e14 * math.erf(sigma / (2 * math.sqrt(2)))
@@ -612,9 +612,9 @@ class AsianRegressionTests(unittest.TestCase):
                 GeometricAveragePriceOption(
                     option_type=direction,
                     strike=100,
-                    effective_date=start,
-                    averaging_start_date=end,
-                    expiry_date=end,
+                    effective_time=start,
+                    averaging_start_time=end,
+                    expiry_time=end,
                 ),
                 expired,
             )

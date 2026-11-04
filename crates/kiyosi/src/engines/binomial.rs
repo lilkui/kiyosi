@@ -100,8 +100,8 @@ impl CoxRossRubinsteinVanillaEngine {
     /// use kiyosi::{AmericanOption, CoxRossRubinsteinVanillaEngine,
     ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
-    /// let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = AmericanOption::new(OptionType::Put, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// let result = CoxRossRubinsteinVanillaEngine::default().price_with_greeks(
@@ -135,8 +135,8 @@ fn time_step(
     settings: BinomialSettings,
 ) -> Result<f64> {
     let valuation = context.valuation_time();
-    let expiry = option.expiry_date().start_of_day();
-    if valuation < option.effective_date().start_of_day() || valuation > expiry {
+    let expiry = option.expiry_time();
+    if valuation < option.effective_time() || valuation > expiry {
         return Err(Error::InvalidInput(
             "valuation must be within contract life".into(),
         ));
@@ -521,9 +521,9 @@ impl CoxRossRubinsteinDigitalEngine {
     /// use kiyosi::{CoxRossRubinsteinDigitalEngine, DigitalOption,
     ///     BlackScholesMertonParameters, Date, OptionType, PricingContext, Greek, GreeksRequest};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 1)?;
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0,
-    ///     start, Date::new(2026, 1, 1)?)?;
+    ///     start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// let result = CoxRossRubinsteinDigitalEngine::default().price_with_greeks(

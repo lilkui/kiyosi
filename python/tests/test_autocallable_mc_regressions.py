@@ -2,7 +2,7 @@
 
 import math
 import unittest
-from datetime import UTC, date, datetime
+from datetime import datetime
 
 from kiyosi import ComputationFailureError, pricing
 from kiyosi.instruments import (
@@ -22,12 +22,12 @@ from kiyosi.market import (
 
 class AutocallableMonteCarloRegressionTests(unittest.TestCase):
     def test_scalar_price_survives_confidence_interval_overflow(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = BinarySnowballOption(
             maturity_coupon_rate=0,
             principal_ratio=0,
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
             observations=autocallable_observations(
                 [end], [100], knock_out_coupon_rates=[1.5e308]
             ),
@@ -48,13 +48,13 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             engine.price_with_statistics(note, context)
 
     def test_shared_spot_simulations_match_separate_seeded_prices(self):
-        start, end = date(2025, 1, 1), date(2025, 1, 13)
-        observation_dates = [date(2025, 1, 3), date(2025, 1, 8), end]
+        start, end = datetime(2025, 1, 1), datetime(2025, 1, 13)
+        observation_times = [datetime(2025, 1, 3), datetime(2025, 1, 8), end]
         knock_out_levels = [101, 100, 99]
         terms = {
             "barrier_state": "no_event",
-            "effective_date": start,
-            "expiry_date": end,
+            "effective_time": start,
+            "expiry_time": end,
         }
         cases = [
             (
@@ -62,7 +62,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     maturity_coupon_rate=0.05,
                     **terms,
                     observations=autocallable_observations(
-                        observation_dates,
+                        observation_times,
                         knock_out_levels,
                         knock_out_coupon_rates=[0.08] * 3,
                     ),
@@ -82,7 +82,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                             lower_strike=60,
                             **common,
                             observations=autocallable_observations(
-                                observation_dates,
+                                observation_times,
                                 knock_out_levels,
                                 knock_out_coupon_rates=[0.08] * 3,
                             ),
@@ -97,7 +97,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                             lower_strike=60,
                             **common,
                             observations=autocallable_observations(
-                                observation_dates,
+                                observation_times,
                                 knock_out_levels,
                                 coupon_barrier_levels=[100, 99, 98],
                             ),
@@ -110,7 +110,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                             minimum_coupon_rate=0.02,
                             **common,
                             observations=autocallable_observations(
-                                observation_dates,
+                                observation_times,
                                 knock_out_levels,
                                 knock_out_coupon_rates=[0.08] * 3,
                             ),
@@ -128,7 +128,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             PricingContext(
                 model_parameters=parameters,
                 spot_price=spot + offset * h,
-                valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+                valuation_time=datetime(2025, 1, 1, 12),
                 calendar=all_days_calendar(),
             )
             for offset in (0, 1, -1, 2, -2)
@@ -171,7 +171,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
     def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(self):
         import math
 
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = SnowballOption(
             maturity_coupon_rate=0,
             initial_spot=100,
@@ -180,16 +180,16 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             lower_strike=100,
             barrier_state="no_event",
             knock_in_observation_mode="every_trading_day",
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
             observations=autocallable_observations(
                 [end], [110], knock_out_coupon_rates=[0]
             ),
         )
         for engine in (pricing.MonteCarloAutocallableEngine(path_count=64, seed=42),):
             for time in (
-                datetime(2025, 1, 1, tzinfo=UTC),
-                datetime(2025, 1, 2, 12, tzinfo=UTC),
+                datetime(2025, 1, 1),
+                datetime(2025, 1, 2, 12),
             ):
                 with self.subTest(engine=type(engine).__name__, time=time):
                     context = PricingContext(
@@ -202,9 +202,9 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     result = engine.price_with_greeks(
                         note, context, ["delta", "gamma", "theta", "charm", "color"]
                     )
-                    years = (
-                        datetime(2026, 1, 1, tzinfo=UTC) - time
-                    ).total_seconds() / (365 * 86400)
+                    years = (datetime(2026, 1, 1) - time).total_seconds() / (
+                        365 * 86400
+                    )
                     self.assertAlmostEqual(
                         result.price, math.exp(-0.04 * years), delta=1e-12
                     )
@@ -218,13 +218,13 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     )
 
     def test_completed_knock_in_preserves_time_greeks_without_hiding_live_events(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
             ),
             spot_price=75,
-            valuation_time=datetime(2025, 1, 2, 12, tzinfo=UTC),
+            valuation_time=datetime(2025, 1, 2, 12),
         )
         for engine in (pricing.MonteCarloAutocallableEngine(path_count=64, seed=42),):
             for state in ("no_event", "knocked_in"):
@@ -236,8 +236,8 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                         upper_strike=100,
                         lower_strike=60,
                         barrier_state=state,
-                        effective_date=start,
-                        expiry_date=end,
+                        effective_time=start,
+                        expiry_time=end,
                         knock_in_observation_mode="every_trading_day",
                         observations=autocallable_observations(
                             [end], [110], knock_out_coupon_rates=[0.08]
@@ -250,12 +250,12 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                         self.assertEqual(value is not None, state == "knocked_in")
 
     def test_fixed_implied_volatility_preserves_non_finite_pricing_errors(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = BinarySnowballOption(
             maturity_coupon_rate=1e308,
             principal_ratio=1e308,
-            effective_date=start,
-            expiry_date=end,
+            effective_time=start,
+            expiry_time=end,
             observations=autocallable_observations(
                 [end], [110], knock_out_coupon_rates=[1e308]
             ),
@@ -279,15 +279,15 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 self.assertIs(type(error.exception), ComputationFailureError)
 
     def test_event_only_monte_carlo_ignores_unobserved_trading_days(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         parameters = BlackScholesMertonParameters(
             risk_free_rate=0.03, dividend_yield=0, volatility=0.3
         )
-        for observations in ([date(2025, 7, 1)], [date(2025, 7, 1), end]):
+        for observations in ([datetime(2025, 7, 1)], [datetime(2025, 7, 1), end]):
             terms = {
                 "maturity_coupon_rate": 0.04,
-                "effective_date": start,
-                "expiry_date": end,
+                "effective_time": start,
+                "expiry_time": end,
                 "observations": autocallable_observations(
                     observations,
                     [110] * len(observations),
@@ -346,7 +346,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 )
 
     def test_current_knockouts_pay_only_contractual_coupon(self):
-        common = {"effective_date": START, "expiry_date": END}
+        common = {"effective_time": START, "expiry_time": END}
         observations = autocallable_observations(
             [FIRST, MIDDLE, END],
             [100, 100, 100],
@@ -404,8 +404,8 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             "lower_strike": 60,
             "barrier_state": "knocked_in",
             "principal_ratio": 1.25,
-            "effective_date": START,
-            "expiry_date": END,
+            "effective_time": START,
+            "expiry_time": END,
         }
         snowball = SnowballOption(
             **common,
@@ -431,10 +431,10 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
 
 
 START, FIRST, MIDDLE, END = (
-    date(2025, 1, 1),
-    date(2025, 1, 11),
-    date(2025, 1, 21),
-    date(2025, 1, 31),
+    datetime(2025, 1, 1),
+    datetime(2025, 1, 11),
+    datetime(2025, 1, 21),
+    datetime(2025, 1, 31),
 )
 
 

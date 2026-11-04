@@ -1,13 +1,13 @@
 use kiyosi::*;
 
-fn dates() -> (Date, Date) {
+fn dates() -> (Timestamp, Timestamp) {
     (
-        Date::new(2025, 1, 1).unwrap(),
-        Date::new(2026, 1, 1).unwrap(),
+        Date::new(2025, 1, 1).unwrap().start_of_day(),
+        Date::new(2026, 1, 1).unwrap().start_of_day(),
     )
 }
 
-fn local(spot: f64, end: Date, skew: bool) -> PricingContext {
+fn local(spot: f64, end: Timestamp, skew: bool) -> PricingContext {
     let (start, _) = dates();
     let values = if skew {
         vec![vec![0.3, 0.15], vec![0.35, 0.2]]
@@ -18,12 +18,11 @@ fn local(spot: f64, end: Date, skew: bool) -> PricingContext {
         LocalVolatilityParameters::new(
             0.05,
             0.02,
-            LocalVolatilitySurface::new(vec![start.into(), end.into()], vec![80.0, 120.0], values)
-                .unwrap(),
+            LocalVolatilitySurface::new(vec![start, end], vec![80.0, 120.0], values).unwrap(),
         )
         .unwrap(),
         spot,
-        start.into(),
+        start,
     )
     .unwrap()
 }
@@ -70,7 +69,7 @@ fn constant_surface_matches_single_and_double_barrier_states() {
     let bsm = PricingContext::new(
         BlackScholesMertonParameters::new(0.05, 0.02, 0.2).unwrap(),
         100.0,
-        start.into(),
+        start,
     )
     .unwrap();
     let single = FiniteDifferenceBarrierEngine::new(settings()).unwrap();
@@ -99,7 +98,8 @@ fn constant_surface_matches_single_and_double_barrier_states() {
                     terms.rebate_timing = timing;
                     terms.observation_mode = mode;
                     if mode == ObservationMode::Scheduled {
-                        terms.observation_dates = vec![Date::new(2025, 6, 30).unwrap(), end];
+                        terms.observation_times =
+                            vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end];
                     }
                     let option = BarrierOption::new(terms).unwrap();
                     let expected = single
@@ -123,7 +123,8 @@ fn constant_surface_matches_single_and_double_barrier_states() {
                     terms.rebate_timing = timing;
                     terms.observation_mode = mode;
                     if mode == ObservationMode::Scheduled {
-                        terms.observation_dates = vec![Date::new(2025, 6, 30).unwrap(), end];
+                        terms.observation_times =
+                            vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end];
                     }
                     let option = DoubleBarrierOption::new(terms).unwrap();
                     let expected = double
@@ -210,15 +211,11 @@ fn remote_low_volatility_knock_in_does_not_subtract_nearly_equal_prices() {
     let model = LocalVolatilityParameters::new(
         0.0,
         0.0,
-        LocalVolatilitySurface::new(
-            vec![start.into(), end.into()],
-            vec![80.0, 120.0],
-            vec![vec![0.05; 2]; 2],
-        )
-        .unwrap(),
+        LocalVolatilitySurface::new(vec![start, end], vec![80.0, 120.0], vec![vec![0.05; 2]; 2])
+            .unwrap(),
     )
     .unwrap();
-    let context = PricingContext::new(model, 100.0, start.into()).unwrap();
+    let context = PricingContext::new(model, 100.0, start).unwrap();
     let option = BarrierOption::new(BarrierOptionTerms::new(
         OptionType::Call,
         100.0,
@@ -296,7 +293,7 @@ fn skewed_single_barriers_match_independent_quantlib_reference() {
 #[test]
 fn resolved_cash_uses_only_required_coverage_and_requests_fail_before_shortcuts() {
     let (start, end) = dates();
-    let short_end = Date::new(2025, 1, 2).unwrap();
+    let short_end = Date::new(2025, 1, 2).unwrap().start_of_day();
     let short = local(120.0, short_end, true);
     let engine = FiniteDifferenceBarrierEngine::new(settings()).unwrap();
     let mut terms = BarrierOptionTerms::new(
@@ -328,7 +325,7 @@ fn resolved_cash_uses_only_required_coverage_and_requests_fail_before_shortcuts(
         .replace_history(Some(BarrierTouchState::Touched));
     let later = short
         .replace(PricingContextChanges {
-            valuation_time: Some(short_end.into()),
+            valuation_time: Some(short_end),
             ..Default::default()
         })
         .unwrap();
