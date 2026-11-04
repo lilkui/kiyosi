@@ -55,7 +55,11 @@ impl TradingCalendar {
     /// Raises
     /// ------
     /// InvalidInputError
-    ///     If the supported date range is exhausted.
+    ///     If the Rust core's supported date range is exhausted.
+    /// ValueError
+    ///     If the resulting date is outside Python's years 1 through 9999.
+    ///     For example, preceding adjustment of a closed datetime.date.min
+    ///     cannot be converted back to a Python date.
     fn adjust<'py>(
         &self,
         py: Python<'py>,

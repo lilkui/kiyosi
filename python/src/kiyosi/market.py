@@ -16,6 +16,8 @@ Volatility is annualized and expressed in decimal units. Rate curves
 use the Actual/365 Fixed day-count convention; a calendar's trading-day basis
 applies only to trading-year fractions. ``BusinessDayConvention`` accepts ``"following"``
 or ``"preceding"``, including the supplied date when it is open.
+Calendar adjustment raises ``ValueError`` if the result is outside Python's
+years 1 through 9999; Rust can represent dates beyond those output limits.
 Custom calendars compare by base, normalized overrides and annualization basis;
 empty overrides compare equal to the base when the basis is unchanged.
 Calendar representations identify the base kind and abbreviate open/closed overrides.
