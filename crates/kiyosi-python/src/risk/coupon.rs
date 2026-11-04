@@ -169,7 +169,9 @@ where
                 ));
             }
             let note = &note.0;
-            domain(py.detach(|| kiyosi::implied_coupon(&engine, note, context, observed, controls)))
+            domain(py.detach(|| {
+                kiyosi::implied_phoenix_coupon(&engine, note, context, observed, controls)
+            }))
         }
         AutocallableInstrument::Binary(note) => solve!(note),
         AutocallableInstrument::Ternary(note) => solve!(note),

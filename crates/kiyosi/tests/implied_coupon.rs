@@ -169,7 +169,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
         let quote = engine
             .price(&note.with_coupon(coupon).unwrap(), &context)
             .unwrap();
-        let solved = implied_coupon(
+        let solved = implied_phoenix_coupon(
             &engine,
             &note,
             &context,
@@ -606,7 +606,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
     let phoenix = PhoenixOption::new(terms).unwrap();
     let quote = engine.price(&phoenix, &context).unwrap();
     assert!(matches!(
-        implied_coupon(&engine, &phoenix, &context, quote, Default::default()).unwrap_err(),
+        implied_phoenix_coupon(&engine, &phoenix, &context, quote, Default::default()).unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     let current = market(110.0, date(4, 1));
@@ -614,7 +614,8 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         .price(&phoenix.with_coupon(0.18).unwrap(), &current)
         .unwrap();
     assert!(
-        (implied_coupon(&engine, &phoenix, &current, quote, Default::default()).unwrap() - 0.18)
+        (implied_phoenix_coupon(&engine, &phoenix, &current, quote, Default::default()).unwrap()
+            - 0.18)
             .abs()
             < 1e-8
     );

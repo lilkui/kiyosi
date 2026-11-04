@@ -225,7 +225,7 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
         let estimate = mc.price_with_statistics(&note, &context).unwrap();
         assert!((estimate.price() - expected).abs() < 5.0 * estimate.standard_error().unwrap());
         for actual in [
-            implied_coupon(
+            implied_phoenix_coupon(
                 &quad,
                 &note,
                 &context,
@@ -238,7 +238,7 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
                 },
             )
             .unwrap(),
-            implied_coupon(
+            implied_phoenix_coupon(
                 &fd,
                 &note,
                 &context,
@@ -251,7 +251,7 @@ fn fixed_period_coupons_match_independent_put_and_digital_values_in_all_engines(
                 },
             )
             .unwrap(),
-            implied_coupon(
+            implied_phoenix_coupon(
                 &mc,
                 &note,
                 &context,

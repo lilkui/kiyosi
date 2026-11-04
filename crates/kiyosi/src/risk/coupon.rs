@@ -17,7 +17,7 @@ pub enum CouponQuoteConvention {
 /// Sets finite signed coupon bounds and convergence controls in the contract's units.
 ///
 /// Either tolerance stops bisection; endpoint and interpolation evaluations do
-/// not count toward the iteration limit. See [`implied_coupon`] for an example.
+/// not count toward the iteration limit. See [`implied_phoenix_coupon`] for an example.
 #[derive(Clone, Copy, Debug)]
 pub struct ImpliedCouponSettings {
     /// Sets the finite lower coupon bound (default 0).
@@ -101,6 +101,9 @@ pub fn implied_snowball_coupon<
 
 /// Solves a Phoenix price curve in its conditional coupon, preserving its units.
 ///
+/// Python exposes this operation through `pricing.implied_coupon`, which also
+/// dispatches snowball contracts to [`implied_snowball_coupon`].
+///
 /// Uses the validation, endpoint, convergence and failure-state contract of
 /// [`implied_snowball_coupon`], without a quote convention.
 /// Bounds, parameter tolerance and result use the contract's coupon units:
@@ -123,11 +126,11 @@ pub fn implied_snowball_coupon<
 ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.3)?, 100.0, start.into())?;
 /// let engine = QuadratureAutocallableEngine::default();
 /// let quote = engine.price(&note.with_coupon(0.12)?, &market)?;
-/// let coupon = implied_coupon(&engine, &note, &market, quote, ImpliedCouponSettings::default())?;
+/// let coupon = implied_phoenix_coupon(&engine, &note, &market, quote, ImpliedCouponSettings::default())?;
 /// assert!((coupon - 0.12).abs() < 1e-7);
 /// # Ok(()) }
 /// ```
-pub fn implied_coupon<E: PricingEngine<PhoenixOption> + ?Sized>(
+pub fn implied_phoenix_coupon<E: PricingEngine<PhoenixOption> + ?Sized>(
     engine: &E,
     option: &PhoenixOption,
     context: &PricingContext,

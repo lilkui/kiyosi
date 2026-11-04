@@ -423,7 +423,7 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
 impl PhoenixOption {
     /// Returns an owning note with its coupon value replaced in the existing units.
     ///
-    /// See [`crate::implied_coupon`] for an example.
+    /// See [`crate::implied_phoenix_coupon`] for an example.
     ///
     /// # Errors
     ///

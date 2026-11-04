@@ -146,6 +146,9 @@ and domain enlargement separately. Numerical failures raise
 For convergence checks across numerical engines, see the engine comparison guide:
 https://lilkui.github.io/kiyosi/guide/engines.html#compare-methods-carefully.
 
+Python ``implied_coupon`` dispatches to Rust ``implied_snowball_coupon`` for
+snowballs and ``implied_phoenix_coupon`` for Phoenix contracts.
+
 ``CouponQuoteConvention`` controls whether a snowball's maturity coupon
 shifts with observation coupons (``"shift_maturity_coupon"``) or stays fixed
 (``"preserve_maturity_coupon"``). Phoenix coupon solves omit this choice;

@@ -172,7 +172,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
     for coupon in [-0.05, 0.18] {
         let target = note.with_coupon(coupon).unwrap();
         let quote = engine.price(&target, &context).unwrap();
-        let solved = implied_coupon(
+        let solved = implied_phoenix_coupon(
             &engine,
             &note,
             &context,
@@ -205,7 +205,7 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
         Error::UnsupportedOperation(_)
     ));
     assert!(matches!(
-        implied_coupon(&engine, &settled, &later, 0.0, Default::default()).unwrap_err(),
+        implied_phoenix_coupon(&engine, &settled, &later, 0.0, Default::default()).unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     assert_eq!(note, original);
