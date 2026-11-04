@@ -86,6 +86,14 @@ impl RateTermStructure {
     fn is_explicitly_flat(&self) -> bool {
         self.0.is_explicitly_flat()
     }
+    /// Return the constant scalar rate for a dated or undated flat curve.
+    ///
+    /// Node-based curves return None even when their forwards are constant.
+    /// This query does not change the curve or its coverage bounds.
+    #[getter]
+    fn flat_rate(&self) -> Option<f64> {
+        self.0.flat_rate()
+    }
     /// Return the inclusive lower coverage bound, or None if undated.
     #[getter]
     fn reference_time<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {

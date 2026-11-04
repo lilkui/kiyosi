@@ -152,3 +152,18 @@ fn greek_status_distinguishes_requests_support_and_stencils() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn flat_rate_query_is_independent_of_reference_time() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = Date::new(2026, 1, 1)?.start_of_day();
+    for reference in [None, Some(start)] {
+        let curve = RateTermStructure::flat(0.05, reference)?;
+        assert_eq!(curve.flat_rate(), Some(0.05));
+        assert!((curve.shifted(0.01)?.flat_rate().unwrap() - 0.06).abs() < 1e-15);
+        assert_eq!(curve.reference_time(), reference);
+    }
+    let nodes = RateTermStructure::new(start, vec![end], vec![(-0.05_f64).exp()])?;
+    assert_eq!(nodes.flat_rate(), None);
+    Ok(())
+}

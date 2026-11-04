@@ -9,6 +9,9 @@ cannot reconstruct a curve; pickle preserves the original factors and shift.
 Model rate properties return scalars only for undated flat curves. Dated flat
 and node-based curves remain owned RateTermStructure values, preserving coverage
 when passed back to constructors or ``replace()``.
+Use ``model.risk_free_curve.flat_rate`` or ``model.dividend_curve.flat_rate``
+for scalar arithmetic: either dated or undated flat curves return a float,
+while node-based curves return None. This matches Rust ``RateTermStructure::flat_rate``.
 Volatility is annualized and expressed in decimal units. Rate curves
 use the Actual/365 Fixed day-count convention; a calendar's trading-day basis
 applies only to trading-year fractions. ``BusinessDayConvention`` accepts ``"following"``
@@ -38,6 +41,15 @@ Other engines and implied-parameter solvers reject this model; requested Greeks 
 
 Examples
 --------
+Read a dated flat rate without discarding its coverage bound:
+
+>>> from datetime import datetime
+>>> flat = RateTermStructure.flat(0.05, reference_time=datetime(2025, 1, 1))
+>>> flat.flat_rate
+0.05
+>>> flat.reference_time
+datetime.datetime(2025, 1, 1, 0, 0)
+
 Build monthly observations from a month-end anchor. February is clamped
 without moving the March anchor:
 

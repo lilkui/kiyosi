@@ -141,3 +141,18 @@ class ApiConsistencyTests(unittest.TestCase):
                 self.assertEqual(getattr(restored, greek), getattr(original, greek))
         with self.assertRaises(ValueError):
             result.status("unknown")
+
+    def test_flat_rate_query_is_independent_of_reference_time(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        for reference in (None, start):
+            curve = market.RateTermStructure.flat(0.05, reference_time=reference)
+            self.assertEqual(curve.flat_rate, 0.05)
+            self.assertAlmostEqual(curve.shifted(0.01).flat_rate, 0.06)
+            self.assertEqual(curve.reference_time, reference)
+            restored = pickle.loads(pickle.dumps(curve))
+            self.assertEqual(restored.flat_rate, 0.05)
+            self.assertEqual(restored.reference_time, reference)
+        nodes = market.RateTermStructure(
+            reference_time=start, times=[end], factors=[0.95]
+        )
+        self.assertIsNone(nodes.flat_rate)
