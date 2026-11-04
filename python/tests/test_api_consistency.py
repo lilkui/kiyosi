@@ -95,7 +95,6 @@ class ApiConsistencyTests(unittest.TestCase):
             reference_time=start, times=[end, end + timedelta(days=365)], factors=[1, 1]
         )
         self.assertEqual(curve.flat_rate, 0)
-        self.assertFalse(curve.is_explicitly_flat)
         context = market.PricingContext(
             model_parameters=market.BlackScholesMertonParameters(
                 risk_free_rate=0, dividend_yield=0, volatility=0.2

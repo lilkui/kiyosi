@@ -117,7 +117,6 @@ class RateTermStructureTests(unittest.TestCase):
 
     def test_log_interpolation_interval_factors_and_right_hand_forwards(self):
         curve = example_curve()
-        self.assertFalse(curve.is_explicitly_flat)
         self.assertEqual(curve.reference_time, REFERENCE)
         self.assertEqual(curve.max_time, MATURITY)
         self.assertEqual(curve.nodes, [MIDDLE, MATURITY])
@@ -256,7 +255,6 @@ class RateTermStructureTests(unittest.TestCase):
     def test_flat_curves_and_parallel_shifts_preserve_coverage(self):
         flat = RateTermStructure.flat(-0.03)
         dated = RateTermStructure.flat(-0.03, reference_time=REFERENCE)
-        self.assertTrue(flat.is_explicitly_flat)
         self.assertIsNone(flat.reference_time)
         self.assertIsNone(flat.max_time)
         self.assertEqual(dated.reference_time, REFERENCE)

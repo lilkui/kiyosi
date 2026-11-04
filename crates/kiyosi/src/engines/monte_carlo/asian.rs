@@ -245,8 +245,8 @@ impl MonteCarloAsianEngine {
         let weight = if single { 1.0 } else { future / o.period() };
         let sigma = model.volatility();
         let variance_time = if single { tau } else { lead + future / 3.0 };
-        let flat = model.risk_free_curve().is_explicitly_flat()
-            && model.dividend_curve().is_explicitly_flat();
+        let flat =
+            model.risk_free_curve().nodes().is_empty() && model.dividend_curve().nodes().is_empty();
         let carry = if flat {
             model.flat_risk_free_rate()? - model.flat_dividend_yield()?
         } else {

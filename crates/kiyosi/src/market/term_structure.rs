@@ -103,14 +103,6 @@ impl RateTermStructure {
         })
     }
 
-    /// Reports whether the curve uses the explicit flat-rate representation.
-    ///
-    /// Curves supplied as discount-factor nodes return `false`, even if their
-    /// implied forward rates are constant.
-    /// See [`Self::flat`] and [`Self::new`] for the two representations.
-    pub fn is_explicitly_flat(&self) -> bool {
-        self.rate.is_some()
-    }
     /// Returns a constant rate, or `None` when the curve's forwards differ.
     ///
     /// Node curves qualify only when every implied forward is exactly equal;
@@ -219,7 +211,7 @@ impl RateTermStructure {
             return Err(Error::InvalidInput("curve interval is reversed".into()));
         }
         let mut value = -self.rate.unwrap_or(self.spread) * start_time.years_until(end_time);
-        if !self.is_explicitly_flat() {
+        if self.rate.is_none() {
             let mut index = self
                 .nodes
                 .partition_point(|&node| node <= start_time)

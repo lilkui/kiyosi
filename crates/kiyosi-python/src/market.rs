@@ -81,11 +81,6 @@ impl RateTermStructure {
             reference_time.map(timestamp).transpose()?,
         ))?))
     }
-    /// Return whether the rate curve is explicitly flat.
-    #[getter]
-    fn is_explicitly_flat(&self) -> bool {
-        self.0.is_explicitly_flat()
-    }
     /// Return the scalar rate when all implied forwards are exactly constant.
     ///
     /// Nonconstant curves return None. Node-based coverage is preserved.

@@ -88,7 +88,6 @@ fn constant_node_curves_price_like_scalars_and_keep_coverage() -> Result<()> {
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
     let curve = RateTermStructure::new(start, vec![end, end.add_days(365)?], vec![1.0, 1.0])?;
     assert_eq!(curve.flat_rate(), Some(0.0));
-    assert!(!curve.is_explicitly_flat());
     let short = RateTermStructure::new(start, vec![start.add_days(180)?], vec![1.0])?;
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,

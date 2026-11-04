@@ -72,7 +72,7 @@ def _reduce(
             },
         )
     if isinstance(value, _native.RateTermStructure):
-        if value.is_explicitly_flat:
+        if value.max_time is None:
             fields = {
                 "rate": value.forward_rate(value.reference_time or datetime(1, 1, 1)),
                 "reference_time": value.reference_time,

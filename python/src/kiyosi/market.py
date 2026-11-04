@@ -1,7 +1,5 @@
 """Market snapshots, calendars, and observation schedules.
 
-``RateTermStructure.is_explicitly_flat`` identifies the flat-rate representation;
-node-based curves return False even when their forward rates are constant.
 Rates use annual decimal units and continuous compounding (0.05 means 5%).
 ``RateTermStructure.factors`` allows underflow to zero and raises
 ``ComputationFailureError`` on overflow, matching ``factor()``. Underflowed factors
