@@ -361,7 +361,8 @@ sampling_settings!(
 /// antithetic pair means. The interval is an asymptotic 95% normal confidence interval.
 /// Uncertainty is absent for Sobol, insufficient independent samples and odd
 /// antithetic counts; known pseudorandom settlements have zero uncertainty.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct MonteCarloEstimate(kiyosi::MonteCarloEstimate);
 
 #[pymethods]

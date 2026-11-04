@@ -30,6 +30,8 @@ show contract terms, market inputs, engine controls and result values, with
 large arrays abbreviated for interactive inspection. Shared and distinct
 instances support concurrent reads and pricing. Replacement creates a new
 value. ``copy.copy`` and ``copy.deepcopy`` return the same immutable value;
+pricing results compare by value, including Greek request/support metadata and
+Monte Carlo uncertainty. Equality is exact; use tolerances for numerical comparisons.
 ``pickle`` reconstructs contracts, market data, calendars, schedules, engines and
 results through validated constructors. Use the same Kiyosi version in each process.
 Long calculations release the GIL while borrowing immutable Rust

@@ -156,6 +156,60 @@ def values():
 
 
 class SerializationTests(unittest.TestCase):
+    def test_results_compare_by_value_including_metadata_and_uncertainty(self):
+        option = i.EuropeanOption(
+            option_type="call", strike=100, effective_time=START, expiry_time=END
+        )
+        context = m.PricingContext(
+            model_parameters=m.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=110,
+            valuation_time=END,
+        )
+        engine = p.AnalyticEuropeanEngine()
+        result = engine.price_with_greeks(option, context, "delta")
+        restored = pickle.loads(pickle.dumps(result))
+        self.assertIsNot(result, restored)
+        self.assertEqual(result, restored)
+        self.assertNotEqual(
+            result,
+            engine.price_with_greeks(option.replace(strike=99), context, "delta"),
+        )
+        self.assertNotEqual(
+            result,
+            engine.price_with_greeks(
+                option.replace(option_type="put", strike=120), context, "delta"
+            ),
+        )
+        theta = engine.price_with_greeks(option, context, "theta")
+        self.assertNotEqual(theta, engine.price_with_greeks(option, context, "color"))
+        digital = i.CashOrNothingOption(
+            option_type="call",
+            strike=100,
+            payout=10,
+            effective_time=START,
+            expiry_time=END,
+        )
+        unsupported = p.CoxRossRubinsteinDigitalEngine().price_with_greeks(
+            digital, context, "theta"
+        )
+        self.assertEqual(theta.price, unsupported.price)
+        self.assertIsNone(theta.theta)
+        self.assertIsNone(unsupported.theta)
+        self.assertNotEqual(theta, unsupported)
+        estimate = p.MonteCarloVanillaEngine(
+            path_count=32, seed=42
+        ).price_with_statistics(option, context)
+        other = p.MonteCarloVanillaEngine(
+            path_count=32, seed=42, sampling="sobol"
+        ).price_with_statistics(option, context)
+        self.assertEqual(estimate, pickle.loads(pickle.dumps(estimate)))
+        self.assertEqual(estimate.price, other.price)
+        self.assertNotEqual(estimate, other)
+        self.assertNotEqual(estimate, result)
+        self.assertNotEqual(result, object())
+
     def test_values_round_trip_and_immutable_copies_keep_identity(self):
         for value in values():
             with self.subTest(value=type(value).__name__):

@@ -39,7 +39,8 @@ pub(crate) fn greeks_request(greeks: &Bound<'_, PyAny>) -> PyResult<kiyosi::Gree
 /// volatility derivative of gamma divided by 100. Theta, charm and color are
 /// the valuation-time derivatives of price, delta and gamma, respectively,
 /// with the market curves held fixed. Positive time increments advance valuation.
-#[pyclass(frozen, module = "kiyosi._native")]
+#[pyclass(frozen, eq, module = "kiyosi._native")]
+#[derive(PartialEq)]
 pub(crate) struct PricingResult(pub kiyosi::PricingResult);
 
 #[pymethods]
