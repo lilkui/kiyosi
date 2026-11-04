@@ -92,7 +92,9 @@ positive spots on both sides of the valuation spot.
 
 Pass ``greeks="all"`` to request every measure, a Greek name for one measure,
 or an iterable of names for a selection. The ``greeks`` argument is required;
-unavailable measures remain None.
+unavailable measures remain None. Inspect ``result.status(name)`` to distinguish
+unrequested, unsupported and undefined measures; ``result.requested`` and
+``result.supported`` expose the request and engine/model coverage.
 
 Pricing controls are explicit keyword-only parameters, available through
 ``inspect.signature``, with defaults derived from Rust. The displayed

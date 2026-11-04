@@ -144,6 +144,12 @@ impl MonteCarloDoubleBarrierEngine {
         settings.validate()?;
         self.engine
             .native(Contract::Double(option), context, request, settings)
+            .map(|result| {
+                result.with_request(
+                    request,
+                    GreeksRequest::new([crate::Greek::Delta, crate::Greek::Gamma]),
+                )
+            })
     }
 }
 

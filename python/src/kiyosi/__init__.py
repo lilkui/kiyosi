@@ -40,6 +40,10 @@ zomma, rho and dividend_rho. Spot derivatives use spot units, volatility and rat
 derivatives use percentage points (squared for volga), and time derivatives use
 calendar days of forward valuation time. `PricingResult` leaves unavailable or
 unrequested sensitivities as None; `require` raises if one is absent.
+Use ``result.status("delta")`` to distinguish ``"available"``, ``"not_requested"``,
+``"unsupported"`` (outside the engine/model coverage) and ``"undefined"``
+(supported but unavailable at this valuation or numerical stencil). The
+``requested`` and ``supported`` properties return owned lists of Greek names.
 Volga is the second volatility derivative divided by 10000. Dividend rho is
 the sensitivity to a parallel shift of the continuously compounded dividend-yield curve,
 divided by 100, holding other market inputs fixed.

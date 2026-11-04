@@ -215,6 +215,7 @@ impl AnalyticHestonEuropeanEngine {
     ) -> Result<PricingResult> {
         request.validate()?;
         PricingResult::new(self.price(option, context)?)
+            .map(|result| result.with_request(request, GreeksRequest::new([])))
     }
 }
 

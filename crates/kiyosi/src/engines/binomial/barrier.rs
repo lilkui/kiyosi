@@ -90,7 +90,9 @@ impl CoxRossRubinsteinBarrierEngine {
         context.bsm_parameters()?;
         flat_rates(context)?;
         request.validate()?;
-        self.native(option, context, request)
+        self.native(option, context, request).map(|result| {
+            result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
+        })
     }
 
     #[expect(

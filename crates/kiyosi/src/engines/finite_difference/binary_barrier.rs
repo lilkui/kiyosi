@@ -103,7 +103,7 @@ macro_rules! binary_pricing {
             ) -> Result<PricingResult> {
                 request.validate()?;
                 shifts.validate()?;
-                let request = local_volatility::validate_request(context, request)?;
+                local_volatility::validate_request(context, request)?;
                 let mut settings = self.settings;
                 if settings.asset_upper_boundary.is_none()
                     && local_volatility::local_model(context).is_none()

@@ -45,7 +45,8 @@ impl AnalyticEuropeanEngine {
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         request.validate()?;
-        let mut result = PricingResult::new(self.price(option, context)?)?;
+        let mut result = PricingResult::new(self.price(option, context)?)?
+            .with_request(request, GreeksRequest::all());
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
         let time = valuation.years_until(expiry);

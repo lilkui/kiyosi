@@ -532,6 +532,7 @@ fn complete_greeks(
             native,
         );
     }
+    result = result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
     let request = local_volatility::validate_request(context, request)?;
     if context.valuation_time() == option.expiry_time() || option.all_greeks_unavailable(context) {
         return Ok(result);
@@ -581,7 +582,7 @@ fn analysis<I: OptionContract>(
 ) -> Result<PricingResult> {
     request.validate()?;
     shifts.validate()?;
-    let request = local_volatility::validate_request(context, request)?;
+    local_volatility::validate_request(context, request)?;
     let (result, upper) = native(option, context, settings, request, shifts)?;
     settings.asset_upper_boundary = upper.or(settings.asset_upper_boundary);
     complete_greeks(

@@ -440,6 +440,9 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         context.bsm_parameters()?;
         request.validate()?;
         self.native(&option.0, context, true, request)
+            .map(|result| {
+                result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
+            })
     }
 }
 
@@ -476,6 +479,9 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         context.bsm_parameters()?;
         request.validate()?;
         self.native(&option.0, context, false, request)
+            .map(|result| {
+                result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
+            })
     }
     fn volatility_affects_price(
         &self,

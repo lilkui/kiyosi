@@ -8,6 +8,8 @@ from kiyosi import instruments as ins
 from kiyosi.market import (
     BlackScholesMertonParameters,
     HestonParameters,
+    LocalVolatilityParameters,
+    LocalVolatilitySurface,
     PricingContext,
     all_days_calendar,
 )
@@ -331,11 +333,43 @@ class SupportMatrixTests(unittest.TestCase):
                     result = engine.price_with_greeks(instrument, context, ["delta"])
                     self.assertAlmostEqual(result.price, expected)
                     self.assertIsNone(result.delta)
+                    self.assertEqual(result.requested, ["delta"])
+                    self.assertEqual(
+                        result.status("delta"),
+                        "unsupported" if name in HESTON_ENGINES else "undefined",
+                    )
+                    self.assertEqual(result.status("gamma"), "not_requested")
                     with self.assertRaises(UnsupportedOperationError) as error:
                         pricing.implied_volatility(
                             engine, instrument, self.context, expected
                         )
                     self.assertIs(type(error.exception), UnsupportedOperationError)
+
+    def test_local_volatility_status_preserves_requests_across_fd_products(self):
+        local = self.context.replace(
+            model_parameters=LocalVolatilityParameters(
+                risk_free_rate=0.04,
+                dividend_yield=0.01,
+                surface=LocalVolatilitySurface(
+                    times=[datetime(2025, 1, 1), datetime(2026, 1, 1)],
+                    spots=[80, 120],
+                    values=[[0.2, 0.2], [0.2, 0.2]],
+                ),
+            )
+        )
+        for instrument, supported, _ in self.cases:
+            for name in supported:
+                if not name.startswith("FiniteDifference") or name in HESTON_ENGINES:
+                    continue
+                with self.subTest(instrument=type(instrument).__name__, engine=name):
+                    result = self.engines[name].price_with_greeks(
+                        instrument, local, ["delta", "vega"]
+                    )
+                    self.assertEqual(result.requested, ["delta", "vega"])
+                    self.assertEqual(result.supported, ["delta", "gamma"])
+                    self.assertEqual(result.status("delta"), "undefined")
+                    self.assertEqual(result.status("vega"), "unsupported")
+                    self.assertEqual(result.status("gamma"), "not_requested")
 
     def test_other_product_engine_pairs_raise_domain_errors(self):
         for instrument, supported, _ in self.cases:

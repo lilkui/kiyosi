@@ -63,3 +63,92 @@ fn terminated_accumulators_have_no_remaining_cashflows() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn greek_status_distinguishes_requests_support_and_stencils() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = Date::new(2026, 1, 1)?.start_of_day();
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let request = GreeksRequest::new([Greek::Delta]);
+    let result = AnalyticEuropeanEngine.price_with_greeks(&option, &context, request)?;
+    assert_eq!(result.status(Greek::Delta), GreekStatus::Available);
+    assert_eq!(result.status(Greek::Gamma), GreekStatus::NotRequested);
+    let terminal = context.replace(PricingContextChanges {
+        valuation_time: Some(end),
+        ..Default::default()
+    })?;
+    assert_eq!(
+        AnalyticEuropeanEngine
+            .price_with_greeks(&option, &terminal, request)?
+            .status(Greek::Delta),
+        GreekStatus::Undefined
+    );
+    let result = numerical_greeks(
+        &AnalyticEuropeanEngine,
+        &option,
+        &context,
+        request,
+        NumericalShiftSettings {
+            spot_shift: Some(400.0),
+            ..Default::default()
+        },
+    )?;
+    assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
+    let heston = context.replace(PricingContextChanges {
+        model_parameters: Some(
+            HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.5, 0.3, -0.7)?.into(),
+        ),
+        ..Default::default()
+    })?;
+    let result = AnalyticHestonEuropeanEngine::default().price_with_greeks(
+        &option,
+        &heston,
+        request,
+        Default::default(),
+    )?;
+    assert_eq!(result.status(Greek::Delta), GreekStatus::Unsupported);
+    assert_eq!(result.status(Greek::Gamma), GreekStatus::NotRequested);
+    let custom = PricingResult::new(10.0)?
+        .with_greek(Greek::Delta, 0.5)?
+        .with_request(
+            GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+            GreeksRequest::new([Greek::Gamma]),
+        );
+    assert_eq!(custom.get(Greek::Delta), None);
+    assert_eq!(custom.status(Greek::Delta), GreekStatus::Unsupported);
+    assert_eq!(custom.status(Greek::Gamma), GreekStatus::Undefined);
+    assert_eq!(custom.status(Greek::Theta), GreekStatus::NotRequested);
+    let local = context.replace(PricingContextChanges {
+        model_parameters: Some(
+            LocalVolatilityParameters::new(
+                0.05,
+                0.02,
+                LocalVolatilitySurface::new(
+                    vec![start, end],
+                    vec![80.0, 120.0],
+                    vec![vec![0.2; 2]; 2],
+                )?,
+            )?
+            .into(),
+        ),
+        ..Default::default()
+    })?;
+    let result = FiniteDifferenceVanillaEngine::default().price_with_greeks(
+        &option,
+        &local,
+        GreeksRequest::new([Greek::Delta, Greek::Vega]),
+        Default::default(),
+    )?;
+    assert_eq!(result.status(Greek::Delta), GreekStatus::Available);
+    assert_eq!(result.status(Greek::Vega), GreekStatus::Unsupported);
+    assert_eq!(
+        result.requested(),
+        GreeksRequest::new([Greek::Delta, Greek::Vega])
+    );
+    Ok(())
+}

@@ -148,7 +148,7 @@ fn analysis(
 ) -> Result<PricingResult> {
     request.validate()?;
     shifts.validate()?;
-    let request = local_volatility::validate_request(context, request)?;
+    local_volatility::validate_request(context, request)?;
     let mut settings = settings;
     if settings.asset_upper_boundary.is_none() && local_volatility::local_model(context).is_none() {
         let upper = default_upper(option, context);

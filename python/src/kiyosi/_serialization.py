@@ -66,6 +66,8 @@ def _reduce(value: Any) -> tuple[Any, tuple[Any, ...]]:
             _native._pricing_result,
             {
                 "price": value.price,
+                "requested": value.requested,
+                "supported": value.supported,
                 "greeks": {
                     name: result
                     for name, result in values.items()

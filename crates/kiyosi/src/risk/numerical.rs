@@ -117,6 +117,7 @@ pub(crate) fn complete_greeks(
     mut result: PricingResult,
     native: impl Fn(&PricingContext, GreeksRequest) -> Result<PricingResult>,
 ) -> Result<PricingResult> {
+    result = result.with_request(request, GreeksRequest::all());
     // Entry points validate requests and shifts before any fallible preparation.
     let p0 = result.price();
     let available = GreeksRequest::new(Greek::ALL.into_iter().filter(|&g| result.has(g)));

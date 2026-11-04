@@ -44,7 +44,7 @@ pub enum Greek {
 }
 
 impl Greek {
-    /// Lists every supported Greek in result-storage order.
+    /// Lists every known Greek in result-storage order.
     pub const ALL: [Self; 12] = [
         Self::Delta,
         Self::Gamma,
@@ -84,7 +84,7 @@ impl Greek {
 ///
 /// Select measures explicitly with [`Self::new`] or [`Self::all`].
 /// Empty requests fail at valuation.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GreeksRequest([bool; Greek::ALL.len()]);
 impl GreeksRequest {
     /// Creates a request, ignoring duplicates; see [`Self::all`].
@@ -95,7 +95,7 @@ impl GreeksRequest {
         }
         result
     }
-    /// Requests all supported Greeks.
+    /// Requests every known Greek; engine/model support is reported in the result.
     ///
     /// # Examples
     ///
@@ -119,13 +119,31 @@ impl GreeksRequest {
     }
 }
 
+/// Describes whether a sensitivity was requested and could be calculated.
+///
+/// See [`PricingResult::status`] for a request-inspection example.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GreekStatus {
+    /// Records a finite sensitivity value.
+    Available,
+    /// Records a measure omitted from the request.
+    NotRequested,
+    /// Records a requested measure outside the engine/model's supported set.
+    Unsupported,
+    /// Records a supported request unavailable at this valuation or numerical stencil.
+    Undefined,
+}
+
 /// Owns a finite price and optional finite Greeks.
 ///
-/// Missing measures use `None`, never zero; see [`crate::AnalyticEuropeanEngine`].
+/// Missing measures use `None`, never zero; [`Self::status`] distinguishes
+/// unrequested, unsupported and undefined sensitivities.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PricingResult {
     price: f64,
     values: [Option<f64>; Greek::ALL.len()],
+    requested: GreeksRequest,
+    supported: GreeksRequest,
 }
 impl PricingResult {
     /// Returns the finite price; see [`crate::AnalyticEuropeanEngine`].
@@ -139,6 +157,55 @@ impl PricingResult {
     /// Reports whether a finite value is available; see [`Self::require`].
     pub fn has(&self, greek: Greek) -> bool {
         self.get(greek).is_some()
+    }
+    /// Returns the request and availability status of a sensitivity.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Greek, GreeksRequest, GreekStatus, PricingResult};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let result = PricingResult::new(10.0)?.with_request(
+    ///     GreeksRequest::new([Greek::Delta]), GreeksRequest::all());
+    /// assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
+    /// assert_eq!(result.status(Greek::Vega), GreekStatus::NotRequested);
+    /// # Ok(()) }
+    /// ```
+    pub fn status(&self, greek: Greek) -> GreekStatus {
+        if !self.requested.has(greek) {
+            GreekStatus::NotRequested
+        } else if self.has(greek) {
+            GreekStatus::Available
+        } else if !self.supported.has(greek) {
+            GreekStatus::Unsupported
+        } else {
+            GreekStatus::Undefined
+        }
+    }
+    /// Returns the requested measures; see [`Self::status`].
+    pub fn requested(&self) -> GreeksRequest {
+        self.requested
+    }
+    /// Returns engine/model support, independent of valuation and stencil availability.
+    ///
+    /// See [`Self::status`] for the distinction between unsupported and undefined measures.
+    pub fn supported(&self) -> GreeksRequest {
+        self.supported
+    }
+    /// Attaches request metadata, discarding values outside the requested and supported sets.
+    ///
+    /// Custom engines can report partial support explicitly. Built-in engines attach
+    /// this metadata before returning. See [`Self::status`] for an example.
+    #[must_use]
+    pub fn with_request(mut self, requested: GreeksRequest, supported: GreeksRequest) -> Self {
+        self.requested = requested;
+        self.supported = supported;
+        for greek in Greek::ALL {
+            if !requested.has(greek) || !supported.has(greek) {
+                self.values[greek as usize] = None;
+            }
+        }
+        self
     }
     /// Returns a measure or rejects one unavailable in this result.
     ///
@@ -170,6 +237,8 @@ impl PricingResult {
         Ok(Self {
             price,
             values: [None; Greek::ALL.len()],
+            requested: GreeksRequest::new([]),
+            supported: GreeksRequest::all(),
         })
     }
 
@@ -198,6 +267,8 @@ impl PricingResult {
             if !value.is_finite() {
                 return Err(Error::ComputationFailure("non-finite Greek".into()));
             }
+            self.requested.0[greek as usize] = true;
+            self.supported.0[greek as usize] = true;
             self.values[greek as usize] = Some(value);
         }
         Ok(())

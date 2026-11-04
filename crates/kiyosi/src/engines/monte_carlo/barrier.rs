@@ -144,6 +144,12 @@ impl MonteCarloBarrierEngine {
         };
         settings.validate()?;
         self.native(Contract::Single(option), context, request, settings)
+            .map(|result| {
+                result.with_request(
+                    request,
+                    GreeksRequest::new([crate::Greek::Delta, crate::Greek::Gamma]),
+                )
+            })
     }
 
     pub(super) fn native(

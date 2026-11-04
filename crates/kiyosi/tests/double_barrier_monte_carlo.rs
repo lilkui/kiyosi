@@ -70,7 +70,12 @@ fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
     let actual = engine
         .price_with_greeks(&option, &context, request, settings.spot_shift())
         .unwrap();
-    assert_eq!(actual, expected);
+    assert_eq!(actual.price(), expected.price());
+    assert_eq!(actual.values(), expected.values());
+    assert_eq!(
+        actual.supported(),
+        GreeksRequest::new([Greek::Delta, Greek::Gamma])
+    );
 }
 
 #[test]

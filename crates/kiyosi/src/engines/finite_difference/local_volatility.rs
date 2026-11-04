@@ -37,6 +37,7 @@ pub(super) fn price(
     settings: FiniteDifferenceSettings,
     request: GreeksRequest,
 ) -> Result<PricingResult> {
+    let original_request = request;
     let request = validate_request(context, request)?;
     Ok(super::native_model(
         option,
@@ -48,7 +49,11 @@ pub(super) fn price(
         settings.asset_upper_boundary.is_none(),
         LocalDiffusion::new(context, model.surface()),
     )?
-    .0)
+    .0
+    .with_request(
+        original_request,
+        GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+    ))
 }
 
 pub(super) fn local_model(context: &PricingContext) -> Option<&LocalVolatilityParameters> {

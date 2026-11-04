@@ -109,6 +109,36 @@ impl PricingResult {
     fn dividend_rho(&self) -> Option<f64> {
         self.0.get(kiyosi::Greek::DividendRho)
     }
+    /// Return available, not_requested, unsupported or undefined for a Greek.
+    ///
+    /// Unsupported means the engine/model does not implement the measure; undefined
+    /// means a supported measure cannot be evaluated at this valuation or stencil.
+    fn status(&self, measure: &Bound<'_, PyAny>) -> PyResult<&'static str> {
+        Ok(match self.0.status(greek(measure)?) {
+            kiyosi::GreekStatus::Available => "available",
+            kiyosi::GreekStatus::NotRequested => "not_requested",
+            kiyosi::GreekStatus::Unsupported => "unsupported",
+            kiyosi::GreekStatus::Undefined => "undefined",
+        })
+    }
+    /// Return requested Greek names in the library's stable measure order.
+    #[getter]
+    fn requested(&self) -> Vec<&'static str> {
+        kiyosi::Greek::ALL
+            .into_iter()
+            .filter(|&g| self.0.requested().has(g))
+            .map(kiyosi::Greek::name)
+            .collect()
+    }
+    /// Return engine/model-supported names, independent of valuation and stencil availability.
+    #[getter]
+    fn supported(&self) -> Vec<&'static str> {
+        kiyosi::Greek::ALL
+            .into_iter()
+            .filter(|&g| self.0.supported().has(g))
+            .map(kiyosi::Greek::name)
+            .collect()
+    }
     /// Return a requested Greek or raise when it is unavailable.
     ///
     /// Parameters
@@ -136,13 +166,24 @@ pub(crate) use coupon::implied_coupon;
 pub(crate) use implied::implied_volatility;
 
 #[pyfunction]
+#[pyo3(signature = (price, greeks, *, requested=None, supported=None))]
 pub(crate) fn _pricing_result(
     price: &Bound<'_, PyAny>,
     greeks: &Bound<'_, pyo3::types::PyDict>,
+    requested: Option<&Bound<'_, PyAny>>,
+    supported: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PricingResult> {
     let mut result = domain(kiyosi::PricingResult::new(crate::conversions::real(price)?))?;
     for (name, value) in greeks.iter() {
         result = domain(result.with_greek(greek(&name)?, crate::conversions::real(&value)?))?;
     }
-    Ok(PricingResult(result))
+    let requested = requested
+        .map(greeks_request)
+        .transpose()?
+        .unwrap_or(result.requested());
+    let supported = supported
+        .map(greeks_request)
+        .transpose()?
+        .unwrap_or(result.supported());
+    Ok(PricingResult(result.with_request(requested, supported)))
 }
