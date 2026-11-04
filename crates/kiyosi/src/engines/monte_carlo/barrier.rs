@@ -133,8 +133,8 @@ impl MonteCarloBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat rates before requests and the spot shift, then propagates
-    /// [`Self::price`] errors. Empty requests or a nonpositive or non-finite spot shift return
+    /// Checks flat rates before requests and all shift settings, including unused controls,
+    /// then propagates [`Self::price`] errors. Empty requests or invalid shifts return
     /// [`crate::Error::InvalidInput`]; non-finite requested Greek samples
     /// return [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
     ///
@@ -176,10 +176,7 @@ impl MonteCarloBarrierEngine {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
         request.validate()?;
-        let settings = NumericalShiftSettings {
-            spot_shift: shifts.spot_shift,
-            ..Default::default()
-        };
+        let settings = shifts;
         settings.validate()?;
         let result = self
             .native(Contract::Single(option), context, request, settings, false)

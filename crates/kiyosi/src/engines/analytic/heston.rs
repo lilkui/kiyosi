@@ -204,16 +204,17 @@ impl AnalyticHestonEuropeanEngine {
     ///
     /// # Errors
     ///
-    /// Rejects empty requests with [`Error::InvalidInput`] and propagates
-    /// [`Self::price`] errors. Inputs remain unchanged; numerical shifts are unused.
+    /// Rejects empty requests or invalid shifts with [`Error::InvalidInput`] and propagates
+    /// [`Self::price`] errors. Inputs remain unchanged; valid numerical shifts are unused.
     pub fn price_with_greeks(
         &self,
         option: &EuropeanOption,
         context: &PricingContext,
         request: GreeksRequest,
-        _settings: NumericalShiftSettings,
+        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         request.validate()?;
+        settings.validate()?;
         PricingResult::new(self.price(option, context)?)
             .map(|result| result.with_request(request, GreeksRequest::new([])))
     }

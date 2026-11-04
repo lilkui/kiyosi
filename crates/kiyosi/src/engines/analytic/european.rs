@@ -29,7 +29,7 @@ impl AnalyticEuropeanEngine {
     /// Returns the price and selected analytic Greeks.
     ///
     /// Numerical shifts are unused before expiry; terminal stencils use the supplied spot bump.
-    /// Invalid terminal shifts return [`Error::InvalidInput`].
+    /// All shifts are validated before pricing, including unused controls.
     /// At expiry spot Greeks follow terminal-payoff stencils; volatility and rate
     /// Greeks are zero, while time Greeks remain absent. Stencils crossing payoff
     /// kinks are unavailable. See [`crate::numerical_greeks`] for terminal rules.
@@ -39,7 +39,7 @@ impl AnalyticEuropeanEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for empty requests,
+    /// Returns [`Error::InvalidInput`] for empty requests or invalid shifts,
     /// then propagates [`Self::price`] errors. Non-finite requested derivatives
     /// return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price_with_greeks(
@@ -51,6 +51,7 @@ impl AnalyticEuropeanEngine {
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         request.validate()?;
+        settings.validate()?;
         let mut result = PricingResult::new(self.price(option, context)?)?
             .with_request(request, GreeksRequest::all());
         let valuation = context.valuation_time();

@@ -2,9 +2,10 @@
 
 All engine ``price_with_greeks`` methods accept the same keyword-only controls:
 ``spot_shift=None``, ``volatility_shift``, ``rate_shift`` and ``time_shift_days``.
-Native estimators ignore controls they do not use; their supported Greek set is
-unchanged. At expiry the spot bump controls terminal-payoff stencils. Use
-``numerical_greeks`` to select scalar differences explicitly.
+All controls are validated before pricing, including controls a native estimator
+does not use; its supported Greek set is unchanged. At expiry the spot bump
+controls terminal-payoff stencils. Use ``numerical_greeks`` to select scalar
+differences explicitly.
 
 Finite-difference engines support local volatility for European and American
 vanilla options, digitals, single and double barriers, binary barriers, touch

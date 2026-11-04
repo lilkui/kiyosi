@@ -441,3 +441,142 @@ fn double_touch_barrier_type_roundtrips_through_replacement() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Result<()> {
+    fn check<I: OptionContract>(
+        engine: &impl PricingEngine<I>,
+        option: &I,
+        model: impl Into<ModelParameters>,
+    ) -> Result<()> {
+        let context = PricingContext::new(model, 110.0, option.effective_time())?;
+        let request = GreeksRequest::new([Greek::Delta]);
+        for at in [option.effective_time(), option.expiry_time()] {
+            let context = context.replace(PricingContextChanges {
+                valuation_time: Some(at),
+                ..Default::default()
+            })?;
+            assert!(
+                engine
+                    .price_with_greeks(option, &context, request, Default::default())?
+                    .price()
+                    .is_finite()
+            );
+            for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+                for shifts in [
+                    NumericalShiftSettings {
+                        spot_shift: Some(bad),
+                        ..Default::default()
+                    },
+                    NumericalShiftSettings {
+                        volatility_shift: bad,
+                        ..Default::default()
+                    },
+                    NumericalShiftSettings {
+                        rate_shift: bad,
+                        ..Default::default()
+                    },
+                ] {
+                    assert!(matches!(
+                        engine.price_with_greeks(option, &context, request, shifts),
+                        Err(Error::InvalidInput(_))
+                    ));
+                }
+            }
+            for days in [0, -1] {
+                assert!(matches!(
+                    engine.price_with_greeks(
+                        option,
+                        &context,
+                        request,
+                        NumericalShiftSettings {
+                            time_shift_days: days,
+                            ..Default::default()
+                        }
+                    ),
+                    Err(Error::InvalidInput(_))
+                ));
+            }
+        }
+        Ok(())
+    }
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = Date::new(2026, 1, 1)?.start_of_day();
+    let bsm = BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?;
+    let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    check(&AnalyticEuropeanEngine, &vanilla, bsm.clone())?;
+    check(&QuadratureVanillaEngine::default(), &vanilla, bsm.clone())?;
+    let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?;
+    check(
+        &CoxRossRubinsteinDigitalEngine::default(),
+        &digital,
+        bsm.clone(),
+    )?;
+    let mut terms = BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        120.0,
+        BarrierType::UpAndOut,
+    );
+    terms.touch_state = Some(BarrierTouchState::Untouched);
+    check(
+        &CoxRossRubinsteinBarrierEngine::default(),
+        &BarrierOption::new(terms.clone())?,
+        bsm.clone(),
+    )?;
+    let sampling = MonteCarloSettings {
+        path_count: 32,
+        seed: Some(42),
+        thread_count: 1,
+        ..Default::default()
+    };
+    check(
+        &MonteCarloBarrierEngine::new(sampling)?,
+        &BarrierOption::new(terms)?,
+        bsm.clone(),
+    )?;
+    let mut double = DoubleBarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        80.0,
+        120.0,
+        DoubleBarrierType::KnockOut,
+    );
+    double.touch_state = Some(BarrierTouchState::Untouched);
+    check(
+        &MonteCarloDoubleBarrierEngine::new(sampling)?,
+        &DoubleBarrierOption::new(double)?,
+        bsm.clone(),
+    )?;
+    check(
+        &MonteCarloDigitalEngine::new(sampling)?,
+        &digital,
+        bsm.clone(),
+    )?;
+    check(
+        &MonteCarloAsianEngine::new(sampling)?,
+        &GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None)?,
+        bsm.clone(),
+    )?;
+    check(
+        &MonteCarloAsianEngine::new(sampling)?,
+        &ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None)?,
+        bsm,
+    )?;
+    let heston = HestonParameters::new(0.05, 0.02, 0.04, 0.04, 0.0, 0.0, 0.0)?;
+    check(
+        &AnalyticHestonEuropeanEngine::default(),
+        &vanilla,
+        heston.clone(),
+    )?;
+    check(
+        &FiniteDifferenceHestonVanillaEngine::default(),
+        &vanilla,
+        heston,
+    )?;
+    Ok(())
+}

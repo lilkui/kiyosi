@@ -277,7 +277,7 @@ impl PricingResult {
 
 /// Configures absolute finite-difference bumps.
 ///
-/// Numerical pricing requests validate all bump settings before calculation.
+/// Built-in Greek requests validate all bump settings before calculation, including unused controls.
 /// See [`crate::numerical_greeks`] for usage.
 #[derive(Clone, Copy, Debug)]
 pub struct NumericalShiftSettings {
@@ -399,8 +399,8 @@ pub trait PricingEngine<I = EuropeanOption> {
 
     /// Returns requested sensitivities, using scalar differences unless overridden.
     ///
-    /// Settings configure numerical differences; methods that compute all Greeks
-    /// directly ignore them.
+    /// Settings configure numerical differences. Built-in methods validate all settings,
+    /// including controls unused by their estimators.
     ///
     /// See [`crate::CoxRossRubinsteinVanillaEngine::price_with_greeks`] for an example.
     ///

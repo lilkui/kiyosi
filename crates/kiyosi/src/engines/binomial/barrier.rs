@@ -73,7 +73,7 @@ impl CoxRossRubinsteinBarrierEngine {
     /// Returns requested node delta/gamma; other Greeks remain absent.
     ///
     /// Numerical shifts are unused before expiry; terminal stencils use the supplied spot bump.
-    /// Invalid terminal shifts return [`Error::InvalidInput`].
+    /// All shifts are validated before pricing, including unused controls.
     /// One-step gamma is absent before expiry. Expiry spot Greeks follow terminal payoffs. Current barrier equality also
     /// suppresses Greeks without a prior touch.
     /// See [`Self::price`] for a pricing example.
@@ -81,7 +81,7 @@ impl CoxRossRubinsteinBarrierEngine {
     /// # Errors
     ///
     /// Checks flat-rate applicability before request validation, then reuses
-    /// [`Self::price`] errors. Empty requests return
+    /// [`Self::price`] errors. Empty requests or invalid shifts return
     /// [`Error::InvalidInput`]. Inputs remain unchanged.
     pub fn price_with_greeks(
         &self,
@@ -93,6 +93,7 @@ impl CoxRossRubinsteinBarrierEngine {
         context.bsm_parameters()?;
         flat_rates(context)?;
         request.validate()?;
+        settings.validate()?;
         let result = self
             .native(option, context, request)?
             .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));

@@ -439,3 +439,115 @@ class ApiConsistencyTests(unittest.TestCase):
             other = "knock_out" if expected == "knock_in" else "knock_in"
             self.assertEqual(option.replace(barrier_type=other).barrier_type, other)
             self.assertEqual(pickle.loads(pickle.dumps(option)).barrier_type, expected)
+
+
+class GreekShiftValidationTests(unittest.TestCase):
+    def test_shift_validation_is_independent_of_estimator_and_valuation_time(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        life = {"effective_time": start, "expiry_time": end}
+        bsm = market.BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        )
+        heston = market.HestonParameters(
+            risk_free_rate=0.05,
+            dividend_yield=0.02,
+            initial_variance=0.04,
+            long_run_variance=0.04,
+            mean_reversion_speed=0,
+            vol_of_vol=0,
+            correlation=0,
+        )
+        vanilla = ins.EuropeanOption(option_type="call", strike=100, **life)
+        digital = ins.CashOrNothingOption(
+            option_type="call", strike=100, payout=10, **life
+        )
+        sampling = {"path_count": 32, "seed": 42, "thread_count": 1}
+        cases = [
+            (pricing.AnalyticEuropeanEngine(), vanilla, bsm),
+            (pricing.QuadratureVanillaEngine(), vanilla, bsm),
+            (pricing.CoxRossRubinsteinDigitalEngine(), digital, bsm),
+            (
+                pricing.CoxRossRubinsteinBarrierEngine(),
+                ins.BarrierOption(
+                    option_type="call",
+                    strike=100,
+                    barrier_level=120,
+                    barrier_type="up_and_out",
+                    touch_state="untouched",
+                    **life,
+                ),
+                bsm,
+            ),
+            (pricing.MonteCarloDigitalEngine(**sampling), digital, bsm),
+            (
+                pricing.MonteCarloBarrierEngine(**sampling),
+                ins.BarrierOption(
+                    option_type="call",
+                    strike=100,
+                    barrier_level=120,
+                    barrier_type="up_and_out",
+                    touch_state="untouched",
+                    **life,
+                ),
+                bsm,
+            ),
+            (
+                pricing.MonteCarloDoubleBarrierEngine(**sampling),
+                ins.DoubleBarrierOption(
+                    option_type="call",
+                    strike=100,
+                    lower_barrier=80,
+                    upper_barrier=120,
+                    barrier_type="knock_out",
+                    touch_state="untouched",
+                    **life,
+                ),
+                bsm,
+            ),
+            *(
+                (
+                    pricing.MonteCarloAsianEngine(**sampling),
+                    kind(
+                        option_type="call",
+                        strike=100,
+                        averaging_start_time=end,
+                        **life,
+                    ),
+                    bsm,
+                )
+                for kind in (
+                    ins.GeometricAveragePriceOption,
+                    ins.ArithmeticAveragePriceOption,
+                )
+            ),
+            (pricing.AnalyticHestonEuropeanEngine(), vanilla, heston),
+            (pricing.FiniteDifferenceHestonVanillaEngine(), vanilla, heston),
+        ]
+        for engine, option, model in cases:
+            for at in (start, end):
+                context = market.PricingContext(
+                    model_parameters=model, spot_price=110, valuation_time=at
+                )
+                with self.subTest(engine=type(engine).__name__, at=at):
+                    self.assertGreaterEqual(
+                        engine.price_with_greeks(option, context, "delta").price, 0
+                    )
+                    for field in (
+                        "spot_shift",
+                        "volatility_shift",
+                        "rate_shift",
+                        "time_shift_days",
+                    ):
+                        invalids = (
+                            (0, -1)
+                            if field == "time_shift_days"
+                            else (0, -1, float("nan"), float("inf"))
+                        )
+                        for bad in invalids:
+                            with (
+                                self.subTest(field=field, invalid=bad),
+                                self.assertRaises(InvalidInputError),
+                            ):
+                                engine.price_with_greeks(
+                                    option, context, "delta", **{field: bad}
+                                )

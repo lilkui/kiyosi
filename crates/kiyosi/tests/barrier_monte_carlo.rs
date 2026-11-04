@@ -151,7 +151,7 @@ fn tiny_volatility_payoffs_match_the_vanilla_limit() {
 }
 
 #[test]
-fn native_greeks_validate_only_the_spot_shift() {
+fn native_greeks_ignore_valid_non_spot_shifts() {
     let option = BarrierOption::new(terms(BarrierType::DownAndOut, OptionType::Call)).unwrap();
     let context = market(0.04);
     let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
@@ -161,18 +161,23 @@ fn native_greeks_validate_only_the_spot_shift() {
     })
     .unwrap();
     let shifts = NumericalShiftSettings {
-        volatility_shift: f64::NAN,
-        rate_shift: -1.0,
-        time_shift_days: 0,
+        volatility_shift: 0.001,
+        rate_shift: 0.001,
+        time_shift_days: 2,
         ..Default::default()
     };
     let request = GreeksRequest::all();
     let expected = engine
+        .price_with_greeks(&option, &context, request, Default::default())
+        .unwrap();
+    let actual = engine
         .price_with_greeks(&option, &context, request, shifts)
         .unwrap();
-    let actual =
-        PricingEngine::price_with_greeks(&engine, &option, &context, request, shifts).unwrap();
     assert_eq!(actual, expected);
+    assert_eq!(
+        PricingEngine::price_with_greeks(&engine, &option, &context, request, shifts).unwrap(),
+        expected
+    );
     for spot_shift in [0.0, -1.0, f64::NAN, f64::INFINITY] {
         assert!(matches!(
             engine.price_with_greeks(

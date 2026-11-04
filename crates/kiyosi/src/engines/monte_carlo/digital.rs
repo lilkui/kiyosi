@@ -94,14 +94,14 @@ impl MonteCarloDigitalEngine {
     /// Returns requested likelihood-ratio delta/gamma from the price's normal draws.
     ///
     /// Numerical shifts are unused before expiry; terminal stencils use the supplied spot bump.
-    /// Invalid terminal shifts return [`Error::InvalidInput`].
+    /// All shifts are validated before pricing, including unused controls.
     /// Other Greeks remain absent. Expiry delta and gamma use terminal payoff stencils; before expiry no numerical bumps
     /// are required. Near-expiry estimates can have substantial sampling error.
     ///
     /// # Errors
     ///
     /// Checks flat-rate applicability before requests, then propagates
-    /// [`Self::price`] errors. Empty requests return
+    /// [`Self::price`] errors. Empty requests or invalid shifts return
     /// [`Error::InvalidInput`]; non-finite requested Greek samples return
     /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     ///
@@ -141,6 +141,7 @@ impl MonteCarloDigitalEngine {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
         request.validate()?;
+        settings.validate()?;
         let result = self
             .native(option, context, request, false)?
             .0

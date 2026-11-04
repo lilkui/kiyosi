@@ -169,7 +169,7 @@ impl MonteCarloAsianEngine {
     /// Returns requested delta and gamma directly from the price's shared normal draws.
     ///
     /// Numerical shifts are unused before expiry; terminal stencils use the supplied spot bump.
-    /// Invalid terminal shifts return [`Error::InvalidInput`].
+    /// All shifts are validated before pricing, including unused controls.
     /// Only delta and gamma are supported, including terminal-payoff Greeks at expiry. Before expiry, no numerical bumps are
     /// required. For scalar differences and history-boundary stencil rules, use
     /// [`crate::numerical_greeks`], which pins a request-local seed even for unseeded
@@ -177,7 +177,7 @@ impl MonteCarloAsianEngine {
     ///
     /// # Errors
     ///
-    /// Rejects empty requests with [`Error::InvalidInput`]
+    /// Rejects empty requests or invalid shifts with [`Error::InvalidInput`]
     /// before pricing, then propagates [`Self::price`] errors.
     /// Non-finite requested Greeks return [`Error::ComputationFailure`].
     /// Inputs remain unchanged on success and failure.
@@ -488,6 +488,7 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         request.validate()?;
+        settings.validate()?;
         let result = self
             .native(&option.0, context, true, request, false)?
             .0
@@ -541,6 +542,7 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         request.validate()?;
+        settings.validate()?;
         let result = self
             .native(&option.0, context, false, request, false)?
             .0

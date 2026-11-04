@@ -441,7 +441,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
 }
 
 #[test]
-fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
+fn native_greeks_ignore_valid_numerical_settings_in_shared_trait_adapters() {
     fn check<I: OptionContract>(
         engine: &impl PricingEngine<I>,
         option: &I,
@@ -449,10 +449,10 @@ fn native_greeks_ignore_numerical_settings_in_shared_trait_adapters() {
         expected: &PricingResult,
     ) {
         let settings = NumericalShiftSettings {
-            spot_shift: Some(0.0),
-            volatility_shift: f64::NAN,
-            rate_shift: f64::INFINITY,
-            time_shift_days: 0,
+            spot_shift: Some(0.2),
+            volatility_shift: 0.001,
+            rate_shift: 0.001,
+            time_shift_days: 2,
         };
         assert_eq!(
             engine
