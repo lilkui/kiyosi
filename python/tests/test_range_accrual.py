@@ -36,6 +36,7 @@ def instant(value):
 
 def contract(**changes):
     values = {
+        "calendar": all_days_calendar(),
         "notional": 1000,
         "annual_coupon_rate": 0.12,
         "lower_bound": 95,
@@ -67,7 +68,7 @@ def reference(option, context):
     valuation = context.valuation_time
     current = option.effective_time + timedelta(days=1)
     while current <= option.expiry_time:
-        if context.calendar.is_trading_day(current.date()):
+        if option.calendar.is_trading_day(current.date()):
             total += 1
             observed = instant(current)
             if observed == valuation:
@@ -334,7 +335,9 @@ class RangeAccrualTests(unittest.TestCase):
 
     def test_weekend_calendar_full_term_and_zero_coupon(self):
         option = contract(
-            effective_time=datetime(2025, 1, 3), expiry_time=datetime(2025, 1, 6)
+            calendar=weekdays_calendar(),
+            effective_time=datetime(2025, 1, 3),
+            expiry_time=datetime(2025, 1, 6),
         )
         context = market(datetime(2025, 1, 3), calendar=weekdays_calendar())
         engine = AnalyticRangeAccrualEngine()
@@ -344,19 +347,33 @@ class RangeAccrualTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            contract(expiry_time=datetime(2025, 1, 5)),
+            contract(calendar=weekdays_calendar(), expiry_time=datetime(2025, 1, 5)),
             context,
         )
         short_curve = RateTermStructure(
             reference_time=START, times=[START + timedelta(days=1)], factors=[0.999]
         )
         short = market(rate=short_curve)
-        self.assert_rejection(InvalidInputError, engine.price, contract(), short)
-        self.assertEqual(engine.price(contract(annual_coupon_rate=0), short), 0)
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            contract(),
+            contract(
+                calendar=weekdays_calendar(),
+            ),
+            short,
+        )
+        self.assertEqual(
+            engine.price(
+                contract(calendar=weekdays_calendar(), annual_coupon_rate=0), short
+            ),
+            0,
+        )
+        self.assert_rejection(
+            InvalidInputError,
+            engine.price,
+            contract(
+                calendar=weekdays_calendar(),
+            ),
             market(dividend=short_curve),
         )
         weekend = market(datetime(2025, 1, 4, 12), calendar=weekdays_calendar())
@@ -373,7 +390,7 @@ class RangeAccrualTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             engine.price,
-            contract(annual_coupon_rate=0),
+            contract(calendar=weekdays_calendar(), annual_coupon_rate=0),
             market(START + timedelta(days=3)),
         )
 
@@ -532,6 +549,7 @@ class RangeAccrualTests(unittest.TestCase):
         h, v, r = 0.1, 0.0001, 0.0001
         for days, rate, dividend in ((8, 0.04, 0.01), (15, curve, -0.01)):
             option = contract(
+                calendar=weekdays_calendar(),
                 effective_time=START + timedelta(days=2),
                 expiry_time=START + timedelta(days=days),
             )
@@ -621,6 +639,7 @@ class RangeAccrualTests(unittest.TestCase):
     def test_curve_knot_uses_right_hand_time_greek_between_observations(self):
         valuation = START + timedelta(days=3)
         option = contract(
+            calendar=weekdays_calendar(),
             effective_time=START + timedelta(days=2),
             expiry_time=START + timedelta(days=5),
         )

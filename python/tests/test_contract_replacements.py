@@ -6,6 +6,7 @@ from datetime import datetime
 
 from kiyosi import InvalidInputError, UnsupportedOperationError
 from kiyosi import instruments as i
+from kiyosi.market import all_days_calendar
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
@@ -177,6 +178,7 @@ def contracts():
 
 
 UPDATES = {
+    "calendar": all_days_calendar(),
     "option_type": "put",
     "strike": 105,
     "effective_time": datetime(2025, 1, 2),

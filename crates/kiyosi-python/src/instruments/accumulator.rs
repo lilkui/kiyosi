@@ -1,3 +1,4 @@
+use crate::calendar::TradingCalendar;
 use crate::conversions::{direction, python_timestamp, real, supplied, timestamp, timestamps};
 use crate::error::domain;
 use pyo3::prelude::*;
@@ -31,6 +32,9 @@ use pyo3::types::PyAny;
 ///     Strictly increasing, unique times within the inclusive contract life.
 ///     None observes knock-out at the daily accumulation time; an empty sequence disables
 ///     early knock-out. Times need not include either contract endpoint.
+///
+/// calendar : TradingCalendar, optional
+///     Owned observation calendar; defaults to weekdays, independently of PricingContext.
 ///
 /// Raises
 /// ------
@@ -80,6 +84,8 @@ impl Accumulator {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// knock_out_observation_times : Iterable[datetime.datetime] | None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
+    /// calendar : TradingCalendar, optional
+    ///     Owned contractual observation calendar; omission retains it.
     ///
     /// Returns
     /// -------
@@ -92,7 +98,7 @@ impl Accumulator {
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation, field name or mutually exclusive coupon choice is invalid.
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, knock_out_observation_times=crate::conversions::OMITTED, terminated=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, knock_out_observation_times=crate::conversions::OMITTED, terminated=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
         reason = "explicit Python replacement fields"
@@ -121,8 +127,12 @@ impl Accumulator {
             &Bound<'_, PyAny>,
         >,
         #[pyo3(from_py_with = supplied)] terminated: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let changes = kiyosi::AccumulatorChanges {
+            calendar: calendar
+                .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
+                .transpose()?,
             terminated: terminated.map(crate::conversions::boolean).transpose()?,
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
@@ -157,7 +167,7 @@ impl Accumulator {
         Ok(Self(domain(self.0.replace(changes))?))
     }
     #[new]
-    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None, terminated=kiyosi::AccumulatorTerms::DEFAULT_TERMINATED))]
+    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None, terminated=kiyosi::AccumulatorTerms::DEFAULT_TERMINATED, calendar=TradingCalendar::default()))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         strike: &Bound<'_, PyAny>,
@@ -170,6 +180,7 @@ impl Accumulator {
         #[pyo3(from_py_with = direction)] option_type: kiyosi::OptionType,
         knock_out_observation_times: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::boolean)] terminated: bool,
+        calendar: TradingCalendar,
     ) -> PyResult<Self> {
         let mut terms = kiyosi::AccumulatorTerms::new(
             real(strike)?,
@@ -184,7 +195,9 @@ impl Accumulator {
         terms.option_type = option_type;
         terms.knock_out_observation_times =
             knock_out_observation_times.map(timestamps).transpose()?;
-        Ok(Self(domain(kiyosi::Accumulator::new(terms))?))
+        Ok(Self(
+            domain(kiyosi::Accumulator::new(terms))?.with_calendar(calendar.0),
+        ))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -222,6 +235,11 @@ impl Accumulator {
             terminated: terminated.map(crate::conversions::boolean).transpose()?,
             ..Default::default()
         }))?))
+    }
+    /// Returns an owned copy of the contract's observation calendar.
+    #[getter]
+    fn calendar(&self) -> TradingCalendar {
+        TradingCalendar(self.0.calendar().clone())
     }
     /// Returns call for purchases or put for sales.
     #[getter]

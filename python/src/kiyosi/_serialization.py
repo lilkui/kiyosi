@@ -158,6 +158,8 @@ def _repr(value: Any) -> str:
     else:
         factory, fields = args
         fields = fields.copy()
+        if fields.get("calendar") == _native.weekdays_calendar():
+            fields.pop("calendar")
         suffix = ""
         if isinstance(value, _native.RateTermStructure):
             name += ".flat"

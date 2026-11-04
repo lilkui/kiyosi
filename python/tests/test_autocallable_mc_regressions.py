@@ -278,7 +278,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     )
                 self.assertIs(type(error.exception), ComputationFailureError)
 
-    def test_event_only_monte_carlo_ignores_unobserved_trading_days(self):
+    def test_contract_calendar_controls_daily_monte_carlo_observations(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         parameters = BlackScholesMertonParameters(
             risk_free_rate=0.03, dividend_yield=0, volatility=0.3
@@ -318,7 +318,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     ):
                         prices = [
                             engine.price(
-                                note,
+                                note.replace(calendar=calendar),
                                 PricingContext(
                                     model_parameters=parameters,
                                     spot_price=100,
@@ -337,6 +337,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                             self.assertEqual(*prices)
 
     def check_autocallable(self, note, context, expected):
+        note = note.replace(calendar=context.calendar)
         for engine in (pricing.MonteCarloAutocallableEngine(path_count=32, seed=7),):
             with self.subTest(
                 engine=type(engine).__name__, product=type(note).__name__

@@ -336,6 +336,7 @@ class SnowballTests(unittest.TestCase):
         prices = []
         for mode in ("at_expiry", "every_trading_day"):
             note = contract(
+                calendar=all_days_calendar(),
                 knock_in_level=95,
                 knock_in_observation_mode=mode,
                 observations=autocallable_observations(
@@ -618,6 +619,7 @@ class SnowballTests(unittest.TestCase):
             coarse, fine = reference(2048), reference(4096)
             self.assertAlmostEqual(coarse, fine, delta=1e-9)
             note = contract(
+                calendar=calendar,
                 knock_in_level=95,
                 knock_in_observation_mode=mode,
                 observations=autocallable_observations(
@@ -633,6 +635,7 @@ class SnowballTests(unittest.TestCase):
     def test_dense_deterministic_ladders_and_short_terminal_transition(self):
         dates = [START + timedelta(days=i) for i in range(1, 33)]
         note = contract(
+            calendar=all_days_calendar(),
             expiry_time=dates[-1],
             barrier_state="no_event",
             principal_ratio=0.5,

@@ -482,6 +482,7 @@ class PhoenixTests(unittest.TestCase):
                 coarse, fine = reference(1024), reference(2048)
                 self.assertAlmostEqual(coarse, fine, delta=1e-9)
                 note = contract(
+                    calendar=calendar,
                     coupon_rate=coupon,
                     knock_in_level=95,
                     knock_in_observation_mode=mode,
@@ -683,6 +684,7 @@ class PhoenixTests(unittest.TestCase):
     def test_dense_deterministic_ladder_and_short_terminal_transition(self):
         dates = [START + timedelta(days=i) for i in range(1, 33)]
         note = contract(
+            calendar=all_days_calendar(),
             expiry_time=dates[-1],
             principal_ratio=0.5,
             observations=autocallable_observations(

@@ -449,7 +449,7 @@ fn price<T: AutocallableTerms>(
                 dates[index],
                 &nodes,
                 &mut alive,
-                (layers && note.daily_time(dates[index], context.calendar())).then_some(&knocked),
+                (layers && note.daily_time(dates[index], note.calendar())).then_some(&knocked),
             );
             if layers {
                 apply_event(note, dates[index], &nodes, &mut knocked, None);

@@ -270,7 +270,7 @@ fn native_with_diffusion<D: Diffusion>(
                         slope,
                         intercept,
                         observe,
-                        option.accumulates_at(dates[event_index], context.calendar()),
+                        option.accumulates_at(dates[event_index], option.calendar()),
                     );
                     [value[0] - slope, value[1] - intercept]
                 });

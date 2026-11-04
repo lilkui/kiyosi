@@ -92,7 +92,7 @@ def exposure(option, context):
     while current <= option.expiry_time:
         if datetime.combine(
             current, time()
-        ) >= context.valuation_time and context.calendar.is_trading_day(current.date()):
+        ) >= context.valuation_time and option.calendar.is_trading_day(current.date()):
             observations += 1
         current += timedelta(days=1)
     return option.strike * (

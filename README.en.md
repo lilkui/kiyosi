@@ -61,6 +61,7 @@ observations = monthly_schedule(
 )
 snowball = standard_snowball(
     coupon_rate=0.12,
+    calendar=calendar,
     initial_spot=100.0,
     knock_in_level=80.0,
     knock_out_level=103.0,

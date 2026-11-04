@@ -135,6 +135,7 @@ def terminal_cases():
         (
             ins.RangeAccrualOption(
                 **dates,
+                calendar=all_days_calendar(),
                 notional=1000,
                 annual_coupon_rate=0.12,
                 lower_bound=95,

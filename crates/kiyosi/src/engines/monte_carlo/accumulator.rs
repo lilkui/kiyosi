@@ -173,7 +173,7 @@ impl MonteCarloAccumulatorEngine {
                 diffusion,
                 log_discount,
                 option.observes_knock_out(date),
-                option.accumulates_at(date, context.calendar()),
+                option.accumulates_at(date, option.calendar()),
             ));
             previous = date;
         }

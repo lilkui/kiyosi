@@ -66,7 +66,7 @@ pub(crate) fn future_event_times<T: AutocallableTerms>(
             crate::ObservationSchedule::daily(
                 note.effective_time(),
                 note.expiry_time(),
-                context.calendar(),
+                note.calendar(),
                 true,
             )?
             .times()
@@ -94,14 +94,14 @@ pub(crate) fn validate<T: AutocallableTerms>(
     if note
         .observations()
         .iter()
-        .any(|r| !context.calendar().is_trading_day(r.time.date()))
+        .any(|r| !note.calendar().is_trading_day(r.time.date()))
     {
         return Err(Error::InvalidInput(
             "observation is not a trading day".into(),
         ));
     }
-    note.prior(context.valuation_time(), context.calendar())?;
-    if !context.calendar().is_trading_day(note.expiry_time().date()) {
+    note.prior(context.valuation_time(), note.calendar())?;
+    if !note.calendar().is_trading_day(note.expiry_time().date()) {
         return Err(Error::InvalidInput("expiry is not a trading day".into()));
     }
     Ok(())

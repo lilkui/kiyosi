@@ -167,6 +167,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             base=weekdays_calendar(), closed_dates=[(datetime(2025, 1, 3)).date()]
         )
         context = market(90, datetime(2025, 1, 3)).replace(calendar=holiday)
+        option = option.replace(calendar=holiday)
         self.assertAlmostEqual(
             engine.price(option, context),
             terminal_reference(option, context),
@@ -175,7 +176,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         weekend = contract(datetime(2025, 1, 5))
         self.assertTrue(
             math.isfinite(
-                engine.price(weekend, market().replace(calendar=all_days_calendar()))
+                engine.price(weekend.replace(calendar=all_days_calendar()), market())
             )
         )
 

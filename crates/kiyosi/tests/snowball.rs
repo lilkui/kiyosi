@@ -342,10 +342,17 @@ fn prepared_pricing_rebuilds_when_the_calendar_changes_monitoring_dates() {
         })
         .unwrap();
     let prepared = engine.prepare_request().unwrap().unwrap();
-    for context in [&weekdays, &all_days, &weekdays] {
-        assert_eq!(
-            prepared.price(&note, context).unwrap(),
-            engine.price(&note, context).unwrap()
-        );
+    for calendar in [
+        TradingCalendar::weekdays(),
+        TradingCalendar::all_days(),
+        TradingCalendar::weekdays(),
+    ] {
+        let note = note.clone().with_calendar(calendar);
+        for context in [&weekdays, &all_days] {
+            assert_eq!(
+                prepared.price(&note, context).unwrap(),
+                engine.price(&note, context).unwrap()
+            );
+        }
     }
 }

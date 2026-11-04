@@ -131,6 +131,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
         if dates[-1] != end:
             dates.append(end)
         note = SnowballOption(
+            calendar=calendar,
             maturity_coupon_rate=0.2,
             initial_spot=100,
             knock_in_level=80,

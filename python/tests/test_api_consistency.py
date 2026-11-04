@@ -11,6 +11,81 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_structured_contract_calendars_survive_market_changes_and_reconstruction(
+        self,
+    ):
+        start, end = datetime(2025, 1, 3), datetime(2025, 1, 6)
+        model = market.BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=1e-12
+        )
+        context = market.PricingContext(
+            model_parameters=model, spot_price=100, valuation_time=start
+        )
+        daily_market = context.replace(calendar=market.all_days_calendar())
+        accrual = ins.RangeAccrualOption(
+            notional=1000,
+            annual_coupon_rate=0.12,
+            lower_bound=90,
+            upper_bound=110,
+            effective_time=start,
+            expiry_time=end,
+            realized_hit_count=0,
+        )
+        expiry = context.replace(valuation_time=end)
+        engine = pricing.AnalyticRangeAccrualEngine()
+        price = engine.price(accrual, expiry)
+        self.assertAlmostEqual(price, 360 / 365, delta=1e-12)
+        self.assertEqual(
+            price,
+            engine.price(accrual, expiry.replace(calendar=market.all_days_calendar())),
+        )
+        daily = accrual.replace(calendar=market.all_days_calendar())
+        self.assertAlmostEqual(engine.price(daily, expiry), price / 3, delta=1e-12)
+        accumulator = ins.Accumulator(
+            strike=90,
+            knock_out_level=200,
+            daily_quantity=1,
+            acceleration_factor=1,
+            effective_time=start,
+            expiry_time=end,
+        )
+        note = ins.standard_snowball(
+            coupon_rate=0.1,
+            initial_spot=100,
+            knock_in_level=80,
+            knock_out_level=110,
+            observation_times=[end],
+            effective_time=start,
+            expiry_time=end,
+            calendar=market.all_days_calendar(),
+        )
+        for value, engine in (
+            (
+                accumulator,
+                pricing.MonteCarloAccumulatorEngine(
+                    path_count=32, seed=42, thread_count=1
+                ),
+            ),
+            (
+                note,
+                pricing.MonteCarloAutocallableEngine(
+                    path_count=32, seed=42, thread_count=1
+                ),
+            ),
+        ):
+            with self.subTest(contract=type(value).__name__):
+                self.assertEqual(
+                    engine.price(value, context), engine.price(value, daily_market)
+                )
+        for value in (daily, accumulator, note):
+            self.assertEqual(value.replace().calendar, value.calendar)
+            self.assertEqual(pickle.loads(pickle.dumps(value)).calendar, value.calendar)
+            self.assertEqual(value.replace_history().calendar, value.calendar)
+        self.assertEqual(
+            note.with_coupon(0.2, quote_convention="shift_maturity_coupon").calendar,
+            note.calendar,
+        )
+
     def test_constant_node_curves_match_scalars_and_keep_coverage(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = ins.EuropeanOption(

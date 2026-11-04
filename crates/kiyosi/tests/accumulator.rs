@@ -450,6 +450,7 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
             ..Default::default()
         })
         .unwrap();
+        let option = option.with_calendar(context.calendar().clone());
         let observations =
             ObservationSchedule::fixed_interval(day(1, 2), end, 1, context.calendar())
                 .unwrap()

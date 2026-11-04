@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 import QuantLib as ql
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
 from kiyosi.instruments import Accumulator
-from kiyosi.market import monthly_schedule, weekdays_calendar
+from kiyosi.market import all_days_calendar, monthly_schedule, weekdays_calendar
 from test_accumulator import START, market
 
 END = datetime(2025, 1, 6)
@@ -193,11 +193,15 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     with self.assertRaises(InvalidInputError):
                         engine.price(option, market(110, START))
                 self.assertEqual(
-                    engine.price(weekend, market(110, END, daily=True)), 40
+                    engine.price(
+                        weekend.replace(calendar=all_days_calendar()),
+                        market(110, END, daily=True),
+                    ),
+                    40,
                 )
                 self.assertEqual(
                     engine.price(
-                        weekend_expiry,
+                        weekend_expiry.replace(calendar=all_days_calendar()),
                         market(90, datetime(2025, 1, 5), daily=True),
                     ),
                     -50,

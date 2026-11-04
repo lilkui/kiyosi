@@ -43,6 +43,8 @@ LocalVolatilityParameters for price, delta and gamma; digital
 finite-difference pricing requires constant risk-free rates and dividend
 yields. Other requested Greeks remain None. Other engine families and
 implied-parameter solvers reject this model with UnsupportedOperationError.
+PricingContext.calendar does not select structured-contract observations.
+Range accruals, accumulators and autocallables own their contractual calendars.
 Model and context ``replace()`` methods expose named keyword-only fields.
 Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
 values; explicit ``None`` is rejected.

@@ -454,6 +454,7 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
         convention: crate::CouponQuoteConvention,
     ) -> Result<Self> {
         Self::new(self.0.with_coupon(coupon, convention))
+            .map(|note| note.with_calendar(self.calendar().clone()))
     }
 }
 
@@ -472,7 +473,7 @@ impl PhoenixOption {
             PhoenixCoupon::Annual(_) => PhoenixCoupon::Annual(coupon),
             PhoenixCoupon::PerPeriod(_) => PhoenixCoupon::PerPeriod(coupon),
         };
-        Self::new(terms)
+        Self::new(terms).map(|note| note.with_calendar(self.calendar().clone()))
     }
 }
 
@@ -597,7 +598,7 @@ impl sealed::Terms for TernarySnowballTerms {
 /// Accessors borrow stable storage for this owner's lifetime. Shared reads and
 /// pricing are safe; mutation requires exclusive Rust access. See [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
-pub struct AutocallableNote<T: AutocallableTerms>(T);
+pub struct AutocallableNote<T: AutocallableTerms>(T, TradingCalendar);
 impl<T: AutocallableTerms> AutocallableNote<T> {
     /// Validates all terms before creating an owning note.
     ///
@@ -629,12 +630,29 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     ///     0.06, 0.02, 80.0, start, end, records))?;
     /// assert_eq!(binary.terms().principal_ratio, 1.0);
     /// assert_eq!(ternary.terms().minimum_coupon_rate, 0.02);
+    /// let daily = ternary.with_calendar(kiyosi::TradingCalendar::all_days());
+    /// assert_eq!(daily.calendar().trading_days_per_year(), 365);
     /// # Ok(()) }
     /// ```
     pub fn new(terms: T) -> Result<Self> {
         let view = terms.view();
         view.validate()?;
-        Ok(Self(terms))
+        Ok(Self(terms, TradingCalendar::default()))
+    }
+
+    /// Replaces the owned monitoring calendar; see [`Self::new`] for construction.
+    ///
+    /// Defaults to weekdays. Daily monitoring, expiry and observation validation
+    /// use this calendar independently of the market context. Other terms are retained.
+    #[must_use]
+    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Self {
+        self.1 = calendar;
+        self
+    }
+
+    /// Borrows the contract's monitoring calendar; see [`Self::with_calendar`].
+    pub fn calendar(&self) -> &TradingCalendar {
+        &self.1
     }
     /// Returns a validated owning copy with only history replaced; preserves the original.
     ///
@@ -649,9 +667,9 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         self.view().validate_history(barrier_state)?;
         let mut terms = self.0.clone();
         terms.set_history(barrier_state);
-        Ok(Self(terms))
+        Ok(Self(terms, self.1.clone()))
     }
-    /// Borrows the complete validated terms; see [`Self::new`].
+    /// Borrows validated payoff terms; the calendar is available separately. See [`Self::new`].
     pub fn terms(&self) -> &T {
         &self.0
     }
@@ -741,8 +759,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         Ok(self.barrier_state() == Some(AutocallableBarrierState::KnockedIn))
     }
     pub(crate) fn daily_at(&self, context: &PricingContext) -> bool {
-        self.view().daily_knock_in()
-            && self.daily_time(context.valuation_time(), context.calendar())
+        self.view().daily_knock_in() && self.daily_time(context.valuation_time(), self.calendar())
     }
     pub(crate) fn daily_time(&self, time: Timestamp, calendar: &TradingCalendar) -> bool {
         time >= self.effective_time()
@@ -833,11 +850,11 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
     }
     fn time_stencil_available(
         &self,
-        context: &PricingContext,
+        _context: &PricingContext,
         before: Timestamp,
         after: Timestamp,
     ) -> bool {
-        if self.prior(before, context.calendar()).is_err() {
+        if self.prior(before, self.calendar()).is_err() {
             return false;
         }
         if self.barrier_state() == Some(AutocallableBarrierState::KnockedOut) {
@@ -857,7 +874,7 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
             let mut date = before.date();
             loop {
                 let event = self.expiry_time().on_date(date);
-                if before <= event && event <= after && self.daily_time(event, context.calendar()) {
+                if before <= event && event <= after && self.daily_time(event, self.calendar()) {
                     return false;
                 }
                 if date == after.date() {
@@ -1002,6 +1019,8 @@ impl sealed::View<'_> {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct SnowballOptionChanges {
+    /// Replaces the owned monitoring calendar; see [`AutocallableNote::with_calendar`].
+    pub calendar: Option<TradingCalendar>,
     /// Replaces [`maturity_coupon_rate`](SnowballTerms::maturity_coupon_rate).
     pub maturity_coupon_rate: Option<f64>,
     /// Replaces [`initial_spot`](SnowballTerms::initial_spot).
@@ -1056,6 +1075,7 @@ impl SnowballOption {
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
         })
+        .map(|note| note.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar().clone())))
     }
 }
 
@@ -1064,6 +1084,8 @@ impl SnowballOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct PhoenixOptionChanges {
+    /// Replaces the owned monitoring calendar; see [`AutocallableNote::with_calendar`].
+    pub calendar: Option<TradingCalendar>,
     /// Replaces [`coupon`](PhoenixTerms::coupon).
     pub coupon: Option<PhoenixCoupon>,
     /// Replaces [`initial_spot`](PhoenixTerms::initial_spot).
@@ -1116,6 +1138,7 @@ impl PhoenixOption {
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
         })
+        .map(|note| note.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar().clone())))
     }
 }
 
@@ -1124,6 +1147,8 @@ impl PhoenixOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct BinarySnowballOptionChanges {
+    /// Replaces the owned monitoring calendar; see [`AutocallableNote::with_calendar`].
+    pub calendar: Option<TradingCalendar>,
     /// Replaces [`maturity_coupon_rate`](BinarySnowballTerms::maturity_coupon_rate).
     pub maturity_coupon_rate: Option<f64>,
     /// Replaces [`barrier_state`](BinarySnowballTerms::barrier_state).
@@ -1161,6 +1186,7 @@ impl BinarySnowballOption {
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
         })
+        .map(|note| note.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar().clone())))
     }
 }
 
@@ -1169,6 +1195,8 @@ impl BinarySnowballOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct TernarySnowballOptionChanges {
+    /// Replaces the owned monitoring calendar; see [`AutocallableNote::with_calendar`].
+    pub calendar: Option<TradingCalendar>,
     /// Replaces [`maturity_coupon_rate`](TernarySnowballTerms::maturity_coupon_rate).
     pub maturity_coupon_rate: Option<f64>,
     /// Replaces [`minimum_coupon_rate`](TernarySnowballTerms::minimum_coupon_rate).
@@ -1219,5 +1247,6 @@ impl TernarySnowballOption {
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
         })
+        .map(|note| note.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar().clone())))
     }
 }

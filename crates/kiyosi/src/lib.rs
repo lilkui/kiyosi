@@ -23,6 +23,9 @@
 //! Contractual, observation and market times use [`Timestamp`] and share a
 //! caller-selected time basis. Calendars classify dates without moving contract
 //! boundaries. Pure calendar inputs remain [`Date`] values.
+//! Range accruals, accumulators and autocallables own their observation calendars
+//! (weekdays by default); their `with_calendar` and `replace` operations select
+//! contractual calendars independently of [`PricingContext`].
 //! Explicit observations use their exact timestamps. Implicit daily observations use
 //! the expiry clock time; snowballs and accumulators include the effective instant,
 //! while range accruals exclude it. Events strictly before valuation require history;

@@ -187,7 +187,7 @@ impl MonteCarloAutocallableEngine {
                 diffusion,
                 log_discount,
                 record,
-                daily && note.daily_time(date, context.calendar()),
+                daily && note.daily_time(date, note.calendar()),
             ));
             previous = date;
         }

@@ -81,7 +81,7 @@ fn model(py: Python<'_>, value: &kiyosi::ModelParameters) -> PyResult<String> {
     })
 }
 
-fn calendar(py: Python<'_>, value: &kiyosi::TradingCalendar) -> PyResult<String> {
+pub(crate) fn calendar(py: Python<'_>, value: &kiyosi::TradingCalendar) -> PyResult<String> {
     if let Some((base, closed, open)) = value.overrides() {
         let dates = |values: &[kiyosi::Date]| {
             preview(values, |&date| {
@@ -184,6 +184,9 @@ pub(crate) fn _repr_previews<'py>(
         crate::instruments::double_touch::DoubleTouchOption
     );
     if let Ok(v) = value.extract::<PyRef<'_, crate::instruments::accumulator::Accumulator>>() {
+        if v.0.calendar() != &kiyosi::TradingCalendar::default() {
+            result.set_item("calendar", calendar(py, v.0.calendar())?)?;
+        }
         result.set_item(
             "knock_out_observation_times",
             v.0.knock_out_observation_times()
@@ -193,6 +196,9 @@ pub(crate) fn _repr_previews<'py>(
     macro_rules! notes {
         ($($class:ty),+ $(,)?) => {$(
             if let Ok(v) = value.extract::<PyRef<'_, $class>>() {
+                if v.0.calendar() != &kiyosi::TradingCalendar::default() {
+                    result.set_item("calendar", calendar(py, v.0.calendar())?)?;
+                }
                 result.set_item("observations", preview(v.0.observations(), |r| Ok(format!(
                     "AutocallableObservation({}, {:?}, coupon_rate={:?}, coupon_barrier_level={:?})",
                     python_timestamp(py, r.time)?.repr()?, r.knock_out_level, r.coupon_rate, r.coupon_barrier_level)))?)?;

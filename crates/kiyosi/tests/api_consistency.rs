@@ -1,6 +1,87 @@
 use kiyosi::*;
 
 #[test]
+fn structured_contracts_own_calendars_independently_of_market_context() -> Result<()> {
+    let start = Date::new(2025, 1, 3)?.start_of_day();
+    let end = start.add_days(3)?;
+    let model = BlackScholesMertonParameters::new(0.0, 0.0, 1e-12)?;
+    let context = PricingContext::new(model, 100.0, start)?;
+    let daily_market = context.replace(PricingContextChanges {
+        calendar: Some(TradingCalendar::all_days()),
+        ..Default::default()
+    })?;
+    let range = RangeAccrualOption::new(RangeAccrualTerms::new(
+        1000.0, 0.12, 90.0, 110.0, start, end,
+    ))?
+    .replace_history(Some(0))?;
+    let at_expiry = context.replace(PricingContextChanges {
+        valuation_time: Some(end),
+        ..Default::default()
+    })?;
+    let other_expiry = at_expiry.replace(PricingContextChanges {
+        calendar: Some(TradingCalendar::all_days()),
+        ..Default::default()
+    })?;
+    let price = AnalyticRangeAccrualEngine.price(&range, &at_expiry)?;
+    assert!((price - 360.0 / 365.0).abs() < 1e-12);
+    assert_eq!(
+        price,
+        AnalyticRangeAccrualEngine.price(&range, &other_expiry)?
+    );
+    let daily = range.clone().with_calendar(TradingCalendar::all_days());
+    assert!((AnalyticRangeAccrualEngine.price(&daily, &at_expiry)? - price / 3.0).abs() < 1e-12);
+    assert_eq!(daily.replace_history(None)?.calendar(), daily.calendar());
+    assert_eq!(daily.replace(Default::default())?, daily);
+
+    let accumulator = Accumulator::new(AccumulatorTerms::new(90.0, 200.0, 1.0, 1.0, start, end))?;
+    let sampling = MonteCarloSettings {
+        path_count: 32,
+        seed: Some(42),
+        thread_count: 1,
+        ..Default::default()
+    };
+    let engine = MonteCarloAccumulatorEngine::new(sampling)?;
+    assert_eq!(
+        engine.price(&accumulator, &context)?,
+        engine.price(&accumulator, &daily_market)?
+    );
+    let daily = accumulator.with_calendar(TradingCalendar::all_days());
+    assert!((engine.price(&daily, &context)? - 40.0).abs() < 1e-7);
+    assert_eq!(daily.replace_history(0.0)?.calendar(), daily.calendar());
+
+    let note = SnowballOption::new(SnowballTerms::new(
+        0.1,
+        100.0,
+        80.0,
+        100.0,
+        0.0,
+        start,
+        end,
+        vec![AutocallableObservation::new(end, 110.0)?],
+    ))?;
+    let engine = MonteCarloAutocallableEngine::new(sampling)?;
+    assert_eq!(
+        engine.price(&note, &context)?,
+        engine.price(&note, &daily_market)?
+    );
+    let daily = note.with_calendar(TradingCalendar::all_days());
+    assert_eq!(
+        daily
+            .replace_history(Some(AutocallableBarrierState::NoEvent))?
+            .calendar(),
+        daily.calendar()
+    );
+    assert_eq!(
+        daily
+            .with_coupon(0.2, CouponQuoteConvention::ShiftMaturityCoupon)?
+            .calendar(),
+        daily.calendar()
+    );
+    assert_eq!(daily.replace(Default::default())?, daily);
+    Ok(())
+}
+
+#[test]
 fn constant_node_curves_price_like_scalars_and_keep_coverage() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;

@@ -298,6 +298,7 @@ fn trading_midnights_intraday_history_and_calendar_control_purchases() {
             -50.0,
         ),
     ] {
+        let option = option.clone().with_calendar(calendar.clone());
         let context = PricingContext::with_calendar(model.clone(), 90.0, at, calendar).unwrap();
         assert_eq!(engine.price(&option, &context).unwrap(), expected);
     }
@@ -572,7 +573,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
 #[test]
 fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
     let end = Date::new(2090, 1, 2).unwrap().start_of_day();
-    let option = option(end);
+    let option = option(end).with_calendar(TradingCalendar::all_days());
     let context = market(100.25, day(1, 1))
         .replace(PricingContextChanges {
             calendar: Some(TradingCalendar::all_days()),

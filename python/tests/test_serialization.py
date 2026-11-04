@@ -284,7 +284,7 @@ class SerializationTests(unittest.TestCase):
         self.assertIn(".shifted(-1000000.0)", repr(curve))
         self.assertEqual(repr(pickle.loads(pickle.dumps(curve))), repr(curve))
 
-    def test_repr_memory_is_bounded_for_surfaces_and_nested_contexts(self):
+    def test_repr_memory_is_bounded_for_surfaces_contexts_and_contract_calendars(self):
         import tracemalloc
         from datetime import timedelta
 
@@ -299,7 +299,26 @@ class SerializationTests(unittest.TestCase):
         context = m.PricingContext(
             model_parameters=model, spot_price=100, valuation_time=START
         )
-        for value in (surface, model, context):
+        calendar = m.custom_calendar(
+            base=m.weekdays_calendar(),
+            closed_dates=[(START + timedelta(days=n)).date() for n in range(5000)],
+        )
+        contracts = [
+            value.replace(calendar=calendar)
+            for value in values()
+            if isinstance(
+                value,
+                (
+                    i.Accumulator,
+                    i.RangeAccrualOption,
+                    i.SnowballOption,
+                    i.BinarySnowballOption,
+                    i.TernarySnowballOption,
+                    i.PhoenixOption,
+                ),
+            )
+        ]
+        for value in (surface, model, context, *contracts):
             with self.subTest(value=type(value).__name__):
                 tracemalloc.start()
                 try:

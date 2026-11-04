@@ -262,7 +262,7 @@ fn price(
     for event in (0..dates.len()).rev() {
         let final_event = event + 1 == dates.len();
         let observes_knock_out = option.observes_knock_out(dates[event]);
-        let accumulates = option.accumulates_at(dates[event], context.calendar());
+        let accumulates = option.accumulates_at(dates[event], option.calendar());
         if observes_knock_out {
             next_knock_out = Some(event);
         }
@@ -296,7 +296,7 @@ fn price(
                         dates[event..=last]
                             .iter()
                             .filter(|&&time| {
-                                option.accumulates_at(time, context.calendar())
+                                option.accumulates_at(time, option.calendar())
                                     && (settlement.is_none() || time < dates[last])
                             })
                             .count() as f64

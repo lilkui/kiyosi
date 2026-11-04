@@ -397,11 +397,12 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
                 ..Default::default()
             })
             .unwrap();
+        let holiday_option = option.clone().with_calendar(holidays.calendar().clone());
         let result = monte_carlo
-            .price_with_statistics(&option, &holidays)
+            .price_with_statistics(&holiday_option, &holidays)
             .unwrap();
         assert_eq!(result.standard_error(), Some(0.0));
-        assert_eq!(clipped.price(&option, &holidays).unwrap(), 0.0);
+        assert_eq!(clipped.price(&holiday_option, &holidays).unwrap(), 0.0);
         let engine = QuadratureAccumulatorEngine::default();
         assert!((engine.price(&option, &context).unwrap() - 20.0).abs() < 1e-7);
         let at_current_event = context
@@ -511,7 +512,10 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
         ));
         assert!(
             engine
-                .price(&weekend, &all_days_context)
+                .price(
+                    &weekend.clone().with_calendar(TradingCalendar::all_days()),
+                    &all_days_context
+                )
                 .unwrap()
                 .is_finite()
         );

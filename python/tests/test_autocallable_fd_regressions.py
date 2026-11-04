@@ -488,7 +488,11 @@ class AutocallableRegressionTests(unittest.TestCase):
         dates = [start + timedelta(days=index) for index in range(1, 13)]
         observation_times = dates
         knock_out_levels = [110] * len(dates)
-        common = {"effective_time": start, "expiry_time": end}
+        common = {
+            "effective_time": start,
+            "expiry_time": end,
+            "calendar": all_days_calendar(),
+        }
         coupons = {
             "maturity_coupon_rate": 0.06,
             "observations": autocallable_observations(
@@ -577,7 +581,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                     )
                     for option, shifted, expected_error in (
                         (
-                            note,
+                            note.replace(calendar=weekdays_calendar()),
                             context(calendar=weekdays_calendar()),
                             InvalidInputError,
                         ),
@@ -795,6 +799,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             datetime(2026, 1, 1),
         )
         terms = {
+            "calendar": all_days_calendar(),
             "maturity_coupon_rate": 0,
             "initial_spot": 100,
             "knock_in_level": 75,

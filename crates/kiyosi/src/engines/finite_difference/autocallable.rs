@@ -260,7 +260,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
             crate::ObservationSchedule::daily(
                 note.effective_time(),
                 note.expiry_time(),
-                context.calendar(),
+                note.calendar(),
                 true,
             )?
             .times()

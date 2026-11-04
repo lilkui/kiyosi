@@ -1,4 +1,4 @@
-use crate::{Error, OptionContract, PricingContext, Result, Timestamp};
+use crate::{Error, OptionContract, PricingContext, Result, Timestamp, TradingCalendar};
 
 /// Supplies equally weighted range-coupon terms; see [`RangeAccrualOption::new`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -50,6 +50,7 @@ impl RangeAccrualTerms {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RangeAccrualOption {
     terms: RangeAccrualTerms,
+    calendar: TradingCalendar,
 }
 
 impl RangeAccrualOption {
@@ -68,7 +69,8 @@ impl RangeAccrualOption {
     /// # fn main() -> kiyosi::Result<()> {
     /// let terms = RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 17)?.start_of_day());
-    /// let option = RangeAccrualOption::new(terms)?;
+    /// let option = RangeAccrualOption::new(terms)?
+    ///     .with_calendar(kiyosi::TradingCalendar::weekdays());
     /// let seasoned = option.replace_history(Some(3))?;
     /// assert_eq!(seasoned.realized_hit_count(), Some(3));
     /// assert_eq!(seasoned.replace_history(None)?, option);
@@ -94,7 +96,25 @@ impl RangeAccrualOption {
                 "range accrual requires a positive contract term".into(),
             ));
         }
-        Ok(Self { terms })
+        Ok(Self {
+            terms,
+            calendar: TradingCalendar::default(),
+        })
+    }
+
+    /// Replaces the owned observation calendar; see [`Self::new`] for construction.
+    ///
+    /// Defaults to weekdays. Pricing checks expiry and history against this calendar,
+    /// independently of the market context's calendar. Other terms remain unchanged.
+    #[must_use]
+    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Self {
+        self.calendar = calendar;
+        self
+    }
+
+    /// Borrows the contract's observation calendar; see [`Self::with_calendar`].
+    pub fn calendar(&self) -> &TradingCalendar {
+        &self.calendar
     }
 
     /// Returns an owning copy with replaced history; `None` restores unknown. See [`Self::new`].
@@ -103,9 +123,9 @@ impl RangeAccrualOption {
     ///
     /// Reuses [`Self::new`] validation. The original is unchanged on success and failure.
     pub fn replace_history(&self, realized_hit_count: Option<i32>) -> Result<Self> {
-        Self::new(RangeAccrualTerms {
-            realized_hit_count,
-            ..self.terms
+        self.replace(RangeAccrualOptionChanges {
+            realized_hit_count: Some(realized_hit_count),
+            ..Default::default()
         })
     }
 
@@ -155,7 +175,7 @@ impl OptionContract for RangeAccrualOption {
             && time > self.effective_time()
             && time <= self.expiry_time()
             && time.micros_since_midnight() == self.expiry_time().micros_since_midnight()
-            && context.calendar().is_trading_day(time.date())
+            && self.calendar().is_trading_day(time.date())
             && [self.lower_bound(), self.upper_bound()]
                 .iter()
                 .any(|&level| {
@@ -164,14 +184,14 @@ impl OptionContract for RangeAccrualOption {
     }
     fn time_stencil_available(
         &self,
-        context: &PricingContext,
+        _context: &PricingContext,
         before: Timestamp,
         after: Timestamp,
     ) -> bool {
         let Ok(schedule) = crate::ObservationSchedule::daily(
             self.effective_time(),
             self.expiry_time(),
-            context.calendar(),
+            self.calendar(),
             false,
         ) else {
             return false;
@@ -186,8 +206,10 @@ impl OptionContract for RangeAccrualOption {
 /// Selects replacements for [`RangeAccrualOption::replace`]; absent fields retain their values.
 ///
 /// For nullable fields, `Some(None)` clears the value.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct RangeAccrualOptionChanges {
+    /// Replaces the owned observation calendar; see [`RangeAccrualOption::with_calendar`].
+    pub calendar: Option<TradingCalendar>,
     /// Replaces [`notional`](RangeAccrualTerms::notional).
     pub notional: Option<f64>,
     /// Replaces [`annual_coupon_rate`](RangeAccrualTerms::annual_coupon_rate).
@@ -227,6 +249,9 @@ impl RangeAccrualOption {
             realized_hit_count: changes
                 .realized_hit_count
                 .unwrap_or(self.realized_hit_count()),
+        })
+        .map(|option| {
+            option.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar.clone()))
         })
     }
 }
