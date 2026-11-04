@@ -17,7 +17,9 @@ require ``datetime.date``, excluding datetime instances. Callers must supply a
 consistent time basis.
 Numeric inputs reject booleans and unintended lossy conversions.
 
-Values own their data and expose read-only properties. Shared and distinct
+Values own their data and expose read-only properties. Default representations
+show contract terms, market inputs, engine controls and result values, with
+large arrays abbreviated for interactive inspection. Shared and distinct
 instances support concurrent reads and pricing. Replacement creates a new
 value. ``copy.copy`` and ``copy.deepcopy`` return the same immutable value;
 ``pickle`` reconstructs contracts, market data, calendars, schedules, engines and

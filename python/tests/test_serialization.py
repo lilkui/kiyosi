@@ -172,6 +172,64 @@ class SerializationTests(unittest.TestCase):
                 for field in inspect.signature(type(engine)).parameters:
                     self.assertEqual(getattr(restored, field), getattr(engine, field))
 
+    def test_repr_exposes_terms_settings_and_results(self):
+        for value in values():
+            with self.subTest(value=type(value).__name__):
+                text = repr(value)
+                self.assertIn(type(value).__name__, text)
+                self.assertNotIn("object at 0x", text)
+                self.assertEqual(repr(pickle.loads(pickle.dumps(value))), text)
+        vanilla = i.EuropeanOption(
+            option_type="call", strike=100, effective_time=START, expiry_time=END
+        )
+        self.assertIn("strike=100.0", repr(vanilla))
+        self.assertIn("option_type='call'", repr(vanilla))
+        for name in p.__all__:
+            if name.endswith("Engine"):
+                engine = getattr(p, name)()
+                with self.subTest(engine=name):
+                    text = repr(engine)
+                    self.assertIn(name, text)
+                    self.assertNotIn("object at 0x", text)
+                    self.assertEqual(repr(pickle.loads(pickle.dumps(engine))), text)
+        self.assertIn(
+            "asset_step_count=123",
+            repr(p.FiniteDifferenceVanillaEngine(asset_step_count=123)),
+        )
+        context = m.PricingContext(
+            model_parameters=m.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=START,
+        )
+        self.assertIn("spot_price=100.0", repr(context))
+        result = p.AnalyticEuropeanEngine().price_with_greeks(vanilla, context, "delta")
+        self.assertIn("price=", repr(result))
+        self.assertIn("'delta':", repr(result))
+        self.assertEqual(repr(pickle.loads(pickle.dumps(result))), repr(result))
+        estimate = p.MonteCarloVanillaEngine(
+            path_count=16, seed=42, thread_count=1
+        ).price_with_statistics(vanilla, context)
+        self.assertIn("standard_error=", repr(estimate))
+        self.assertEqual(repr(pickle.loads(pickle.dumps(estimate))), repr(estimate))
+
+    def test_repr_bounds_large_surfaces_and_handles_extreme_curve_shifts(self):
+        from datetime import timedelta
+
+        surface = m.LocalVolatilitySurface(
+            times=[START + timedelta(days=n) for n in range(20)],
+            spots=list(range(1, 21)),
+            values=[[0.2] * 20 for _ in range(20)],
+        )
+        self.assertLess(len(repr(surface)), 2000)
+        self.assertIn("...", repr(surface))
+        curve = m.RateTermStructure(
+            reference_time=START, times=[END], factors=[0.99]
+        ).shifted(-1e6)
+        self.assertIn(".shifted(-1000000.0)", repr(curve))
+        self.assertEqual(repr(pickle.loads(pickle.dumps(curve))), repr(curve))
+
     def test_nondefault_engine_settings_survive_serialization(self):
         cases = (
             (

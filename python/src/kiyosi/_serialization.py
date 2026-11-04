@@ -1,6 +1,7 @@
 """Copy and reconstruct immutable native values through validated constructors."""
 
 import copyreg
+import reprlib
 from datetime import datetime
 from inspect import isclass, signature
 from types import ModuleType
@@ -106,6 +107,33 @@ def _reduce(value: Any) -> tuple[Any, tuple[Any, ...]]:
     return _restore, (factory, fields)
 
 
+_repr_formatter = reprlib.Repr()
+_repr_formatter.maxother = 160
+
+
+def _repr(value: Any) -> str:
+    factory, args = _reduce(value)
+    name = type(value).__name__
+    if factory is _curve:
+        reference, times, factors, shift = args
+        fields = {"reference_time": reference, "times": times, "factors": factors}
+        suffix = f".shifted({shift!r})"
+    else:
+        factory, fields = args
+        fields = fields.copy()
+        suffix = ""
+        if isinstance(value, _native.RateTermStructure):
+            name += ".flat"
+        elif isinstance(value, (_native.BinaryBarrierOption, _native.TouchOption)):
+            fields = {"payoff_type": value.payoff_type, **fields}
+        elif isinstance(value, _native.DoubleTouchOption):
+            fields = {"barrier_type": value.barrier_type, **fields}
+    terms = ", ".join(
+        f"{key}={_repr_formatter.repr(field)}" for key, field in fields.items()
+    )
+    return f"{name}({terms}){suffix}"
+
+
 def install(native: ModuleType) -> None:
     for value in tuple(vars(native).values()):
         if (
@@ -116,3 +144,5 @@ def install(native: ModuleType) -> None:
             value.__copy__ = _copy
             value.__deepcopy__ = _deepcopy
             copyreg.pickle(value, _reduce)
+            if value.__repr__ is object.__repr__:
+                value.__repr__ = _repr
