@@ -12,23 +12,22 @@ class AutocallableValidationTests(unittest.TestCase):
     def test_autocallable_engines_share_domain_validation_precedence(self):
         start, end = datetime(2025, 1, 1), datetime(2025, 1, 4)
         for history in (None, "no_event"):
-            note = BinarySnowballOption(
-                maturity_coupon_rate=0.05,
-                barrier_state=history,
-                effective_time=start,
-                expiry_time=end,
-                observations=[
+            fields = {
+                "maturity_coupon_rate": 0.05,
+                "barrier_state": history,
+                "effective_time": start,
+                "observations": [
                     AutocallableObservation(datetime(2025, 1, 2), 110, coupon_rate=0.08)
                 ],
-            )
-            for valuation, expected in (
-                (start, InvalidInputError),
-                (
-                    datetime(2025, 1, 3),
-                    InvalidInputError,
-                ),
-                (datetime(2025, 1, 5), InvalidInputError),
-            ):
+            }
+            with self.assertRaises(InvalidInputError):
+                BinarySnowballOption(**fields, expiry_time=end)
+            note = BinarySnowballOption(**fields, expiry_time=datetime(2025, 1, 3))
+            valuations = [datetime(2024, 12, 31), datetime(2025, 1, 4)]
+            if history is None:
+                valuations.append(datetime(2025, 1, 3))
+            for valuation in valuations:
+                expected = InvalidInputError
                 context = PricingContext(
                     model_parameters=BlackScholesMertonParameters(
                         risk_free_rate=0.03,

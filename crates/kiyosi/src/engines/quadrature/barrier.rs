@@ -1,6 +1,6 @@
 use super::flat_rates;
 use crate::engines::analytic::barrier::{hit_value, resolved_price};
-use crate::instruments::monitoring::{validate_life, validate_schedule};
+use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked, log_ratio, scaled_cash};
 use crate::{
     BarrierOption, Error, GreeksRequest, NumericalShiftSettings, OptionType, PricingContext,
@@ -158,7 +158,6 @@ fn price(
     context.bsm_parameters()?;
     flat_rates(context)?;
     validate_life(option, context)?;
-    validate_schedule(option.observation_schedule(), option.calendar())?;
     if let Some(value) = resolved_price(option, context)? {
         return Ok(value);
     }

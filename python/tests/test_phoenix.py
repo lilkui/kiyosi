@@ -180,21 +180,13 @@ class PhoenixTests(unittest.TestCase):
             contract(barrier_state="knocked_out"),
             market(),
         )
-        nontrading = contract(
-            expiry_time=datetime(2025, 4, 5),
-            observations=[AutocallableObservation(datetime(2025, 2, 1), 110)],
-        )
-        self.assert_rejection(InvalidInputError, engine.price, nontrading, market())
-        nontrading = contract(expiry_time=datetime(2025, 4, 5), barrier_state=None)
-        self.assert_rejection(
-            InvalidInputError, engine.price, nontrading, market(valuation=END)
-        )
-        self.assert_rejection(
-            InvalidInputError,
-            engine.price,
-            nontrading.replace_history(barrier_state="no_event"),
-            market(valuation=END),
-        )
+        with self.assertRaises(InvalidInputError):
+            contract(
+                expiry_time=datetime(2025, 4, 5),
+                observations=[AutocallableObservation(datetime(2025, 2, 1), 110)],
+            )
+        with self.assertRaises(InvalidInputError):
+            contract(expiry_time=datetime(2025, 4, 5), barrier_state=None)
         for valuation in (datetime(2024, 12, 31), datetime(2025, 4, 1, 0, 0, 0, 1)):
             self.assert_rejection(
                 InvalidInputError,

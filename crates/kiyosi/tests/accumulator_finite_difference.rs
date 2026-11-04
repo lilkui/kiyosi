@@ -124,7 +124,7 @@ fn trading_midnight_is_observed_once_and_intraday_uses_caller_history() {
             ..Default::default()
         })
         .unwrap();
-    let option = option.with_calendar(context.calendar().clone());
+    let option = option.with_calendar(context.calendar().clone()).unwrap();
     assert!(
         (engine.price(&option, &context).unwrap() - terminal_reference(&option, &context)).abs()
             < 0.001
@@ -215,31 +215,16 @@ fn validation_order_domains_and_failures_preserve_engine_and_inputs() {
             Error::InvalidInput(_)
         ));
     }
-    let weekend = Accumulator::new(AccumulatorTerms::new(
-        100.0,
-        110.0,
-        1.0,
-        2.0,
-        day(1, 1),
-        day(1, 5),
-    ))
-    .unwrap();
     assert!(matches!(
-        engine
-            .price(&weekend, &market(100.0, day(1, 1)))
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
-    assert!(matches!(
-        engine
-            .price_with_greeks(
-                &weekend,
-                &market(100.0, day(1, 1)),
-                GreeksRequest::new([]),
-                Default::default()
-            )
-            .unwrap_err(),
-        Error::InvalidInput(_)
+        Accumulator::new(AccumulatorTerms::new(
+            100.0,
+            110.0,
+            1.0,
+            2.0,
+            day(1, 1),
+            day(1, 5)
+        )),
+        Err(Error::InvalidInput(_))
     ));
     let clipped = FiniteDifferenceAccumulatorEngine::new(FiniteDifferenceSettings {
         asset_upper_boundary: Some(110.0),

@@ -16,7 +16,7 @@ from kiyosi import (
     pricing,
 )
 from kiyosi.instruments import EuropeanOption
-from kiyosi.market import PricingContext, RateTermStructure, weekdays_calendar
+from kiyosi.market import RateTermStructure, weekdays_calendar
 from support.terminal import assert_terminal_greeks
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
@@ -454,18 +454,13 @@ class BarrierQuadratureTests(unittest.TestCase):
                 (pricing.implied_volatility, (engine, option(), context, math.nan)),
             ):
                 self.assert_rejection(UnsupportedOperationError, operation, *args)
-        bad = option(
-            observation_mode="scheduled",
-            observation_times=[datetime(2025, 1, 4)],
-            touch_state="touched",
-            calendar=weekdays_calendar(),
-        )
-        weekdays = PricingContext(
-            model_parameters=market().model_parameters,
-            spot_price=120,
-            valuation_time=START + timedelta(days=30),
-        )
-        self.assert_rejection(InvalidInputError, engine.price, bad, weekdays)
+        with self.assertRaises(InvalidInputError):
+            option(
+                observation_mode="scheduled",
+                observation_times=[datetime(2025, 1, 4)],
+                touch_state="touched",
+                calendar=weekdays_calendar(),
+            )
         for sigma in (1e200, 1e308):
             self.assert_rejection(
                 ComputationFailureError,

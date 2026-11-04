@@ -208,12 +208,9 @@ fn construction_defaults_validation_and_calendar_are_core_semantics() {
         ));
     }
     scheduled.observation_times = vec![Date::new(2025, 1, 4).unwrap().start_of_day()];
-    let weekend = BarrierOption::new(scheduled).unwrap();
     assert!(matches!(
-        AnalyticBarrierEngine
-            .price(&weekend, &market(100.0, t.effective_time))
-            .unwrap_err(),
-        Error::InvalidInput(_)
+        BarrierOption::new(scheduled),
+        Err(Error::InvalidInput(_))
     ));
     assert_eq!(option, BarrierOption::new(t).unwrap());
 }
@@ -778,15 +775,9 @@ fn publicly_prepared_requests_revalidate_different_schedules_and_calendars() {
         prepared.price(&option, &context).unwrap()
     );
     assert!(matches!(
-        prepared
-            .price(&option.with_calendar(closed), &context)
-            .unwrap_err(),
-        Error::InvalidInput(_)
+        option.with_calendar(closed),
+        Err(Error::InvalidInput(_))
     ));
     t.observation_times = vec![Date::new(2025, 1, 4).unwrap().start_of_day()];
-    let weekend = BarrierOption::new(t).unwrap();
-    assert!(matches!(
-        prepared.price(&weekend, &context).unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+    assert!(matches!(BarrierOption::new(t), Err(Error::InvalidInput(_))));
 }

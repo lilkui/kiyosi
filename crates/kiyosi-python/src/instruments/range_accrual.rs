@@ -155,9 +155,8 @@ impl RangeAccrualOption {
         if let Some(value) = realized_hit_count {
             terms.realized_hit_count = history(value)?;
         }
-        Ok(Self(
-            domain(kiyosi::RangeAccrualOption::new(terms))?.with_calendar(calendar.0),
-        ))
+        terms.calendar = calendar.0;
+        Ok(Self(domain(kiyosi::RangeAccrualOption::new(terms))?))
     }
 
     /// Return a validated replacement without changing this value.

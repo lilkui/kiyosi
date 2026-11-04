@@ -25,7 +25,6 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
     all_days_calendar,
-    weekdays_calendar,
 )
 from price_differences import price_differences
 from support.terminal import assert_terminal_greeks
@@ -535,15 +534,12 @@ class DoubleTouchTests(unittest.TestCase):
                     engine, known, context, expected
                 ),
             )
-        weekend = contract(
-            cash_double_no_touch,
-            observation_mode="scheduled",
-            observation_times=[datetime(2025, 1, 4)],
-        )
-        self.assert_core_error(
-            InvalidInputError,
-            lambda: engine.price(weekend, market(130, calendar=weekdays_calendar())),
-        )
+        with self.assertRaises(InvalidInputError):
+            contract(
+                cash_double_no_touch,
+                observation_mode="scheduled",
+                observation_times=[datetime(2025, 1, 4)],
+            )
 
     def test_greeks_iv_boundary_and_time_stencils(self):
         engine = pricing.FiniteDifferenceDoubleTouchEngine(
@@ -1020,11 +1016,10 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
             self.assertAlmostEqual(
                 engine.price(known, market(125, time=after)), expected, delta=1e-12
             )
-        weekend = contract(
-            observation_mode="scheduled", observation_times=[datetime(2025, 1, 4)]
-        )
         with self.assertRaises(InvalidInputError):
-            engine.price(weekend, market(calendar=weekdays_calendar()))
+            contract(
+                observation_mode="scheduled", observation_times=[datetime(2025, 1, 4)]
+            )
 
     def test_analytic_node_curves_and_numerical_failures(self):
         engine = pricing.AnalyticDoubleTouchEngine()

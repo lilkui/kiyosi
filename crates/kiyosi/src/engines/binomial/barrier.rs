@@ -116,10 +116,6 @@ impl CoxRossRubinsteinBarrierEngine {
     ) -> Result<PricingResult> {
         let (rate, _) = flat_rates(context)?;
         crate::instruments::monitoring::validate_life(option, context)?;
-        crate::instruments::monitoring::validate_schedule(
-            option.observation_schedule(),
-            option.calendar(),
-        )?;
         let steps = self.settings.step_count as usize;
         let request = if context.valuation_time() == option.expiry_time()
             || option.at_spot_discontinuity(context, 0.0)

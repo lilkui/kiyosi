@@ -14,7 +14,7 @@ from kiyosi import (
     pricing,
 )
 from kiyosi.instruments import EuropeanOption
-from kiyosi.market import RateTermStructure, weekdays_calendar
+from kiyosi.market import RateTermStructure, all_days_calendar
 from test_double_barrier import END, START, contract, market, reference
 from test_double_barrier_finite_difference import (
     FIRST,
@@ -541,15 +541,11 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             tiny,
             "gamma",
         )
-        invalid = contract(
-            observation_mode="scheduled", observation_times=[START + timedelta(days=3)]
-        )
-        self.assert_rejection(
-            InvalidInputError,
-            engine.price,
-            invalid,
-            context.replace(calendar=weekdays_calendar()),
-        )
+        with self.assertRaises(InvalidInputError):
+            contract(
+                observation_mode="scheduled",
+                observation_times=[START + timedelta(days=3)],
+            )
         self.assertEqual(engine.price(option, context), quote)
         self.assertEqual(context.model_parameters.volatility, 0.2)
         self.assertIsNone(option.touch_state)
@@ -617,6 +613,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             expiry_time=dates[-1] + timedelta(days=1),
             observation_mode="scheduled",
             observation_times=dates,
+            calendar=all_days_calendar(),
         )
         engine = pricing.MonteCarloDoubleBarrierEngine(
             path_count=1, seed=42, sampling="sobol"

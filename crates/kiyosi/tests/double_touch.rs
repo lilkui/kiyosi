@@ -408,15 +408,8 @@ fn analytic_schedules_validate_then_resolve_or_reject() {
             < 1e-12
     );
     t.observation_times = vec![Date::new(2025, 1, 4).unwrap().start_of_day()];
-    let invalid_calendar = DoubleTouchOption::cash(t, 1.0).unwrap();
-    let weekdays = market(100.0)
-        .replace(PricingContextChanges {
-            calendar: Some(TradingCalendar::weekdays()),
-            ..Default::default()
-        })
-        .unwrap();
     assert!(matches!(
-        engine.price(&invalid_calendar, &weekdays),
+        DoubleTouchOption::cash(t, 1.0),
         Err(Error::InvalidInput(_))
     ));
 }
@@ -918,10 +911,9 @@ fn early_window_history_utc_calendar_and_fixed_cash_greeks() {
         Error::UnsupportedOperation(_)
     ));
     t.observation_times = vec![Date::new(2025, 1, 4).unwrap().start_of_day()];
-    let weekend = DoubleTouchOption::cash(t, 1.0).unwrap();
     assert!(matches!(
-        engine.price(&weekend, &market(130.0)).unwrap_err(),
-        Error::InvalidInput(_)
+        DoubleTouchOption::cash(t, 1.0),
+        Err(Error::InvalidInput(_))
     ));
     let at = engine
         .price_with_greeks(

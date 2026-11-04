@@ -7,6 +7,8 @@ use crate::{
 /// Cash double-touch inputs; see [`DoubleTouchOption::cash`] for validation and usage.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleTouchOptionTerms {
+    /// Owns the contractual observation calendar; defaults to weekdays.
+    pub calendar: TradingCalendar,
     /// Inclusive effective time.
     pub effective_time: Timestamp,
     /// Inclusive the inclusive expiry timestamp.
@@ -36,6 +38,7 @@ impl DoubleTouchOptionTerms {
         barrier_type: DoubleBarrierType,
     ) -> Self {
         Self {
+            calendar: TradingCalendar::default(),
             effective_time,
             expiry_time,
             lower_barrier,
@@ -64,12 +67,15 @@ pub struct DoubleTouchOption {
 impl DoubleTouchOption {
     /// Replaces the owned observation calendar; see [`Self::cash`] for construction.
     ///
-    /// Defaults to weekdays. Pricing validates scheduled observations independently
+    /// Defaults to weekdays. Construction and replacement validate scheduled observations independently
     /// of the market context's calendar. Other terms remain unchanged.
-    #[must_use]
-    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Self {
-        self.monitoring = self.monitoring.with_calendar(calendar);
-        self
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.
+    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Result<Self> {
+        self.monitoring = self.monitoring.with_calendar(calendar)?;
+        Ok(self)
     }
 
     /// Borrows the contract's observation calendar; see [`Self::with_calendar`].
@@ -79,7 +85,7 @@ impl DoubleTouchOption {
 
     /// Validates a cash double one-touch or no-touch contract before returning an owner.
     ///
-    /// Calendar compatibility and valuation-relative history are checked during pricing.
+    /// Calendar compatibility is checked on construction; valuation-relative history is checked during pricing.
     ///
     /// # Errors
     ///
@@ -133,6 +139,7 @@ impl DoubleTouchOption {
             terms.observation_mode,
             terms.observation_times,
             terms.touch_state,
+            terms.calendar,
         )?;
         Ok(Self {
             monitoring,
@@ -270,7 +277,7 @@ pub struct DoubleTouchOptionChanges {
 impl DoubleTouchOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
     /// See [`DoubleTouchOption::cash`] for construction examples.
     ///
     /// # Errors
@@ -280,6 +287,7 @@ impl DoubleTouchOption {
     pub fn replace(&self, changes: DoubleTouchOptionChanges) -> Result<Self> {
         Self::cash(
             DoubleTouchOptionTerms {
+                calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
                 effective_time: changes.effective_time.unwrap_or(self.effective_time()),
                 expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
                 lower_barrier: changes.lower_barrier.unwrap_or(self.lower_barrier()),
@@ -296,8 +304,5 @@ impl DoubleTouchOption {
             },
             changes.payout.unwrap_or(self.payout()),
         )
-        .map(|option| {
-            option.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar().clone()))
-        })
     }
 }

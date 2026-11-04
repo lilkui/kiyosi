@@ -11,6 +11,94 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_contractual_calendars_are_validated_before_pricing(self):
+        start, closed, end = (datetime(2025, 1, day) for day in (3, 4, 6))
+        life = {"effective_time": start, "expiry_time": end}
+        monitoring = {"observation_mode": "scheduled", "observation_times": [closed]}
+        single = {"barrier_level": 120, "barrier_type": "up_and_out"}
+        vanilla = {"option_type": "call", "strike": 100}
+        factories = [
+            (ins.BarrierOption, dict(life, **vanilla, **single, **monitoring)),
+            (
+                ins.DoubleBarrierOption,
+                dict(
+                    life,
+                    **vanilla,
+                    lower_barrier=80,
+                    upper_barrier=120,
+                    barrier_type="knock_out",
+                    **monitoring,
+                ),
+            ),
+            (
+                ins.cash_binary_barrier_option,
+                dict(life, **vanilla, **single, payout=10, **monitoring),
+            ),
+            (
+                ins.asset_binary_barrier_option,
+                dict(life, **vanilla, **single, **monitoring),
+            ),
+            (ins.cash_touch_option, dict(life, **single, payout=10, **monitoring)),
+            (ins.asset_touch_option, dict(life, **single, **monitoring)),
+            (
+                ins.cash_double_touch,
+                dict(
+                    life, lower_barrier=80, upper_barrier=120, payout=10, **monitoring
+                ),
+            ),
+            (
+                ins.Accumulator,
+                dict(
+                    life,
+                    strike=90,
+                    knock_out_level=110,
+                    daily_quantity=1,
+                    acceleration_factor=2,
+                    knock_out_observation_times=[closed],
+                ),
+            ),
+            (
+                ins.BinarySnowballOption,
+                dict(
+                    life,
+                    maturity_coupon_rate=0.1,
+                    observations=[ins.AutocallableObservation(closed, 110)],
+                ),
+            ),
+            (
+                ins.standard_snowball,
+                dict(
+                    life,
+                    initial_spot=100,
+                    knock_in_level=80,
+                    knock_out_level=110,
+                    coupon_rate=0.1,
+                    observation_times=[closed],
+                ),
+            ),
+            (
+                ins.RangeAccrualOption,
+                {
+                    "effective_time": start,
+                    "expiry_time": closed,
+                    "notional": 100,
+                    "annual_coupon_rate": 0.1,
+                    "lower_bound": 80,
+                    "upper_bound": 120,
+                },
+            ),
+        ]
+        for factory, fields in factories:
+            with self.subTest(contract=factory.__name__):
+                with self.assertRaises(InvalidInputError):
+                    factory(**fields)
+                option = factory(**fields, calendar=market.all_days_calendar())
+                with self.assertRaises(InvalidInputError):
+                    option.replace(calendar=market.weekdays_calendar())
+                self.assertEqual(option.calendar, market.all_days_calendar())
+                self.assertEqual(option.replace(), option)
+                self.assertEqual(pickle.loads(pickle.dumps(option)), option)
+
     def test_bounded_barrier_grids_keep_resolution_when_unused_upper_bound_changes(
         self,
     ):

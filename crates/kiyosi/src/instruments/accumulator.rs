@@ -6,6 +6,8 @@ use crate::{
 /// Supplies accumulator terms; see [`Accumulator::new`] for validation and usage.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AccumulatorTerms {
+    /// Owns the contractual observation calendar; defaults to weekdays.
+    pub calendar: TradingCalendar,
     /// Accumulation direction: call purchases, put sells; defaults to call.
     pub option_type: OptionType,
     /// Positive finite purchase or sale strike.
@@ -47,6 +49,7 @@ impl AccumulatorTerms {
         expiry_time: Timestamp,
     ) -> Self {
         Self {
+            calendar: TradingCalendar::default(),
             option_type: Self::DEFAULT_OPTION_TYPE,
             strike,
             knock_out_level,
@@ -79,13 +82,12 @@ impl AccumulatorTerms {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Accumulator {
     terms: AccumulatorTerms,
-    calendar: TradingCalendar,
 }
 impl Accumulator {
     /// Creates a validated contract, allowing equal life times and zero quantities.
     ///
     /// Validates explicit knock-out time order and life bounds here; trading-day
-    /// compatibility is checked against the contract's calendar at pricing.
+    /// compatibility is checked against the contract's calendar on construction.
     /// Neither endpoint must appear in the explicit schedule. Strike and barrier
     /// have no ordering constraint.
     ///
@@ -114,7 +116,7 @@ impl Accumulator {
     ///     Date::new(2025, 1, 1)?.start_of_day(), end);
     /// terms.option_type = OptionType::Put;
     /// terms.knock_out_observation_times = Some(vec![end]);
-    /// let sales = Accumulator::new(terms)?.with_calendar(kiyosi::TradingCalendar::all_days());
+    /// let sales = Accumulator::new(terms)?.with_calendar(kiyosi::TradingCalendar::all_days())?;
     /// assert_eq!(sales.option_type(), OptionType::Put);
     /// assert_eq!(sales.knock_out_observation_times(), Some([end].as_slice()));
     /// # Ok(()) }
@@ -145,25 +147,44 @@ impl Accumulator {
                 &TradingCalendar::all_days(),
             )?;
         }
-        Ok(Self {
-            terms,
-            calendar: TradingCalendar::default(),
-        })
+        let option = Self { terms };
+        option.validate_calendar()?;
+        Ok(option)
     }
 
     /// Replaces the owned accumulation calendar; see [`Self::new`] for construction.
     ///
-    /// Defaults to weekdays. Pricing checks observations, expiry and history against
+    /// Defaults to weekdays. Construction and replacement check observations and expiry against
     /// this calendar, independently of the market context. Other terms are retained.
-    #[must_use]
-    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Self {
-        self.calendar = calendar;
-        self
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.
+    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Result<Self> {
+        self.terms.calendar = calendar;
+        self.validate_calendar()?;
+        Ok(self)
+    }
+
+    fn validate_calendar(&self) -> Result<()> {
+        if !self.calendar().is_trading_day(self.expiry_time().date()) {
+            return Err(Error::InvalidInput("expiry must be a trading day".into()));
+        }
+        if self.knock_out_observation_times().is_some_and(|times| {
+            times
+                .iter()
+                .any(|time| !self.calendar().is_trading_day(time.date()))
+        }) {
+            return Err(Error::InvalidInput(
+                "knock-out observation is not a trading day".into(),
+            ));
+        }
+        Ok(())
     }
 
     /// Borrows the contract's accumulation calendar; see [`Self::with_calendar`].
     pub fn calendar(&self) -> &TradingCalendar {
-        &self.calendar
+        &self.terms.calendar
     }
     /// Returns an owning replacement of accrued quantity; `None` restores unknown history.
     ///
@@ -227,18 +248,6 @@ impl Accumulator {
         if valuation < self.effective_time() || valuation > self.expiry_time() {
             return Err(Error::InvalidInput(
                 "valuation must be within contract life".into(),
-            ));
-        }
-        if !self.calendar().is_trading_day(self.expiry_time().date()) {
-            return Err(Error::InvalidInput("expiry must be a trading day".into()));
-        }
-        if self.knock_out_observation_times().is_some_and(|times| {
-            times
-                .iter()
-                .any(|time| !self.calendar().is_trading_day(time.date()))
-        }) {
-            return Err(Error::InvalidInput(
-                "knock-out observation is not a trading day".into(),
             ));
         }
         let has_prior = ObservationSchedule::daily(
@@ -498,7 +507,7 @@ pub struct AccumulatorChanges {
 impl Accumulator {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
     /// Set `terminated: Some(true)` to record a settled knock-out without changing
     /// the stored accrued quantity. See [`Accumulator::new`] for construction examples.
     ///
@@ -508,6 +517,7 @@ impl Accumulator {
     /// this value unchanged.
     pub fn replace(&self, changes: AccumulatorChanges) -> Result<Self> {
         Self::new(AccumulatorTerms {
+            calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
             knock_out_level: changes.knock_out_level.unwrap_or(self.knock_out_level()),
@@ -525,9 +535,6 @@ impl Accumulator {
                 self.knock_out_observation_times()
                     .map(<[Timestamp]>::to_vec)
             }),
-        })
-        .map(|option| {
-            option.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar.clone()))
         })
     }
 }

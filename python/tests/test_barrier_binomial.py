@@ -405,17 +405,12 @@ class BarrierBinomialTests(unittest.TestCase):
                     context,
                     math.nan,
                 )
-        invalid = option(
-            observation_mode="scheduled",
-            observation_times=[datetime(2025, 1, 4)],
-            calendar=weekdays_calendar(),
-        )
-        weekdays = PricingContext(
-            model_parameters=market().model_parameters,
-            spot_price=100,
-            valuation_time=START,
-        )
-        self.assert_rejection(InvalidInputError, engine.price, invalid, weekdays)
+        with self.assertRaises(InvalidInputError):
+            option(
+                observation_mode="scheduled",
+                observation_times=[datetime(2025, 1, 4)],
+                calendar=weekdays_calendar(),
+            )
         for sigma, rate in ((1e-200, 0.03), (50, 0.03), (0.2, -1000)):
             self.assert_rejection(
                 ComputationFailureError,

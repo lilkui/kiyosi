@@ -19,6 +19,8 @@ pub enum SettlementTiming {
 /// [`BinaryBarrierOption::asset`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinaryBarrierTerms {
+    /// Owns the contractual observation calendar; defaults to weekdays.
+    pub calendar: TradingCalendar,
     /// Call-or-put payoff direction.
     pub option_type: OptionType,
     /// Positive finite strike; terminal equality pays zero.
@@ -51,6 +53,7 @@ impl BinaryBarrierTerms {
         barrier_type: BarrierType,
     ) -> Self {
         Self {
+            calendar: TradingCalendar::default(),
             option_type,
             strike,
             effective_time,
@@ -71,6 +74,7 @@ impl BinaryBarrierTerms {
             self.observation_mode,
             self.observation_times,
             self.touch_state,
+            self.calendar,
         )
     }
 }
@@ -92,8 +96,8 @@ impl BinaryBarrierOption {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for invalid payout, strike, life,
-    /// barrier or fixing times, checked in that order. History relative to valuation
-    /// and calendar compatibility are checked during pricing.
+    /// barrier, fixing times or calendar compatibility, checked in that order.
+    /// History relative to valuation is checked during pricing.
     ///
     /// # Examples
     ///
@@ -176,6 +180,8 @@ impl BinaryBarrierOption {
 /// Strike-free touch inputs; validated by [`TouchOption::cash`] or [`TouchOption::asset`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct TouchOptionTerms {
+    /// Owns the contractual observation calendar; defaults to weekdays.
+    pub calendar: TradingCalendar,
     /// Inclusive effective time.
     pub effective_time: Timestamp,
     /// Inclusive the inclusive expiry timestamp.
@@ -204,6 +210,7 @@ impl TouchOptionTerms {
         barrier_type: BarrierType,
     ) -> Self {
         Self {
+            calendar: TradingCalendar::default(),
             effective_time,
             expiry_time,
             barrier_level,
@@ -228,6 +235,7 @@ impl TouchOptionTerms {
             self.observation_mode,
             self.observation_times,
             self.touch_state,
+            self.calendar,
         )
     }
 }
@@ -340,10 +348,13 @@ macro_rules! monitoring_accessors {
             /// Replaces the owned observation calendar; see [`crate::BarrierOption::with_calendar`].
             ///
             /// Defaults to weekdays; pricing checks scheduled dates independently of the market context.
-            #[must_use]
-            pub fn with_calendar(mut self, calendar: TradingCalendar) -> Self {
-                self.monitoring = self.monitoring.with_calendar(calendar);
-                self
+            ///
+            /// # Errors
+            ///
+            /// Returns [`crate::Error::InvalidInput`] for scheduled observations on closed dates.
+            pub fn with_calendar(mut self, calendar: TradingCalendar) -> Result<Self> {
+                self.monitoring = self.monitoring.with_calendar(calendar)?;
+                Ok(self)
             }
             /// Borrows the contract's observation calendar; see [`Self::with_calendar`].
             pub fn calendar(&self) -> &TradingCalendar {
@@ -499,7 +510,7 @@ pub struct BinaryBarrierOptionChanges {
 impl BinaryBarrierOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
     /// See [`BinaryBarrierOption::cash`] for construction examples.
     ///
     /// # Errors
@@ -514,6 +525,7 @@ impl BinaryBarrierOption {
             ));
         }
         let terms = BinaryBarrierTerms {
+            calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
             effective_time: changes.effective_time.unwrap_or(self.effective_time()),
@@ -530,9 +542,6 @@ impl BinaryBarrierOption {
             Some(payout) => Self::cash(terms, changes.payout.unwrap_or(payout)),
             None => Self::asset(terms),
         }
-        .map(|option| {
-            option.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar().clone()))
-        })
     }
 }
 
@@ -566,7 +575,7 @@ pub struct TouchOptionChanges {
 impl TouchOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
     /// See [`TouchOption::cash`] for construction examples.
     ///
     /// # Errors
@@ -581,6 +590,7 @@ impl TouchOption {
             ));
         }
         let terms = TouchOptionTerms {
+            calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             effective_time: changes.effective_time.unwrap_or(self.effective_time()),
             expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
             barrier_level: changes.barrier_level.unwrap_or(self.barrier_level()),
@@ -598,8 +608,5 @@ impl TouchOption {
             Some(payout) => Self::cash(terms, changes.payout.unwrap_or(payout)),
             None => Self::asset(terms),
         }
-        .map(|option| {
-            option.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar().clone()))
-        })
     }
 }

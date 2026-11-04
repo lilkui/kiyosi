@@ -347,8 +347,8 @@ macro_rules! snowball_preset {
         /// PricingContext.calendar does not change the monitoring schedule.
         #[doc = concat!("Knock-in is observed ", $monitoring, ".")]
         /// Unit principal, zero lower strike and initial spot as upper strike are used
-        /// unless the preset overrides them. History and trading-calendar consistency
-        /// are checked during pricing.
+        /// unless the preset overrides them. Trading-calendar consistency is checked on construction; history
+        /// is checked during pricing.
         #[doc = $notes]
         #[pyfunction]
         #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* observation_times, effective_time, expiry_time, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO, calendar=TradingCalendar::default()))]
@@ -375,7 +375,8 @@ macro_rules! snowball_preset {
                 terms.barrier_state = state(value)?;
             }
             terms.principal_ratio = principal_ratio;
-            Ok(SnowballOption(domain(terms.expand($preset))?.with_calendar(calendar.0)))
+            terms.calendar = calendar.0;
+            Ok(SnowballOption(domain(terms.expand($preset))?))
         }
     };
     (@type real) => { "float" };
@@ -660,7 +661,8 @@ snowball_properties! {
             terms.barrier_state = state(value)?;
         }
         terms.principal_ratio = principal_ratio;
-        Ok(Self(domain(kiyosi::SnowballOption::new(terms))?.with_calendar(calendar.0)))
+        terms.calendar = calendar.0;
+        Ok(Self(domain(kiyosi::SnowballOption::new(terms))?))
     },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
@@ -809,7 +811,8 @@ snowball_properties! {
             terms.barrier_state = state(value)?;
         }
         terms.principal_ratio = principal_ratio;
-        Ok(Self(domain(kiyosi::BinarySnowballOption::new(terms))?.with_calendar(calendar.0)))
+        terms.calendar = calendar.0;
+        Ok(Self(domain(kiyosi::BinarySnowballOption::new(terms))?))
     },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
@@ -958,7 +961,8 @@ snowball_properties! {
             terms.barrier_state = state(value)?;
         }
         terms.principal_ratio = principal_ratio;
-        Ok(Self(domain(kiyosi::TernarySnowballOption::new(terms))?.with_calendar(calendar.0)))
+        terms.calendar = calendar.0;
+        Ok(Self(domain(kiyosi::TernarySnowballOption::new(terms))?))
     },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
@@ -1169,7 +1173,8 @@ autocallable_properties! {
             terms.barrier_state = state(value)?;
         }
         terms.principal_ratio = principal_ratio;
-        Ok(Self(domain(kiyosi::PhoenixOption::new(terms))?.with_calendar(calendar.0)))
+        terms.calendar = calendar.0;
+        Ok(Self(domain(kiyosi::PhoenixOption::new(terms))?))
     },
     /// Returns an independent Phoenix note with a coupon in the existing units.
     ///
@@ -1316,7 +1321,8 @@ macro_rules! phoenix_preset {
                 terms.barrier_state = state(value)?;
             }
             terms.principal_ratio = principal_ratio;
-            Ok(PhoenixOption(domain(terms.expand($preset))?.with_calendar(calendar.0)))
+            terms.calendar = calendar.0;
+            Ok(PhoenixOption(domain(terms.expand($preset))?))
         }
     };
 }

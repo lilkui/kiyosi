@@ -298,8 +298,6 @@ class DoubleBarrierTests(unittest.TestCase):
     def test_schedules_validate_then_resolve_before_analytic_restrictions(self):
         from datetime import datetime
 
-        from kiyosi.market import weekdays_calendar
-
         engine = AnalyticDoubleBarrierEngine()
         first = datetime(2025, 6, 30)
         for dates in ([first], [first, END]):
@@ -355,13 +353,10 @@ class DoubleBarrierTests(unittest.TestCase):
                 )
             )
             self.assertAlmostEqual(engine.price(known, intraday), expected, delta=1e-12)
-        weekend = contract(
-            observation_mode="scheduled", observation_times=[datetime(2025, 7, 5)]
-        )
-        restricted = market().replace(calendar=weekdays_calendar())
-        self.assert_rejection(
-            InvalidInputError, lambda: engine.price(weekend, restricted)
-        )
+        with self.assertRaises(InvalidInputError):
+            contract(
+                observation_mode="scheduled", observation_times=[datetime(2025, 7, 5)]
+            )
 
     def test_image_spectral_switch_boundary_limits_and_tiny_volatility(self):
         engine = AnalyticDoubleBarrierEngine()

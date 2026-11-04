@@ -17,6 +17,7 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = BarrierOption::new(BarrierOptionTerms {
+        calendar: TradingCalendar::default(),
         option_type: OptionType::Call,
         strike: 100.0,
         effective_time: start,
@@ -107,6 +108,7 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = DoubleBarrierOption::new(DoubleBarrierOptionTerms {
+        calendar: TradingCalendar::default(),
         option_type: OptionType::Call,
         strike: 100.0,
         effective_time: start,
@@ -207,6 +209,7 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = BinaryBarrierOption::cash(
         BinaryBarrierTerms {
+            calendar: TradingCalendar::default(),
             option_type: OptionType::Call,
             strike: 100.0,
             effective_time: start,
@@ -305,6 +308,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = TouchOption::cash(
         TouchOptionTerms {
+            calendar: TradingCalendar::default(),
             effective_time: start,
             expiry_time: end,
             barrier_level: 120.0,
@@ -399,6 +403,7 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = DoubleTouchOption::cash(
         DoubleTouchOptionTerms {
+            calendar: TradingCalendar::default(),
             effective_time: start,
             expiry_time: end,
             lower_barrier: 80.0,
@@ -491,6 +496,7 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = Accumulator::new(AccumulatorTerms {
+        calendar: TradingCalendar::default(),
         option_type: OptionType::Call,
         strike: 100.0,
         knock_out_level: 120.0,
@@ -572,6 +578,7 @@ fn range_accrual_option_replacements_preserve_omissions_and_validate_each_field(
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = RangeAccrualOption::new(RangeAccrualTerms {
+        calendar: TradingCalendar::default(),
         notional: 1000.0,
         annual_coupon_rate: 0.12,
         lower_bound: 90.0,
@@ -637,6 +644,7 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = SnowballOption::new(SnowballTerms {
+        calendar: TradingCalendar::default(),
         maturity_coupon_rate: 0.1,
         initial_spot: 100.0,
         knock_in_level: 80.0,
@@ -754,6 +762,7 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = PhoenixOption::new(PhoenixTerms {
+        calendar: TradingCalendar::default(),
         coupon: PhoenixCoupon::Annual(0.1),
         initial_spot: 100.0,
         knock_in_level: 80.0,
@@ -871,6 +880,7 @@ fn binary_snowball_option_replacements_preserve_omissions_and_validate_each_fiel
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = BinarySnowballOption::new(BinarySnowballTerms {
+        calendar: TradingCalendar::default(),
         maturity_coupon_rate: 0.1,
         barrier_state: Some(AutocallableBarrierState::NoEvent),
         principal_ratio: 1.0,
@@ -950,6 +960,7 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = TernarySnowballOption::new(TernarySnowballTerms {
+        calendar: TradingCalendar::default(),
         maturity_coupon_rate: 0.1,
         minimum_coupon_rate: 0.02,
         knock_in_level: 80.0,

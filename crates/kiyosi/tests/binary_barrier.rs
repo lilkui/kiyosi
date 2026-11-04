@@ -233,13 +233,8 @@ fn schedules_stop_monitoring_and_only_observe_at_midnight() {
     ));
     t.observation_times = vec![day(2025, 1, 4), t.expiry_time];
     assert!(matches!(
-        engine
-            .price(
-                &TouchOption::cash(t, 10.0).unwrap(),
-                &market(120.0, day(2025, 1, 1)),
-            )
-            .unwrap_err(),
-        Error::InvalidInput(_)
+        TouchOption::cash(t, 10.0),
+        Err(Error::InvalidInput(_))
     ));
 }
 

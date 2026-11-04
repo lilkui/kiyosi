@@ -14,8 +14,8 @@
 //! Monte Carlo engines expose `price_with_statistics` for sampling uncertainty;
 //! vanilla statistics require European contracts. See [`MonteCarloEstimate`] for
 //! applicability and [`PricingEngine::price_with_statistics`] for generic access.
-//! Contract constructors validate terms; pricing validates
-//! valuation dates, calendar consistency and required prior history. All built-in
+//! Contract constructors validate terms and contractual calendar compatibility; pricing validates
+//! valuation dates and required prior history. All built-in
 //! contracts support validated immutable `replace` operations; omitted terms and
 //! history remain unchanged. See [`BarrierOption::replace`] for an exotic example.
 //! Contract effective and expiry timestamps are inclusive and preserve microseconds.
@@ -24,8 +24,9 @@
 //! caller-selected time basis. Calendars classify dates without moving contract
 //! boundaries. Pure calendar inputs remain [`Date`] values.
 //! Barrier and touch contracts, range accruals, accumulators and autocallables own their observation calendars
-//! (weekdays by default); their `with_calendar` and `replace` operations select
-//! contractual calendars independently of [`PricingContext`].
+//! (weekdays by default). Set `terms.calendar` before construction to validate
+//! observations against a custom calendar. Their fallible `with_calendar` and
+//! `replace` operations validate calendar changes independently of [`PricingContext`].
 //! Explicit observations use their exact timestamps. Implicit daily observations use
 //! the expiry clock time; snowballs and accumulators include the effective instant,
 //! while range accruals exclude it. Events strictly before valuation require history;

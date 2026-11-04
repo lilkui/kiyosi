@@ -24,6 +24,11 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
     );
     terms.observation_mode = ObservationMode::Scheduled;
     terms.observation_times = observations.clone();
+    assert!(matches!(
+        BarrierOption::new(terms.clone()),
+        Err(Error::InvalidInput(_))
+    ));
+    terms.calendar = TradingCalendar::all_days();
     let option = BarrierOption::new(terms)?;
     let owned = option.replace(BarrierOptionChanges {
         calendar: Some(TradingCalendar::all_days()),
@@ -41,12 +46,6 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
             ..Default::default()
         })?,
     ] {
-        for market in [&context, &daily_market] {
-            assert!(matches!(
-                engine.price(&option, market),
-                Err(Error::InvalidInput(_))
-            ));
-        }
         assert_eq!(
             engine.price(&owned, &context)?,
             engine.price(&owned, &daily_market)?
@@ -54,7 +53,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
     }
     assert_eq!(owned.replace(Default::default())?, owned);
     assert_eq!(owned.replace_history(None), owned);
-    assert_eq!(option.calendar(), &TradingCalendar::weekdays());
+    assert_eq!(option.calendar(), &TradingCalendar::all_days());
 
     macro_rules! check {
         ($option:expr, $engine:expr, $changes:expr) => {{
@@ -63,9 +62,11 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
             assert_eq!(owned.calendar(), &TradingCalendar::all_days());
             assert_eq!(owned.replace(Default::default())?, owned);
             assert_eq!(owned.replace_history(None), owned);
-            assert_eq!(option.calendar(), &TradingCalendar::weekdays());
+            assert_eq!(option.calendar(), &TradingCalendar::all_days());
+            let mut invalid = $changes;
+            invalid.calendar = Some(TradingCalendar::weekdays());
             assert!(matches!(
-                $engine.price(&option, &daily_market),
+                option.replace(invalid),
                 Err(Error::InvalidInput(_))
             ));
             assert_eq!(
@@ -83,6 +84,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
         120.0,
         DoubleBarrierType::KnockOut,
     );
+    double.calendar = TradingCalendar::all_days();
     double.observation_mode = ObservationMode::Scheduled;
     double.observation_times = observations.clone();
     check!(
@@ -101,6 +103,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
         120.0,
         BarrierType::UpAndOut,
     );
+    binary.calendar = TradingCalendar::all_days();
     binary.observation_mode = ObservationMode::Scheduled;
     binary.observation_times = observations.clone();
     check!(
@@ -112,6 +115,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
         }
     );
     let mut touch = TouchOptionTerms::new(start, expiry, 120.0, BarrierType::UpAndIn);
+    touch.calendar = TradingCalendar::all_days();
     touch.observation_mode = ObservationMode::Scheduled;
     touch.observation_times = observations.clone();
     check!(
@@ -124,6 +128,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
     );
     let mut double =
         DoubleTouchOptionTerms::new(start, expiry, 80.0, 120.0, DoubleBarrierType::KnockIn);
+    double.calendar = TradingCalendar::all_days();
     double.observation_mode = ObservationMode::Scheduled;
     double.observation_times = observations;
     check!(

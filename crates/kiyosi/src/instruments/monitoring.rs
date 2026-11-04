@@ -25,6 +25,10 @@ pub(crate) struct Monitoring {
 }
 
 impl Monitoring {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "complete monitoring terms include their contractual calendar"
+    )]
     pub(crate) fn new(
         effective_time: Timestamp,
         expiry_time: Timestamp,
@@ -33,6 +37,7 @@ impl Monitoring {
         observation_mode: ObservationMode,
         observation_times: Vec<Timestamp>,
         touch_state: Option<BarrierTouchState>,
+        calendar: TradingCalendar,
     ) -> Result<Self> {
         if !barrier_level.is_finite() || barrier_level <= 0.0 {
             return Err(Error::InvalidInput(
@@ -44,12 +49,8 @@ impl Monitoring {
                 "monitoring mode and dates disagree".into(),
             ));
         }
-        let schedule = ObservationSchedule::new(
-            observation_times,
-            effective_time,
-            expiry_time,
-            &TradingCalendar::all_days(),
-        )?;
+        let schedule =
+            ObservationSchedule::new(observation_times, effective_time, expiry_time, &calendar)?;
         Ok(Self {
             effective_time,
             expiry_time,
@@ -57,7 +58,7 @@ impl Monitoring {
             barrier_type,
             observation_mode,
             schedule,
-            calendar: TradingCalendar::default(),
+            calendar,
             touch_state,
         })
     }
@@ -68,9 +69,10 @@ impl Monitoring {
             ..self.clone()
         }
     }
-    pub(crate) fn with_calendar(mut self, calendar: TradingCalendar) -> Self {
+    pub(crate) fn with_calendar(mut self, calendar: TradingCalendar) -> Result<Self> {
+        validate_schedule(&self.schedule, &calendar)?;
         self.calendar = calendar;
-        self
+        Ok(self)
     }
     pub(crate) fn calendar(&self) -> &TradingCalendar {
         &self.calendar

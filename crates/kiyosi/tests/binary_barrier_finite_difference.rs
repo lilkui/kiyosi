@@ -447,10 +447,9 @@ fn grids_schedules_and_validation_fail_before_mutating_inputs() {
     terms.observation_mode = ObservationMode::Scheduled;
     terms.observation_times = vec![Date::new(2025, 1, 4).unwrap().start_of_day()];
     terms.touch_state = Some(BarrierTouchState::Touched);
-    let weekend = TouchOption::cash(terms.clone(), 10.0).unwrap();
     assert!(matches!(
-        engine(400).price(&weekend, &market()).unwrap_err(),
-        Error::InvalidInput(_)
+        TouchOption::cash(terms.clone(), 10.0),
+        Err(Error::InvalidInput(_))
     ));
     terms.barrier_type = BarrierType::UpAndOut;
     terms.settlement_timing = SettlementTiming::AtHit;

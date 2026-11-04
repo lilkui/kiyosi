@@ -1,6 +1,6 @@
 use super::{path_means, scaled_value, unstable};
 use crate::engines::analytic::barrier::{hit_value, resolved_price};
-use crate::instruments::monitoring::{validate_life, validate_schedule};
+use crate::instruments::monitoring::validate_life;
 use crate::numerics::log_ratio;
 use crate::{
     AnalyticEuropeanEngine, BarrierOption, DoubleBarrierOption, Greek, GreeksRequest,
@@ -209,7 +209,6 @@ impl MonteCarloBarrierEngine {
         };
         self.validate_applicability(context)?;
         validate_life(option, context)?;
-        validate_schedule(option.observation_schedule(), option.calendar())?;
         let time = context.valuation_time();
         let expiry = option.expiry_time();
         let radius =

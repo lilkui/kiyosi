@@ -333,10 +333,9 @@ fn unresolved_schedules_reject_after_calendar_history_and_settlement_validation(
             < 1e-12
     );
     t.observation_times = vec![day(2025, 7, 5)];
-    let weekend = DoubleBarrierOption::new(t).unwrap();
     assert!(matches!(
-        engine.price(&weekend, &context).unwrap_err(),
-        Error::InvalidInput(_)
+        DoubleBarrierOption::new(t),
+        Err(Error::InvalidInput(_))
     ));
 }
 

@@ -579,12 +579,9 @@ class AutocallableRegressionTests(unittest.TestCase):
                         )
                         / (200 * rate_shift),
                     )
+                    with self.assertRaises(InvalidInputError):
+                        note.replace(calendar=weekdays_calendar())
                     for option, shifted, expected_error in (
-                        (
-                            note.replace(calendar=weekdays_calendar()),
-                            context(calendar=weekdays_calendar()),
-                            InvalidInputError,
-                        ),
                         (missing_history, base, InvalidInputError),
                     ):
                         with self.assertRaises(expected_error) as error:

@@ -918,16 +918,9 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
     let mut t = terms(OptionType::Call, DoubleBarrierType::KnockOut);
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_times = vec![Date::new(2025, 1, 4).unwrap().start_of_day()];
-    let invalid = DoubleBarrierOption::new(t).unwrap();
-    let weekdays = context
-        .replace(PricingContextChanges {
-            calendar: Some(TradingCalendar::default()),
-            ..Default::default()
-        })
-        .unwrap();
     assert!(matches!(
-        engine.price(&invalid, &weekdays).unwrap_err(),
-        Error::InvalidInput(_)
+        DoubleBarrierOption::new(t),
+        Err(Error::InvalidInput(_))
     ));
     for (rate, sigma) in [(-1000.0, 0.2), (0.04, 50.0)] {
         let extreme = context
@@ -996,6 +989,7 @@ fn sobol_dimension_limit_counts_the_unobserved_expiry_leg() {
         .filter(|date| *date > t.effective_time)
         .take(21201)
         .collect();
+    t.calendar = TradingCalendar::all_days();
     let option = DoubleBarrierOption::new(t).unwrap();
     assert!(matches!(
         engine().price(&option, &market()).unwrap_err(),

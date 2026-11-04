@@ -20,8 +20,9 @@ pickle preserve the contract calendar.
 Explicit observations use their supplied times; daily observations use the expiry
 clock time. Snowballs and accumulators include the effective instant; range accruals
 exclude it. Explicit accumulator knock-out observations do not add quantity;
-coincident events check knock-out before accumulating. Constructors validate terms;
-pricing validates their consistency with the market snapshot, calendar and supplied history.
+coincident events check knock-out before accumulating. Constructors validate terms and contractual calendar compatibility, including
+explicit observation dates and required trading-day expiries. Pricing validates
+consistency with the market snapshot and supplied history.
 History describes events strictly before valuation; a current observation
 is evaluated from the current spot. ``replace()`` replaces constructor terms on every contract. Omitted terms and
 history are preserved; supplied terms are validated together in Rust.

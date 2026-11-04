@@ -91,19 +91,7 @@ pub(crate) fn validate<T: AutocallableTerms>(
             "valuation must be within contract life".into(),
         ));
     }
-    if note
-        .observations()
-        .iter()
-        .any(|r| !note.calendar().is_trading_day(r.time.date()))
-    {
-        return Err(Error::InvalidInput(
-            "observation is not a trading day".into(),
-        ));
-    }
     note.prior(context.valuation_time(), note.calendar())?;
-    if !note.calendar().is_trading_day(note.expiry_time().date()) {
-        return Err(Error::InvalidInput("expiry is not a trading day".into()));
-    }
     Ok(())
 }
 

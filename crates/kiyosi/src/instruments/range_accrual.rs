@@ -1,8 +1,10 @@
 use crate::{Error, OptionContract, PricingContext, Result, Timestamp, TradingCalendar};
 
 /// Supplies equally weighted range-coupon terms; see [`RangeAccrualOption::new`].
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RangeAccrualTerms {
+    /// Owns the contractual observation calendar; defaults to weekdays.
+    pub calendar: TradingCalendar,
     /// Positive finite coupon notional, without principal repayment.
     pub notional: f64,
     /// Nonnegative finite annual coupon rate.
@@ -30,6 +32,7 @@ impl RangeAccrualTerms {
         expiry_time: Timestamp,
     ) -> Self {
         Self {
+            calendar: TradingCalendar::default(),
             notional,
             annual_coupon_rate,
             lower_bound,
@@ -45,12 +48,11 @@ impl RangeAccrualTerms {
 ///
 /// Observes at the expiry clock time on trading dates in `(effective_time, expiry_time]`.
 /// Pays `notional * annual_coupon_rate * ACT/365 * hits / observations` at expiry.
-/// Calendar and history consistency are checked during pricing. Shared reads are safe.
+/// Calendar compatibility is checked on construction; history consistency is checked during pricing. Shared reads are safe.
 /// See [`Self::new`] for an example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RangeAccrualOption {
     terms: RangeAccrualTerms,
-    calendar: TradingCalendar,
 }
 
 impl RangeAccrualOption {
@@ -70,7 +72,7 @@ impl RangeAccrualOption {
     /// let terms = RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 17)?.start_of_day());
     /// let option = RangeAccrualOption::new(terms)?
-    ///     .with_calendar(kiyosi::TradingCalendar::weekdays());
+    ///     .with_calendar(kiyosi::TradingCalendar::weekdays())?;
     /// let seasoned = option.replace_history(Some(3))?;
     /// assert_eq!(seasoned.realized_hit_count(), Some(3));
     /// assert_eq!(seasoned.replace_history(None)?, option);
@@ -96,25 +98,35 @@ impl RangeAccrualOption {
                 "range accrual requires a positive contract term".into(),
             ));
         }
-        Ok(Self {
-            terms,
-            calendar: TradingCalendar::default(),
-        })
+        let option = Self { terms };
+        option.validate_calendar()?;
+        Ok(option)
     }
 
     /// Replaces the owned observation calendar; see [`Self::new`] for construction.
     ///
-    /// Defaults to weekdays. Pricing checks expiry and history against this calendar,
+    /// Defaults to weekdays. Construction and replacement check expiry against this calendar,
     /// independently of the market context's calendar. Other terms remain unchanged.
-    #[must_use]
-    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Self {
-        self.calendar = calendar;
-        self
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.
+    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Result<Self> {
+        self.terms.calendar = calendar;
+        self.validate_calendar()?;
+        Ok(self)
+    }
+
+    fn validate_calendar(&self) -> Result<()> {
+        if !self.calendar().is_trading_day(self.expiry_time().date()) {
+            return Err(Error::InvalidInput("expiry must be a trading day".into()));
+        }
+        Ok(())
     }
 
     /// Borrows the contract's observation calendar; see [`Self::with_calendar`].
     pub fn calendar(&self) -> &TradingCalendar {
-        &self.calendar
+        &self.terms.calendar
     }
 
     /// Returns an owning copy with replaced history; `None` restores unknown. See [`Self::new`].
@@ -229,7 +241,7 @@ pub struct RangeAccrualOptionChanges {
 impl RangeAccrualOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
     /// See [`RangeAccrualOption::new`] for construction examples.
     ///
     /// # Errors
@@ -238,6 +250,7 @@ impl RangeAccrualOption {
     /// this value unchanged.
     pub fn replace(&self, changes: RangeAccrualOptionChanges) -> Result<Self> {
         Self::new(RangeAccrualTerms {
+            calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             notional: changes.notional.unwrap_or(self.notional()),
             annual_coupon_rate: changes
                 .annual_coupon_rate
@@ -249,9 +262,6 @@ impl RangeAccrualOption {
             realized_hit_count: changes
                 .realized_hit_count
                 .unwrap_or(self.realized_hit_count()),
-        })
-        .map(|option| {
-            option.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar.clone()))
         })
     }
 }

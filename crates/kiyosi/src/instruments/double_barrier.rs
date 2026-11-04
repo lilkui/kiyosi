@@ -16,6 +16,8 @@ pub enum DoubleBarrierType {
 /// Input terms validated by [`DoubleBarrierOption::new`]; see its example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoubleBarrierOptionTerms {
+    /// Owns the contractual observation calendar; defaults to weekdays.
+    pub calendar: TradingCalendar,
     /// Call-or-put payoff direction.
     pub option_type: OptionType,
     /// Positive finite strike.
@@ -55,6 +57,7 @@ impl DoubleBarrierOptionTerms {
         barrier_type: DoubleBarrierType,
     ) -> Self {
         Self {
+            calendar: TradingCalendar::default(),
             option_type,
             strike,
             effective_time,
@@ -83,12 +86,15 @@ pub struct DoubleBarrierOption {
 impl DoubleBarrierOption {
     /// Replaces the owned observation calendar; see [`Self::new`] for construction.
     ///
-    /// Defaults to weekdays. Pricing validates scheduled observations independently
+    /// Defaults to weekdays. Construction and replacement validate scheduled observations independently
     /// of the market context's calendar. Other terms remain unchanged.
-    #[must_use]
-    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Self {
-        self.lower = self.lower.with_calendar(calendar);
-        self
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.
+    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Result<Self> {
+        self.lower = self.lower.with_calendar(calendar)?;
+        Ok(self)
     }
 
     /// Borrows the contract's observation calendar; see [`Self::with_calendar`].
@@ -98,7 +104,7 @@ impl DoubleBarrierOption {
 
     /// Validates boundaries, life, schedule, strike and rebate before returning an owner.
     ///
-    /// Calendar compatibility and history relative to valuation are checked during pricing.
+    /// Calendar compatibility is checked on construction; history relative to valuation is checked during pricing.
     ///
     /// # Errors
     ///
@@ -132,6 +138,7 @@ impl DoubleBarrierOption {
                 BarrierType::DownAndOut
             },
         );
+        lower.calendar = terms.calendar;
         lower.rebate = terms.rebate;
         lower.rebate_timing = terms.rebate_timing;
         lower.observation_mode = terms.observation_mode;
@@ -311,7 +318,7 @@ pub struct DoubleBarrierOptionChanges {
 impl DoubleBarrierOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
     /// See [`DoubleBarrierOption::new`] for construction examples.
     ///
     /// # Errors
@@ -320,6 +327,7 @@ impl DoubleBarrierOption {
     /// this value unchanged.
     pub fn replace(&self, changes: DoubleBarrierOptionChanges) -> Result<Self> {
         Self::new(DoubleBarrierOptionTerms {
+            calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
             effective_time: changes.effective_time.unwrap_or(self.effective_time()),
@@ -334,9 +342,6 @@ impl DoubleBarrierOption {
                 .observation_times
                 .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
-        })
-        .map(|option| {
-            option.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar().clone()))
         })
     }
 }

@@ -151,7 +151,10 @@ fn structured_contracts_own_calendars_independently_of_market_context() -> Resul
         price,
         AnalyticRangeAccrualEngine.price(&range, &other_expiry)?
     );
-    let daily = range.clone().with_calendar(TradingCalendar::all_days());
+    let daily = range
+        .clone()
+        .with_calendar(TradingCalendar::all_days())
+        .unwrap();
     assert!((AnalyticRangeAccrualEngine.price(&daily, &at_expiry)? - price / 3.0).abs() < 1e-12);
     assert_eq!(daily.replace_history(None)?.calendar(), daily.calendar());
     assert_eq!(daily.replace(Default::default())?, daily);
@@ -168,7 +171,9 @@ fn structured_contracts_own_calendars_independently_of_market_context() -> Resul
         engine.price(&accumulator, &context)?,
         engine.price(&accumulator, &daily_market)?
     );
-    let daily = accumulator.with_calendar(TradingCalendar::all_days());
+    let daily = accumulator
+        .with_calendar(TradingCalendar::all_days())
+        .unwrap();
     assert!((engine.price(&daily, &context)? - 40.0).abs() < 1e-7);
     assert_eq!(daily.replace_history(0.0)?.calendar(), daily.calendar());
 
@@ -187,7 +192,7 @@ fn structured_contracts_own_calendars_independently_of_market_context() -> Resul
         engine.price(&note, &context)?,
         engine.price(&note, &daily_market)?
     );
-    let daily = note.with_calendar(TradingCalendar::all_days());
+    let daily = note.with_calendar(TradingCalendar::all_days()).unwrap();
     assert_eq!(
         daily
             .replace_history(Some(AutocallableBarrierState::NoEvent))?
@@ -894,6 +899,104 @@ fn settings_validate_without_constructing_engines_or_pricing() -> Result<()> {
             ..Default::default()
         }
         .validate(),
+        Err(Error::InvalidInput(_))
+    ));
+    Ok(())
+}
+
+#[test]
+fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
+    let start = Date::new(2025, 1, 3)?.start_of_day();
+    let closed = start.add_days(1)?;
+    let end = start.add_days(3)?;
+    let mut terms = BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        120.0,
+        BarrierType::UpAndOut,
+    );
+    terms.observation_mode = ObservationMode::Scheduled;
+    terms.observation_times = vec![closed];
+    assert!(matches!(
+        BarrierOption::new(terms.clone()),
+        Err(Error::InvalidInput(_))
+    ));
+    terms.calendar = TradingCalendar::all_days();
+    let option = BarrierOption::new(terms)?;
+    assert!(matches!(
+        option.replace(BarrierOptionChanges {
+            calendar: Some(TradingCalendar::weekdays()),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(matches!(
+        option.clone().with_calendar(TradingCalendar::weekdays()),
+        Err(Error::InvalidInput(_))
+    ));
+    assert_eq!(option.calendar(), &TradingCalendar::all_days());
+    assert_eq!(
+        option
+            .replace(BarrierOptionChanges {
+                strike: Some(105.0),
+                ..Default::default()
+            })?
+            .observation_times(),
+        &[closed]
+    );
+    let mut terms = AccumulatorTerms::new(90.0, 110.0, 1.0, 2.0, start, end);
+    terms.knock_out_observation_times = Some(vec![closed]);
+    assert!(matches!(
+        Accumulator::new(terms.clone()),
+        Err(Error::InvalidInput(_))
+    ));
+    terms.calendar = TradingCalendar::all_days();
+    let accumulator = Accumulator::new(terms)?;
+    assert!(matches!(
+        accumulator.replace(AccumulatorChanges {
+            calendar: Some(TradingCalendar::weekdays()),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    let mut terms = BinarySnowballTerms::new(
+        0.1,
+        start,
+        end,
+        autocallable_observations(&[closed], &[110.0], None, None)?,
+    );
+    assert!(matches!(
+        BinarySnowballOption::new(terms.clone()),
+        Err(Error::InvalidInput(_))
+    ));
+    terms.calendar = TradingCalendar::all_days();
+    let note = BinarySnowballOption::new(terms)?;
+    assert!(matches!(
+        note.replace(BinarySnowballOptionChanges {
+            calendar: Some(TradingCalendar::weekdays()),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    assert_eq!(
+        note.with_coupon(0.2, CouponQuoteConvention::PreserveMaturityCoupon)?
+            .calendar(),
+        note.calendar()
+    );
+    let mut terms = RangeAccrualTerms::new(100.0, 0.1, 80.0, 120.0, start, closed);
+    assert!(matches!(
+        RangeAccrualOption::new(terms.clone()),
+        Err(Error::InvalidInput(_))
+    ));
+    terms.calendar = TradingCalendar::all_days();
+    let range = RangeAccrualOption::new(terms)?;
+    assert!(matches!(
+        range.replace(RangeAccrualOptionChanges {
+            calendar: Some(TradingCalendar::weekdays()),
+            ..Default::default()
+        }),
         Err(Error::InvalidInput(_))
     ));
     Ok(())

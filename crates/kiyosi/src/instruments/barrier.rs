@@ -57,6 +57,8 @@ pub enum RebateTiming {
 /// Input terms, validated by [`BarrierOption::new`]. See its example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarrierOptionTerms {
+    /// Owns the contractual observation calendar; defaults to weekdays.
+    pub calendar: TradingCalendar,
     /// Call-or-put payoff direction.
     pub option_type: OptionType,
     /// Positive finite strike.
@@ -96,6 +98,7 @@ impl BarrierOptionTerms {
         barrier_type: BarrierType,
     ) -> Self {
         Self {
+            calendar: TradingCalendar::default(),
             option_type,
             strike,
             effective_time,
@@ -125,12 +128,15 @@ pub struct BarrierOption {
 impl BarrierOption {
     /// Replaces the owned observation calendar, leaving other terms unchanged.
     ///
-    /// Defaults to weekdays. Pricing checks scheduled observations against this
+    /// Defaults to weekdays. Construction and replacement check scheduled observations against this
     /// calendar independently of the market context; see [`Self::new`].
-    #[must_use]
-    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Self {
-        self.monitoring = self.monitoring.with_calendar(calendar);
-        self
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.
+    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Result<Self> {
+        self.monitoring = self.monitoring.with_calendar(calendar)?;
+        Ok(self)
     }
 
     /// Borrows the contract's observation calendar; see [`Self::with_calendar`].
@@ -140,7 +146,7 @@ impl BarrierOption {
 
     /// Creates an owning contract after validating monitoring and payoff terms.
     ///
-    /// Trading-day compatibility and history relative to valuation are checked during pricing.
+    /// Trading-day compatibility is checked on construction; history relative to valuation is checked during pricing.
     ///
     /// # Errors
     ///
@@ -153,10 +159,11 @@ impl BarrierOption {
     /// ```rust
     /// use kiyosi::{BarrierOption, BarrierOptionTerms, BarrierType, Date, OptionType};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let terms = BarrierOptionTerms::new(OptionType::Call, 100.0,
+    /// let mut terms = BarrierOptionTerms::new(OptionType::Call, 100.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut);
-    /// let option = BarrierOption::new(terms)?.with_calendar(kiyosi::TradingCalendar::weekdays());
-    /// assert_eq!(option.calendar(), &kiyosi::TradingCalendar::weekdays());
+    /// terms.calendar = kiyosi::TradingCalendar::all_days();
+    /// let option = BarrierOption::new(terms)?;
+    /// assert_eq!(option.calendar(), &kiyosi::TradingCalendar::all_days());
     /// assert_eq!(option.barrier_level(), 120.0);
     /// assert_eq!(option.touch_state(), None);
     /// # Ok(()) }
@@ -170,6 +177,7 @@ impl BarrierOption {
             terms.observation_mode,
             terms.observation_times,
             terms.touch_state,
+            terms.calendar,
         )?;
         let vanilla = EuropeanOption::new(
             terms.option_type,
@@ -351,7 +359,7 @@ pub struct BarrierOptionChanges {
 impl BarrierOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar and valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
     /// See [`BarrierOption::new`] for construction examples.
     ///
     /// # Errors
@@ -377,6 +385,7 @@ impl BarrierOption {
     /// ```
     pub fn replace(&self, changes: BarrierOptionChanges) -> Result<Self> {
         Self::new(BarrierOptionTerms {
+            calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
             effective_time: changes.effective_time.unwrap_or(self.effective_time()),
@@ -390,9 +399,6 @@ impl BarrierOption {
                 .observation_times
                 .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
-        })
-        .map(|option| {
-            option.with_calendar(changes.calendar.unwrap_or_else(|| self.calendar().clone()))
         })
     }
 }

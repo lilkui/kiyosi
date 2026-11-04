@@ -178,7 +178,8 @@ macro_rules! double_touch_factory {
             terms.observation_mode = observation_mode;
             terms.observation_times = observation_times;
             terms.touch_state = touch_state;
-            Ok(DoubleTouchOption(domain(kiyosi::DoubleTouchOption::cash(terms, payout))?.with_calendar(calendar.0)))
+            terms.calendar = calendar.0;
+            Ok(DoubleTouchOption(domain(kiyosi::DoubleTouchOption::cash(terms, payout))?))
         }
     };
 }
@@ -224,8 +225,8 @@ InvalidInputError
 
 Notes
 -----
-Barrier equality counts as a touch. Strictly prior history and trading
-calendar compatibility are checked during pricing. Prior at-hit
+Barrier equality counts as a touch. Trading-calendar compatibility is checked
+on construction; strictly prior history is checked during pricing. Prior at-hit
 payments have no remaining value. No-touch payments occur only at
 expiry."
 );
@@ -269,8 +270,8 @@ InvalidInputError
 
 Notes
 -----
-Barrier equality counts as a touch. Strictly prior history and trading
-calendar compatibility are checked during pricing. Prior at-hit
+Barrier equality counts as a touch. Trading-calendar compatibility is checked
+on construction; strictly prior history is checked during pricing. Prior at-hit
 payments have no remaining value. No-touch payments occur only at
 expiry."
 );

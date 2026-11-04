@@ -168,9 +168,11 @@ fn prices_and_node_greeks_match_independent_paths_across_supported_terms() {
                                 t.observation_mode = ObservationMode::Scheduled;
                                 t.observation_times = vec![t.expiry_time];
                             }
-                            let option = BarrierOption::new(t)
-                                .unwrap()
-                                .with_calendar(TradingCalendar::all_days());
+                            let option = BarrierOption::new(BarrierOptionTerms {
+                                calendar: TradingCalendar::all_days(),
+                                ..t
+                            })
+                            .unwrap();
                             let mut observed = vec![!scheduled; steps + 1];
                             observed[steps] = true;
                             let result = engine
@@ -375,9 +377,11 @@ fn settings_validation_order_history_and_failure_state_match_core_contracts() {
         0.04,
         0.2,
     );
-    let unknown = BarrierOption::new(t.clone())
-        .unwrap()
-        .with_calendar(TradingCalendar::all_days());
+    let unknown = BarrierOption::new(BarrierOptionTerms {
+        calendar: TradingCalendar::all_days(),
+        ..t.clone()
+    })
+    .unwrap();
     assert!(matches!(
         engine.price(&unknown, &context).unwrap_err(),
         Error::InvalidInput(_)

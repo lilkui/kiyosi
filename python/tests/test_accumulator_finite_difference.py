@@ -121,6 +121,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         self.assertEqual(
             option.replace_history(accumulated_quantity=0.25).accumulated_quantity, 0.25
         )
+        self.assert_rejection(InvalidInputError, contract, datetime(2025, 1, 5))
         for instrument, context, expected_error in (
             (
                 option,
@@ -132,7 +133,6 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                 market(100, datetime(2025, 1, 6, 0, 0, 0, 1)),
                 InvalidInputError,
             ),
-            (contract(datetime(2025, 1, 5)), market(), InvalidInputError),
             (
                 contract(end, quantity=sys.float_info.max),
                 market(111, end),
@@ -173,7 +173,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             terminal_reference(option, context),
             delta=0.001,
         )
-        weekend = contract(datetime(2025, 1, 5))
+        weekend = contract(datetime(2025, 1, 5), calendar=all_days_calendar())
         self.assertTrue(
             math.isfinite(
                 engine.price(weekend.replace(calendar=all_days_calendar()), market())

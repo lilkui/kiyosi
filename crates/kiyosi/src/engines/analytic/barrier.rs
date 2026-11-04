@@ -1,4 +1,4 @@
-use crate::instruments::monitoring::{Monitoring, validate_life, validate_schedule};
+use crate::instruments::monitoring::{Monitoring, validate_life};
 use crate::numerics::{
     checked, checked_with_scale, log_ratio, scaled_cash, scaled_cdf, standardize,
 };
@@ -87,7 +87,6 @@ fn price(
                 && cached.calendar == *option.calendar()
         });
     if cached.is_none() {
-        validate_schedule(option.observation_schedule(), option.calendar())?;
         if let Some(schedule) = schedule {
             let _ = schedule.set(ScheduleValidation {
                 schedule: option.observation_schedule().clone(),

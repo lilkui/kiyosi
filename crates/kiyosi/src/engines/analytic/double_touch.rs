@@ -1,5 +1,5 @@
 use super::double_barrier::AbsorbingDistribution;
-use crate::instruments::monitoring::{validate_life, validate_schedule};
+use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked, scaled_cash};
 use crate::{
     DoubleTouchOption, Error, GreeksRequest, NumericalShiftSettings, ObservationMode,
@@ -52,7 +52,6 @@ impl AnalyticDoubleTouchEngine {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
         validate_life(option, context)?;
-        validate_schedule(option.observation_schedule(), option.calendar())?;
         let (prior, touched, finished) = option.contract().state(context)?;
         let at_hit = option.settlement_timing() == SettlementTiming::AtHit;
         if prior && at_hit {

@@ -182,16 +182,22 @@ class AccumulatorExtensionTests(unittest.TestCase):
             with self.subTest(dates=value), self.assertRaises(InvalidInputError):
                 contract(knock_out_observation_times=value)
 
-    def test_trading_calendar_validation_is_deferred_until_pricing(self):
-        weekend = contract(knock_out_observation_times=[datetime(2025, 1, 4)])
+    def test_trading_calendar_validation_precedes_pricing(self):
+        with self.assertRaises(InvalidInputError):
+            contract(knock_out_observation_times=[datetime(2025, 1, 4)])
+        with self.assertRaises(InvalidInputError):
+            contract(expiry_time=datetime(2025, 1, 5), knock_out_observation_times=[])
+        weekend = contract(
+            knock_out_observation_times=[datetime(2025, 1, 4)],
+            calendar=all_days_calendar(),
+        )
         weekend_expiry = contract(
-            expiry_time=datetime(2025, 1, 5), knock_out_observation_times=[]
+            expiry_time=datetime(2025, 1, 5),
+            knock_out_observation_times=[],
+            calendar=all_days_calendar(),
         )
         for engine in engines():
             with self.subTest(engine=type(engine).__name__):
-                for option in (weekend, weekend_expiry):
-                    with self.assertRaises(InvalidInputError):
-                        engine.price(option, market(110, START))
                 self.assertEqual(
                     engine.price(
                         weekend.replace(calendar=all_days_calendar()),

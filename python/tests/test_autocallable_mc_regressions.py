@@ -347,7 +347,11 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 )
 
     def test_current_knockouts_pay_only_contractual_coupon(self):
-        common = {"effective_time": START, "expiry_time": END}
+        common = {
+            "calendar": all_days_calendar(),
+            "effective_time": START,
+            "expiry_time": END,
+        }
         observations = autocallable_observations(
             [FIRST, MIDDLE, END],
             [100, 100, 100],
@@ -398,6 +402,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
 
     def test_historical_knockin_and_terminal_caps(self):
         common = {
+            "calendar": all_days_calendar(),
             "initial_spot": 100,
             "knock_in_level": 80,
             "knock_in_observation_mode": "every_trading_day",

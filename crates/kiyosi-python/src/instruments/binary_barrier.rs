@@ -305,7 +305,8 @@ macro_rules! binary_factory {
             terms.observation_mode = observation_mode;
             terms.observation_times = observation_times;
             terms.touch_state = touch_state;
-            Ok(BinaryBarrierOption(domain(kiyosi::BinaryBarrierOption::$constructor(terms $(, $payout)?))?.with_calendar(calendar.0)))
+            terms.calendar = calendar.0;
+            Ok(BinaryBarrierOption(domain(kiyosi::BinaryBarrierOption::$constructor(terms $(, $payout)?))?))
         }
     };
 }
@@ -354,8 +355,8 @@ InvalidInputError
 
 Notes
 -----
-Barrier equality counts as a touch. Strictly prior history and trading
-calendar compatibility are checked during pricing. Terminal strike
+Barrier equality counts as a touch. Trading-calendar compatibility is checked
+on construction; strictly prior history is checked during pricing. Terminal strike
 equality pays zero."
 );
 binary_factory!(
@@ -400,8 +401,8 @@ InvalidInputError
 
 Notes
 -----
-Barrier equality counts as a touch. Strictly prior history and trading
-calendar compatibility are checked during pricing. Terminal strike
+Barrier equality counts as a touch. Trading-calendar compatibility is checked
+on construction; strictly prior history is checked during pricing. Terminal strike
 equality pays zero."
 );
 
@@ -456,7 +457,7 @@ macro_rules! touch_factory {
         ///
         /// Notes
         /// -----
-        /// History and trading-calendar consistency are checked during pricing.
+        /// Trading-calendar consistency is checked on construction; history is checked during pricing.
         /// Prior at-hit payments have no remaining value. A current asset hit
         /// transfers spot; a future continuous asset hit transfers the barrier amount.
         /// See the kiyosi.instruments module examples for construction.
@@ -478,7 +479,8 @@ macro_rules! touch_factory {
             terms.observation_mode = observation_mode;
             terms.observation_times = observation_times;
             terms.touch_state = touch_state;
-            Ok(TouchOption(domain(kiyosi::TouchOption::$constructor(terms $(, $payout)?))?.with_calendar(calendar.0)))
+            terms.calendar = calendar.0;
+            Ok(TouchOption(domain(kiyosi::TouchOption::$constructor(terms $(, $payout)?))?))
         }
     };
 }

@@ -319,15 +319,12 @@ class BinaryBarrierTests(unittest.TestCase):
             self.assertEqual(known.observation_schedule.times, [fixing])
             self.assertEqual(known.observation_times, [fixing])
             self.assertAlmostEqual(known.mean_observation_year_fraction, 1 / 365)
-        weekend = self.touch(
-            observation_mode="scheduled",
-            observation_times=[datetime(2025, 1, 4)],
-            touch_state="touched",
-        )
-        self.assert_rejection(
-            InvalidInputError,
-            lambda: engine.price(weekend, self.context(time=datetime(2025, 1, 5))),
-        )
+        with self.assertRaises(InvalidInputError):
+            self.touch(
+                observation_mode="scheduled",
+                observation_times=[datetime(2025, 1, 4)],
+                touch_state="touched",
+            )
 
     def test_sensitivities_solve_expiry_curves_and_concurrent_reads(self):
         engine = AnalyticBinaryBarrierEngine()

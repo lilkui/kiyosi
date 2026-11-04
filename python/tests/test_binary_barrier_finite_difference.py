@@ -375,10 +375,10 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 touch(),
                 market(),
             )
-        weekend = touch(
-            observation_mode="scheduled", observation_times=[datetime(2025, 1, 4)]
-        )
-        self.assert_rejection(InvalidInputError, engine.price, weekend, market())
+        with self.assertRaises(InvalidInputError):
+            touch(
+                observation_mode="scheduled", observation_times=[datetime(2025, 1, 4)]
+            )
         with self.assertRaises(TypeError):
             engine.price(object(), market())
         with self.assertRaises(TypeError):

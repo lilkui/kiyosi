@@ -300,7 +300,6 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                 market(110, datetime(2025, 1, 6, 0, 0, 0, 1)),
                 InvalidInputError,
             ),
-            (contract(datetime(2025, 1, 5)), market(110, START), InvalidInputError),
             (
                 contract(quantity=sys.float_info.max),
                 market(111, START),

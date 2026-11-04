@@ -6,7 +6,7 @@ use super::{
     scaled, step, unstable, weighted_cdf,
 };
 use crate::instruments::binary_barrier::Contract;
-use crate::instruments::monitoring::{validate_life, validate_schedule};
+use crate::instruments::monitoring::validate_life;
 use crate::numerics::checked;
 use crate::{
     AnalyticDigitalEngine, BinaryBarrierOption, DigitalOption, DoubleTouchOption, ObservationMode,
@@ -257,7 +257,6 @@ fn native_with_diffusion<D: Diffusion>(
 ) -> Result<PricingResult> {
     let option = contract.monitoring;
     validate_life(option, context)?;
-    validate_schedule(option.observation_schedule(), option.calendar())?;
     let (prior, touched, finished) = contract.state(context)?;
     let upper_barrier = contract.upper_barrier;
     let knock_in = option.barrier_type().is_knock_in();

@@ -215,12 +215,9 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
             Error::InvalidInput(_)
         ));
     }
-    let weekend = Accumulator::new(terms(day(1, 5))).unwrap();
     assert!(matches!(
-        engine
-            .price(&weekend, &market(100.0, day(1, 3), 0.2, 0.04, 0.01))
-            .unwrap_err(),
-        Error::InvalidInput(_)
+        Accumulator::new(terms(day(1, 5))),
+        Err(Error::InvalidInput(_))
     ));
     let huge = option.replace_history(f64::MAX).unwrap();
     assert!(matches!(
@@ -450,7 +447,7 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
             ..Default::default()
         })
         .unwrap();
-        let option = option.with_calendar(context.calendar().clone());
+        let option = option.with_calendar(context.calendar().clone()).unwrap();
         let observations =
             ObservationSchedule::fixed_interval(day(1, 2), end, 1, context.calendar())
                 .unwrap()

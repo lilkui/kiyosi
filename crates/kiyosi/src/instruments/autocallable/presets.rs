@@ -4,6 +4,7 @@ use super::{
     SnowballTerms,
 };
 use crate::Timestamp;
+use crate::TradingCalendar;
 use crate::error::finite;
 use crate::{Error, Result};
 
@@ -71,6 +72,8 @@ pub enum SnowballPreset {
 /// See [`Self::expand`] for conventions, validation and an example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SnowballPresetTerms {
+    /// Owns the contractual observation calendar; defaults to weekdays.
+    pub calendar: TradingCalendar,
     /// Sets the annual coupon rate, or the first rate for a ladder or staged preset.
     pub coupon_rate: f64,
     /// Sets the positive reference spot and default upper strike.
@@ -104,6 +107,7 @@ impl SnowballPresetTerms {
         observation_times: Vec<Timestamp>,
     ) -> Self {
         Self {
+            calendar: TradingCalendar::default(),
             coupon_rate,
             initial_spot,
             knock_in_level,
@@ -183,6 +187,7 @@ impl SnowballPresetTerms {
             observations,
         );
         terms.barrier_state = self.barrier_state;
+        terms.calendar = self.calendar;
         terms.principal_ratio = self.principal_ratio;
         match preset {
             SnowballPreset::Standard => {}
@@ -287,6 +292,8 @@ pub enum PhoenixPreset {
 /// Supplies fixed coupon note (FCN) and digital coupon note (DCN) inputs; see [`Self::expand`] for conventions and an example.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PhoenixPresetTerms {
+    /// Owns the contractual observation calendar; defaults to weekdays.
+    pub calendar: TradingCalendar,
     /// Sets the finite signed proportion paid per qualifying observation, without day accrual.
     pub coupon_per_period: f64,
     /// Sets the positive reference spot used to normalize downside losses.
@@ -320,6 +327,7 @@ impl PhoenixPresetTerms {
         observation_times: Vec<Timestamp>,
     ) -> Self {
         Self {
+            calendar: TradingCalendar::default(),
             coupon_per_period,
             initial_spot,
             knock_in_level,
@@ -393,6 +401,7 @@ impl PhoenixPresetTerms {
         terms.coupon = PhoenixCoupon::PerPeriod(self.coupon_per_period);
         terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
         terms.barrier_state = self.barrier_state;
+        terms.calendar = self.calendar;
         terms.principal_ratio = self.principal_ratio;
         PhoenixOption::new(terms)
     }

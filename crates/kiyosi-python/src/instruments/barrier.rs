@@ -72,8 +72,8 @@ pub(crate) fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::Barri
 /// Raises
 /// ------
 /// InvalidInputError
-///     If levels, rebate, life times, monitoring schedule or rebate timing
-///     are invalid. Trading-day and valuation-history checks occur at pricing.
+///     If levels, rebate, life times, monitoring schedule, calendar or rebate timing
+///     are invalid. Trading-day compatibility is checked on construction; valuation-history checks occur at pricing.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct BarrierOption(pub kiyosi::BarrierOption);
@@ -213,9 +213,8 @@ monitoring_properties!(
         terms.observation_mode = observation_mode;
         terms.observation_times = observation_times;
         terms.touch_state = touch_state;
-        Ok(Self(
-            domain(kiyosi::BarrierOption::new(terms))?.with_calendar(calendar.0),
-        ))
+        terms.calendar = calendar.0;
+        Ok(Self(domain(kiyosi::BarrierOption::new(terms))?))
     },
     /// Return call or put payoff direction.
     #[getter]

@@ -413,9 +413,11 @@ fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
         .unwrap();
     for timing in [RebateTiming::AtHit, RebateTiming::AtExpiry] {
         t.rebate_timing = timing;
-        let option = BarrierOption::new(t.clone())
-            .unwrap()
-            .with_calendar(TradingCalendar::all_days());
+        let option = BarrierOption::new(BarrierOptionTerms {
+            calendar: TradingCalendar::all_days(),
+            ..t.clone()
+        })
+        .unwrap();
         let results: Vec<_> = [
             (FiniteDifferenceScheme::Rannacher, 4),
             (FiniteDifferenceScheme::ImplicitEuler, 8),

@@ -50,7 +50,7 @@ pub(crate) fn kind(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::DoubleBarrierTy
 /// ------
 /// InvalidInputError
 ///     If boundaries, strike, rebate, life times, monitoring schedule or
-///     rebate timing are invalid. Calendar and history checks occur at pricing.
+///     rebate timing are invalid. Calendar compatibility is checked on construction; history is checked during pricing.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct DoubleBarrierOption(pub kiyosi::DoubleBarrierOption);
@@ -198,9 +198,8 @@ monitoring_properties!(
         terms.observation_mode = observation_mode;
         terms.observation_times = observation_times;
         terms.touch_state = touch_state;
-        Ok(Self(
-            domain(kiyosi::DoubleBarrierOption::new(terms))?.with_calendar(calendar.0),
-        ))
+        terms.calendar = calendar.0;
+        Ok(Self(domain(kiyosi::DoubleBarrierOption::new(terms))?))
     },
     /// Return call or put payoff direction.
     #[getter]

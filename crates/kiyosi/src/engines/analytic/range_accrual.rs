@@ -68,12 +68,6 @@ impl AnalyticRangeAccrualEngine {
         crate::instruments::monitoring::validate_life(option, context)?;
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
-        if !option
-            .calendar()
-            .is_trading_day(option.expiry_time().date())
-        {
-            return Err(Error::InvalidInput("expiry must be a trading day".into()));
-        }
         let schedule = ObservationSchedule::daily(
             option.effective_time(),
             option.expiry_time(),

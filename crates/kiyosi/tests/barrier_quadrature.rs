@@ -300,11 +300,7 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
     }
     t.observation_times = vec![day(1, 4)];
     t.touch_state = Some(BarrierTouchState::Touched);
-    let invalid = BarrierOption::new(t).unwrap();
-    assert!(matches!(
-        engine.price(&invalid, &past).unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+    assert!(matches!(BarrierOption::new(t), Err(Error::InvalidInput(_))));
 }
 
 #[test]

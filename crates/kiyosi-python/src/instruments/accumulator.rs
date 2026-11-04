@@ -41,7 +41,7 @@ use pyo3::types::PyAny;
 /// InvalidInputError
 ///     If strike or knock-out level is invalid, quantities are negative or
 ///     non-finite, expiry precedes effective_time, or explicit times are invalid.
-///     Trading-timestamp compatibility is checked against the calendar at pricing.
+///     Trading-timestamp compatibility is checked against the calendar on construction.
 ///
 /// Notes
 /// -----
@@ -195,9 +195,8 @@ impl Accumulator {
         terms.option_type = option_type;
         terms.knock_out_observation_times =
             knock_out_observation_times.map(timestamps).transpose()?;
-        Ok(Self(
-            domain(kiyosi::Accumulator::new(terms))?.with_calendar(calendar.0),
-        ))
+        terms.calendar = calendar.0;
+        Ok(Self(domain(kiyosi::Accumulator::new(terms))?))
     }
     /// Return a validated replacement without changing this value.
     ///

@@ -20,7 +20,6 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     all_days_calendar,
-    weekdays_calendar,
 )
 from support.terminal import assert_terminal_greeks
 
@@ -573,12 +572,9 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             InvalidInputError, lambda: clipped.price(contract(), market())
         )
         weekend = datetime(2025, 7, 5)
-        option = contract(observation_mode="scheduled", observation_times=[weekend])
+        with self.assertRaises(InvalidInputError):
+            contract(observation_mode="scheduled", observation_times=[weekend])
         engine = pricing.FiniteDifferenceDoubleBarrierEngine()
-        self.assert_core_error(
-            InvalidInputError,
-            lambda: engine.price(option, market(calendar=weekdays_calendar())),
-        )
         option, context = contract(), market()
         expected = engine.price(option, context)
         with ThreadPoolExecutor(max_workers=2) as pool:

@@ -397,7 +397,10 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
                 ..Default::default()
             })
             .unwrap();
-        let holiday_option = option.clone().with_calendar(holidays.calendar().clone());
+        let holiday_option = option
+            .clone()
+            .with_calendar(holidays.calendar().clone())
+            .unwrap();
         let result = monte_carlo
             .price_with_statistics(&holiday_option, &holidays)
             .unwrap();
@@ -493,7 +496,13 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
         ));
         assert_eq!(updated.accumulated_quantity().unwrap(), 0.25);
     }
-    let weekend = Accumulator::new(terms(OptionType::Put, Some(vec![day(4)]))).unwrap();
+    let mut weekend_terms = terms(OptionType::Put, Some(vec![day(4)]));
+    assert!(matches!(
+        Accumulator::new(weekend_terms.clone()),
+        Err(Error::InvalidInput(_))
+    ));
+    weekend_terms.calendar = TradingCalendar::all_days();
+    let weekend = Accumulator::new(weekend_terms).unwrap();
     let weekday_context = market(
         100.25,
         Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap(),
@@ -506,14 +515,19 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
         })
         .unwrap();
     for engine in engines() {
-        assert!(matches!(
-            engine.price(&weekend, &weekday_context),
-            Err(Error::InvalidInput(_))
-        ));
+        assert!(
+            engine
+                .price(&weekend, &weekday_context)
+                .unwrap()
+                .is_finite()
+        );
         assert!(
             engine
                 .price(
-                    &weekend.clone().with_calendar(TradingCalendar::all_days()),
+                    &weekend
+                        .clone()
+                        .with_calendar(TradingCalendar::all_days())
+                        .unwrap(),
                     &all_days_context
                 )
                 .unwrap()

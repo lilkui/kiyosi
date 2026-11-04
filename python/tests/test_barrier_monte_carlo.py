@@ -545,14 +545,9 @@ class BarrierMonteCarloTests(unittest.TestCase):
         )
         from kiyosi.market import weekdays_calendar
 
-        invalid = option(
-            observation_mode="scheduled",
-            observation_times=[START + timedelta(days=3)],
-            calendar=weekdays_calendar(),
-        )
-        self.assert_rejection(
-            InvalidInputError,
-            engine.price,
-            invalid,
-            market().replace(calendar=weekdays_calendar()),
-        )
+        with self.assertRaises(InvalidInputError):
+            option(
+                observation_mode="scheduled",
+                observation_times=[START + timedelta(days=3)],
+                calendar=weekdays_calendar(),
+            )

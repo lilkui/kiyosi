@@ -1,7 +1,7 @@
 use crate::DoubleBarrierOption;
 use crate::Timestamp;
 use crate::engines::analytic::barrier::resolved_price_with_state;
-use crate::instruments::monitoring::{validate_life, validate_schedule};
+use crate::instruments::monitoring::validate_life;
 use crate::numerics::{Sum, checked, log_interval_mass, log_ratio, scaled_cash, scaled_cdf};
 use crate::{
     AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationMode,
@@ -46,7 +46,6 @@ impl AnalyticDoubleBarrierEngine {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
         validate_life(&option.lower, context)?;
-        validate_schedule(option.lower.observation_schedule(), option.calendar())?;
         if let Some(value) = resolved_price(option, context)? {
             return Ok(value);
         }

@@ -25,7 +25,12 @@ START = datetime(2025, 1, 1)
 
 
 def contract(
-    end=datetime(2025, 2, 3), knock_out=110, acceleration=2, daily=1, quantity=3
+    end=datetime(2025, 2, 3),
+    knock_out=110,
+    acceleration=2,
+    daily=1,
+    quantity=3,
+    calendar=None,
 ):
     return Accumulator(
         strike=100,
@@ -35,6 +40,7 @@ def contract(
         accumulated_quantity=quantity,
         effective_time=START,
         expiry_time=end,
+        calendar=weekdays_calendar() if calendar is None else calendar,
     )
 
 
@@ -467,11 +473,6 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             (
                 option,
                 market(100, end + timedelta(days=1)),
-                InvalidInputError,
-            ),
-            (
-                contract(datetime(2025, 1, 5)),
-                market(100, datetime(2025, 1, 3)),
                 InvalidInputError,
             ),
             (

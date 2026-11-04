@@ -185,28 +185,17 @@ class SnowballTests(unittest.TestCase):
             unknown.replace_history(barrier_state="knocked_out"),
             market(),
         )
-        # Non-trading observations precede history checks; missing history precedes expiry checks.
-        nontrading = contract(
-            expiry_time=datetime(2025, 4, 5),
-            observations=[AutocallableObservation(datetime(2025, 2, 1), 110)],
-        )
-        self.assert_rejection(InvalidInputError, engine.price, nontrading, market())
-        nontrading = contract(
-            expiry_time=datetime(2025, 4, 5),
-            observations=[AutocallableObservation(datetime(2025, 2, 3), 110)],
-        )
-        self.assert_rejection(
-            InvalidInputError,
-            engine.price,
-            nontrading,
-            market(valuation=datetime(2025, 3, 3)),
-        )
-        self.assert_rejection(
-            InvalidInputError,
-            engine.price,
-            nontrading.replace_history(barrier_state="no_event"),
-            market(valuation=datetime(2025, 3, 3)),
-        )
+        # Calendar compatibility is checked before valuation-dependent history.
+        with self.assertRaises(InvalidInputError):
+            contract(
+                expiry_time=datetime(2025, 4, 5),
+                observations=[AutocallableObservation(datetime(2025, 2, 1), 110)],
+            )
+        with self.assertRaises(InvalidInputError):
+            contract(
+                expiry_time=datetime(2025, 4, 5),
+                observations=[AutocallableObservation(datetime(2025, 2, 3), 110)],
+            )
         for valuation in (datetime(2024, 12, 31), datetime(2025, 4, 1, 0, 0, 0, 1)):
             self.assert_rejection(
                 InvalidInputError,

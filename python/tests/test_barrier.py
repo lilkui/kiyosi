@@ -236,17 +236,14 @@ class BarrierTests(unittest.TestCase):
         self.assertEqual(untouched.observation_times, [fixing])
         self.assertEqual(untouched.observation_schedule.times, [fixing])
         self.assertAlmostEqual(untouched.mean_observation_year_fraction, 1 / 365)
-        weekend = BarrierOption(
-            **self.terms(
-                observation_mode="scheduled",
-                observation_times=[datetime(2025, 1, 4)],
-                touch_state="touched",
+        with self.assertRaises(InvalidInputError):
+            BarrierOption(
+                **self.terms(
+                    observation_mode="scheduled",
+                    observation_times=[datetime(2025, 1, 4)],
+                    touch_state="touched",
+                )
             )
-        )
-        self.assert_rejection(
-            InvalidInputError,
-            lambda: engine.price(weekend, self.context(time=datetime(2025, 1, 5))),
-        )
 
     def test_scheduled_bgk_domain_and_event_sensitive_greeks(self):
         engine = AnalyticBarrierEngine()

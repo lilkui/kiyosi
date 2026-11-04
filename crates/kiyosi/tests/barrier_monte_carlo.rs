@@ -754,12 +754,7 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
     let mut t = terms(BarrierType::DownAndOut, OptionType::Call);
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_times = vec![day(1, 4)];
-    assert!(matches!(
-        engine
-            .price(&BarrierOption::new(t).unwrap(), &context)
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+    assert!(matches!(BarrierOption::new(t), Err(Error::InvalidInput(_))));
     assert!(matches!(
         engine
             .price_with_greeks(
@@ -874,6 +869,7 @@ fn sobol_dimensions_count_fixings_and_unobserved_expiry_leg() {
         .filter(|d| *d > day(1, 1))
         .take(21201)
         .collect();
+    t.calendar = TradingCalendar::all_days();
     let option = BarrierOption::new(t).unwrap();
     let context = PricingContext::with_calendar(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.2).unwrap(),

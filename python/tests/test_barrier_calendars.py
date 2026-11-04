@@ -99,10 +99,12 @@ class BarrierCalendarTests(unittest.TestCase):
             ),
         ]
         for factory, fields, engines in cases:
-            original = factory(**common, **fields)
+            with self.assertRaises(InvalidInputError):
+                factory(**common, **fields)
+            original = factory(**common, **fields, calendar=market.all_days_calendar())
             owned = original.replace(calendar=market.all_days_calendar())
             with self.subTest(factory=factory.__name__):
-                self.assertEqual(original.calendar, market.weekdays_calendar())
+                self.assertEqual(original.calendar, market.all_days_calendar())
                 self.assertEqual(
                     owned,
                     factory(**common, **fields, calendar=market.all_days_calendar()),
@@ -118,9 +120,7 @@ class BarrierCalendarTests(unittest.TestCase):
                         original.replace(calendar=invalid)
                 for engine in engines:
                     for snapshot in (context, daily_market):
-                        with self.assertRaises(InvalidInputError):
-                            engine.price(original, snapshot)
-                    self.assertEqual(
-                        engine.price(owned, context),
-                        engine.price(restored, daily_market),
-                    )
+                        self.assertEqual(
+                            engine.price(owned, snapshot),
+                            engine.price(restored, daily_market),
+                        )

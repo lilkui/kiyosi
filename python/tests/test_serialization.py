@@ -301,7 +301,7 @@ class SerializationTests(unittest.TestCase):
         )
         calendar = m.custom_calendar(
             base=m.weekdays_calendar(),
-            closed_dates=[(START + timedelta(days=n)).date() for n in range(5000)],
+            closed_dates=[(START - timedelta(days=n + 1)).date() for n in range(5000)],
         )
         contracts = [
             value.replace(calendar=calendar)
@@ -337,7 +337,9 @@ class SerializationTests(unittest.TestCase):
         for original in values():
             if isinstance(original, i.Accumulator):
                 option = original.replace(
-                    expiry_time=times[-1], knock_out_observation_times=times
+                    expiry_time=times[-1],
+                    knock_out_observation_times=times,
+                    calendar=m.all_days_calendar(),
                 )
             elif isinstance(
                 original,
@@ -349,7 +351,9 @@ class SerializationTests(unittest.TestCase):
                 ),
             ):
                 option = original.replace(
-                    expiry_time=times[-1], observations=observations
+                    expiry_time=times[-1],
+                    observations=observations,
+                    calendar=m.all_days_calendar(),
                 )
             else:
                 continue
