@@ -377,6 +377,26 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// contract. See [`crate::AnalyticDigitalEngine::price`] for an example.
     fn price(&self, option: &I, context: &PricingContext) -> Result<f64>;
 
+    /// Returns a price with sampling uncertainty when the engine provides an estimator.
+    ///
+    /// See [`crate::MonteCarloVanillaEngine::price_with_statistics`] for an example
+    /// and [`crate::MonteCarloEstimate`] for uncertainty conventions. The default
+    /// implementation reports an unsupported operation. Inputs remain unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::UnsupportedOperation`] when sampling statistics are not
+    /// implemented. Implementations propagate their pricing and uncertainty errors.
+    fn price_with_statistics(
+        &self,
+        _option: &I,
+        _context: &PricingContext,
+    ) -> Result<crate::MonteCarloEstimate> {
+        Err(Error::UnsupportedOperation(
+            "sampling statistics are unavailable for this engine and instrument".into(),
+        ))
+    }
+
     /// Returns requested sensitivities, using scalar differences unless overridden.
     ///
     /// Settings configure numerical differences; methods that compute all Greeks

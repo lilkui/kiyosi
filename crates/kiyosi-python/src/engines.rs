@@ -141,6 +141,20 @@ pub(crate) struct NumericalGreeksRequest {
     pub settings: kiyosi::NumericalShiftSettings,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct StatisticsRequest;
+
+impl PricingRequest<kiyosi::MonteCarloEstimate> for StatisticsRequest {
+    fn evaluate<I: kiyosi::OptionContract>(
+        self,
+        engine: &impl kiyosi::PricingEngine<I>,
+        instrument: &I,
+        context: &kiyosi::PricingContext,
+    ) -> kiyosi::Result<kiyosi::MonteCarloEstimate> {
+        engine.price_with_statistics(instrument, context)
+    }
+}
+
 impl PricingRequest<kiyosi::PricingResult> for NumericalGreeksRequest {
     fn evaluate<I: kiyosi::OptionContract>(
         self,

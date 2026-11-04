@@ -1,8 +1,9 @@
 use super::barrier::Contract;
 use super::unstable;
 use crate::{
-    DoubleBarrierOption, GreeksRequest, MonteCarloBarrierEngine, MonteCarloSettings,
-    NumericalShiftSettings, PricingContext, PricingEngine, PricingResult, Result,
+    DoubleBarrierOption, GreeksRequest, MonteCarloBarrierEngine, MonteCarloEstimate,
+    MonteCarloSettings, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
+    Result,
 };
 use std::f64::consts::PI;
 
@@ -74,8 +75,43 @@ impl MonteCarloDoubleBarrierEngine {
                 context,
                 GreeksRequest::new([]),
                 Default::default(),
+                false,
             )?
+            .0
             .price())
+    }
+
+    /// Returns a price with sampling standard error and an asymptotic 95% interval.
+    ///
+    /// Uncertainty follows [`MonteCarloEstimate`]. Resolved analytic branches have
+    /// zero pseudorandom uncertainty; analytic at-hit rebates add no sampling
+    /// variance. See [`Self::price_with_greeks`] for an example.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`Self::price`] errors and returns [`crate::Error::ComputationFailure`]
+    /// for non-finite uncertainty or confidence bounds. Inputs remain unchanged.
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics as in [`Self::price`].
+    ///
+    /// # Aborts
+    ///
+    /// Allocation exhaustion follows the allocator's behavior, as in [`Self::price`].
+    pub fn price_with_statistics(
+        &self,
+        option: &DoubleBarrierOption,
+        context: &PricingContext,
+    ) -> Result<MonteCarloEstimate> {
+        let (result, error) = self.engine.native(
+            Contract::Double(option),
+            context,
+            GreeksRequest::new([]),
+            Default::default(),
+            true,
+        )?;
+        MonteCarloEstimate::from_statistics(result.price(), error)
     }
 
     /// Returns requested delta/gamma using the price's normal samples.
@@ -125,6 +161,8 @@ impl MonteCarloDoubleBarrierEngine {
     /// assert!((result.price() - 1.0838814592583166).abs() < 0.003);
     /// assert!(result.has(Greek::Delta));
     /// assert_eq!(engine.settings().path_count, 32768);
+    /// let estimate = engine.price_with_statistics(&option, &context)?;
+    /// assert_eq!(estimate.standard_error(), None); // Sobol omits sampling uncertainty.
     /// # Ok(()) }
     /// ```
     pub fn price_with_greeks(
@@ -144,9 +182,9 @@ impl MonteCarloDoubleBarrierEngine {
         settings.validate()?;
         let result = self
             .engine
-            .native(Contract::Double(option), context, request, settings)
+            .native(Contract::Double(option), context, request, settings, false)
             .map(|result| {
-                result.with_request(
+                result.0.with_request(
                     request,
                     GreeksRequest::new([crate::Greek::Delta, crate::Greek::Gamma]),
                 )
@@ -158,6 +196,13 @@ impl MonteCarloDoubleBarrierEngine {
 }
 
 impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
+    fn price_with_statistics(
+        &self,
+        option: &DoubleBarrierOption,
+        context: &PricingContext,
+    ) -> Result<MonteCarloEstimate> {
+        self.price_with_statistics(option, context)
+    }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.bsm_parameters()?;
         self.engine.validate_applicability(context)

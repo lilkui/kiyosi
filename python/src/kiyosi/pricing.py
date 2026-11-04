@@ -30,8 +30,12 @@ and arithmetic Asian integration; American pricing needs at least two intervals.
 ``MonteCarloSampling`` selects
 ``"pseudo_random"`` or scrambled ``"sobol"``; a fixed seed reproduces draws
 across thread counts in the same build. Sobol estimates omit sampling error.
-Autocallable and accumulator ``price`` calls return the sample mean;
-``price_with_statistics`` also computes and validates sampling uncertainty.
+Every Monte Carlo engine exposes ``price_with_statistics`` for its supported
+contracts; vanilla statistics require European options. It returns the same
+seeded price as ``price`` and also computes and validates sampling uncertainty.
+Sobol, fewer than two independent observations and odd antithetic counts omit
+uncertainty; known pseudorandom analytic branches have zero error. Sampling error
+does not measure arithmetic Asian integration bias or other approximation error.
 Future Monte Carlo barrier, knock-in, knock-out, coupon and acceleration tests
 retain log-price movements even when the simulated spot rounds to a threshold.
 Single- and double-barrier Monte Carlo payoffs also retain movements when
@@ -211,6 +215,23 @@ Recover the model volatility from its price using a chosen bracket:
 ... )
 >>> round(sigma, 6)
 0.2
+
+Inspect sampling uncertainty for a cash digital using the same market snapshot:
+
+>>> from kiyosi.instruments import CashOrNothingOption
+>>> digital = CashOrNothingOption(
+...     option_type=option.option_type, strike=option.strike, payout=10,
+...     effective_time=option.effective_time, expiry_time=option.expiry_time,
+... )
+>>> sampler = MonteCarloDigitalEngine(path_count=4096, seed=42, thread_count=1)
+>>> estimate = sampler.price_with_statistics(digital, context)
+>>> estimate.price == sampler.price(digital, context)
+True
+>>> estimate.standard_error > 0
+True
+>>> lower, upper = estimate.confidence_interval
+>>> lower < estimate.price < upper
+True
 """
 
 from typing import Literal

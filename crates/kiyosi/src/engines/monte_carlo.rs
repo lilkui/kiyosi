@@ -373,7 +373,9 @@ fn validate_step_count(step_count: i32, minimum: i32) -> Result<()> {
 /// sparse samples and heavy tails can make the interval unreliable.
 /// Sobol always leaves uncertainty absent. Simulated payoffs with fewer than two
 /// independent observations or odd antithetic counts also leave uncertainty absent.
-/// Known pseudorandom settlements and fixed cash flows have zero uncertainty.
+/// Known pseudorandom settlements, fixed cash flows and resolved analytic branches
+/// have zero uncertainty. Sampling uncertainty does not measure numerical integration
+/// or model approximation error.
 /// See [`MonteCarloVanillaEngine::price_with_statistics`] for an example.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MonteCarloEstimate {
@@ -690,6 +692,13 @@ impl MonteCarloVanillaEngine {
 }
 
 impl PricingEngine for MonteCarloVanillaEngine {
+    fn price_with_statistics(
+        &self,
+        option: &EuropeanOption,
+        context: &PricingContext,
+    ) -> Result<MonteCarloEstimate> {
+        self.price_with_statistics(option, context)
+    }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.bsm_parameters()?;
         context.bsm_parameters()?.flat_risk_free_rate()?;
@@ -753,14 +762,20 @@ fn terminal_samples<const N: usize>(
 pub(crate) fn path_means<const N: usize>(
     settings: MonteCarloSettings,
     dimensions: usize,
+    statistics: bool,
     payoff: impl Fn(&[f64]) -> Result<[f64; N]> + Sync,
-) -> Result<[f64; N]> {
-    let (moments, _) = path_samples(settings, dimensions, false, payoff)?;
+) -> Result<([f64; N], Option<f64>)> {
+    let (moments, pairs) = path_samples(settings, dimensions, statistics, payoff)?;
     let mut means = [0.0; N];
-    for (mean, moment) in means.iter_mut().zip(moments) {
+    for (mean, moment) in means.iter_mut().zip(&moments) {
         *mean = scaled_value(moment.scale, moment.mean, 0.0)?;
     }
-    Ok(means)
+    let standard_error = if statistics {
+        estimate(settings, moments[0], pairs[0], 0.0, false)?.standard_error()
+    } else {
+        None
+    };
+    Ok((means, standard_error))
 }
 
 #[expect(

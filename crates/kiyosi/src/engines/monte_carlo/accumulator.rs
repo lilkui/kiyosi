@@ -252,6 +252,13 @@ impl MonteCarloAccumulatorEngine {
 }
 
 impl PricingEngine<Accumulator> for MonteCarloAccumulatorEngine {
+    fn price_with_statistics(
+        &self,
+        option: &Accumulator,
+        context: &PricingContext,
+    ) -> Result<MonteCarloEstimate> {
+        self.price_with_statistics(option, context)
+    }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.bsm_parameters()?;
         context.bsm_parameters()?.flat_risk_free_rate()?;

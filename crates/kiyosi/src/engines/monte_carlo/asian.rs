@@ -2,7 +2,8 @@ use crate::instruments::asian::AverageTerms;
 use crate::numerics::{checked, log_ratio, scaled_cash};
 use crate::{
     ArithmeticAveragePriceOption, Error, GeometricAveragePriceOption, GreeksRequest,
-    NumericalShiftSettings, PricingContext, PricingEngine, PricingResult, Result,
+    MonteCarloEstimate, MonteCarloSampling, NumericalShiftSettings, PricingContext, PricingEngine,
+    PricingResult, Result,
 };
 use crate::{Greek, MonteCarloSettings};
 use crate::{OptionContract, Timestamp, TurnbullWakemanArithmeticAveragePriceEngine};
@@ -122,6 +123,8 @@ impl MonteCarloAsianEngine {
     ///     kiyosi::GreeksRequest::all(), Default::default())?;
     /// assert!(result.has(kiyosi::Greek::Delta));
     /// assert!(!result.has(kiyosi::Greek::Vega));
+    /// let estimate = engine.price_with_statistics(&option, &context)?;
+    /// assert!(estimate.standard_error().is_some());
     /// # Ok(()) }
     /// ```
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
@@ -130,6 +133,37 @@ impl MonteCarloAsianEngine {
     {
         context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price(self, option, context)
+    }
+
+    /// Returns a price with sampling standard error and an asymptotic 95% interval.
+    ///
+    /// Accepts geometric and arithmetic average-price contracts. Uncertainty follows
+    /// [`MonteCarloEstimate`]; terminal and analytic pseudorandom branches have zero
+    /// uncertainty. Sampling error does not measure arithmetic integration bias.
+    /// See [`Self::price`] for an example.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`Self::price`] errors and returns [`Error::ComputationFailure`]
+    /// for non-finite uncertainty or confidence bounds. Inputs remain unchanged.
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics as in [`Self::price`].
+    ///
+    /// # Aborts
+    ///
+    /// Allocation exhaustion follows the allocator's behavior, as in [`Self::price`].
+    pub fn price_with_statistics<I>(
+        &self,
+        option: &I,
+        context: &PricingContext,
+    ) -> Result<MonteCarloEstimate>
+    where
+        Self: PricingEngine<I>,
+    {
+        context.bsm_parameters()?;
+        <Self as PricingEngine<I>>::price_with_statistics(self, option, context)
     }
 
     /// Returns requested delta and gamma directly from the price's shared normal draws.
@@ -180,10 +214,14 @@ impl MonteCarloAsianEngine {
         context: &PricingContext,
         geometric: bool,
         request: GreeksRequest,
-    ) -> Result<PricingResult> {
+        statistics: bool,
+    ) -> Result<(PricingResult, Option<f64>)> {
         let tau = o.validate(context)?;
+        let known_error = (statistics
+            && self.settings.sampling == MonteCarloSampling::PseudoRandom)
+            .then_some(0.0);
         if tau == 0.0 {
-            return PricingResult::new(o.settlement(context)?);
+            return Ok((PricingResult::new(o.settlement(context)?)?, known_error));
         }
         let model = context.bsm_parameters()?;
         if geometric
@@ -249,7 +287,7 @@ impl MonteCarloAsianEngine {
             } else {
                 0.0
             };
-            return result([price, first, 0.0], request);
+            return Ok((result([price, first, 0.0], request)?, known_error));
         }
         let drift = if single && !flat {
             carry_between(0.0, tau)? - 0.5 * sigma * sigma * tau
@@ -279,11 +317,11 @@ impl MonteCarloAsianEngine {
             lead_width_ratio: 0.0,
             interval_forward: 0.0,
         };
-        let means = if geometric || single {
+        let (means, standard_error) = if geometric || single {
             if !drift.is_finite() || !p.width.is_finite() {
                 return Err(crate::engines::monte_carlo::unstable());
             }
-            crate::engines::monte_carlo::path_means(self.settings, 1, |normals| {
+            crate::engines::monte_carlo::path_means(self.settings, 1, statistics, |normals| {
                 p.geometric(normals[0], request)
             })?
         } else {
@@ -325,11 +363,14 @@ impl MonteCarloAsianEngine {
                 return Err(crate::engines::monte_carlo::unstable());
             }
             let dimensions = self.step_count as usize - 1 + usize::from(lead > 0.0);
-            crate::engines::monte_carlo::path_means(self.settings, dimensions, |normals| {
-                p.arithmetic(normals, lead > 0.0, &interval_drifts, request)
-            })?
+            crate::engines::monte_carlo::path_means(
+                self.settings,
+                dimensions,
+                statistics,
+                |normals| p.arithmetic(normals, lead > 0.0, &interval_drifts, request),
+            )?
         };
-        result(means, request)
+        Ok((result(means, request)?, standard_error))
     }
 }
 
@@ -414,6 +455,16 @@ fn result(means: [f64; 3], request: GreeksRequest) -> Result<PricingResult> {
 }
 
 impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
+    fn price_with_statistics(
+        &self,
+        option: &GeometricAveragePriceOption,
+        context: &PricingContext,
+    ) -> Result<MonteCarloEstimate> {
+        context.bsm_parameters()?;
+        let (result, error) =
+            self.native(&option.0, context, true, GreeksRequest::new([]), true)?;
+        MonteCarloEstimate::from_statistics(result.price(), error)
+    }
     fn prepare_request(
         &self,
     ) -> Result<Option<Box<dyn PricingEngine<GeometricAveragePriceOption> + '_>>> {
@@ -429,7 +480,8 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
     fn price(&self, option: &GeometricAveragePriceOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         Ok(self
-            .native(&option.0, context, true, GreeksRequest::new([]))?
+            .native(&option.0, context, true, GreeksRequest::new([]), false)?
+            .0
             .price())
     }
     fn price_with_greeks(
@@ -442,7 +494,8 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         context.bsm_parameters()?;
         request.validate()?;
         let result = self
-            .native(&option.0, context, true, request)?
+            .native(&option.0, context, true, request, false)?
+            .0
             .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
         crate::risk::numerical::expiry_greeks(
             option,
@@ -455,6 +508,16 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
 }
 
 impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
+    fn price_with_statistics(
+        &self,
+        option: &ArithmeticAveragePriceOption,
+        context: &PricingContext,
+    ) -> Result<MonteCarloEstimate> {
+        context.bsm_parameters()?;
+        let (result, error) =
+            self.native(&option.0, context, false, GreeksRequest::new([]), true)?;
+        MonteCarloEstimate::from_statistics(result.price(), error)
+    }
     fn prepare_request(
         &self,
     ) -> Result<Option<Box<dyn PricingEngine<ArithmeticAveragePriceOption> + '_>>> {
@@ -474,7 +537,8 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
     ) -> Result<f64> {
         context.bsm_parameters()?;
         Ok(self
-            .native(&option.0, context, false, GreeksRequest::new([]))?
+            .native(&option.0, context, false, GreeksRequest::new([]), false)?
+            .0
             .price())
     }
     fn price_with_greeks(
@@ -487,7 +551,8 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         context.bsm_parameters()?;
         request.validate()?;
         let result = self
-            .native(&option.0, context, false, request)?
+            .native(&option.0, context, false, request, false)?
+            .0
             .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
         crate::risk::numerical::expiry_greeks(
             option,

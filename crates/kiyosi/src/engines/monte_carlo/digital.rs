@@ -1,7 +1,8 @@
-use super::{scaled_value, terminal_samples, unstable};
+use super::{path_means, scaled_value, unstable};
 use crate::{
-    DigitalOption, Error, Greek, GreeksRequest, MonteCarloSettings, NumericalShiftSettings,
-    OptionType, PricingContext, PricingEngine, PricingResult, Result,
+    DigitalOption, Error, Greek, GreeksRequest, MonteCarloEstimate, MonteCarloSampling,
+    MonteCarloSettings, NumericalShiftSettings, OptionType, PricingContext, PricingEngine,
+    PricingResult, Result,
 };
 
 /// Prices European cash-or-nothing and asset-or-nothing contracts by terminal sampling.
@@ -58,8 +59,36 @@ impl MonteCarloDigitalEngine {
     pub fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         Ok(self
-            .native(option, context, GreeksRequest::new([]))?
+            .native(option, context, GreeksRequest::new([]), false)?
+            .0
             .price())
+    }
+
+    /// Returns a price with sampling standard error and an asymptotic 95% interval.
+    ///
+    /// Uncertainty follows [`MonteCarloEstimate`]; terminal pseudorandom settlements
+    /// have zero uncertainty. See [`Self::price_with_greeks`] for an example.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`Self::price`] errors and returns [`Error::ComputationFailure`]
+    /// for non-finite uncertainty or confidence bounds. Inputs remain unchanged.
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics as in [`Self::price`].
+    ///
+    /// # Aborts
+    ///
+    /// Allocation exhaustion follows the allocator's behavior, as in [`Self::price`].
+    pub fn price_with_statistics(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+    ) -> Result<MonteCarloEstimate> {
+        let (result, standard_error) =
+            self.native(option, context, GreeksRequest::new([]), true)?;
+        MonteCarloEstimate::from_statistics(result.price(), standard_error)
     }
 
     /// Returns requested likelihood-ratio delta/gamma from the price's normal draws.
@@ -97,6 +126,8 @@ impl MonteCarloDigitalEngine {
     ///     GreeksRequest::all(), Default::default())?;
     /// assert!(result.require(Greek::Delta)? > 0.0);
     /// assert!(!result.has(Greek::Vega));
+    /// let estimate = engine.price_with_statistics(&option, &context)?;
+    /// assert!(estimate.standard_error().is_some());
     /// # Ok(()) }
     /// ```
     pub fn price_with_greeks(
@@ -110,7 +141,8 @@ impl MonteCarloDigitalEngine {
         self.validate_applicability(context)?;
         request.validate()?;
         let result = self
-            .native(option, context, request)?
+            .native(option, context, request, false)?
+            .0
             .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
         crate::risk::numerical::expiry_greeks(
             option,
@@ -126,7 +158,8 @@ impl MonteCarloDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-    ) -> Result<PricingResult> {
+        statistics: bool,
+    ) -> Result<(PricingResult, Option<f64>)> {
         self.validate_applicability(context)?;
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
@@ -144,11 +177,14 @@ impl MonteCarloDigitalEngine {
             } else {
                 spot < option.strike()
             };
-            return PricingResult::new(if pays {
+            let result = PricingResult::new(if pays {
                 option.payout().unwrap_or(spot)
             } else {
                 0.0
-            });
+            })?;
+            let error = (statistics && self.settings.sampling == MonteCarloSampling::PseudoRandom)
+                .then_some(0.0);
+            return Ok((result, error));
         }
         let model = context.bsm_parameters()?;
         let rate = model.flat_risk_free_rate()?;
@@ -176,7 +212,8 @@ impl MonteCarloDigitalEngine {
         }
         let log_spot = spot.ln();
         let log_width = sigma.ln() + root.ln();
-        let (moments, _) = terminal_samples(self.settings, false, |normal| {
+        let (means, standard_error) = path_means(self.settings, 1, statistics, |normals| {
+            let normal = normals[0];
             // Standardization retains exercise when the terminal spot rounds to strike.
             let distance = d2 + normal;
             if !(if call { distance > 0.0 } else { distance < 0.0 }) {
@@ -205,19 +242,25 @@ impl MonteCarloDigitalEngine {
             }
             Ok([payoff, delta, gamma])
         })?;
-        let mean = |i: usize| scaled_value(moments[i].scale, moments[i].mean, 0.0);
-        let mut result = PricingResult::new(mean(0)?)?;
+        let mut result = PricingResult::new(means[0])?;
         if request.has(Greek::Delta) {
-            result.set(request, Greek::Delta, mean(1)?)?;
+            result.set(request, Greek::Delta, means[1])?;
         }
         if request.has(Greek::Gamma) {
-            result.set(request, Greek::Gamma, mean(2)?)?;
+            result.set(request, Greek::Gamma, means[2])?;
         }
-        Ok(result)
+        Ok((result, standard_error))
     }
 }
 
 impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
+    fn price_with_statistics(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+    ) -> Result<MonteCarloEstimate> {
+        self.price_with_statistics(option, context)
+    }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.bsm_parameters()?;
         context.bsm_parameters()?.flat_risk_free_rate()?;

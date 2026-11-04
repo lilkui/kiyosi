@@ -8,7 +8,6 @@ use crate::instruments::autocallable;
 use crate::instruments::barrier;
 use crate::instruments::digital;
 use crate::instruments::double_barrier;
-use crate::instruments::vanilla::EuropeanOption;
 use crate::market::PricingContext;
 use crate::risk;
 use pyo3::exceptions::PyValueError;
@@ -168,39 +167,6 @@ macro_rules! sampling_settings {
                     context: &PricingContext,
                 ) -> PyResult<f64> {
                     self.evaluate(py, instrument, context, ScalarRequest::Price)
-                },
-
-                /// Return the price and estimated sampling uncertainty.
-                ///
-                /// Parameters
-                /// ----------
-                /// instrument : object
-                ///     Supported contract; see the engine class for accepted types.
-                /// context : PricingContext
-                ///     Market snapshot and valuation instant.
-                ///
-                /// Returns
-                /// -------
-                /// MonteCarloEstimate
-                ///     Mean, optional standard error and asymptotic 95% confidence interval.
-                ///
-                /// Raises
-                /// ------
-                /// KiyosiError
-                ///     If domain validation or numerical pricing fails.
-                /// OSError
-                ///     If system entropy or worker creation fails.
-                fn price_with_statistics(
-                    &self,
-                    py: Python<'_>,
-                    #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
-                    context: &PricingContext,
-                ) -> PyResult<MonteCarloEstimate> {
-                    let engine = self.0;
-                    let context = &context.0;
-                    $with!(&instrument, option, Ok(MonteCarloEstimate(domain(py.detach(|| {
-                        engine.price_with_statistics(option, context)
-                    }))?)))
                 }
             )
         );
@@ -223,6 +189,42 @@ macro_rules! sampling_settings {
     ($engine:ident, [$($step:ident)?], $($methods:item),* $(,)?) => {
         #[pymethods]
         impl $engine {
+            /// Returns a price with sampling uncertainty.
+            ///
+            /// Parameters
+            /// ----------
+            /// instrument : object
+            ///     A supported contract. Vanilla statistics require EuropeanOption;
+            ///     other engines accept the same contracts as price().
+            /// context : PricingContext
+            ///     Market snapshot and valuation instant.
+            ///
+            /// Returns
+            /// -------
+            /// MonteCarloEstimate
+            ///     Mean, optional standard error and asymptotic 95% confidence interval.
+            ///     Sobol, insufficient independent samples and odd antithetic counts
+            ///     omit uncertainty. Known pseudorandom analytic values have zero error.
+            ///     Sampling uncertainty does not measure numerical integration bias.
+            ///
+            /// Raises
+            /// ------
+            /// KiyosiError
+            ///     If pricing or uncertainty validation fails, or the contract is unsupported.
+            /// OSError
+            ///     If system entropy or worker creation fails.
+            fn price_with_statistics(
+                &self,
+                py: Python<'_>,
+                instrument: &Bound<'_, PyAny>,
+                context: &PricingContext,
+            ) -> PyResult<MonteCarloEstimate> {
+                Ok(MonteCarloEstimate(self.evaluate(
+                    py, crate::conversions::instrument(instrument)?, context,
+                    crate::engines::StatisticsRequest,
+                )?))
+            }
+
             #[new]
             #[pyo3(signature = (*, path_count=kiyosi::MonteCarloSettings::default().path_count, $($step=kiyosi::$engine::default().$step(),)? seed=None, thread_count=kiyosi::MonteCarloSettings::default().thread_count, sampling=kiyosi::MonteCarloSettings::default().sampling, antithetic=kiyosi::MonteCarloSettings::default().antithetic))]
             fn new(
@@ -362,46 +364,6 @@ sampling_settings!(
         context: &PricingContext,
     ) -> PyResult<f64> {
         self.evaluate(py, instrument, context, ScalarRequest::Price)
-    },
-    /// Return the price and estimated sampling uncertainty.
-    ///
-    /// Parameters
-    /// ----------
-    /// instrument : EuropeanOption
-    ///     European vanilla contract; American statistics are not exposed.
-    /// context : PricingContext
-    ///     Market snapshot and valuation instant.
-    ///
-    /// Returns
-    /// -------
-    /// MonteCarloEstimate
-    ///     Mean, optional standard error and asymptotic 95% confidence interval.
-    ///
-    /// Raises
-    /// ------
-    /// KiyosiError
-    ///     If domain validation or numerical pricing fails.
-    /// OSError
-    ///     If system entropy or worker creation fails.
-    #[expect(
-        clippy::needless_pass_by_value,
-        reason = "PyO3 extracts an owned PyRef guard"
-    )]
-    fn price_with_statistics(
-        &self,
-        py: Python<'_>,
-        #[pyo3(from_py_with = crate::conversions::instrument)] instrument: PyRef<
-            '_,
-            EuropeanOption,
-        >,
-        context: &PricingContext,
-    ) -> PyResult<MonteCarloEstimate> {
-        let engine = self.0;
-        let option = &instrument.0;
-        let context = &context.0;
-        Ok(MonteCarloEstimate(domain(py.detach(|| {
-            engine.price_with_statistics(option, context)
-        }))?))
     },
     /// Return the price and selected sensitivities.
     ///

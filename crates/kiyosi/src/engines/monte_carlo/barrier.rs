@@ -4,8 +4,9 @@ use crate::instruments::monitoring::{validate_life, validate_schedule};
 use crate::numerics::log_ratio;
 use crate::{
     AnalyticEuropeanEngine, BarrierOption, DoubleBarrierOption, Greek, GreeksRequest,
-    MonteCarloSettings, NumericalShiftSettings, ObservationMode, OptionContract, OptionType,
-    PricingContext, PricingEngine, PricingResult, RebateTiming, Result,
+    MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings, NumericalShiftSettings,
+    ObservationMode, OptionContract, OptionType, PricingContext, PricingEngine, PricingResult,
+    RebateTiming, Result,
 };
 
 #[derive(Clone, Copy)]
@@ -80,8 +81,43 @@ impl MonteCarloBarrierEngine {
                 context,
                 GreeksRequest::new([]),
                 Default::default(),
+                false,
             )?
+            .0
             .price())
+    }
+
+    /// Returns a price with sampling standard error and an asymptotic 95% interval.
+    ///
+    /// Uncertainty follows [`MonteCarloEstimate`]. Resolved analytic branches have
+    /// zero pseudorandom uncertainty; an analytic at-hit rebate adds no sampling
+    /// variance. See [`Self::price_with_greeks`] for an example.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`Self::price`] errors and returns [`crate::Error::ComputationFailure`]
+    /// for non-finite uncertainty or confidence bounds. Inputs remain unchanged.
+    ///
+    /// # Panics
+    ///
+    /// Propagates worker panics as in [`Self::price`].
+    ///
+    /// # Aborts
+    ///
+    /// Allocation exhaustion follows the allocator's behavior, as in [`Self::price`].
+    pub fn price_with_statistics(
+        &self,
+        option: &BarrierOption,
+        context: &PricingContext,
+    ) -> Result<MonteCarloEstimate> {
+        let (result, error) = self.native(
+            Contract::Single(option),
+            context,
+            GreeksRequest::new([]),
+            Default::default(),
+            true,
+        )?;
+        MonteCarloEstimate::from_statistics(result.price(), error)
     }
 
     /// Returns requested delta/gamma using the price's normal samples.
@@ -126,6 +162,8 @@ impl MonteCarloBarrierEngine {
     /// assert!(result.price() > 0.0);
     /// assert!(result.has(Greek::Delta));
     /// assert_eq!(engine.settings().path_count, 32768);
+    /// let estimate = engine.price_with_statistics(&option, &context)?;
+    /// assert_eq!(estimate.standard_error(), None); // Sobol omits sampling uncertainty.
     /// # Ok(()) }
     /// ```
     pub fn price_with_greeks(
@@ -144,9 +182,9 @@ impl MonteCarloBarrierEngine {
         };
         settings.validate()?;
         let result = self
-            .native(Contract::Single(option), context, request, settings)
+            .native(Contract::Single(option), context, request, settings, false)
             .map(|result| {
-                result.with_request(
+                result.0.with_request(
                     request,
                     GreeksRequest::new([crate::Greek::Delta, crate::Greek::Gamma]),
                 )
@@ -162,7 +200,8 @@ impl MonteCarloBarrierEngine {
         context: &PricingContext,
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
-    ) -> Result<PricingResult> {
+        statistics: bool,
+    ) -> Result<(PricingResult, Option<f64>)> {
         let option = match contract {
             Contract::Single(option) => option,
             Contract::Double(option) => &option.lower,
@@ -198,19 +237,18 @@ impl MonteCarloBarrierEngine {
             ),
         };
         if let Some(value) = resolved {
+            let error = (statistics && self.settings.sampling == MonteCarloSampling::PseudoRandom)
+                .then_some(0.0);
             if volatility_affects_price && (request.has(Greek::Delta) || request.has(Greek::Gamma))
             {
-                return AnalyticEuropeanEngine.price_with_greeks(
-                    option.vanilla(),
-                    context,
-                    request,
-                    Default::default(),
-                );
+                return AnalyticEuropeanEngine
+                    .price_with_greeks(option.vanilla(), context, request, Default::default())
+                    .map(|result| (result, error));
             }
             let mut result = PricingResult::new(value)?;
             result.set(request, Greek::Delta, 0.0)?;
             result.set(request, Greek::Gamma, 0.0)?;
-            return Ok(result);
+            return Ok((result, error));
         }
         let model = context.bsm_parameters()?;
         let rate = model.flat_risk_free_rate()?;
@@ -265,7 +303,7 @@ impl MonteCarloBarrierEngine {
         };
         let delta = request.has(Greek::Delta);
         let gamma = request.has(Greek::Gamma);
-        let means = path_means(self.settings, steps.len(), |normals| {
+        let (means, error) = path_means(self.settings, steps.len(), statistics, |normals| {
             let mut terminal = 0.0;
             let mut touched = false;
             let mut knocked_out = 0.0;
@@ -481,11 +519,18 @@ impl MonteCarloBarrierEngine {
         let mut result = PricingResult::new(values[0])?;
         result.set(request, Greek::Delta, values[1])?;
         result.set(request, Greek::Gamma, values[2])?;
-        Ok(result)
+        Ok((result, error))
     }
 }
 
 impl PricingEngine<BarrierOption> for MonteCarloBarrierEngine {
+    fn price_with_statistics(
+        &self,
+        option: &BarrierOption,
+        context: &PricingContext,
+    ) -> Result<MonteCarloEstimate> {
+        self.price_with_statistics(option, context)
+    }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.bsm_parameters()?;
         context.bsm_parameters()?.flat_risk_free_rate()?;

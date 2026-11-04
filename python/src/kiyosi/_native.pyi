@@ -951,6 +951,11 @@ class MonteCarloDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
     ) -> float: ...
+    def price_with_statistics(
+        self,
+        instrument: CashOrNothingOption | AssetOrNothingOption,
+        context: PricingContext,
+    ) -> MonteCarloEstimate: ...
     def price_with_greeks(
         self,
         instrument: CashOrNothingOption | AssetOrNothingOption,
@@ -983,6 +988,11 @@ class MonteCarloBarrierEngine:
         instrument: BarrierOption,
         context: PricingContext,
     ) -> float: ...
+    def price_with_statistics(
+        self,
+        instrument: BarrierOption,
+        context: PricingContext,
+    ) -> MonteCarloEstimate: ...
     def price_with_greeks(
         self,
         instrument: BarrierOption,
@@ -1017,6 +1027,11 @@ class MonteCarloDoubleBarrierEngine:
         instrument: DoubleBarrierOption,
         context: PricingContext,
     ) -> float: ...
+    def price_with_statistics(
+        self,
+        instrument: DoubleBarrierOption,
+        context: PricingContext,
+    ) -> MonteCarloEstimate: ...
     def price_with_greeks(
         self,
         instrument: DoubleBarrierOption,
@@ -1141,6 +1156,11 @@ class MonteCarloAsianEngine:
         instrument: GeometricAveragePriceOption | ArithmeticAveragePriceOption,
         context: PricingContext,
     ) -> float: ...
+    def price_with_statistics(
+        self,
+        instrument: GeometricAveragePriceOption | ArithmeticAveragePriceOption,
+        context: PricingContext,
+    ) -> MonteCarloEstimate: ...
     def price_with_greeks(
         self,
         instrument: GeometricAveragePriceOption | ArithmeticAveragePriceOption,

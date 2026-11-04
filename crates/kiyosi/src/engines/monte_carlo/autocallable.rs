@@ -277,6 +277,13 @@ impl MonteCarloAutocallableEngine {
 }
 
 impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>> for MonteCarloAutocallableEngine {
+    fn price_with_statistics(
+        &self,
+        option: &AutocallableNote<T>,
+        context: &PricingContext,
+    ) -> Result<MonteCarloEstimate> {
+        self.price_with_statistics(option, context)
+    }
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.bsm_parameters()?;
         context.bsm_parameters()?.flat_risk_free_rate()?;
