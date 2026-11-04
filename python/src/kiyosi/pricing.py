@@ -84,10 +84,10 @@ dividends and nonnegative rates) do not allocate this grid or apply this limit.
 
 ``AnalyticEuropeanEngine``, ``CoxRossRubinsteinDigitalEngine``,
 ``CoxRossRubinsteinBarrierEngine``, ``MonteCarloDigitalEngine`` and
-``MonteCarloAsianEngine`` compute Greeks directly without numerical bumps;
-their ``price_with_greeks`` methods accept only ``greeks`` as a request
-control. Engines that use numerical differences also accept bump
-settings.
+``MonteCarloAsianEngine`` compute Greeks directly without numerical bumps
+before expiry. Their shared shift controls are validated but do not affect
+these pre-expiry estimates. At expiry, ``spot_shift`` controls terminal-payoff
+stencils. Engines that use numerical differences apply the relevant bumps:
 ``volatility_shift`` controls the volatility bump for vega and volga;
 ``rate_shift`` controls parallel bumps of both the risk-free and dividend-yield
 curves for rho and dividend_rho. Numerical volga requires a strictly positive
@@ -95,8 +95,10 @@ lower volatility leg. Monte Carlo volga can amplify sampling and exercise noise;
 check convergence across bump sizes and simulation settings.
 
 ``MonteCarloBarrierEngine`` and ``MonteCarloDoubleBarrierEngine`` return only
-delta and gamma. Their only bump control is ``spot_shift``, used for barrier
+delta and gamma. They use ``spot_shift`` for barrier
 availability checks and numerical derivatives of continuous at-hit rebates.
+The other shared shift controls are accepted and validated but do not affect
+these estimates.
 For these rebates, an unavailable numerical stencil leaves delta and gamma
 as None for the whole contract. Choose a spot bump that gives distinct,
 positive spots on both sides of the valuation spot.
@@ -116,8 +118,8 @@ Automatic terminal spot bumps use 0.01 spot units, including American Monte Carl
 explicit bump controls retain their usual meaning.
 
 Every engine shares ``price(instrument, context)`` and
-``price_with_greeks(instrument, context, greeks)``. Optional native bump controls
-vary by engine. For a uniform BSM numerical calculation, call
+``price_with_greeks(instrument, context, greeks)`` with the same keyword-only
+shift controls. For a uniform BSM numerical calculation, call
 ``numerical_greeks(engine, instrument, context, greeks, spot_shift=...)``.
 It uses scalar prices and accepts the same bump controls for every supported
 engine/product pair. It can compute measures beyond a native engine's coverage;
