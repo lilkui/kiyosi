@@ -46,6 +46,8 @@ impl Default for ImpliedCouponSettings {
 /// Solves a snowball family's price curve in its first observation coupon.
 ///
 /// Shifts the whole coupon schedule, with maturity linkage selected explicitly.
+/// Intersects the supplied bracket with the ternary minimum-coupon domain when
+/// maturity shifts. The minimum coupon itself remains fixed.
 /// Tries affine interpolation, verifies its residual, then bisects if needed.
 /// Inputs remain unchanged; custom engines retain their own concurrency contract.
 ///
@@ -55,6 +57,8 @@ impl Default for ImpliedCouponSettings {
 /// before replacing and pricing both bounds. Replacement and engine errors propagate.
 /// Equal endpoint prices return [`Error::UnsupportedOperation`] before
 /// accepting endpoint matches; same-sign residuals return [`Error::RootNotBracketed`].
+/// A bracket with no nondegenerate interval in the valid coupon domain also
+/// returns [`Error::RootNotBracketed`].
 /// Non-finite scalar prices or residuals return [`Error::ComputationFailure`];
 /// exhausted bisection returns [`Error::NonConvergence`].
 ///
@@ -95,6 +99,7 @@ pub fn implied_snowball_coupon<
         context,
         observed_price,
         settings,
+        option.minimum_quoted_coupon(convention),
         &|note, coupon| note.with_coupon(coupon, convention),
     )
 }
@@ -143,6 +148,7 @@ pub fn implied_phoenix_coupon<E: PricingEngine<PhoenixOption> + ?Sized>(
         context,
         observed_price,
         settings,
+        None,
         &PhoenixOption::with_coupon,
     )
 }
@@ -156,7 +162,8 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
     option: &I,
     context: &PricingContext,
     observed: f64,
-    s: ImpliedCouponSettings,
+    mut s: ImpliedCouponSettings,
+    minimum: Option<f64>,
     replace: &impl Fn(&I, f64) -> Result<I>,
 ) -> Result<f64> {
     context.bsm_parameters()?;
@@ -174,8 +181,24 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
             "implied-coupon settings or price are invalid".into(),
         ));
     }
+    if let Some(minimum) = minimum {
+        s.lower_bound = s.lower_bound.max(minimum);
+        if s.lower_bound >= s.upper_bound {
+            return Err(Error::RootNotBracketed(
+                "coupon bounds exclude the contract's valid domain".into(),
+            ));
+        }
+    }
     if let Some(prepared) = engine.prepare_request()? {
-        return solve(prepared.as_ref(), option, context, observed, s, replace);
+        return solve(
+            prepared.as_ref(),
+            option,
+            context,
+            observed,
+            s,
+            minimum,
+            replace,
+        );
     }
     let checked_price = |note: &I| {
         let price = engine.price(note, context)?;

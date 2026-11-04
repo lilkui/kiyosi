@@ -179,8 +179,12 @@ snowballs and ``implied_phoenix_coupon`` for Phoenix contracts.
 
 ``CouponQuoteConvention`` controls whether a snowball's maturity coupon
 shifts with observation coupons (``"shift_maturity_coupon"``) or stays fixed
-(``"preserve_maturity_coupon"``). Phoenix coupon solves omit this choice;
-the displayed default ``...`` (``Ellipsis``) also means omitted.
+(``"preserve_maturity_coupon"``). Shifted ternary solves intersect the coupon
+bracket with the domain that keeps the maturity coupon at or above the fixed
+minimum. A bracket with no
+nondegenerate valid interval raises ``RootNotBracketedError``.
+Phoenix coupon solves omit this choice; the displayed default ``...``
+(``Ellipsis``) also means omitted.
 Unsupported coupon-solver instruments are rejected before checking this choice.
 Phoenix solves preserve the contract's coupon units: annual rate for annual
 coupons, fixed per-period proportion for FCN/DCN. Bounds, parameter tolerance

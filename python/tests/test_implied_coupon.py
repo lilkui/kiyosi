@@ -22,6 +22,7 @@ from kiyosi.market import RateTermStructure, all_days_calendar
 from kiyosi.pricing import (
     CouponQuoteConvention,
     FiniteDifferenceAutocallableEngine,
+    MonteCarloAutocallableEngine,
     QuadratureAutocallableEngine,
     implied_coupon,
 )
@@ -44,6 +45,99 @@ def binary(coupon=0.08, maturity=0.06, **changes):
 
 
 class ImpliedCouponTests(unittest.TestCase):
+    def test_ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons(self):
+        context = market()
+        for engine in (
+            QuadratureAutocallableEngine(asset_step_count=64),
+            FiniteDifferenceAutocallableEngine(
+                asset_step_count=200, time_step_count=100
+            ),
+            MonteCarloAutocallableEngine(path_count=512, seed=42, thread_count=1),
+        ):
+            for maturity, minimum, anchor in (
+                (0.1, 0.05, 0.1),
+                (0.06, 0.02, 0.08),
+                (0.07, 0.02, 0.13),
+                (0.4047152283389133, 0.002630147007026187, 0.40290962591640395),
+            ):
+                note = instruments.TernarySnowballOption(
+                    maturity_coupon_rate=maturity,
+                    minimum_coupon_rate=minimum,
+                    knock_in_level=80,
+                    effective_time=START,
+                    expiry_time=END,
+                    observations=autocallable_observations(
+                        [END], [110], knock_out_coupon_rates=[anchor]
+                    ),
+                )
+                quote = engine.price(note, context)
+                for lower in (0, -0.1):
+                    with self.subTest(
+                        engine=type(engine).__name__, maturity=maturity, lower=lower
+                    ):
+                        solved = implied_coupon(
+                            engine,
+                            note,
+                            context,
+                            quote,
+                            quote_convention="shift_maturity_coupon",
+                            lower_bound=lower,
+                        )
+                        self.assertAlmostEqual(solved, anchor, delta=1e-7)
+                with self.assertRaises(RootNotBracketedError):
+                    implied_coupon(
+                        engine,
+                        note,
+                        context,
+                        quote,
+                        quote_convention="shift_maturity_coupon",
+                        lower_bound=-0.1,
+                        upper_bound=0.01,
+                    )
+                with self.assertRaises(InvalidInputError):
+                    implied_coupon(
+                        engine,
+                        note,
+                        context,
+                        quote,
+                        quote_convention="shift_maturity_coupon",
+                        lower_bound=math.nan,
+                    )
+                fixed = note.with_coupon(0, quote_convention="preserve_maturity_coupon")
+                self.assertEqual(
+                    implied_coupon(
+                        engine,
+                        note,
+                        context,
+                        engine.price(fixed, context),
+                        quote_convention="preserve_maturity_coupon",
+                    ),
+                    0,
+                )
+                self.assertEqual(note.maturity_coupon_rate, maturity)
+                self.assertEqual(note.minimum_coupon_rate, minimum)
+            boundary = instruments.TernarySnowballOption(
+                maturity_coupon_rate=0.05,
+                minimum_coupon_rate=0.05,
+                knock_in_level=80,
+                effective_time=START,
+                expiry_time=END,
+                observations=autocallable_observations(
+                    [END], [110], knock_out_coupon_rates=[0.05]
+                ),
+            )
+            self.assertAlmostEqual(
+                implied_coupon(
+                    engine,
+                    boundary,
+                    context,
+                    engine.price(boundary, context),
+                    quote_convention="shift_maturity_coupon",
+                ),
+                0.05,
+                delta=1e-15,
+            )
+
     def test_coupon_replacements_apply_solved_quotes_without_changing_notes(self):
         engine = QuadratureAutocallableEngine(asset_step_count=64)
         context = market()
@@ -499,12 +593,14 @@ class ImpliedCouponTests(unittest.TestCase):
             observations=known.observations,
             barrier_state="no_event",
         )
-        self.assert_rejection(
-            InvalidInputError,
-            lambda: implied_coupon(
-                engine, ternary, market(), 1, quote_convention="shift_maturity_coupon"
-            ),
+        coupon = implied_coupon(
+            engine,
+            ternary,
+            market(),
+            engine.price(ternary, market()),
+            quote_convention="shift_maturity_coupon",
         )
+        self.assertAlmostEqual(coupon, ternary.observations[0].coupon_rate, delta=1e-7)
         for note in (
             known,
             snowball(barrier_state="no_event", observations=known.observations),

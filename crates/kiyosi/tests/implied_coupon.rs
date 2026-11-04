@@ -1,5 +1,121 @@
 use kiyosi::*;
 
+#[test]
+fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Result<()> {
+    let context = market(100.0, date(1, 1));
+    for engine in [
+        &QuadratureAutocallableEngine::new(QuadratureSettings {
+            asset_step_count: 64,
+            ..Default::default()
+        })? as &dyn PricingEngine<TernarySnowballOption>,
+        &FiniteDifferenceAutocallableEngine::new(FiniteDifferenceSettings {
+            asset_step_count: 200,
+            time_step_count: 100,
+            ..Default::default()
+        })?,
+        &MonteCarloAutocallableEngine::new(MonteCarloSettings {
+            path_count: 512,
+            seed: Some(42),
+            thread_count: 1,
+            ..Default::default()
+        })?,
+    ] {
+        for (maturity, minimum, anchor) in [
+            (0.1, 0.05, 0.1),
+            (0.06, 0.02, 0.08),
+            (0.07, 0.02, 0.13),
+            (
+                0.404_715_228_338_913_3,
+                0.002_630_147_007_026_187,
+                0.402_909_625_916_403_95,
+            ),
+        ] {
+            let note = TernarySnowballOption::new(TernarySnowballTerms::new(
+                maturity,
+                minimum,
+                80.0,
+                date(1, 1),
+                date(4, 1),
+                autocallable_observations(&[date(4, 1)], &[110.0], Some(&[anchor]), None)?,
+            ))?;
+            let original = note.clone();
+            let quote = engine.price(&note, &context)?;
+            for lower in [0.0, -0.1] {
+                let solved = implied_snowball_coupon(
+                    engine,
+                    &note,
+                    &context,
+                    quote,
+                    CouponQuoteConvention::ShiftMaturityCoupon,
+                    ImpliedCouponSettings {
+                        lower_bound: lower,
+                        ..Default::default()
+                    },
+                )?;
+                assert!((solved - anchor).abs() < 1e-7);
+            }
+            assert!(matches!(
+                implied_snowball_coupon(
+                    engine,
+                    &note,
+                    &context,
+                    quote,
+                    CouponQuoteConvention::ShiftMaturityCoupon,
+                    ImpliedCouponSettings {
+                        lower_bound: -0.1,
+                        upper_bound: 0.01,
+                        ..Default::default()
+                    }
+                ),
+                Err(Error::RootNotBracketed(_))
+            ));
+            assert!(matches!(
+                implied_snowball_coupon(
+                    engine,
+                    &note,
+                    &context,
+                    quote,
+                    CouponQuoteConvention::ShiftMaturityCoupon,
+                    ImpliedCouponSettings {
+                        lower_bound: f64::NAN,
+                        ..Default::default()
+                    }
+                ),
+                Err(Error::InvalidInput(_))
+            ));
+            let fixed = note.with_coupon(0.0, CouponQuoteConvention::PreserveMaturityCoupon)?;
+            let solved = implied_snowball_coupon(
+                engine,
+                &note,
+                &context,
+                engine.price(&fixed, &context)?,
+                CouponQuoteConvention::PreserveMaturityCoupon,
+                Default::default(),
+            )?;
+            assert_eq!(solved, 0.0);
+            assert_eq!(note, original);
+        }
+        let boundary = TernarySnowballOption::new(TernarySnowballTerms::new(
+            0.05,
+            0.05,
+            80.0,
+            date(1, 1),
+            date(4, 1),
+            autocallable_observations(&[date(4, 1)], &[110.0], Some(&[0.05]), None)?,
+        ))?;
+        let solved = implied_snowball_coupon(
+            engine,
+            &boundary,
+            &context,
+            engine.price(&boundary, &context)?,
+            CouponQuoteConvention::ShiftMaturityCoupon,
+            Default::default(),
+        )?;
+        assert!((solved - 0.05).abs() < 1e-15);
+    }
+    Ok(())
+}
+
 fn date(month: u32, day: u32) -> Timestamp {
     Date::new(2025, month, day).unwrap().start_of_day()
 }
@@ -534,18 +650,17 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         note.observations().to_vec(),
     ))
     .unwrap();
-    assert!(matches!(
-        implied_snowball_coupon(
-            &engine,
-            &ternary,
-            &context,
-            1.0,
-            ShiftMaturityCoupon,
-            Default::default()
-        )
-        .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
+    let quote = engine.price(&ternary, &context).unwrap();
+    let coupon = implied_snowball_coupon(
+        &engine,
+        &ternary,
+        &context,
+        quote,
+        ShiftMaturityCoupon,
+        Default::default(),
+    )
+    .unwrap();
+    assert!((coupon - ternary.observations()[0].coupon_rate).abs() < 1e-7);
     assert_eq!(ternary.terms().maturity_coupon_rate, 0.06);
     let curve = RateTermStructure::new(
         date(1, 1),

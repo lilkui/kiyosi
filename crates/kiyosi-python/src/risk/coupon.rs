@@ -28,6 +28,8 @@ use pyo3::prelude::*;
 /// lower_bound : float, optional
 ///     Finite lower coupon in the contract's units; defaults to 0. Signed
 ///     bounds are accepted when the resulting contract terms are valid.
+///     For shifted ternary maturity coupons, the bracket is intersected with
+///     the valid domain that keeps maturity at or above the fixed minimum.
 /// upper_bound : float, optional
 ///     Finite upper coupon in the same units, above lower_bound; defaults to 2.
 /// price_tolerance : float, optional
@@ -53,6 +55,7 @@ use pyo3::prelude::*;
 ///     If the combination is unsupported or the parameter is not identifiable.
 /// RootNotBracketedError
 ///     If the supplied endpoints do not bracket the target.
+///     Also raised when the bracket has no nondegenerate interval in the valid domain.
 /// NonConvergenceError
 ///     If the iteration budget is exhausted.
 /// ComputationFailureError

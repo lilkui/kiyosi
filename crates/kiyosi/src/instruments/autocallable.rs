@@ -438,6 +438,34 @@ macro_rules! snowball_coupon {
 snowball_coupon!(SnowballTerms, BinarySnowballTerms, TernarySnowballTerms);
 
 impl<T: SnowballCouponTerms> AutocallableNote<T> {
+    pub(crate) fn minimum_quoted_coupon(
+        &self,
+        convention: crate::CouponQuoteConvention,
+    ) -> Option<f64> {
+        if convention != crate::CouponQuoteConvention::ShiftMaturityCoupon {
+            return None;
+        }
+        let terms = self.view();
+        let Redemption::FixedCoupon(minimum) = terms.knock_in?.redemption else {
+            return None;
+        };
+        let anchor = terms.observations[0].coupon_rate;
+        let maturity = terms.maturity_coupon_rate();
+        // Round both inverse operations into the domain used by with_coupon.
+        let shift = minimum - maturity;
+        let shift = if maturity + shift < minimum {
+            libm::nextafter(shift, f64::INFINITY)
+        } else {
+            shift
+        };
+        let lower = anchor + shift;
+        Some(if lower - anchor < shift {
+            libm::nextafter(lower, f64::INFINITY)
+        } else {
+            lower
+        })
+    }
+
     /// Returns an owning note with the observation coupon schedule shifted to `coupon`.
     ///
     /// The first observation anchors the shift, including past observations.
