@@ -130,7 +130,8 @@ pub trait OptionContract {
 
     /// Returns the earliest valuation time, or `None` when pre-effective valuation is valid.
     ///
-    /// Defaults to the effective time; see [`crate::AnalyticRangeAccrualEngine::price`].
+    /// Built-in contracts use the default effective time. Custom contracts may
+    /// allow earlier valuation by returning `None`; see [`Self::effective_time`].
     fn valuation_start(&self) -> Option<Timestamp> {
         Some(self.effective_time())
     }

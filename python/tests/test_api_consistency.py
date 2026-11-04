@@ -2,7 +2,7 @@
 
 import pickle
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from fractions import Fraction
 
 from kiyosi import InvalidInputError, UnsupportedOperationError, market, pricing
@@ -10,6 +10,54 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_built_in_pricing_requires_valuation_within_inclusive_contract_life(self):
+        start, end = datetime(2025, 1, 1), datetime(2025, 1, 2)
+        life = {"effective_time": start, "expiry_time": end}
+        cases = [
+            (
+                pricing.AnalyticEuropeanEngine(),
+                ins.EuropeanOption(option_type="call", strike=100, **life),
+            )
+        ]
+        cases.extend(
+            (
+                pricing.AnalyticRangeAccrualEngine(),
+                ins.RangeAccrualOption(
+                    notional=100,
+                    annual_coupon_rate=coupon,
+                    lower_bound=90,
+                    upper_bound=110,
+                    **life,
+                ),
+            )
+            for coupon in (0, 0.1)
+        )
+        for engine, option in cases:
+            for at, valid in (
+                (start - timedelta(microseconds=1), False),
+                (start, True),
+                (end, True),
+                (end + timedelta(microseconds=1), False),
+            ):
+                context = market.PricingContext(
+                    model_parameters=market.BlackScholesMertonParameters(
+                        risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+                    ),
+                    spot_price=100,
+                    valuation_time=at,
+                )
+                with self.subTest(instrument=type(option).__name__, at=at):
+                    if valid:
+                        self.assertGreaterEqual(engine.price(option, context), 0)
+                        self.assertGreaterEqual(
+                            engine.price_with_greeks(option, context, "delta").price, 0
+                        )
+                    else:
+                        with self.assertRaises(InvalidInputError):
+                            engine.price(option, context)
+                        with self.assertRaises(InvalidInputError):
+                            engine.price_with_greeks(option, context, "delta")
+
     def test_observation_construction_validates_numeric_terms_before_note_creation(
         self,
     ):

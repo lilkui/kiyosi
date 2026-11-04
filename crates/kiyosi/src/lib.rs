@@ -18,6 +18,7 @@
 //! contracts support validated immutable `replace` operations; omitted terms and
 //! history remain unchanged. See [`BarrierOption::replace`] for an exotic example.
 //! Contract effective and expiry timestamps are inclusive and preserve microseconds.
+//! Built-in pricing rejects valuation outside those bounds, including range accruals.
 //! Contractual, observation and market times use [`Timestamp`] and share a
 //! caller-selected time basis. Calendars classify dates without moving contract
 //! boundaries. Pure calendar inputs remain [`Date`] values.

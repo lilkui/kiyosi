@@ -8,7 +8,8 @@ product-specific coupon rules.
 ``OptionType`` selects ``"call"`` or ``"put"``. Contract effective and expiry
 boundaries are inclusive ``datetime.datetime`` values. Microseconds participate
 in expiry, observation and elapsed-time calculations. Calendars classify dates
-without moving contract boundaries.
+without moving contract boundaries. Pricing requires valuation within the
+inclusive effective and expiry times for every built-in contract, including range accruals.
 Finite-difference pricing raises ``ComputationFailureError`` if distinct event times
 cannot be represented distinctly by its numerical grid.
 Explicit observations use their supplied times; daily observations use the expiry

@@ -169,15 +169,17 @@ fn exact_marginals_match_flat_negative_and_node_curves_and_recover_volatility() 
 #[test]
 fn numerical_greeks_match_independent_payoff_reference() {
     let curve =
-        RateTermStructure::new(add(day(1), -5), vec![day(4), day(9)], vec![1.001, 0.997]).unwrap();
-    for (days, rate) in [(1, Rate::Flat(0.04)), (8, curve.into())] {
+        RateTermStructure::new(add(day(1), -5), vec![day(8), day(16)], vec![1.001, 0.997]).unwrap();
+    for (days, rate) in [(8, Rate::Flat(0.04)), (15, curve.into())] {
         let option = RangeAccrualOption::new(RangeAccrualTerms {
+            effective_time: day(3),
             expiry_time: add(day(1), days),
             ..terms()
         })
         .unwrap();
-        let context = market(add(day(1), -3), 99.0)
+        let context = market(day(4), 99.0)
             .replace(PricingContextChanges {
+                calendar: Some(TradingCalendar::weekdays()),
                 model_parameters: Some(
                     BlackScholesMertonParameters::new(rate, -0.01, 0.2)
                         .unwrap()
@@ -227,15 +229,18 @@ fn terminal_coupon_counts_current_spot_inclusively() {
 }
 
 #[test]
-fn greeks_respect_observations_and_allow_pre_effective_time() {
+fn greeks_respect_contract_life_and_observations() {
     let option = RangeAccrualOption::new(terms()).unwrap();
     let before = market(Date::new(2024, 12, 29).unwrap().start_of_day(), 99.0);
-    let result = AnalyticRangeAccrualEngine
-        .price_with_greeks(&option, &before, GreeksRequest::all(), Default::default())
-        .unwrap();
-    for greek in Greek::ALL {
-        assert!(result.has(greek), "{greek:?}");
-    }
+    assert!(matches!(
+        AnalyticRangeAccrualEngine.price_with_greeks(
+            &option,
+            &before,
+            GreeksRequest::all(),
+            Default::default()
+        ),
+        Err(Error::InvalidInput(_))
+    ));
     let current = market(day(2), 95.0);
     let result = AnalyticRangeAccrualEngine
         .price_with_greeks(&option, &current, GreeksRequest::all(), Default::default())
@@ -351,10 +356,9 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
 }
 
 #[test]
-fn history_is_strictly_prior_and_valuation_can_precede_effective_date() {
+fn history_is_strictly_prior_within_contract_life() {
     let option = RangeAccrualOption::new(terms()).unwrap();
     for (at, hits) in [
-        (add(day(1), -3), None),
         (day(1), None),
         (Timestamp::new(day(1).date(), 12, 0, 0, 0).unwrap(), None),
         (day(2), None),
@@ -733,7 +737,7 @@ fn unresolvable_curve_knots_fail_before_pricing_future_observations() {
             })
             .unwrap();
         let mut input = RangeAccrualTerms {
-            effective_time: Date::new(2499, 12, 31).unwrap().start_of_day(),
+            effective_time: day(1),
             expiry_time: expiry,
             ..terms()
         };

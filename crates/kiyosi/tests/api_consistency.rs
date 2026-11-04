@@ -1,6 +1,54 @@
 use kiyosi::*;
 
 #[test]
+fn built_in_pricing_requires_valuation_within_inclusive_contract_life() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(1)?;
+    let before = Timestamp::new(Date::new(2024, 12, 31)?, 23, 59, 59, 999_999)?;
+    let after = Timestamp::new(end.date(), 0, 0, 0, 1)?;
+    macro_rules! check {
+        ($engine:expr, $option:expr) => {{
+            let engine = $engine;
+            let option = $option;
+            for (at, valid) in [(before, false), (start, true), (end, true), (after, false)] {
+                let context = PricingContext::new(
+                    BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+                    100.0,
+                    at,
+                )?;
+                let price = engine.price(&option, &context);
+                let greeks = engine.price_with_greeks(
+                    &option,
+                    &context,
+                    GreeksRequest::new([Greek::Delta]),
+                    Default::default(),
+                );
+                if valid {
+                    assert!(price?.is_finite());
+                    assert!(greeks?.price().is_finite());
+                } else {
+                    assert!(matches!(price, Err(Error::InvalidInput(_))));
+                    assert!(matches!(greeks, Err(Error::InvalidInput(_))));
+                }
+            }
+        }};
+    }
+    check!(
+        AnalyticEuropeanEngine,
+        EuropeanOption::new(OptionType::Call, 100.0, start, end)?
+    );
+    for coupon in [0.0, 0.1] {
+        check!(
+            AnalyticRangeAccrualEngine,
+            RangeAccrualOption::new(RangeAccrualTerms::new(
+                100.0, coupon, 90.0, 110.0, start, end
+            ))?
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn observation_construction_validates_numeric_terms_before_note_creation() -> Result<()> {
     let time = Date::new(2026, 1, 1)?.start_of_day();
     for level in [0.0, -1.0, f64::NAN, f64::INFINITY] {

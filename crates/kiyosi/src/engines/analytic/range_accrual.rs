@@ -34,12 +34,13 @@ impl AnalyticRangeAccrualEngine {
     }
     /// Prices the coupon, using spot for a current observation and explicit prior hit history.
     ///
-    /// Valuation before the effective date is valid. Zero coupons still validate calendar/history,
+    /// Valuation must lie within the inclusive effective and expiry times, as for other contracts.
+    /// Zero coupons still validate calendar/history,
     /// then return zero without requiring curve coverage. Payment occurs only at expiry.
     ///
     /// # Errors
     ///
-    /// Checks valuation after expiry, nontrading expiry, missing or excessive
+    /// Checks valuation outside contract life, nontrading expiry, missing or excessive
     /// prior hits, and required curve coverage, in that order
     /// ([`Error::InvalidInput`]). Unresolvable curve knots or non-finite
     /// transitions or prices return [`Error::ComputationFailure`].
@@ -64,11 +65,9 @@ impl AnalyticRangeAccrualEngine {
     )]
     pub fn price(&self, option: &RangeAccrualOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
+        crate::instruments::monitoring::validate_life(option, context)?;
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
-        if valuation > expiry {
-            return Err(Error::InvalidInput("valuation is after expiry".into()));
-        }
         if !context
             .calendar()
             .is_trading_day(option.expiry_time().date())

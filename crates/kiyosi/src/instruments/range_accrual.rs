@@ -146,9 +146,6 @@ impl OptionContract for RangeAccrualOption {
     fn expiry_time(&self) -> Timestamp {
         self.expiry_time()
     }
-    fn valuation_start(&self) -> Option<Timestamp> {
-        None
-    }
     fn all_greeks_unavailable(&self, _context: &PricingContext) -> bool {
         false
     }

@@ -108,7 +108,7 @@ class RangeAccrualTests(unittest.TestCase):
             times=[knot, instant(knot) + timedelta(microseconds=1), expiry],
             factors=[1, 1, 1],
         )
-        option = contract(effective_time=datetime(2499, 12, 31), expiry_time=expiry)
+        option = contract(expiry_time=expiry)
         engine = AnalyticRangeAccrualEngine()
         for rate, dividend in ((curve, 0), (0, curve)):
             context = market(rate=rate, dividend=dividend)
@@ -291,10 +291,9 @@ class RangeAccrualTests(unittest.TestCase):
                 )
                 assert_terminal_greeks(self, result, None)
 
-    def test_history_midnight_intraday_and_pre_effective(self):
+    def test_history_midnight_and_intraday_within_contract_life(self):
         engine = AnalyticRangeAccrualEngine()
         for valuation, hits in (
-            (instant(START) - timedelta(days=3), None),
             (instant(START), None),
             (instant(START) + timedelta(hours=12), None),
             (instant(START) + timedelta(days=1), None),
@@ -524,16 +523,25 @@ class RangeAccrualTests(unittest.TestCase):
         )
 
     def test_smoothed_greeks_against_independent_reference(self):
-        valuation = START - timedelta(days=3)
+        valuation = START + timedelta(days=3)
         curve = RateTermStructure(
             reference_time=START - timedelta(days=5),
-            times=[START + timedelta(days=3), START + timedelta(days=8)],
+            times=[START + timedelta(days=7), START + timedelta(days=15)],
             factors=[1.001, 0.997],
         )
         h, v, r = 0.1, 0.0001, 0.0001
-        for days, rate, dividend in ((1, 0.04, 0.01), (8, curve, -0.01)):
-            option = contract(expiry_time=START + timedelta(days=days))
-            context = market(valuation, spot=99, rate=rate, dividend=dividend)
+        for days, rate, dividend in ((8, 0.04, 0.01), (15, curve, -0.01)):
+            option = contract(
+                effective_time=START + timedelta(days=2),
+                expiry_time=START + timedelta(days=days),
+            )
+            context = market(
+                valuation,
+                spot=99,
+                rate=rate,
+                dividend=dividend,
+                calendar=weekdays_calendar(),
+            )
             engine = AnalyticRangeAccrualEngine()
             result = engine.price_with_greeks(
                 option, context, greeks="all", spot_shift=0.1
@@ -610,16 +618,21 @@ class RangeAccrualTests(unittest.TestCase):
                     self.assertIsNotNone(getattr(result, name))
                     self.assertAlmostEqual(getattr(result, name), value, delta=2e-8)
 
-    def test_curve_knot_uses_right_hand_time_greek_before_effective(self):
-        valuation = START - timedelta(days=3)
-        option = contract(expiry_time=START + timedelta(days=1))
+    def test_curve_knot_uses_right_hand_time_greek_between_observations(self):
+        valuation = START + timedelta(days=3)
+        option = contract(
+            effective_time=START + timedelta(days=2),
+            expiry_time=START + timedelta(days=5),
+        )
         rate = RateTermStructure(
             reference_time=START - timedelta(days=5),
             times=[valuation, option.expiry_time],
             factors=[0.999, 1.002],
         )
-        context = market(valuation, rate=rate)
-        after = market(valuation + timedelta(days=1), rate=rate)
+        context = market(valuation, rate=rate, calendar=weekdays_calendar())
+        after = market(
+            valuation + timedelta(days=1), rate=rate, calendar=weekdays_calendar()
+        )
         result = AnalyticRangeAccrualEngine().price_with_greeks(
             option, context, "theta"
         )

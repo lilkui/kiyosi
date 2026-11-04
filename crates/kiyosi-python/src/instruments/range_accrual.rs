@@ -33,7 +33,8 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 /// ------
 /// InvalidInputError
 ///     If amounts, bounds or history are invalid, or expiry is not after
-///     effective_time. Pricing checks history against elapsed observations.
+///     effective_time. Pricing checks the inclusive contract life and history
+///     against elapsed observations.
 ///
 /// Notes
 /// -----
