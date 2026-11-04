@@ -507,7 +507,14 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
     let result = engine
         .price_with_greeks(&option, &expired, GreeksRequest::all(), Default::default())
         .unwrap();
-    assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
+    for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+        assert_eq!(result.get(greek), None);
+    }
+    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+        if result.supported().has(greek) {
+            assert_eq!(result.require(greek).unwrap(), 0.0);
+        }
+    }
     let fixed = Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 0.0, 2.0, day(1, 1), day(1, 6))

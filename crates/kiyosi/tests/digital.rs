@@ -156,7 +156,14 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
                     .unwrap(),
                 ] {
                     assert_eq!(result.price(), expected);
-                    assert!(result.values().iter().all(Option::is_none));
+                    assert_eq!(result.get(Greek::Theta), None);
+                    assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
+                    if (spot - 100.0).abs() <= 0.01 {
+                        assert_eq!(result.get(Greek::Delta), None);
+                    } else {
+                        let delta = f64::from(pays && option.payout().is_none());
+                        assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
+                    }
                 }
                 assert!(matches!(
                     implied_volatility(

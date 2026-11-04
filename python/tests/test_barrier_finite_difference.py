@@ -15,6 +15,7 @@ from kiyosi import (
 )
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure
+from support.terminal import assert_terminal_greeks
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
 
@@ -141,8 +142,7 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
                     contract, market(spot=110, valuation=END), greeks="all"
                 )
                 self.assertEqual(result.price, 3 if kind.endswith("in") else 10)
-                for greek in ("delta", "gamma", *OTHER_GREEKS):
-                    self.assertIsNone(getattr(result, greek))
+                assert_terminal_greeks(self, result, int(kind.endswith("out")))
 
     def test_implied_volatility_reprices_and_rejects_fixed_cashflows(self):
         context = market()

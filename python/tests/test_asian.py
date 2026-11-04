@@ -29,6 +29,7 @@ from kiyosi.pricing import (
     TurnbullWakemanArithmeticAveragePriceEngine,
     implied_volatility,
 )
+from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 PAIRS = (
@@ -188,7 +189,7 @@ class AsianTests(unittest.TestCase):
                 )
             self.assertEqual(engine.price(seasoned, market(END)), 10)
             result = engine.price_with_greeks(seasoned, market(END), greeks="all")
-            self.assertTrue(all(getattr(result, g) is None for g in GREEKS))
+            assert_terminal_greeks(self, result, 0)
             self.assert_rejection(
                 UnsupportedOperationError,
                 implied_volatility,

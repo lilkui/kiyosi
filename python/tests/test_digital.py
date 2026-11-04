@@ -25,6 +25,7 @@ from kiyosi.pricing import (
     AnalyticEuropeanEngine,
     implied_volatility,
 )
+from support.terminal import assert_terminal_greeks
 
 GREEKS = (
     "delta",
@@ -187,8 +188,13 @@ class DigitalTests(unittest.TestCase):
                     )
                     self.assertEqual(self.engine.price(option, context), expected)
                     self.assertEqual(result.price, expected)
-                    for name in GREEKS:
-                        self.assertIsNone(getattr(result, name))
+                    assert_terminal_greeks(
+                        self,
+                        result,
+                        None
+                        if abs(spot - 100) <= 0.01
+                        else int(pays and isinstance(option, AssetOrNothingOption)),
+                    )
                     self.assert_rejection(
                         UnsupportedOperationError,
                         implied_volatility,

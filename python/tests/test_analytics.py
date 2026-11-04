@@ -187,12 +187,17 @@ class AnalyticsTests(unittest.TestCase):
         result = self.engine.price_with_greeks(self.option, expiry, greeks="all")
         self.assertEqual(result.price, 10)
         for name in (
-            "delta",
-            "gamma",
-            "speed",
             "theta",
             "charm",
             "color",
+        ):
+            self.assertIsNone(getattr(result, name))
+            with self.assertRaises(UnsupportedOperationError):
+                result.require(name)
+        self.assertAlmostEqual(result.require("delta"), 1, delta=1e-10)
+        for name in (
+            "gamma",
+            "speed",
             "vega",
             "volga",
             "vanna",
@@ -200,9 +205,7 @@ class AnalyticsTests(unittest.TestCase):
             "rho",
             "dividend_rho",
         ):
-            self.assertIsNone(getattr(result, name))
-            with self.assertRaises(UnsupportedOperationError):
-                result.require(name)
+            self.assertAlmostEqual(result.require(name), 0, delta=1e-8)
         for changes in (
             {},
             {"greeks": None},

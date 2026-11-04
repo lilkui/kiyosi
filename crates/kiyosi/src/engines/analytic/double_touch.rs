@@ -91,7 +91,7 @@ impl AnalyticDoubleTouchEngine {
 
     /// Computes requested numerical Greeks with shared bump defaults; see [`Self::price`].
     ///
-    /// Greeks are absent at expiry or current barrier equality without a prior touch.
+    /// Expiry Greeks follow terminal payoffs. Before expiry, current barrier equality without a prior touch suppresses Greeks.
     /// Stencils crossing either boundary or changing monitoring or history regimes
     /// omit affected measures.
     ///

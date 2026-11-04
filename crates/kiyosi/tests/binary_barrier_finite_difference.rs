@@ -254,7 +254,14 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
                     .price_with_greeks(&untouched, &ctx, GreeksRequest::all(), Default::default())
                     .unwrap();
                 assert_eq!(result.price(), expected);
-                assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
+                for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+                    assert_eq!(result.get(greek), None);
+                }
+                for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+                    if result.supported().has(greek) {
+                        assert_eq!(result.require(greek).unwrap(), 0.0);
+                    }
+                }
             }
             assert_eq!(option.touch_state(), None);
         }

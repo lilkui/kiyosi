@@ -167,7 +167,15 @@ fn settings_and_life_validation_preserve_expiry_and_failure_state() {
         .price_with_greeks(&option, &expiry, GreeksRequest::all(), Default::default())
         .unwrap();
     assert_eq!(result.price(), 20.0);
-    assert!(Greek::ALL.into_iter().all(|greek| !result.has(greek)));
+    for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+        assert_eq!(result.get(greek), None);
+    }
+    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+        if result.supported().has(greek) {
+            assert_eq!(result.require(greek).unwrap(), 0.0);
+        }
+    }
+    assert!((result.require(Greek::Delta).unwrap() + 1.0).abs() < 1e-10);
     let invalid = context
         .replace(PricingContextChanges {
             valuation_time: Some(Date::new(2024, 12, 31).unwrap().start_of_day()),

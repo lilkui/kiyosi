@@ -138,7 +138,14 @@ fn expiry_is_strict_and_life_validation_preserves_state() {
                     .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
                     .unwrap();
                 assert_eq!(result.price(), expected);
-                assert!(Greek::ALL.into_iter().all(|g| result.get(g).is_none()));
+                for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+                    assert_eq!(result.get(greek), None);
+                }
+                for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+                    if result.supported().has(greek) {
+                        assert_eq!(result.require(greek).unwrap(), 0.0);
+                    }
+                }
             }
             for at in [
                 Date::new(start.date().year() - 1, 12, 31)

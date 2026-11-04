@@ -88,7 +88,7 @@ impl QuadratureAutocallableEngine {
     }
     /// Computes requested scalar sensitivities using shared core bump defaults.
     ///
-    /// Expiry Greeks are absent. Spot and time stencils crossing active events
+    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent. Spot and time stencils crossing active events
     /// are unavailable; vega and rho remain defined at current thresholds.
     /// See [`Self::new`] for an example.
     ///

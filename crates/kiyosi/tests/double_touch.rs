@@ -352,7 +352,14 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
                 3.0
             }
         );
-        assert!(Greek::ALL.into_iter().all(|g| !terminal.has(g)));
+        for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+            assert_eq!(terminal.get(greek), None);
+        }
+        for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+            if terminal.supported().has(greek) {
+                assert_eq!(terminal.require(greek).unwrap(), 0.0);
+            }
+        }
         assert!(matches!(
             implied_volatility(
                 &engine,
@@ -804,7 +811,14 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
                     0.0
                 }
             );
-            assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
+            for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+                assert_eq!(result.get(greek), None);
+            }
+            for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+                if result.supported().has(greek) {
+                    assert_eq!(result.require(greek).unwrap(), 0.0);
+                }
+            }
         }
     }
 }

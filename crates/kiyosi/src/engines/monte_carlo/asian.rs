@@ -135,7 +135,7 @@ impl MonteCarloAsianEngine {
     /// Returns requested delta and gamma directly from the price's shared normal draws.
     ///
     /// Numerical shift settings are accepted for the shared engine signature and ignored.
-    /// Other Greeks and all expiry Greeks remain absent. No numerical bumps are
+    /// Only delta and gamma are supported, including terminal-payoff Greeks at expiry. Before expiry, no numerical bumps are
     /// required. For scalar differences and history-boundary stencil rules, use
     /// [`crate::numerical_greeks`], which pins a request-local seed even for unseeded
     /// engines. See [`Self::price`].
@@ -441,10 +441,16 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         request.validate()?;
-        self.native(&option.0, context, true, request)
-            .map(|result| {
-                result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
-            })
+        let result = self
+            .native(&option.0, context, true, request)?
+            .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
+        crate::risk::numerical::expiry_greeks(
+            option,
+            context,
+            Default::default(),
+            result,
+            |context| <Self as PricingEngine<_>>::price(self, option, context),
+        )
     }
 }
 
@@ -480,10 +486,16 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         request.validate()?;
-        self.native(&option.0, context, false, request)
-            .map(|result| {
-                result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
-            })
+        let result = self
+            .native(&option.0, context, false, request)?
+            .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
+        crate::risk::numerical::expiry_greeks(
+            option,
+            context,
+            Default::default(),
+            result,
+            |context| <Self as PricingEngine<_>>::price(self, option, context),
+        )
     }
     fn volatility_affects_price(
         &self,

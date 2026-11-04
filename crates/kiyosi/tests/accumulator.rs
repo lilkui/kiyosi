@@ -175,14 +175,16 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
             engine.price(&option, &context).unwrap(),
             quantity * (spot - 100.0)
         );
-        assert!(
-            engine
-                .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
-                .unwrap()
-                .values()
-                .iter()
-                .all(Option::is_none)
-        );
+        let result = engine
+            .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+            .unwrap();
+        assert_eq!(result.get(Greek::Theta), None);
+        assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
+        if (spot - 100.0).abs() <= 0.01 || (spot - 110.0).abs() <= 0.01 {
+            assert_eq!(result.get(Greek::Delta), None);
+        } else {
+            assert!((result.require(Greek::Delta).unwrap() - quantity).abs() < 1e-10);
+        }
     }
     for spot in [90.0, 100.0, 109.0] {
         let context = market(spot, day(1, 3), 0.2, 0.04, 0.01);

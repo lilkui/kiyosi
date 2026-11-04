@@ -325,7 +325,14 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
         let result = engine
             .price_with_greeks(&option, &expiry, GreeksRequest::all(), Default::default())
             .unwrap();
-        assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
+        for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+            assert_eq!(result.get(greek), None);
+        }
+        for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+            if result.supported().has(greek) {
+                assert_eq!(result.require(greek).unwrap(), 0.0);
+            }
+        }
     }
     let boundary = engine
         .price_with_greeks(

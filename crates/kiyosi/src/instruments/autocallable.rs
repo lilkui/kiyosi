@@ -775,9 +775,23 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
                 return false;
             }
         }
+        if context.valuation_time() == self.expiry_time()
+            && self.view().knock_in.is_some_and(|ki| {
+                (self.barrier_state() == Some(AutocallableBarrierState::KnockedIn)
+                    || self.view().below_knock_in(spot))
+                    && match ki.redemption {
+                        Redemption::Downside(d) => {
+                            crosses(d.upper_strike) || crosses(d.lower_strike)
+                        }
+                        Redemption::FixedCoupon(_) => false,
+                    }
+            })
+        {
+            return true;
+        }
         self.barrier_state() != Some(AutocallableBarrierState::KnockedIn)
             && self.knock_in_affects_payoff()
-            && self.daily_at(context)
+            && (self.daily_at(context) || context.valuation_time() == self.expiry_time())
             && self.view().knock_in.is_some_and(|ki| crosses(ki.level))
     }
     fn time_stencil_available(

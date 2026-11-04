@@ -16,7 +16,8 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
 )
-from test_support_matrix import HESTON_ENGINES, terminal_cases
+from support.terminal import assert_terminal_greeks
+from test_support_matrix import HESTON_ENGINES, terminal_cases, terminal_delta
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
@@ -408,8 +409,12 @@ class LocalVolatilityTests(unittest.TestCase):
                             self.assertAlmostEqual(
                                 result.price, terminal_price, delta=1e-10
                             )
-                            self.assertIsNone(result.delta)
-                            self.assertIsNone(result.gamma)
+                            self.assertAlmostEqual(
+                                result.require("delta"),
+                                terminal_delta(contract),
+                                delta=1e-10,
+                            )
+                            self.assertEqual(result.require("gamma"), 0)
                         for request in ["all", ["delta", "vega"], "theta"]:
                             result = e.price_with_greeks(contract, c, request)
                             self.assertIsNone(result.vega)
@@ -435,8 +440,7 @@ class LocalVolatilityTests(unittest.TestCase):
             option(), c.replace(valuation_time=END, spot_price=110), ["delta", "gamma"]
         )
         self.assertEqual(terminal.price, 10)
-        self.assertIsNone(terminal.delta)
-        self.assertIsNone(terminal.gamma)
+        assert_terminal_greeks(self, terminal, 1)
         with self.assertRaises(InvalidInputError):
             engine().price(option(end=END + timedelta(days=1)), c)
         dated = RateTermStructure(

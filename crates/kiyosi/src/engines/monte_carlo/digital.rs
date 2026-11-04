@@ -65,7 +65,7 @@ impl MonteCarloDigitalEngine {
     /// Returns requested likelihood-ratio delta/gamma from the price's normal draws.
     ///
     /// Numerical shift settings are accepted for the shared engine signature and ignored.
-    /// All other Greeks, and all expiry Greeks, remain absent. No numerical bumps
+    /// Other Greeks remain absent. Expiry delta and gamma use terminal payoff stencils; before expiry no numerical bumps
     /// are required. Near-expiry estimates can have substantial sampling error.
     ///
     /// # Errors
@@ -109,9 +109,16 @@ impl MonteCarloDigitalEngine {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
         request.validate()?;
-        self.native(option, context, request).map(|result| {
-            result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
-        })
+        let result = self
+            .native(option, context, request)?
+            .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
+        crate::risk::numerical::expiry_greeks(
+            option,
+            context,
+            Default::default(),
+            result,
+            |context| self.price(option, context),
+        )
     }
 
     fn native(

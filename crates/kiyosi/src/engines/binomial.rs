@@ -86,7 +86,7 @@ impl CoxRossRubinsteinVanillaEngine {
 
     /// Returns node delta/gamma and numerically completes missing requested Greeks.
     ///
-    /// At expiry every Greek is absent. One-step gamma uses scalar differences.
+    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent. One-step gamma uses scalar differences.
     /// Bumps use [`NumericalShiftSettings`]; feasible bumped failures propagate.
     ///
     /// # Errors
@@ -508,7 +508,7 @@ impl CoxRossRubinsteinDigitalEngine {
     /// Returns requested node delta/gamma; all other Greeks remain absent.
     ///
     /// Numerical shift settings are accepted for the shared engine signature and ignored.
-    /// One-step gamma and all expiry Greeks are absent.
+    /// One-step gamma is absent before expiry. Expiry spot Greeks follow terminal payoffs.
     ///
     /// # Errors
     ///
@@ -543,9 +543,16 @@ impl CoxRossRubinsteinDigitalEngine {
         context.bsm_parameters()?;
         flat_rates(context)?;
         request.validate()?;
-        self.native(option, context, request).map(|result| {
-            result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
-        })
+        let result = self
+            .native(option, context, request)?
+            .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
+        crate::risk::numerical::expiry_greeks(
+            option,
+            context,
+            Default::default(),
+            result,
+            |context| self.price(option, context),
+        )
     }
 
     fn native(

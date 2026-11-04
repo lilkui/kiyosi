@@ -22,6 +22,7 @@ from kiyosi.market import (
     all_days_calendar,
     weekdays_calendar,
 )
+from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 FIRST = START + timedelta(days=180)
@@ -485,8 +486,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             greeks="all",
         )
         self.assertEqual(at_expiry.price, 10)
-        self.assertIsNone(at_expiry.delta)
-        self.assertIsNone(at_expiry.vega)
+        assert_terminal_greeks(self, at_expiry, 1)
 
     def test_narrow_band_and_tiny_volatility_do_not_lose_surviving_payoff(self):
         engine = pricing.FiniteDifferenceDoubleBarrierEngine(

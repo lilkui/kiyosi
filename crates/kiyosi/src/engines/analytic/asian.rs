@@ -309,7 +309,7 @@ macro_rules! asian_analytics {
             /// Returns requested Greeks using shared scalar finite differences.
             ///
             /// Time Greeks are unavailable when a stencil crosses the history boundary;
-            /// all Greeks are unavailable at expiry. See [`Self::price`] for a setup example.
+            /// expiry Greeks follow terminal payoffs, with time Greeks absent. See [`Self::price`] for a setup example.
             ///
             /// # Errors
             ///

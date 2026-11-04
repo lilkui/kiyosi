@@ -65,7 +65,7 @@ macro_rules! fd_engine {
         /// deterministic rate curves. All FD product families support local-volatility
         /// price, delta and gamma, including American exercise. Other requested Greeks remain None;
         /// implied-parameter solvers raise UnsupportedOperationError. Sigma uses
-        /// fixed absolute surface coordinates; Greeks are absent at expiry or where
+        /// fixed absolute surface coordinates; expiry Greeks follow terminal payoffs and are absent where
         /// their stencils cross product events. Surface coverage follows remaining
         /// stochastic evolution; rate coverage follows required future discounting.
         /// Automatic local-volatility domains require convergence checks.

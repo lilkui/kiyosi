@@ -40,7 +40,7 @@ impl FiniteDifferenceBarrierEngine {
     /// Uses [`NumericalShiftSettings`] for bumps and fixes the central BSM spatial domain.
     /// Local volatility accepts only delta/gamma, holding the absolute surface fixed.
     /// Stencils crossing observations or barriers leave affected Greeks absent; all are
-    /// absent at expiry or a current barrier equality without a prior touch.
+    /// based on terminal payoffs at expiry and absent at a current barrier equality without a prior touch.
     ///
     /// # Errors
     ///
@@ -196,8 +196,8 @@ impl FiniteDifferenceDoubleBarrierEngine {
     ///
     /// Fixes the central BSM spatial domain for bumps. Local volatility accepts only
     /// delta and gamma with the local-volatility surface held fixed. Stencils crossing
-    /// either boundary or an observation omit affected measures; all are absent at expiry or current boundary
-    /// equality without a prior touch.
+    /// either boundary or an observation omit affected measures; expiry Greeks follow terminal payoffs. Before expiry, current boundary
+    /// equality without a prior touch suppresses Greeks.
     ///
     /// # Errors
     ///

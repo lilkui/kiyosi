@@ -28,6 +28,7 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from price_differences import price_differences
+from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 FIRST = START + timedelta(days=180)
@@ -493,8 +494,7 @@ class DoubleTouchTests(unittest.TestCase):
             known = option.replace_history(touch_state="untouched")
             result = engine.price_with_greeks(known, market(time=END), greeks="all")
             self.assertEqual(result.price, 0 if known.is_one_touch else 3)
-            self.assertIsNone(result.delta)
-            self.assertIsNone(result.vega)
+            assert_terminal_greeks(self, result, 0)
             for spot in (80, 120):
                 self.assertEqual(
                     engine.price(known, market(spot, time=END)),
@@ -977,8 +977,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                 self.assertEqual(
                     terminal.price, 3 if option.is_one_touch == (spot != 100) else 0
                 )
-                self.assertIsNone(terminal.delta)
-                self.assertIsNone(terminal.vega)
+                assert_terminal_greeks(self, terminal, None if spot in (80, 120) else 0)
             self.assertIsNone(option.touch_state)
 
     def test_analytic_schedules_validate_then_resolve_or_reject(self):

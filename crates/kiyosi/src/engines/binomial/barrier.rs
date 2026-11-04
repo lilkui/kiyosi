@@ -73,7 +73,7 @@ impl CoxRossRubinsteinBarrierEngine {
     /// Returns requested node delta/gamma; other Greeks remain absent.
     ///
     /// Numerical shift settings are accepted for the shared engine signature and ignored.
-    /// One-step gamma and expiry Greeks are absent. Current barrier equality also
+    /// One-step gamma is absent before expiry. Expiry spot Greeks follow terminal payoffs. Current barrier equality also
     /// suppresses Greeks without a prior touch.
     /// See [`Self::price`] for a pricing example.
     ///
@@ -92,9 +92,16 @@ impl CoxRossRubinsteinBarrierEngine {
         context.bsm_parameters()?;
         flat_rates(context)?;
         request.validate()?;
-        self.native(option, context, request).map(|result| {
-            result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
-        })
+        let result = self
+            .native(option, context, request)?
+            .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
+        crate::risk::numerical::expiry_greeks(
+            option,
+            context,
+            Default::default(),
+            result,
+            |context| self.price(option, context),
+        )
     }
 
     #[expect(

@@ -371,7 +371,14 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
         ] {
             let result = result.unwrap();
             assert_eq!(result.price(), expected);
-            assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
+            for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+                assert_eq!(result.get(greek), None);
+            }
+            for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+                if result.supported().has(greek) {
+                    assert_eq!(result.require(greek).unwrap(), 0.0);
+                }
+            }
         }
         assert!(matches!(
             implied_volatility(&engine, &a, &context, expected, Default::default()).unwrap_err(),

@@ -24,11 +24,86 @@ pub(crate) fn symmetric_shift(value: f64, requested: f64) -> f64 {
     }
 }
 
+#[expect(
+    clippy::float_cmp,
+    reason = "Exact equality checks that the wider terminal spot stencil is symmetric."
+)]
+pub(crate) fn expiry_greeks(
+    option: &impl OptionContract,
+    context: &PricingContext,
+    settings: NumericalShiftSettings,
+    mut result: PricingResult,
+    price: impl Fn(&PricingContext) -> Result<f64>,
+) -> Result<PricingResult> {
+    if context.valuation_time() != option.expiry_time() {
+        return Ok(result);
+    }
+    let request = GreeksRequest::new(
+        Greek::ALL
+            .into_iter()
+            .filter(|&greek| result.requested().has(greek) && result.supported().has(greek)),
+    );
+    // Terminal payments no longer depend on volatility or discount rates.
+    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+        result.set(request, greek, 0.0)?;
+    }
+    let spot = context.spot_price();
+    let h = symmetric_shift(spot, settings.spot_shift());
+    if h <= 0.0 || spot <= h || option.at_spot_discontinuity(context, h) {
+        return Ok(result);
+    }
+    for greek in [Greek::Vanna, Greek::Zomma] {
+        result.set(request, greek, 0.0)?;
+    }
+    if [Greek::Delta, Greek::Gamma, Greek::Speed]
+        .into_iter()
+        .any(|g| request.has(g))
+    {
+        let shifted_price = |spot| {
+            price(&context.replace(PricingContextChanges {
+                spot_price: Some(spot),
+                ..Default::default()
+            })?)
+        };
+        let up = shifted_price(spot + h)?;
+        let down = shifted_price(spot - h)?;
+        let center = result.price();
+        result.set(request, Greek::Delta, (up - down) / h / 2.0)?;
+        result.set(
+            request,
+            Greek::Gamma,
+            ((up - center) - (center - down)) / h / h,
+        )?;
+        let two_h = 2.0 * h;
+        if request.has(Greek::Speed)
+            && two_h.is_finite()
+            && spot > two_h
+            && symmetric_shift(spot, two_h) == two_h
+            && !option.at_spot_discontinuity(context, two_h)
+        {
+            let up2 = shifted_price(spot + two_h)?;
+            let down2 = shifted_price(spot - two_h)?;
+            result.set(
+                request,
+                Greek::Speed,
+                ((up2 - up) - (up - down) + (down - down2)) / h / h / two_h,
+            )?;
+        }
+    }
+    Ok(result)
+}
+
 /// Computes BSM numerical price sensitivities for scalar engines.
 ///
 /// Local volatility returns [`crate::Error::UnsupportedOperation`]; use
 /// [`crate::FiniteDifferenceVanillaEngine::price_with_greeks`] for delta and gamma
 /// computed directly with the local-volatility surface held fixed.
+///
+/// At expiry, supported spot Greeks use terminal-payoff stencils. Vega, volga,
+/// rho and dividend rho are zero; vanna and zomma are zero where spot derivatives
+/// exist. Theta, charm and color remain absent. Stencils crossing terminal kinks
+/// or product events remain unavailable. Automatic terminal spot bumps use 0.01
+/// spot units for every engine, including American Monte Carlo.
 ///
 /// Uses rounded symmetric absolute bumps; collapsed, asymmetric or nonpositive
 /// stencils are unavailable.
@@ -75,11 +150,13 @@ pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     request.validate()?;
     settings.validate()?;
     let settings = NumericalShiftSettings {
-        spot_shift: Some(
-            settings
-                .spot_shift
-                .unwrap_or_else(|| engine.default_spot_shift(context)),
-        ),
+        spot_shift: Some(settings.spot_shift.unwrap_or_else(|| {
+            if context.valuation_time() == option.expiry_time() {
+                NumericalShiftSettings::default().spot_shift()
+            } else {
+                engine.default_spot_shift(context)
+            }
+        })),
         ..settings
     };
     let prepared = engine.prepare_request()?;
@@ -122,7 +199,12 @@ pub(crate) fn complete_greeks(
     let p0 = result.price();
     let available = GreeksRequest::new(Greek::ALL.into_iter().filter(|&g| result.has(g)));
     let time = context.valuation_time();
-    if time == option.expiry_time() || option.all_greeks_unavailable(context) {
+    if time == option.expiry_time() {
+        return expiry_greeks(option, context, settings, result, |context| {
+            Ok(native(context, GreeksRequest::new([]))?.price())
+        });
+    }
+    if option.all_greeks_unavailable(context) {
         return Ok(result);
     }
     let want = |g| request.has(g) && !available.has(g);

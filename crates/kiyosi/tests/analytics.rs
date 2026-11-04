@@ -363,9 +363,11 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
         .unwrap(),
     ] {
         assert_eq!(result.price(), 10.0);
-        assert!(result.values().iter().all(Option::is_none));
+        assert_eq!(result.get(Greek::Theta), None);
+        assert!((result.require(Greek::Delta).unwrap() - 1.0).abs() < 1e-10);
+        assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
         assert!(matches!(
-            result.require(Greek::Delta).unwrap_err(),
+            result.require(Greek::Theta).unwrap_err(),
             Error::UnsupportedOperation(_)
         ));
     }

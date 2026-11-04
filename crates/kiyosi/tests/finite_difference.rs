@@ -618,7 +618,9 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
         .price_with_greeks(&option, &expiry, GreeksRequest::all(), Default::default())
         .unwrap();
     assert_eq!(result.price(), 0.0);
-    assert!(result.values().iter().all(Option::is_none));
+    assert_eq!(result.get(Greek::Delta), None);
+    assert_eq!(result.get(Greek::Theta), None);
+    assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
     assert!(matches!(
         engine
             .price_with_greeks(
@@ -869,7 +871,9 @@ fn scaled_digital_discounts_and_strict_expiry_payments_remain_representable() {
                     result.price(),
                     if pays { payout.unwrap_or(spot) } else { 0.0 }
                 );
-                assert!(result.values().iter().all(Option::is_none));
+                assert_eq!(result.get(Greek::Delta), None);
+                assert_eq!(result.get(Greek::Theta), None);
+                assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
             }
         }
     }

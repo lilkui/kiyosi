@@ -362,8 +362,9 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                     expired = market(spot, time=END)
                     result = engine.price_with_greeks(known, expired, greeks="all")
                     self.assertEqual(result.price, analytic.price(known, expired))
-                    self.assertIsNone(result.delta)
-                    self.assertIsNone(result.gamma)
+                    reference = analytic.price_with_greeks(known, expired, "all")
+                    self.assertEqual(result.delta, reference.delta)
+                    self.assertEqual(result.gamma, reference.gamma)
             scheduled = contract(
                 barrier_type=kind,
                 rebate=7,

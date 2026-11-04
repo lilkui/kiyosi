@@ -109,7 +109,7 @@ impl QuadratureBarrierEngine {
 
     /// Computes requested scalar numerical Greeks with shared bump defaults.
     ///
-    /// At expiry or a current barrier equality without a prior touch, all Greeks are absent.
+    /// Expiry Greeks follow terminal payoffs. Before expiry, a current barrier equality without a prior touch suppresses Greeks.
     /// Stencils crossing observations or spot barriers leave affected measures absent.
     /// See [`Self::new`] for an example.
     ///

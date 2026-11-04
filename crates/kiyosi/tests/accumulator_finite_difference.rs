@@ -152,7 +152,13 @@ fn settlement_thresholds_history_replacement_and_expiry_greeks_are_exact() {
             )
             .unwrap();
         assert_eq!(result.price(), quantity * (spot - 100.0));
-        assert!(result.values().iter().all(Option::is_none));
+        assert_eq!(result.get(Greek::Theta), None);
+        assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
+        if (spot - 100.0).abs() <= 0.01 || (spot - 110.0).abs() <= 0.01 {
+            assert_eq!(result.get(Greek::Delta), None);
+        } else {
+            assert!((result.require(Greek::Delta).unwrap() - quantity).abs() < 1e-10);
+        }
     }
     assert_eq!(
         engine.price(&option, &market(110.0, day(1, 1))).unwrap(),

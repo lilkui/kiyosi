@@ -283,7 +283,7 @@ impl PricingResult {
 pub struct NumericalShiftSettings {
     /// Sets a positive absolute spot bump, or `None` (default) for the engine default.
     ///
-    /// Automatic bumps use 0.01 spot units, except American Monte Carlo uses 8% of spot.
+    /// Automatic bumps use 0.01 spot units, except American Monte Carlo before expiry uses 8% of spot.
     pub spot_shift: Option<f64>,
     /// Sets the positive absolute volatility bump (default 0.0001 decimal units).
     pub volatility_shift: f64,
@@ -305,7 +305,7 @@ impl Default for NumericalShiftSettings {
 impl NumericalShiftSettings {
     /// Returns the configured bump or the general default of 0.01 spot units.
     ///
-    /// American Monte Carlo resolves automatic bumps before computation; see
+    /// American Monte Carlo resolves automatic bumps before expiry; see
     /// [`crate::MonteCarloVanillaEngine::default_american_spot_shift`].
     pub fn spot_shift(self) -> f64 {
         self.spot_shift.unwrap_or(0.01)
@@ -329,9 +329,10 @@ impl NumericalShiftSettings {
 /// The instrument parameter selects supported combinations; it defaults to
 /// [`EuropeanOption`]. See [`crate::AnalyticDigitalEngine::price`] for digital usage.
 pub trait PricingEngine<I = EuropeanOption> {
-    /// Returns the automatic absolute spot bump for this engine and contract family.
+    /// Returns the automatic pre-expiry spot bump for this engine and contract family.
     ///
     /// Defaults to 0.01 spot units; American Monte Carlo uses 8% of spot.
+    /// Terminal numerical Greeks use the shared 0.01 spot-unit default.
     /// See [`NumericalShiftSettings`] for explicit control.
     fn default_spot_shift(&self, _context: &PricingContext) -> f64 {
         NumericalShiftSettings::default().spot_shift()

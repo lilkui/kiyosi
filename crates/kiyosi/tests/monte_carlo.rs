@@ -412,7 +412,14 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
             Default::default(),
         )
         .unwrap();
-    assert!(Greek::ALL.into_iter().all(|greek| !result.has(greek)));
+    for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+        assert_eq!(result.get(greek), None);
+    }
+    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+        if result.supported().has(greek) {
+            assert_eq!(result.require(greek).unwrap(), 0.0);
+        }
+    }
     assert!(matches!(
         implied_volatility(&engine, &option, &at(expiry), 0.0, Default::default()).unwrap_err(),
         Error::UnsupportedOperation(_)

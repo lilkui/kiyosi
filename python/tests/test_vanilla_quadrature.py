@@ -16,6 +16,7 @@ from kiyosi import (
 from kiyosi.instruments import AmericanOption, EuropeanOption
 from kiyosi.market import RateTermStructure
 from quantlib_reference import american, oracle
+from support.terminal import assert_terminal_greeks
 from test_binomial import END, GREEKS, START, contract, market
 
 
@@ -282,7 +283,7 @@ class VanillaQuadratureTests(unittest.TestCase):
                 option, market(spot=80, valuation=END), "all"
             )
             self.assertEqual(expiry.price, 20)
-            self.assertTrue(all(getattr(expiry, name) is None for name in GREEKS))
+            assert_terminal_greeks(self, expiry, -1)
             for at in (START, END):
                 for fields in ({"rate": curve}, {"dividend": curve}):
                     context = market(valuation=at, **fields)

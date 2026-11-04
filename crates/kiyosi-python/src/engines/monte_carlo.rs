@@ -80,7 +80,7 @@ macro_rules! sampling_settings {
             /// -------
             /// PricingResult
             ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-            ///     including every Greek at expiry. Units follow PricingResult.
+            ///     with time Greeks absent at expiry; other terminal Greeks follow the payoff.
             ///
             /// Raises
             /// ------
@@ -410,7 +410,8 @@ sampling_settings!(
     ///     Greek names or "all" to request every measure; duplicates are ignored.
     /// spot_shift : float or None, optional
     ///     Positive finite absolute spot bump. European default: 0.01 spot units.
-    ///     American default: 8% of spot. None selects the product's default.
+    ///     American default before expiry: 8% of spot; at expiry: 0.01 spot units.
+    ///     None selects the product's default.
     /// volatility_shift : float, optional
     ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
     /// rate_shift : float, optional
@@ -425,7 +426,7 @@ sampling_settings!(
     /// -------
     /// PricingResult
     ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-    ///     including every Greek at expiry. Units follow PricingResult.
+    ///     with time Greeks absent at expiry; other terminal Greeks follow the payoff.
     ///
     /// Raises
     /// ------
@@ -589,7 +590,7 @@ sampling_settings!(
     /// -------
     /// PricingResult
     ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-    ///     including every Greek at expiry. Units follow PricingResult.
+    ///     with time Greeks absent at expiry; other terminal Greeks follow the payoff.
     ///
     /// Raises
     /// ------
@@ -715,7 +716,7 @@ sampling_settings!(
     /// -------
     /// PricingResult
     ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-    ///     including every Greek at expiry. Units follow PricingResult.
+    ///     with time Greeks absent at expiry; other terminal Greeks follow the payoff.
     ///
     /// Raises
     /// ------

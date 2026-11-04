@@ -134,7 +134,7 @@ impl QuadratureVanillaEngine {
 
     /// Computes requested numerical Greeks with shared bump controls.
     ///
-    /// All Greeks are absent at expiry. Infeasible stencils leave affected measures
+    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent. Infeasible stencils leave affected measures
     /// absent; feasible bumped failures propagate. See [`Self::new`] for usage.
     ///
     /// # Errors

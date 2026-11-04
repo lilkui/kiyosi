@@ -34,6 +34,7 @@ from kiyosi.pricing import (
     CoxRossRubinsteinVanillaEngine,
     implied_volatility,
 )
+from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 GREEKS = (
@@ -387,8 +388,14 @@ class BinomialTests(unittest.TestCase):
                     )
                     result = engine.price_with_greeks(option, context, greeks="all")
                     self.assertEqual(result.price, expected)
-                    for name in GREEKS:
-                        self.assertIsNone(getattr(result, name))
+                    delta = (
+                        None
+                        if spot == 100
+                        else ((1 if direction == "call" else -1) if intrinsic else 0)
+                        if kind in VANILLA
+                        else int(kind is AssetOrNothingOption and intrinsic > 0)
+                    )
+                    assert_terminal_greeks(self, result, delta)
                     self.assert_rejection(
                         UnsupportedOperationError,
                         implied_volatility,

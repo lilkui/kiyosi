@@ -230,6 +230,10 @@ macro_rules! average_option {
             fn expiry_time(&self) -> Timestamp {
                 self.expiry_time()
             }
+            fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
+                self.realized_average().is_none()
+                    && self.0.terms.at_spot_discontinuity(context, radius)
+            }
             fn time_stencil_available(
                 &self,
                 _context: &PricingContext,

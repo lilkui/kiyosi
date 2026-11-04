@@ -152,7 +152,10 @@ macro_rules! contract_tests {
                         Default::default(),
                     )
                     .unwrap();
-                assert!(settled.values().iter().all(Option::is_none));
+                assert_eq!(settled.get(Greek::Theta), None);
+                for greek in [Greek::Delta, Greek::Gamma, Greek::Vega, Greek::Rho] {
+                    assert_eq!(settled.require(greek).unwrap(), 0.0);
+                }
                 assert!(matches!(
                     implied_volatility(&$engine, &seasoned, &market(end), 10.0, Default::default())
                         .unwrap_err(),

@@ -386,9 +386,8 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
                 Default::default(),
             )
             .unwrap();
-        for greek in Greek::ALL {
-            assert!(!at_expiry.has(greek));
-        }
+        assert_eq!(at_expiry.get(Greek::Theta), None);
+        assert_eq!(at_expiry.require(Greek::Vega).unwrap(), 0.0);
         assert_eq!(*note, snapshot);
         assert_eq!(
             context.model_parameters().as_bsm().unwrap().volatility(),

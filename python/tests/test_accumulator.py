@@ -19,6 +19,7 @@ from kiyosi.market import (
     all_days_calendar,
     weekdays_calendar,
 )
+from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
 
@@ -451,19 +452,11 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 self.assertEqual(engine.price(option, context), expected)
                 result = engine.price_with_greeks(option, context, greeks="all")
                 self.assertEqual(result.price, expected)
-                for greek in (
-                    "delta",
-                    "gamma",
-                    "speed",
-                    "vega",
-                    "rho",
-                    "theta",
-                    "vanna",
-                    "zomma",
-                    "charm",
-                    "color",
-                ):
-                    self.assertIsNone(getattr(result, greek))
+                assert_terminal_greeks(
+                    self,
+                    result,
+                    None if spot in (100, 110) else expected / (spot - 100),
+                )
         self.assertEqual(engine.price(option, market(110, START)), 30)
         for instrument, context, expected_error in (
             (

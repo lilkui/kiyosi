@@ -12,7 +12,8 @@ impl MonteCarloVanillaEngine {
     ///
     /// Exercise decisions amplify small-bump noise; sampling error and bump bias
     /// still require convergence checks. Other shifts use [`NumericalShiftSettings`] defaults.
-    /// Rust and Python use this value when `spot_shift` is automatic (`None`).
+    /// Rust and Python use this value before expiry when `spot_shift` is automatic
+    /// (`None`). Terminal payoffs use the shared 0.01 spot-unit default.
     ///
     /// # Examples
     ///
@@ -250,6 +251,17 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         <Self as PricingEngine<AmericanOption>>::validate_applicability(self, context)?;
         request.validate()?;
         settings.validate()?;
+        if context.valuation_time() == option.expiry_time() {
+            let result = PricingResult::new(self.price(option, context)?)?
+                .with_request(request, GreeksRequest::all());
+            return crate::risk::numerical::expiry_greeks(
+                option,
+                context,
+                settings,
+                result,
+                |context| self.price(option, context),
+            );
+        }
         let settings = NumericalShiftSettings {
             spot_shift: Some(
                 settings

@@ -244,9 +244,11 @@ impl OptionContract for DoubleBarrierOption {
         self.expiry_time()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
-        self.lower
-            .monitoring
-            .spot_discontinuity(context, radius, Some(self.upper))
+        self.lower.at_spot_discontinuity(context, radius)
+            || self
+                .lower
+                .monitoring
+                .spot_discontinuity(context, radius, Some(self.upper))
     }
     fn time_stencil_available(
         &self,

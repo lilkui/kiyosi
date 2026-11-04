@@ -115,7 +115,20 @@ fn american_expiry_and_exercise_window_are_inclusive() {
                 .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
                 .unwrap();
             assert_eq!(result.price(), expected);
-            assert!(result.values().iter().all(Option::is_none));
+            assert_eq!(result.get(Greek::Theta), None);
+            assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
+            if (spot - 100.0).abs() <= 0.01 {
+                assert_eq!(result.get(Greek::Delta), None);
+            } else {
+                let delta = if expected == 0.0 {
+                    0.0
+                } else if direction == OptionType::Call {
+                    1.0
+                } else {
+                    -1.0
+                };
+                assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
+            }
             assert!(matches!(
                 implied_volatility(&engine, &option, &context, expected, Default::default())
                     .unwrap_err(),

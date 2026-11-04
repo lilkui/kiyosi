@@ -53,7 +53,13 @@ impl AnalyticEuropeanEngine {
         let expiry = option.expiry_time();
         let time = valuation.years_until(expiry);
         if time == 0.0 {
-            return Ok(result);
+            return crate::risk::numerical::expiry_greeks(
+                option,
+                context,
+                Default::default(),
+                result,
+                |context| self.price(option, context),
+            );
         }
         let model = context.bsm_parameters()?;
         let spot = context.spot_price();

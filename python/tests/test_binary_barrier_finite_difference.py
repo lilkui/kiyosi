@@ -20,6 +20,7 @@ from kiyosi.pricing import (
     FiniteDifferenceBinaryBarrierEngine,
     implied_volatility,
 )
+from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
 END = datetime(2026, 1, 1)
@@ -295,7 +296,11 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                 expiry = engine.price_with_greeks(
                     contract, market(130, END), greeks="all"
                 )
-                self.assertTrue(all(getattr(expiry, g) is None for g in greeks))
+                assert_terminal_greeks(
+                    self,
+                    expiry,
+                    int(factory is ins.asset_touch_option and kind == "up_and_in"),
+                )
         equality = engine.price_with_greeks(touch(), market(120.13), greeks="all")
         self.assertTrue(all(getattr(equality, g) is None for g in greeks))
         paid = touch(settlement_timing="at_hit", touch_state="touched")

@@ -20,6 +20,7 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
 )
+from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 KINDS = (ArithmeticAveragePriceOption, GeometricAveragePriceOption)
@@ -119,8 +120,7 @@ class AsianMonteCarloTests(unittest.TestCase):
                     greeks="all",
                 )
                 self.assertEqual(result.price, expected)
-                self.assertIsNone(result.delta)
-                self.assertIsNone(result.gamma)
+                assert_terminal_greeks(self, result, 0)
                 self.assertEqual(
                     settled.price(
                         option(kind, direction, averaging=END),

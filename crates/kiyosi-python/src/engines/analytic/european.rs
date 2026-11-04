@@ -34,7 +34,7 @@ impl AnalyticEuropeanEngine {
     /// -------
     /// PricingResult
     ///     Price and requested Greeks. Unsupported or undefined Greeks are None,
-    ///     including every Greek at expiry. Units follow PricingResult.
+    ///     with time Greeks absent at expiry; other terminal Greeks follow the payoff.
     ///
     /// Raises
     /// ------

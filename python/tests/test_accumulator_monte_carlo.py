@@ -16,6 +16,7 @@ from kiyosi import (
 from kiyosi.instruments import Accumulator
 from kiyosi.market import RateTermStructure, custom_calendar, weekdays_calendar
 from kiyosi.pricing import MonteCarloAccumulatorEngine as MC
+from support.terminal import assert_terminal_greeks
 from test_accumulator import START, contract, market, terminal_reference
 
 
@@ -273,19 +274,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         expired = engine.price_with_greeks(
             note, market(90, note.expiry_time), greeks="all"
         )
-        for greek in (
-            "delta",
-            "gamma",
-            "speed",
-            "vega",
-            "rho",
-            "vanna",
-            "zomma",
-            "theta",
-            "charm",
-            "color",
-        ):
-            self.assertIsNone(getattr(expired, greek))
+        assert_terminal_greeks(self, expired, 5)
         self.assertEqual(engine.seed, 42)
         self.assertEqual(note.accumulated_quantity, 3)
         self.assertEqual(context.model_parameters.volatility, 0.2)

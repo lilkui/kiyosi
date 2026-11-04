@@ -21,6 +21,7 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from kiyosi.pricing import AnalyticRangeAccrualEngine, implied_volatility
+from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
 
@@ -288,19 +289,7 @@ class RangeAccrualTests(unittest.TestCase):
                 self.assertAlmostEqual(
                     result.price, 1000 * 0.12 / 365 * (1 + hit), delta=1e-12
                 )
-                for name in (
-                    "delta",
-                    "gamma",
-                    "speed",
-                    "vega",
-                    "vanna",
-                    "zomma",
-                    "theta",
-                    "charm",
-                    "color",
-                    "rho",
-                ):
-                    self.assertIsNone(getattr(result, name))
+                assert_terminal_greeks(self, result, None)
 
     def test_history_midnight_intraday_and_pre_effective(self):
         engine = AnalyticRangeAccrualEngine()

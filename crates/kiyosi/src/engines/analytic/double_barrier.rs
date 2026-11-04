@@ -59,7 +59,7 @@ impl AnalyticDoubleBarrierEngine {
     }
     /// Computes all requested numerical Greeks using the shared core bump defaults.
     ///
-    /// Greeks are absent at expiry or current boundary equality; stencils reaching
+    /// Expiry Greeks follow terminal payoffs. Before expiry, current boundary equality suppresses Greeks; stencils reaching
     /// boundaries or changing observation/history regimes omit affected measures.
     /// See [`Self::price`] for a construction example.
     ///

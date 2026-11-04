@@ -234,6 +234,27 @@ def terminal_cases():
     return cases
 
 
+def terminal_delta(instrument):
+    if isinstance(
+        instrument,
+        (
+            ins.EuropeanOption,
+            ins.AmericanOption,
+            ins.AssetOrNothingOption,
+            ins.BarrierOption,
+            ins.DoubleBarrierOption,
+        ),
+    ):
+        return 1
+    if isinstance(instrument, ins.BinaryBarrierOption):
+        return int(instrument.payoff_type == "asset")
+    if isinstance(instrument, ins.TouchOption):
+        return int(instrument.payoff_type == "asset" and not instrument.is_one_touch)
+    if isinstance(instrument, ins.Accumulator):
+        return 4
+    return 0
+
+
 class SupportMatrixTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -332,11 +353,16 @@ class SupportMatrixTests(unittest.TestCase):
                     self.assertAlmostEqual(engine.price(instrument, context), expected)
                     result = engine.price_with_greeks(instrument, context, ["delta"])
                     self.assertAlmostEqual(result.price, expected)
-                    self.assertIsNone(result.delta)
+                    if name in HESTON_ENGINES:
+                        self.assertIsNone(result.delta)
+                    else:
+                        self.assertAlmostEqual(
+                            result.delta, terminal_delta(instrument), delta=1e-10
+                        )
                     self.assertEqual(result.requested, ["delta"])
                     self.assertEqual(
                         result.status("delta"),
-                        "unsupported" if name in HESTON_ENGINES else "undefined",
+                        "unsupported" if name in HESTON_ENGINES else "available",
                     )
                     self.assertEqual(result.status("gamma"), "not_requested")
                     with self.assertRaises(UnsupportedOperationError) as error:
@@ -367,7 +393,10 @@ class SupportMatrixTests(unittest.TestCase):
                     )
                     self.assertEqual(result.requested, ["delta", "vega"])
                     self.assertEqual(result.supported, ["delta", "gamma"])
-                    self.assertEqual(result.status("delta"), "undefined")
+                    self.assertEqual(result.status("delta"), "available")
+                    self.assertAlmostEqual(
+                        result.delta, terminal_delta(instrument), delta=1e-10
+                    )
                     self.assertEqual(result.status("vega"), "unsupported")
                     self.assertEqual(result.status("gamma"), "not_requested")
 

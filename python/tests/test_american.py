@@ -26,6 +26,7 @@ from kiyosi.pricing import (
     BjerksundStenslandVanillaEngine,
     implied_volatility,
 )
+from support.terminal import assert_terminal_greeks
 
 GREEKS = (
     "delta",
@@ -97,7 +98,15 @@ class AmericanTests(unittest.TestCase):
                 expected = max(spot - 100 if direction == "call" else 100 - spot, 0)
                 result = self.engine.price_with_greeks(option, context, greeks="all")
                 self.assertEqual(result.price, expected)
-                self.assertTrue(all(getattr(result, name) is None for name in GREEKS))
+                assert_terminal_greeks(
+                    self,
+                    result,
+                    None
+                    if spot == 100
+                    else (1 if direction == "call" else -1)
+                    if expected
+                    else 0,
+                )
                 self.assert_rejection(
                     UnsupportedOperationError,
                     implied_volatility,

@@ -131,7 +131,14 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
         )
         .unwrap();
     assert_eq!(result.price(), 0.0);
-    assert!(Greek::ALL.iter().all(|&g| !result.has(g)));
+    for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+        assert_eq!(result.get(greek), None);
+    }
+    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+        if result.supported().has(greek) {
+            assert_eq!(result.require(greek).unwrap(), 0.0);
+        }
+    }
     assert!(matches!(
         engine.price(&option, &market(100.0)).unwrap_err(),
         Error::InvalidInput(_)

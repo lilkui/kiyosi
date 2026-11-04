@@ -14,6 +14,7 @@ from kiyosi.market import (
     all_days_calendar,
 )
 from kiyosi.pricing import AnalyticDoubleBarrierEngine, AnalyticEuropeanEngine
+from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
 
@@ -276,8 +277,9 @@ class DoubleBarrierTests(unittest.TestCase):
                 option, market(spot, time=END), greeks="all"
             )
             self.assertEqual(result.price, expected)
-            self.assertIsNone(result.delta)
-            self.assertIsNone(result.vega)
+            assert_terminal_greeks(
+                self, result, None if touched else int(kind == "knock_out")
+            )
         option = contract(touch_state="untouched")
         after = market(time=datetime(2026, 1, 1, microsecond=1))
         self.assert_rejection(InvalidInputError, lambda: engine.price(option, after))

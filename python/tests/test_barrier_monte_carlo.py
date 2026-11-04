@@ -292,8 +292,11 @@ class BarrierMonteCarloTests(unittest.TestCase):
                         result.price,
                         pricing.AnalyticBarrierEngine().price(known, expired),
                     )
-                    self.assertIsNone(result.delta)
-                    self.assertIsNone(result.gamma)
+                    reference = pricing.AnalyticBarrierEngine().price_with_greeks(
+                        known, expired, "all"
+                    )
+                    self.assertEqual(result.delta, reference.delta)
+                    self.assertEqual(result.gamma, reference.gamma)
                 observation = START + timedelta(days=90)
                 scheduled = option(
                     kind,

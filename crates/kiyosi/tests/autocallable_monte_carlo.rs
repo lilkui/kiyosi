@@ -405,7 +405,14 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
         let result = engine
             .price_with_greeks(&note, &context, GreeksRequest::all(), Default::default())
             .unwrap();
-        assert!(Greek::ALL.iter().all(|greek| !result.has(*greek)));
+        for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+            assert_eq!(result.get(greek), None);
+        }
+        for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+            if result.supported().has(greek) {
+                assert_eq!(result.require(greek).unwrap(), 0.0);
+            }
+        }
     }
     let context = market(100.0, date(1, 1));
     let node = RateTermStructure::new(date(1, 1), vec![date(4, 1)], vec![0.99]).unwrap();

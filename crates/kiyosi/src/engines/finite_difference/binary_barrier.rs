@@ -38,7 +38,7 @@ impl FiniteDifferenceBinaryBarrierEngine {
     /// Returns spline spot Greeks and completes other sensitivities on the central domain.
     ///
     /// Stencils crossing observations or barriers leave affected measures absent.
-    /// All Greeks are absent at expiry or a current barrier equality without a prior touch.
+    /// Expiry Greeks follow terminal payoffs. Before expiry, a current barrier equality without a prior touch suppresses Greeks.
     /// Local volatility supports only delta and gamma with the local-volatility surface held fixed;
     /// other requested Greeks remain absent.
     ///
@@ -157,7 +157,7 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// Returns spline spot Greeks and completes other sensitivities on the central domain.
     ///
     /// Stencils crossing either boundary or an observation omit affected measures.
-    /// All Greeks are absent at expiry or current boundary equality without a prior touch.
+    /// Expiry Greeks follow terminal payoffs. Before expiry, current boundary equality without a prior touch suppresses Greeks.
     /// Local volatility supports only delta and gamma with the local-volatility surface held fixed;
     /// other requested Greeks remain absent.
     ///

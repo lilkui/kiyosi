@@ -606,7 +606,14 @@ fn request_and_solver_errors_preserve_inputs() {
     let result = engine
         .price_with_greeks(&end, &terminal, GreeksRequest::all(), shifts)
         .unwrap();
-    assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
+    for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+        assert_eq!(result.get(greek), None);
+    }
+    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+        if result.supported().has(greek) {
+            assert_eq!(result.require(greek).unwrap(), 0.0);
+        }
+    }
     assert_eq!(option, RangeAccrualOption::new(terms()).unwrap());
     assert_eq!(
         context.model_parameters().as_bsm().unwrap().volatility(),

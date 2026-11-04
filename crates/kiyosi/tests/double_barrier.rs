@@ -248,7 +248,14 @@ fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows(
                 .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
                 .unwrap();
             assert_eq!(result.price(), expected);
-            assert!(result.values().iter().all(Option::is_none));
+            assert_eq!(result.get(Greek::Theta), None);
+            assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
+            if touched {
+                assert_eq!(result.get(Greek::Delta), None);
+            } else {
+                let delta = f64::from(kind == DoubleBarrierType::KnockOut);
+                assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
+            }
         }
         let touched = option.replace_history(Some(BarrierTouchState::Touched));
         let context = market(100.0, later, 0.2, 0.04, 0.01);

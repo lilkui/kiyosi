@@ -481,11 +481,14 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
         .price_with_greeks(&put, &at_expiry, GreeksRequest::all(), Default::default())
         .unwrap();
     assert_eq!(result.price(), 0.0);
-    assert!(
-        Greek::ALL
-            .into_iter()
-            .all(|greek| result.get(greek).is_none())
-    );
+    for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+        assert_eq!(result.get(greek), None);
+    }
+    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+        if result.supported().has(greek) {
+            assert_eq!(result.require(greek).unwrap(), 0.0);
+        }
+    }
     assert!(matches!(
         implied_volatility(&engine, &put, &at_expiry, 0.0, Default::default()).unwrap_err(),
         Error::UnsupportedOperation(_)

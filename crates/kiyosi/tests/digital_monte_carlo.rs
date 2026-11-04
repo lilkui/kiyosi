@@ -184,7 +184,21 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                         0.0
                     }
                 );
-                assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
+                for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+                    assert_eq!(result.get(greek), None);
+                }
+                for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+                    if result.supported().has(greek) {
+                        assert_eq!(result.require(greek).unwrap(), 0.0);
+                    }
+                }
+                if (spot - 100.0).abs() <= 0.01 {
+                    assert_eq!(result.get(Greek::Delta), None);
+                } else {
+                    let delta = f64::from(pays && option.payout().is_none());
+                    assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
+                    assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
+                }
                 assert!(matches!(
                     implied_volatility(
                         &engine,

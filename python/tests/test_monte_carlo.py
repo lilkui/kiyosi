@@ -24,6 +24,7 @@ from kiyosi.pricing import (
     MonteCarloVanillaEngine,
     implied_volatility,
 )
+from support.terminal import assert_terminal_greeks
 from test_binomial import END, GREEKS, START, market
 
 
@@ -262,8 +263,7 @@ class MonteCarloTests(unittest.TestCase):
         )
         result = engine.price_with_greeks(option, expiry, greeks="all")
         self.assertEqual(result.price, 10)
-        for name in GREEKS:
-            self.assertIsNone(getattr(result, name))
+        assert_terminal_greeks(self, result, 1)
         self.assert_rejection(
             UnsupportedOperationError,
             implied_volatility,
@@ -842,7 +842,7 @@ class SamplingTests(unittest.TestCase):
                     known.confidence_interval, None if sampling == "sobol" else (10, 10)
                 )
                 analysis = engine.price_with_greeks(option, expiry, greeks="all")
-                self.assertTrue(all(getattr(analysis, name) is None for name in GREEKS))
+                assert_terminal_greeks(self, analysis, 1)
                 with self.assertRaises(UnsupportedOperationError) as error:
                     implied_volatility(engine, option, expiry, 10)
                 self.assertIs(type(error.exception), UnsupportedOperationError)

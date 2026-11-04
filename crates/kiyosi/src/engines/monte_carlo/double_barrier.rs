@@ -80,7 +80,7 @@ impl MonteCarloDoubleBarrierEngine {
 
     /// Returns requested delta/gamma using the price's normal samples.
     ///
-    /// Other Greeks remain absent. Expiry and spot stencils crossing either
+    /// Other Greeks remain absent. Expiry spot Greeks follow terminal payoffs; stencils crossing either
     /// current monitored boundary suppress delta/gamma. The positive finite
     /// `shifts.spot_shift` controls that availability and numerical derivatives of
     /// continuous at-hit rebates. Other numerical bump settings are unused by the
@@ -142,14 +142,18 @@ impl MonteCarloDoubleBarrierEngine {
             ..Default::default()
         };
         settings.validate()?;
-        self.engine
+        let result = self
+            .engine
             .native(Contract::Double(option), context, request, settings)
             .map(|result| {
                 result.with_request(
                     request,
                     GreeksRequest::new([crate::Greek::Delta, crate::Greek::Gamma]),
                 )
-            })
+            })?;
+        crate::risk::numerical::expiry_greeks(option, context, settings, result, |context| {
+            self.price(option, context)
+        })
     }
 }
 

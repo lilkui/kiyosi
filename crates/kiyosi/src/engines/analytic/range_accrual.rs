@@ -14,7 +14,7 @@ pub struct AnalyticRangeAccrualEngine;
 impl AnalyticRangeAccrualEngine {
     /// Computes requested numerical Greeks from exact prices with core bump defaults.
     ///
-    /// All Greeks are absent at expiry. Spot stencils reaching current bounds and time
+    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent. Spot stencils reaching current bounds and time
     /// stencils touching any observation are unavailable; vega/rho remain valid at bounds.
     /// See [`Self::price`] for contract construction and pricing.
     ///

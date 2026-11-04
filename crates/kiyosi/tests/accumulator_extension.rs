@@ -145,7 +145,21 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
                 .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
                 .unwrap();
             assert_eq!(result.price(), expected);
-            assert!(result.values().iter().all(Option::is_none));
+            assert_eq!(result.get(Greek::Theta), None);
+            assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
+            let barrier = if direction == OptionType::Call {
+                110.0
+            } else {
+                90.0
+            };
+            if (spot - 100.0).abs() <= 0.01 || (monitored && (spot - barrier).abs() <= 0.01) {
+                assert_eq!(result.get(Greek::Delta), None);
+            } else {
+                assert!(
+                    (result.require(Greek::Delta).unwrap() - expected / (spot - 100.0)).abs()
+                        < 1e-10
+                );
+            }
         }
     }
     for direction in [OptionType::Call, OptionType::Put] {

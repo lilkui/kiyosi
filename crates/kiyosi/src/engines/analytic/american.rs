@@ -368,7 +368,7 @@ impl BjerksundStenslandVanillaEngine {
 
     /// Returns the price and requested finite-difference Greeks with core bump defaults.
     ///
-    /// At expiry all Greeks are absent. Feasible bumped domain failures propagate.
+    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent. Feasible bumped domain failures propagate.
     ///
     /// # Errors
     ///

@@ -33,7 +33,8 @@ from kiyosi.pricing import (
     FiniteDifferenceVanillaEngine,
     implied_volatility,
 )
-from test_binomial import DIGITAL, END, GREEKS, START, VANILLA, contract, market
+from support.terminal import assert_terminal_greeks
+from test_binomial import DIGITAL, END, START, VANILLA, contract, market
 
 KINDS = (*VANILLA, *DIGITAL)
 FACTORIES = (
@@ -241,8 +242,14 @@ class FiniteDifferenceTests(unittest.TestCase):
                     result = engine.price_with_greeks(option, context, greeks="all")
                     self.assertEqual(result.price, expected)
                     self.assertEqual(engine.price(option, context), expected)
-                    self.assertTrue(
-                        all(getattr(result, name) is None for name in GREEKS)
+                    assert_terminal_greeks(
+                        self,
+                        result,
+                        None
+                        if abs(spot - 100) <= 0.01
+                        else sign
+                        if kind in VANILLA and pays
+                        else int(kind is AssetOrNothingOption and pays),
                     )
                     self.assert_rejection(
                         UnsupportedOperationError,

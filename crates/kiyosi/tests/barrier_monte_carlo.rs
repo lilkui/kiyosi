@@ -569,7 +569,19 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                     result.price(),
                     AnalyticBarrierEngine.price(&known, &expired).unwrap()
                 );
-                assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
+                for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
+                    assert_eq!(result.get(greek), None);
+                }
+                for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+                    if result.supported().has(greek) {
+                        assert_eq!(result.require(greek).unwrap(), 0.0);
+                    }
+                }
+                let reference = AnalyticBarrierEngine
+                    .price_with_greeks(&known, &expired, GreeksRequest::all(), Default::default())
+                    .unwrap();
+                assert_eq!(result.get(Greek::Delta), reference.get(Greek::Delta));
+                assert_eq!(result.get(Greek::Gamma), reference.get(Greek::Gamma));
             }
             t.observation_mode = ObservationMode::Scheduled;
             t.observation_times = vec![day(4, 1)];

@@ -492,8 +492,13 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
                     0.0
                 };
                 assert_eq!(result.price(), expected);
-                assert!(!result.has(Greek::Delta));
-                assert!(!result.has(Greek::Gamma));
+                assert!(
+                    (result.require(Greek::Delta).unwrap()
+                        - f64::from(direction == OptionType::Call && option.payout().is_none()))
+                    .abs()
+                        < 1e-10
+                );
+                assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
                 assert_eq!(
                     digital
                         .price_with_greeks(
@@ -525,8 +530,12 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
                     0.0
                 }
             );
-            assert!(!result.has(Greek::Delta));
-            assert!(!result.has(Greek::Gamma));
+            assert!(
+                (result.require(Greek::Delta).unwrap() - f64::from(direction == OptionType::Call))
+                    .abs()
+                    < 1e-10
+            );
+            assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
             assert_eq!(
                 vanilla
                     .price_with_greeks(
@@ -763,8 +772,8 @@ fn fd_expiry_coverage_stability_and_numerical_errors_are_explicit() {
         )
         .unwrap();
     assert_eq!(result.price(), 10.0);
-    assert!(!result.has(Greek::Delta));
-    assert!(!result.has(Greek::Gamma));
+    assert!((result.require(Greek::Delta).unwrap() - 1.0).abs() < 1e-10);
+    assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
     let too_late = EuropeanOption::new(
         OptionType::Call,
         100.0,

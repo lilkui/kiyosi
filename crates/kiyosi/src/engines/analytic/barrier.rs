@@ -53,7 +53,7 @@ impl AnalyticBarrierEngine {
     }
     /// Computes requested scalar numerical Greeks with shared bump defaults.
     ///
-    /// At expiry or a current barrier equality all Greeks are absent. Stencils crossing
+    /// Expiry Greeks follow terminal payoffs. Before expiry, current barrier equality suppresses Greeks. Stencils crossing
     /// observations or spot barriers leave affected measures absent; see [`Self::price`].
     ///
     /// # Errors

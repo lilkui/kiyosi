@@ -331,8 +331,8 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
         .price_with_greeks(&acc, &expired, request(), Default::default())
         .unwrap();
     assert_eq!(result.price(), -50.0);
-    assert_eq!(result.get(Greek::Delta), None);
-    assert_eq!(result.get(Greek::Gamma), None);
+    assert!((result.require(Greek::Delta).unwrap() - 5.0).abs() < 1e-10);
+    assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
     assert_eq!(
         acc_engine
             .price_with_greeks(&acc, &expired, GreeksRequest::all(), Default::default())

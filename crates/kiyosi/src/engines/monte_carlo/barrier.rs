@@ -143,13 +143,17 @@ impl MonteCarloBarrierEngine {
             ..Default::default()
         };
         settings.validate()?;
-        self.native(Contract::Single(option), context, request, settings)
+        let result = self
+            .native(Contract::Single(option), context, request, settings)
             .map(|result| {
                 result.with_request(
                     request,
                     GreeksRequest::new([crate::Greek::Delta, crate::Greek::Gamma]),
                 )
-            })
+            })?;
+        crate::risk::numerical::expiry_greeks(option, context, settings, result, |context| {
+            self.price(option, context)
+        })
     }
 
     pub(super) fn native(

@@ -18,6 +18,7 @@ from kiyosi.instruments import (
 )
 from kiyosi.market import RateTermStructure, all_days_calendar, custom_calendar
 from kiyosi.pricing import QuadratureAutocallableEngine, implied_volatility
+from support.terminal import assert_terminal_greeks
 from test_snowball import market, structured
 
 GREEKS = (
@@ -356,7 +357,7 @@ class PhoenixTests(unittest.TestCase):
         settled = note.replace_history(barrier_state="knocked_out")
         self.assertEqual(engine.price(settled, market(valuation=END)), 0)
         result = engine.price_with_greeks(note, market(90, END), greeks="all")
-        self.assertTrue(all(getattr(result, g) is None for g in GREEKS))
+        assert_terminal_greeks(self, result, None)
         self.assert_rejection(
             UnsupportedOperationError,
             implied_volatility,

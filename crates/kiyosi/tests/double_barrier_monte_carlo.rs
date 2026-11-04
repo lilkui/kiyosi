@@ -652,7 +652,16 @@ fn current_and_prior_touches_expiry_and_finished_monitoring_resolve_before_sampl
                         result.price(),
                         AnalyticDoubleBarrierEngine.price(&known, &expired).unwrap()
                     );
-                    assert!(!result.has(Greek::Delta) && !result.has(Greek::Gamma));
+                    let reference = AnalyticDoubleBarrierEngine
+                        .price_with_greeks(
+                            &known,
+                            &expired,
+                            GreeksRequest::all(),
+                            Default::default(),
+                        )
+                        .unwrap();
+                    assert_eq!(result.get(Greek::Delta), reference.get(Greek::Delta));
+                    assert_eq!(result.get(Greek::Gamma), reference.get(Greek::Gamma));
                 }
             }
             t.observation_mode = ObservationMode::Scheduled;

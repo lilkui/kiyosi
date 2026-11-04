@@ -16,6 +16,7 @@ from kiyosi.market import (
     all_days_calendar,
 )
 from kiyosi.pricing import AnalyticBinaryBarrierEngine, implied_volatility
+from support.terminal import assert_terminal_greeks
 
 GREEKS = (
     "delta",
@@ -369,7 +370,11 @@ class BinaryBarrierTests(unittest.TestCase):
             self.assertIsNotNone(near.vega)
             expiry = self.context(time=datetime(2026, 1, 1))
             terminal = engine.price_with_greeks(option, expiry, greeks="all")
-            self.assertTrue(all(getattr(terminal, g) is None for g in GREEKS))
+            assert_terminal_greeks(
+                self,
+                terminal,
+                None if isinstance(option, ins.BinaryBarrierOption) else 0,
+            )
             self.assert_rejection(
                 UnsupportedOperationError,
                 lambda option=option, expiry=expiry, terminal=terminal: (

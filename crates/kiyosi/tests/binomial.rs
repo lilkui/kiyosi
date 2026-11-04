@@ -227,7 +227,20 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
                     .unwrap(),
             ] {
                 assert_eq!(result.price(), intrinsic);
-                assert!(result.values().iter().all(Option::is_none));
+                assert_eq!(result.get(Greek::Theta), None);
+                assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
+                if (spot - 100.0).abs() <= 0.01 {
+                    assert_eq!(result.get(Greek::Delta), None);
+                } else {
+                    let delta = if intrinsic == 0.0 {
+                        0.0
+                    } else if direction == OptionType::Call {
+                        1.0
+                    } else {
+                        -1.0
+                    };
+                    assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
+                }
             }
             for option in [
                 DigitalOption::cash_or_nothing(direction, 100.0, 10.0, start, end).unwrap(),
@@ -244,7 +257,13 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
                         0.0
                     }
                 );
-                assert!(result.values().iter().all(Option::is_none));
+                assert_eq!(result.get(Greek::Theta), None);
+                if (spot - 100.0).abs() <= 0.01 {
+                    assert_eq!(result.get(Greek::Delta), None);
+                } else {
+                    let delta = f64::from(intrinsic > 0.0 && option.payout().is_none());
+                    assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
+                }
                 assert!(matches!(
                     implied_volatility(
                         &digital,

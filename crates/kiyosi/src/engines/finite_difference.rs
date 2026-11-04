@@ -534,7 +534,12 @@ fn complete_greeks(
     }
     result = result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
     let request = local_volatility::validate_request(context, request)?;
-    if context.valuation_time() == option.expiry_time() || option.all_greeks_unavailable(context) {
+    if context.valuation_time() == option.expiry_time() {
+        return crate::risk::numerical::expiry_greeks(option, context, shifts, result, |context| {
+            Ok(native(context, GreeksRequest::new([]))?.price())
+        });
+    }
+    if option.all_greeks_unavailable(context) {
         return Ok(result);
     }
     let missing_delta = request.has(Greek::Delta) && !result.has(Greek::Delta);
@@ -712,7 +717,7 @@ impl FiniteDifferenceVanillaEngine {
     ///
     /// Local-volatility results provide delta and gamma; other requested Greeks remain
     /// absent. Bumped contexts share the central spatial domain.
-    /// All Greeks are absent at expiry.
+    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent.
     /// Uses [`NumericalShiftSettings`] for bumps; unavailable stencils leave Greeks absent.
     ///
     /// # Errors
@@ -790,13 +795,20 @@ macro_rules! vanilla_pricing {
                 if let Some(model) = local_volatility::local_model(context) {
                     request.validate()?;
                     settings.validate()?;
-                    return local_volatility::price(
+                    let result = local_volatility::price(
                         option,
                         Payoff::vanilla(option.option_type(), option.strike(), $american),
                         context,
                         model,
                         self.settings,
                         request,
+                    )?;
+                    return crate::risk::numerical::expiry_greeks(
+                        option,
+                        context,
+                        settings,
+                        result,
+                        |context| self.price(option, context),
                     );
                 }
                 let payoff = Payoff::vanilla(option.option_type(), option.strike(), $american);
@@ -870,7 +882,7 @@ impl FiniteDifferenceDigitalEngine {
 
     /// Returns spline spot Greeks and numerical completion with the shared central domain.
     ///
-    /// All expiry Greeks are absent. See [`Self::price`] for a pricing example.
+    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent. See [`Self::price`] for a pricing example.
     /// Local volatility supports only delta and gamma with the absolute surface fixed;
     /// other requested Greeks remain absent.
     ///

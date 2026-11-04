@@ -1,5 +1,5 @@
-use crate::Timestamp;
 use crate::{Error, Result, error::finite};
+use crate::{PricingContext, Timestamp};
 
 /// Selects the call or put payoff direction.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -135,15 +135,16 @@ pub trait OptionContract {
         Some(self.effective_time())
     }
 
-    /// Reports whether every Greek is undefined at the current spot discontinuity.
+    /// Reports whether every Greek is unavailable at a pre-expiry spot discontinuity.
     ///
     /// Defaults to [`Self::at_spot_discontinuity`] with zero radius. Range coupons retain
     /// vega and rho; see [`crate::AnalyticRangeAccrualEngine::price_with_greeks`].
+    /// Expiry Greeks use terminal-payoff rules in [`crate::numerical_greeks`].
     fn all_greeks_unavailable(&self, context: &crate::PricingContext) -> bool {
         self.at_spot_discontinuity(context, 0.0)
     }
 
-    /// Reports whether a spot interval crosses a current payoff discontinuity.
+    /// Reports whether a spot interval crosses a payoff discontinuity or derivative kink.
     ///
     /// Defaults to `false`. Barrier contracts suppress undefined sensitivities at
     /// a current touch and stencils reaching it; see [`crate::AnalyticBarrierEngine::price_with_greeks`].
@@ -171,6 +172,11 @@ impl OptionContract for EuropeanOption {
     }
     fn expiry_time(&self) -> Timestamp {
         self.expiry_time()
+    }
+    fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
+        context.valuation_time() == self.expiry_time()
+            && context.spot_price() - radius <= self.strike()
+            && self.strike() <= context.spot_price() + radius
     }
 }
 
@@ -338,6 +344,9 @@ impl OptionContract for DigitalOption {
     fn expiry_time(&self) -> Timestamp {
         self.expiry_time()
     }
+    fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
+        self.terms.at_spot_discontinuity(context, radius)
+    }
 }
 
 /// Owns vanilla terms exercisable at any time during the inclusive contract life.
@@ -451,5 +460,8 @@ impl OptionContract for AmericanOption {
     }
     fn expiry_time(&self) -> Timestamp {
         self.expiry_time()
+    }
+    fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
+        self.terms.at_spot_discontinuity(context, radius)
     }
 }

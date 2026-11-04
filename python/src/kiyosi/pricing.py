@@ -6,8 +6,8 @@ and no-touch options, autocallable notes and accumulators. They provide price,
 delta and gamma, holding the absolute surface fixed. Other requested Greeks remain None, including in "all" requests.
 Other engine families and implied-parameter solvers raise UnsupportedOperationError
 for this model. Digital finite-difference pricing requires explicitly flat risk-free
-rates and dividend yields. Delta and gamma are absent at expiry and when their
-finite-difference stencils cross product events.
+rates and dividend yields. Delta and gamma are absent when their
+finite-difference stencils cross product events, including terminal payoff kinks.
 Surface coverage follows remaining stochastic evolution; rates must cover
 required discounting. Automatic domains use the maximum interpolated local
 volatility over the remaining stochastic horizon. Check time, space and boundary
@@ -96,6 +96,14 @@ unavailable measures remain None. Inspect ``result.status(name)`` to distinguish
 unrequested, unsupported and undefined measures; ``result.requested`` and
 ``result.supported`` expose the request and engine/model coverage.
 
+At expiry, supported spot sensitivities use terminal-payoff stencils. Supported
+vega, volga, rho and dividend rho are zero because no stochastic evolution or
+discounting remains. Vanna and zomma are zero where spot derivatives exist.
+Theta, charm and color remain None at expiry. Spot stencils crossing a payoff
+kink or product event remain unavailable, and engine/model coverage still applies.
+Automatic terminal spot bumps use 0.01 spot units, including American Monte Carlo;
+explicit bump controls retain their usual meaning.
+
 Every engine shares ``price(instrument, context)`` and
 ``price_with_greeks(instrument, context, greeks)``. Optional native bump controls
 vary by engine. For a uniform BSM numerical calculation, call
@@ -109,7 +117,7 @@ Pricing controls are explicit keyword-only parameters, available through
 ``inspect.signature``, with defaults derived from Rust. The displayed
 defaults can be passed back explicitly. Instrument conversion and supported-family checks
 precede Greek-name parsing. Monte Carlo vanilla spot bumps default by product:
-0.01 for European options and 8% of spot for American options. Explicit
+0.01 for European options and 8% of spot for American options before expiry. Explicit
 ``None`` selects the automatic bump for either product. Other numerical engines
 use ``None`` to select the shared 0.01 spot-unit bump. Rust
 ``NumericalShiftSettings.spot_shift=None`` uses the same engine-specific defaults.

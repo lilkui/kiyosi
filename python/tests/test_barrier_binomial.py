@@ -22,6 +22,7 @@ from kiyosi.market import (
     RateTermStructure,
     all_days_calendar,
 )
+from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
 
@@ -195,7 +196,7 @@ class BarrierBinomialTests(unittest.TestCase):
                 [],
             )
 
-    def test_expiry_settlement_has_no_greeks(self):
+    def test_expiry_settlement_has_terminal_spot_greeks(self):
         for engine in engines():
             for kind in KINDS:
                 contract = option(kind, rebate=3, touch_state="untouched")
@@ -203,8 +204,7 @@ class BarrierBinomialTests(unittest.TestCase):
                     contract, market(spot=110, valuation=END), greeks="all"
                 )
                 self.assertEqual(result.price, 3 if kind.endswith("in") else 10)
-                for greek in ("delta", "gamma", *OTHER_GREEKS):
-                    self.assertIsNone(getattr(result, greek))
+                assert_terminal_greeks(self, result, int(kind.endswith("out")))
 
     def test_implied_volatility_reprices_and_rejects_fixed_cashflows(self):
         context = market()

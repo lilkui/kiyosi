@@ -18,6 +18,7 @@ from kiyosi.pricing import (
     AnalyticEuropeanEngine,
     implied_volatility,
 )
+from support.terminal import assert_terminal_greeks
 
 
 class BarrierTests(unittest.TestCase):
@@ -164,8 +165,12 @@ class BarrierTests(unittest.TestCase):
                             result = engine.price_with_greeks(
                                 option, context, greeks="all"
                             )
-                            self.assertTrue(
-                                all(getattr(result, g) is None for g in GREEKS)
+                            assert_terminal_greeks(
+                                self,
+                                result,
+                                None
+                                if state == "untouched" and level == 100
+                                else int(kind.endswith("_in") == hit),
                             )
                             self.assert_rejection(
                                 UnsupportedOperationError,

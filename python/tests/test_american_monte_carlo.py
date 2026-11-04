@@ -21,6 +21,7 @@ from kiyosi.pricing import (
     MonteCarloVanillaEngine,
     implied_volatility,
 )
+from support.terminal import assert_terminal_greeks
 from test_binomial import END, GREEKS, START, market
 
 
@@ -117,7 +118,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
         self.assertEqual(engine.price(option, expiry), 50)
         result = engine.price_with_greeks(option, expiry, greeks="all")
         self.assertEqual(result.price, 50)
-        self.assertTrue(all(getattr(result, name) is None for name in GREEKS))
+        assert_terminal_greeks(self, result, -1)
         self.assert_rejection(
             UnsupportedOperationError,
             implied_volatility,

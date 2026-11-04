@@ -17,6 +17,7 @@ from kiyosi import (
 from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption, EuropeanOption
 from kiyosi.market import HestonParameters, PricingContext, RateTermStructure
 from quantlib_reference import digital, oracle
+from support.terminal import assert_terminal_greeks
 from test_binomial import END, GREEKS, START, contract, market
 
 DIGITAL = (CashOrNothingOption, AssetOrNothingOption)
@@ -223,8 +224,12 @@ class DigitalQuadratureTests(unittest.TestCase):
                         (10 if kind is CashOrNothingOption else spot) if itm else 0
                     )
                     self.assertEqual(result.price, expected)
-                    self.assertTrue(
-                        all(getattr(result, name) is None for name in GREEKS)
+                    assert_terminal_greeks(
+                        self,
+                        result,
+                        None
+                        if abs(spot - 100) <= 0.01
+                        else int(expected > 0 and kind is not CashOrNothingOption),
                     )
                 for at in (
                     START - timedelta(days=1),

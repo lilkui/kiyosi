@@ -19,6 +19,7 @@ from kiyosi.market import (
     custom_calendar,
     weekdays_calendar,
 )
+from support.terminal import assert_terminal_greeks
 from test_accumulator import START, contract, market, terminal_reference
 
 
@@ -101,19 +102,11 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                     option, market(spot, end), greeks="all"
                 )
                 self.assertEqual(result.price, quantity * (spot - 100))
-                for greek in (
-                    "delta",
-                    "gamma",
-                    "speed",
-                    "vega",
-                    "rho",
-                    "theta",
-                    "vanna",
-                    "zomma",
-                    "charm",
-                    "color",
-                ):
-                    self.assertIsNone(getattr(result, greek))
+                assert_terminal_greeks(
+                    self,
+                    result,
+                    None if min(abs(spot - 100), abs(spot - 110)) <= 0.01 else quantity,
+                )
         self.assertEqual(engine.price(option, market(110, START)), 30)
         for value in (-1, math.nan, math.inf):
             self.assert_rejection(
