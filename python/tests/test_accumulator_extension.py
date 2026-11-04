@@ -110,7 +110,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
         self.assertEqual(updated.replace_history(accumulated_quantity=3), option)
         self.assertNotEqual(default, contract(knock_out_observation_times=[]))
         self.assertNotEqual(default, contract(option_type="put"))
-        self.assertIn('option_type="put"', repr(option))
+        self.assertIn("option_type='put'", repr(option))
         self.assertIn("knock_out_observation_times=[datetime.date", repr(option))
         self.assertIn("knock_out_observation_times=None", repr(default))
         self.assertIn(

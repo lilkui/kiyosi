@@ -684,31 +684,6 @@ snowball_properties! {
     fn knock_in_observation_mode(&self) -> &'static str {
         mode_name(self.0.terms().knock_in_observation_mode)
     },
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let records = self
-            .observations()
-            .iter()
-            .map(|r| r.__repr__(py))
-            .collect::<PyResult<Vec<_>>>()?
-            .join(", ");
-        let state = self
-            .barrier_state()
-            .map_or_else(|| "None".into(), |s| format!("{s:?}"));
-        Ok(format!(
-            "SnowballOption(maturity_coupon_rate={:?}, initial_spot={:?}, knock_in_level={:?}, upper_strike={:?}, lower_strike={:?}, knock_in_observation_mode={:?}, barrier_state={}, principal_ratio={:?}, effective_time={}, expiry_time={}, observations=[{}])",
-            self.maturity_coupon_rate(),
-            self.initial_spot(),
-            self.knock_in_level(),
-            self.upper_strike(),
-            self.lower_strike(),
-            self.knock_in_observation_mode(),
-            state,
-            self.principal_ratio(),
-            self.effective_time(py)?.repr()?,
-            self.expiry_time(py)?.repr()?,
-            records
-        ))
-    }
 }
 
 /// Snowball with knock-out coupons and no knock-in or downside loss.
@@ -824,26 +799,6 @@ snowball_properties! {
     fn maturity_coupon_rate(&self) -> f64 {
         self.0.terms().maturity_coupon_rate
     },
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let records = self
-            .observations()
-            .iter()
-            .map(|r| r.__repr__(py))
-            .collect::<PyResult<Vec<_>>>()?
-            .join(", ");
-        let state = self
-            .barrier_state()
-            .map_or_else(|| "None".into(), |s| format!("{s:?}"));
-        Ok(format!(
-            "BinarySnowballOption(maturity_coupon_rate={:?}, principal_ratio={:?}, barrier_state={}, effective_time={}, expiry_time={}, observations=[{}])",
-            self.maturity_coupon_rate(),
-            self.principal_ratio(),
-            state,
-            self.effective_time(py)?.repr()?,
-            self.expiry_time(py)?.repr()?,
-            records
-        ))
-    }
 }
 
 /// Snowball with distinct intact and knocked-in maturity coupons.
@@ -1000,29 +955,6 @@ snowball_properties! {
     fn knock_in_observation_mode(&self) -> &'static str {
         mode_name(self.0.terms().knock_in_observation_mode)
     },
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let records = self
-            .observations()
-            .iter()
-            .map(|r| r.__repr__(py))
-            .collect::<PyResult<Vec<_>>>()?
-            .join(", ");
-        let state = self
-            .barrier_state()
-            .map_or_else(|| "None".into(), |s| format!("{s:?}"));
-        Ok(format!(
-            "TernarySnowballOption(maturity_coupon_rate={:?}, minimum_coupon_rate={:?}, knock_in_level={:?}, knock_in_observation_mode={:?}, principal_ratio={:?}, barrier_state={}, effective_time={}, expiry_time={}, observations=[{}])",
-            self.maturity_coupon_rate(),
-            self.minimum_coupon_rate(),
-            self.knock_in_level(),
-            self.knock_in_observation_mode(),
-            self.principal_ratio(),
-            state,
-            self.effective_time(py)?.repr()?,
-            self.expiry_time(py)?.repr()?,
-            records
-        ))
-    }
 }
 
 /// Autocallable with conditional period coupons and capped downside loss.
@@ -1266,35 +1198,6 @@ autocallable_properties! {
     fn knock_in_observation_mode(&self) -> &'static str {
         mode_name(self.0.terms().knock_in_observation_mode)
     },
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let records = self
-            .observations()
-            .iter()
-            .map(|r| r.__repr__(py))
-            .collect::<PyResult<Vec<_>>>()?
-            .join(", ");
-        let state = self
-            .barrier_state()
-            .map_or_else(|| "None".into(), |s| format!("{s:?}"));
-        let coupon = match self.0.terms().coupon {
-            kiyosi::PhoenixCoupon::Annual(value) => format!("coupon_rate={value:?}"),
-            kiyosi::PhoenixCoupon::PerPeriod(value) => format!("coupon_per_period={value:?}"),
-        };
-        Ok(format!(
-            "PhoenixOption({}, initial_spot={:?}, knock_in_level={:?}, upper_strike={:?}, lower_strike={:?}, knock_in_observation_mode={:?}, barrier_state={}, principal_ratio={:?}, effective_time={}, expiry_time={}, observations=[{}])",
-            coupon,
-            self.initial_spot(),
-            self.knock_in_level(),
-            self.upper_strike(),
-            self.lower_strike(),
-            self.knock_in_observation_mode(),
-            state,
-            self.principal_ratio(),
-            self.effective_time(py)?.repr()?,
-            self.expiry_time(py)?.repr()?,
-            records
-        ))
-    }
 }
 
 macro_rules! phoenix_preset {

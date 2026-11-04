@@ -230,6 +230,37 @@ class SerializationTests(unittest.TestCase):
         self.assertIn(".shifted(-1000000.0)", repr(curve))
         self.assertEqual(repr(pickle.loads(pickle.dumps(curve))), repr(curve))
 
+    def test_repr_bounds_large_contract_schedules(self):
+        from datetime import timedelta
+
+        times = [START + timedelta(days=n) for n in range(1000)]
+        observations = [i.AutocallableObservation(time, 110) for time in times]
+        for original in values():
+            if isinstance(original, i.Accumulator):
+                option = original.replace(
+                    expiry_time=times[-1], knock_out_observation_times=times
+                )
+            elif isinstance(
+                original,
+                (
+                    i.SnowballOption,
+                    i.BinarySnowballOption,
+                    i.TernarySnowballOption,
+                    i.PhoenixOption,
+                ),
+            ):
+                option = original.replace(
+                    expiry_time=times[-1], observations=observations
+                )
+            else:
+                continue
+            with self.subTest(contract=type(option).__name__):
+                text = repr(option)
+                self.assertIn(type(option).__name__, text)
+                self.assertIn("...", text)
+                self.assertLess(len(text), 2000)
+                self.assertEqual(pickle.loads(pickle.dumps(option)), option)
+
     def test_calendar_repr_identifies_base_and_overrides(self):
         from datetime import timedelta
 

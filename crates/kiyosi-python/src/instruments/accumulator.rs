@@ -1,7 +1,7 @@
 use crate::conversions::{direction, python_timestamp, real, supplied, timestamp, timestamps};
 use crate::error::domain;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyList};
+use pyo3::types::PyAny;
 
 /// Accumulates purchases or sales daily, settling at scheduled knock-out or expiry.
 ///
@@ -286,25 +286,5 @@ impl Accumulator {
     #[getter]
     fn expiry_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         python_timestamp(py, self.0.expiry_time())
-    }
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let observations = match self.knock_out_observation_times(py)? {
-            Some(times) => PyList::new(py, times)?.repr()?.to_string(),
-            None => "None".into(),
-        };
-        Ok(format!(
-            "Accumulator(strike={:?}, knock_out_level={:?}, daily_quantity={:?}, acceleration_factor={:?}, accumulated_quantity={}, effective_time={}, expiry_time={}, option_type={:?}, knock_out_observation_times={}, terminated={})",
-            self.strike(),
-            self.knock_out_level(),
-            self.daily_quantity(),
-            self.acceleration_factor(),
-            self.accumulated_quantity()
-                .map_or_else(|| "None".into(), |value| format!("{value:?}")),
-            self.effective_time(py)?.repr()?,
-            self.expiry_time(py)?.repr()?,
-            self.option_type(),
-            observations,
-            if self.terminated() { "True" } else { "False" }
-        ))
     }
 }
