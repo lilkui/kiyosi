@@ -43,7 +43,7 @@ def market(spot=100, time=START, rate=0.04, dividend=0.01, volatility=0.2):
         ),
         spot_price=spot,
         valuation_time=time,
-        calendar=all_days_calendar(),
+        metadata_calendar=all_days_calendar(),
     )
 
 

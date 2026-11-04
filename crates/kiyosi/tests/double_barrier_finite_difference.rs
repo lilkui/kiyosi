@@ -285,7 +285,7 @@ fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
     t.rebate = 2.0;
     let context = market(100.25)
         .replace(PricingContextChanges {
-            calendar: Some(TradingCalendar::all_days()),
+            metadata_calendar: Some(TradingCalendar::all_days()),
             ..Default::default()
         })
         .unwrap();

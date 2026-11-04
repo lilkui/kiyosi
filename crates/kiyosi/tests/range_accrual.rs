@@ -26,7 +26,7 @@ fn market(at: impl Into<Timestamp>, spot: f64) -> PricingContext {
     )
     .unwrap()
     .replace(PricingContextChanges {
-        calendar: Some(TradingCalendar::all_days()),
+        metadata_calendar: Some(TradingCalendar::all_days()),
         ..Default::default()
     })
     .unwrap()
@@ -186,7 +186,7 @@ fn numerical_greeks_match_independent_payoff_reference() {
         .unwrap();
         let context = market(day(4), 99.0)
             .replace(PricingContextChanges {
-                calendar: Some(TradingCalendar::weekdays()),
+                metadata_calendar: Some(TradingCalendar::weekdays()),
                 model_parameters: Some(
                     BlackScholesMertonParameters::new(rate, -0.01, 0.2)
                         .unwrap()
@@ -195,7 +195,9 @@ fn numerical_greeks_match_independent_payoff_reference() {
                 ..Default::default()
             })
             .unwrap();
-        let option = option.with_calendar(context.calendar().clone()).unwrap();
+        let option = option
+            .with_calendar(context.metadata_calendar().clone())
+            .unwrap();
         let shifts = NumericalShiftSettings {
             spot_shift: Some(0.1),
             ..Default::default()
@@ -277,7 +279,7 @@ fn greeks_respect_contract_life_and_observations() {
     .unwrap();
     let context = market(Timestamp::new(day(4).date(), 12, 0, 0, 0).unwrap(), 100.0)
         .replace(PricingContextChanges {
-            calendar: Some(TradingCalendar::weekdays()),
+            metadata_calendar: Some(TradingCalendar::weekdays()),
             ..Default::default()
         })
         .unwrap();
@@ -473,7 +475,7 @@ fn calendar_and_history_validation_precede_zero_coupon_and_curve_coverage() {
     }
     let context = market(day(3), 100.0)
         .replace(PricingContextChanges {
-            calendar: Some(TradingCalendar::weekdays()),
+            metadata_calendar: Some(TradingCalendar::weekdays()),
             ..Default::default()
         })
         .unwrap();
@@ -704,7 +706,7 @@ fn full_term_coupon_uses_calendar_days_and_one_expiry_discount() {
     assert!((engine.price(&seasoned, &live).unwrap() - expected).abs() < 1e-12);
     let rebased = context
         .replace(PricingContextChanges {
-            calendar: Some(
+            metadata_calendar: Some(
                 TradingCalendar::custom(TradingCalendar::all_days(), vec![], vec![], Some(252))
                     .unwrap(),
             ),
@@ -717,7 +719,7 @@ fn full_term_coupon_uses_calendar_days_and_one_expiry_discount() {
     );
     let overrides = context
         .replace(PricingContextChanges {
-            calendar: Some(
+            metadata_calendar: Some(
                 TradingCalendar::custom(
                     TradingCalendar::weekdays(),
                     vec![day(2).date()],

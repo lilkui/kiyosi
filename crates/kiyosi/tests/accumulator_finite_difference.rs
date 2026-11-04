@@ -120,11 +120,13 @@ fn trading_midnight_is_observed_once_and_intraday_uses_caller_history() {
     .unwrap();
     let context = market(90.0, day(1, 3))
         .replace(PricingContextChanges {
-            calendar: Some(calendar),
+            metadata_calendar: Some(calendar),
             ..Default::default()
         })
         .unwrap();
-    let option = option.with_calendar(context.calendar().clone()).unwrap();
+    let option = option
+        .with_calendar(context.metadata_calendar().clone())
+        .unwrap();
     assert!(
         (engine.price(&option, &context).unwrap() - terminal_reference(&option, &context)).abs()
             < 0.001

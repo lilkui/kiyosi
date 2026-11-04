@@ -36,7 +36,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             ),
             spot_price=100.25,
             valuation_time=datetime(2025, 1, 1, 12),
-            calendar=all_days_calendar(),
+            metadata_calendar=all_days_calendar(),
         )
         shifts = {"spot_shift": 0.25, "volatility_shift": 0.002, "rate_shift": 0.001}
         for mode in ("every_trading_day", "at_expiry"):
@@ -216,7 +216,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                 ),
                 spot_price=100.25,
                 valuation_time=datetime(2025, 1, 1, 12),
-                calendar=all_days_calendar(),
+                metadata_calendar=all_days_calendar(),
             )
 
         base = context(0.27)
@@ -330,7 +330,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             ),
             spot_price=100.25,
             valuation_time=datetime(2025, 1, 1, 12),
-            calendar=all_days_calendar(),
+            metadata_calendar=all_days_calendar(),
         )
         for mode in ("at_expiry", "every_trading_day"):
             knock_in = {"knock_in_level": 99, "knock_in_observation_mode": mode}
@@ -541,7 +541,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                 ),
                 spot_price=100.25,
                 valuation_time=datetime(2025, 1, 12, 12),
-                calendar=calendar or all_days_calendar(),
+                metadata_calendar=calendar or all_days_calendar(),
             )
 
         base = context()
@@ -814,7 +814,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             ),
             spot_price=100,
             valuation_time=start,
-            calendar=all_days_calendar(),
+            metadata_calendar=all_days_calendar(),
         )
         for engine in (
             pricing.FiniteDifferenceAutocallableEngine(scheme="rannacher"),

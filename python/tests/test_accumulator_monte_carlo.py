@@ -203,12 +203,15 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             (market(90, datetime(2025, 1, 4), 1e-20, 0, 0), -50),
             (market(90, datetime(2025, 1, 3), 1e-20, 0, 0, daily=True), -110),
             (
-                market(90, datetime(2025, 1, 3), 1e-20, 0, 0).replace(calendar=holiday),
+                market(90, datetime(2025, 1, 3), 1e-20, 0, 0).replace(
+                    metadata_calendar=holiday
+                ),
                 -50,
             ),
         ):
             self.assertEqual(
-                engine.price(note.replace(calendar=context.calendar), context), expected
+                engine.price(note.replace(calendar=context.metadata_calendar), context),
+                expected,
             )
         omitted = Accumulator(
             strike=100,
@@ -375,7 +378,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         engine = MC(path_count=2, seed=42, sampling="sobol")
         note = contract(datetime(2090, 1, 2))
         context = market(valuation=START, daily=True)
-        note = note.replace(calendar=context.calendar)
+        note = note.replace(calendar=context.metadata_calendar)
         self.assert_rejection(InvalidInputError, lambda: engine.price(note, context))
         result = engine.price_with_statistics(note, context.replace(spot_price=110))
         self.assertEqual(result.price, 30)

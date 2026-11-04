@@ -53,7 +53,7 @@ def market(
         ),
         spot_price=spot,
         valuation_time=valuation or datetime(2025, 1, 1, 12),
-        calendar=all_days_calendar() if daily else weekdays_calendar(),
+        metadata_calendar=all_days_calendar() if daily else weekdays_calendar(),
     )
 
 

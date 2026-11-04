@@ -234,10 +234,10 @@ class EuropeanTests(unittest.TestCase):
             AnalyticEuropeanEngine(),
         )
         self.assertEqual(
-            context.calendar.trading_days_per_year,
+            context.metadata_calendar.trading_days_per_year,
             weekdays_calendar().trading_days_per_year,
         )
-        self.assertEqual(context.calendar.trading_days_per_year, 252)
+        self.assertEqual(context.metadata_calendar.trading_days_per_year, 252)
         saved = context.model_parameters
         with self.assertRaises(AttributeError):
             context.spot_price = 200

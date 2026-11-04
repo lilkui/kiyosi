@@ -263,7 +263,7 @@ fn predicate_calendars_and_context_clones_support_concurrent_reads() {
     use kiyosi::{BlackScholesMertonParameters, PricingContext, PricingContextChanges};
     let open = day(2026, 10, 10);
     let calendar = TradingCalendar::new(move |date| date == open, 1).unwrap();
-    let context = PricingContext::with_calendar(
+    let context = PricingContext::with_metadata_calendar(
         BlackScholesMertonParameters::new(0.03, 0.01, 0.2).unwrap(),
         100.0,
         open.into(),
@@ -281,9 +281,9 @@ fn predicate_calendars_and_context_clones_support_concurrent_reads() {
         for _ in 0..4 {
             let context = &replaced;
             scope.spawn(move || {
-                assert!(context.calendar().is_trading_day(open));
-                assert!(!context.calendar().is_trading_day(day(2026, 10, 9)));
-                assert_eq!(context.calendar().trading_days_per_year(), 1);
+                assert!(context.metadata_calendar().is_trading_day(open));
+                assert!(!context.metadata_calendar().is_trading_day(day(2026, 10, 9)));
+                assert_eq!(context.metadata_calendar().trading_days_per_year(), 1);
             });
         }
     });

@@ -425,7 +425,9 @@ class BinaryBarrierTests(unittest.TestCase):
         )
         result = engine.price_with_greeks(
             dense,
-            self.context(time=datetime(2025, 1, 1, 12), calendar=all_days_calendar()),
+            self.context(
+                time=datetime(2025, 1, 1, 12), metadata_calendar=all_days_calendar()
+            ),
             greeks="all",
         )
         self.assertTrue(

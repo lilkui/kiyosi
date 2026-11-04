@@ -460,7 +460,7 @@ fn scheduled_requests_recover_volatility_and_support_concurrent_reads() {
         Timestamp::new(t.effective_time.date(), 12, 0, 0, 0).unwrap(),
     )
     .replace(PricingContextChanges {
-        calendar: Some(TradingCalendar::all_days()),
+        metadata_calendar: Some(TradingCalendar::all_days()),
         ..Default::default()
     })
     .unwrap();
@@ -766,7 +766,7 @@ fn publicly_prepared_requests_revalidate_different_schedules_and_calendars() {
     let closed = TradingCalendar::new(|_| false, 365).unwrap();
     let restricted = context
         .replace(PricingContextChanges {
-            calendar: Some(closed.clone()),
+            metadata_calendar: Some(closed.clone()),
             ..Default::default()
         })
         .unwrap();

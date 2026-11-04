@@ -445,7 +445,15 @@ class RateTermStructureTests(unittest.TestCase):
         context = market()
         for obj, fields in (
             (model, ("risk_free_rate", "dividend_yield", "volatility")),
-            (context, ("model_parameters", "spot_price", "valuation_time", "calendar")),
+            (
+                context,
+                (
+                    "model_parameters",
+                    "spot_price",
+                    "valuation_time",
+                    "metadata_calendar",
+                ),
+            ),
         ):
             replacement = obj.replace()
             if isinstance(obj, PricingContext):
@@ -453,8 +461,8 @@ class RateTermStructureTests(unittest.TestCase):
                 self.assertEqual(replacement.spot_price, obj.spot_price)
                 self.assertEqual(replacement.valuation_time, obj.valuation_time)
                 self.assertEqual(
-                    replacement.calendar.trading_days_per_year,
-                    obj.calendar.trading_days_per_year,
+                    replacement.metadata_calendar.trading_days_per_year,
+                    obj.metadata_calendar.trading_days_per_year,
                 )
             else:
                 self.assertEqual(replacement, obj)
@@ -489,8 +497,8 @@ class RateTermStructureTests(unittest.TestCase):
         self.assertEqual(changed.spot_price, 105)
         self.assertEqual(changed.valuation_time, datetime(2025, 1, 6, 9))
         self.assertEqual(
-            changed.calendar.trading_days_per_year,
-            context.calendar.trading_days_per_year,
+            changed.metadata_calendar.trading_days_per_year,
+            context.metadata_calendar.trading_days_per_year,
         )
         self.assertEqual(context.valuation_time, REFERENCE)
         self.assertEqual(context.spot_price, 100)

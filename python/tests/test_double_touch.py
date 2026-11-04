@@ -57,7 +57,7 @@ def market(
         ),
         spot_price=spot,
         valuation_time=time,
-        calendar=calendar if calendar is not None else all_days_calendar(),
+        metadata_calendar=calendar if calendar is not None else all_days_calendar(),
     )
 
 

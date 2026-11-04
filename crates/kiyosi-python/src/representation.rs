@@ -150,8 +150,8 @@ pub(crate) fn _repr_previews<'py>(
     );
     // Borrow model storage; constructing temporary model wrappers would clone entire surfaces.
     if let Ok(v) = value.extract::<PyRef<'_, crate::market::PricingContext>>() {
-        result.set_item("__repr__", format!("PricingContext(model_parameters={}, spot_price={:?}, valuation_time={}, calendar={})",
-            model(py, v.0.model_parameters())?, v.0.spot_price(), python_timestamp(py, v.0.valuation_time())?.repr()?, calendar(py, v.0.calendar())?))?;
+        result.set_item("__repr__", format!("PricingContext(model_parameters={}, spot_price={:?}, valuation_time={}, metadata_calendar={})",
+            model(py, v.0.model_parameters())?, v.0.spot_price(), python_timestamp(py, v.0.valuation_time())?.repr()?, calendar(py, v.0.metadata_calendar())?))?;
         return Ok(result);
     }
     macro_rules! rates {

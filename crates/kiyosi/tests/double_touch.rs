@@ -647,7 +647,7 @@ fn context(spot: f64, time: Timestamp) -> PricingContext {
     market(spot)
         .replace(PricingContextChanges {
             valuation_time: Some(time),
-            calendar: Some(TradingCalendar::all_days()),
+            metadata_calendar: Some(TradingCalendar::all_days()),
             ..Default::default()
         })
         .unwrap()

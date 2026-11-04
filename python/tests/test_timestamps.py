@@ -49,7 +49,7 @@ def market(at, spot=105):
         ),
         spot_price=spot,
         valuation_time=at,
-        calendar=all_days_calendar(),
+        metadata_calendar=all_days_calendar(),
     )
 
 

@@ -13,7 +13,7 @@ fn terms(direction: OptionType, kind: DoubleBarrierType) -> DoubleBarrierOptionT
 }
 
 fn market() -> PricingContext {
-    PricingContext::with_calendar(
+    PricingContext::with_metadata_calendar(
         BlackScholesMertonParameters::new(0.04, 0.01, 0.2).unwrap(),
         100.0,
         Date::new(2025, 1, 1).unwrap().start_of_day(),

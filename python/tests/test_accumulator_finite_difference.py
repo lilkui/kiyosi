@@ -166,7 +166,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         holiday = custom_calendar(
             base=weekdays_calendar(), closed_dates=[(datetime(2025, 1, 3)).date()]
         )
-        context = market(90, datetime(2025, 1, 3)).replace(calendar=holiday)
+        context = market(90, datetime(2025, 1, 3)).replace(metadata_calendar=holiday)
         option = option.replace(calendar=holiday)
         self.assertAlmostEqual(
             engine.price(option, context),

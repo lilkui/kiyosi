@@ -10,7 +10,7 @@ fn barrier_calendars_are_owned_and_preserved_by_replacement() -> Result<()> {
         start,
     )?;
     let daily_market = context.replace(PricingContextChanges {
-        calendar: Some(TradingCalendar::all_days()),
+        metadata_calendar: Some(TradingCalendar::all_days()),
         ..Default::default()
     })?;
     let observations = vec![start.add_days(1)?, expiry];

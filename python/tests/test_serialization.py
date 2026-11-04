@@ -75,7 +75,7 @@ def values():
             model_parameters=model,
             spot_price=100,
             valuation_time=START,
-            calendar=calendar,
+            metadata_calendar=calendar,
         ),
         i.AutocallableObservation(END, 110),
         i.EuropeanOption(**vanilla),

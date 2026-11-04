@@ -49,7 +49,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
         ..AccumulatorTerms::new(100.0, 200.0, 0.0, 1.0, start, end)
     })
     .unwrap();
-    let context = PricingContext::with_calendar(
+    let context = PricingContext::with_metadata_calendar(
         BlackScholesMertonParameters::new(0.01, 0.0, 1.0).unwrap(),
         100.0,
         start,
@@ -299,7 +299,8 @@ fn trading_midnights_intraday_history_and_calendar_control_purchases() {
         ),
     ] {
         let option = option.clone().with_calendar(calendar.clone()).unwrap();
-        let context = PricingContext::with_calendar(model.clone(), 90.0, at, calendar).unwrap();
+        let context =
+            PricingContext::with_metadata_calendar(model.clone(), 90.0, at, calendar).unwrap();
         assert_eq!(engine.price(&option, &context).unwrap(), expected);
     }
     let empty = option.replace_history(0.0).unwrap();
@@ -573,7 +574,7 @@ fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
         .unwrap();
     let context = market(100.25, day(1, 1))
         .replace(PricingContextChanges {
-            calendar: Some(TradingCalendar::all_days()),
+            metadata_calendar: Some(TradingCalendar::all_days()),
             ..Default::default()
         })
         .unwrap();

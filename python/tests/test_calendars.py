@@ -99,9 +99,9 @@ class CalendarTests(unittest.TestCase):
             ),
             spot_price=100,
             valuation_time=datetime.combine(closed, datetime.min.time()),
-            calendar=left,
+            metadata_calendar=left,
         )
-        self.assertEqual(context, context.replace(calendar=right))
+        self.assertEqual(context, context.replace(metadata_calendar=right))
 
     def test_counts_adjustment_and_annualization(self):
         calendar = weekdays_calendar()

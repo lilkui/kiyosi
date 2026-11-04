@@ -41,7 +41,7 @@ LocalVolatilityParameters for price, delta and gamma; digital
 finite-difference pricing requires constant risk-free rates and dividend
 yields. Other requested Greeks remain None. Other engine families and
 implied-parameter solvers reject this model with UnsupportedOperationError.
-PricingContext.calendar is calendar metadata for callers and custom engines;
+PricingContext.metadata_calendar is metadata for callers and custom engines;
 built-in pricing does not use it to select or validate observations.
 Barrier and touch contracts, range accruals, accumulators and autocallables own
 their contractual calendars.

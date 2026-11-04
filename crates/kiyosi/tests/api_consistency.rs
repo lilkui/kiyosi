@@ -130,7 +130,7 @@ fn structured_contracts_own_calendars_independently_of_market_context() -> Resul
     let model = BlackScholesMertonParameters::new(0.0, 0.0, 1e-12)?;
     let context = PricingContext::new(model, 100.0, start)?;
     let daily_market = context.replace(PricingContextChanges {
-        calendar: Some(TradingCalendar::all_days()),
+        metadata_calendar: Some(TradingCalendar::all_days()),
         ..Default::default()
     })?;
     let range = RangeAccrualOption::new(RangeAccrualTerms::new(
@@ -142,7 +142,7 @@ fn structured_contracts_own_calendars_independently_of_market_context() -> Resul
         ..Default::default()
     })?;
     let other_expiry = at_expiry.replace(PricingContextChanges {
-        calendar: Some(TradingCalendar::all_days()),
+        metadata_calendar: Some(TradingCalendar::all_days()),
         ..Default::default()
     })?;
     let price = AnalyticRangeAccrualEngine.price(&range, &at_expiry)?;
@@ -482,7 +482,7 @@ fn terminated_accumulators_have_no_remaining_cashflows() -> Result<()> {
             })?
             .terminated()
     );
-    let context = PricingContext::with_calendar(
+    let context = PricingContext::with_metadata_calendar(
         BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
         100.0,
         Date::new(2025, 1, 3)?.start_of_day(),

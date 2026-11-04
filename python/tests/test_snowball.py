@@ -56,7 +56,7 @@ def market(
         ),
         spot_price=spot,
         valuation_time=valuation,
-        calendar=calendar or weekdays_calendar(),
+        metadata_calendar=calendar or weekdays_calendar(),
     )
 
 

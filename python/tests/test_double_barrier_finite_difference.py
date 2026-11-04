@@ -51,7 +51,7 @@ def market(spot=100, *, time=START, volatility=0.2, dividend=0.01, calendar=None
         ),
         spot_price=spot,
         valuation_time=time,
-        calendar=all_days_calendar() if calendar is None else calendar,
+        metadata_calendar=all_days_calendar() if calendar is None else calendar,
     )
 
 

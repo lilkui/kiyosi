@@ -73,7 +73,7 @@ class BarrierFiniteDifferenceRegressionTests(unittest.TestCase):
                     ),
                     spot_price=150 if up else 1,
                     valuation_time=valuation,
-                    calendar=all_days_calendar(),
+                    metadata_calendar=all_days_calendar(),
                 )
                 option = BarrierOption(
                     option_type="call" if up else "put",

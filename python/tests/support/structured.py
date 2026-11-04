@@ -84,7 +84,7 @@ def market(row):
             datetime.fromisoformat(inputs["valuation"]), datetime.min.time()
         )
         + timedelta(hours=int(inputs["valuation_hour"])),
-        calendar=weekdays_calendar(),
+        metadata_calendar=weekdays_calendar(),
     )
 
 

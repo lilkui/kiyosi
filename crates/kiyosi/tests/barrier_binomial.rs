@@ -44,7 +44,7 @@ fn terms(kind: BarrierType, days: u32) -> BarrierOptionTerms {
     )
 }
 fn market(time: Timestamp, spot: f64, rate: f64, sigma: f64) -> PricingContext {
-    PricingContext::with_calendar(
+    PricingContext::with_metadata_calendar(
         BlackScholesMertonParameters::new(rate, 0.01, sigma).unwrap(),
         spot,
         time,

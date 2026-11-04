@@ -385,7 +385,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
         .unwrap();
         let holidays = context
             .replace(PricingContextChanges {
-                calendar: Some(
+                metadata_calendar: Some(
                     TradingCalendar::custom(
                         TradingCalendar::weekdays(),
                         vec![day(2).date()],
@@ -399,7 +399,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             .unwrap();
         let holiday_option = option
             .clone()
-            .with_calendar(holidays.calendar().clone())
+            .with_calendar(holidays.metadata_calendar().clone())
             .unwrap();
         let result = monte_carlo
             .price_with_statistics(&holiday_option, &holidays)
@@ -510,7 +510,7 @@ fn date_validation_and_history_replacement_preserve_owned_terms() {
     );
     let all_days_context = weekday_context
         .replace(PricingContextChanges {
-            calendar: Some(TradingCalendar::all_days()),
+            metadata_calendar: Some(TradingCalendar::all_days()),
             ..Default::default()
         })
         .unwrap();

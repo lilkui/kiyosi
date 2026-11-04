@@ -344,7 +344,7 @@ macro_rules! snowball_preset {
         /// Notes
         /// -----
         /// The calendar keyword owns the contract calendar (weekdays by default).
-        /// PricingContext.calendar does not change the monitoring schedule.
+        /// PricingContext.metadata_calendar does not change the monitoring schedule.
         #[doc = concat!("Knock-in is observed ", $monitoring, ".")]
         /// Unit principal, zero lower strike and initial spot as upper strike are used
         /// unless the preset overrides them. Trading-calendar consistency is checked on construction; history
@@ -1289,7 +1289,7 @@ macro_rules! phoenix_preset {
         /// Notes
         /// -----
         /// The calendar keyword owns the contract calendar (weekdays by default).
-        /// PricingContext.calendar does not change the monitoring schedule.
+        /// PricingContext.metadata_calendar does not change the monitoring schedule.
         /// Coupons pay once per qualifying observation, including a qualifying knock-out,
         /// with no day accrual or memory. Knock-out and coupon barriers are inclusive;
         /// knock-in is strict. Observation times are payment times; no observation

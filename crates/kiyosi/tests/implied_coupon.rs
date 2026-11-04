@@ -792,7 +792,7 @@ fn coupon_endpoints_can_change_daily_knock_in_layers() {
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = SnowballOption::new(terms).unwrap();
-    let context = PricingContext::with_calendar(
+    let context = PricingContext::with_metadata_calendar(
         BlackScholesMertonParameters::new(0.03, 0.0, 0.3).unwrap(),
         100.25,
         Timestamp::new(date(1, 1).date(), 12, 0, 0, 0).unwrap(),

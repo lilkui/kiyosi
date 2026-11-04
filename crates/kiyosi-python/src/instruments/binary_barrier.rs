@@ -81,7 +81,7 @@ binary_properties!(
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// calendar : TradingCalendar, optional
     ///     Owned observation calendar; defaults to weekdays on construction and is
-    ///     retained on replacement. PricingContext.calendar does not change it.
+    ///     retained on replacement. PricingContext.metadata_calendar does not change it.
     /// payout : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     ///
@@ -191,7 +191,7 @@ binary_properties!(
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// calendar : TradingCalendar, optional
     ///     Owned observation calendar; defaults to weekdays on construction and is
-    ///     retained on replacement. PricingContext.calendar does not change it.
+    ///     retained on replacement. PricingContext.metadata_calendar does not change it.
     /// payout : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     ///
@@ -442,7 +442,7 @@ macro_rules! touch_factory {
         ///     Strictly prior history. None is unknown; untouched means known no hit.
         /// calendar : TradingCalendar, optional
         ///     Owned observation calendar; defaults to weekdays on construction and is
-        ///     retained on replacement. PricingContext.calendar does not change it.
+        ///     retained on replacement. PricingContext.metadata_calendar does not change it.
         ///
         /// Returns
         /// -------

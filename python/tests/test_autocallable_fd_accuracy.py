@@ -36,7 +36,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
             ),
             spot_price=100,
             valuation_time=start,
-            calendar=all_days_calendar(),
+            metadata_calendar=all_days_calendar(),
         )
         engine = pricing.FiniteDifferenceAutocallableEngine()
 
@@ -96,7 +96,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
                             ),
                             spot_price=spot,
                             valuation_time=valuation,
-                            calendar=all_days_calendar(),
+                            metadata_calendar=all_days_calendar(),
                         )
                         actual = engine.price_with_greeks(
                             option, context, ["delta", "gamma"]
@@ -157,7 +157,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 model_parameters=model,
                 spot_price=spot,
                 valuation_time=start,
-                calendar=calendar,
+                metadata_calendar=calendar,
             )
 
         # Dealer-normalized Gamma references from an independent quadrature solve.
@@ -201,7 +201,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 ),
                 spot_price=350,
                 valuation_time=datetime(2026, 1, 1) - timedelta(seconds=seconds),
-                calendar=all_days_calendar(),
+                metadata_calendar=all_days_calendar(),
             )
             for count in (3, 4, 5, 10, 20, 40):
                 with self.subTest(seconds=seconds, count=count):
@@ -304,7 +304,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
                     ),
                     spot_price=spot,
                     valuation_time=end,
-                    calendar=all_days_calendar(),
+                    metadata_calendar=all_days_calendar(),
                 )
                 result = engine.price_with_greeks(option, context, ["delta", "gamma"])
                 self.assertEqual(result.price, expected)
@@ -340,7 +340,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
                 ),
                 spot_price=100.25,
                 valuation_time=start,
-                calendar=calendar,
+                metadata_calendar=calendar,
             )
             for scheme in (
                 "crank_nicolson",

@@ -19,7 +19,7 @@ class BarrierCalendarTests(unittest.TestCase):
             spot_price=100,
             valuation_time=start,
         )
-        daily_market = context.replace(calendar=market.all_days_calendar())
+        daily_market = context.replace(metadata_calendar=market.all_days_calendar())
         common = {
             "effective_time": start,
             "expiry_time": end,

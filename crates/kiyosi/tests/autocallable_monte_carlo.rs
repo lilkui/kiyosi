@@ -53,7 +53,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
     );
     terms.principal_ratio = 0.0;
     let note = BinarySnowballOption::new(terms).unwrap();
-    let context = PricingContext::with_calendar(
+    let context = PricingContext::with_metadata_calendar(
         BlackScholesMertonParameters::new(0.0, 0.0, 0.2).unwrap(),
         100.0,
         start,

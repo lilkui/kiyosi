@@ -375,7 +375,7 @@ fn context_validation_timing_replacement_and_concurrent_owned_values() {
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(changed.calendar(), context.calendar());
+    assert_eq!(changed.metadata_calendar(), context.metadata_calendar());
     assert_eq!(changed.model_parameters().as_bsm().unwrap(), &model);
     assert_eq!(context.spot_price(), 100.0);
     std::thread::scope(|scope| {

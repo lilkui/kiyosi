@@ -11,6 +11,39 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_context_calendar_is_explicit_metadata(self):
+        import inspect
+
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0.02, dividend_yield=0, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=datetime(2025, 1, 3),
+            metadata_calendar=market.all_days_calendar(),
+        )
+        self.assertIn(
+            "metadata_calendar", inspect.signature(market.PricingContext).parameters
+        )
+        self.assertEqual(context.metadata_calendar, market.all_days_calendar())
+        self.assertEqual(
+            context.replace(spot_price=101).metadata_calendar, context.metadata_calendar
+        )
+        self.assertEqual(pickle.loads(pickle.dumps(context)), context)
+        option = ins.EuropeanOption(
+            option_type="call",
+            strike=100,
+            effective_time=context.valuation_time,
+            expiry_time=datetime(2025, 1, 6),
+        )
+        engine = pricing.AnalyticEuropeanEngine()
+        self.assertEqual(
+            engine.price(option, context),
+            engine.price(
+                option, context.replace(metadata_calendar=market.weekdays_calendar())
+            ),
+        )
+
     def test_contractual_calendars_are_validated_before_pricing(self):
         start, closed, end = (datetime(2025, 1, day) for day in (3, 4, 6))
         life = {"effective_time": start, "expiry_time": end}
@@ -199,7 +232,7 @@ class ApiConsistencyTests(unittest.TestCase):
         context = market.PricingContext(
             model_parameters=model, spot_price=100, valuation_time=start
         )
-        daily_market = context.replace(calendar=market.all_days_calendar())
+        daily_market = context.replace(metadata_calendar=market.all_days_calendar())
         accrual = ins.RangeAccrualOption(
             notional=1000,
             annual_coupon_rate=0.12,
@@ -215,7 +248,9 @@ class ApiConsistencyTests(unittest.TestCase):
         self.assertAlmostEqual(price, 360 / 365, delta=1e-12)
         self.assertEqual(
             price,
-            engine.price(accrual, expiry.replace(calendar=market.all_days_calendar())),
+            engine.price(
+                accrual, expiry.replace(metadata_calendar=market.all_days_calendar())
+            ),
         )
         daily = accrual.replace(calendar=market.all_days_calendar())
         self.assertAlmostEqual(engine.price(daily, expiry), price / 3, delta=1e-12)
@@ -572,7 +607,7 @@ class ApiConsistencyTests(unittest.TestCase):
             ),
             spot_price=100,
             valuation_time=datetime(2025, 1, 3),
-            calendar=market.all_days_calendar(),
+            metadata_calendar=market.all_days_calendar(),
         )
         for factory in (
             pricing.QuadratureAccumulatorEngine,

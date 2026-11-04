@@ -57,7 +57,7 @@ def market(
         ),
         spot_price=spot,
         valuation_time=valuation,
-        calendar=calendar or all_days_calendar(),
+        metadata_calendar=calendar or all_days_calendar(),
     )
 
 
@@ -399,7 +399,7 @@ class RangeAccrualTests(unittest.TestCase):
             engine.price(
                 option,
                 context.replace(
-                    calendar=custom_calendar(
+                    metadata_calendar=custom_calendar(
                         base=all_days_calendar(),
                         trading_days_per_year=252,
                     )
@@ -407,7 +407,7 @@ class RangeAccrualTests(unittest.TestCase):
             ),
         )
         overrides = context.replace(
-            calendar=custom_calendar(
+            metadata_calendar=custom_calendar(
                 base=weekdays_calendar(),
                 closed_dates=[(START + timedelta(days=1)).date()],
                 open_dates=[(START + timedelta(days=3)).date()],
@@ -581,7 +581,7 @@ class RangeAccrualTests(unittest.TestCase):
                         model_parameters=model,
                         spot_price=spot,
                         valuation_time=when,
-                        calendar=context.calendar,
+                        metadata_calendar=context.metadata_calendar,
                     ),
                 )
 

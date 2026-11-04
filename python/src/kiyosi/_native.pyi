@@ -362,7 +362,7 @@ class PricingContext:
         | HestonParameters,
         spot_price: _Real,
         valuation_time: datetime,
-        calendar: TradingCalendar = ...,
+        metadata_calendar: TradingCalendar = ...,
     ) -> None: ...
     def replace(
         self,
@@ -373,7 +373,7 @@ class PricingContext:
         | EllipsisType = ...,
         spot_price: _Real | EllipsisType = ...,
         valuation_time: datetime | EllipsisType = ...,
-        calendar: TradingCalendar | EllipsisType = ...,
+        metadata_calendar: TradingCalendar | EllipsisType = ...,
     ) -> PricingContext: ...
     @property
     def model_parameters(
@@ -388,7 +388,7 @@ class PricingContext:
     @property
     def valuation_time(self) -> datetime: ...
     @property
-    def calendar(self) -> TradingCalendar: ...
+    def metadata_calendar(self) -> TradingCalendar: ...
 
 class AnalyticEuropeanEngine:
     def __eq__(self, other: object) -> bool: ...

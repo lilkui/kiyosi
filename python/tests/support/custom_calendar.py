@@ -74,12 +74,12 @@ class CustomCalendarTests(unittest.TestCase):
                 ),
                 spot_price=100,
                 valuation_time=datetime(2026, 9, 30),
-                calendar=calendar,
+                metadata_calendar=calendar,
             )
             return context.replace(spot_price=101)
 
         shifted = make_shifted()
-        calendar = shifted.calendar
+        calendar = shifted.metadata_calendar
         del shifted
         self.assertFalse(calendar.is_trading_day(date(2026, 10, 1)))
         self.assertTrue(calendar.is_trading_day(date(2026, 10, 10)))

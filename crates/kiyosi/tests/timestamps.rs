@@ -33,7 +33,7 @@ fn time(day: u32, hour: u32, microsecond: u32) -> Timestamp {
 }
 
 fn market(at: Timestamp, spot: f64) -> PricingContext {
-    PricingContext::with_calendar(
+    PricingContext::with_metadata_calendar(
         BlackScholesMertonParameters::new(0.0, 0.0, 0.0001).unwrap(),
         spot,
         at,

@@ -249,29 +249,29 @@ pub struct PricingContextChanges {
     pub spot_price: Option<f64>,
     /// Replaces the valuation instant.
     pub valuation_time: Option<Timestamp>,
-    /// Replaces the trading calendar.
-    pub calendar: Option<TradingCalendar>,
+    /// Replaces the metadata calendar.
+    pub metadata_calendar: Option<TradingCalendar>,
 }
 
 /// Owns a validated valuation snapshot.
 ///
 /// Contract-life validation occurs at pricing time; see [`Self::new`].
-/// The calendar is metadata for callers and custom engines. Built-in pricing
+/// The metadata calendar is for callers and custom engines. Built-in pricing
 /// uses the contract's calendar independently of this context.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PricingContext {
     model_parameters: ModelParameters,
     spot_price: f64,
     valuation_time: Timestamp,
-    calendar: TradingCalendar,
+    metadata_calendar: TradingCalendar,
 }
 
 impl PricingContext {
-    /// Creates a context using the default weekday calendar with a 252-day basis.
+    /// Creates a context using the default weekday metadata calendar with a 252-day basis.
     ///
     /// # Errors
     ///
-    /// Reuses [`Self::with_calendar`] spot and curve-coverage validation.
+    /// Reuses [`Self::with_metadata_calendar`] spot and curve-coverage validation.
     ///
     /// # Examples
     ///
@@ -288,7 +288,7 @@ impl PricingContext {
         spot_price: f64,
         valuation_time: Timestamp,
     ) -> Result<Self> {
-        Self::with_calendar(
+        Self::with_metadata_calendar(
             model_parameters,
             spot_price,
             valuation_time,
@@ -296,18 +296,18 @@ impl PricingContext {
         )
     }
 
-    /// Creates a validated context with an explicit calendar.
+    /// Creates a validated context with an explicit metadata calendar.
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for a non-finite or nonpositive spot,
     /// then for valuation outside either curve or the local-volatility surface coverage.
     /// See [`Self::new`] for a construction example.
-    pub fn with_calendar(
+    pub fn with_metadata_calendar(
         model_parameters: impl Into<ModelParameters>,
         spot_price: f64,
         valuation_time: Timestamp,
-        calendar: TradingCalendar,
+        metadata_calendar: TradingCalendar,
     ) -> Result<Self> {
         let model_parameters = model_parameters.into();
         finite(spot_price, true)?;
@@ -324,7 +324,7 @@ impl PricingContext {
             model_parameters,
             spot_price,
             valuation_time,
-            calendar,
+            metadata_calendar,
         })
     }
 
@@ -334,16 +334,18 @@ impl PricingContext {
     ///
     /// # Errors
     ///
-    /// Reuses [`Self::with_calendar`] spot and valuation-coverage validation.
+    /// Reuses [`Self::with_metadata_calendar`] spot and valuation-coverage validation.
     /// See [`Self::new`] for context construction.
     pub fn replace(&self, changes: PricingContextChanges) -> Result<Self> {
-        Self::with_calendar(
+        Self::with_metadata_calendar(
             changes
                 .model_parameters
                 .unwrap_or_else(|| self.model_parameters.clone()),
             changes.spot_price.unwrap_or(self.spot_price),
             changes.valuation_time.unwrap_or(self.valuation_time),
-            changes.calendar.unwrap_or_else(|| self.calendar.clone()),
+            changes
+                .metadata_calendar
+                .unwrap_or_else(|| self.metadata_calendar.clone()),
         )
     }
 
@@ -377,8 +379,8 @@ impl PricingContext {
     pub fn valuation_date(&self) -> Date {
         self.valuation_time.date()
     }
-    /// Borrows the trading calendar; see [`Self::with_calendar`].
-    pub fn calendar(&self) -> &TradingCalendar {
-        &self.calendar
+    /// Borrows the metadata calendar; see [`Self::with_metadata_calendar`].
+    pub fn metadata_calendar(&self) -> &TradingCalendar {
+        &self.metadata_calendar
     }
 }

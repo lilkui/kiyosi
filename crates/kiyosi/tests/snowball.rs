@@ -337,7 +337,7 @@ fn prepared_pricing_rebuilds_when_the_calendar_changes_monitoring_dates() {
     let weekdays = market(100.0, date(1, 1));
     let all_days = weekdays
         .replace(PricingContextChanges {
-            calendar: Some(TradingCalendar::all_days()),
+            metadata_calendar: Some(TradingCalendar::all_days()),
             ..Default::default()
         })
         .unwrap();
