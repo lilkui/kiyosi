@@ -52,7 +52,7 @@ impl MonteCarloAutocallableEngine {
     /// let estimate = engine.price_with_statistics(&note, &context)?;
     /// assert!((estimate.price() - 1.0).abs() < 0.02);
     /// assert!(estimate.standard_error().is_some());
-    /// assert_eq!(engine.settings().path_count, 4096);
+    /// assert_eq!(engine.sampling_settings().path_count, 4096);
     /// let result = engine.price_with_greeks(&note, &context,
     ///     GreeksRequest::new([Greek::Rho]), Default::default())?;
     /// assert!(result.has(Greek::Rho));
@@ -64,7 +64,7 @@ impl MonteCarloAutocallableEngine {
     }
 
     /// Returns owned sampling settings. See [`Self::new`].
-    pub fn settings(&self) -> MonteCarloSettings {
+    pub fn sampling_settings(&self) -> MonteCarloSettings {
         self.settings
     }
 

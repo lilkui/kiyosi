@@ -45,7 +45,7 @@ impl MonteCarloAccumulatorEngine {
     /// let engine = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
     ///     seed: Some(42), path_count: 4096, ..Default::default()
     /// })?;
-    /// assert_eq!(engine.settings().path_count, 4096);
+    /// assert_eq!(engine.sampling_settings().path_count, 4096);
     /// let estimate = engine.price_with_statistics(&option, &context)?;
     /// assert_eq!(estimate.price(), 30.0);
     /// assert_eq!(estimate.standard_error(), Some(0.0));
@@ -60,7 +60,7 @@ impl MonteCarloAccumulatorEngine {
     }
 
     /// Returns owned sampling settings; see [`Self::new`].
-    pub fn settings(&self) -> MonteCarloSettings {
+    pub fn sampling_settings(&self) -> MonteCarloSettings {
         self.settings
     }
 

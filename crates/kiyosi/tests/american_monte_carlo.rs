@@ -74,7 +74,7 @@ fn american_path_storage_limit_rejects_large_grids_before_sampling() {
                 .unwrap(),
             expected
         );
-        assert_eq!(engine.settings().seed, Some(42));
+        assert_eq!(engine.sampling_settings().seed, Some(42));
     }
 }
 
@@ -109,7 +109,7 @@ fn nonfinite_continuation_regressions_fail_without_changing_the_engine() {
         ));
     }
     assert_eq!(engine.price(&ordinary, &context).unwrap(), before);
-    assert_eq!(engine.settings().seed, Some(42));
+    assert_eq!(engine.sampling_settings().seed, Some(42));
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn american_put_includes_immediate_exercise_and_validates_steps_after_expiry() {
     })
     .unwrap();
     assert!((engine.price(&put, &context).unwrap() - 50.0).abs() < 1e-10);
-    let engine = MonteCarloVanillaEngine::with_step_count(engine.settings(), 1).unwrap();
+    let engine = MonteCarloVanillaEngine::with_step_count(engine.sampling_settings(), 1).unwrap();
     assert!(matches!(
         engine.price(&put, &context).unwrap_err(),
         Error::InvalidInput(_)
@@ -230,7 +230,7 @@ fn sampling_combinations_preserve_threads_seeds_and_exact_odd_paths() {
                 let parallel = MonteCarloVanillaEngine::with_step_count(
                     MonteCarloSettings {
                         thread_count: threads,
-                        ..engine.settings()
+                        ..engine.sampling_settings()
                     },
                     engine.step_count(),
                 )
@@ -240,7 +240,7 @@ fn sampling_combinations_preserve_threads_seeds_and_exact_odd_paths() {
             let changed = MonteCarloVanillaEngine::with_step_count(
                 MonteCarloSettings {
                     seed: Some(u64::MAX),
-                    ..engine.settings()
+                    ..engine.sampling_settings()
                 },
                 engine.step_count(),
             )
@@ -264,7 +264,7 @@ fn sampling_combinations_preserve_threads_seeds_and_exact_odd_paths() {
             let even = MonteCarloVanillaEngine::with_step_count(
                 MonteCarloSettings {
                     path_count: paths + 1,
-                    ..engine.settings()
+                    ..engine.sampling_settings()
                 },
                 engine.step_count(),
             )
@@ -304,14 +304,15 @@ fn terminal_only_call_preserves_price_and_immediate_exercise_floor() {
                 let price = engine.price(&european, &context).unwrap();
                 for steps in [3, 50, 10000] {
                     let other =
-                        MonteCarloVanillaEngine::with_step_count(engine.settings(), steps).unwrap();
+                        MonteCarloVanillaEngine::with_step_count(engine.sampling_settings(), steps)
+                            .unwrap();
                     assert_eq!(other.price(&call, &context).unwrap(), price);
                 }
                 let deep = market(0.0, 0.0, 0.2, 2000.0);
                 let one = MonteCarloVanillaEngine::with_step_count(
                     MonteCarloSettings {
                         path_count: 1,
-                        ..engine.settings()
+                        ..engine.sampling_settings()
                     },
                     engine.step_count(),
                 )
@@ -413,7 +414,7 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
             .price_with_greeks(&put, &context, GreeksRequest::all(), shifts)
             .is_ok()
     );
-    assert_eq!(unseeded.settings().seed, None);
+    assert_eq!(unseeded.sampling_settings().seed, None);
 }
 
 #[test]

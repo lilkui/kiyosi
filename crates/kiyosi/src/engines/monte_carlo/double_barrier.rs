@@ -36,8 +36,8 @@ impl MonteCarloDoubleBarrierEngine {
     }
 
     /// Returns owned sampling settings. See [`Self::new`].
-    pub fn settings(&self) -> MonteCarloSettings {
-        self.engine.settings()
+    pub fn sampling_settings(&self) -> MonteCarloSettings {
+        self.engine.sampling_settings()
     }
 
     /// Prices after validating flat rates, inclusive life, calendar and prior history.
@@ -160,7 +160,7 @@ impl MonteCarloDoubleBarrierEngine {
     ///     NumericalShiftSettings::default())?;
     /// assert!((result.price() - 1.0838814592583166).abs() < 0.003);
     /// assert!(result.has(Greek::Delta));
-    /// assert_eq!(engine.settings().path_count, 32768);
+    /// assert_eq!(engine.sampling_settings().path_count, 32768);
     /// let estimate = engine.price_with_statistics(&option, &context)?;
     /// assert_eq!(estimate.standard_error(), None); // Sobol omits sampling uncertainty.
     /// # Ok(()) }
@@ -205,7 +205,7 @@ impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
         self.engine.validate_applicability(context)
     }
     fn prepare_request(&self) -> Result<Option<Box<dyn PricingEngine<DoubleBarrierOption> + '_>>> {
-        let settings = self.settings();
+        let settings = self.sampling_settings();
         if settings.seed.is_some() {
             return Ok(None);
         }

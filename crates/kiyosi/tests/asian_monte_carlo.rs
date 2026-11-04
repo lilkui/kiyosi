@@ -385,7 +385,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             Error::UnsupportedOperation(_)
         ));
     }
-    assert_eq!(engine.settings().seed, Some(42));
+    assert_eq!(engine.sampling_settings().seed, Some(42));
     for settings in [
         MonteCarloSettings {
             path_count: 0,
@@ -407,7 +407,7 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
         ));
     }
     assert_eq!(
-        MonteCarloAsianEngine::default().settings(),
+        MonteCarloAsianEngine::default().sampling_settings(),
         MonteCarloSettings::default()
     );
 }
@@ -756,7 +756,7 @@ fn unseeded_analyses_pin_request_samples_without_mutation() {
     )
     .unwrap();
     assert!((0.1..0.4).contains(&sigma));
-    assert_eq!(engine.settings().seed, None);
+    assert_eq!(engine.sampling_settings().seed, None);
 }
 
 #[test]

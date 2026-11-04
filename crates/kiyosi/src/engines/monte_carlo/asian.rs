@@ -60,6 +60,9 @@ impl MonteCarloAsianEngine {
     /// # fn main() -> kiyosi::Result<()> {
     /// let engine = MonteCarloAsianEngine::with_step_count(MonteCarloSettings::default(), 100)?;
     /// assert_eq!(engine.step_count(), 100);
+    /// let rebuilt = MonteCarloAsianEngine::with_step_count(
+    ///     engine.sampling_settings(), engine.step_count())?;
+    /// assert_eq!(rebuilt, engine);
     /// # Ok(()) }
     /// ```
     pub fn with_step_count(settings: MonteCarloSettings, step_count: i32) -> Result<Self> {
@@ -76,8 +79,10 @@ impl MonteCarloAsianEngine {
         self.step_count
     }
 
-    /// Returns owned sampling settings; see [`Self::new`].
-    pub fn settings(&self) -> MonteCarloSettings {
+    /// Returns owned sampling settings; the grid count is available from [`Self::step_count`].
+    ///
+    /// See [`Self::with_step_count`] for configuration reconstruction.
+    pub fn sampling_settings(&self) -> MonteCarloSettings {
         self.settings
     }
 

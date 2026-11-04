@@ -37,6 +37,10 @@ domain between barrier edges. Continuous up and double barriers fix the upper
 grid edge, so ``asset_upper_boundary`` is inactive for that barrier grid;
 scheduled monitoring and local-volatility knock-in vanilla components still use
 the full domain.
+Rust Monte Carlo ``sampling_settings()`` returns sampling controls only; preserve
+``step_count()`` separately when reconstructing vanilla or Asian engines with
+``with_step_count``. Python constructors expose both sampling and grid controls.
+
 Monte Carlo ``step_count`` counts time intervals for both American exercise
 and arithmetic Asian integration; American pricing needs at least two intervals.
 ``MonteCarloSampling`` selects

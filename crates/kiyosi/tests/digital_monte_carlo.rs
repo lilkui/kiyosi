@@ -282,7 +282,7 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                 Error::UnsupportedOperation(_)
             ));
             assert!(engine.price(&option, &base).unwrap().is_finite());
-            assert_eq!(engine.settings().seed, Some(42));
+            assert_eq!(engine.sampling_settings().seed, Some(42));
         }
     }
 }
@@ -383,7 +383,7 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
             for thread_count in [1, 4] {
                 let other = MonteCarloDigitalEngine::new(MonteCarloSettings {
                     thread_count,
-                    ..engine.settings()
+                    ..engine.sampling_settings()
                 })
                 .unwrap();
                 assert_eq!(
@@ -441,14 +441,14 @@ fn odd_paths_and_shared_sample_sensitivities_and_solves_retain_seed() {
     )
     .unwrap();
     assert!((0.1..0.3).contains(&solved));
-    assert_eq!(unseeded.settings().seed, None);
+    assert_eq!(unseeded.sampling_settings().seed, None);
 }
 
 #[test]
 fn settings_reuse_vanilla_validation_and_cash_sampling_variance() {
     assert_eq!(
-        MonteCarloDigitalEngine::default().settings(),
-        MonteCarloVanillaEngine::default().settings()
+        MonteCarloDigitalEngine::default().sampling_settings(),
+        MonteCarloVanillaEngine::default().sampling_settings()
     );
     for settings in [
         MonteCarloSettings {

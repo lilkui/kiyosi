@@ -32,7 +32,7 @@ impl MonteCarloDigitalEngine {
     }
 
     /// Returns owned settings. See [`Self::new`] for configuration examples.
-    pub fn settings(&self) -> MonteCarloSettings {
+    pub fn sampling_settings(&self) -> MonteCarloSettings {
         self.settings
     }
 

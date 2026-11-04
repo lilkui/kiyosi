@@ -45,7 +45,7 @@ impl MonteCarloBarrierEngine {
     }
 
     /// Returns owned settings. See [`Self::new`] for configuration examples.
-    pub fn settings(&self) -> MonteCarloSettings {
+    pub fn sampling_settings(&self) -> MonteCarloSettings {
         self.settings
     }
 
@@ -161,7 +161,7 @@ impl MonteCarloBarrierEngine {
     ///     NumericalShiftSettings::default())?;
     /// assert!(result.price() > 0.0);
     /// assert!(result.has(Greek::Delta));
-    /// assert_eq!(engine.settings().path_count, 32768);
+    /// assert_eq!(engine.sampling_settings().path_count, 32768);
     /// let estimate = engine.price_with_statistics(&option, &context)?;
     /// assert_eq!(estimate.standard_error(), None); // Sobol omits sampling uncertainty.
     /// # Ok(()) }

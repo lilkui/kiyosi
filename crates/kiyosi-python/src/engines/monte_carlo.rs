@@ -165,7 +165,7 @@ macro_rules! sampling_settings {
             /// Return the exact number of sampled paths.
             #[getter]
             fn path_count(&self) -> i32 {
-                self.0.settings().path_count
+                self.0.sampling_settings().path_count
             }
             $(
                 /// Return the configured grid size.
@@ -177,17 +177,17 @@ macro_rules! sampling_settings {
             /// Return the unsigned 64-bit seed, or None for system entropy.
             #[getter]
             fn seed(&self) -> Option<u64> {
-                self.0.settings().seed
+                self.0.sampling_settings().seed
             }
             /// Return the per-call worker cap; zero selects automatic sizing.
             #[getter]
             fn thread_count(&self) -> i32 {
-                self.0.settings().thread_count
+                self.0.sampling_settings().thread_count
             }
             /// Return the sampling choice string: pseudo_random or sobol.
             #[getter]
             fn sampling(&self) -> &'static str {
-                match self.0.settings().sampling {
+                match self.0.sampling_settings().sampling {
                     kiyosi::MonteCarloSampling::PseudoRandom => "pseudo_random",
                     kiyosi::MonteCarloSampling::Sobol => "sobol",
                 }
@@ -195,7 +195,7 @@ macro_rules! sampling_settings {
             /// Return whether opposite normal draws are paired.
             #[getter]
             fn antithetic(&self) -> bool {
-                self.0.settings().antithetic
+                self.0.sampling_settings().antithetic
             }
             $($methods)*
         }

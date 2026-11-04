@@ -467,12 +467,12 @@ impl MonteCarloVanillaEngine {
     /// let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
     ///     seed: Some(42), thread_count: 4, ..Default::default()
     /// })?;
-    /// assert_eq!(engine.settings().path_count, 131_072);
+    /// assert_eq!(engine.sampling_settings().path_count, 131_072);
     /// let sobol = MonteCarloVanillaEngine::new(MonteCarloSettings {
     ///     path_count: 32768, sampling: kiyosi::MonteCarloSampling::Sobol,
     ///     antithetic: true, seed: Some(42), ..Default::default()
     /// })?;
-    /// assert!(sobol.settings().antithetic);
+    /// assert!(sobol.sampling_settings().antithetic);
     /// # Ok(()) }
     /// ```
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {
@@ -498,6 +498,9 @@ impl MonteCarloVanillaEngine {
     /// # fn main() -> kiyosi::Result<()> {
     /// let engine = MonteCarloVanillaEngine::with_step_count(MonteCarloSettings::default(), 100)?;
     /// assert_eq!(engine.step_count(), 100);
+    /// let rebuilt = MonteCarloVanillaEngine::with_step_count(
+    ///     engine.sampling_settings(), engine.step_count())?;
+    /// assert_eq!(rebuilt, engine);
     /// # Ok(()) }
     /// ```
     pub fn with_step_count(settings: MonteCarloSettings, step_count: i32) -> Result<Self> {
@@ -514,8 +517,10 @@ impl MonteCarloVanillaEngine {
         self.step_count
     }
 
-    /// Returns owned settings. See [`Self::new`] for an example.
-    pub fn settings(&self) -> MonteCarloSettings {
+    /// Returns owned sampling settings; the grid count is available from [`Self::step_count`].
+    ///
+    /// See [`Self::with_step_count`] for configuration reconstruction.
+    pub fn sampling_settings(&self) -> MonteCarloSettings {
         self.settings
     }
 
