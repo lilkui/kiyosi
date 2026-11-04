@@ -13,7 +13,13 @@ macro_rules! analytic_engine {
                     kiyosi::$engine.price_with_greeks(option, context, request, shifts)
                 }))?))
             },
-            [],
+            [
+                ///
+                /// Notes
+                /// -----
+                /// Before expiry requested Greeks use scalar numerical differences and the
+                /// corresponding shifts. At expiry spot_shift controls terminal-payoff stencils.
+            ],
             engine_methods!(
                 $engine,
                 #[new]

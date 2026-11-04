@@ -35,10 +35,10 @@ macro_rules! numerical_greeks_methods {
             /// spot_shift : float or None, optional
             ///     Positive finite absolute spot bump; None (default) selects 0.01 spot units.
             /// volatility_shift : float, optional
-            ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
+            ///     Positive finite numerical volatility bump in decimal units; defaults to 0.0001.
             /// rate_shift : float, optional
             ///     Positive finite parallel rate bump in decimal units; defaults to 0.0001.
-            ///     Applied separately to the risk-free curve for rho and the dividend-yield
+            ///     Numerical estimators apply it to the risk-free curve for rho and the dividend-yield
             ///     curve for dividend rho.
             /// time_shift_days : int, optional
             ///     Positive forward/backward time bump in calendar days; defaults to 1.

@@ -50,7 +50,13 @@ numerical_greeks_methods!(
             engine.price_with_greeks(option, context, request, shifts)
         }))?))
     },
-    [],
+    [
+        ///
+        /// Notes
+        /// -----
+        /// All requested Greeks are unsupported and remain None. Every shift is
+        /// validated but unused, including at expiry. numerical_greeks also rejects Heston.
+    ],
     engine_methods!(
         AnalyticHestonEuropeanEngine,
         #[new]

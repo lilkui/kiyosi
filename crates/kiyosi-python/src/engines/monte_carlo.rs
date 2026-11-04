@@ -44,6 +44,15 @@ macro_rules! sampling_settings {
             [
                 /// OSError
                 ///     If system entropy or worker creation fails.
+                ///
+                /// Notes
+                /// -----
+                /// Barrier engines use spot_shift for event-availability checks and
+                /// continuous at-hit rebate derivatives; other shifts are validated
+                /// but unused. Autocallable and accumulator engines use numerical
+                /// differences with the corresponding shifts. At expiry spot_shift
+                /// controls terminal-payoff stencils. Use numerical_greeks for
+                /// explicit scalar bump calculations on supported BSM pairs.
             ],
             sampling_settings!(
                 $engine,
@@ -437,6 +446,12 @@ numerical_greeks_methods!(
     [
         /// OSError
         ///     If system entropy or worker creation fails.
+        ///
+        /// Notes
+        /// -----
+        /// Before expiry the native estimators ignore all numerical shifts,
+        /// which are still validated. At expiry spot_shift controls terminal-payoff
+        /// stencils. Use numerical_greeks for explicit bump-convergence checks.
     ],
     sampling_settings!(
         MonteCarloDigitalEngine,
@@ -535,6 +550,12 @@ numerical_greeks_methods!(
     [
         /// OSError
         ///     If system entropy or worker creation fails.
+        ///
+        /// Notes
+        /// -----
+        /// Before expiry the native estimators ignore all numerical shifts,
+        /// which are still validated. At expiry spot_shift controls terminal-payoff
+        /// stencils. Use numerical_greeks for explicit bump-convergence checks.
     ],
     sampling_settings!(
         MonteCarloAsianEngine,

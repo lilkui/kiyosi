@@ -59,7 +59,13 @@ numerical_greeks_methods!(
             }))?))
         )
     },
-    [],
+    [
+        ///
+        /// Notes
+        /// -----
+        /// All requested Greeks are unsupported and remain None. Every shift is
+        /// validated but unused, including at expiry. numerical_greeks also rejects Heston.
+    ],
     engine_methods!(
         FiniteDifferenceHestonVanillaEngine,
         #[new]

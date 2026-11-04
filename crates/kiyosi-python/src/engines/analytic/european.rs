@@ -25,7 +25,14 @@ numerical_greeks_methods!(
             ),
         )?))
     },
-    [],
+    [
+        ///
+        /// Notes
+        /// -----
+        /// Before expiry all Greeks are analytic: every shift is validated but unused.
+        /// At expiry spot_shift controls terminal-payoff stencils. Use numerical_greeks
+        /// for explicit bump calculations and bump-convergence checks.
+    ],
     engine_methods!(
         AnalyticEuropeanEngine,
         #[new]

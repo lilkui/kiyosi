@@ -25,7 +25,13 @@ numerical_greeks_methods!(
             ),
         )?))
     },
-    [],
+    [
+        ///
+        /// Notes
+        /// -----
+        /// Before expiry requested Greeks use scalar numerical differences and the
+        /// corresponding shifts. At expiry spot_shift controls terminal-payoff stencils.
+    ],
     engine_methods!(
         BjerksundStenslandVanillaEngine,
         #[new]

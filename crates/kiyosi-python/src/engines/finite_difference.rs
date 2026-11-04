@@ -82,7 +82,15 @@ macro_rules! fd_engine {
                     engine.price_with_greeks(option, context, request, shifts)
                 }))?)))
             },
-            [],
+            [
+                ///
+                /// Notes
+                /// -----
+                /// Before expiry delta and gamma come from the spatial solution; spot_shift
+                /// does not change them. BSM speed and remaining Greeks use the corresponding
+                /// numerical shifts. Local volatility provides only delta and gamma and ignores
+                /// these numerical shifts. At expiry spot_shift controls terminal-payoff stencils.
+            ],
             engine_methods!(
                 $name,
                 #[new]

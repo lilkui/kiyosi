@@ -63,7 +63,14 @@ numerical_greeks_methods!(
             }))?))
         )
     },
-    [],
+    [
+        ///
+        /// Notes
+        /// -----
+        /// Delta and gamma use tree nodes before expiry; one-step gamma uses
+        /// spot_shift. Remaining Greeks use their numerical shifts. At expiry
+        /// spot_shift controls terminal-payoff stencils.
+    ],
     engine_methods!(
         CoxRossRubinsteinVanillaEngine,
         #[new]
@@ -148,7 +155,14 @@ macro_rules! binomial_engine {
                     engine.price_with_greeks(option, context, request, shifts)
                 }))?))
             },
-            [],
+            [
+                ///
+                /// Notes
+                /// -----
+                /// Before expiry delta and gamma use tree nodes; all shifts are
+                /// validated but unused. Other Greeks remain unsupported. At expiry
+                /// spot_shift controls terminal-payoff stencils.
+            ],
             engine_methods!(
                 $name,
                 #[new]
