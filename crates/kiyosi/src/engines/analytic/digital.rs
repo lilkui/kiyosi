@@ -17,7 +17,10 @@ pub struct AnalyticDigitalEngine;
 impl AnalyticDigitalEngine {
     /// Returns analytic delta/gamma and completes other requested Greeks numerically.
     ///
-    /// At expiry all Greeks are unavailable. Bumps use [`NumericalShiftSettings`].
+    /// At expiry spot Greeks follow terminal-payoff stencils; volatility and rate
+    /// Greeks are zero, while time Greeks remain absent. Stencils crossing payoff
+    /// discontinuities are unavailable. See [`crate::numerical_greeks`] for terminal
+    /// rules. Bumps use [`NumericalShiftSettings`].
     ///
     /// # Errors
     ///

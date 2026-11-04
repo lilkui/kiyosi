@@ -29,9 +29,12 @@ impl AnalyticEuropeanEngine {
     /// Returns the price and selected analytic Greeks.
     ///
     /// Numerical shift settings are accepted for the shared engine signature and ignored.
-    /// At expiry every Greek is unavailable. Time derivatives hold curve nodes
-    /// fixed and use right-hand rates at knots. Native derivatives require no
-    /// numerical bumps. See the [crate example](crate).
+    /// At expiry spot Greeks follow terminal-payoff stencils; volatility and rate
+    /// Greeks are zero, while time Greeks remain absent. Stencils crossing payoff
+    /// kinks are unavailable. See [`crate::numerical_greeks`] for terminal rules.
+    /// Before expiry, time derivatives hold curve nodes fixed and use right-hand
+    /// rates at knots. Native derivatives require no numerical bumps.
+    /// See the [crate example](crate).
     ///
     /// # Errors
     ///
