@@ -1,6 +1,59 @@
 use kiyosi::*;
 
 #[test]
+fn bounded_barrier_grids_keep_resolution_when_the_unused_upper_bound_changes() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let expiry = start.add_days(365)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.02, 0.0, 0.2)?,
+        100.0,
+        start,
+    )?;
+    for direction in [OptionType::Call, OptionType::Put] {
+        let single = BarrierOption::new(BarrierOptionTerms::new(
+            direction,
+            100.0,
+            start,
+            expiry,
+            120.0,
+            BarrierType::UpAndOut,
+        ))?;
+        let double = DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(
+            direction,
+            100.0,
+            start,
+            expiry,
+            80.0,
+            120.0,
+            DoubleBarrierType::KnockOut,
+        ))?;
+        let expected = AnalyticBarrierEngine.price(&single, &context)?;
+        let mut previous: Option<[f64; 2]> = None;
+        for upper in [121.0, 400.0, 10_000.0] {
+            let settings = FiniteDifferenceSettings {
+                asset_step_count: 200,
+                time_step_count: 200,
+                asset_upper_boundary: Some(upper),
+                ..Default::default()
+            };
+            let actual = [
+                FiniteDifferenceBarrierEngine::new(settings)?.price(&single, &context)?,
+                FiniteDifferenceDoubleBarrierEngine::new(settings)?.price(&double, &context)?,
+            ];
+            assert!(
+                (actual[0] - expected).abs() < 0.003,
+                "{direction:?}: {actual:?} != {expected}"
+            );
+            if let Some(previous) = previous {
+                assert_eq!(actual, previous);
+            }
+            previous = Some(actual);
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn barrier_engines_require_curve_coverage_only_for_remaining_cashflows() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let expiry = start.add_days(365)?;

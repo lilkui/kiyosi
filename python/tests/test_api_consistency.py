@@ -11,6 +11,52 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_bounded_barrier_grids_keep_resolution_when_unused_upper_bound_changes(
+        self,
+    ):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0.02, dividend_yield=0, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        for direction in ("call", "put"):
+            terms = {
+                "option_type": direction,
+                "strike": 100,
+                "effective_time": start,
+                "expiry_time": end,
+            }
+            single = ins.BarrierOption(
+                **terms, barrier_level=120, barrier_type="up_and_out"
+            )
+            double = ins.DoubleBarrierOption(
+                **terms, lower_barrier=80, upper_barrier=120, barrier_type="knock_out"
+            )
+            expected = pricing.AnalyticBarrierEngine().price(single, context)
+            previous = None
+            for upper in (121, 400, 10_000):
+                settings = {
+                    "asset_step_count": 200,
+                    "time_step_count": 200,
+                    "asset_upper_boundary": upper,
+                }
+                actual = (
+                    pricing.FiniteDifferenceBarrierEngine(**settings).price(
+                        single, context
+                    ),
+                    pricing.FiniteDifferenceDoubleBarrierEngine(**settings).price(
+                        double, context
+                    ),
+                )
+                with self.subTest(direction=direction, upper=upper):
+                    self.assertAlmostEqual(actual[0], expected, delta=0.003)
+                    if previous is not None:
+                        self.assertEqual(actual, previous)
+                previous = actual
+
     def test_barrier_engines_require_curve_coverage_only_for_remaining_cashflows(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         curve = market.RateTermStructure(

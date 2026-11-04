@@ -32,6 +32,11 @@ digital terminal payoffs are cell-averaged on either grid. American grids retain
 their sinh coordinates. One-dimensional finite-difference engines share defaults
 of 800 spatial and 400 time steps; observations and damping can add substeps. Check convergence before
 reducing grid counts further.
+Continuous barrier grids use all ``asset_step_count`` intervals on the actual
+domain between barrier edges. Continuous up and double barriers fix the upper
+grid edge, so ``asset_upper_boundary`` is inactive for that barrier grid;
+scheduled monitoring and local-volatility knock-in vanilla components still use
+the full domain.
 Monte Carlo ``step_count`` counts time intervals for both American exercise
 and arithmetic Asian integration; American pricing needs at least two intervals.
 ``MonteCarloSampling`` selects

@@ -411,7 +411,7 @@ fn native_with_model<D: Diffusion>(
         if let Some(upper) = upper_barrier {
             space.uniform_domain(terms.barrier_level(), upper)?;
         } else {
-            space.barrier_domain(
+            space.uniform_domain(
                 if up { 0.0 } else { terms.barrier_level() },
                 if up { terms.barrier_level() } else { upper },
             )?;

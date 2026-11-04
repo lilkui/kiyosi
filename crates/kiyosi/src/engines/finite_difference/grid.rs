@@ -40,16 +40,6 @@ impl SpatialGrid {
     }
 
     #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "The rounded grid count intentionally saturates before clamping to the validated grid size."
-    )]
-    pub fn barrier_domain(&mut self, lower: f64, upper: f64) -> Result<()> {
-        self.count = (((upper - lower) / self.spacing).ceil() as usize).clamp(3, self.count);
-        self.uniform_domain(lower, upper)
-    }
-
-    #[expect(
         clippy::cast_precision_loss,
         reason = "Grid counts are bounded by validated i32 settings and fit exactly in f64."
     )]

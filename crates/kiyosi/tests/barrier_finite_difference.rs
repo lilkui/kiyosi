@@ -297,7 +297,7 @@ fn explicit_stability_uses_the_continuous_domain_and_settings_validate_eagerly()
             ..Default::default()
         })
         .unwrap();
-    for (steps, stable) in [(50, true), (1, false)] {
+    for (steps, stable) in [(500, true), (50, false), (1, false)] {
         let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
             asset_step_count: 200,
             time_step_count: steps,

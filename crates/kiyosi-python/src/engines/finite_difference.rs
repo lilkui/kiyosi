@@ -37,6 +37,7 @@ macro_rules! fd_engine {
         /// ----------
         /// asset_step_count : int, optional
         ///     Number of spatial steps, at least 3; defaults to 800.
+        ///     Continuous barrier grids use all steps between their actual domain edges.
         /// time_step_count : int, optional
         ///     Positive base number of time intervals; event dates and curve knots are added.
         #[doc = concat!("    Read `", stringify!($name), "().time_step_count` for the engine's default.")]
@@ -46,6 +47,9 @@ macro_rules! fd_engine {
         /// asset_upper_boundary : float or None, optional
         ///     Finite positive upper spot boundary, or None (default) for the
         ///     automatic domain. Must exceed spot, strike and barriers at pricing.
+        ///     Continuous up and double barriers fix their own upper grid edge;
+        ///     this bound is inactive for that grid. Local-volatility knock-in
+        ///     vanilla components and scheduled monitoring still use the full domain.
         ///
         /// Raises
         /// ------

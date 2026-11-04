@@ -56,6 +56,7 @@ impl FiniteDifferenceScheme {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FiniteDifferenceSettings {
     /// Sets at least three spatial steps; defaults to 800.
+    /// Continuous barrier grids use all intervals between their actual domain edges.
     pub asset_step_count: i32,
     /// Sets at least one time step; defaults to 400. Curve/surface knots and observations are added.
     pub time_step_count: i32,
@@ -67,6 +68,9 @@ pub struct FiniteDifferenceSettings {
     /// Automatic local-volatility domains use the maximum interpolated volatility
     /// over the remaining stochastic horizon.
     /// Explicit domains need convergence checks.
+    /// Continuous barriers fix the corresponding domain edges: an up barrier or
+    /// double barrier makes this bound inactive for the barrier grid. Local-volatility
+    /// knock-in vanilla components and scheduled monitoring still use the full domain.
     pub asset_upper_boundary: Option<f64>,
 }
 
