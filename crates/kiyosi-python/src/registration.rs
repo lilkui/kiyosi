@@ -228,7 +228,6 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     module.add_function(wrap_pyfunction!(schedule::monthly_schedule, module)?)?;
     module.add_function(wrap_pyfunction!(market::_curve_parts, module)?)?;
     module.add_function(wrap_pyfunction!(calendar::_calendar_parts, module)?)?;
-    module.add_function(wrap_pyfunction!(schedule::_observation_schedule, module)?)?;
     module.add_function(wrap_pyfunction!(risk::_pricing_result, module)?)?;
     module.add_function(wrap_pyfunction!(
         engines::monte_carlo::_monte_carlo_estimate,

@@ -324,7 +324,14 @@ def custom_calendar(
 ) -> TradingCalendar: ...
 
 class ObservationSchedule:
-    def __new__(cls, _token: Never, /) -> Self: ...
+    def __init__(
+        self,
+        *,
+        times: Iterable[datetime],
+        start_time: datetime,
+        end_time: datetime,
+        calendar: TradingCalendar = ...,
+    ) -> None: ...
     @property
     def times(self) -> list[datetime]: ...
     def __len__(self) -> int: ...
@@ -2789,7 +2796,6 @@ def butterfly_snowball(
 def _calendar_parts(
     calendar: TradingCalendar,
 ) -> tuple[str, TradingCalendar | None, list[datetime], list[datetime], int]: ...
-def _observation_schedule(dates: Iterable[datetime]) -> ObservationSchedule: ...
 def _pricing_result(
     price: _Real,
     greeks: dict[Greek, _Real],

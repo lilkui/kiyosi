@@ -1,6 +1,7 @@
 """Public calendar and schedule contracts."""
 
 import numbers
+import pickle
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
@@ -8,6 +9,7 @@ from datetime import date, datetime, timedelta
 from kiyosi import InvalidInputError
 from kiyosi.market import (
     BlackScholesMertonParameters,
+    ObservationSchedule,
     PricingContext,
     all_days_calendar,
     custom_calendar,
@@ -20,6 +22,48 @@ from support.custom_calendar import CustomCalendarTests  # noqa: F401
 
 
 class CalendarTests(unittest.TestCase):
+    def test_explicit_schedules_preserve_times_and_roundtrip(self):
+        start, end = datetime(2025, 1, 2, 15), datetime(2025, 1, 10, 15)
+        times = [start, datetime(2025, 1, 6, 14, 30, 0, 123456), end]
+        schedule = ObservationSchedule(
+            times=iter(times), start_time=start, end_time=end
+        )
+        self.assertEqual(list(schedule), times)
+        self.assertEqual(schedule[-1], end)
+        self.assertEqual(pickle.loads(pickle.dumps(schedule)), schedule)
+        times.clear()
+        copied = schedule.times
+        copied.clear()
+        self.assertEqual(len(schedule), 3)
+
+    def test_explicit_schedules_validate_calendar_order_and_life(self):
+        start, end = datetime(2025, 1, 2), datetime(2025, 1, 10)
+        cases = (
+            ("reversed_life", [], end, start),
+            ("duplicate", [start, start], start, end),
+            ("unordered", [end, start], start, end),
+            ("before_life", [start - timedelta(microseconds=1)], start, end),
+            ("after_life", [end + timedelta(microseconds=1)], start, end),
+            ("closed_day", [datetime(2025, 1, 4)], start, end),
+        )
+        for case, times, lower, upper in cases:
+            with self.subTest(case=case), self.assertRaises(InvalidInputError):
+                ObservationSchedule(times=times, start_time=lower, end_time=upper)
+        with self.assertRaises(TypeError):
+            ObservationSchedule(times=[start.date()], start_time=start, end_time=end)
+
+    def test_explicit_schedules_accept_empty_and_custom_calendar(self):
+        at = datetime(2025, 1, 4, 15)
+        empty = ObservationSchedule(times=[], start_time=at, end_time=at)
+        self.assertEqual(list(empty), [])
+        self.assertEqual(pickle.loads(pickle.dumps(empty)), empty)
+        calendar = custom_calendar(base=weekdays_calendar(), open_dates=[at.date()])
+        schedule = ObservationSchedule(
+            times=[at], start_time=at, end_time=at, calendar=calendar
+        )
+        self.assertEqual(list(schedule), [at])
+        self.assertEqual(pickle.loads(pickle.dumps(schedule)), schedule)
+
     def test_equivalent_custom_calendars_and_contexts_compare_equal(self):
         base = weekdays_calendar()
         closed, opened = date(2026, 10, 1), date(2026, 10, 10)

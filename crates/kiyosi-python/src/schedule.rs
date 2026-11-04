@@ -6,9 +6,26 @@ use pyo3::prelude::*;
 
 /// Immutable ordered observation times with sequence access.
 ///
+/// Parameters
+/// ----------
+/// times : iterable of datetime.datetime
+///     Strictly increasing observation timestamps; empty input is valid.
+/// start_time, end_time : datetime.datetime
+///     Inclusive validation bounds, with start_time at or before end_time.
+/// calendar : TradingCalendar, optional
+///     Calendar used to validate each observation date; defaults to weekdays.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If life bounds are reversed, times are unordered or outside life,
+///     or an observation date is closed in the calendar.
+///
 /// Notes
 /// -----
-/// Use fixed_interval_schedule or monthly_schedule. The times property
+/// Construct from explicit times, or use fixed_interval_schedule or monthly_schedule.
+/// Bounds and calendar validate the input; the schedule owns only its times.
+/// Empty schedules are valid. The times property
 /// returns a copy; iteration retains the schedule owner. Integer indexing
 /// accepts negative indices, rejects bool, and raises IndexError outside the sequence.
 /// Slices are not supported. len(schedule) counts observations.
@@ -18,6 +35,26 @@ pub(crate) struct ObservationSchedule(pub(crate) kiyosi::ObservationSchedule);
 
 #[pymethods]
 impl ObservationSchedule {
+    #[new]
+    #[pyo3(signature = (*, times, start_time, end_time, calendar=TradingCalendar::default()))]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "PyO3 extracts an owned calendar and supplies its default"
+    )]
+    fn new(
+        times: &Bound<'_, PyAny>,
+        start_time: &Bound<'_, PyAny>,
+        end_time: &Bound<'_, PyAny>,
+        calendar: TradingCalendar,
+    ) -> PyResult<Self> {
+        Ok(Self(domain(kiyosi::ObservationSchedule::new(
+            crate::conversions::timestamps(times)?,
+            timestamp(start_time)?,
+            timestamp(end_time)?,
+            &calendar.0,
+        ))?))
+    }
+
     /// Return a copy of the strictly ordered observation times.
     #[getter]
     fn times<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {
@@ -167,24 +204,6 @@ pub(crate) fn monthly_schedule(
             timestamp(end_time)?,
             integer(first_observation_month)?,
             &calendar.0,
-        ),
-    )?))
-}
-
-#[pyfunction]
-pub(crate) fn _observation_schedule(times: &Bound<'_, PyAny>) -> PyResult<ObservationSchedule> {
-    let times = crate::conversions::timestamps(times)?;
-    let start_time = times
-        .first()
-        .copied()
-        .unwrap_or(domain(kiyosi::Date::new(1, 1, 1))?.start_of_day());
-    let end_time = times.last().copied().unwrap_or(start_time);
-    Ok(ObservationSchedule(domain(
-        kiyosi::ObservationSchedule::new(
-            times,
-            start_time,
-            end_time,
-            &kiyosi::TradingCalendar::all_days(),
         ),
     )?))
 }

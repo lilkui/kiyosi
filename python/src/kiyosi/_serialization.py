@@ -51,7 +51,16 @@ def _reduce(value: Any) -> tuple[Any, tuple[Any, ...]]:
         kind, base, closed, opened, basis = _native._calendar_parts(value)
         return _calendar, (kind, base, closed, opened, basis)
     if isinstance(value, _native.ObservationSchedule):
-        return _restore, (_native._observation_schedule, {"times": value.times})
+        times = value.times
+        return _restore, (
+            _native.ObservationSchedule,
+            {
+                "times": times,
+                "start_time": times[0] if times else datetime.min,
+                "end_time": times[-1] if times else datetime.min,
+                "calendar": _native.all_days_calendar(),
+            },
+        )
     if isinstance(value, _native.RateTermStructure):
         if value.is_explicitly_flat:
             fields = {

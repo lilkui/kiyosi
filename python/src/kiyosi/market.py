@@ -24,6 +24,10 @@ empty overrides compare equal to the base when the basis is unchanged.
 Calendar representations identify the base kind and abbreviate open/closed overrides.
 Observation schedules accept integer indices, including negative positions,
 and reject boolean indices with TypeError. Out-of-range indices raise IndexError.
+Construct ``ObservationSchedule(times=..., start_time=..., end_time=..., calendar=...)``
+for explicit or irregular observations. Times must increase strictly within the
+inclusive bounds and fall on open calendar dates. Empty schedules are valid;
+bounds and calendar are validation inputs, while schedules store only timestamps.
 LocalVolatilitySurface owns a rectangular table (rows=time, columns=absolute
 spot), with bilinear interpolation of local volatility, constant extrapolation
 in the spot dimension, and no time extrapolation. Context changes keep these
@@ -45,6 +49,17 @@ Other engines and implied-parameter solvers reject this model; requested Greeks 
 
 Examples
 --------
+Validate an irregular schedule with exact observation times:
+
+>>> from datetime import datetime
+>>> times = [datetime(2025, 1, 3, 15), datetime(2025, 1, 8, 14, 30)]
+>>> schedule = ObservationSchedule(
+...     times=times, start_time=datetime(2025, 1, 1),
+...     end_time=datetime(2025, 1, 10),
+... )
+>>> list(schedule) == times
+True
+
 Read a dated flat rate without discarding its coverage bound:
 
 >>> from datetime import datetime
