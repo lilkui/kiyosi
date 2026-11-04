@@ -1001,3 +1001,34 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
     ));
     Ok(())
 }
+
+#[test]
+fn numeric_rejections_identify_the_failing_field() -> Result<()> {
+    for (field, inputs) in [
+        ("risk_free_rate", [f64::NAN, 0.0, 0.2]),
+        ("dividend_yield", [0.02, f64::INFINITY, 0.2]),
+        ("volatility", [0.02, 0.0, -0.2]),
+    ] {
+        let error = BlackScholesMertonParameters::new(inputs[0], inputs[1], inputs[2]).unwrap_err();
+        assert!(matches!(&error, Error::InvalidInput(_)));
+        assert!(error.to_string().contains(field));
+    }
+    let model = BlackScholesMertonParameters::new(0.02, 0.0, 0.2)?;
+    let error = model
+        .replace(BlackScholesMertonParameterChanges {
+            volatility: Some(0.0),
+            ..Default::default()
+        })
+        .unwrap_err();
+    assert!(error.to_string().contains("volatility"));
+    assert_eq!(model.volatility(), 0.2);
+    let start = Date::new(2025, 1, 3)?.start_of_day();
+    let error = EuropeanOption::new(OptionType::Call, 0.0, start, start).unwrap_err();
+    assert!(error.to_string().contains("strike"));
+    let error =
+        DigitalOption::cash_or_nothing(OptionType::Call, 100.0, -1.0, start, start).unwrap_err();
+    assert!(error.to_string().contains("payout"));
+    let error = PricingContext::new(model, 0.0, start).unwrap_err();
+    assert!(error.to_string().contains("spot_price"));
+    Ok(())
+}

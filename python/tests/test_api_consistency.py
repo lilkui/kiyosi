@@ -11,6 +11,25 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_numeric_rejections_identify_the_failing_field(self):
+        defaults = {"risk_free_rate": 0.02, "dividend_yield": 0, "volatility": 0.2}
+        for field, invalid in (
+            ("risk_free_rate", math.nan),
+            ("dividend_yield", math.inf),
+            ("volatility", -0.2),
+        ):
+            with (
+                self.subTest(field=field),
+                self.assertRaises(InvalidInputError) as error,
+            ):
+                market.BlackScholesMertonParameters(**(defaults | {field: invalid}))
+            self.assertIn(field, str(error.exception))
+        model = market.BlackScholesMertonParameters(**defaults)
+        with self.assertRaises(InvalidInputError) as error:
+            model.replace(volatility=0)
+        self.assertIn("volatility", str(error.exception))
+        self.assertEqual(model.volatility, 0.2)
+
     def test_context_calendar_is_explicit_metadata(self):
         import inspect
 

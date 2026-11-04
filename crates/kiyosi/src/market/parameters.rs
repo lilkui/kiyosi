@@ -23,9 +23,12 @@ impl From<RateTermStructure> for Rate {
     }
 }
 impl Rate {
-    pub(super) fn into_curve(self) -> Result<RateTermStructure> {
+    pub(super) fn into_curve(self, field: &str) -> Result<RateTermStructure> {
         match self {
-            Self::Flat(rate) => RateTermStructure::flat(rate, None),
+            Self::Flat(rate) => {
+                finite(rate, false, field)?;
+                RateTermStructure::flat(rate, None)
+            }
             Self::Curve(curve) => Ok(curve),
         }
     }
@@ -88,9 +91,9 @@ impl BlackScholesMertonParameters {
         dividend_yield: impl Into<Rate>,
         volatility: f64,
     ) -> Result<Self> {
-        let risk_free_curve = risk_free_rate.into().into_curve()?;
-        let dividend_curve = dividend_yield.into().into_curve()?;
-        finite(volatility, true)?;
+        let risk_free_curve = risk_free_rate.into().into_curve("risk_free_rate")?;
+        let dividend_curve = dividend_yield.into().into_curve("dividend_yield")?;
+        finite(volatility, true, "volatility")?;
         Ok(Self {
             risk_free_curve,
             dividend_curve,
@@ -310,7 +313,7 @@ impl PricingContext {
         metadata_calendar: TradingCalendar,
     ) -> Result<Self> {
         let model_parameters = model_parameters.into();
-        finite(spot_price, true)?;
+        finite(spot_price, true, "spot_price")?;
         model_parameters
             .risk_free_curve()
             .validate_time(valuation_time)?;

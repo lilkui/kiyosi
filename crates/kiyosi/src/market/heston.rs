@@ -69,8 +69,8 @@ impl HestonParameters {
         vol_of_vol: f64,
         correlation: f64,
     ) -> Result<Self> {
-        let risk_free_curve = risk_free_rate.into().into_curve()?;
-        let dividend_curve = dividend_yield.into().into_curve()?;
+        let risk_free_curve = risk_free_rate.into().into_curve("risk_free_rate")?;
+        let dividend_curve = dividend_yield.into().into_curve("dividend_yield")?;
         for (name, value) in [
             ("initial_variance", initial_variance),
             ("long_run_variance", long_run_variance),

@@ -122,8 +122,8 @@ impl Accumulator {
     /// # Ok(()) }
     /// ```
     pub fn new(terms: AccumulatorTerms) -> Result<Self> {
-        crate::error::finite(terms.strike, true)?;
-        crate::error::finite(terms.knock_out_level, true)?;
+        crate::error::finite(terms.strike, true, "strike")?;
+        crate::error::finite(terms.knock_out_level, true, "knock_out_level")?;
         if [
             terms.daily_quantity,
             terms.acceleration_factor,

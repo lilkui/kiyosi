@@ -99,7 +99,7 @@ impl LocalVolatilitySurface {
     /// nonpositive or non-finite spot. Inputs remain unchanged.
     pub fn volatility(&self, time: Timestamp, spot: f64) -> Result<f64> {
         self.validate_time(time)?;
-        finite(spot, true)?;
+        finite(spot, true, "spot")?;
         Ok(self.at_year(self.times[0].years_until(time), spot))
     }
 
@@ -216,8 +216,8 @@ impl LocalVolatilityParameters {
         surface: LocalVolatilitySurface,
     ) -> Result<Self> {
         Ok(Self {
-            risk_free_curve: risk_free_rate.into().into_curve()?,
-            dividend_curve: dividend_yield.into().into_curve()?,
+            risk_free_curve: risk_free_rate.into().into_curve("risk_free_rate")?,
+            dividend_curve: dividend_yield.into().into_curve("dividend_yield")?,
             surface,
         })
     }

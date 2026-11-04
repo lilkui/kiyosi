@@ -255,9 +255,9 @@ fn staged_coupons(
     stages: &[(Timestamp, f64)],
     final_rate: f64,
 ) -> Result<()> {
-    finite(final_rate, false)?;
+    finite(final_rate, false, "final_coupon_rate")?;
     for (i, &(date, rate)) in stages.iter().enumerate() {
-        finite(rate, false)?;
+        finite(rate, false, "coupon_rate")?;
         if date < terms.effective_time
             || date >= terms.expiry_time
             || i > 0 && date <= stages[i - 1].0

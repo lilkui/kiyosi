@@ -87,9 +87,9 @@ impl AutocallableObservation {
     /// # Ok(()) }
     /// ```
     pub fn validate(&self) -> Result<()> {
-        finite(self.knock_out_level, true)?;
-        finite(self.coupon_rate, false)?;
-        finite(self.coupon_barrier_level, false)?;
+        finite(self.knock_out_level, true, "knock_out_level")?;
+        finite(self.coupon_rate, false, "coupon_rate")?;
+        finite(self.coupon_barrier_level, false, "coupon_barrier_level")?;
         if self.coupon_barrier_level < 0.0 {
             return Err(Error::InvalidInput("negative coupon barrier".into()));
         }
@@ -1018,15 +1018,18 @@ impl sealed::View<'_> {
     fn validate(&self) -> Result<()> {
         let terms = self;
         if let Some(d) = terms.downside() {
-            for value in [d.initial_spot, d.upper_strike] {
-                finite(value, true)?;
+            for (field, value) in [
+                ("initial_spot", d.initial_spot),
+                ("upper_strike", d.upper_strike),
+            ] {
+                finite(value, true, field)?;
             }
-            finite(d.lower_strike, false)?;
+            finite(d.lower_strike, false, "lower_strike")?;
             if d.lower_strike < 0.0 || d.lower_strike > d.upper_strike {
                 return Err(Error::InvalidInput("invalid lower strike".into()));
             }
         }
-        finite(terms.principal_ratio, false)?;
+        finite(terms.principal_ratio, false, "principal_ratio")?;
         if terms.principal_ratio < 0.0 {
             return Err(Error::InvalidInput(
                 "negative autocallable principal".into(),
@@ -1053,10 +1056,10 @@ impl sealed::View<'_> {
         }
         terms.validate_history(terms.barrier_state)?;
         if let Some(ki) = terms.knock_in {
-            finite(ki.level, true)?;
+            finite(ki.level, true, "knock_in_level")?;
         }
         if let Redemption::FixedCoupon(coupon) = terms.redemption() {
-            finite(coupon, false)?;
+            finite(coupon, false, "minimum_coupon_rate")?;
             if coupon > terms.maturity_coupon_rate() {
                 return Err(Error::InvalidInput(
                     "minimum coupon exceeds maturity coupon".into(),
@@ -1064,7 +1067,14 @@ impl sealed::View<'_> {
             }
         }
         if let Coupon::Phoenix(coupon) = terms.coupon {
-            finite(coupon.value(), false)?;
+            finite(
+                coupon.value(),
+                false,
+                match coupon {
+                    PhoenixCoupon::Annual(_) => "coupon_rate",
+                    PhoenixCoupon::PerPeriod(_) => "coupon_per_period",
+                },
+            )?;
             for r in terms.observations {
                 if r.coupon_rate != 0.0 {
                     return Err(Error::InvalidInput(
@@ -1073,7 +1083,7 @@ impl sealed::View<'_> {
                 }
             }
         } else {
-            finite(terms.maturity_coupon_rate(), false)?;
+            finite(terms.maturity_coupon_rate(), false, "maturity_coupon_rate")?;
             if terms
                 .observations
                 .iter()

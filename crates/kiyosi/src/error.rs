@@ -78,10 +78,15 @@ impl From<io::Error> for Error {
 /// or internal panics. See [`crate::MonteCarloVanillaEngine::price`] for an example.
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub(crate) fn finite(value: f64, positive: bool) -> Result<()> {
+pub(crate) fn finite(value: f64, positive: bool, field: &str) -> Result<()> {
     if !value.is_finite() || (positive && value <= 0.0) {
+        let requirement = if positive {
+            "finite and positive"
+        } else {
+            "finite"
+        };
         return Err(Error::InvalidInput(
-            "value must be finite and in its valid range".into(),
+            format!("{field} must be {requirement}").into(),
         ));
     }
     Ok(())

@@ -60,7 +60,7 @@ impl EuropeanOption {
         effective_time: Timestamp,
         expiry_time: Timestamp,
     ) -> Result<Self> {
-        finite(strike, true)?;
+        finite(strike, true, "strike")?;
         if expiry_time < effective_time {
             return Err(Error::InvalidInput("expiry precedes effective date".into()));
         }
@@ -237,7 +237,7 @@ impl DigitalOption {
         effective_time: Timestamp,
         expiry_time: Timestamp,
     ) -> Result<Self> {
-        finite(payout, true)?;
+        finite(payout, true, "payout")?;
         Ok(Self {
             terms: EuropeanOption::new(option_type, strike, effective_time, expiry_time)?,
             payout: Some(payout),

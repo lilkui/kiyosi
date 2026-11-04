@@ -37,7 +37,7 @@ impl RateTermStructure {
     /// # Ok(()) }
     /// ```
     pub fn flat(rate: f64, reference: Option<Timestamp>) -> Result<Self> {
-        finite(rate, false)?;
+        finite(rate, false, "rate")?;
         Ok(Self {
             reference,
             rate: Some(rate),
@@ -85,10 +85,10 @@ impl RateTermStructure {
                     "curve nodes must increase after the reference".into(),
                 ));
             }
-            finite(factor, true)?;
+            finite(factor, true, "factors")?;
             let log = factor.ln();
             let forward = (previous_log - log) / previous.years_until(node);
-            finite(forward, false)?;
+            finite(forward, false, "forward_rate")?;
             forwards.push(forward);
             previous = node;
             previous_log = log;
@@ -227,7 +227,7 @@ impl RateTermStructure {
         }
         if !value.is_finite() {
             return Err(Error::ComputationFailure(
-                "value must be finite and in its valid range".into(),
+                "log_factor must be finite".into(),
             ));
         }
         Ok(value)
@@ -241,9 +241,7 @@ impl RateTermStructure {
     pub fn factor(&self, start_time: Timestamp, end_time: Timestamp) -> Result<f64> {
         let value = self.log_factor(start_time, end_time)?.exp();
         if !value.is_finite() {
-            return Err(Error::ComputationFailure(
-                "value must be finite and in its valid range".into(),
-            ));
+            return Err(Error::ComputationFailure("factor must be finite".into()));
         }
         Ok(value)
     }
@@ -284,17 +282,17 @@ impl RateTermStructure {
     /// # Ok(()) }
     /// ```
     pub fn shifted(&self, shift: f64) -> Result<Self> {
-        finite(shift, false)?;
+        finite(shift, false, "shift")?;
         let mut copy = self.clone();
         if let Some(rate) = self.rate {
             let rate = rate + shift;
-            finite(rate, false)?;
+            finite(rate, false, "rate")?;
             copy.rate = Some(rate);
         } else {
             copy.spread += shift;
-            finite(copy.spread, false)?;
+            finite(copy.spread, false, "parallel_shift")?;
             for rate in &self.forwards {
-                finite(rate + copy.spread, false)?;
+                finite(rate + copy.spread, false, "forward_rate")?;
             }
         }
         Ok(copy)
