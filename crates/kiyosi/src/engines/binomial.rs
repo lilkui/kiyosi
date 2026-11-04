@@ -23,7 +23,23 @@ impl Default for BinomialSettings {
 }
 
 impl BinomialSettings {
-    fn validate(self) -> Result<()> {
+    /// Validates the step count without constructing an engine.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] outside 1 through 1,000,000 steps.
+    /// Leaves the settings unchanged.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::BinomialSettings;
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let settings = BinomialSettings { step_count: 1024 };
+    /// settings.validate()?;
+    /// # Ok(()) }
+    /// ```
+    pub fn validate(&self) -> Result<()> {
         if !(1..=1_000_000).contains(&self.step_count) {
             return Err(Error::InvalidInput("invalid binomial step count".into()));
         }

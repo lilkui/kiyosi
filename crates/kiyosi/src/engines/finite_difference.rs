@@ -82,7 +82,24 @@ impl Default for FiniteDifferenceSettings {
 }
 
 impl FiniteDifferenceSettings {
-    fn validate(self) -> Result<()> {
+    /// Validates context-independent grid controls without constructing an engine.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for fewer than three asset intervals,
+    /// fewer than one time interval, or a nonpositive or non-finite explicit upper bound.
+    /// Leaves the settings unchanged. Domain coverage and scheme stability are checked at pricing.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::FiniteDifferenceSettings;
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let settings = FiniteDifferenceSettings { asset_step_count: 1600, ..Default::default() };
+    /// settings.validate()?;
+    /// # Ok(()) }
+    /// ```
+    pub fn validate(&self) -> Result<()> {
         if self.asset_step_count < 3
             || self.time_step_count < 1
             || self

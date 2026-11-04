@@ -310,7 +310,25 @@ impl NumericalShiftSettings {
     pub fn spot_shift(self) -> f64 {
         self.spot_shift.unwrap_or(0.01)
     }
-    pub(crate) fn validate(self) -> Result<()> {
+    /// Validates every bump control without pricing a contract.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for nonpositive or non-finite explicit spot,
+    /// volatility or rate bumps, or a nonpositive calendar-day bump.
+    /// Leaves the settings unchanged. Automatic spot bumps are resolved by the engine;
+    /// representability of numerical stencils is checked during pricing.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::NumericalShiftSettings;
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let settings = NumericalShiftSettings { spot_shift: Some(0.1), ..Default::default() };
+    /// settings.validate()?;
+    /// # Ok(()) }
+    /// ```
+    pub fn validate(&self) -> Result<()> {
         if [self.spot_shift(), self.volatility_shift, self.rate_shift]
             .iter()
             .any(|x| !x.is_finite() || *x <= 0.0)

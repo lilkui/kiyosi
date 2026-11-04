@@ -580,3 +580,41 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
     )?;
     Ok(())
 }
+
+#[test]
+fn settings_validate_without_constructing_engines_or_pricing() -> Result<()> {
+    BinomialSettings::default().validate()?;
+    MonteCarloSettings::default().validate()?;
+    FiniteDifferenceSettings::default().validate()?;
+    NumericalShiftSettings::default().validate()?;
+    assert!(matches!(
+        BinomialSettings { step_count: 0 }.validate(),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(matches!(
+        MonteCarloSettings {
+            path_count: 3,
+            sampling: MonteCarloSampling::Sobol,
+            ..Default::default()
+        }
+        .validate(),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(matches!(
+        FiniteDifferenceSettings {
+            asset_upper_boundary: Some(f64::INFINITY),
+            ..Default::default()
+        }
+        .validate(),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(matches!(
+        NumericalShiftSettings {
+            rate_shift: -1.0,
+            ..Default::default()
+        }
+        .validate(),
+        Err(Error::InvalidInput(_))
+    ));
+    Ok(())
+}

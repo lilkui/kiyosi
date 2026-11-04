@@ -97,7 +97,26 @@ impl MonteCarloSettings {
         Ok(u64::from_ne_bytes(bytes))
     }
 
-    fn validate(self) -> Result<()> {
+    /// Validates sampling controls without constructing an engine or drawing randomness.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for paths outside 1 through 10,000,000,
+    /// a negative worker cap, or a non-power-of-two Sobol path count.
+    /// Leaves the settings unchanged; engine-specific step counts are validated separately.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{MonteCarloSampling, MonteCarloSettings};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let settings = MonteCarloSettings {
+    ///     path_count: 4096, sampling: MonteCarloSampling::Sobol, ..Default::default()
+    /// };
+    /// settings.validate()?;
+    /// # Ok(()) }
+    /// ```
+    pub fn validate(&self) -> Result<()> {
         if !(1..=10_000_000).contains(&self.path_count) || self.thread_count < 0 {
             return Err(Error::InvalidInput("invalid Monte Carlo settings".into()));
         }
