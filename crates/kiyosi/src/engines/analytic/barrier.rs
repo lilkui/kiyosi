@@ -23,6 +23,7 @@ impl AnalyticBarrierEngine {
     /// Prices after validating flat rates, inclusive life, calendar and strictly prior history.
     ///
     /// Current boundary hits settle before future monitoring. Prior at-hit rebates are paid.
+    /// Curve coverage is required only for remaining cash flows and stochastic evolution.
     /// Unresolved scheduled monitoring uses the Broadie-Glasserman-Kou (BGK)
     /// continuity correction and must end at expiry.
     ///
@@ -79,7 +80,6 @@ fn price(
     context.bsm_parameters()?.flat_risk_free_rate()?;
     context.bsm_parameters()?.flat_dividend_yield()?;
     validate_life(option, context)?;
-    context.validate_curve_horizon(option.expiry_time())?;
     let cached = schedule
         .and_then(|schedule| schedule.get())
         .filter(|cached| {
@@ -95,10 +95,11 @@ fn price(
             });
         }
     }
-    match resolved_price(option, context)? {
-        Some(value) => Ok(value),
-        None => analytic_price(option, context),
+    if let Some(value) = resolved_price(option, context)? {
+        return Ok(value);
     }
+    context.validate_curve_horizon(option.expiry_time())?;
+    analytic_price(option, context)
 }
 
 pub(crate) fn resolved_price(

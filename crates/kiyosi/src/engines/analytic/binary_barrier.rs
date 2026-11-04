@@ -19,6 +19,7 @@ impl AnalyticBinaryBarrierEngine {
     /// Equality counts as a touch before future monitoring. Unresolved scheduled
     /// monitoring uses the Broadie-Glasserman-Kou (BGK) continuity correction
     /// and must end at expiry. Terminal binary equality at strike pays zero.
+    /// Settled cash flows do not require curve coverage through expiry.
     ///
     /// # Errors
     ///
@@ -72,6 +73,7 @@ impl AnalyticBinaryBarrierEngine {
 
 impl Contract<'_> {
     fn vanilla(&self, context: &PricingContext, time: f64) -> Result<f64> {
+        context.validate_curve_horizon(self.monitoring.expiry_time())?;
         if let Some(digital) = self.digital {
             AnalyticDigitalEngine.price(digital, context)
         } else {
@@ -94,7 +96,6 @@ impl Contract<'_> {
         let dividend = model.flat_dividend_yield()?;
         let valuation = context.valuation_time();
         validate_life(option, context)?;
-        context.validate_curve_horizon(option.expiry_time())?;
         validate_schedule(option.observation_schedule(), context)?;
         let (prior, touched, finished) = self.state(context)?;
         let t = valuation.years_until(option.expiry_time());
@@ -119,6 +120,7 @@ impl Contract<'_> {
                 Ok(0.0)
             };
         }
+        context.validate_curve_horizon(option.expiry_time())?;
         let spot = context.spot_price();
         let sigma = model.volatility();
         let upper = option.barrier_type().is_up();

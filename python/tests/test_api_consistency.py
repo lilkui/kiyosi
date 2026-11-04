@@ -11,6 +11,50 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_barrier_engines_require_curve_coverage_only_for_remaining_cashflows(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        curve = market.RateTermStructure(
+            reference_time=start, times=[datetime(2025, 2, 1)], factors=[1]
+        )
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=curve, dividend_yield=curve, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=datetime(2025, 1, 2),
+        )
+        settled = ins.BarrierOption(
+            option_type="call",
+            strike=100,
+            effective_time=start,
+            expiry_time=end,
+            barrier_level=120,
+            barrier_type="up_and_out",
+            touch_state="touched",
+            rebate_timing="at_hit",
+        )
+        for factory in (
+            pricing.AnalyticBarrierEngine,
+            pricing.CoxRossRubinsteinBarrierEngine,
+            pricing.QuadratureBarrierEngine,
+            pricing.FiniteDifferenceBarrierEngine,
+            pricing.MonteCarloBarrierEngine,
+        ):
+            engine = factory()
+            with self.subTest(engine=factory.__name__):
+                self.assertEqual(engine.price(settled, context), 0)
+                self.assertEqual(
+                    engine.price_with_greeks(settled, context, "delta").delta, 0
+                )
+                for changes in (
+                    {"touch_state": "untouched"},
+                    {"rebate": 10, "rebate_timing": "at_expiry"},
+                    {"barrier_type": "up_and_in", "rebate_timing": "at_expiry"},
+                    {"touch_state": None},
+                ):
+                    with self.assertRaises(InvalidInputError):
+                        engine.price(settled.replace(**changes), context)
+
     def test_structured_contract_calendars_survive_market_changes_and_reconstruction(
         self,
     ):

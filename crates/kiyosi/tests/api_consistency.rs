@@ -1,6 +1,76 @@
 use kiyosi::*;
 
 #[test]
+fn barrier_engines_require_curve_coverage_only_for_remaining_cashflows() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let expiry = start.add_days(365)?;
+    let curve = RateTermStructure::new(start, vec![start.add_days(31)?], vec![1.0])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(curve.clone(), curve, 0.2)?,
+        100.0,
+        start.add_days(1)?,
+    )?;
+    let mut terms = BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        expiry,
+        120.0,
+        BarrierType::UpAndOut,
+    );
+    terms.touch_state = Some(BarrierTouchState::Touched);
+    terms.rebate_timing = RebateTiming::AtHit;
+    let settled = BarrierOption::new(terms)?;
+    for engine in [
+        &AnalyticBarrierEngine as &dyn PricingEngine<BarrierOption>,
+        &CoxRossRubinsteinBarrierEngine::default(),
+        &QuadratureBarrierEngine::default(),
+        &FiniteDifferenceBarrierEngine::default(),
+        &MonteCarloBarrierEngine::default(),
+    ] {
+        assert_eq!(engine.price(&settled, &context)?, 0.0);
+        assert_eq!(
+            engine
+                .price_with_greeks(
+                    &settled,
+                    &context,
+                    GreeksRequest::new([Greek::Delta]),
+                    Default::default(),
+                )?
+                .require(Greek::Delta)?,
+            0.0
+        );
+        for changes in [
+            BarrierOptionChanges {
+                touch_state: Some(Some(BarrierTouchState::Untouched)),
+                ..Default::default()
+            },
+            BarrierOptionChanges {
+                rebate: Some(10.0),
+                rebate_timing: Some(RebateTiming::AtExpiry),
+                ..Default::default()
+            },
+            BarrierOptionChanges {
+                barrier_type: Some(BarrierType::UpAndIn),
+                rebate_timing: Some(RebateTiming::AtExpiry),
+                ..Default::default()
+            },
+        ] {
+            assert!(matches!(
+                engine.price(&settled.replace(changes)?, &context),
+                Err(Error::InvalidInput(_))
+            ));
+        }
+        let missing = settled.replace_history(None);
+        assert!(matches!(
+            engine.price(&missing, &context),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    Ok(())
+}
+
+#[test]
 fn structured_contracts_own_calendars_independently_of_market_context() -> Result<()> {
     let start = Date::new(2025, 1, 3)?.start_of_day();
     let end = start.add_days(3)?;

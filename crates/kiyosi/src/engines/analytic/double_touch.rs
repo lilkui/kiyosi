@@ -20,6 +20,7 @@ impl AnalyticDoubleTouchEngine {
     /// At-hit payments integrate the discounted first-exit density adaptively.
     /// Prior at-hit payments have zero remaining value. Resolved payments are
     /// returned before rejecting scheduled monitoring; nonconstant rate curves are always rejected.
+    /// Settled cash flows do not require curve coverage through expiry.
     ///
     /// # Errors
     ///
@@ -51,7 +52,6 @@ impl AnalyticDoubleTouchEngine {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
         validate_life(option, context)?;
-        context.validate_curve_horizon(option.expiry_time())?;
         validate_schedule(option.observation_schedule(), context)?;
         let (prior, touched, finished) = option.contract().state(context)?;
         let at_hit = option.settlement_timing() == SettlementTiming::AtHit;
@@ -66,6 +66,7 @@ impl AnalyticDoubleTouchEngine {
             return if at_hit {
                 Ok(option.payout())
             } else {
+                context.validate_curve_horizon(option.expiry_time())?;
                 checked(scaled_cash(
                     option.payout(),
                     -rate * context.valuation_time().years_until(option.expiry_time()),
@@ -77,6 +78,7 @@ impl AnalyticDoubleTouchEngine {
                 "analytic double-touch pricing requires continuous monitoring".into(),
             ));
         }
+        context.validate_curve_horizon(option.expiry_time())?;
         let density = AbsorbingDistribution::new(
             option.lower_barrier(),
             option.upper_barrier(),

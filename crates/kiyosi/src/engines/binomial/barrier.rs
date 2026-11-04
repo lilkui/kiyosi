@@ -38,6 +38,7 @@ impl CoxRossRubinsteinBarrierEngine {
     ///
     /// Resolved payoffs settle before grid validation; resolved vanilla payoffs use
     /// analytic pricing. Prior at-hit rebates are already paid. Inputs remain unchanged.
+    /// Settled cash flows do not require curve coverage through expiry.
     ///
     /// # Errors
     ///
@@ -115,7 +116,6 @@ impl CoxRossRubinsteinBarrierEngine {
     ) -> Result<PricingResult> {
         let (rate, _) = flat_rates(context)?;
         crate::instruments::monitoring::validate_life(option, context)?;
-        context.validate_curve_horizon(option.expiry_time())?;
         crate::instruments::monitoring::validate_schedule(option.observation_schedule(), context)?;
         let steps = self.settings.step_count as usize;
         let request = if context.valuation_time() == option.expiry_time()
@@ -145,6 +145,7 @@ impl CoxRossRubinsteinBarrierEngine {
             result.set(request, Greek::Gamma, 0.0)?;
             return Ok(result);
         }
+        context.validate_curve_horizon(option.expiry_time())?;
         let time = context.valuation_time();
         let duration = time.micros_until(option.expiry_time());
         let mut observed =

@@ -94,6 +94,7 @@ impl QuadratureBarrierEngine {
     /// Prices after validating flat rates, inclusive life, calendar and strictly prior history.
     ///
     /// Current boundary hits settle before future monitoring; prior at-hit rebates are paid.
+    /// Settled cash flows do not require curve coverage through expiry.
     /// Resolved vanilla payoffs use analytic pricing. See [`Self::new`] for an example.
     ///
     /// # Errors
@@ -157,11 +158,11 @@ fn price(
     context.bsm_parameters()?;
     flat_rates(context)?;
     validate_life(option, context)?;
-    context.validate_curve_horizon(option.expiry_time())?;
     validate_schedule(option.observation_schedule(), context)?;
     if let Some(value) = resolved_price(option, context)? {
         return Ok(value);
     }
+    context.validate_curve_horizon(option.expiry_time())?;
     if option.observation_mode() == crate::ObservationMode::Continuous {
         continuous_price(option, context, settings)
     } else {
