@@ -54,11 +54,31 @@ impl Date {
         self.0.weekday().number_from_monday() <= 5
     }
 
-    pub(crate) fn days_until(self, end: Self) -> i64 {
+    /// Returns the signed number of calendar days from this date to `end`.
+    ///
+    /// Earlier endpoints give negative differences; see [`Self::add_days`].
+    pub fn days_until(self, end: Self) -> i64 {
         (end.0 - self.0).num_days()
     }
 
-    pub(crate) fn add_days(self, days: i64) -> Result<Self> {
+    /// Returns a date shifted by a signed number of calendar days.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] if the result is outside the supported
+    /// years -32767 through 32767. The original date is unchanged.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::Date;
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let date = Date::new(2024, 2, 28)?;
+    /// assert_eq!(date.add_days(2)?, Date::new(2024, 3, 1)?);
+    /// assert_eq!(date.days_until(date.add_days(-1)?), -1);
+    /// # Ok(()) }
+    /// ```
+    pub fn add_days(self, days: i64) -> Result<Self> {
         let shifted = if days >= 0 {
             self.0.checked_add_days(Days::new(days.unsigned_abs()))
         } else {
@@ -117,7 +137,27 @@ impl Timestamp {
         Self(date.start_of_day().0 + self.0.rem_euclid(MICROS_PER_DAY))
     }
 
-    pub(crate) fn add_days(self, days: i64) -> Result<Self> {
+    /// Returns a timestamp shifted by calendar days, preserving its clock time.
+    ///
+    /// Negative shifts move backward; microseconds are preserved.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] if the resulting date is outside the
+    /// supported years -32767 through 32767. The original timestamp is unchanged.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Date, Timestamp};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let time = Timestamp::new(Date::new(2025, 12, 31)?, 15, 0, 0, 123_456)?;
+    /// let tomorrow = time.add_days(1)?;
+    /// assert_eq!(tomorrow.date(), Date::new(2026, 1, 1)?);
+    /// assert_eq!(tomorrow.micros_since_midnight(), time.micros_since_midnight());
+    /// # Ok(()) }
+    /// ```
+    pub fn add_days(self, days: i64) -> Result<Self> {
         Ok(self.on_date(self.date().add_days(days)?))
     }
 

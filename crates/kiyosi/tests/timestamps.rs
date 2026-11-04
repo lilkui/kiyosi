@@ -1,5 +1,33 @@
 use kiyosi::*;
 
+#[test]
+fn public_day_arithmetic_preserves_clocks_and_checks_bounds() -> Result<()> {
+    let leap = Date::new(2024, 2, 28)?;
+    assert_eq!(leap.add_days(1)?, Date::new(2024, 2, 29)?);
+    assert_eq!(leap.add_days(2)?, Date::new(2024, 3, 1)?);
+    assert_eq!(leap.days_until(leap.add_days(-2)?), -2);
+    assert_eq!(leap.add_days(0)?, leap);
+    for (date, shift) in [
+        (Date::new(-32767, 1, 1)?, -1),
+        (Date::new(32767, 12, 31)?, 1),
+        (leap, i64::MIN),
+        (leap, i64::MAX),
+    ] {
+        assert!(matches!(date.add_days(shift), Err(Error::InvalidInput(_))));
+        let instant = Timestamp::new(date, 23, 59, 59, 999_999)?;
+        assert!(matches!(
+            instant.add_days(shift),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    let instant = Timestamp::new(Date::new(2025, 12, 31)?, 15, 2, 3, 123_456)?;
+    let next = instant.add_days(1)?;
+    assert_eq!(next.date(), Date::new(2026, 1, 1)?);
+    assert_eq!(next.micros_since_midnight(), 54_123_123_456);
+    assert_eq!(next.add_days(-1)?, instant);
+    Ok(())
+}
+
 fn time(day: u32, hour: u32, microsecond: u32) -> Timestamp {
     Timestamp::new(Date::new(2025, 1, day).unwrap(), hour, 0, 0, microsecond).unwrap()
 }
