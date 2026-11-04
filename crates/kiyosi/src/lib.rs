@@ -8,7 +8,8 @@
 //! Construct a contract and a [`PricingContext`], then choose an engine for that
 //! contract. [`PricingEngine`] also supports [`numerical_greeks`] and the implied
 //! parameter solvers. All engine `price_with_greeks` methods take
-//! [`NumericalShiftSettings`]; native estimators ignore irrelevant controls.
+//! [`NumericalShiftSettings`]; native estimators use its spot bump at expiry and
+//! ignore controls unused by their pre-expiry formulas.
 //! Monte Carlo engines expose `price_with_statistics` for sampling uncertainty;
 //! vanilla statistics require European contracts. See [`MonteCarloEstimate`] for
 //! applicability and [`PricingEngine::price_with_statistics`] for generic access.

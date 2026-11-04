@@ -507,7 +507,8 @@ impl CoxRossRubinsteinDigitalEngine {
 
     /// Returns requested node delta/gamma; all other Greeks remain absent.
     ///
-    /// Numerical shift settings are accepted for the shared engine signature and ignored.
+    /// Numerical shifts are unused before expiry; terminal stencils use the supplied spot bump.
+    /// Invalid terminal shifts return [`Error::InvalidInput`].
     /// One-step gamma is absent before expiry. Expiry spot Greeks follow terminal payoffs.
     ///
     /// # Errors
@@ -538,7 +539,7 @@ impl CoxRossRubinsteinDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        _settings: NumericalShiftSettings,
+        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         flat_rates(context)?;
@@ -546,13 +547,9 @@ impl CoxRossRubinsteinDigitalEngine {
         let result = self
             .native(option, context, request)?
             .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
-        crate::risk::numerical::expiry_greeks(
-            option,
-            context,
-            Default::default(),
-            result,
-            |context| self.price(option, context),
-        )
+        crate::risk::numerical::expiry_greeks(option, context, settings, result, |context| {
+            self.price(option, context)
+        })
     }
 
     fn native(
@@ -581,10 +578,10 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        _settings: NumericalShiftSettings,
+        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request, Default::default())
+        Self::price_with_greeks(self, option, context, request, settings)
     }
     fn prepare_implied_volatility(
         &self,

@@ -93,7 +93,8 @@ impl MonteCarloDigitalEngine {
 
     /// Returns requested likelihood-ratio delta/gamma from the price's normal draws.
     ///
-    /// Numerical shift settings are accepted for the shared engine signature and ignored.
+    /// Numerical shifts are unused before expiry; terminal stencils use the supplied spot bump.
+    /// Invalid terminal shifts return [`Error::InvalidInput`].
     /// Other Greeks remain absent. Expiry delta and gamma use terminal payoff stencils; before expiry no numerical bumps
     /// are required. Near-expiry estimates can have substantial sampling error.
     ///
@@ -135,7 +136,7 @@ impl MonteCarloDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        _settings: NumericalShiftSettings,
+        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
@@ -144,13 +145,9 @@ impl MonteCarloDigitalEngine {
             .native(option, context, request, false)?
             .0
             .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
-        crate::risk::numerical::expiry_greeks(
-            option,
-            context,
-            Default::default(),
-            result,
-            |context| self.price(option, context),
-        )
+        crate::risk::numerical::expiry_greeks(option, context, settings, result, |context| {
+            self.price(option, context)
+        })
     }
 
     fn native(
@@ -284,9 +281,9 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        _settings: NumericalShiftSettings,
+        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request, Default::default())
+        Self::price_with_greeks(self, option, context, request, settings)
     }
 }

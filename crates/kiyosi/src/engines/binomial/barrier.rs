@@ -72,7 +72,8 @@ impl CoxRossRubinsteinBarrierEngine {
 
     /// Returns requested node delta/gamma; other Greeks remain absent.
     ///
-    /// Numerical shift settings are accepted for the shared engine signature and ignored.
+    /// Numerical shifts are unused before expiry; terminal stencils use the supplied spot bump.
+    /// Invalid terminal shifts return [`Error::InvalidInput`].
     /// One-step gamma is absent before expiry. Expiry spot Greeks follow terminal payoffs. Current barrier equality also
     /// suppresses Greeks without a prior touch.
     /// See [`Self::price`] for a pricing example.
@@ -87,7 +88,7 @@ impl CoxRossRubinsteinBarrierEngine {
         option: &BarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        _settings: NumericalShiftSettings,
+        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         flat_rates(context)?;
@@ -95,13 +96,9 @@ impl CoxRossRubinsteinBarrierEngine {
         let result = self
             .native(option, context, request)?
             .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
-        crate::risk::numerical::expiry_greeks(
-            option,
-            context,
-            Default::default(),
-            result,
-            |context| self.price(option, context),
-        )
+        crate::risk::numerical::expiry_greeks(option, context, settings, result, |context| {
+            self.price(option, context)
+        })
     }
 
     #[expect(
@@ -291,10 +288,10 @@ impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
         option: &BarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        _settings: NumericalShiftSettings,
+        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request, Default::default())
+        Self::price_with_greeks(self, option, context, request, settings)
     }
     fn prepare_implied_volatility(
         &self,

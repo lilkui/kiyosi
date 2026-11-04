@@ -9,6 +9,74 @@ fn context(spot: f64) -> Result<PricingContext> {
 }
 
 #[test]
+fn native_terminal_greeks_honor_spot_bumps_through_trait_and_direct_calls() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let context = context(100.005)?;
+    let end = context.valuation_time();
+    let request = GreeksRequest::new([Greek::Delta]);
+    let sampling = MonteCarloSettings {
+        path_count: 32,
+        seed: Some(42),
+        thread_count: 1,
+        ..Default::default()
+    };
+    let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?;
+    let mut terms = BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        120.0,
+        BarrierType::UpAndOut,
+    );
+    terms.touch_state = Some(BarrierTouchState::Untouched);
+    let barrier = BarrierOption::new(terms)?;
+    let geometric =
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None)?;
+    let arithmetic =
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, end, end, None)?;
+    macro_rules! check {
+        ($engine:expr, $option:expr, $delta:expr) => {{
+            let engine = $engine;
+            for (bump, expected) in [(0.01, None), (0.001, Some($delta))] {
+                let shifts = NumericalShiftSettings {
+                    spot_shift: Some(bump),
+                    ..Default::default()
+                };
+                let direct = engine.price_with_greeks($option, &context, request, shifts)?;
+                let generic =
+                    PricingEngine::price_with_greeks(&engine, $option, &context, request, shifts)?;
+                assert_eq!(direct, generic);
+                match expected {
+                    Some(delta) => assert!((direct.require(Greek::Delta)? - delta).abs() < 1e-10),
+                    None => assert_eq!(direct.status(Greek::Delta), GreekStatus::Undefined),
+                }
+            }
+            assert!(matches!(
+                engine.price_with_greeks(
+                    $option,
+                    &context,
+                    request,
+                    NumericalShiftSettings {
+                        spot_shift: Some(0.0),
+                        ..Default::default()
+                    }
+                ),
+                Err(Error::InvalidInput(_))
+            ));
+        }};
+    }
+    check!(AnalyticEuropeanEngine, &vanilla, 1.0);
+    check!(CoxRossRubinsteinDigitalEngine::default(), &digital, 0.0);
+    check!(CoxRossRubinsteinBarrierEngine::default(), &barrier, 1.0);
+    check!(MonteCarloDigitalEngine::new(sampling)?, &digital, 0.0);
+    check!(MonteCarloAsianEngine::new(sampling)?, &geometric, 1.0);
+    check!(MonteCarloAsianEngine::new(sampling)?, &arithmetic, 1.0);
+    Ok(())
+}
+
+#[test]
 fn terminal_vanilla_greeks_match_payoff_derivatives_across_engines() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let context = context(120.0)?;

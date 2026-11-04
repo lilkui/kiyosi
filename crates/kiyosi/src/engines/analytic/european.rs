@@ -28,7 +28,8 @@ pub(crate) fn black_scholes_arguments(
 impl AnalyticEuropeanEngine {
     /// Returns the price and selected analytic Greeks.
     ///
-    /// Numerical shift settings are accepted for the shared engine signature and ignored.
+    /// Numerical shifts are unused before expiry; terminal stencils use the supplied spot bump.
+    /// Invalid terminal shifts return [`Error::InvalidInput`].
     /// At expiry spot Greeks follow terminal-payoff stencils; volatility and rate
     /// Greeks are zero, while time Greeks remain absent. Stencils crossing payoff
     /// kinks are unavailable. See [`crate::numerical_greeks`] for terminal rules.
@@ -46,7 +47,7 @@ impl AnalyticEuropeanEngine {
         option: &EuropeanOption,
         context: &PricingContext,
         request: GreeksRequest,
-        _settings: NumericalShiftSettings,
+        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         request.validate()?;
@@ -59,7 +60,7 @@ impl AnalyticEuropeanEngine {
             return crate::risk::numerical::expiry_greeks(
                 option,
                 context,
-                Default::default(),
+                settings,
                 result,
                 |context| self.price(option, context),
             );
@@ -251,10 +252,10 @@ impl PricingEngine for AnalyticEuropeanEngine {
         option: &EuropeanOption,
         context: &PricingContext,
         request: GreeksRequest,
-        _settings: NumericalShiftSettings,
+        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request, Default::default())
+        Self::price_with_greeks(self, option, context, request, settings)
     }
 }
 

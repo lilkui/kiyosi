@@ -168,7 +168,8 @@ impl MonteCarloAsianEngine {
 
     /// Returns requested delta and gamma directly from the price's shared normal draws.
     ///
-    /// Numerical shift settings are accepted for the shared engine signature and ignored.
+    /// Numerical shifts are unused before expiry; terminal stencils use the supplied spot bump.
+    /// Invalid terminal shifts return [`Error::InvalidInput`].
     /// Only delta and gamma are supported, including terminal-payoff Greeks at expiry. Before expiry, no numerical bumps are
     /// required. For scalar differences and history-boundary stencil rules, use
     /// [`crate::numerical_greeks`], which pins a request-local seed even for unseeded
@@ -189,19 +190,13 @@ impl MonteCarloAsianEngine {
         option: &I,
         context: &PricingContext,
         request: GreeksRequest,
-        _settings: NumericalShiftSettings,
+        settings: NumericalShiftSettings,
     ) -> Result<PricingResult>
     where
         Self: PricingEngine<I>,
     {
         context.bsm_parameters()?;
-        <Self as PricingEngine<I>>::price_with_greeks(
-            self,
-            option,
-            context,
-            request,
-            Default::default(),
-        )
+        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request, settings)
     }
 
     #[expect(
@@ -489,7 +484,7 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         option: &GeometricAveragePriceOption,
         context: &PricingContext,
         request: GreeksRequest,
-        _shifts: NumericalShiftSettings,
+        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         request.validate()?;
@@ -497,13 +492,9 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
             .native(&option.0, context, true, request, false)?
             .0
             .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
-        crate::risk::numerical::expiry_greeks(
-            option,
-            context,
-            Default::default(),
-            result,
-            |context| <Self as PricingEngine<_>>::price(self, option, context),
-        )
+        crate::risk::numerical::expiry_greeks(option, context, settings, result, |context| {
+            <Self as PricingEngine<_>>::price(self, option, context)
+        })
     }
 }
 
@@ -546,7 +537,7 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         option: &ArithmeticAveragePriceOption,
         context: &PricingContext,
         request: GreeksRequest,
-        _shifts: NumericalShiftSettings,
+        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
         request.validate()?;
@@ -554,13 +545,9 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
             .native(&option.0, context, false, request, false)?
             .0
             .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
-        crate::risk::numerical::expiry_greeks(
-            option,
-            context,
-            Default::default(),
-            result,
-            |context| <Self as PricingEngine<_>>::price(self, option, context),
-        )
+        crate::risk::numerical::expiry_greeks(option, context, settings, result, |context| {
+            <Self as PricingEngine<_>>::price(self, option, context)
+        })
     }
     fn volatility_affects_price(
         &self,

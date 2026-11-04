@@ -38,6 +38,7 @@ pub(crate) fn expiry_greeks(
     if context.valuation_time() != option.expiry_time() {
         return Ok(result);
     }
+    settings.validate()?;
     let request = GreeksRequest::new(
         Greek::ALL
             .into_iter()
