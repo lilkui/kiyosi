@@ -303,11 +303,13 @@ impl Default for NumericalShiftSettings {
     }
 }
 impl NumericalShiftSettings {
-    /// Returns the configured bump or the general default of 0.01 spot units.
+    /// Returns the explicit bump or the general fallback of 0.01 spot units.
     ///
-    /// American Monte Carlo resolves automatic bumps before expiry; see
+    /// This does not resolve an engine-specific automatic bump. Preserve `None`
+    /// when forwarding settings to an engine. American Monte Carlo resolves
+    /// automatic bumps before expiry; see
     /// [`crate::MonteCarloVanillaEngine::default_american_spot_shift`].
-    pub fn spot_shift(self) -> f64 {
+    pub fn fallback_spot_shift(self) -> f64 {
         self.spot_shift.unwrap_or(0.01)
     }
     /// Validates every bump control without pricing a contract.
@@ -329,9 +331,13 @@ impl NumericalShiftSettings {
     /// # Ok(()) }
     /// ```
     pub fn validate(&self) -> Result<()> {
-        if [self.spot_shift(), self.volatility_shift, self.rate_shift]
-            .iter()
-            .any(|x| !x.is_finite() || *x <= 0.0)
+        if [
+            self.fallback_spot_shift(),
+            self.volatility_shift,
+            self.rate_shift,
+        ]
+        .iter()
+        .any(|x| !x.is_finite() || *x <= 0.0)
             || self.time_shift_days <= 0
         {
             return Err(Error::InvalidInput("numerical shifts are invalid".into()));
@@ -353,7 +359,7 @@ pub trait PricingEngine<I = EuropeanOption> {
     /// Terminal numerical Greeks use the shared 0.01 spot-unit default.
     /// See [`NumericalShiftSettings`] for explicit control.
     fn default_spot_shift(&self, _context: &PricingContext) -> f64 {
-        NumericalShiftSettings::default().spot_shift()
+        NumericalShiftSettings::default().fallback_spot_shift()
     }
 
     /// Checks engine applicability before numerical requests or implied-volatility validation.

@@ -156,6 +156,8 @@ precede Greek-name parsing. Monte Carlo vanilla spot bumps default by product:
 ``None`` selects the automatic bump for either product. Other numerical engines
 use ``None`` to select the shared 0.01 spot-unit bump. Rust
 ``NumericalShiftSettings.spot_shift=None`` uses the same engine-specific defaults.
+Its Rust ``fallback_spot_shift()`` accessor returns only the general fallback;
+preserve ``None`` when forwarding controls to keep automatic engine resolution.
 
 ``AnalyticHestonEuropeanEngine`` prices European calls/puts with ``HestonParameters``
 using adaptive Fourier integration and a deterministic-variance control variate.

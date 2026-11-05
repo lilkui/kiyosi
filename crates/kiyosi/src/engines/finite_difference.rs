@@ -526,7 +526,7 @@ fn native_model<D: Diffusion>(
         result.set(request, Greek::Gamma, sample[2])?;
     }
     if request.has(Greek::Speed) {
-        let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift());
+        let h = crate::risk::numerical::symmetric_shift(spot, shifts.fallback_spot_shift());
         if h > 0.0 && spot > h && spot + h < upper {
             price_at(spot + h)?;
             price_at(spot - h)?;
@@ -575,7 +575,7 @@ fn complete_greeks(
     let missing_delta = request.has(Greek::Delta) && !result.has(Greek::Delta);
     let missing_gamma = request.has(Greek::Gamma) && !result.has(Greek::Gamma);
     let spot = context.spot_price();
-    let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift());
+    let h = crate::risk::numerical::symmetric_shift(spot, shifts.fallback_spot_shift());
     if (missing_delta || missing_gamma)
         && h > 0.0
         && spot > h

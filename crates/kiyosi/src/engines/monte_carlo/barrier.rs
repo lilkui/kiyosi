@@ -229,8 +229,10 @@ impl MonteCarloBarrierEngine {
         }
         let time = context.valuation_time();
         let expiry = option.expiry_time();
-        let radius =
-            crate::risk::numerical::symmetric_shift(context.spot_price(), shifts.spot_shift());
+        let radius = crate::risk::numerical::symmetric_shift(
+            context.spot_price(),
+            shifts.fallback_spot_shift(),
+        );
         let discontinuity = match contract {
             Contract::Single(option) => option.at_spot_discontinuity(context, radius),
             Contract::Double(option) => option.at_spot_discontinuity(context, radius),

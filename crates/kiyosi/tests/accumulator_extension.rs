@@ -703,7 +703,7 @@ fn scheduled_decumulator_supports_greeks_and_identifiable_volatility() {
         Timestamp::new(day(3).date(), 12, 0, 0, 0).unwrap(),
         0.4,
     );
-    let h = NumericalShiftSettings::default().spot_shift();
+    let h = NumericalShiftSettings::default().fallback_spot_shift();
     let shifted = |spot| {
         context
             .replace(PricingContextChanges {

@@ -1220,3 +1220,32 @@ fn snowball_coupon_diagnostics_identify_the_supplied_field() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn spot_shift_fallback_is_distinct_from_engine_resolution() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let settings = NumericalShiftSettings::default();
+    assert_eq!(settings.fallback_spot_shift(), 0.01);
+    assert_eq!(settings.spot_shift, None);
+    assert_eq!(
+        <MonteCarloVanillaEngine as PricingEngine<AmericanOption>>::default_spot_shift(
+            &MonteCarloVanillaEngine::default(),
+            &context
+        ),
+        8.0
+    );
+    assert_eq!(
+        NumericalShiftSettings {
+            spot_shift: Some(0.5),
+            ..settings
+        }
+        .fallback_spot_shift(),
+        0.5
+    );
+    Ok(())
+}
