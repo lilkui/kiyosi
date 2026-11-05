@@ -3,8 +3,8 @@ use crate::numerics::{
     checked, checked_with_scale, log_ratio, scaled_cash, scaled_cdf, standardize,
 };
 use crate::{
-    AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationSchedule,
-    OptionType, PricingContext, PricingEngine, PricingResult, Result, TradingCalendar,
+    AnalyticEuropeanEngine, Error, GreeksRequest, ObservationSchedule, OptionType, PricingContext,
+    PricingEngine, PricingResult, Result, TradingCalendar,
 };
 use crate::{BarrierOption, RebateTiming};
 
@@ -65,8 +65,8 @@ impl AnalyticBarrierEngine {
         option: &BarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, settings)
     }

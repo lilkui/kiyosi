@@ -6,6 +6,7 @@ import numbers
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from functools import partial
 
 import QuantLib as ql
 from kiyosi import (
@@ -17,6 +18,7 @@ from kiyosi import (
 )
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure, weekdays_calendar
+from kiyosi.pricing import numerical_greeks
 from support.terminal import assert_terminal_greeks
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
@@ -179,7 +181,7 @@ class BarrierQuadratureTests(unittest.TestCase):
             )
             self.assert_rejection(
                 InvalidInputError,
-                engine.price_with_greeks,
+                partial(numerical_greeks, engine),
                 option(),
                 market(),
                 "delta",
@@ -431,9 +433,9 @@ class BarrierQuadratureTests(unittest.TestCase):
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):
-                engine.price_with_greeks(option(), market(), "delta", **changes)
+                numerical_greeks(engine, option(), market(), "delta", **changes)
         with self.assertRaises(OverflowError):
-            engine.price_with_greeks(option(), market(), "delta", time_shift_days=2**31)
+            numerical_greeks(engine, option(), market(), "delta", time_shift_days=2**31)
         mismatch = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )

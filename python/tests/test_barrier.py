@@ -17,6 +17,7 @@ from kiyosi.pricing import (
     AnalyticBarrierEngine,
     AnalyticEuropeanEngine,
     implied_volatility,
+    numerical_greeks,
 )
 from support.terminal import assert_terminal_greeks
 
@@ -465,7 +466,7 @@ class BarrierTests(unittest.TestCase):
             ("time_shift_days", 2**40, OverflowError),
         ):
             with self.assertRaises(error):
-                engine.price_with_greeks(option, context, "delta", **{field: value})
+                numerical_greeks(engine, option, context, "delta", **{field: value})
         for fields in (
             {"spot_shift": 0},
             {"volatility_shift": float("nan")},
@@ -473,8 +474,8 @@ class BarrierTests(unittest.TestCase):
         ):
             self.assert_rejection(
                 InvalidInputError,
-                lambda fields=fields: engine.price_with_greeks(
-                    option, context, "delta", **fields
+                lambda fields=fields: numerical_greeks(
+                    engine, option, context, "delta", **fields
                 ),
             )
         self.assert_rejection(

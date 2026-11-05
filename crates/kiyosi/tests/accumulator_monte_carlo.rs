@@ -202,9 +202,8 @@ fn shared_sample_greeks_and_volatility_solves_preserve_inputs() {
         spot_shift: Some(0.25),
         ..Default::default()
     };
-    let result = engine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), shifts)
-        .unwrap();
+    let result =
+        kiyosi::numerical_greeks(&engine, &option, &context, GreeksRequest::all(), shifts).unwrap();
     let scalar =
         numerical_greeks(&engine, &option, &context, GreeksRequest::all(), shifts).unwrap();
     assert_eq!(result, scalar);
@@ -414,27 +413,22 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
     }
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([]),
-                Default::default()
-            )
+            .price_with_greeks(&option, &context, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert!(matches!(
-        engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::all(),
-                NumericalShiftSettings {
-                    spot_shift: Some(0.0),
-                    ..Default::default()
-                }
-            )
-            .unwrap_err(),
+        kiyosi::numerical_greeks(
+            &engine,
+            &option,
+            &context,
+            GreeksRequest::all(),
+            NumericalShiftSettings {
+                spot_shift: Some(0.0),
+                ..Default::default()
+            }
+        )
+        .unwrap_err(),
         Error::InvalidInput(_)
     ));
     let curve = RateTermStructure::new(
@@ -466,7 +460,7 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(&option, &curved, GreeksRequest::new([]), Default::default())
+            .price_with_greeks(&option, &curved, GreeksRequest::new([]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
@@ -486,7 +480,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
     for spot in [100.0, 110.0] {
         let context = market(spot, day(1, 1));
         let result = engine
-            .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&option, &context, GreeksRequest::all())
             .unwrap();
         for greek in [
             Greek::Delta,
@@ -505,7 +499,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
     }
     let expired = market(90.0, day(1, 6));
     let result = engine
-        .price_with_greeks(&option, &expired, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &expired, GreeksRequest::all())
         .unwrap();
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
         assert_eq!(result.get(greek), None);

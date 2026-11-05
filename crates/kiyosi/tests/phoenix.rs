@@ -178,17 +178,17 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     let note = PhoenixOption::new(terms()).unwrap();
     let ctx = market(103.0, date(1, 1));
     let engine = QuadratureAutocallableEngine::default();
-    let result = engine
-        .price_with_greeks(
-            &note,
-            &ctx,
-            GreeksRequest::all(),
-            NumericalShiftSettings {
-                spot_shift: Some(0.25),
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let result = kiyosi::numerical_greeks(
+        &engine,
+        &note,
+        &ctx,
+        GreeksRequest::all(),
+        NumericalShiftSettings {
+            spot_shift: Some(0.25),
+            ..Default::default()
+        },
+    )
+    .unwrap();
     for greek in Greek::ALL {
         assert!(result.has(greek), "{greek:?}");
     }
@@ -208,7 +208,7 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
     assert_eq!(ctx.model_parameters().as_bsm().unwrap().volatility(), 0.3);
     let ctx = market(90.0, date(2, 3));
     let result = engine
-        .price_with_greeks(&note, &ctx, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&note, &ctx, GreeksRequest::all())
         .unwrap();
     assert!(!result.has(Greek::Delta));
     assert!(!result.has(Greek::Theta));

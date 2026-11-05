@@ -1,9 +1,6 @@
 use crate::numerics::{checked, checked_with_scale, log_ratio, scaled_cash};
 use crate::{ArithmeticAveragePriceOption, GeometricAveragePriceOption};
-use crate::{
-    Error, GreeksRequest, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
-    Result,
-};
+use crate::{Error, GreeksRequest, PricingContext, PricingEngine, PricingResult, Result};
 
 /// Prices continuously monitored geometric average-price Asian options under BSM.
 ///
@@ -175,7 +172,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
     ///     start, start, Date::new(2026, 1, 1)?.start_of_day(), None)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 100.0, start.into())?;
     /// let result = TurnbullWakemanArithmeticAveragePriceEngine.price_with_greeks(
-    ///     &option, &context, GreeksRequest::new([Greek::Delta]), Default::default())?;
+    ///     &option, &context, GreeksRequest::new([Greek::Delta]))?;
     /// assert!((result.price() - 5.246501860362777).abs() < 1e-12);
     /// assert!(result.require(Greek::Delta)? > 0.0);
     /// # Ok(()) }
@@ -319,7 +316,7 @@ macro_rules! asian_analytics {
             ///
             /// # Errors
             ///
-            /// Returns [`Error::InvalidInput`] for empty requests or invalid shifts
+            /// Returns [`Error::InvalidInput`] for empty requests
             /// before pricing, [`Error::ComputationFailure`] for non-finite derivatives,
             /// and propagates pricing and feasible bumped-pricing errors.
             /// Inputs remain unchanged; unavailable stencils leave measures absent.
@@ -328,8 +325,8 @@ macro_rules! asian_analytics {
                 option: &$option,
                 context: &PricingContext,
                 request: GreeksRequest,
-                settings: NumericalShiftSettings,
             ) -> Result<PricingResult> {
+                let settings = crate::NumericalShiftSettings::default();
                 context.bsm_parameters()?;
                 crate::numerical_greeks(self, option, context, request, settings)
             }

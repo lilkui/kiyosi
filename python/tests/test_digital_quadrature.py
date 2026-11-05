@@ -16,6 +16,7 @@ from kiyosi import (
 )
 from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption, EuropeanOption
 from kiyosi.market import HestonParameters, PricingContext, RateTermStructure
+from kiyosi.pricing import numerical_greeks
 from quantlib_reference import digital, oracle
 from support.terminal import assert_terminal_greeks
 from test_binomial import END, GREEKS, START, contract, market
@@ -106,7 +107,7 @@ class DigitalQuadratureTests(unittest.TestCase):
             shifts = dict(profile["shifts"])
             if not smooth:
                 shifts["spot_shift"] = 0.001
-            result = engine.price_with_greeks(option, context, names, **shifts)
+            result = numerical_greeks(engine, option, context, names, **shifts)
             for name in ("price", *names):
                 with self.subTest(case=identifier, measure=name):
                     self.assertAlmostEqual(
@@ -186,7 +187,8 @@ class DigitalQuadratureTests(unittest.TestCase):
                     vol_down = oracle.measure(dict(inputs, volatility=0.29), "price")
                     q_up = oracle.measure(dict(inputs, dividend=0.011), "price")
                     q_down = oracle.measure(dict(inputs, dividend=0.009), "price")
-                bumped = engine.price_with_greeks(
+                bumped = numerical_greeks(
+                    engine,
                     option,
                     context,
                     [
@@ -265,7 +267,7 @@ class DigitalQuadratureTests(unittest.TestCase):
                 with self.assertRaises(InvalidInputError):
                     engine.price_with_greeks(option, market(), [])
                 with self.assertRaises(InvalidInputError):
-                    engine.price_with_greeks(option, market(), "delta", spot_shift=0)
+                    numerical_greeks(engine, option, market(), "delta", spot_shift=0)
                 with self.assertRaises(ComputationFailureError):
                     engine.price(option, market(rate=1.79e308, dividend=-1.79e308))
                 self.assertEqual(engine.price(option, market()), baseline)

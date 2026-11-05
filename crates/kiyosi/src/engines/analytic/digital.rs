@@ -3,8 +3,8 @@ use std::f64::consts::PI;
 use crate::engines::analytic::european::black_scholes_arguments;
 use crate::numerics::weighted_cdf;
 use crate::{
-    DigitalOption, Error, Greek, GreeksRequest, NumericalShiftSettings, OptionType, PricingContext,
-    PricingEngine, PricingResult, Result,
+    DigitalOption, Error, Greek, GreeksRequest, OptionType, PricingContext, PricingEngine,
+    PricingResult, Result,
 };
 
 /// Prices European cash-or-nothing and asset-or-nothing contracts under BSM.
@@ -20,11 +20,11 @@ impl AnalyticDigitalEngine {
     /// At expiry spot Greeks follow terminal-payoff stencils; volatility and rate
     /// Greeks are zero, while time Greeks remain absent. Stencils crossing payoff
     /// discontinuities are unavailable. See [`crate::numerical_greeks`] for terminal
-    /// rules. Bumps use [`NumericalShiftSettings`].
+    /// rules. Bumps use [`crate::NumericalShiftSettings`].
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for empty requests or invalid shifts
+    /// Returns [`Error::InvalidInput`] for empty requests
     /// before pricing. Propagates [`Self::price`] errors and returns
     /// [`Error::ComputationFailure`] for non-finite requested derivatives.
     /// Inputs remain unchanged on success and failure.
@@ -41,7 +41,7 @@ impl AnalyticDigitalEngine {
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// let result = AnalyticDigitalEngine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta]), Default::default())?;
+    ///     GreeksRequest::new([Greek::Delta]))?;
     /// assert!(result.require(Greek::Delta)? > 0.0);
     /// assert_eq!(result.get(Greek::Gamma), None);
     /// # Ok(()) }
@@ -51,8 +51,8 @@ impl AnalyticDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         request.validate()?;
         settings.validate()?;
@@ -215,9 +215,8 @@ impl PricingEngine<DigitalOption> for AnalyticDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request, settings)
+        Self::price_with_greeks(self, option, context, request)
     }
 }

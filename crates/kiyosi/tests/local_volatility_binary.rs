@@ -187,13 +187,13 @@ fn skew_binary_in_out_parity_uses_unrestricted_digital_continuation() {
                 }
                 .unwrap();
                 let inn = engine
-                    .price_with_greeks(&make(inside), &local(true), request, Default::default())
+                    .price_with_greeks(&make(inside), &local(true), request)
                     .unwrap();
                 let out = engine
-                    .price_with_greeks(&make(outside), &local(true), request, Default::default())
+                    .price_with_greeks(&make(outside), &local(true), request)
                     .unwrap();
                 let total = digital_engine
-                    .price_with_greeks(&digital, &local(true), request, Default::default())
+                    .price_with_greeks(&digital, &local(true), request)
                     .unwrap();
                 // Independently meshed continuation and barrier solves obey parity up to FD error.
                 let error = (inn.price() + out.price() - total.price()).abs();
@@ -277,8 +277,7 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
             .price_with_greeks(
                 &hit.replace_history(Some(BarrierTouchState::Touched)),
                 &settled_context,
-                GreeksRequest::all(),
-                Default::default(),
+                GreeksRequest::all()
             )
             .unwrap()
             .get(Greek::VegaPerPercentagePoint),
@@ -337,7 +336,6 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
             &option.replace_history(None),
             &boundary,
             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-            Default::default(),
         )
         .unwrap();
     assert_eq!(result.get(Greek::Delta), None);
@@ -354,14 +352,13 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
             &option,
             &expiry,
             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-            Default::default(),
         )
         .unwrap();
     assert_eq!(result.price(), 10.0);
     assert_eq!(result.get(Greek::Delta), None);
     assert_eq!(
         engine
-            .price_with_greeks(&option, &expiry, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&option, &expiry, GreeksRequest::all())
             .unwrap()
             .get(Greek::VegaPerPercentagePoint),
         None
@@ -382,7 +379,6 @@ fn skew_touch_greeks_hold_absolute_surface_fixed() {
             &option,
             &context,
             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-            Default::default(),
         )
         .unwrap();
     let price = |spot| {
@@ -505,7 +501,7 @@ fn skew_binary_barriers_match_independent_quantlib_fd() {
         ),
     ] {
         let actual = engine
-            .price_with_greeks(&option, &context, request, Default::default())
+            .price_with_greeks(&option, &context, request)
             .unwrap();
         for ((a, b), tolerance) in [
             actual.price(),

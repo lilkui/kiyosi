@@ -4,6 +4,7 @@ import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, time, timedelta
+from functools import partial
 
 from kiyosi import (
     ComputationFailureError,
@@ -19,7 +20,11 @@ from kiyosi.market import (
     all_days_calendar,
     weekdays_calendar,
 )
-from kiyosi.pricing import AnalyticRangeAccrualEngine, implied_volatility
+from kiyosi.pricing import (
+    AnalyticRangeAccrualEngine,
+    implied_volatility,
+    numerical_greeks,
+)
 from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
@@ -155,7 +160,7 @@ class RangeAccrualTests(unittest.TestCase):
         with self.assertRaises(UnsupportedOperationError):
             AnalyticEuropeanEngine().price(option, context)
         with self.assertRaises(TypeError):
-            engine.price_with_greeks(option, context, "delta", spot_shift=True)
+            numerical_greeks(engine, option, context, "delta", spot_shift=True)
         with self.assertRaises(TypeError):
             implied_volatility(engine, option, context, True)
         self.assertEqual(option.replace_history(), option)
@@ -498,8 +503,8 @@ class RangeAccrualTests(unittest.TestCase):
         with ThreadPoolExecutor(2) as pool:
             for value in pool.map(lambda _: engine.price(option, context), range(4)):
                 self.assertAlmostEqual(value, expected, delta=1e-10)
-        result = engine.price_with_greeks(
-            option, context, ["delta", "gamma"], spot_shift=0.25
+        result = numerical_greeks(
+            engine, option, context, ["delta", "gamma"], spot_shift=0.25
         )
         up = engine.price(option, market(spot=100.25))
         down = engine.price(option, market(spot=99.75))
@@ -530,8 +535,8 @@ class RangeAccrualTests(unittest.TestCase):
                 dividend=dividend,
             )
             engine = AnalyticRangeAccrualEngine()
-            result = engine.price_with_greeks(
-                option, context, greeks="all", spot_shift=0.1
+            result = numerical_greeks(
+                engine, option, context, greeks="all", spot_shift=0.1
             )
 
             def price(
@@ -677,7 +682,7 @@ class RangeAccrualTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            engine.price_with_greeks,
+            partial(numerical_greeks, engine),
             option,
             market(),
             "delta",

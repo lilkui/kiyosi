@@ -112,7 +112,7 @@ fn american_expiry_and_exercise_window_are_inclusive() {
             })
             .max(0.0);
             let result = engine
-                .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+                .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap();
             assert_eq!(result.price(), expected);
             assert_eq!(result.get(Greek::Theta), None);
@@ -170,7 +170,7 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
     let context = market(100.0, 0.05, 0.03, 0.2);
     let original = context.clone();
     let all = engine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     let scalar = numerical_greeks(
         &engine,
@@ -183,12 +183,7 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
     assert_eq!(all, scalar);
     for greek in Greek::ALL {
         let result = engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([greek]),
-                Default::default(),
-            )
+            .price_with_greeks(&option, &context, GreeksRequest::new([greek]))
             .unwrap();
         assert_eq!(result.require(greek).unwrap(), all.require(greek).unwrap());
         assert_eq!(result.values().iter().flatten().count(), 1);
@@ -237,27 +232,22 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
     }
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([]),
-                Default::default()
-            )
+            .price_with_greeks(&option, &context, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert!(matches!(
-        engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::all(),
-                NumericalShiftSettings {
-                    spot_shift: Some(0.0),
-                    ..Default::default()
-                }
-            )
-            .unwrap_err(),
+        kiyosi::numerical_greeks(
+            &engine,
+            &option,
+            &context,
+            GreeksRequest::all(),
+            NumericalShiftSettings {
+                spot_shift: Some(0.0),
+                ..Default::default()
+            }
+        )
+        .unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert_eq!(context, original);
@@ -335,12 +325,7 @@ fn american_applicability_and_error_order_are_preserved() {
             assert!(category(engine.price(&option, &context).unwrap_err()));
             assert!(category(
                 engine
-                    .price_with_greeks(
-                        &option,
-                        &context,
-                        GreeksRequest::new([Greek::Delta]),
-                        Default::default()
-                    )
+                    .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Delta]))
                     .unwrap_err()
             ));
         }
@@ -361,12 +346,7 @@ fn american_applicability_and_error_order_are_preserved() {
             ));
             assert!(matches!(
                 engine
-                    .price_with_greeks(
-                        &option,
-                        &context,
-                        GreeksRequest::new([]),
-                        Default::default()
-                    )
+                    .price_with_greeks(&option, &context, GreeksRequest::new([]))
                     .unwrap_err(),
                 Error::UnsupportedOperation(_)
             ));
@@ -380,8 +360,7 @@ fn american_applicability_and_error_order_are_preserved() {
             .price_with_greeks(
                 &call,
                 &zero_rate,
-                GreeksRequest::new([Greek::RhoPerPercentagePoint]),
-                Default::default()
+                GreeksRequest::new([Greek::RhoPerPercentagePoint])
             )
             .unwrap_err(),
         Error::UnsupportedOperation(_)

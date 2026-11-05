@@ -4,12 +4,11 @@ European vanilla contracts support valuation before effective_time, including
 Greeks and implied volatility, when the model data covers valuation through expiry.
 Other contracts retain their own life and history validation.
 
-All engine ``price_with_greeks`` methods accept the same keyword-only controls:
-``spot_shift=None``, ``volatility_shift``, ``rate_shift`` and ``time_shift_days``.
-All controls are validated before pricing, including controls a native estimator
-does not use; its supported Greek set is unchanged. At expiry the spot bump
-controls terminal-payoff stencils. Use ``numerical_greeks`` to select scalar
-differences explicitly.
+Engine ``price_with_greeks(instrument, context, greeks)`` methods use the engine's
+estimator and default controls. They accept no bump arguments. Configure scalar
+finite differences explicitly through ``numerical_greeks(engine, instrument,
+context, greeks, spot_shift=..., volatility_shift=..., rate_shift=...,
+time_shift_days=...)``. All numerical controls are validated there.
 
 BSM ``volatility=0`` uses exact deterministic valuation in each supported engine,
 including American exercise, continuous or scheduled touches, and structured-product
@@ -117,26 +116,13 @@ buffers are additional. Larger grids raise ``InvalidInputError`` before sampling
 Reduce either count to fit. Expiry and terminal-only American calls (nonpositive
 dividends and nonnegative rates) do not allocate this grid or apply this limit.
 
-``AnalyticEuropeanEngine``, ``CoxRossRubinsteinDigitalEngine``,
-``CoxRossRubinsteinBarrierEngine``, ``MonteCarloDigitalEngine`` and
-``MonteCarloAsianEngine`` compute Greeks directly without numerical bumps
-before expiry. Their shared shift controls are validated but do not affect
-these pre-expiry estimates. At expiry, ``spot_shift`` controls terminal-payoff
-stencils. Engines that use numerical differences apply the relevant bumps:
-``volatility_shift`` controls the volatility bump for vega_per_percentage_point and volga_per_squared_percentage_point;
-``rate_shift`` controls parallel bumps of both the risk-free and dividend-yield
-curves for rho_per_percentage_point and dividend_rho_per_percentage_point. Numerical volga_per_squared_percentage_point requires a strictly positive
-lower volatility leg. Monte Carlo volga_per_squared_percentage_point can amplify sampling and exercise noise;
-check convergence across bump sizes and simulation settings.
-
-``MonteCarloBarrierEngine`` and ``MonteCarloDoubleBarrierEngine`` return only
-delta and gamma. They use ``spot_shift`` for barrier
-availability checks and numerical derivatives of continuous at-hit rebates.
-The other shared shift controls are accepted and validated but do not affect
-these estimates.
-For these rebates, an unavailable numerical stencil leaves delta and gamma
-as None for the whole contract. Choose a spot bump that gives distinct,
-positive spots on both sides of the valuation spot.
+Analytic estimators and native Monte Carlo/binomial estimators retain their
+supported measures and engine defaults. Monte Carlo single- and double-barrier
+engines provide delta and gamma, using the default spot stencil where needed
+for availability checks and continuous at-hit rebates. Use ``numerical_greeks``
+to select scalar price differences and control their bumps. Its rate shift applies
+separately to the risk-free and dividend curves; its volatility shift controls
+vega and volga. Numerical volga requires a positive lower volatility leg.
 
 Pass ``greeks="all"`` to request every measure, a Greek name for one measure,
 or an iterable of names for a selection. The ``greeks`` argument is required;
@@ -150,38 +136,28 @@ discounting remains. Vanna and zomma_per_percentage_point are zero where spot de
 Theta, charm and color remain None at expiry. Spot stencils crossing a payoff
 kink or product event remain unavailable, and engine/model coverage still applies.
 Automatic terminal spot bumps use 0.01 spot units, including American Monte Carlo;
-explicit bump controls retain their usual meaning.
+custom terminal bumps belong to ``numerical_greeks``.
 
 Inspect ``engine.greek_method(instrument, context)`` before a parameter sweep:
 ``"native"`` uses no numerical shifts, ``"numerical"`` uses scalar differences,
 ``"mixed"`` completes native estimates numerically, and ``"native_with_spot_control"``
 uses spot controls for numerical derivatives or availability checks. ``"terminal"``
 uses expiry payoff stencils; ``"unsupported"`` supplies no Greeks.
-``engine.active_greek_controls(instrument, context)`` lists controls potentially
-used across supported requests; a specific request or resolved payoff may use
-fewer. Queries check model applicability without pricing or sampling. They do
-not validate contract life or history. Inactive supplied controls remain validated.
-Use ``numerical_greeks`` when bump settings must select the calculation method.
+``engine.active_greek_controls(instrument, context)`` lists internal default
+controls potentially used across supported requests. Queries check model
+applicability without pricing or sampling; pricing validates life and history.
+Use ``numerical_greeks`` for configurable scalar differences. This can provide
+measures beyond native engine coverage; Heston and local volatility remain
+unsupported by the scalar helper. Monte Carlo draws are pinned within each
+numerical request.
 
-Every engine shares ``price(instrument, context)`` and
-``price_with_greeks(instrument, context, greeks)`` with the same keyword-only
-shift controls. For a uniform BSM numerical calculation, call
-``numerical_greeks(engine, instrument, context, greeks, spot_shift=...)``.
-It uses scalar prices and accepts the same bump controls for every supported
-engine/product pair. It can compute measures beyond a native engine's coverage;
-local-volatility and Heston models remain unsupported. Monte Carlo sampling is
-pinned within each numerical request. All numerical bumps are validated.
-
-Pricing controls are explicit keyword-only parameters, available through
-``inspect.signature``, with defaults derived from Rust. The displayed
-defaults can be passed back explicitly. Instrument conversion and supported-family checks
-precede Greek-name parsing. Monte Carlo vanilla spot bumps default by product:
-0.01 for European options and 8% of spot for American options before expiry. Explicit
-``None`` selects the automatic bump for either product. Other numerical engines
-use ``None`` to select the shared 0.01 spot-unit bump. Rust
-``NumericalShiftSettings.spot_shift=None`` uses the same engine-specific defaults.
-Its Rust ``fallback_spot_shift()`` accessor returns only the general fallback;
-preserve ``None`` when forwarding controls to keep automatic engine resolution.
+Numerical bump controls are keyword-only and discoverable through
+``inspect.signature(numerical_greeks)``. ``spot_shift=None`` selects 0.01 spot
+units, except American Monte Carlo before expiry uses 8% of spot. Volatility and
+rate shifts default to 0.0001 decimal units; time shifts use one calendar day.
+Rust ``NumericalShiftSettings`` supplies the same defaults. Its
+``fallback_spot_shift()`` accessor returns the general fallback; keep ``None``
+when forwarding settings to preserve engine-specific automatic resolution.
 
 ``AnalyticHestonEuropeanEngine`` prices European calls/puts with ``HestonParameters``
 using adaptive Fourier integration and a deterministic-variance control variate.

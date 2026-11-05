@@ -100,10 +100,10 @@ fn european_greeks_and_implied_volatility_use_shared_contracts() {
     let context = market(100.0, 0.05, 0.02, 0.2);
     let engine = QuadratureVanillaEngine::default();
     let actual = engine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     let expected = AnalyticEuropeanEngine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     for greek in Greek::ALL {
         assert!(
@@ -164,7 +164,7 @@ fn settings_and_life_validation_preserve_expiry_and_failure_state() {
         })
         .unwrap();
     let result = engine
-        .price_with_greeks(&option, &expiry, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &expiry, GreeksRequest::all())
         .unwrap();
     assert_eq!(result.price(), 20.0);
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {

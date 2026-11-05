@@ -3,6 +3,7 @@ import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from functools import partial
 
 from kiyosi import (
     ComputationFailureError,
@@ -19,6 +20,7 @@ from kiyosi.market import (
     custom_calendar,
     weekdays_calendar,
 )
+from kiyosi.pricing import numerical_greeks
 from support.terminal import assert_terminal_greeks
 from test_accumulator import START, contract, market, terminal_reference
 
@@ -198,7 +200,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         quote = engine.price(option, context)
         self.assert_rejection(
             InvalidInputError,
-            engine.price_with_greeks,
+            partial(numerical_greeks, engine),
             option,
             context,
             "delta",
@@ -206,7 +208,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            engine.price_with_greeks,
+            partial(numerical_greeks, engine),
             option,
             context,
             "speed",
@@ -280,11 +282,13 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                 delta=1e-10,
             )
         for bump in (200, 1e-300):
-            native = engine.price_with_greeks(
-                option, context, ["delta", "gamma", "speed"], spot_shift=bump
+            native = numerical_greeks(
+                engine, option, context, ["delta", "gamma", "speed"], spot_shift=bump
             )
-            self.assertEqual(native.delta, result.delta)
-            self.assertEqual(native.gamma, result.gamma)
+            self.assertIsNotNone(result.delta)
+            self.assertIsNone(native.delta)
+            self.assertIsNotNone(result.gamma)
+            self.assertIsNone(native.gamma)
             self.assertIsNone(native.speed)
         for spot in (100, 110):
             boundary = engine.price_with_greeks(
@@ -441,7 +445,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             )
         self.assert_rejection(
             ComputationFailureError,
-            engine.price_with_greeks,
+            partial(numerical_greeks, engine),
             option,
             context,
             "speed",

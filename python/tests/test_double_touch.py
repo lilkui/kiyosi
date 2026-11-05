@@ -25,6 +25,7 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
 )
+from kiyosi.pricing import numerical_greeks
 from price_differences import price_differences
 from support.terminal import assert_terminal_greeks
 
@@ -1063,7 +1064,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
             "rho_per_percentage_point": 1e-8,
         }
         self.assertEqual(str(inspect.signature(type(engine))), "()")
-        signature = inspect.signature(engine.price_with_greeks)
+        signature = inspect.signature(numerical_greeks)
         for name, default in (
             ("spot_shift", None),
             ("volatility_shift", 0.0001),
@@ -1093,7 +1094,8 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
         for option in options:
             price = engine.price(option, market())
             default = engine.price_with_greeks(option, market(), greeks="all")
-            explicit = engine.price_with_greeks(
+            explicit = numerical_greeks(
+                engine,
                 option,
                 market(),
                 greeks="all",

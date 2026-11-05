@@ -18,6 +18,7 @@ from kiyosi.pricing import (
     implied_phoenix_coupon,
     implied_snowball_coupon,
     implied_volatility,
+    numerical_greeks,
 )
 from test_phoenix import contract as phoenix
 from test_snowball import END, START, contract, market
@@ -80,7 +81,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         for operation in (
             lambda: engine.price(object(), context),
             lambda: engine.price_with_statistics(object(), context),
-            lambda: engine.price_with_greeks(note, context, "delta", spot_shift=True),
+            lambda: numerical_greeks(engine, note, context, "delta", spot_shift=True),
             lambda: implied_volatility(engine, note, context, True),
             lambda: implied_volatility(engine, note, context, 1, max_iterations=2.5),
             lambda: implied_phoenix_coupon(engine, note, context, True),
@@ -98,7 +99,7 @@ class AutocallableMonteCarloTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            lambda: engine.price_with_greeks(note, context, "delta", spot_shift=0),
+            lambda: numerical_greeks(engine, note, context, "delta", spot_shift=0),
         )
         curve = RateTermStructure(
             reference_time=START,

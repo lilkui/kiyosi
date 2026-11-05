@@ -251,7 +251,7 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
                     0.0
                 };
                 let result = engine
-                    .price_with_greeks(&untouched, &ctx, GreeksRequest::all(), Default::default())
+                    .price_with_greeks(&untouched, &ctx, GreeksRequest::all())
                     .unwrap();
                 assert_eq!(result.price(), expected);
                 for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
@@ -361,7 +361,7 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
     let engine = engine(800);
     let ctx = context(100.0, Date::new(2025, 1, 2).unwrap().start_of_day());
     let result = engine
-        .price_with_greeks(&option, &ctx, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &ctx, GreeksRequest::all())
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|g| result.has(g)));
     let scalar = numerical_greeks(
@@ -407,14 +407,14 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(&option, &ctx, GreeksRequest::new([]), Default::default())
+            .price_with_greeks(&option, &ctx, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     let at = context(120.13, start());
     let unknown = option.replace_history(None);
     let result_at = engine
-        .price_with_greeks(&unknown, &at, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&unknown, &at, GreeksRequest::all())
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|g| !result_at.has(g)));
     assert_eq!(engine.price(&option, &ctx).unwrap(), result.price());

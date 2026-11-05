@@ -8,6 +8,7 @@ from fractions import Fraction
 
 from kiyosi import InvalidInputError, UnsupportedOperationError, market, pricing
 from kiyosi import instruments as ins
+from kiyosi.pricing import numerical_greeks
 
 
 class ApiConsistencyTests(unittest.TestCase):
@@ -585,8 +586,8 @@ class ApiConsistencyTests(unittest.TestCase):
                     self.subTest(engine=type(engine).__name__, request=request),
                     self.assertRaises(UnsupportedOperationError),
                 ):
-                    engine.price_with_greeks(
-                        option, context, request, time_shift_days=0
+                    numerical_greeks(
+                        engine, option, context, request, time_shift_days=0
                     )
 
     def test_built_in_pricing_requires_valuation_within_inclusive_contract_life(self):
@@ -887,8 +888,8 @@ class ApiConsistencyTests(unittest.TestCase):
             option, context.replace(valuation_time=end), "delta"
         )
         self.assertEqual(terminal.status("delta"), "undefined")
-        collapsed = pricing.QuadratureVanillaEngine().price_with_greeks(
-            option, context, "delta", spot_shift=400
+        collapsed = numerical_greeks(
+            pricing.QuadratureVanillaEngine(), option, context, "delta", spot_shift=400
         )
         self.assertEqual(collapsed.status("delta"), "undefined")
         heston = context.replace(
@@ -1035,15 +1036,6 @@ class GreekShiftValidationTests(unittest.TestCase):
         bsm = market.BlackScholesMertonParameters(
             risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
         )
-        heston = market.HestonParameters(
-            risk_free_rate=0.05,
-            dividend_yield=0.02,
-            initial_variance=0.04,
-            long_run_variance=0.04,
-            mean_reversion_speed=0,
-            vol_of_vol=0,
-            correlation=0,
-        )
         vanilla = ins.EuropeanOption(option_type="call", strike=100, **life)
         digital = ins.CashOrNothingOption(
             option_type="call", strike=100, payout=10, **life
@@ -1107,8 +1099,6 @@ class GreekShiftValidationTests(unittest.TestCase):
                     ins.ArithmeticAveragePriceOption,
                 )
             ),
-            (pricing.AnalyticHestonEuropeanEngine(), vanilla, heston),
-            (pricing.FiniteDifferenceHestonVanillaEngine(), vanilla, heston),
         ]
         for engine, option, model in cases:
             for at in (start, end):
@@ -1135,8 +1125,8 @@ class GreekShiftValidationTests(unittest.TestCase):
                                 self.subTest(field=field, invalid=bad),
                                 self.assertRaises(InvalidInputError),
                             ):
-                                engine.price_with_greeks(
-                                    option, context, "delta", **{field: bad}
+                                numerical_greeks(
+                                    engine, option, context, "delta", **{field: bad}
                                 )
 
 

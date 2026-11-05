@@ -23,6 +23,7 @@ from kiyosi.market import (
     all_days_calendar,
     weekdays_calendar,
 )
+from kiyosi.pricing import numerical_greeks
 from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
@@ -424,9 +425,9 @@ class BarrierBinomialTests(unittest.TestCase):
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):
-                engine.price_with_greeks(option(), market(), "delta", **kwargs)
+                numerical_greeks(engine, option(), market(), "delta", **kwargs)
         with self.assertRaises(OverflowError):
-            engine.price_with_greeks(option(), market(), "delta", time_shift_days=2**31)
+            numerical_greeks(engine, option(), market(), "delta", time_shift_days=2**31)
         mismatch = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )

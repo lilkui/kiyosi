@@ -405,11 +405,6 @@ class AnalyticEuropeanEngine:
         instrument: EuropeanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class AnalyticHestonEuropeanEngine:
@@ -439,11 +434,6 @@ class AnalyticHestonEuropeanEngine:
         instrument: EuropeanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class BjerksundStenslandVanillaEngine:
@@ -461,11 +451,6 @@ class BjerksundStenslandVanillaEngine:
         instrument: AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class AnalyticDigitalEngine:
@@ -491,11 +476,6 @@ class AnalyticDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class CoxRossRubinsteinBarrierEngine:
@@ -515,11 +495,6 @@ class CoxRossRubinsteinBarrierEngine:
         instrument: BarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class QuadratureBarrierEngine:
@@ -546,11 +521,6 @@ class QuadratureBarrierEngine:
         instrument: BarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class QuadratureDigitalEngine:
@@ -585,11 +555,6 @@ class QuadratureDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class QuadratureVanillaEngine:
@@ -621,11 +586,6 @@ class QuadratureVanillaEngine:
         instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class CoxRossRubinsteinVanillaEngine:
@@ -647,11 +607,6 @@ class CoxRossRubinsteinVanillaEngine:
         instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class CoxRossRubinsteinDigitalEngine:
@@ -679,11 +634,6 @@ class CoxRossRubinsteinDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceAccumulatorEngine:
@@ -716,11 +666,6 @@ class FiniteDifferenceAccumulatorEngine:
         instrument: Accumulator,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceBarrierEngine:
@@ -753,11 +698,6 @@ class FiniteDifferenceBarrierEngine:
         instrument: BarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceDoubleBarrierEngine:
@@ -792,11 +732,6 @@ class FiniteDifferenceDoubleBarrierEngine:
         instrument: DoubleBarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceAutocallableEngine:
@@ -849,11 +784,6 @@ class FiniteDifferenceAutocallableEngine:
         | PhoenixOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceDoubleTouchEngine:
@@ -888,11 +818,6 @@ class FiniteDifferenceDoubleTouchEngine:
         instrument: DoubleTouchOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceBinaryBarrierEngine:
@@ -927,11 +852,6 @@ class FiniteDifferenceBinaryBarrierEngine:
         instrument: BinaryBarrierOption | TouchOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceHestonVanillaEngine:
@@ -969,11 +889,6 @@ class FiniteDifferenceHestonVanillaEngine:
         instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceVanillaEngine:
@@ -1008,11 +923,6 @@ class FiniteDifferenceVanillaEngine:
         instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class FiniteDifferenceDigitalEngine:
@@ -1053,11 +963,6 @@ class FiniteDifferenceDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class MonteCarloVanillaEngine:
@@ -1102,11 +1007,6 @@ class MonteCarloVanillaEngine:
         instrument: EuropeanOption | AmericanOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class MonteCarloEstimate:
@@ -1168,11 +1068,6 @@ class MonteCarloDigitalEngine:
         instrument: CashOrNothingOption | AssetOrNothingOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class MonteCarloBarrierEngine:
@@ -1222,11 +1117,6 @@ class MonteCarloBarrierEngine:
         instrument: BarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class MonteCarloDoubleBarrierEngine:
@@ -1276,11 +1166,6 @@ class MonteCarloDoubleBarrierEngine:
         instrument: DoubleBarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class MonteCarloAutocallableEngine:
@@ -1345,11 +1230,6 @@ class MonteCarloAutocallableEngine:
         | PhoenixOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class MonteCarloAccumulatorEngine:
@@ -1389,11 +1269,6 @@ class MonteCarloAccumulatorEngine:
         instrument: Accumulator,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class MonteCarloAsianEngine:
@@ -1446,11 +1321,6 @@ class MonteCarloAsianEngine:
         instrument: GeometricAveragePriceOption | ArithmeticAveragePriceOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 type Greek = Literal[
@@ -1924,11 +1794,6 @@ class AnalyticGeometricAveragePriceEngine:
         instrument: GeometricAveragePriceOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class ArithmeticAveragePriceOption:
@@ -1985,11 +1850,6 @@ class TurnbullWakemanArithmeticAveragePriceEngine:
         instrument: ArithmeticAveragePriceOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class BarrierOption:
@@ -2077,11 +1937,6 @@ class AnalyticBarrierEngine:
         instrument: BarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class DoubleBarrierOption:
@@ -2217,11 +2072,6 @@ class AnalyticRangeAccrualEngine:
         instrument: RangeAccrualOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class AnalyticDoubleBarrierEngine:
@@ -2241,11 +2091,6 @@ class AnalyticDoubleBarrierEngine:
         instrument: DoubleBarrierOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class AnalyticDoubleTouchEngine:
@@ -2265,11 +2110,6 @@ class AnalyticDoubleTouchEngine:
         instrument: DoubleTouchOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class BinaryBarrierOption:
@@ -2482,11 +2322,6 @@ class AnalyticBinaryBarrierEngine:
         instrument: BinaryBarrierOption | TouchOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class DoubleTouchOption:
@@ -2622,11 +2457,6 @@ class QuadratureAutocallableEngine:
         | PhoenixOption,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 class AutocallableObservation:
@@ -3234,11 +3064,6 @@ class QuadratureAccumulatorEngine:
         instrument: Accumulator,
         context: PricingContext,
         greeks: Greek | Literal["all"] | Iterable[Greek],
-        *,
-        spot_shift: _Real | None = None,
-        volatility_shift: _Real = ...,
-        rate_shift: _Real = ...,
-        time_shift_days: SupportsIndex = ...,
     ) -> PricingResult: ...
 
 def fixed_coupon_note(

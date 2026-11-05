@@ -137,6 +137,13 @@ def shifted(inputs, field, bump):
     return value
 
 
+def native_method(contract, name):
+    """Map Kiyosi reporting names to an independent reference's native methods."""
+    return getattr(
+        contract, name if hasattr(contract, name) else name.split("_per_", 1)[0]
+    )
+
+
 def measure(
     inputs,
     name,
@@ -160,7 +167,7 @@ def measure(
         }
         if name in native and not price_only and hasattr(option, name):
             try:
-                value = getattr(option, name.split("_per_", 1)[0])() / native[name]
+                value = native_method(option, name)() / native[name]
             except RuntimeError as error:
                 if "not provided" not in str(error):
                     raise

@@ -6,11 +6,11 @@ macro_rules! analytic_engine {
         pub(crate) struct $engine;
         numerical_greeks_methods!(
             PyRef<'_, $option>,
-            |_binding, py, instrument, context, request, shifts| {
+            |_binding, py, instrument, context, request| {
                 let option = &instrument.0;
                 let context = &context.0;
                 Ok(risk::PricingResult(domain(py.detach(|| {
-                    kiyosi::$engine.price_with_greeks(option, context, request, shifts)
+                    kiyosi::$engine.price_with_greeks(option, context, request)
                 }))?))
             },
             [
@@ -18,7 +18,7 @@ macro_rules! analytic_engine {
                 /// Notes
                 /// -----
                 /// Before expiry requested Greeks use scalar numerical differences and the
-                /// corresponding shifts. At expiry spot_shift controls terminal-payoff stencils.
+                /// engine defaults. Use numerical_greeks for configurable scalar differences.
             ],
             engine_methods!(
                 $engine,

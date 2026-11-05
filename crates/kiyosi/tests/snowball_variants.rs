@@ -331,17 +331,17 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
         let engine = QuadratureAutocallableEngine::default();
         let context = market(103.0, date(1, 1));
         let snapshot = note.clone();
-        let result = engine
-            .price_with_greeks(
-                note,
-                &context,
-                GreeksRequest::all(),
-                NumericalShiftSettings {
-                    spot_shift: Some(0.25),
-                    ..Default::default()
-                },
-            )
-            .unwrap();
+        let result = kiyosi::numerical_greeks(
+            &engine,
+            note,
+            &context,
+            GreeksRequest::all(),
+            NumericalShiftSettings {
+                spot_shift: Some(0.25),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         for greek in Greek::ALL {
             assert!(result.has(greek), "{greek:?}");
         }
@@ -377,12 +377,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
             Error::InvalidInput(_)
         ));
         let at_expiry = engine
-            .price_with_greeks(
-                note,
-                &market(110.0, date(4, 1)),
-                GreeksRequest::all(),
-                Default::default(),
-            )
+            .price_with_greeks(note, &market(110.0, date(4, 1)), GreeksRequest::all())
             .unwrap();
         assert_eq!(at_expiry.get(Greek::Theta), None);
         assert_eq!(

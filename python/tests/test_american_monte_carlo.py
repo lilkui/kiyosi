@@ -6,6 +6,7 @@ import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from functools import partial
 
 import QuantLib as ql
 from kiyosi import (
@@ -20,6 +21,7 @@ from kiyosi.pricing import (
     CoxRossRubinsteinVanillaEngine,
     MonteCarloVanillaEngine,
     implied_volatility,
+    numerical_greeks,
 )
 from support.terminal import assert_terminal_greeks
 from test_binomial import END, GREEKS, START, market
@@ -200,12 +202,14 @@ class AmericanMonteCarloTests(unittest.TestCase):
                             price,
                         )
         engine = MonteCarloVanillaEngine(path_count=2048, step_count=6, seed=42)
-        shift = 1 / 8192
-        for rate in (-1 / 16384, 0, 1 / 16384):
+        requested = 0.0001
+        for rate in (-requested / 2, 0, requested / 2):
             context = market(rate=rate, dividend=0)
-            result = engine.price_with_greeks(
-                call, context, "rho_per_percentage_point", rate_shift=shift
-            )
+            result = engine.price_with_greeks(call, context, "rho_per_percentage_point")
+            shift = (rate + requested) - rate
+            if rate - (rate - shift) != shift:
+                self.assertIsNone(result.rho_per_percentage_point)
+                continue
             up = engine.price(call, market(rate=rate + shift, dividend=math.ulp(0.0)))
             down = engine.price(call, market(rate=rate - shift, dividend=math.ulp(0.0)))
             self.assertAlmostEqual(
@@ -232,19 +236,19 @@ class AmericanMonteCarloTests(unittest.TestCase):
                     sampling=sampling,
                     antithetic=antithetic,
                 )
-                result = engine.price_with_greeks(
-                    option, context, greeks="all", **shifts
+                result = numerical_greeks(
+                    engine, option, context, greeks="all", **shifts
                 )
                 self.assertEqual(result.price, engine.price(option, context))
                 for name in GREEKS:
-                    selected = engine.price_with_greeks(option, context, name, **shifts)
+                    selected = numerical_greeks(engine, option, context, name, **shifts)
                     self.assertEqual(getattr(selected, name), getattr(result, name))
                 default = engine.price_with_greeks(option, context, ["delta", "gamma"])
-                explicit = engine.price_with_greeks(
-                    option, context, ["delta", "gamma"], spot_shift=8
+                explicit = numerical_greeks(
+                    engine, option, context, ["delta", "gamma"], spot_shift=8
                 )
-                none = engine.price_with_greeks(
-                    option, context, ["delta", "gamma"], spot_shift=None
+                none = numerical_greeks(
+                    engine, option, context, ["delta", "gamma"], spot_shift=None
                 )
                 self.assertEqual(
                     (default.delta, default.gamma), (explicit.delta, explicit.gamma)
@@ -269,16 +273,16 @@ class AmericanMonteCarloTests(unittest.TestCase):
                     context,
                     -1,
                 )
-                unavailable = engine.price_with_greeks(
-                    option, context, "gamma", spot_shift=200
+                unavailable = numerical_greeks(
+                    engine, option, context, "gamma", spot_shift=200
                 )
                 self.assertIsNone(unavailable.gamma)
                 self.assertEqual(unavailable.price, result.price)
                 with ThreadPoolExecutor(max_workers=2) as pool:
                     values = list(
                         pool.map(
-                            lambda _, engine=engine: engine.price_with_greeks(
-                                option, context, greeks="all", **shifts
+                            lambda _, engine=engine: numerical_greeks(
+                                engine, option, context, greeks="all", **shifts
                             ),
                             range(2),
                         )
@@ -290,7 +294,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
                         [getattr(result, name) for name in GREEKS],
                     )
         unseeded = MonteCarloVanillaEngine(path_count=1024, step_count=6)
-        result = unseeded.price_with_greeks(option, context, greeks="all", **shifts)
+        result = numerical_greeks(unseeded, option, context, greeks="all", **shifts)
         self.assertTrue(all(math.isfinite(getattr(result, name)) for name in GREEKS))
         self.assertIsNone(unseeded.seed)
 
@@ -301,11 +305,11 @@ class AmericanMonteCarloTests(unittest.TestCase):
         for name in ("spot_shift", "volatility_shift", "rate_shift"):
             for value in (True, "1", object()):
                 with self.assertRaises(TypeError):
-                    engine.price_with_greeks(option, context, "delta", **{name: value})
+                    numerical_greeks(engine, option, context, "delta", **{name: value})
             for value in (0, -1, math.inf, math.nan):
                 self.assert_rejection(
                     InvalidInputError,
-                    engine.price_with_greeks,
+                    partial(numerical_greeks, engine),
                     option,
                     context,
                     "delta",
@@ -313,11 +317,11 @@ class AmericanMonteCarloTests(unittest.TestCase):
                 )
         for value in (True, 1.5, 2.0):
             with self.assertRaises(TypeError):
-                engine.price_with_greeks(
-                    option, context, "theta", time_shift_days=value
+                numerical_greeks(
+                    engine, option, context, "theta", time_shift_days=value
                 )
         with self.assertRaises(OverflowError):
-            engine.price_with_greeks(option, context, "theta", time_shift_days=2**31)
+            numerical_greeks(engine, option, context, "theta", time_shift_days=2**31)
         curve = RateTermStructure(
             reference_time=START,
             times=[END, END + (END - START)],
@@ -345,7 +349,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
         )
         self.assert_rejection(
             ComputationFailureError,
-            engine.price_with_greeks,
+            partial(numerical_greeks, engine),
             option,
             context,
             "rho_per_percentage_point",
@@ -398,7 +402,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
             # Wide bumps cross exercise boundaries near expiry.
             names = sorted(reference.keys() - {"price"}) if scenario["wrapper"] else []
             result = (
-                engine.price_with_greeks(option, context, names, **profile["shifts"])
+                numerical_greeks(engine, option, context, names, **profile["shifts"])
                 if names
                 else None
             )
@@ -426,8 +430,8 @@ class AmericanMonteCarloTests(unittest.TestCase):
             for seed in (1, 7, 42):
                 engine = MonteCarloVanillaEngine(seed=seed, thread_count=1)
                 result = engine.price_with_greeks(option, context, ["delta", "gamma"])
-                explicit = engine.price_with_greeks(
-                    option, context, ["delta", "gamma"], spot_shift=8 * scale
+                explicit = numerical_greeks(
+                    engine, option, context, ["delta", "gamma"], spot_shift=8 * scale
                 )
                 self.assertEqual(
                     (result.delta, result.gamma), (explicit.delta, explicit.gamma)

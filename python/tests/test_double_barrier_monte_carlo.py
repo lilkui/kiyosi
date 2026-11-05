@@ -4,6 +4,7 @@ import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from functools import partial
 from itertools import product
 
 from kiyosi import (
@@ -15,6 +16,7 @@ from kiyosi import (
 )
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure, all_days_calendar
+from kiyosi.pricing import numerical_greeks
 from test_double_barrier import END, START, contract, market, reference
 from test_double_barrier_finite_difference import (
     FIRST,
@@ -64,11 +66,15 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             self.assertIsNone(getattr(result, name))
             with self.assertRaises(UnsupportedOperationError):
                 result.require(name)
-        actual = engine.price_with_greeks(
-            option, context, ("delta", "gamma"), spot_shift=1e12
+        actual = numerical_greeks(
+            engine, option, context, ("delta", "gamma"), spot_shift=1e12
         )
-        expected = pricing.AnalyticDoubleBarrierEngine().price_with_greeks(
-            option, context, ("delta", "gamma"), spot_shift=1e12
+        expected = numerical_greeks(
+            pricing.AnalyticDoubleBarrierEngine(),
+            option,
+            context,
+            ("delta", "gamma"),
+            spot_shift=1e12,
         )
         self.assertEqual(actual.delta, expected.delta)
         self.assertEqual(actual.gamma, expected.gamma)
@@ -446,7 +452,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):
-                engine.price_with_greeks(contract(), market(), "delta", **fields)
+                numerical_greeks(engine, contract(), market(), "delta", **fields)
         option = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )
@@ -518,7 +524,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            engine.price_with_greeks,
+            partial(numerical_greeks, engine),
             option,
             context,
             "delta",

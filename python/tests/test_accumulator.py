@@ -3,6 +3,7 @@ import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, time, timedelta
+from functools import partial
 from itertools import pairwise
 
 from kiyosi import (
@@ -18,6 +19,7 @@ from kiyosi.market import (
     RateTermStructure,
     weekdays_calendar,
 )
+from kiyosi.pricing import numerical_greeks
 from support.terminal import assert_terminal_greeks
 
 START = datetime(2025, 1, 1)
@@ -330,7 +332,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            engine.price_with_greeks,
+            partial(numerical_greeks, engine),
             option,
             market(),
             "delta",
@@ -586,7 +588,8 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             ):
                 base = engine.price_with_greeks(option, context, greeks="all")
                 fine = refined.price_with_greeks(option, context, greeks="all")
-                smaller = refined.price_with_greeks(
+                smaller = numerical_greeks(
+                    refined,
                     option,
                     context,
                     greeks="all",
@@ -657,7 +660,8 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             )
 
         def evaluate(volatility):
-            return engine.price_with_greeks(
+            return numerical_greeks(
+                engine,
                 option,
                 market(spot, valuation, volatility, -0.02),
                 [

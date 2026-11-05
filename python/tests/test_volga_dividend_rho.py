@@ -11,6 +11,7 @@ from kiyosi.pricing import (
     AnalyticEuropeanEngine,
     FiniteDifferenceVanillaEngine,
     MonteCarloVanillaEngine,
+    numerical_greeks,
 )
 from quantlib_reference import oracle
 from test_binomial import END, START, market
@@ -115,7 +116,8 @@ class VolgaDividendRhoTests(unittest.TestCase):
             exact.dividend_rho_per_percentage_point, -exact.delta, delta=1e-12
         )
         for bump in (0.0001, 0.0002):
-            actual = engine.price_with_greeks(
+            actual = numerical_greeks(
+                engine,
                 option,
                 context,
                 [
@@ -154,7 +156,8 @@ class VolgaDividendRhoTests(unittest.TestCase):
             self.assertIsNone(actual.delta)
             self.assertIsNone(actual.rho_per_percentage_point)
         flat = market(dividend=0.02)
-        actual = engine.price_with_greeks(
+        actual = numerical_greeks(
+            engine,
             option,
             flat,
             ["volga_per_squared_percentage_point", "dividend_rho_per_percentage_point"],
@@ -162,7 +165,8 @@ class VolgaDividendRhoTests(unittest.TestCase):
         )
         self.assertIsNone(actual.volga_per_squared_percentage_point)
         self.assertIsNotNone(actual.dividend_rho_per_percentage_point)
-        actual = engine.price_with_greeks(
+        actual = numerical_greeks(
+            engine,
             option,
             flat,
             ["volga_per_squared_percentage_point", "dividend_rho_per_percentage_point"],
@@ -177,12 +181,16 @@ class VolgaDividendRhoTests(unittest.TestCase):
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         engine = MonteCarloVanillaEngine(path_count=2048, step_count=6, seed=42)
-        shift = 1 / 8192
-        for dividend in (-shift / 2, 0, shift / 2, shift):
+        requested = 0.0001
+        for dividend in (-requested / 2, 0, requested / 2, requested):
             context = market(rate=0, dividend=dividend)
             actual = engine.price_with_greeks(
-                option, context, "dividend_rho_per_percentage_point", rate_shift=shift
+                option, context, "dividend_rho_per_percentage_point"
             )
+            shift = (dividend + requested) - dividend
+            if dividend - (dividend - shift) != shift:
+                self.assertIsNone(actual.dividend_rho_per_percentage_point)
+                continue
             # A subnormal negative rate forces the exercise grid without changing BSM coefficients.
             up, down = [
                 engine.price(

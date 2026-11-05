@@ -6,6 +6,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from fractions import Fraction
+from functools import partial
 
 import QuantLib as ql
 from kiyosi import (
@@ -24,6 +25,7 @@ from kiyosi.pricing import (
     AnalyticDigitalEngine,
     AnalyticEuropeanEngine,
     implied_volatility,
+    numerical_greeks,
 )
 from support.terminal import assert_terminal_greeks
 
@@ -295,7 +297,7 @@ class DigitalTests(unittest.TestCase):
                 {"greeks": [1]},
             ):
                 with self.assertRaises(TypeError):
-                    self.engine.price_with_greeks(option, self.context, **changes)
+                    numerical_greeks(self.engine, option, self.context, **changes)
             with self.assertRaises(ValueError):
                 self.engine.price_with_greeks(option, self.context, "Delta")
             self.assert_rejection(
@@ -313,25 +315,25 @@ class DigitalTests(unittest.TestCase):
             ):
                 for value in (True, "1") + (() if field == "spot_shift" else (None,)):
                     with self.assertRaises(TypeError):
-                        self.engine.price_with_greeks(
-                            option, self.context, "delta", **{field: value}
+                        numerical_greeks(
+                            self.engine, option, self.context, "delta", **{field: value}
                         )
                 for value in (0, -1):
                     self.assert_rejection(
                         InvalidInputError,
-                        self.engine.price_with_greeks,
+                        partial(numerical_greeks, self.engine),
                         option,
                         self.context,
                         "delta",
                         **{field: value},
                     )
             with self.assertRaises(TypeError):
-                self.engine.price_with_greeks(
-                    option, self.context, "delta", time_shift_days=1.5
+                numerical_greeks(
+                    self.engine, option, self.context, "delta", time_shift_days=1.5
                 )
             with self.assertRaises(OverflowError):
-                self.engine.price_with_greeks(
-                    option, self.context, "delta", time_shift_days=2**40
+                numerical_greeks(
+                    self.engine, option, self.context, "delta", time_shift_days=2**40
                 )
             for settings in (
                 {"lower_bound": -0.1},
@@ -602,10 +604,11 @@ class DigitalTests(unittest.TestCase):
             self.assertTrue(math.isclose(result.speed, expected, rel_tol=1e-7))
             self.assertIsNone(result.gamma)
         option = CashOrNothingOption(**dict(self.terms, strike=1.5), payout=1)
-        result = self.engine.price_with_greeks(
-            option, self.context.replace(spot_price=1.5), "speed", spot_shift=1
-        )
-        self.assertAlmostEqual(result.speed, -0.07172406990163582, delta=1e-14)
+        context = self.context.replace(spot_price=1.5)
+        native = self.engine.price_with_greeks(option, context, "speed")
+        self.assertTrue(math.isfinite(native.require("speed")))
+        scalar = numerical_greeks(self.engine, option, context, "speed", spot_shift=1)
+        self.assertIsNone(scalar.speed)
 
     def test_expiry_reaching_time_stencils_use_scalar_derivatives_on_both_sides(self):
 

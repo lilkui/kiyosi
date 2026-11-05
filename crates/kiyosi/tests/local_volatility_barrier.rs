@@ -102,11 +102,9 @@ fn constant_surface_matches_single_and_double_barrier_states() {
                             vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end];
                     }
                     let option = BarrierOption::new(terms).unwrap();
-                    let expected = single
-                        .price_with_greeks(&option, &bsm, request(), Default::default())
-                        .unwrap();
+                    let expected = single.price_with_greeks(&option, &bsm, request()).unwrap();
                     let actual = single
-                        .price_with_greeks(&option, &local, request(), Default::default())
+                        .price_with_greeks(&option, &local, request())
                         .unwrap();
                     assert_close(&actual, &expected);
                 }
@@ -127,11 +125,9 @@ fn constant_surface_matches_single_and_double_barrier_states() {
                             vec![Date::new(2025, 6, 30).unwrap().start_of_day(), end];
                     }
                     let option = DoubleBarrierOption::new(terms).unwrap();
-                    let expected = double
-                        .price_with_greeks(&option, &bsm, request(), Default::default())
-                        .unwrap();
+                    let expected = double.price_with_greeks(&option, &bsm, request()).unwrap();
                     let actual = double
-                        .price_with_greeks(&option, &local, request(), Default::default())
+                        .price_with_greeks(&option, &local, request())
                         .unwrap();
                     assert_close(&actual, &expected);
                 }
@@ -150,7 +146,7 @@ fn skewed_continuous_knock_in_out_parity_includes_native_greeks() {
     for direction in [OptionType::Call, OptionType::Put] {
         let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
         let expected = vanilla
-            .price_with_greeks(&option, &context, request(), Default::default())
+            .price_with_greeks(&option, &context, request())
             .unwrap();
         let check = |inside: PricingResult, outside: PricingResult| {
             assert!(
@@ -175,12 +171,7 @@ fn skewed_continuous_knock_in_out_parity_includes_native_greeks() {
                 let mut terms = BarrierOptionTerms::new(direction, 100.0, start, end, level, kind);
                 terms.rebate = 2.0;
                 single
-                    .price_with_greeks(
-                        &BarrierOption::new(terms).unwrap(),
-                        &context,
-                        request(),
-                        Default::default(),
-                    )
+                    .price_with_greeks(&BarrierOption::new(terms).unwrap(), &context, request())
                     .unwrap()
             };
             check(evaluate(ki), evaluate(ko));
@@ -194,7 +185,6 @@ fn skewed_continuous_knock_in_out_parity_includes_native_greeks() {
                     &DoubleBarrierOption::new(terms).unwrap(),
                     &context,
                     request(),
-                    Default::default(),
                 )
                 .unwrap()
         };
@@ -271,7 +261,7 @@ fn skewed_single_barriers_match_independent_quantlib_reference() {
         ))
         .unwrap();
         let result = engine
-            .price_with_greeks(&option, &context, request(), Default::default())
+            .price_with_greeks(&option, &context, request())
             .unwrap();
         for ((actual, expected), tolerance) in [
             result.price(),
@@ -307,14 +297,14 @@ fn resolved_cash_uses_only_required_coverage_and_requests_fail_before_shortcuts(
     terms.rebate = 3.0;
     let option = BarrierOption::new(terms.clone()).unwrap();
     let result = engine
-        .price_with_greeks(&option, &short, request(), Default::default())
+        .price_with_greeks(&option, &short, request())
         .unwrap();
     assert!((result.price() - 3.0 * (-0.05_f64).exp()).abs() < 1e-14);
     assert_eq!(result.get(Greek::Delta), None);
     assert_eq!(result.get(Greek::Gamma), None);
     assert_eq!(
         engine
-            .price_with_greeks(&option, &short, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&option, &short, GreeksRequest::all())
             .unwrap()
             .get(Greek::VegaPerPercentagePoint),
         None
@@ -329,9 +319,7 @@ fn resolved_cash_uses_only_required_coverage_and_requests_fail_before_shortcuts(
             ..Default::default()
         })
         .unwrap();
-    let result = engine
-        .price_with_greeks(&paid, &later, request(), Default::default())
-        .unwrap();
+    let result = engine.price_with_greeks(&paid, &later, request()).unwrap();
     assert_eq!(result.price(), 0.0);
     assert_eq!(result.require(Greek::Delta).unwrap(), 0.0);
     assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);

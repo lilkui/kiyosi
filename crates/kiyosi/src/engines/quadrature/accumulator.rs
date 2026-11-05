@@ -5,8 +5,8 @@ use super::gaussian::{
 use super::{QuadratureSettings, flat_rates};
 use crate::numerics::log_ratio;
 use crate::{
-    Accumulator, BlackScholesMertonParameters, Error, GreeksRequest, NumericalShiftSettings,
-    OptionType, PricingContext, PricingEngine, PricingResult, Result, Timestamp,
+    Accumulator, BlackScholesMertonParameters, Error, GreeksRequest, OptionType, PricingContext,
+    PricingEngine, PricingResult, Result, Timestamp,
 };
 
 /// Prices accumulators and decumulators using affine layers and Gaussian integration.
@@ -77,8 +77,8 @@ impl QuadratureAccumulatorEngine {
         option: &Accumulator,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let shifts = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, shifts)
     }

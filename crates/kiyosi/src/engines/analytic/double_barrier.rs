@@ -4,8 +4,8 @@ use crate::engines::analytic::barrier::resolved_price_with_state;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{Sum, checked, log_interval_mass, log_ratio, scaled_cash, scaled_cdf};
 use crate::{
-    AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings, ObservationMode,
-    OptionType, PricingContext, PricingEngine, PricingResult, RebateTiming, Result,
+    AnalyticEuropeanEngine, Error, GreeksRequest, ObservationMode, OptionType, PricingContext,
+    PricingEngine, PricingResult, RebateTiming, Result,
 };
 use std::f64::consts::PI;
 
@@ -73,8 +73,8 @@ impl AnalyticDoubleBarrierEngine {
         option: &DoubleBarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, settings)
     }

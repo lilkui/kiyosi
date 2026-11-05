@@ -5,6 +5,7 @@ from datetime import datetime
 
 from kiyosi import instruments as ins
 from kiyosi import market, pricing
+from kiyosi.pricing import numerical_greeks
 from support.terminal import assert_terminal_greeks
 
 
@@ -53,8 +54,8 @@ class ExpiryGreekTests(unittest.TestCase):
                 self.assertIsNone(
                     engine.price_with_greeks(instrument, context, "delta").delta
                 )
-                result = engine.price_with_greeks(
-                    instrument, context, "delta", spot_shift=0.001
+                result = numerical_greeks(
+                    engine, instrument, context, "delta", spot_shift=0.001
                 )
                 self.assertAlmostEqual(result.require("delta"), expected, delta=1e-10)
 

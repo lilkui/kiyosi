@@ -290,7 +290,7 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
         .replace_history(Some(BarrierTouchState::Untouched));
     let context = market(100.0, day(2025, 1, 1));
     let result = engine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|g| result.has(g)));
     let controls = ImpliedVolatilitySettings {
@@ -305,12 +305,7 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
     );
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([]),
-                Default::default(),
-            )
+            .price_with_greeks(&option, &context, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -318,7 +313,7 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
         let expiry = market(spot, option.expiry_time());
         assert_eq!(engine.price(&option, &expiry).unwrap(), 0.0);
         let result = engine
-            .price_with_greeks(&option, &expiry, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&option, &expiry, GreeksRequest::all())
             .unwrap();
         for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
             assert_eq!(result.get(greek), None);
@@ -339,7 +334,6 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
             &option,
             &market(120.0, day(2025, 1, 1)),
             GreeksRequest::all(),
-            Default::default(),
         )
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|g| !boundary.has(g)));

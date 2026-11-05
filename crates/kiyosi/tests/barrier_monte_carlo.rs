@@ -54,17 +54,17 @@ fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
         t.rebate = 1.0;
         t.rebate_timing = RebateTiming::AtHit;
         let option = BarrierOption::new(t.clone()).unwrap();
-        let result = engine
-            .price_with_greeks(
-                &option,
-                &context,
-                request,
-                NumericalShiftSettings {
-                    spot_shift: Some(shift),
-                    ..Default::default()
-                },
-            )
-            .unwrap();
+        let result = kiyosi::numerical_greeks(
+            &engine,
+            &option,
+            &context,
+            request,
+            NumericalShiftSettings {
+                spot_shift: Some(shift),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         assert_eq!(result.price(), engine.price(&option, &context).unwrap());
         for greek in [Greek::Delta, Greek::Gamma] {
             assert!(!result.has(greek));
@@ -77,38 +77,14 @@ fn at_hit_rebate_greeks_require_a_usable_spot_stencil() {
             spot_shift: Some(1e-4 * spot),
             ..Default::default()
         };
-        let expected = AnalyticBarrierEngine
-            .price_with_greeks(&option, &context, request, settings)
-            .unwrap();
-        let actual = engine
-            .price_with_greeks(&option, &context, request, settings)
-            .unwrap();
+        let expected =
+            kiyosi::numerical_greeks(&AnalyticBarrierEngine, &option, &context, request, settings)
+                .unwrap();
+        let actual =
+            kiyosi::numerical_greeks(&engine, &option, &context, request, settings).unwrap();
         assert_eq!(actual.price(), expected.price());
         assert_eq!(actual.values(), expected.values());
-        assert_eq!(
-            actual.supported(),
-            GreeksRequest::new([Greek::Delta, Greek::Gamma])
-        );
-
-        t.strike = spot;
-        t.rebate = 0.0;
-        let option = BarrierOption::new(t).unwrap();
-        assert_eq!(
-            engine
-                .price_with_greeks(
-                    &option,
-                    &context,
-                    request,
-                    NumericalShiftSettings {
-                        spot_shift: Some(shift),
-                        ..Default::default()
-                    }
-                )
-                .unwrap(),
-            engine
-                .price_with_greeks(&option, &context, request, settings)
-                .unwrap()
-        );
+        assert_eq!(actual.supported(), GreeksRequest::all());
     }
 }
 
@@ -151,50 +127,6 @@ fn tiny_volatility_payoffs_match_the_vanilla_limit() {
 }
 
 #[test]
-fn native_greeks_ignore_valid_non_spot_shifts() {
-    let option = BarrierOption::new(terms(BarrierType::DownAndOut, OptionType::Call)).unwrap();
-    let context = market(0.04);
-    let engine = MonteCarloBarrierEngine::new(MonteCarloSettings {
-        path_count: 32,
-        seed: Some(42),
-        ..Default::default()
-    })
-    .unwrap();
-    let shifts = NumericalShiftSettings {
-        volatility_shift: 0.001,
-        rate_shift: 0.001,
-        time_shift_days: 2,
-        ..Default::default()
-    };
-    let request = GreeksRequest::all();
-    let expected = engine
-        .price_with_greeks(&option, &context, request, Default::default())
-        .unwrap();
-    let actual = engine
-        .price_with_greeks(&option, &context, request, shifts)
-        .unwrap();
-    assert_eq!(actual, expected);
-    assert_eq!(
-        PricingEngine::price_with_greeks(&engine, &option, &context, request, shifts).unwrap(),
-        expected
-    );
-    for spot_shift in [0.0, -1.0, f64::NAN, f64::INFINITY] {
-        assert!(matches!(
-            engine.price_with_greeks(
-                &option,
-                &context,
-                request,
-                NumericalShiftSettings {
-                    spot_shift: Some(spot_shift),
-                    ..Default::default()
-                }
-            ),
-            Err(Error::InvalidInput(_))
-        ));
-    }
-}
-
-#[test]
 fn conditional_survival_prices_and_likelihood_greeks_match_analytic() {
     let context = market(0.04);
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
@@ -211,19 +143,13 @@ fn conditional_survival_prices_and_likelihood_greeks_match_analytic() {
                 t.rebate = 2.0;
                 let option = BarrierOption::new(t).unwrap();
                 let actual = engine
-                    .price_with_greeks(
-                        &option,
-                        &context,
-                        GreeksRequest::all(),
-                        NumericalShiftSettings::default(),
-                    )
+                    .price_with_greeks(&option, &context, GreeksRequest::all())
                     .unwrap();
                 let expected = AnalyticBarrierEngine
                     .price_with_greeks(
                         &option,
                         &context,
                         GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-                        Default::default(),
                     )
                     .unwrap();
                 for (got, want, budget) in [
@@ -274,19 +200,13 @@ fn scheduled_likelihood_greeks_and_early_monitoring_match_quadrature() {
             }
             let option = BarrierOption::new(t).unwrap();
             let actual = engine
-                .price_with_greeks(
-                    &option,
-                    &context,
-                    GreeksRequest::all(),
-                    NumericalShiftSettings::default(),
-                )
+                .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap();
             let expected = QuadratureBarrierEngine::default()
                 .price_with_greeks(
                     &option,
                     &context,
                     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-                    Default::default(),
                 )
                 .unwrap();
             for (got, want, budget) in [
@@ -328,19 +248,13 @@ fn continuous_hit_rebates_keep_negative_rate_values_and_derivatives() {
         for rate in [-0.02, 0.04] {
             let context = market(rate);
             let actual = engine
-                .price_with_greeks(
-                    &option,
-                    &context,
-                    GreeksRequest::all(),
-                    NumericalShiftSettings::default(),
-                )
+                .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap();
             let expected = AnalyticBarrierEngine
                 .price_with_greeks(
                     &option,
                     &context,
                     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-                    Default::default(),
                 )
                 .unwrap();
             for (got, want, budget) in [
@@ -393,22 +307,12 @@ fn threads_do_not_change_samples_even_with_early_exit_and_pairing() {
                 })
                 .unwrap();
                 let expected = serial
-                    .price_with_greeks(
-                        &option,
-                        &context,
-                        GreeksRequest::all(),
-                        NumericalShiftSettings::default(),
-                    )
+                    .price_with_greeks(&option, &context, GreeksRequest::all())
                     .unwrap();
                 std::thread::scope(|scope| {
                     let call = || {
                         parallel
-                            .price_with_greeks(
-                                &option,
-                                &context,
-                                GreeksRequest::all(),
-                                NumericalShiftSettings::default(),
-                            )
+                            .price_with_greeks(&option, &context, GreeksRequest::all())
                             .unwrap()
                     };
                     let other = scope.spawn(call);
@@ -523,12 +427,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                 })
                 .unwrap();
             let result = engine
-                .price_with_greeks(
-                    &option,
-                    &context,
-                    GreeksRequest::all(),
-                    NumericalShiftSettings::default(),
-                )
+                .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap();
             assert_eq!(
                 result.price(),
@@ -563,12 +462,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
             for history in [BarrierTouchState::Touched, BarrierTouchState::Untouched] {
                 let known = option.replace_history(Some(history));
                 let result = engine
-                    .price_with_greeks(
-                        &known,
-                        &expired,
-                        GreeksRequest::all(),
-                        NumericalShiftSettings::default(),
-                    )
+                    .price_with_greeks(&known, &expired, GreeksRequest::all())
                     .unwrap();
                 assert_eq!(
                     result.price(),
@@ -588,7 +482,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                     }
                 }
                 let reference = AnalyticBarrierEngine
-                    .price_with_greeks(&known, &expired, GreeksRequest::all(), Default::default())
+                    .price_with_greeks(&known, &expired, GreeksRequest::all())
                     .unwrap();
                 assert_eq!(result.get(Greek::Delta), reference.get(Greek::Delta));
                 assert_eq!(result.get(Greek::Gamma), reference.get(Greek::Gamma));
@@ -731,12 +625,7 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
         ));
         assert!(matches!(
             engine
-                .price_with_greeks(
-                    &option,
-                    &curved,
-                    GreeksRequest::new([]),
-                    NumericalShiftSettings::default()
-                )
+                .price_with_greeks(&option, &curved, GreeksRequest::new([]))
                 .unwrap_err(),
             Error::UnsupportedOperation(_)
         ));
@@ -762,27 +651,22 @@ fn settings_applicability_and_failure_categories_preserve_inputs() {
     assert!(matches!(BarrierOption::new(t), Err(Error::InvalidInput(_))));
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([]),
-                NumericalShiftSettings::default()
-            )
+            .price_with_greeks(&option, &context, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert!(matches!(
-        engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::all(),
-                NumericalShiftSettings {
-                    spot_shift: Some(0.0),
-                    ..Default::default()
-                }
-            )
-            .unwrap_err(),
+        kiyosi::numerical_greeks(
+            &engine,
+            &option,
+            &context,
+            GreeksRequest::all(),
+            NumericalShiftSettings {
+                spot_shift: Some(0.0),
+                ..Default::default()
+            }
+        )
+        .unwrap_err(),
         Error::InvalidInput(_)
     ));
     for (sigma, rate) in [(50.0, 0.04), (0.2, -1000.0)] {
@@ -840,8 +724,7 @@ fn rare_hit_samples_retain_scaled_value_and_unrequested_greeks_do_not_fail_price
             .price_with_greeks(
                 &option,
                 &tiny,
-                GreeksRequest::new([Greek::RhoPerPercentagePoint]),
-                NumericalShiftSettings::default()
+                GreeksRequest::new([Greek::RhoPerPercentagePoint])
             )
             .unwrap()
             .price(),
@@ -849,12 +732,7 @@ fn rare_hit_samples_retain_scaled_value_and_unrequested_greeks_do_not_fail_price
     );
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &tiny,
-                GreeksRequest::new([Greek::Gamma]),
-                NumericalShiftSettings::default()
-            )
+            .price_with_greeks(&option, &tiny, GreeksRequest::new([Greek::Gamma]))
             .unwrap_err(),
         Error::ComputationFailure(_)
     ));

@@ -215,7 +215,7 @@ class HestonFiniteDifferenceTests(unittest.TestCase):
         saved_model = snapshot.model_parameters
         end = snapshot.replace(valuation_time=END, spot_price=110)
         self.assertEqual(engine.price(option(), end), 10)
-        for when in (START - timedelta(days=1), END + timedelta(days=1)):
+        for when in (END + timedelta(microseconds=1), END + timedelta(days=1)):
             with self.subTest(when=when), self.assertRaises(InvalidInputError):
                 engine.price(option(), snapshot.replace(valuation_time=when))
         bsm = end.replace(

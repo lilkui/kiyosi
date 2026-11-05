@@ -3,8 +3,8 @@ use crate::engines::analytic::barrier::{hit_value, resolved_price};
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked, log_ratio, scaled_cash};
 use crate::{
-    BarrierOption, Error, GreeksRequest, NumericalShiftSettings, OptionType, PricingContext,
-    PricingEngine, PricingResult, RebateTiming, Result,
+    BarrierOption, Error, GreeksRequest, OptionType, PricingContext, PricingEngine, PricingResult,
+    RebateTiming, Result,
 };
 
 /// Configures the spatial resolution and integration extent for event-date quadrature.
@@ -82,7 +82,7 @@ impl QuadratureBarrierEngine {
     /// assert_eq!(engine.settings().asset_step_count, 1024);
     /// assert!(engine.price(&option, &context)? > 0.0);
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta]), Default::default())?;
+    ///     GreeksRequest::new([Greek::Delta]))?;
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
     /// ```
@@ -127,8 +127,8 @@ impl QuadratureBarrierEngine {
         option: &BarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, settings)
     }

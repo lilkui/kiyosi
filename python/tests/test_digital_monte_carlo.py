@@ -14,6 +14,7 @@ from kiyosi import (
 )
 from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import numerical_greeks
 
 START, END = (datetime(2025, 1, 1), datetime(2026, 1, 1))
 GREEKS = (
@@ -197,7 +198,8 @@ class DigitalNumericalTests(unittest.TestCase):
                     market(),
                     [],
                 )
-                controlled = engine.price_with_greeks(
+                controlled = numerical_greeks(
+                    engine,
                     option,
                     market(),
                     "rho_per_percentage_point",
@@ -208,10 +210,16 @@ class DigitalNumericalTests(unittest.TestCase):
                 )
                 self.assertEqual(controlled.price, engine.price(option, market()))
                 self.assertEqual(
-                    controlled.status("rho_per_percentage_point"), "unsupported"
+                    controlled.status("rho_per_percentage_point"), "available"
+                )
+                self.assertEqual(
+                    engine.price_with_greeks(
+                        option, market(), "rho_per_percentage_point"
+                    ).status("rho_per_percentage_point"),
+                    "unsupported",
                 )
                 with self.assertRaises(TypeError):
-                    engine.price_with_greeks(option, market(), "delta", spot_shift=True)
+                    numerical_greeks(engine, option, market(), "delta", spot_shift=True)
                 for valuation in (START - timedelta(days=1), END + timedelta(days=1)):
                     self.assert_rejection(
                         InvalidInputError,

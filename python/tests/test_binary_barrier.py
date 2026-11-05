@@ -15,7 +15,11 @@ from kiyosi.market import (
     RateTermStructure,
     all_days_calendar,
 )
-from kiyosi.pricing import AnalyticBinaryBarrierEngine, implied_volatility
+from kiyosi.pricing import (
+    AnalyticBinaryBarrierEngine,
+    implied_volatility,
+    numerical_greeks,
+)
 from support.terminal import assert_terminal_greeks
 
 GREEKS = (
@@ -355,8 +359,8 @@ class BinaryBarrierTests(unittest.TestCase):
             )
             self.assert_rejection(
                 InvalidInputError,
-                lambda context=context, option=option: engine.price_with_greeks(
-                    option, context, "delta", spot_shift=0
+                lambda context=context, option=option: numerical_greeks(
+                    engine, option, context, "delta", spot_shift=0
                 ),
             )
             boundary = engine.price_with_greeks(option, self.context(120), greeks="all")
@@ -484,8 +488,8 @@ class BinaryBarrierTests(unittest.TestCase):
                     delta=reference.BUDGET["price"],
                 )
                 if not reference.exclusions(inputs):
-                    result = engine.price_with_greeks(
-                        option, context, greeks="all", spot_shift=0.02
+                    result = numerical_greeks(
+                        engine, option, context, greeks="all", spot_shift=0.02
                     )
                     expected_greeks, metadata = reference.g.reference(
                         inputs,

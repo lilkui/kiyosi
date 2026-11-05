@@ -5,6 +5,7 @@ import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from functools import partial
 
 import QuantLib as ql
 from kiyosi import InvalidInputError, RootNotBracketedError, UnsupportedOperationError
@@ -19,6 +20,7 @@ from kiyosi.pricing import (
     AnalyticDigitalEngine,
     FiniteDifferenceBinaryBarrierEngine,
     implied_volatility,
+    numerical_greeks,
 )
 from support.terminal import assert_terminal_greeks
 
@@ -284,7 +286,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            engine.price_with_greeks,
+            partial(numerical_greeks, engine),
             option,
             ctx,
             ["delta"],
@@ -382,7 +384,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             engine.price(object(), market())
         with self.assertRaises(TypeError):
-            engine.price_with_greeks(touch(), market(), ["delta"], spot_shift=True)
+            numerical_greeks(engine, touch(), market(), ["delta"], spot_shift=True)
         with self.assertRaises(TypeError):
             implied_volatility(engine, touch(), market(), True)
         with self.assertRaises(AttributeError):
@@ -443,9 +445,7 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                     inputs["strike"],
                     (option.expiry_time - ctx.valuation_time).days,
                 ) == (100, 100, 365):
-                    result = engine.price_with_greeks(
-                        option, ctx, greeks="all", spot_shift=0.1
-                    )
+                    result = engine.price_with_greeks(option, ctx, greeks="all")
                     for greek in (
                         "delta",
                         "gamma",

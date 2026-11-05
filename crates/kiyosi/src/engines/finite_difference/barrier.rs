@@ -61,7 +61,7 @@ impl FiniteDifferenceBarrierEngine {
     /// let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings::default())?;
     /// assert_eq!(engine.settings().asset_step_count, 800);
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta]), Default::default())?;
+    ///     GreeksRequest::new([Greek::Delta]))?;
     /// assert_eq!(result.price(), engine.price(&option, &context)?);
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
@@ -71,8 +71,8 @@ impl FiniteDifferenceBarrierEngine {
         option: &BarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let shifts = crate::NumericalShiftSettings::default();
         analysis(option, context, self.settings, request, shifts)
     }
 }
@@ -109,9 +109,9 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
         option: &BarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        self.price_with_greeks(option, context, request, shifts)
+        let _shifts = crate::NumericalShiftSettings::default();
+        self.price_with_greeks(option, context, request)
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
         option.volatility_affects_price(context)
@@ -236,7 +236,7 @@ impl FiniteDifferenceDoubleBarrierEngine {
     ///     100.0, start.into())?;
     /// let engine = FiniteDifferenceDoubleBarrierEngine::default();
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]), Default::default())?;
+    ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
     /// assert!((result.price() - 1.0838814592583166).abs() < 0.001);
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
@@ -246,8 +246,8 @@ impl FiniteDifferenceDoubleBarrierEngine {
         option: &DoubleBarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let shifts = crate::NumericalShiftSettings::default();
         analysis(option, context, self.settings, request, shifts)
     }
 }
@@ -283,9 +283,9 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
         option: &DoubleBarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        self.price_with_greeks(option, context, request, shifts)
+        let _shifts = crate::NumericalShiftSettings::default();
+        self.price_with_greeks(option, context, request)
     }
     fn volatility_affects_price(
         &self,

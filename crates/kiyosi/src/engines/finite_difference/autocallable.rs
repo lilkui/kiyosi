@@ -67,7 +67,7 @@ impl FiniteDifferenceAutocallableEngine {
     ///     100.0, start.into())?;
     /// let engine = FiniteDifferenceAutocallableEngine::default();
     /// let result = engine.price_with_greeks(&note, &market,
-    ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]), Default::default())?;
+    ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
     /// assert_eq!(result.price(), engine.price(&note, &market)?);
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
@@ -77,8 +77,8 @@ impl FiniteDifferenceAutocallableEngine {
         option: &AutocallableNote<T>,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let shifts = crate::NumericalShiftSettings::default();
         analysis(option, context, self.settings, request, shifts, native)
     }
 }
@@ -116,9 +116,9 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
         option: &AutocallableNote<T>,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        self.price_with_greeks(option, context, request, shifts)
+        let _shifts = crate::NumericalShiftSettings::default();
+        self.price_with_greeks(option, context, request)
     }
     fn volatility_affects_price(
         &self,

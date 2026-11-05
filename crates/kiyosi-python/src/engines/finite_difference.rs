@@ -79,11 +79,11 @@ macro_rules! fd_engine {
 
         numerical_greeks_methods!(
             $instrument,
-            |binding, py, instrument, context, request, shifts| {
+            |binding, py, instrument, context, request| {
                 let engine = binding.0;
                 let context = &context.0;
                 $with!(&instrument, option, Ok(risk::PricingResult(domain(py.detach(|| {
-                    engine.price_with_greeks(option, context, request, shifts)
+                    engine.price_with_greeks(option, context, request)
                 }))?)))
             },
             [

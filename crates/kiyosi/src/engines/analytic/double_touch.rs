@@ -2,8 +2,8 @@ use super::double_barrier::AbsorbingDistribution;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked, scaled_cash};
 use crate::{
-    DoubleTouchOption, Error, GreeksRequest, NumericalShiftSettings, ObservationMode,
-    PricingContext, PricingEngine, PricingResult, Result, SettlementTiming,
+    DoubleTouchOption, Error, GreeksRequest, ObservationMode, PricingContext, PricingEngine,
+    PricingResult, Result, SettlementTiming,
 };
 
 /// Prices continuous cash double-touch and double-no-touch contracts with flat rates.
@@ -45,7 +45,7 @@ impl AnalyticDoubleTouchEngine {
     /// let engine = AnalyticDoubleTouchEngine;
     /// assert!((engine.price(&option, &context)? - 0.36726156351907174).abs() < 1e-12);
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta]), Default::default())?;
+    ///     GreeksRequest::new([Greek::Delta]))?;
     /// assert!(result.require(Greek::Delta)? < 0.0);
     /// # Ok(()) }
     /// ```
@@ -110,8 +110,8 @@ impl AnalyticDoubleTouchEngine {
         option: &DoubleTouchOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, settings)
     }

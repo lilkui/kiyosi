@@ -1,8 +1,8 @@
 use super::{Moments, estimate, path_samples, scaled_value, unstable};
 use crate::numerics::log_ratio;
 use crate::{
-    Accumulator, GreeksRequest, MonteCarloEstimate, MonteCarloSettings, NumericalShiftSettings,
-    OptionType, PricingContext, PricingEngine, PricingResult, Result,
+    Accumulator, GreeksRequest, MonteCarloEstimate, MonteCarloSettings, OptionType, PricingContext,
+    PricingEngine, PricingResult, Result,
 };
 
 /// Prices accumulators with exact lognormal transitions between trading dates.
@@ -66,7 +66,7 @@ impl MonteCarloAccumulatorEngine {
     /// assert_eq!(estimate.price(), 30.0);
     /// assert_eq!(estimate.standard_error(), Some(0.0));
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::VegaPerPercentagePoint]), Default::default())?;
+    ///     GreeksRequest::new([Greek::VegaPerPercentagePoint]))?;
     /// assert_eq!(result.require(Greek::VegaPerPercentagePoint)?, 0.0);
     /// # Ok(()) }
     /// ```
@@ -269,8 +269,8 @@ impl MonteCarloAccumulatorEngine {
         option: &Accumulator,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let shifts = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, shifts)
     }

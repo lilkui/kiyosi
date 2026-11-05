@@ -1,8 +1,7 @@
 use super::{path_means, scaled_value, unstable};
 use crate::{
     DigitalOption, Error, Greek, GreeksRequest, MonteCarloEstimate, MonteCarloSampling,
-    MonteCarloSettings, NumericalShiftSettings, OptionType, PricingContext, PricingEngine,
-    PricingResult, Result,
+    MonteCarloSettings, OptionType, PricingContext, PricingEngine, PricingResult, Result,
 };
 
 /// Prices European cash-or-nothing and asset-or-nothing contracts by terminal sampling.
@@ -109,15 +108,15 @@ impl MonteCarloDigitalEngine {
 
     /// Returns requested likelihood-ratio delta/gamma from the price's normal draws.
     ///
-    /// Numerical shifts are unused before expiry; terminal stencils use the supplied spot bump.
-    /// All shifts are validated before pricing, including unused controls.
+    /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
+    /// Terminal stencils use engine-default spot bumps.
     /// Other Greeks remain absent. Expiry delta and gamma use terminal payoff stencils; before expiry no numerical bumps
     /// are required. Near-expiry estimates can have substantial sampling error.
     ///
     /// # Errors
     ///
     /// Checks flat-rate applicability before requests, then propagates
-    /// [`Self::price`] errors. Empty requests or invalid shifts return
+    /// [`Self::price`] errors. Empty requests return
     /// [`Error::InvalidInput`]; non-finite requested Greek samples return
     /// [`Error::ComputationFailure`]. Inputs remain unchanged.
     ///
@@ -140,7 +139,7 @@ impl MonteCarloDigitalEngine {
     ///     seed: Some(42), ..Default::default()
     /// })?;
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::all(), Default::default())?;
+    ///     GreeksRequest::all())?;
     /// assert!(result.require(Greek::Delta)? > 0.0);
     /// assert!(!result.has(Greek::VegaPerPercentagePoint));
     /// let estimate = engine.price_with_statistics(&option, &context)?;
@@ -152,8 +151,8 @@ impl MonteCarloDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         if crate::engines::deterministic::enabled(context) {
             return crate::numerical_greeks(self, option, context, request, settings).map(
                 |result| {
@@ -335,9 +334,8 @@ impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request, settings)
+        Self::price_with_greeks(self, option, context, request)
     }
 }

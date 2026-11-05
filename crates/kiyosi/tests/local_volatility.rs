@@ -170,12 +170,7 @@ fn automatic_domains_ignore_surface_outside_remaining_horizon() {
     let engine = FiniteDifferenceVanillaEngine::default();
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
     let baseline = engine
-        .price_with_greeks(
-            &option,
-            &context(surface(vec![vec![0.2; 2]; 2])),
-            request,
-            Default::default(),
-        )
+        .price_with_greeks(&option, &context(surface(vec![vec![0.2; 2]; 2])), request)
         .unwrap();
     close(baseline.price(), 9.227_005_508_154_036, 0.002);
     for (past, future) in [(1.5, 0.2), (0.2, 1.5), (1.5, 1.5)] {
@@ -191,7 +186,7 @@ fn automatic_domains_ignore_surface_outside_remaining_horizon() {
         )
         .unwrap();
         let actual = engine
-            .price_with_greeks(&option, &context(extended), request, Default::default())
+            .price_with_greeks(&option, &context(extended), request)
             .unwrap();
         close(actual.price(), baseline.price(), 1e-12);
         for greek in [Greek::Delta, Greek::Gamma] {
@@ -239,10 +234,10 @@ fn constant_surface_matches_bsm_prices_and_native_greeks() {
     for direction in [OptionType::Call, OptionType::Put] {
         let option = EuropeanOption::new(direction, 100.0, dates().0, dates().1).unwrap();
         let actual = engine(800, 800, 400.0)
-            .price_with_greeks(&option, &c, request, Default::default())
+            .price_with_greeks(&option, &c, request)
             .unwrap();
         let expected = AnalyticEuropeanEngine
-            .price_with_greeks(&option, &bsm, request, Default::default())
+            .price_with_greeks(&option, &bsm, request)
             .unwrap();
         close(actual.price(), expected.price(), 0.002);
         close(
@@ -320,7 +315,7 @@ fn skewed_surface_converges_and_greeks_hold_absolute_coordinates_fixed() {
     let option = EuropeanOption::new(OptionType::Call, 100.0, dates().0, dates().1).unwrap();
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
     let fine = engine(1600, 1600, 400.0)
-        .price_with_greeks(&option, &c, request, Default::default())
+        .price_with_greeks(&option, &c, request)
         .unwrap();
     let coarse = engine(800, 800, 400.0).price(&option, &c).unwrap();
     close(coarse, fine.price(), 0.002);
@@ -386,7 +381,7 @@ fn unsupported_models_requests_and_solves_fail_even_at_expiry() {
         ] {
             assert_eq!(
                 engine(100, 100, 400.0)
-                    .price_with_greeks(&option, &c, request, Default::default())
+                    .price_with_greeks(&option, &c, request)
                     .unwrap()
                     .get(Greek::VegaPerPercentagePoint),
                 None
@@ -436,11 +431,9 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
         for direction in [OptionType::Call, OptionType::Put] {
             let american = AmericanOption::new(direction, 100.0, dates().0, dates().1).unwrap();
             let a = vanilla
-                .price_with_greeks(&american, &local, request, Default::default())
+                .price_with_greeks(&american, &local, request)
                 .unwrap();
-            let b = vanilla
-                .price_with_greeks(&american, &bsm, request, Default::default())
-                .unwrap();
+            let b = vanilla.price_with_greeks(&american, &bsm, request).unwrap();
             for (actual, expected) in [
                 (a.price(), b.price()),
                 (
@@ -459,12 +452,8 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
                     .unwrap(),
                 DigitalOption::asset_or_nothing(direction, 100.0, dates().0, dates().1).unwrap(),
             ] {
-                let a = digital
-                    .price_with_greeks(&option, &local, request, Default::default())
-                    .unwrap();
-                let b = digital
-                    .price_with_greeks(&option, &bsm, request, Default::default())
-                    .unwrap();
+                let a = digital.price_with_greeks(&option, &local, request).unwrap();
+                let b = digital.price_with_greeks(&option, &bsm, request).unwrap();
                 close(a.price(), b.price(), 1e-7);
                 close(
                     a.require(Greek::Delta).unwrap(),
@@ -484,7 +473,7 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
                     })
                     .unwrap();
                 let result = digital
-                    .price_with_greeks(&option, &terminal, request, Default::default())
+                    .price_with_greeks(&option, &terminal, request)
                     .unwrap();
                 let expected = if direction == OptionType::Call {
                     option.payout().unwrap_or(110.0)
@@ -501,12 +490,7 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
                 assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
                 assert_eq!(
                     digital
-                        .price_with_greeks(
-                            &option,
-                            &terminal,
-                            GreeksRequest::all(),
-                            Default::default()
-                        )
+                        .price_with_greeks(&option, &terminal, GreeksRequest::all())
                         .unwrap()
                         .get(Greek::VegaPerPercentagePoint),
                     None
@@ -520,7 +504,7 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
                 })
                 .unwrap();
             let result = vanilla
-                .price_with_greeks(&american, &terminal, request, Default::default())
+                .price_with_greeks(&american, &terminal, request)
                 .unwrap();
             assert_eq!(
                 result.price(),
@@ -538,12 +522,7 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
             assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
             assert_eq!(
                 vanilla
-                    .price_with_greeks(
-                        &american,
-                        &terminal,
-                        GreeksRequest::all(),
-                        Default::default()
-                    )
+                    .price_with_greeks(&american, &terminal, GreeksRequest::all())
                     .unwrap()
                     .get(Greek::VegaPerPercentagePoint),
                 None
@@ -720,7 +699,7 @@ fn american_and_digital_skew_match_frozen_independent_references() {
         (
             FiniteDifferenceVanillaEngine::new(settings)
                 .unwrap()
-                .price_with_greeks(&american, &local, request, Default::default())
+                .price_with_greeks(&american, &local, request)
                 .unwrap(),
             [
                 8.360_927_652_711_77,
@@ -731,7 +710,7 @@ fn american_and_digital_skew_match_frozen_independent_references() {
         (
             FiniteDifferenceDigitalEngine::new(settings)
                 .unwrap()
-                .price_with_greeks(&cash, &local, request, Default::default())
+                .price_with_greeks(&cash, &local, request)
                 .unwrap(),
             [
                 5.390_974_151_168_607,
@@ -742,7 +721,7 @@ fn american_and_digital_skew_match_frozen_independent_references() {
         (
             FiniteDifferenceDigitalEngine::new(settings)
                 .unwrap()
-                .price_with_greeks(&asset, &local, request, Default::default())
+                .price_with_greeks(&asset, &local, request)
                 .unwrap(),
             [
                 33.108_384_697_704_08,
@@ -773,7 +752,6 @@ fn fd_expiry_coverage_stability_and_numerical_errors_are_explicit() {
             &option,
             &at_expiry,
             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-            Default::default(),
         )
         .unwrap();
     assert_eq!(result.price(), 10.0);
@@ -841,10 +819,10 @@ fn short_maturity_prices_and_greeks_match_bsm() {
     let option = EuropeanOption::new(OptionType::Call, 100.0, dates().0, end).unwrap();
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
     let actual = engine(12800, 1600, 400.0)
-        .price_with_greeks(&option, &c, request, Default::default())
+        .price_with_greeks(&option, &c, request)
         .unwrap();
     let expected = AnalyticEuropeanEngine
-        .price_with_greeks(&option, &bsm, request, Default::default())
+        .price_with_greeks(&option, &bsm, request)
         .unwrap();
     close(actual.price(), expected.price(), 0.001);
     close(
@@ -905,7 +883,6 @@ fn skewed_prices_match_frozen_independent_quantlib_reference() {
                 &option,
                 &c,
                 GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-                Default::default(),
             )
             .unwrap();
         close(actual.price(), price, 0.002);

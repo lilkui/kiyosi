@@ -13,12 +13,12 @@ class BinaryTouchConstructionTests(unittest.TestCase):
     def test_payoff_kind_is_explicit_and_null_amount_cannot_change_cash_settlement(
         self,
     ):
-        common = dict(
-            effective_time=datetime(2025, 1, 3),
-            expiry_time=datetime(2025, 1, 6),
-            barrier_level=120,
-            barrier_type="up_and_in",
-        )
+        common = {
+            "effective_time": datetime(2025, 1, 3),
+            "expiry_time": datetime(2025, 1, 6),
+            "barrier_level": 120,
+            "barrier_type": "up_and_in",
+        }
         for cls, extra in (
             (ins.TouchOption, {}),
             (ins.BinaryBarrierOption, {"strike": 100, "option_type": "call"}),

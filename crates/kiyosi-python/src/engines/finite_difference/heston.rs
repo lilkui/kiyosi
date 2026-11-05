@@ -48,14 +48,14 @@ pub(crate) struct FiniteDifferenceHestonVanillaEngine(
 
 numerical_greeks_methods!(
     binomial::VanillaInstrument<'_>,
-    |binding, py, instrument, context, request, shifts| {
+    |binding, py, instrument, context, request| {
         let engine = binding.0;
         let context = &context.0;
         binomial::with_vanilla!(
             instrument,
             option,
             Ok(risk::PricingResult(domain(py.detach(|| {
-                engine.price_with_greeks(option, context, request, shifts)
+                engine.price_with_greeks(option, context, request)
             }))?))
         )
     },
@@ -63,8 +63,8 @@ numerical_greeks_methods!(
         ///
         /// Notes
         /// -----
-        /// All requested Greeks are unsupported and remain None. Every shift is
-        /// validated but unused, including at expiry. numerical_greeks also rejects Heston.
+        /// All requested Greeks are unsupported and remain None. Bump controls are
+        /// not accepted; numerical_greeks also rejects Heston.
     ],
     engine_methods!(
         FiniteDifferenceHestonVanillaEngine,

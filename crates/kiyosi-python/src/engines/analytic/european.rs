@@ -15,23 +15,20 @@ pub(crate) struct AnalyticEuropeanEngine;
 
 numerical_greeks_methods!(
     PyRef<'_, EuropeanOption>,
-    |_binding, _py, instrument, context, request, shifts| {
+    |_binding, _py, instrument, context, request| {
         Ok(risk::PricingResult(domain(
             kiyosi::AnalyticEuropeanEngine.price_with_greeks(
                 &instrument.0,
                 &context.0,
-                request,
-                shifts,
-            ),
+                request),
         )?))
     },
     [
         ///
         /// Notes
         /// -----
-        /// Before expiry all Greeks are analytic: every shift is validated but unused.
-        /// At expiry spot_shift controls terminal-payoff stencils. Use numerical_greeks
-        /// for explicit bump calculations and bump-convergence checks.
+        /// Uses analytic Greeks before expiry and default terminal stencils at expiry.
+        /// Use numerical_greeks for configurable scalar differences.
     ],
     engine_methods!(
         AnalyticEuropeanEngine,

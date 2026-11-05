@@ -130,7 +130,7 @@ class TimestampTests(unittest.TestCase):
             delta=1e-15,
         )
         self.assertEqual(engine.price(call, market(expiry, 110)), 10)
-        for at in (time(6, 10, 123455), time(6, 15, 654322)):
+        for at in (time(6, 15, 654323), time(6, 15, 654322)):
             with self.subTest(at=at), self.assertRaises(InvalidInputError):
                 engine.price(call, market(at))
         self.assertEqual(pickle.loads(pickle.dumps(call)), call)

@@ -242,9 +242,8 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         spot_shift: Some(0.25),
         ..Default::default()
     };
-    let result = engine
-        .price_with_greeks(&note, &context, GreeksRequest::all(), shifts)
-        .unwrap();
+    let result =
+        kiyosi::numerical_greeks(&engine, &note, &context, GreeksRequest::all(), shifts).unwrap();
     let bump = |spot| {
         engine
             .price(
@@ -407,7 +406,7 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
         let context = market(spot, date(4, 1));
         assert!((engine.price(&note, &context).unwrap() - expected).abs() < 1e-14);
         let result = engine
-            .price_with_greeks(&note, &context, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&note, &context, GreeksRequest::all())
             .unwrap();
         for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
             assert_eq!(result.get(greek), None);

@@ -2,8 +2,7 @@ use crate::instruments::asian::AverageTerms;
 use crate::numerics::{checked, log_ratio, scaled_cash};
 use crate::{
     ArithmeticAveragePriceOption, Error, GeometricAveragePriceOption, GreeksRequest,
-    MonteCarloEstimate, MonteCarloSampling, NumericalShiftSettings, PricingContext, PricingEngine,
-    PricingResult, Result,
+    MonteCarloEstimate, MonteCarloSampling, PricingContext, PricingEngine, PricingResult, Result,
 };
 use crate::{Greek, MonteCarloSettings};
 use crate::{OptionContract, Timestamp, TurnbullWakemanArithmeticAveragePriceEngine};
@@ -155,7 +154,7 @@ impl MonteCarloAsianEngine {
     /// })?;
     /// assert!((engine.price(&option, &context)? - 5.0359).abs() < 0.2);
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     kiyosi::GreeksRequest::all(), Default::default())?;
+    ///     kiyosi::GreeksRequest::all())?;
     /// assert!(result.has(kiyosi::Greek::Delta));
     /// assert!(!result.has(kiyosi::Greek::VegaPerPercentagePoint));
     /// let estimate = engine.price_with_statistics(&option, &context)?;
@@ -203,8 +202,8 @@ impl MonteCarloAsianEngine {
 
     /// Returns requested delta and gamma directly from the price's shared normal draws.
     ///
-    /// Numerical shifts are unused before expiry; terminal stencils use the supplied spot bump.
-    /// All shifts are validated before pricing, including unused controls.
+    /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
+    /// Terminal stencils use engine-default spot bumps.
     /// Only delta and gamma are supported, including terminal-payoff Greeks at expiry. Before expiry, no numerical bumps are
     /// required. For scalar differences and history-boundary stencil rules, use
     /// [`crate::numerical_greeks`], which pins a request-local seed even for unseeded
@@ -212,7 +211,7 @@ impl MonteCarloAsianEngine {
     ///
     /// # Errors
     ///
-    /// Rejects empty requests or invalid shifts with [`Error::InvalidInput`]
+    /// Rejects empty requests with [`Error::InvalidInput`]
     /// before pricing, then propagates [`Self::price`] errors.
     /// Non-finite requested Greeks return [`Error::ComputationFailure`].
     /// Inputs remain unchanged on success and failure.
@@ -225,11 +224,11 @@ impl MonteCarloAsianEngine {
         option: &I,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult>
     where
         Self: PricingEngine<I>,
     {
+        let settings = crate::NumericalShiftSettings::default();
         if crate::engines::deterministic::enabled(context) {
             return crate::numerical_greeks(self, option, context, request, settings).map(
                 |result| {
@@ -238,7 +237,7 @@ impl MonteCarloAsianEngine {
             );
         }
         context.bsm_parameters()?;
-        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request, settings)
+        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request)
     }
 
     #[expect(
@@ -553,8 +552,8 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         option: &GeometricAveragePriceOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         request.validate()?;
         settings.validate()?;
@@ -633,8 +632,8 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         option: &ArithmeticAveragePriceOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         request.validate()?;
         settings.validate()?;

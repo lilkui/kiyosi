@@ -226,7 +226,7 @@ def check_bindings():
                     "rho_per_percentage_point",
                 ):
                     try:
-                        getattr(contract, name.split("_per_", 1)[0])()
+                        g.native_method(contract, name)()
                     except RuntimeError as error:
                         assert "not provided" in str(error)
                     else:

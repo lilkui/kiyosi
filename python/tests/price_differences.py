@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from functools import cache
 from types import SimpleNamespace
 
+from kiyosi.instruments import EuropeanOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
@@ -45,9 +46,13 @@ def price_differences(
     start = datetime.combine(option.effective_time, datetime.min.time())
     end = datetime.combine(option.expiry_time, datetime.min.time())
     step = timedelta(days=time_shift_days)
-    if start < time < end:
+    if start < time < end and not isinstance(option, EuropeanOption):
         step = min(step, time - start, end - time)
-    before, after = -min(step, time - start), min(step, end - time)
+    before, after = (
+        (-min(step, end - time), min(step, end - time))
+        if isinstance(option, EuropeanOption)
+        else (-min(step, time - start), min(step, end - time))
+    )
     days = (after - before).total_seconds() / 86400
 
     @cache

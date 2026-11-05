@@ -91,7 +91,7 @@ fn live_barriers_preserve_in_out_parity_and_analytics() {
         .replace_history(Some(BarrierTouchState::Untouched));
     let context = market(100.0, option.effective_time());
     let result = engine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|g| result.has(g)));
     let solved = implied_volatility(
@@ -117,7 +117,7 @@ fn greeks_do_not_cross_touch_discontinuities_or_history_regimes() {
     let option = BarrierOption::new(t.clone()).unwrap();
     let context = market(120.0, t.effective_time);
     let result = AnalyticBarrierEngine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
     let near = market(119.995, t.effective_time);
@@ -150,7 +150,6 @@ fn greeks_do_not_cross_touch_discontinuities_or_history_regimes() {
             &scheduled,
             &market(100.0, scheduled.effective_time()),
             GreeksRequest::all(),
-            Default::default(),
         )
         .unwrap();
     assert!(!result.has(Greek::Theta));
@@ -461,7 +460,7 @@ fn scheduled_requests_recover_volatility_and_support_concurrent_reads() {
     );
     let engine = AnalyticBarrierEngine;
     let result = engine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     assert!(!result.has(Greek::Theta));
     let settings = ImpliedVolatilitySettings {
@@ -472,27 +471,27 @@ fn scheduled_requests_recover_volatility_and_support_concurrent_reads() {
     let sigma = implied_volatility(&engine, &option, &context, result.price(), settings).unwrap();
     assert!((sigma - 0.2).abs() < 1e-7);
     assert!(matches!(
-        engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::all(),
-                NumericalShiftSettings {
-                    spot_shift: Some(0.0),
-                    ..Default::default()
-                }
-            )
-            .unwrap_err(),
+        kiyosi::numerical_greeks(
+            &engine,
+            &option,
+            &context,
+            GreeksRequest::all(),
+            NumericalShiftSettings {
+                spot_shift: Some(0.0),
+                ..Default::default()
+            }
+        )
+        .unwrap_err(),
         Error::InvalidInput(_)
     ));
     std::thread::scope(|scope| {
         let first = scope.spawn(|| {
             engine
-                .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+                .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap()
         });
         let second = engine
-            .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&option, &context, GreeksRequest::all())
             .unwrap();
         assert_eq!(first.join().unwrap().values(), second.values());
     });
@@ -565,7 +564,7 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
         .unwrap();
     assert!(matches!(
         AnalyticBarrierEngine
-            .price_with_greeks(&option, &curved, GreeksRequest::new([]), Default::default())
+            .price_with_greeks(&option, &curved, GreeksRequest::new([]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));

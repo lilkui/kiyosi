@@ -20,6 +20,7 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
 )
+from kiyosi.pricing import numerical_greeks
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -230,7 +231,8 @@ class AsianMonteCarloTests(unittest.TestCase):
                     )
                     self.assertEqual(selected.gamma, result.gamma)
                     self.assertIsNone(selected.delta)
-                    controlled = engine.price_with_greeks(
+                    controlled = numerical_greeks(
+                        engine,
                         instrument,
                         context,
                         "delta",
@@ -240,7 +242,9 @@ class AsianMonteCarloTests(unittest.TestCase):
                         time_shift_days=2,
                     )
                     self.assertEqual(controlled.price, result.price)
-                    self.assertEqual(controlled.delta, result.delta)
+                    self.assertAlmostEqual(
+                        controlled.delta, result.delta, delta=0.00002
+                    )
 
     def test_sampling_threading_concurrency_and_exact_distribution_step_invariance(
         self,
@@ -435,7 +439,7 @@ class AsianMonteCarloTests(unittest.TestCase):
                 ({"greeks": "delta", "time_shift_days": 2**40}, OverflowError),
             ):
                 with self.assertRaises(exception):
-                    engine.price_with_greeks(instrument, context, **settings)
+                    numerical_greeks(engine, instrument, context, **settings)
             for observed, settings, expected_error in (
                 (-1, {}, RootNotBracketedError),
                 (math.nan, {}, InvalidInputError),

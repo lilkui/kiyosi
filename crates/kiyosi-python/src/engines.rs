@@ -17,7 +17,7 @@ macro_rules! with_contract {
 // Expand methods before PyO3 parses the impl, including Monte Carlo's settings methods.
 macro_rules! numerical_greeks_methods {
     ($instrument:ty,
-     |$engine:ident, $py:ident, $option:ident, $context:ident, $request:ident, $shifts:ident| $body:block,
+     |$engine:ident, $py:ident, $option:ident, $context:ident, $request:ident| $body:block,
      [$(#[$extra_doc:meta])*],
      $methods:ident!($($args:tt)*)) => {
         $methods! {
@@ -36,8 +36,8 @@ macro_rules! numerical_greeks_methods {
             },
             /// Return shift-control names potentially used by this Greek calculation path.
             ///
-            /// Individual requests or resolved payoffs may use fewer controls. All
-            /// supplied controls are validated, including inactive controls.
+            /// Individual requests may use fewer internal default controls. Use
+            /// numerical_greeks for configurable scalar differences.
             fn active_greek_controls(
                 &self,
                 py: pyo3::Python<'_>,
@@ -56,19 +56,6 @@ macro_rules! numerical_greeks_methods {
             ///     Market snapshot and valuation instant.
             /// greeks : str or iterable of str
             ///     Greek names or "all" to request every measure; duplicates are ignored.
-            /// spot_shift : float or None, optional
-            ///     Positive finite absolute spot bump; None (default) selects 0.01 spot units.
-            /// volatility_shift : float, optional
-            ///     Positive finite numerical volatility bump in decimal units; defaults to 0.0001.
-            /// rate_shift : float, optional
-            ///     Positive finite parallel rate bump in decimal units; defaults to 0.0001.
-            ///     Numerical estimators apply it to the risk-free curve for rho and the dividend-yield
-            ///     curve for dividend rho.
-            /// time_shift_days : int, optional
-            ///     Positive forward/backward time bump in calendar days; defaults to 1.
-            ///     All controls are validated, including those unused by the estimator. The spot bump
-            ///     controls terminal-payoff stencils at expiry.
-            ///
             /// Returns
             /// -------
             /// PricingResult
@@ -78,10 +65,9 @@ macro_rules! numerical_greeks_methods {
             /// Raises
             /// ------
             /// KiyosiError
-            ///     If requests, shifts, pricing or a feasible bumped valuation fails.
+            ///     If requests, pricing or a feasible default bumped valuation fails.
             $(#[$extra_doc])*
-            #[pyo3(signature = (instrument, context, greeks, *, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
-            #[expect(clippy::too_many_arguments, reason = "explicit Python pricing controls")]
+            #[pyo3(signature = (instrument, context, greeks))]
             ///
             /// See Also
             /// --------
@@ -93,15 +79,8 @@ macro_rules! numerical_greeks_methods {
                 #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
                 context: &$crate::market::PricingContext,
                 greeks: &pyo3::Bound<'_, pyo3::PyAny>,
-                spot_shift: Option<&pyo3::Bound<'_, pyo3::PyAny>>,
-                #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
-                #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
-                #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
             ) -> pyo3::PyResult<$crate::risk::PricingResult> {
                 let $request = $crate::risk::greeks_request(greeks)?;
-                let $shifts = kiyosi::NumericalShiftSettings {
-                    spot_shift: spot_shift.map(crate::conversions::real).transpose()?, volatility_shift, rate_shift, time_shift_days,
-                };
                 let $engine = self;
                 let $py = py;
                 let $option = instrument;

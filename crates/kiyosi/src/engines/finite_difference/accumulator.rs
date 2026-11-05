@@ -56,7 +56,7 @@ impl FiniteDifferenceAccumulatorEngine {
     ///     101.0, start.into())?;
     /// let engine = FiniteDifferenceAccumulatorEngine::default();
     /// let result = engine.price_with_greeks(&option, &market,
-    ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]), Default::default())?;
+    ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
     /// assert_eq!(result.price(), engine.price(&option, &market)?);
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
@@ -66,8 +66,8 @@ impl FiniteDifferenceAccumulatorEngine {
         option: &Accumulator,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let shifts = crate::NumericalShiftSettings::default();
         analysis(option, context, self.settings, request, shifts, native)
     }
 }
@@ -104,9 +104,9 @@ impl PricingEngine<Accumulator> for FiniteDifferenceAccumulatorEngine {
         option: &Accumulator,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        self.price_with_greeks(option, context, request, shifts)
+        let _shifts = crate::NumericalShiftSettings::default();
+        self.price_with_greeks(option, context, request)
     }
     fn volatility_affects_price(&self, option: &Accumulator, context: &PricingContext) -> bool {
         option.volatility_affects_price(context)

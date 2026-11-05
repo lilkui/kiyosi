@@ -6,6 +6,7 @@ import numbers
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from functools import partial
 from typing import get_args
 
 import QuantLib as ql
@@ -32,6 +33,7 @@ from kiyosi.pricing import (
     FiniteDifferenceScheme,
     FiniteDifferenceVanillaEngine,
     implied_volatility,
+    numerical_greeks,
 )
 from support.terminal import assert_terminal_greeks
 from test_binomial import DIGITAL, END, START, VANILLA, contract, market
@@ -96,8 +98,8 @@ class FiniteDifferenceTests(unittest.TestCase):
         context = market(spot=100, rate=0.05, dividend=0.02, sigma=0.2)
         names = ["vega_per_percentage_point", "volga_per_squared_percentage_point"]
         shift = 0.01
-        actual = engine.price_with_greeks(
-            option, context, names, volatility_shift=shift
+        actual = numerical_greeks(
+            engine, option, context, names, volatility_shift=shift
         )
         low, high = (
             engine.price(
@@ -292,7 +294,7 @@ class FiniteDifferenceTests(unittest.TestCase):
             ):
                 self.assert_rejection(
                     InvalidInputError,
-                    engine.price_with_greeks,
+                    partial(numerical_greeks, engine),
                     option,
                     context,
                     "delta",
@@ -314,10 +316,10 @@ class FiniteDifferenceTests(unittest.TestCase):
                 {"unknown": 1},
             ):
                 with self.assertRaises(TypeError):
-                    engine.price_with_greeks(option, context, "delta", **settings)
+                    numerical_greeks(engine, option, context, "delta", **settings)
             with self.assertRaises(OverflowError):
-                engine.price_with_greeks(
-                    option, context, "delta", time_shift_days=2**31
+                numerical_greeks(
+                    engine, option, context, "delta", time_shift_days=2**31
                 )
             with self.assertRaises(TypeError):
                 engine.price_with_greeks(option, context)
@@ -332,8 +334,8 @@ class FiniteDifferenceTests(unittest.TestCase):
                 implied_volatility(engine, other, context, baseline)
             for shift in (1e-300, 100):
                 self.assertIsNone(
-                    engine.price_with_greeks(
-                        option, context, "speed", spot_shift=shift
+                    numerical_greeks(
+                        engine, option, context, "speed", spot_shift=shift
                     ).speed
                 )
             self.assertEqual(engine.price(option, context), baseline)
@@ -376,7 +378,7 @@ class FiniteDifferenceTests(unittest.TestCase):
                     [],
                 )
                 with self.assertRaises(TypeError):
-                    engine.price_with_greeks(option, shifted, [], spot_shift=True)
+                    numerical_greeks(engine, option, shifted, [], spot_shift=True)
         short = RateTermStructure(reference_time=START, times=[middle], factors=[0.99])
         self.assert_rejection(
             InvalidInputError,
@@ -594,9 +596,7 @@ class FiniteDifferenceTests(unittest.TestCase):
                         else american.reference(inputs)
                     )
                 names = sorted(reference.keys() - {"price"})
-                result = engine.price_with_greeks(
-                    option, context, names, **profile["shifts"]
-                )
+                result = engine.price_with_greeks(option, context, names)
                 for name, expected in reference.items():
                     budget = (
                         profile["tolerances"]
@@ -659,7 +659,7 @@ class FiniteDifferenceTests(unittest.TestCase):
                 sorted(reference.keys() - {"price"}) if wrapped else ["delta", "gamma"]
             )
             result = FiniteDifferenceDigitalEngine(**settings).price_with_greeks(
-                option, context, names, **profile["shifts"]
+                option, context, names
             )
             for name in ["price", *names]:
                 with self.subTest(case=identifier, measure=name):

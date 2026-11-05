@@ -33,12 +33,7 @@ fn materially_negative_prices_fail_instead_of_being_clipped() {
             Err(Error::ComputationFailure(_))
         ));
         assert!(matches!(
-            engine.price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([Greek::Delta]),
-                Default::default()
-            ),
+            engine.price_with_greeks(&option, &context, GreeksRequest::new([Greek::Delta])),
             Err(Error::ComputationFailure(_))
         ));
         let refined = FiniteDifferenceVanillaEngine::default()
@@ -112,10 +107,10 @@ fn coarse_automatic_grids_resolve_short_and_annual_payoffs_and_spot_greeks() {
             for spot in [99.875, 100.0, 100.125] {
                 let context = market(spot, 0.05, 0.02, 0.2);
                 let expected = AnalyticEuropeanEngine
-                    .price_with_greeks(&option, &context, request, Default::default())
+                    .price_with_greeks(&option, &context, request)
                     .unwrap();
                 let actual = engine
-                    .price_with_greeks(&option, &context, request, Default::default())
+                    .price_with_greeks(&option, &context, request)
                     .unwrap();
                 assert!((actual.price() - expected.price()).abs() < 0.002);
                 for (greek, tolerance) in [(Greek::Delta, 1e-4), (Greek::Gamma, 3e-4)] {
@@ -147,7 +142,7 @@ fn automatic_mesh_policy_is_preserved_for_bumped_greeks() {
         Greek::VolgaPerSquaredPercentagePoint,
     ]);
     let actual = engine
-        .price_with_greeks(&option, &context, request, Default::default())
+        .price_with_greeks(&option, &context, request)
         .unwrap();
     let expected =
         numerical_greeks(&engine, &option, &context, request, Default::default()).unwrap();
@@ -230,11 +225,9 @@ fn check_damping<I: OptionContract, E: PricingEngine<I>>(
     context: &PricingContext,
 ) {
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
-    let actual = cn
-        .price_with_greeks(option, context, request, Default::default())
-        .unwrap();
+    let actual = cn.price_with_greeks(option, context, request).unwrap();
     let expected = implicit
-        .price_with_greeks(option, context, request, Default::default())
+        .price_with_greeks(option, context, request)
         .unwrap();
     assert_eq!(actual, expected);
     assert_eq!(actual.price(), cn.price(option, context).unwrap());
@@ -387,10 +380,10 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
     })
     .unwrap();
     let actual = engine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     let expected = AnalyticEuropeanEngine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     for greek in Greek::ALL {
         let tolerance = expected.require(greek).unwrap().abs() * 0.02 + 1e-6;
@@ -399,12 +392,7 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
             "{greek:?}: {actual:?} != {expected:?}"
         );
         let selected = engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([greek]),
-                Default::default(),
-            )
+            .price_with_greeks(&option, &context, GreeksRequest::new([greek]))
             .unwrap();
         assert_eq!(
             selected.require(greek).unwrap(),
@@ -412,7 +400,8 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
         );
         assert_eq!(selected.values().iter().flatten().count(), 1);
     }
-    for shift in [0.01, 0.25] {
+    {
+        let shift = NumericalShiftSettings::default().fallback_spot_shift();
         let h = (context.spot_price() + shift) - context.spot_price();
         let gamma = |spot| {
             engine
@@ -420,39 +409,30 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
                     &option,
                     &market(spot, 0.04, 0.01, 0.3),
                     GreeksRequest::new([Greek::Gamma]),
-                    Default::default(),
                 )
                 .unwrap()
                 .require(Greek::Gamma)
                 .unwrap()
         };
         let speed = engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([Greek::Speed]),
-                NumericalShiftSettings {
-                    spot_shift: Some(shift),
-                    ..Default::default()
-                },
-            )
+            .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Speed]))
             .unwrap();
         assert_eq!(
             speed.require(Greek::Speed).unwrap(),
             (gamma(100.25 + h) - gamma(100.25 - h)) / (2.0 * h)
         );
     }
-    let collapsed = engine
-        .price_with_greeks(
-            &option,
-            &context,
-            GreeksRequest::new([Greek::Speed]),
-            NumericalShiftSettings {
-                spot_shift: Some(1e-300),
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let collapsed = kiyosi::numerical_greeks(
+        &engine,
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Speed]),
+        NumericalShiftSettings {
+            spot_shift: Some(1e-300),
+            ..Default::default()
+        },
+    )
+    .unwrap();
     assert!(!collapsed.has(Greek::Speed));
     let near = FiniteDifferenceVanillaEngine::new(FiniteDifferenceSettings {
         asset_upper_boundary: Some(100.5),
@@ -460,7 +440,8 @@ fn spline_greeks_use_one_mesh_and_selective_mixed_requests() {
     })
     .unwrap();
     assert!(matches!(
-        near.price_with_greeks(
+        kiyosi::numerical_greeks(
+            &near,
             &option,
             &context,
             GreeksRequest::new([Greek::Speed]),
@@ -545,12 +526,7 @@ fn node_curves_align_time_steps_and_keep_optimal_intermediate_exercise() {
         DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end).unwrap();
     assert!(matches!(
         FiniteDifferenceDigitalEngine::default()
-            .price_with_greeks(
-                &digital,
-                &context,
-                GreeksRequest::new([]),
-                Default::default()
-            )
+            .price_with_greeks(&digital, &context, GreeksRequest::new([]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
@@ -621,7 +597,7 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
         })
         .unwrap();
     let result = engine
-        .price_with_greeks(&option, &expiry, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &expiry, GreeksRequest::all())
         .unwrap();
     assert_eq!(result.price(), 0.0);
     assert_eq!(result.get(Greek::Delta), None);
@@ -629,27 +605,22 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
     assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([]),
-                Default::default()
-            )
+            .price_with_greeks(&option, &context, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert!(matches!(
-        engine
-            .price_with_greeks(
-                &option,
-                &expiry,
-                GreeksRequest::all(),
-                NumericalShiftSettings {
-                    rate_shift: 0.0,
-                    ..Default::default()
-                }
-            )
-            .unwrap_err(),
+        kiyosi::numerical_greeks(
+            &engine,
+            &option,
+            &expiry,
+            GreeksRequest::all(),
+            NumericalShiftSettings {
+                rate_shift: 0.0,
+                ..Default::default()
+            }
+        )
+        .unwrap_err(),
         Error::InvalidInput(_)
     ));
     let before = context
@@ -684,7 +655,7 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
     ));
     assert!(matches!(
         clipped
-            .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&option, &context, GreeksRequest::all())
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -866,7 +837,7 @@ fn scaled_digital_discounts_and_strict_expiry_payments_remain_representable() {
                     })
                     .unwrap();
                 let result = engine
-                    .price_with_greeks(&digital, &context, GreeksRequest::all(), Default::default())
+                    .price_with_greeks(&digital, &context, GreeksRequest::all())
                     .unwrap();
                 let pays = if direction == OptionType::Call {
                     spot > 100.0

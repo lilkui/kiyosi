@@ -60,7 +60,5 @@ def install(native: ModuleType) -> None:
             resolved = _signature(value, constructor_defaults)
             if resolved != original:
                 value.__signature__ = resolved
-            if hasattr(value, "price_with_greeks"):
-                value.price_with_greeks = _wrap(value.price_with_greeks, defaults)
         elif isbuiltin(value):
             setattr(native, name, _wrap(value, solvers.get(name, defaults)))

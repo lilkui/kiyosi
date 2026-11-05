@@ -15,14 +15,14 @@ use pyo3::prelude::*;
 pub(crate) struct AnalyticBinaryBarrierEngine;
 numerical_greeks_methods!(
     BinaryInstrument<'_>,
-    |_binding, py, instrument, context, request, shifts| {
+    |_binding, py, instrument, context, request| {
         let context = &context.0;
         let result = binary_barrier::with_binary!(
             instrument,
             option,
             py.detach(|| {
                 kiyosi::AnalyticBinaryBarrierEngine
-                    .price_with_greeks(option, context, request, shifts)
+                    .price_with_greeks(option, context, request)
             })
         );
         Ok(risk::PricingResult(domain(result)?))
@@ -32,7 +32,7 @@ numerical_greeks_methods!(
         /// Notes
         /// -----
         /// Before expiry requested Greeks use scalar numerical differences and the
-        /// corresponding shifts. At expiry spot_shift controls terminal-payoff stencils.
+        /// engine defaults. Use numerical_greeks for configurable scalar differences.
     ],
     engine_methods!(
         AnalyticBinaryBarrierEngine,

@@ -44,9 +44,9 @@ fn native_terminal_greeks_honor_spot_bumps_through_trait_and_direct_calls() -> R
                     spot_shift: Some(bump),
                     ..Default::default()
                 };
-                let direct = engine.price_with_greeks($option, &context, request, shifts)?;
+                let direct = kiyosi::numerical_greeks(&engine, $option, &context, request, shifts)?;
                 let generic =
-                    PricingEngine::price_with_greeks(&engine, $option, &context, request, shifts)?;
+                    kiyosi::numerical_greeks(&engine, $option, &context, request, shifts)?;
                 assert_eq!(direct, generic);
                 match expected {
                     Some(delta) => assert!((direct.require(Greek::Delta)? - delta).abs() < 1e-10),
@@ -54,7 +54,8 @@ fn native_terminal_greeks_honor_spot_bumps_through_trait_and_direct_calls() -> R
                 }
             }
             assert!(matches!(
-                engine.price_with_greeks(
+                kiyosi::numerical_greeks(
+                    &engine,
                     $option,
                     &context,
                     request,
@@ -105,12 +106,8 @@ fn terminal_vanilla_greeks_match_payoff_derivatives_across_engines() -> Result<(
             for direction in [OptionType::Call, OptionType::Put] {
                 let option = $contract::new(direction, 100.0, start, context.valuation_time())?;
                 for engine in &$engines {
-                    let result = engine.price_with_greeks(
-                        &option,
-                        &context,
-                        GreeksRequest::all(),
-                        Default::default(),
-                    )?;
+                    let result =
+                        engine.price_with_greeks(&option, &context, GreeksRequest::all())?;
                     assert!(
                         (result.require(Greek::Delta)?
                             - if direction == OptionType::Call {
@@ -162,8 +159,7 @@ fn terminal_spot_stencils_respect_payoff_kinks_and_request_metadata() -> Result<
     let context = context(100.0)?;
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, context.valuation_time())?;
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::VegaPerPercentagePoint]);
-    let result =
-        AnalyticEuropeanEngine.price_with_greeks(&option, &context, request, Default::default())?;
+    let result = AnalyticEuropeanEngine.price_with_greeks(&option, &context, request)?;
     assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
     assert_eq!(result.status(Greek::Gamma), GreekStatus::Undefined);
     assert_eq!(result.require(Greek::VegaPerPercentagePoint)?, 0.0);
@@ -218,7 +214,6 @@ fn terminal_autocallable_stencils_preserve_knock_in_and_redemption_regimes() -> 
             &note,
             &context(spot)?,
             GreeksRequest::all(),
-            Default::default(),
         )?;
         if let Some(delta) = delta {
             assert!((result.require(Greek::Delta)? - delta).abs() < 1e-10);

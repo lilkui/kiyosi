@@ -706,13 +706,12 @@ impl MonteCarloVanillaEngine {
         option: &I,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult>
     where
         Self: PricingEngine<I>,
     {
         context.bsm_parameters()?;
-        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request, settings)
+        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request)
     }
 
     /// Returns a discounted sample mean, or intrinsic value at expiry.
@@ -761,7 +760,7 @@ impl MonteCarloVanillaEngine {
     /// let engine = MonteCarloVanillaEngine::new(MonteCarloSettings { seed: Some(42), ..Default::default() })?;
     /// assert!((engine.price(&option, &context)? - 9.227).abs() < 0.2);
     /// let analysis = engine.price_with_greeks(&option, &context,
-    ///     kiyosi::GreeksRequest::new([kiyosi::Greek::Delta]), Default::default())?;
+    ///     kiyosi::GreeksRequest::new([kiyosi::Greek::Delta]))?;
     /// assert!(analysis.require(kiyosi::Greek::Delta)? > 0.0);
     /// # Ok(()) }
     /// ```

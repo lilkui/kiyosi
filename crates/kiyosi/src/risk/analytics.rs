@@ -277,7 +277,8 @@ impl PricingResult {
 
 /// Configures absolute finite-difference bumps.
 ///
-/// Built-in Greek requests validate all bump settings before calculation, including unused controls.
+/// Scalar numerical requests validate all bump settings before calculation.
+/// Engine `price_with_greeks` methods use defaults and accept no settings.
 /// See [`crate::numerical_greeks`] for usage.
 #[derive(Clone, Copy, Debug)]
 pub struct NumericalShiftSettings {
@@ -351,7 +352,8 @@ impl NumericalShiftSettings {
 ///
 /// This describes the calculation path, independently of the requested measures.
 /// A listed control may be unused for a particular request or resolved payoff.
-/// All supplied controls are validated even when inactive. See
+/// Listed controls describe internal defaults; customize scalar differences with
+/// [`crate::numerical_greeks`]. See
 /// [`PricingEngine::greek_method`] for an example.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GreekMethod {
@@ -525,8 +527,8 @@ pub trait PricingEngine<I = EuropeanOption> {
 
     /// Returns requested sensitivities, using scalar differences unless overridden.
     ///
-    /// Settings configure numerical differences. Built-in methods validate all settings,
-    /// including controls unused by their estimators.
+    /// Uses engine-default controls. Configure scalar differences explicitly with
+    /// [`crate::numerical_greeks`] and [`NumericalShiftSettings`].
     ///
     /// See [`crate::CoxRossRubinsteinVanillaEngine::price_with_greeks`] for an example.
     ///
@@ -538,11 +540,11 @@ pub trait PricingEngine<I = EuropeanOption> {
         option: &I,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult>
     where
         I: crate::OptionContract,
     {
+        let settings = crate::NumericalShiftSettings::default();
         crate::numerical_greeks(self, option, context, request, settings)
     }
 

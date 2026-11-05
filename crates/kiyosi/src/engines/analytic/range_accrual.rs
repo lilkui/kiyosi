@@ -1,8 +1,7 @@
 use crate::RangeAccrualOption;
 use crate::numerics::{Sum, checked, log_interval_mass, log_ratio, scaled_cash, standardize};
 use crate::{
-    Error, GreeksRequest, NumericalShiftSettings, ObservationSchedule, PricingContext,
-    PricingEngine, PricingResult, Result,
+    Error, GreeksRequest, ObservationSchedule, PricingContext, PricingEngine, PricingResult, Result,
 };
 
 /// Prices range coupons by summing exact BSM marginal probabilities with deterministic curves.
@@ -27,8 +26,8 @@ impl AnalyticRangeAccrualEngine {
         option: &RangeAccrualOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, settings)
     }

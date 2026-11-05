@@ -12,6 +12,7 @@ from kiyosi.pricing import (
     implied_phoenix_coupon,
     implied_snowball_coupon,
     implied_volatility,
+    numerical_greeks,
 )
 from test_phoenix import contract as phoenix
 from test_snowball import END, START, market
@@ -54,7 +55,7 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
             engine.price(object(), market())
         note = phoenix()
         for operation in (
-            lambda: engine.price_with_greeks(note, market(), "delta", spot_shift=True),
+            lambda: numerical_greeks(engine, note, market(), "delta", spot_shift=True),
             lambda: implied_volatility(engine, note, market(), True),
             lambda: implied_volatility(engine, note, market(), 1, max_iterations=2.5),
             lambda: implied_phoenix_coupon(engine, note, market(), True),
@@ -83,12 +84,13 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
             engine, context = FD(), market()
             reference = engine.price_with_greeks(note, context, ["delta", "gamma"])
             for shift in (200, 1e-300):
-                result = engine.price_with_greeks(
-                    note, context, ["delta", "gamma", "speed"], spot_shift=shift
+                result = numerical_greeks(
+                    engine, note, context, ["delta", "gamma", "speed"], spot_shift=shift
                 )
-                self.assertEqual(
-                    (result.delta, result.gamma), (reference.delta, reference.gamma)
-                )
+                self.assertIsNotNone(reference.delta)
+                self.assertIsNotNone(reference.gamma)
+                self.assertIsNone(result.delta)
+                self.assertIsNone(result.gamma)
                 self.assertIsNone(result.speed)
 
     def test_explicit_uniform_stability_uses_the_top_node_bound(self):

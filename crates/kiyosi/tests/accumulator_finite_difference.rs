@@ -140,12 +140,7 @@ fn settlement_thresholds_history_replacement_and_expiry_greeks_are_exact() {
         (f64::from_bits(110_f64.to_bits() - 1), 4.0),
     ] {
         let result = engine
-            .price_with_greeks(
-                &option,
-                &market(spot, day(1, 6)),
-                GreeksRequest::all(),
-                Default::default(),
-            )
+            .price_with_greeks(&option, &market(spot, day(1, 6)), GreeksRequest::all())
             .unwrap();
         assert_eq!(result.price(), quantity * (spot - 100.0));
         assert_eq!(result.get(Greek::Theta), None);
@@ -316,7 +311,7 @@ fn spline_and_mixed_greeks_match_independent_public_repricing() {
     })
     .unwrap();
     let result = engine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     assert_eq!(result.price(), engine.price(&option, &context).unwrap());
     let scalar = numerical_greeks(
@@ -352,12 +347,7 @@ fn spline_and_mixed_greeks_match_independent_public_repricing() {
     }
     for greek in Greek::ALL {
         let single = engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([greek]),
-                Default::default(),
-            )
+            .price_with_greeks(&option, &context, GreeksRequest::new([greek]))
             .unwrap();
         assert_eq!(single.get(greek), result.get(greek));
     }
@@ -400,12 +390,7 @@ fn spline_and_mixed_greeks_match_independent_public_repricing() {
                     .unwrap()
             };
             engine
-                .price_with_greeks(
-                    &option,
-                    &shifted,
-                    GreeksRequest::new([dependency]),
-                    Default::default(),
-                )
+                .price_with_greeks(&option, &shifted, GreeksRequest::new([dependency]))
                 .unwrap()
                 .require(dependency)
                 .unwrap()
@@ -417,12 +402,7 @@ fn spline_and_mixed_greeks_match_independent_public_repricing() {
         );
     }
     let boundary = engine
-        .price_with_greeks(
-            &option,
-            &market(100.0, day(1, 1)),
-            GreeksRequest::all(),
-            Default::default(),
-        )
+        .price_with_greeks(&option, &market(100.0, day(1, 1)), GreeksRequest::all())
         .unwrap();
     for greek in [
         Greek::Delta,
@@ -530,17 +510,17 @@ fn speed_propagates_nonfinite_shifted_prices_without_changing_inputs() {
         ));
     }
     assert!(matches!(
-        engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([Greek::Speed]),
-                NumericalShiftSettings {
-                    spot_shift: Some(2.0),
-                    ..Default::default()
-                }
-            )
-            .unwrap_err(),
+        kiyosi::numerical_greeks(
+            &engine,
+            &option,
+            &context,
+            GreeksRequest::new([Greek::Speed]),
+            NumericalShiftSettings {
+                spot_shift: Some(2.0),
+                ..Default::default()
+            }
+        )
+        .unwrap_err(),
         Error::ComputationFailure(_)
     ));
     assert_eq!(engine.price(&option, &context).unwrap(), quote);

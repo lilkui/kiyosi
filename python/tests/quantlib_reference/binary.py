@@ -28,7 +28,7 @@ def option(inputs):
     return SimpleNamespace(
         NPV=lambda: price(tuple(sorted(inputs.items()))),
         **{
-            name: getattr(contract, name)
+            name: g.native_method(contract, name)
             for name in (
                 "delta",
                 "gamma",
@@ -141,7 +141,7 @@ def make_contract(inputs):
     return SimpleNamespace(
         **{
             name: lambda name=name: sum(
-                getattr(component, name)() for component in components
+                g.native_method(component, name)() for component in components
             )
             for name in (
                 "NPV",
@@ -261,7 +261,7 @@ def check_bindings():
                             "rho_per_percentage_point",
                         ):
                             try:
-                                getattr(contract, name)()
+                                g.native_method(contract, name)()
                             except RuntimeError as caught:
                                 assert "not provided" in str(caught)
                             else:
@@ -317,7 +317,7 @@ def check_bindings():
                         ("gamma", 1),
                         ("rho_per_percentage_point", 100),
                     ):
-                        direct = getattr(contract, name)() / unit
+                        direct = g.native_method(contract, name)() / unit
                         assert abs(measure(inputs, name) - direct) < 1e-12
                         assert (
                             abs(measure(inputs, name, price_only=True) - direct)

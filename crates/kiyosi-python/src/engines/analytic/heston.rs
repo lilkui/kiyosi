@@ -42,20 +42,20 @@ pub(crate) struct AnalyticHestonEuropeanEngine(pub(crate) kiyosi::AnalyticHeston
 
 numerical_greeks_methods!(
     PyRef<'_, EuropeanOption>,
-    |binding, py, instrument, context, request, shifts| {
+    |binding, py, instrument, context, request| {
         let engine = binding.0;
         let option = &instrument.0;
         let context = &context.0;
         Ok(risk::PricingResult(domain(py.detach(|| {
-            engine.price_with_greeks(option, context, request, shifts)
+            engine.price_with_greeks(option, context, request)
         }))?))
     },
     [
         ///
         /// Notes
         /// -----
-        /// All requested Greeks are unsupported and remain None. Every shift is
-        /// validated but unused, including at expiry. numerical_greeks also rejects Heston.
+        /// All requested Greeks are unsupported and remain None. Bump controls are
+        /// not accepted; numerical_greeks also rejects Heston.
     ],
     engine_methods!(
         AnalyticHestonEuropeanEngine,

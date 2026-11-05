@@ -4,8 +4,8 @@ use crate::engines::analytic::heston::integrated_variance;
 use crate::engines::deterministic::exercise_value;
 use crate::numerics::{checked_with_scale, scaled_cash};
 use crate::{
-    AmericanOption, EuropeanOption, GreeksRequest, HestonParameters, NumericalShiftSettings,
-    OptionContract, PricingContext, PricingEngine, PricingResult, Result,
+    AmericanOption, EuropeanOption, GreeksRequest, HestonParameters, OptionContract,
+    PricingContext, PricingEngine, PricingResult, Result,
 };
 
 /// Configures fixed Heston grids; see [`FiniteDifferenceHestonVanillaEngine::new`].
@@ -158,7 +158,7 @@ impl FiniteDifferenceHestonVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Checks Heston applicability first, then rejects empty requests or invalid shifts
+    /// Checks Heston applicability first, then rejects empty requests
     /// with [`crate::Error::InvalidInput`] and propagates
     /// [`Self::price`] errors. Inputs remain unchanged; valid numerical shifts are unused.
     pub fn price_with_greeks<I: OptionContract>(
@@ -166,11 +166,11 @@ impl FiniteDifferenceHestonVanillaEngine {
         option: &I,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult>
     where
         Self: PricingEngine<I>,
     {
+        let settings = crate::NumericalShiftSettings::default();
         <Self as PricingEngine<I>>::validate_applicability(self, context)?;
         request.validate()?;
         settings.validate()?;
@@ -212,9 +212,8 @@ macro_rules! pricing {
                 option: &$instrument,
                 context: &PricingContext,
                 request: GreeksRequest,
-                settings: NumericalShiftSettings,
             ) -> Result<PricingResult> {
-                Self::price_with_greeks(self, option, context, request, settings)
+                Self::price_with_greeks(self, option, context, request)
             }
         }
     };

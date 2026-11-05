@@ -11,6 +11,7 @@ from kiyosi.pricing import (
     CoxRossRubinsteinVanillaEngine,
     FiniteDifferenceHestonVanillaEngine,
     MonteCarloVanillaEngine,
+    numerical_greeks,
 )
 
 
@@ -22,15 +23,13 @@ def common_controls(option: EuropeanOption, context: PricingContext) -> None:
         FiniteDifferenceHestonVanillaEngine(),
         MonteCarloVanillaEngine(),
     ):
+        assert_type(engine.price_with_greeks(option, context, "delta"), PricingResult)
+    for engine in (
+        AnalyticEuropeanEngine(),
+        CoxRossRubinsteinVanillaEngine(),
+        MonteCarloVanillaEngine(),
+    ):
         assert_type(
-            engine.price_with_greeks(
-                option,
-                context,
-                "delta",
-                spot_shift=0.001,
-                volatility_shift=0.001,
-                rate_shift=0.001,
-                time_shift_days=2,
-            ),
+            numerical_greeks(engine, option, context, "delta", spot_shift=0.001),
             PricingResult,
         )

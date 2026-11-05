@@ -16,14 +16,12 @@ pub(crate) struct AnalyticDigitalEngine;
 
 numerical_greeks_methods!(
     DigitalInstrument<'_>,
-    |_binding, _py, instrument, context, request, shifts| {
+    |_binding, _py, instrument, context, request| {
         Ok(risk::PricingResult(domain(
             kiyosi::AnalyticDigitalEngine.price_with_greeks(
                 instrument.contract(),
                 &context.0,
-                request,
-                shifts,
-            ),
+                request),
         )?))
     },
     [
@@ -31,8 +29,7 @@ numerical_greeks_methods!(
         /// Notes
         /// -----
         /// Delta and gamma are analytic before expiry and ignore spot_shift. Other
-        /// Greeks use the corresponding numerical shifts. At expiry spot_shift controls
-        /// terminal-payoff stencils. Use numerical_greeks to bump every measure explicitly.
+        /// Greeks use engine defaults; numerical_greeks provides configurable scalar differences. Use numerical_greeks to bump every measure explicitly.
     ],
     engine_methods!(
         AnalyticDigitalEngine,

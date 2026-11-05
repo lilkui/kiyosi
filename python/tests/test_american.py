@@ -6,6 +6,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from fractions import Fraction
+from functools import partial
 
 import QuantLib as ql
 from kiyosi import (
@@ -25,6 +26,7 @@ from kiyosi.pricing import (
     AnalyticEuropeanEngine,
     BjerksundStenslandVanillaEngine,
     implied_volatility,
+    numerical_greeks,
 )
 from support.terminal import assert_terminal_greeks
 
@@ -344,7 +346,7 @@ class AmericanTests(unittest.TestCase):
         ):
             self.assert_rejection(
                 InvalidInputError,
-                self.engine.price_with_greeks,
+                partial(numerical_greeks, self.engine),
                 self.option,
                 self.context,
                 "delta",
@@ -358,12 +360,12 @@ class AmericanTests(unittest.TestCase):
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):
-                self.engine.price_with_greeks(
-                    self.option, self.context, "delta", **settings
+                numerical_greeks(
+                    self.engine, self.option, self.context, "delta", **settings
                 )
         with self.assertRaises(OverflowError):
-            self.engine.price_with_greeks(
-                self.option, self.context, "delta", time_shift_days=2**31
+            numerical_greeks(
+                self.engine, self.option, self.context, "delta", time_shift_days=2**31
             )
         for settings in (
             {"max_iterations": True},
@@ -386,7 +388,7 @@ class AmericanTests(unittest.TestCase):
             {"greeks": 1},
         ):
             with self.assertRaises(TypeError):
-                self.engine.price_with_greeks(self.option, self.context, **kwargs)
+                numerical_greeks(self.engine, self.option, self.context, **kwargs)
         for instrument in (
             EuropeanOption(**self.terms),
             CashOrNothingOption(**self.terms, payout=10),
@@ -430,8 +432,8 @@ class AmericanTests(unittest.TestCase):
             with ql.SavedSettings():
                 reference, uncertainty = american.reference(inputs)
             names = sorted(reference.keys() - {"price"})
-            result = self.engine.price_with_greeks(
-                option, context, names, **profile["shifts"]
+            result = numerical_greeks(
+                self.engine, option, context, names, **profile["shifts"]
             )
             self.assertAlmostEqual(
                 result.price, reference["price"], delta=profile["tolerances"]["price"]

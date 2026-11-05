@@ -450,7 +450,7 @@ class HestonTests(unittest.TestCase):
         self.assertEqual(engine.price(option(), terminal), 10)
         self.assertEqual(engine.price(option(option_type="put"), terminal), 0)
         for instant in (
-            START - timedelta(days=1),
+            END + timedelta(days=1),
             datetime(2026, 1, 1, 0, 0, 0, 1),
         ):
             with self.subTest(instant=instant), self.assertRaises(InvalidInputError):

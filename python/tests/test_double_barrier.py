@@ -12,7 +12,11 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
 )
-from kiyosi.pricing import AnalyticDoubleBarrierEngine, AnalyticEuropeanEngine
+from kiyosi.pricing import (
+    AnalyticDoubleBarrierEngine,
+    AnalyticEuropeanEngine,
+    numerical_greeks,
+)
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -496,14 +500,14 @@ class DoubleBarrierTests(unittest.TestCase):
         ):
             self.assert_rejection(
                 InvalidInputError,
-                lambda field=field: engine.price_with_greeks(
-                    option, context, ["delta"], **{field: 0}
+                lambda field=field: numerical_greeks(
+                    engine, option, context, ["delta"], **{field: 0}
                 ),
             )
             with self.assertRaises(TypeError):
-                engine.price_with_greeks(option, context, ["delta"], **{field: True})
+                numerical_greeks(engine, option, context, ["delta"], **{field: True})
         with self.assertRaises(TypeError):
-            engine.price_with_greeks(option, context, ["delta"], time_shift_days=1.5)
+            numerical_greeks(engine, option, context, ["delta"], time_shift_days=1.5)
         with self.assertRaises(OverflowError):
             implied_volatility(engine, option, context, quote, max_iterations=2**80)
         self.assert_rejection(

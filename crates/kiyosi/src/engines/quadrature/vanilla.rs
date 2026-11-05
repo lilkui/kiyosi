@@ -7,8 +7,8 @@ use crate::engines::Payoff;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked, checked_with_scale, log_ratio, scaled_cash};
 use crate::{
-    AmericanOption, Error, EuropeanOption, GreeksRequest, NumericalShiftSettings, OptionContract,
-    PricingContext, PricingEngine, PricingResult, Result,
+    AmericanOption, Error, EuropeanOption, GreeksRequest, OptionContract, PricingContext,
+    PricingEngine, PricingResult, Result,
 };
 
 /// Configures vanilla spatial quadrature and American exercise intervals.
@@ -101,7 +101,7 @@ impl QuadratureVanillaEngine {
     /// assert_eq!(engine.settings(), settings);
     /// assert!(engine.price(&option, &context)? > 0.0);
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta]), Default::default())?;
+    ///     GreeksRequest::new([Greek::Delta]))?;
     /// assert!(result.require(Greek::Delta)? < 0.0);
     /// # Ok(()) }
     /// ```
@@ -146,11 +146,11 @@ impl QuadratureVanillaEngine {
         option: &I,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult>
     where
         Self: PricingEngine<I>,
     {
+        let shifts = crate::NumericalShiftSettings::default();
         crate::numerical_greeks(self, option, context, request, shifts)
     }
 }

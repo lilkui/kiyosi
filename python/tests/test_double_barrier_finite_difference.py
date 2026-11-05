@@ -20,6 +20,7 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
 )
+from kiyosi.pricing import numerical_greeks
 from support.terminal import assert_terminal_greeks
 
 START, END = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -770,19 +771,19 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             ("time_shift_days", 1.5),
         ):
             with self.assertRaises(TypeError):
-                engine.price_with_greeks(instrument, context, "delta", **{name: value})
+                numerical_greeks(engine, instrument, context, "delta", **{name: value})
         for request, controls in (([], {}), (["delta"], {"spot_shift": 0})):
             self.assert_core_error(
                 InvalidInputError,
-                lambda request=request, controls=controls: engine.price_with_greeks(
-                    instrument, context, request, **controls
+                lambda request=request, controls=controls: numerical_greeks(
+                    engine, instrument, context, request, **controls
                 ),
             )
-        collapsed = engine.price_with_greeks(
-            instrument, context, ["delta", "gamma", "speed"], spot_shift=1e-300
+        collapsed = numerical_greeks(
+            engine, instrument, context, ["delta", "gamma", "speed"], spot_shift=1e-300
         )
-        self.assertIsNotNone(collapsed.delta)
-        self.assertIsNotNone(collapsed.gamma)
+        self.assertIsNone(collapsed.delta)
+        self.assertIsNone(collapsed.gamma)
         self.assertIsNone(collapsed.speed)
         for bound in (80, 120):
             discontinuous = engine.price_with_greeks(

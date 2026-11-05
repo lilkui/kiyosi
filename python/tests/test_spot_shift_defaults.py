@@ -7,6 +7,7 @@ from datetime import datetime
 from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
+from kiyosi.pricing import numerical_greeks
 
 
 class SpotShiftDefaultTests(unittest.TestCase):
@@ -44,18 +45,16 @@ class SpotShiftDefaultTests(unittest.TestCase):
         ):
             with self.subTest(engine=type(engine).__name__):
                 default = (
-                    inspect.signature(engine.price_with_greeks)
-                    .parameters["spot_shift"]
-                    .default
+                    inspect.signature(numerical_greeks).parameters["spot_shift"].default
                 )
                 self.assertIsNone(default)
-                expected = engine.price_with_greeks(option, context, "delta")
-                actual = engine.price_with_greeks(
-                    option, context, "delta", spot_shift=default
+                expected = numerical_greeks(engine, option, context, "delta")
+                actual = numerical_greeks(
+                    engine, option, context, "delta", spot_shift=default
                 )
                 self.assertEqual(actual.delta, expected.delta)
-                explicit = engine.price_with_greeks(
-                    option, context, "delta", spot_shift=0.01
+                explicit = numerical_greeks(
+                    engine, option, context, "delta", spot_shift=0.01
                 )
                 self.assertEqual(actual.delta, explicit.delta)
 
@@ -78,5 +77,5 @@ class SpotShiftDefaultTests(unittest.TestCase):
             path_count=8192, step_count=19, seed=42, thread_count=1
         )
         result = engine.price_with_greeks(option, context, "gamma")
-        explicit = engine.price_with_greeks(option, context, "gamma", spot_shift=8.0)
+        explicit = numerical_greeks(engine, option, context, "gamma", spot_shift=8.0)
         self.assertEqual(result.require("gamma"), explicit.require("gamma"))

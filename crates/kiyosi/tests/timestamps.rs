@@ -95,7 +95,7 @@ fn intraday_expiry_and_accrual_preserve_microseconds() {
             .unwrap(),
         10.0
     );
-    for at in [time(6, 10, 123_455), time(6, 15, 654_322)] {
+    for at in [time(6, 15, 654_322), time(6, 15, 654_323)] {
         assert!(matches!(
             AnalyticEuropeanEngine.price(&call, &market(at, 110.0)),
             Err(Error::InvalidInput(_))
@@ -377,7 +377,6 @@ fn nontrading_dates_do_not_trigger_daily_knock_out_or_suppress_vega() {
             &option,
             &context,
             GreeksRequest::new([Greek::VegaPerPercentagePoint]),
-            Default::default(),
         )
         .unwrap();
     let root_time = (2.0_f64 / 365.0).sqrt();

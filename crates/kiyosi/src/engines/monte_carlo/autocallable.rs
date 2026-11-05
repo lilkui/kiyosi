@@ -5,8 +5,8 @@ use crate::instruments::autocallable::pricing::{
 };
 use crate::numerics::log_ratio;
 use crate::{
-    AutocallableNote, AutocallableTerms, GreeksRequest, NumericalShiftSettings, PricingContext,
-    PricingEngine, PricingResult, Result,
+    AutocallableNote, AutocallableTerms, GreeksRequest, PricingContext, PricingEngine,
+    PricingResult, Result,
 };
 
 /// Prices snowball variants and Phoenix notes with trading-day CPU Monte Carlo.
@@ -70,7 +70,7 @@ impl MonteCarloAutocallableEngine {
     /// assert!(estimate.standard_error().is_some());
     /// assert_eq!(engine.sampling_settings().path_count, 4096);
     /// let result = engine.price_with_greeks(&note, &context,
-    ///     GreeksRequest::new([Greek::RhoPerPercentagePoint]), Default::default())?;
+    ///     GreeksRequest::new([Greek::RhoPerPercentagePoint]))?;
     /// assert!(result.has(Greek::RhoPerPercentagePoint));
     /// # Ok(()) }
     /// ```
@@ -296,8 +296,8 @@ impl MonteCarloAutocallableEngine {
         option: &AutocallableNote<T>,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let shifts = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, shifts)
     }

@@ -142,7 +142,7 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
         for engine in engines() {
             assert_eq!(engine.price(&option, &context).unwrap(), expected);
             let result = engine
-                .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+                .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap();
             assert_eq!(result.price(), expected);
             assert_eq!(result.get(Greek::Theta), None);
@@ -722,7 +722,6 @@ fn scheduled_decumulator_supports_greeks_and_identifiable_volatility() {
                 &option,
                 &context,
                 GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::VegaPerPercentagePoint]),
-                Default::default(),
             )
             .unwrap();
         assert_eq!(result.price(), engine.price(&option, &context).unwrap());
@@ -814,7 +813,6 @@ fn adjacent_barrier_levels_preserve_forward_prices_and_greeks() {
                             &option,
                             &context,
                             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-                            Default::default(),
                         )
                         .unwrap();
                     assert!(
@@ -850,7 +848,6 @@ fn current_greek_discontinuities_follow_the_knock_out_schedule() {
                             Greek::Gamma,
                             Greek::VegaPerPercentagePoint,
                         ]),
-                        Default::default(),
                     )
                     .unwrap();
                 assert_eq!(result.has(Greek::Delta), !monitored);
@@ -865,7 +862,6 @@ fn current_greek_discontinuities_follow_the_knock_out_schedule() {
                     &option,
                     &market(100.0, day(3), 0.4),
                     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-                    Default::default(),
                 )
                 .unwrap();
             assert!(!result.has(Greek::Delta));

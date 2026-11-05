@@ -42,11 +42,11 @@ macro_rules! quadrature_engine {
 
         numerical_greeks_methods!(
             $instrument,
-            |binding, py, instrument, context, request, shifts| {
+            |binding, py, instrument, context, request| {
                 let engine = binding.0;
                 let context = &context.0;
                 $with!(&instrument, option, Ok(risk::PricingResult(domain(py.detach(|| {
-                    engine.price_with_greeks(option, context, request, shifts)
+                    engine.price_with_greeks(option, context, request)
                 }))?)))
             },
             [
@@ -54,7 +54,7 @@ macro_rules! quadrature_engine {
                 /// Notes
                 /// -----
                 /// Before expiry requested Greeks use scalar numerical differences and the
-                /// corresponding shifts. At expiry spot_shift controls terminal-payoff stencils.
+                /// engine defaults. Use numerical_greeks for configurable scalar differences.
             ],
             engine_methods!(
                 $name,

@@ -3,8 +3,8 @@ use std::sync::LazyLock;
 
 use crate::numerics::log_normal_cdf;
 use crate::{
-    AmericanOption, AnalyticEuropeanEngine, Error, GreeksRequest, NumericalShiftSettings,
-    OptionType, PricingContext, PricingEngine, PricingResult, Result, numerical_greeks,
+    AmericanOption, AnalyticEuropeanEngine, Error, GreeksRequest, OptionType, PricingContext,
+    PricingEngine, PricingResult, Result, numerical_greeks,
 };
 
 fn exponential_cdf(weight: f64, argument: f64) -> f64 {
@@ -394,7 +394,7 @@ impl BjerksundStenslandVanillaEngine {
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.03, 0.2)?, 100.0, start.into())?;
     /// let result = BjerksundStenslandVanillaEngine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta]), Default::default())?;
+    ///     GreeksRequest::new([Greek::Delta]))?;
     /// assert!(result.require(Greek::Delta)? < 0.0);
     /// # Ok(()) }
     /// ```
@@ -403,8 +403,8 @@ impl BjerksundStenslandVanillaEngine {
         option: &AmericanOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         Self::require_flat(context)?;
         numerical_greeks(self, option, context, request, settings)
@@ -421,9 +421,8 @@ impl PricingEngine<AmericanOption> for BjerksundStenslandVanillaEngine {
         option: &AmericanOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request, settings)
+        Self::price_with_greeks(self, option, context, request)
     }
 }

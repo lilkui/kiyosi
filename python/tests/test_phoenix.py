@@ -4,6 +4,7 @@ import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from functools import partial
 
 from kiyosi import (
     InvalidInputError,
@@ -17,7 +18,11 @@ from kiyosi.instruments import (
     autocallable_observations,
 )
 from kiyosi.market import RateTermStructure, all_days_calendar, custom_calendar
-from kiyosi.pricing import QuadratureAutocallableEngine, implied_volatility
+from kiyosi.pricing import (
+    QuadratureAutocallableEngine,
+    implied_volatility,
+    numerical_greeks,
+)
 from support.terminal import assert_terminal_greeks
 from test_snowball import market, structured
 
@@ -211,7 +216,7 @@ class PhoenixTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            engine.price_with_greeks,
+            partial(numerical_greeks, engine),
             contract(),
             market(),
             "delta",
@@ -519,12 +524,12 @@ class PhoenixTests(unittest.TestCase):
         context = market(101.5, datetime(2025, 1, 15), volatility=0.25)
         coarse = {"spot_shift": 0.5, "volatility_shift": 0.002, "rate_shift": 0.001}
         fine = {"spot_shift": 0.25, "volatility_shift": 0.001, "rate_shift": 0.0005}
-        standard = QuadratureAutocallableEngine().price_with_greeks(
-            note, context, greeks="all", **coarse
+        standard = numerical_greeks(
+            QuadratureAutocallableEngine(), note, context, greeks="all", **coarse
         )
         engine = QuadratureAutocallableEngine(asset_step_count=1024)
-        refined = engine.price_with_greeks(note, context, greeks="all", **coarse)
-        smaller = engine.price_with_greeks(note, context, greeks="all", **fine)
+        refined = numerical_greeks(engine, note, context, greeks="all", **coarse)
+        smaller = numerical_greeks(engine, note, context, greeks="all", **fine)
         tolerances = {
             "delta": (3e-6, 0.005),
             "gamma": (3e-7, 0.01),
@@ -601,7 +606,8 @@ class PhoenixTests(unittest.TestCase):
             "color": gamma(t=1 - dt) - gamma(),
         }
         context = market(spot, volatility=vol, rate=rate)
-        result = engine.price_with_greeks(
+        result = numerical_greeks(
+            engine,
             note,
             context,
             greeks="all",

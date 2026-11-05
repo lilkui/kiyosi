@@ -6,8 +6,8 @@ use super::european::lognormal_price;
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{Sum, checked_with_scale, log_ratio, scaled_cash};
 use crate::{
-    Error, EuropeanOption, GreeksRequest, HestonParameters, NumericalShiftSettings, OptionType,
-    PricingContext, PricingEngine, PricingResult, Result,
+    Error, EuropeanOption, GreeksRequest, HestonParameters, OptionType, PricingContext,
+    PricingEngine, PricingResult, Result,
 };
 
 /// Configures adaptive Heston Fourier integration; see [`AnalyticHestonEuropeanEngine::new`].
@@ -216,7 +216,7 @@ impl AnalyticHestonEuropeanEngine {
     ///
     /// # Errors
     ///
-    /// Checks Heston applicability first, then rejects empty requests or invalid shifts
+    /// Checks Heston applicability first, then rejects empty requests
     /// with [`Error::InvalidInput`] and propagates
     /// [`Self::price`] errors. Inputs remain unchanged; valid numerical shifts are unused.
     pub fn price_with_greeks(
@@ -224,8 +224,8 @@ impl AnalyticHestonEuropeanEngine {
         option: &EuropeanOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         self.validate_applicability(context)?;
         request.validate()?;
         settings.validate()?;
@@ -260,9 +260,8 @@ impl PricingEngine for AnalyticHestonEuropeanEngine {
         option: &EuropeanOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        Self::price_with_greeks(self, option, context, request, settings)
+        Self::price_with_greeks(self, option, context, request)
     }
 }
 

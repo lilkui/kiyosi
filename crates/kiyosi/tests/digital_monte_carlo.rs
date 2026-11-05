@@ -34,20 +34,10 @@ fn terminal_prices_and_likelihood_greeks_match_analytic_and_share_draws() {
                 for option in options(direction) {
                     let context = market(100.0, 0.05, 0.02, 0.2);
                     let expected = AnalyticDigitalEngine
-                        .price_with_greeks(
-                            &option,
-                            &context,
-                            GreeksRequest::all(),
-                            Default::default(),
-                        )
+                        .price_with_greeks(&option, &context, GreeksRequest::all())
                         .unwrap();
                     let actual = engine
-                        .price_with_greeks(
-                            &option,
-                            &context,
-                            GreeksRequest::all(),
-                            Default::default(),
-                        )
+                        .price_with_greeks(&option, &context, GreeksRequest::all())
                         .unwrap();
                     let scale = option.payout().unwrap_or(100.0);
                     for (got, want, tolerance) in [
@@ -78,12 +68,7 @@ fn terminal_prices_and_likelihood_greeks_match_analytic_and_share_draws() {
                         assert_eq!(
                             actual,
                             other
-                                .price_with_greeks(
-                                    &option,
-                                    &context,
-                                    GreeksRequest::all(),
-                                    Default::default()
-                                )
+                                .price_with_greeks(&option, &context, GreeksRequest::all())
                                 .unwrap()
                         );
                     }
@@ -123,18 +108,12 @@ fn tiny_volatility_preserves_exercise_and_only_checks_requested_greeks() {
                         &option,
                         &context,
                         GreeksRequest::new([Greek::RhoPerPercentagePoint]),
-                        Default::default(),
                     )
                     .unwrap();
                 assert!(!result.has(Greek::RhoPerPercentagePoint));
                 assert!(matches!(
                     engine
-                        .price_with_greeks(
-                            &option,
-                            &context,
-                            GreeksRequest::new([Greek::Gamma]),
-                            Default::default()
-                        )
+                        .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Gamma]))
                         .unwrap_err(),
                     Error::ComputationFailure(_)
                 ));
@@ -174,7 +153,7 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                     spot < 100.0
                 };
                 let result = engine
-                    .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+                    .price_with_greeks(&option, &context, GreeksRequest::all())
                     .unwrap();
                 assert_eq!(
                     result.price(),
@@ -230,12 +209,7 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
             ));
             assert!(matches!(
                 engine
-                    .price_with_greeks(
-                        &option,
-                        &outside,
-                        GreeksRequest::new([]),
-                        Default::default()
-                    )
+                    .price_with_greeks(&option, &outside, GreeksRequest::new([]))
                     .unwrap_err(),
                 Error::InvalidInput(_)
             ));
@@ -266,7 +240,7 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                 .unwrap();
             assert!(matches!(
                 engine
-                    .price_with_greeks(&option, &node, GreeksRequest::new([]), Default::default())
+                    .price_with_greeks(&option, &node, GreeksRequest::new([]))
                     .unwrap_err(),
                 Error::UnsupportedOperation(_)
             ));
@@ -326,22 +300,12 @@ fn discounted_samples_and_greeks_preserve_extreme_scales_and_failure_state() {
         DigitalOption::cash_or_nothing(OptionType::Call, 1e-200, 1e100, start, end).unwrap();
     let context = market(1e-200, 0.0, 0.0, 0.2);
     let delta = engine
-        .price_with_greeks(
-            &option,
-            &context,
-            GreeksRequest::new([Greek::Delta]),
-            Default::default(),
-        )
+        .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Delta]))
         .unwrap();
     assert!(delta.require(Greek::Delta).unwrap().is_finite());
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([Greek::Gamma]),
-                Default::default()
-            )
+            .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Gamma]))
             .unwrap_err(),
         Error::ComputationFailure(_)
     ));

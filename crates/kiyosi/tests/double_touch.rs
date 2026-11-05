@@ -341,7 +341,6 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
                 &known,
                 &context(100.0, option.expiry_time()),
                 GreeksRequest::all(),
-                Default::default(),
             )
             .unwrap();
         assert_eq!(
@@ -462,12 +461,7 @@ fn analytic_node_curves_reject_even_resolved_payments_and_failures_preserve_inpu
                 Err(Error::UnsupportedOperation(_))
             ));
             assert!(matches!(
-                engine.price_with_greeks(
-                    &option,
-                    &context,
-                    GreeksRequest::all(),
-                    Default::default()
-                ),
+                engine.price_with_greeks(&option, &context, GreeksRequest::all()),
                 Err(Error::UnsupportedOperation(_))
             ));
             assert!(matches!(
@@ -515,12 +509,7 @@ fn analytic_greeks_implied_volatility_and_boundary_availability() {
         t.touch_state = Some(BarrierTouchState::Untouched);
         let option = DoubleTouchOption::cash(t, 1.0).unwrap();
         let result = engine
-            .price_with_greeks(
-                &option,
-                &market(100.0),
-                GreeksRequest::all(),
-                Default::default(),
-            )
+            .price_with_greeks(&option, &market(100.0), GreeksRequest::all())
             .unwrap();
         for greek in [
             Greek::Delta,
@@ -546,12 +535,7 @@ fn analytic_greeks_implied_volatility_and_boundary_availability() {
         assert!((solved - 0.2).abs() < 1e-7);
         for spot in [80.0, 120.0] {
             let boundary = engine
-                .price_with_greeks(
-                    &option,
-                    &market(spot),
-                    GreeksRequest::all(),
-                    Default::default(),
-                )
+                .price_with_greeks(&option, &market(spot), GreeksRequest::all())
                 .unwrap();
             assert!(Greek::ALL.into_iter().all(|g| !boundary.has(g)));
         }
@@ -800,7 +784,7 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
         for spot in [80.0, 100.0, 120.0] {
             let at = context(spot, option.expiry_time());
             let result = engine
-                .price_with_greeks(&option, &at, GreeksRequest::all(), Default::default())
+                .price_with_greeks(&option, &at, GreeksRequest::all())
                 .unwrap();
             let touched = spot != 100.0;
             assert_eq!(
@@ -909,7 +893,7 @@ fn early_window_history_utc_calendar_and_fixed_cash_greeks() {
     let remaining = (185.0_f64 - 1e-6 / 86400.0) / 365.0;
     let expected = 2.0 * (-0.03 * remaining).exp();
     let result = engine
-        .price_with_greeks(&known, &ctx, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&known, &ctx, GreeksRequest::all())
         .unwrap();
     assert!((result.price() - expected).abs() < 1e-12);
     assert_eq!(result.require(Greek::Delta).unwrap(), 0.0);
@@ -933,7 +917,6 @@ fn early_window_history_utc_calendar_and_fixed_cash_greeks() {
             &option.replace_history(Some(BarrierTouchState::Untouched)),
             &context(100.0, first),
             GreeksRequest::new([Greek::Theta, Greek::Charm, Greek::Color]),
-            Default::default(),
         )
         .unwrap();
     assert!(
@@ -957,7 +940,7 @@ fn greeks_iv_failures_and_concurrency_preserve_inputs() {
         let option = DoubleTouchOption::cash(t, 1.0).unwrap();
         let ctx = market(100.0);
         let result = engine
-            .price_with_greeks(&option, &ctx, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&option, &ctx, GreeksRequest::all())
             .unwrap();
         assert!(Greek::ALL.into_iter().all(|g| result.has(g)));
         let scalar = numerical_greeks(
@@ -987,32 +970,27 @@ fn greeks_iv_failures_and_concurrency_preserve_inputs() {
         ));
         assert!(matches!(
             engine
-                .price_with_greeks(&option, &ctx, GreeksRequest::new([]), Default::default())
+                .price_with_greeks(&option, &ctx, GreeksRequest::new([]))
                 .unwrap_err(),
             Error::InvalidInput(_)
         ));
         assert!(matches!(
-            engine
-                .price_with_greeks(
-                    &option,
-                    &ctx,
-                    GreeksRequest::all(),
-                    NumericalShiftSettings {
-                        spot_shift: Some(0.0),
-                        ..Default::default()
-                    },
-                )
-                .unwrap_err(),
+            kiyosi::numerical_greeks(
+                &engine,
+                &option,
+                &ctx,
+                GreeksRequest::all(),
+                NumericalShiftSettings {
+                    spot_shift: Some(0.0),
+                    ..Default::default()
+                }
+            )
+            .unwrap_err(),
             Error::InvalidInput(_)
         ));
         for spot in [80.0, 120.0] {
             let at = engine
-                .price_with_greeks(
-                    &option,
-                    &market(spot),
-                    GreeksRequest::all(),
-                    Default::default(),
-                )
+                .price_with_greeks(&option, &market(spot), GreeksRequest::all())
                 .unwrap();
             assert!(Greek::ALL.into_iter().all(|g| !at.has(g)));
         }

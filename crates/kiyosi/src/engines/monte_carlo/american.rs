@@ -26,10 +26,7 @@ impl MonteCarloVanillaEngine {
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// let engine = MonteCarloVanillaEngine::new(MonteCarloSettings { seed: Some(42), ..Default::default() })?;
     /// let result = engine.price_with_greeks(&put, &context,
-    ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]), NumericalShiftSettings {
-    ///         spot_shift: Some(MonteCarloVanillaEngine::default_american_spot_shift(&context)),
-    ///         ..Default::default()
-    ///     })?;
+    ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]))?;
     /// assert!(result.require(Greek::Delta)? < 0.0);
     /// # Ok(()) }
     /// ```
@@ -253,8 +250,8 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
         option: &AmericanOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         <Self as PricingEngine<AmericanOption>>::validate_applicability(self, context)?;
         request.validate()?;
@@ -426,7 +423,7 @@ mod tests {
             7,
         )
         .unwrap();
-        let shift = 1.0 / 8192.0;
+        let shift = NumericalShiftSettings::default().rate_shift;
         for rate in [0.0, 0.05] {
             for dividend in [-shift / 2.0, 0.0, shift / 2.0, shift] {
                 let context = |dividend| {
@@ -442,12 +439,13 @@ mod tests {
                         &option,
                         &context(dividend),
                         GreeksRequest::new([Greek::DividendRhoPerPercentagePoint]),
-                        NumericalShiftSettings {
-                            rate_shift: shift,
-                            ..Default::default()
-                        },
                     )
                     .unwrap();
+                let shift = crate::risk::numerical::symmetric_shift(dividend, shift);
+                if shift == 0.0 {
+                    assert!(!result.has(Greek::DividendRhoPerPercentagePoint));
+                    continue;
+                }
                 let up = engine
                     .american_price(&option, &context(dividend + shift), false)
                     .unwrap();
@@ -467,17 +465,17 @@ mod tests {
                     engine.price(&option, &context(dividend)).unwrap()
                 );
                 assert!(!result.has(Greek::RhoPerPercentagePoint));
-                let unavailable = engine
-                    .price_with_greeks(
-                        &option,
-                        &context(dividend),
-                        GreeksRequest::new([Greek::DividendRhoPerPercentagePoint]),
-                        NumericalShiftSettings {
-                            rate_shift: f64::MAX,
-                            ..Default::default()
-                        },
-                    )
-                    .unwrap();
+                let unavailable = crate::numerical_greeks(
+                    &engine,
+                    &option,
+                    &context(dividend),
+                    GreeksRequest::new([Greek::DividendRhoPerPercentagePoint]),
+                    NumericalShiftSettings {
+                        rate_shift: f64::MAX,
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
                 assert!(!unavailable.has(Greek::DividendRhoPerPercentagePoint));
             }
         }

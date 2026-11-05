@@ -22,7 +22,7 @@ from kiyosi.market import (
     PricingContext,
     RateTermStructure,
 )
-from kiyosi.pricing import AnalyticEuropeanEngine, implied_volatility
+from kiyosi.pricing import AnalyticEuropeanEngine, implied_volatility, numerical_greeks
 
 
 class AnalyticsTests(unittest.TestCase):
@@ -215,7 +215,7 @@ class AnalyticsTests(unittest.TestCase):
             {"greeks": [1]},
         ):
             with self.subTest(changes=changes), self.assertRaises(TypeError):
-                self.engine.price_with_greeks(self.option, self.context, **changes)
+                numerical_greeks(self.engine, self.option, self.context, **changes)
         for request in ("Delta", "unknown"):
             with self.assertRaises(ValueError):
                 self.engine.price_with_greeks(self.option, self.context, request)
@@ -241,10 +241,11 @@ class AnalyticsTests(unittest.TestCase):
                 () if field == "spot_shift" else (None,)
             ):
                 with self.subTest(field=field, bad=bad), self.assertRaises(TypeError):
-                    self.engine.price_with_greeks(
-                        self.option, self.context, "delta", **{field: bad}
+                    numerical_greeks(
+                        self.engine, self.option, self.context, "delta", **{field: bad}
                     )
-        supplied = self.engine.price_with_greeks(
+        supplied = numerical_greeks(
+            self.engine,
             self.option,
             self.context,
             "delta",
@@ -253,8 +254,12 @@ class AnalyticsTests(unittest.TestCase):
             rate_shift=0.001,
             time_shift_days=2,
         )
+        spot = self.context.spot_price
+        h = (spot + 0.001) - spot
+        high = self.engine.price(self.option, self.context.replace(spot_price=spot + h))
+        low = self.engine.price(self.option, self.context.replace(spot_price=spot - h))
         self.assertAlmostEqual(
-            supplied.require("delta"), 0.586851146134764, delta=1e-12
+            supplied.require("delta"), (high - low) / (2 * h), delta=1e-12
         )
         for field in (
             "lower_bound",

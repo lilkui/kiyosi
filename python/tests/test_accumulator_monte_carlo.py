@@ -21,6 +21,7 @@ from kiyosi.market import (
     weekdays_calendar,
 )
 from kiyosi.pricing import MonteCarloAccumulatorEngine as MC
+from kiyosi.pricing import numerical_greeks
 from support.terminal import assert_terminal_greeks
 from test_accumulator import START, contract, market, terminal_reference
 
@@ -126,7 +127,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         for operation in (
             lambda: engine.price(object(), context),
             lambda: engine.price_with_statistics(object(), context),
-            lambda: engine.price_with_greeks(note, context, "delta", spot_shift=True),
+            lambda: numerical_greeks(engine, note, context, "delta", spot_shift=True),
             lambda: pricing.implied_volatility(engine, object(), context, 1),
             lambda: pricing.implied_volatility(engine, note, context, True),
             lambda: pricing.implied_volatility(
@@ -241,7 +242,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         note = contract(datetime(2025, 1, 6))
         context = market(valuation=datetime(2025, 1, 3, 12))
         engine = MC(path_count=4096, seed=42)
-        result = engine.price_with_greeks(note, context, greeks="all", spot_shift=0.25)
+        result = numerical_greeks(engine, note, context, greeks="all", spot_shift=0.25)
         self.assertEqual(result.price, engine.price(note, context))
         up = engine.price(note, context.replace(spot_price=100.5))
         down = engine.price(note, context.replace(spot_price=100))
@@ -296,8 +297,8 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         smooth = contract(
             datetime(2025, 1, 6), knock_out=1e300, acceleration=1, quantity=0
         )
-        shared = unseeded.price_with_greeks(
-            smooth, context, ["delta", "gamma"], spot_shift=0.25
+        shared = numerical_greeks(
+            unseeded, smooth, context, ["delta", "gamma"], spot_shift=0.25
         )
         self.assertAlmostEqual(shared.gamma, 0, delta=1e-10)
         self.assertIsNone(unseeded.seed)
@@ -329,7 +330,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            lambda: engine.price_with_greeks(note, context, "delta", spot_shift=0),
+            lambda: numerical_greeks(engine, note, context, "delta", spot_shift=0),
         )
         curve = RateTermStructure(
             reference_time=START,
@@ -415,7 +416,8 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                 ),
             )
 
-        result = engine.price_with_greeks(
+        result = numerical_greeks(
+            engine,
             note,
             context,
             greeks="all",

@@ -11,7 +11,7 @@ from kiyosi import (
 )
 from kiyosi.instruments import ArithmeticAveragePriceOption, GeometricAveragePriceOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
-from kiyosi.pricing import implied_volatility
+from kiyosi.pricing import implied_volatility, numerical_greeks
 
 
 class AsianRegressionTests(unittest.TestCase):
@@ -79,7 +79,8 @@ class AsianRegressionTests(unittest.TestCase):
                     averaging_start_time=start,
                     expiry_time=end,
                 )
-                result = engine.price_with_greeks(
+                result = numerical_greeks(
+                    engine,
                     option,
                     context,
                     greeks="vanna_per_percentage_point",
@@ -121,7 +122,7 @@ class AsianRegressionTests(unittest.TestCase):
             )
 
             def calculate(selection, engine=engine, option=option):
-                return engine.price_with_greeks(option, context, **selection)
+                return numerical_greeks(engine, option, context, **selection)
 
             selections = [
                 {"greeks": "delta"},
@@ -142,8 +143,8 @@ class AsianRegressionTests(unittest.TestCase):
                         self.assertGreater(result.vega_per_percentage_point, 0)
                 for selection in selections[:3]:
                     with self.assertRaises(InvalidInputError) as error:
-                        engine.price_with_greeks(
-                            option, context, **selection, spot_shift=0
+                        numerical_greeks(
+                            engine, option, context, **selection, spot_shift=0
                         )
                     self.assertIs(type(error.exception), InvalidInputError)
 

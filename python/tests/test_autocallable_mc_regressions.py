@@ -18,6 +18,7 @@ from kiyosi.market import (
     all_days_calendar,
     weekdays_calendar,
 )
+from kiyosi.pricing import numerical_greeks
 
 
 class AutocallableMonteCarloRegressionTests(unittest.TestCase):
@@ -139,7 +140,8 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                         p, up, down, up2, down2 = [
                             engine.price(note, ctx) for ctx in contexts
                         ]
-                        result = engine.price_with_greeks(
+                        result = numerical_greeks(
+                            engine,
                             note,
                             contexts[0],
                             ["delta", "gamma", "speed"],
@@ -152,8 +154,8 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                             result.speed,
                             (up2 - 2 * up + 2 * down - down2) / h / h / (2 * h),
                         )
-                        numerical = engine.price_with_greeks(
-                            note, contexts[0], greeks="all", spot_shift=shift
+                        numerical = numerical_greeks(
+                            engine, note, contexts[0], greeks="all", spot_shift=shift
                         )
                         self.assertEqual(
                             (result.price, result.delta, result.gamma, result.speed),

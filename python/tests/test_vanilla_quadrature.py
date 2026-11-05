@@ -15,6 +15,7 @@ from kiyosi import (
 )
 from kiyosi.instruments import AmericanOption, EuropeanOption
 from kiyosi.market import RateTermStructure
+from kiyosi.pricing import numerical_greeks
 from quantlib_reference import american, oracle
 from support.terminal import assert_terminal_greeks
 from test_binomial import END, GREEKS, START, contract, market
@@ -170,7 +171,8 @@ class VanillaQuadratureTests(unittest.TestCase):
                         for k, v in reference.items()
                         if k in ("price", "delta", "gamma")
                     }
-                result = engine.price_with_greeks(
+                result = numerical_greeks(
+                    engine,
                     option,
                     context,
                     sorted(reference.keys() - {"price"}),
@@ -258,7 +260,8 @@ class VanillaQuadratureTests(unittest.TestCase):
             vol_down = american.measure(dict(inputs, volatility=0.29), "price")
             q_up = american.measure(dict(inputs, dividend=0.011), "price")
             q_down = american.measure(dict(inputs, dividend=0.009), "price")
-        result = engine.price_with_greeks(
+        result = numerical_greeks(
+            engine,
             contract(AmericanOption, "put"),
             market(100, 0.04, 0.01, 0.3),
             ["volga_per_squared_percentage_point", "dividend_rho_per_percentage_point"],
@@ -284,7 +287,7 @@ class VanillaQuadratureTests(unittest.TestCase):
         for kind in (EuropeanOption, AmericanOption):
             option = contract(kind, "put")
             baseline = engine.price(option, market())
-            for at in (START - timedelta(days=1), END + timedelta(days=1)):
+            for at in (END + timedelta(microseconds=1), END + timedelta(days=1)):
                 with self.assertRaises(InvalidInputError):
                     engine.price(option, market(valuation=at))
             expiry = engine.price_with_greeks(

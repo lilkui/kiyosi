@@ -10,8 +10,7 @@ use crate::instruments::autocallable::pricing::{
 use crate::numerics::log_ratio;
 use crate::{
     AutocallableNote, AutocallableObservation, AutocallableTerms, BlackScholesMertonParameters,
-    Error, GreeksRequest, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
-    Result, Timestamp,
+    Error, GreeksRequest, PricingContext, PricingEngine, PricingResult, Result, Timestamp,
 };
 
 /// Prices snowball variants and Phoenix notes by quadrature between event dates.
@@ -50,7 +49,7 @@ impl QuadratureAutocallableEngine {
     /// let engine = QuadratureAutocallableEngine::new(QuadratureSettings::default())?;
     /// assert_eq!(engine.settings().asset_step_count, 512);
     /// let result = engine.price_with_greeks(&note, &context,
-    ///     GreeksRequest::new([Greek::Delta, Greek::VegaPerPercentagePoint]), Default::default())?;
+    ///     GreeksRequest::new([Greek::Delta, Greek::VegaPerPercentagePoint]))?;
     /// assert!(result.price().is_finite());
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
@@ -101,8 +100,8 @@ impl QuadratureAutocallableEngine {
         option: &AutocallableNote<T>,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let shifts = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, shifts)
     }

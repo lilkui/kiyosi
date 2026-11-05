@@ -5,8 +5,8 @@ pub use barrier::CoxRossRubinsteinBarrierEngine;
 
 use crate::{
     AmericanOption, DigitalOption, Error, EuropeanOption, Greek, GreeksRequest,
-    ImpliedVolatilitySettings, NumericalShiftSettings, OptionContract, OptionType, PricingContext,
-    PricingEngine, PricingResult, Result,
+    ImpliedVolatilitySettings, OptionContract, OptionType, PricingContext, PricingEngine,
+    PricingResult, Result,
 };
 
 /// Configures the number of CRR time steps. See [`CoxRossRubinsteinVanillaEngine::new`].
@@ -105,7 +105,7 @@ impl CoxRossRubinsteinVanillaEngine {
     /// Returns node delta/gamma and numerically completes missing requested Greeks.
     ///
     /// Expiry Greeks follow terminal payoffs; time Greeks remain absent. One-step gamma uses scalar differences.
-    /// Bumps use [`NumericalShiftSettings`]; feasible bumped failures propagate.
+    /// Bumps use [`crate::NumericalShiftSettings`]; feasible bumped failures propagate.
     ///
     /// # Errors
     ///
@@ -123,7 +123,7 @@ impl CoxRossRubinsteinVanillaEngine {
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// let result = CoxRossRubinsteinVanillaEngine::default().price_with_greeks(
-    ///     &option, &context, GreeksRequest::new([Greek::Delta]), Default::default())?;
+    ///     &option, &context, GreeksRequest::new([Greek::Delta]))?;
     /// assert!(result.require(Greek::Delta)? < 0.0);
     /// # Ok(()) }
     /// ```
@@ -132,13 +132,12 @@ impl CoxRossRubinsteinVanillaEngine {
         option: &I,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult>
     where
         Self: PricingEngine<I>,
     {
         context.bsm_parameters()?;
-        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request, settings)
+        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request)
     }
 }
 
@@ -461,8 +460,8 @@ macro_rules! vanilla_pricing {
                 option: &$option,
                 context: &PricingContext,
                 request: GreeksRequest,
-                settings: NumericalShiftSettings,
             ) -> Result<PricingResult> {
+                let settings = crate::NumericalShiftSettings::default();
                 context.bsm_parameters()?;
                 flat_rates(context)?;
                 request.validate()?;
@@ -544,14 +543,14 @@ impl CoxRossRubinsteinDigitalEngine {
 
     /// Returns requested node delta/gamma; all other Greeks remain absent.
     ///
-    /// Numerical shifts are unused before expiry; terminal stencils use the supplied spot bump.
-    /// All shifts are validated before pricing, including unused controls.
+    /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
+    /// Terminal stencils use engine-default spot bumps.
     /// One-step gamma is absent before expiry. Expiry spot Greeks follow terminal payoffs.
     ///
     /// # Errors
     ///
     /// Checks flat-rate applicability before request validation, then reuses
-    /// [`Self::price`] errors. Empty requests or invalid shifts return
+    /// [`Self::price`] errors. Empty requests return
     /// [`Error::InvalidInput`]. Inputs remain unchanged.
     ///
     /// # Examples
@@ -566,7 +565,7 @@ impl CoxRossRubinsteinDigitalEngine {
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// let result = CoxRossRubinsteinDigitalEngine::default().price_with_greeks(
-    ///     &option, &context, GreeksRequest::all(), Default::default())?;
+    ///     &option, &context, GreeksRequest::all())?;
     /// assert!(result.require(Greek::Delta)? > 0.0);
     /// assert!(!result.has(Greek::VegaPerPercentagePoint));
     /// # Ok(()) }
@@ -576,8 +575,8 @@ impl CoxRossRubinsteinDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         flat_rates(context)?;
         request.validate()?;
@@ -640,10 +639,9 @@ impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request, settings)
+        Self::price_with_greeks(self, option, context, request)
     }
     fn prepare_implied_volatility(
         &self,

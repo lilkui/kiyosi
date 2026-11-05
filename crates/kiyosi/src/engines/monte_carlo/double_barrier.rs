@@ -2,8 +2,7 @@ use super::barrier::Contract;
 use super::unstable;
 use crate::{
     DoubleBarrierOption, GreeksRequest, MonteCarloBarrierEngine, MonteCarloEstimate,
-    MonteCarloSettings, NumericalShiftSettings, PricingContext, PricingEngine, PricingResult,
-    Result,
+    MonteCarloSettings, PricingContext, PricingEngine, PricingResult, Result,
 };
 use std::f64::consts::PI;
 
@@ -135,8 +134,7 @@ impl MonteCarloDoubleBarrierEngine {
     /// Other Greeks remain absent. Expiry spot Greeks follow terminal payoffs; stencils crossing either
     /// current monitored boundary suppress delta/gamma. The positive finite
     /// `shifts.spot_shift` controls that availability and numerical derivatives of
-    /// continuous at-hit rebates. Other numerical bump settings are unused by the
-    /// inherent method and [`PricingEngine::price_with_greeks`] adapter.
+    /// continuous at-hit rebates. Custom scalar differences use [`crate::numerical_greeks`].
     /// Unavailable rebate stencils leave the contract's delta/gamma absent; see
     /// [`crate::numerical_greeks`] for stencil requirements.
     /// Near-expiry likelihood estimates can have substantial sampling error.
@@ -144,8 +142,8 @@ impl MonteCarloDoubleBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Checks flat rates before requests and all shift settings, including unused controls,
-    /// then propagates [`Self::price`] errors. Empty requests or invalid shifts return
+    /// Checks flat rates and requests before estimating with default controls,
+    /// then propagates [`Self::price`] errors. Empty requests return
     /// [`crate::Error::InvalidInput`]; non-finite requested Greek samples
     /// return [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
     ///
@@ -172,8 +170,7 @@ impl MonteCarloDoubleBarrierEngine {
     ///     ..Default::default()
     /// })?;
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([crate::Greek::Delta, crate::Greek::Gamma]),
-    ///     NumericalShiftSettings::default())?;
+    ///     GreeksRequest::new([crate::Greek::Delta, crate::Greek::Gamma]))?;
     /// assert!((result.price() - 1.0838814592583166).abs() < 0.003);
     /// assert!(result.has(crate::Greek::Delta));
     /// assert_eq!(engine.sampling_settings().path_count, 32768);
@@ -186,8 +183,8 @@ impl MonteCarloDoubleBarrierEngine {
         option: &DoubleBarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let shifts = crate::NumericalShiftSettings::default();
         if crate::engines::deterministic::enabled(context) {
             return crate::numerical_greeks(self, option, context, request, shifts).map(|result| {
                 result.with_request(
@@ -257,10 +254,9 @@ impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
         option: &DoubleBarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request, settings)
+        Self::price_with_greeks(self, option, context, request)
     }
     fn volatility_affects_price(
         &self,

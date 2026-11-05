@@ -123,12 +123,7 @@ fn current_history_expiry_and_resolved_values_precede_grid_validation() {
         .unwrap();
     let untouched = option.replace_history(Some(BarrierTouchState::Untouched));
     let result = engine
-        .price_with_greeks(
-            &untouched,
-            &at_expiry,
-            GreeksRequest::all(),
-            Default::default(),
-        )
+        .price_with_greeks(&untouched, &at_expiry, GreeksRequest::all())
         .unwrap();
     assert_eq!(result.price(), 0.0);
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
@@ -162,7 +157,7 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
     let option = DoubleBarrierOption::new(t).unwrap();
     let context = market(100.0);
     let result = engine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     let scalar = numerical_greeks(
         &engine,
@@ -183,18 +178,18 @@ fn native_and_mixed_greeks_match_scalar_stencils_and_solver_preserves_inputs() {
             "{greek:?}: {actual} != {expected}"
         );
     }
-    let collapsed = engine
-        .price_with_greeks(
-            &option,
-            &context,
-            GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Speed]),
-            NumericalShiftSettings {
-                spot_shift: Some(1e-300),
-                ..Default::default()
-            },
-        )
-        .unwrap();
-    assert!(collapsed.has(Greek::Delta) && collapsed.has(Greek::Gamma));
+    let collapsed = kiyosi::numerical_greeks(
+        &engine,
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Speed]),
+        NumericalShiftSettings {
+            spot_shift: Some(1e-300),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(!collapsed.has(Greek::Delta) && !collapsed.has(Greek::Gamma));
     assert!(!collapsed.has(Greek::Speed));
     let sigma = implied_volatility(
         &engine,
@@ -313,7 +308,6 @@ fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
                 &option,
                 &context,
                 GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-                Default::default(),
             )
             .unwrap()
         })
@@ -514,12 +508,7 @@ fn continuous_grid_refinement_schemes_and_settings_preserve_contracts() {
     }
     for spot in [80.0, 120.0] {
         let result = FiniteDifferenceDoubleBarrierEngine::default()
-            .price_with_greeks(
-                &option,
-                &market(spot),
-                GreeksRequest::all(),
-                Default::default(),
-            )
+            .price_with_greeks(&option, &market(spot), GreeksRequest::all())
             .unwrap();
         assert!(Greek::ALL.iter().all(|&g| !result.has(g)));
     }

@@ -176,7 +176,7 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
             quantity * (spot - 100.0)
         );
         let result = engine
-            .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&option, &context, GreeksRequest::all())
             .unwrap();
         assert_eq!(result.get(Greek::Theta), None);
         assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
@@ -488,9 +488,8 @@ fn greeks_match_terminal_reference_and_cached_prices_match_scalar_repricing() {
         rate_shift: 0.001,
         ..Default::default()
     };
-    let actual = engine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), shifts)
-        .unwrap();
+    let actual =
+        kiyosi::numerical_greeks(&engine, &option, &context, GreeksRequest::all(), shifts).unwrap();
     let reference = numerical_greeks(
         &TerminalReference,
         &option,
@@ -522,9 +521,9 @@ fn greeks_match_terminal_reference_and_cached_prices_match_scalar_repricing() {
     ] {
         for spot in [90.0, 100.0, 100.25, 109.9, 110.0] {
             let context = market(spot, at, 0.3, -0.02, 0.01);
-            let actual = engine
-                .price_with_greeks(&option, &context, GreeksRequest::all(), shifts)
-                .unwrap();
+            let actual =
+                kiyosi::numerical_greeks(&engine, &option, &context, GreeksRequest::all(), shifts)
+                    .unwrap();
             let scalar = numerical_greeks(
                 &Scalar(engine),
                 &option,
@@ -547,7 +546,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
         .unwrap();
     let boundary = market(100.0, day(1, 1), 0.2, 0.04, 0.01);
     let result = engine
-        .price_with_greeks(&option, &boundary, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &boundary, GreeksRequest::all())
         .unwrap();
     for greek in [
         Greek::Delta,
@@ -619,18 +618,13 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
         .unwrap();
     assert!(matches!(
         engine
-            .price_with_greeks(&option, &curved, GreeksRequest::new([]), Default::default())
+            .price_with_greeks(&option, &curved, GreeksRequest::new([]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &boundary,
-                GreeksRequest::new([]),
-                Default::default()
-            )
+            .price_with_greeks(&option, &boundary, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -689,24 +683,24 @@ fn greeks_converge_under_spatial_refinement_and_smaller_bumps() {
         .unwrap();
         let context = market(spot, at, sigma, rate, 0.01);
         let base = normal
-            .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&option, &context, GreeksRequest::all())
             .unwrap();
         let fine = refined
-            .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&option, &context, GreeksRequest::all())
             .unwrap();
-        let smaller = refined
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::all(),
-                NumericalShiftSettings {
-                    spot_shift: Some(0.005),
-                    volatility_shift: 0.00005,
-                    rate_shift: 0.00005,
-                    ..Default::default()
-                },
-            )
-            .unwrap();
+        let smaller = kiyosi::numerical_greeks(
+            &refined,
+            &option,
+            &context,
+            GreeksRequest::all(),
+            NumericalShiftSettings {
+                spot_shift: Some(0.005),
+                volatility_shift: 0.00005,
+                rate_shift: 0.00005,
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let observations =
             ObservationSchedule::fixed_interval(day(1, 5), end, 1, option.calendar())
                 .unwrap()

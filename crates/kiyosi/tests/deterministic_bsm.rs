@@ -8,8 +8,7 @@ fn verify<I: OptionContract>(
 ) -> Result<()> {
     for engine in engines {
         assert!((engine.price(option, context)? - expected).abs() < 1e-10);
-        let result =
-            engine.price_with_greeks(option, context, GreeksRequest::all(), Default::default())?;
+        let result = engine.price_with_greeks(option, context, GreeksRequest::all())?;
         assert!((result.price() - expected).abs() < 1e-10);
         if result.supported().has(Greek::Delta) && !option.at_spot_discontinuity(context, 0.01) {
             assert!(result.get(Greek::Delta).is_some());
@@ -280,12 +279,7 @@ fn deterministic_payoff_boundaries_leave_greeks_undefined_and_solvers_accept_zer
         &CoxRossRubinsteinVanillaEngine::default(),
         &FiniteDifferenceVanillaEngine::default(),
     ] {
-        let result = engine.price_with_greeks(
-            &option,
-            &context,
-            GreeksRequest::all(),
-            Default::default(),
-        )?;
+        let result = engine.price_with_greeks(&option, &context, GreeksRequest::all())?;
         assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
         assert_eq!(
             result.status(Greek::VegaPerPercentagePoint),
@@ -548,7 +542,6 @@ fn deterministic_puts_forward_start_averages_and_sobol_statistics_are_consistent
         &put,
         &context,
         GreeksRequest::new([Greek::Delta]),
-        Default::default(),
     )?;
     assert!((result.require(Greek::Delta)? + 1.0).abs() < 1e-10);
     let asset_put = DigitalOption::asset_or_nothing(OptionType::Put, 110.0, start, end)?;
@@ -567,7 +560,6 @@ fn deterministic_puts_forward_start_averages_and_sobol_statistics_are_consistent
         &asset_put,
         &context,
         GreeksRequest::new([Greek::Delta]),
-        Default::default(),
     )?;
     assert!((result.require(Greek::Delta)? - 1.0).abs() < 1e-10);
     let context = PricingContext::new(

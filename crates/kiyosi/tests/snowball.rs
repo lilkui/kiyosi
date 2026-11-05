@@ -205,12 +205,7 @@ fn multi_observation_affine_tails_preserve_cash_asset_and_greeks() {
                 "{mode:?}, {history:?}: {price} != {expected}"
             );
             let result = engine
-                .price_with_greeks(
-                    &note,
-                    &context,
-                    GreeksRequest::new([Greek::Delta]),
-                    Default::default(),
-                )
+                .price_with_greeks(&note, &context, GreeksRequest::new([Greek::Delta]))
                 .unwrap();
             assert_eq!(result.price(), price);
             assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-8);
@@ -263,17 +258,17 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     let note = SnowballOption::new(t).unwrap();
     let ctx = market(103.0, date(1, 1));
     let engine = QuadratureAutocallableEngine::default();
-    let result = engine
-        .price_with_greeks(
-            &note,
-            &ctx,
-            GreeksRequest::all(),
-            NumericalShiftSettings {
-                spot_shift: Some(0.25),
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let result = kiyosi::numerical_greeks(
+        &engine,
+        &note,
+        &ctx,
+        GreeksRequest::all(),
+        NumericalShiftSettings {
+            spot_shift: Some(0.25),
+            ..Default::default()
+        },
+    )
+    .unwrap();
     for greek in Greek::ALL {
         assert!(result.has(greek), "{greek:?}");
     }
@@ -302,12 +297,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
         .unwrap();
     let note = SnowballOption::new(t).unwrap();
     let result = engine
-        .price_with_greeks(
-            &note,
-            &market(110.0, date(2, 3)),
-            GreeksRequest::all(),
-            Default::default(),
-        )
+        .price_with_greeks(&note, &market(110.0, date(2, 3)), GreeksRequest::all())
         .unwrap();
     assert!(!result.has(Greek::Delta));
     assert!(!result.has(Greek::Theta));

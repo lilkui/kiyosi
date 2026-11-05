@@ -235,7 +235,7 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
     let option = BarrierOption::new(t.clone()).unwrap();
     assert_eq!(engine.price(&option, &boundary).unwrap(), 3.0);
     let result = engine
-        .price_with_greeks(&option, &boundary, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &boundary, GreeksRequest::all())
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|g| !result.has(g)));
     assert!(matches!(
@@ -268,7 +268,7 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
             })
             .unwrap();
         let result = engine
-            .price_with_greeks(&stopped, &expiry, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&stopped, &expiry, GreeksRequest::all())
             .unwrap();
         assert_eq!(
             result.price(),
@@ -342,20 +342,14 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
         },
     ] {
         assert!(matches!(
-            engine
-                .price_with_greeks(&option, &context, GreeksRequest::all(), shifts)
+            kiyosi::numerical_greeks(&engine, &option, &context, GreeksRequest::all(), shifts)
                 .unwrap_err(),
             Error::InvalidInput(_)
         ));
     }
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([]),
-                Default::default()
-            )
+            .price_with_greeks(&option, &context, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -417,7 +411,7 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(&option, &nodes, GreeksRequest::new([]), Default::default())
+            .price_with_greeks(&option, &nodes, GreeksRequest::new([]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
@@ -442,10 +436,10 @@ fn greeks_sensitivities_and_solving_share_scalar_semantics() {
         Greek::RhoPerPercentagePoint,
     ]);
     let actual = engine
-        .price_with_greeks(&option, &context, request, Default::default())
+        .price_with_greeks(&option, &context, request)
         .unwrap();
     let expected = AnalyticBarrierEngine
-        .price_with_greeks(&option, &context, request, Default::default())
+        .price_with_greeks(&option, &context, request)
         .unwrap();
     let scalar = numerical_greeks(&engine, &option, &context, request, Default::default()).unwrap();
     for greek in [
@@ -465,7 +459,7 @@ fn greeks_sensitivities_and_solving_share_scalar_semantics() {
     }
     assert!(!actual.has(Greek::Speed));
     let all = engine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     assert!(Greek::ALL.into_iter().all(|g| all.has(g)));
     let solve = |option: &BarrierOption, context: &PricingContext, quote| {

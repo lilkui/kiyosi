@@ -20,6 +20,7 @@ from kiyosi.market import (
     all_days_calendar,
     weekdays_calendar,
 )
+from kiyosi.pricing import numerical_greeks
 
 
 class AutocallableRegressionTests(unittest.TestCase):
@@ -62,7 +63,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                 ["vega_per_percentage_point", "rho_per_percentage_point"],
                 **shifts,
             )
-            actual = engine.price_with_greeks(note, context, greeks="all", **shifts)
+            actual = numerical_greeks(engine, note, context, greeks="all", **shifts)
             self.assertEqual(actual.price, expected.price)
             self.assertEqual(
                 actual.vega_per_percentage_point, expected.vega_per_percentage_point
@@ -78,7 +79,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                 "color",
             ):
                 with self.subTest(mode=mode, greek=greek):
-                    single = engine.price_with_greeks(note, context, greek, **shifts)
+                    single = numerical_greeks(engine, note, context, greek, **shifts)
                     self.assertEqual(getattr(single, greek), getattr(actual, greek))
 
     def test_automatic_domains_converge_to_volatile_terminal_portfolios(self):
@@ -586,7 +587,8 @@ class AutocallableRegressionTests(unittest.TestCase):
             for engine in engines:
                 with self.subTest(engine=type(engine).__name__):
                     shifts = {"volatility_shift": 0.01, "rate_shift": 0.01}
-                    result = engine.price_with_greeks(
+                    result = numerical_greeks(
+                        engine,
                         note,
                         base,
                         ["vega_per_percentage_point", "rho_per_percentage_point"],
@@ -630,7 +632,8 @@ class AutocallableRegressionTests(unittest.TestCase):
                         results = list(
                             pool.map(
                                 lambda _, *, engine=engine, note=note, shifts=shifts: (
-                                    engine.price_with_greeks(
+                                    numerical_greeks(
+                                        engine,
                                         note,
                                         base,
                                         [

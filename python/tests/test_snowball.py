@@ -4,6 +4,7 @@ import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from functools import partial
 
 from kiyosi import (
     InvalidInputError,
@@ -22,7 +23,11 @@ from kiyosi.market import (
     all_days_calendar,
     custom_calendar,
 )
-from kiyosi.pricing import QuadratureAutocallableEngine, implied_volatility
+from kiyosi.pricing import (
+    QuadratureAutocallableEngine,
+    implied_volatility,
+    numerical_greeks,
+)
 from quantlib_reference import structured
 
 START, END = datetime(2025, 1, 1), datetime(2025, 4, 1)
@@ -216,7 +221,7 @@ class SnowballTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            engine.price_with_greeks,
+            partial(numerical_greeks, engine),
             contract(),
             market(),
             "delta",
@@ -487,7 +492,8 @@ class SnowballTests(unittest.TestCase):
             "color": gamma(t=1 - dt) - gamma(),
         }
         context = market(spot, volatility=vol, rate=rate)
-        result = engine.price_with_greeks(
+        result = numerical_greeks(
+            engine,
             note,
             context,
             greeks="all",
@@ -689,12 +695,12 @@ class SnowballTests(unittest.TestCase):
         context = market(101.5, datetime(2025, 1, 15), volatility=0.25)
         coarse = {"spot_shift": 0.5, "volatility_shift": 0.002, "rate_shift": 0.001}
         fine = {"spot_shift": 0.25, "volatility_shift": 0.001, "rate_shift": 0.0005}
-        standard = QuadratureAutocallableEngine().price_with_greeks(
-            note, context, greeks="all", **coarse
+        standard = numerical_greeks(
+            QuadratureAutocallableEngine(), note, context, greeks="all", **coarse
         )
         engine = QuadratureAutocallableEngine(asset_step_count=1024)
-        refined = engine.price_with_greeks(note, context, greeks="all", **coarse)
-        smaller = engine.price_with_greeks(note, context, greeks="all", **fine)
+        refined = numerical_greeks(engine, note, context, greeks="all", **coarse)
+        smaller = numerical_greeks(engine, note, context, greeks="all", **fine)
         tolerances = {
             "delta": (3e-6, 0.005),
             "gamma": (3e-7, 0.01),

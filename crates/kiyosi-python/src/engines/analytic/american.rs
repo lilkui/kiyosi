@@ -15,14 +15,12 @@ pub(crate) struct BjerksundStenslandVanillaEngine;
 
 numerical_greeks_methods!(
     PyRef<'_, AmericanOption>,
-    |_binding, _py, instrument, context, request, shifts| {
+    |_binding, _py, instrument, context, request| {
         Ok(risk::PricingResult(domain(
             kiyosi::BjerksundStenslandVanillaEngine.price_with_greeks(
                 &instrument.0,
                 &context.0,
-                request,
-                shifts,
-            ),
+                request),
         )?))
     },
     [
@@ -30,7 +28,7 @@ numerical_greeks_methods!(
         /// Notes
         /// -----
         /// Before expiry requested Greeks use scalar numerical differences and the
-        /// corresponding shifts. At expiry spot_shift controls terminal-payoff stencils.
+        /// engine defaults. Use numerical_greeks for configurable scalar differences.
     ],
     engine_methods!(
         BjerksundStenslandVanillaEngine,

@@ -2,8 +2,8 @@ use super::{QuadratureSettings, flat_rates, simpson};
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked, log_ratio, standardize};
 use crate::{
-    DigitalOption, Error, GreeksRequest, NumericalShiftSettings, OptionType, PricingContext,
-    PricingEngine, PricingResult, Result,
+    DigitalOption, Error, GreeksRequest, OptionType, PricingContext, PricingEngine, PricingResult,
+    Result,
 };
 
 /// Prices European cash-or-nothing and asset-or-nothing options by BSM quadrature.
@@ -45,7 +45,7 @@ impl QuadratureDigitalEngine {
     /// assert_eq!(engine.settings(), settings);
     /// assert!((engine.price(&option, &context)? - 4.945810910532236).abs() < 1e-8);
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta]), Default::default())?;
+    ///     GreeksRequest::new([Greek::Delta]))?;
     /// assert!(result.require(Greek::Delta)? > 0.0);
     /// # Ok(()) }
     /// ```
@@ -88,8 +88,8 @@ impl QuadratureDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let shifts = crate::NumericalShiftSettings::default();
         crate::numerical_greeks(self, option, context, request, shifts)
     }
 }

@@ -62,12 +62,8 @@ fn parity<I: OptionContract, E: PricingEngine<I>>(engine: &E, option: &I, local:
         })
         .unwrap();
     engine.validate_applicability(local).unwrap();
-    let actual = engine
-        .price_with_greeks(option, local, request(), Default::default())
-        .unwrap();
-    let reference = engine
-        .price_with_greeks(option, &bsm, request(), Default::default())
-        .unwrap();
+    let actual = engine.price_with_greeks(option, local, request()).unwrap();
+    let reference = engine.price_with_greeks(option, &bsm, request()).unwrap();
     assert!(
         (actual.price() - reference.price()).abs() < 1e-9,
         "{} != {}",
@@ -211,7 +207,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
     ));
     assert_eq!(
         acc_engine
-            .price_with_greeks(&acc, &settled, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&acc, &settled, GreeksRequest::all())
             .unwrap()
             .get(Greek::VegaPerPercentagePoint),
         None
@@ -241,12 +237,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
     ));
     assert_eq!(
         engine
-            .price_with_greeks(
-                &knocked_out,
-                &later,
-                GreeksRequest::all(),
-                Default::default()
-            )
+            .price_with_greeks(&knocked_out, &later, GreeksRequest::all())
             .unwrap()
             .get(Greek::VegaPerPercentagePoint),
         None
@@ -266,9 +257,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
         start,
     )
     .unwrap();
-    let result = engine
-        .price_with_greeks(&fixed, &local, request(), Default::default())
-        .unwrap();
+    let result = engine.price_with_greeks(&fixed, &local, request()).unwrap();
     assert!((result.price() - 0.99).abs() < 1e-14);
     assert_eq!(result.require(Greek::Delta).unwrap(), 0.0);
     assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
@@ -298,9 +287,7 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
             ..Default::default()
         })
         .unwrap();
-    let result = engine
-        .price_with_greeks(&note, &local, request(), Default::default())
-        .unwrap();
+    let result = engine.price_with_greeks(&note, &local, request()).unwrap();
     assert_eq!(result.get(Greek::Delta), None);
     assert_eq!(result.get(Greek::Gamma), None);
     let expired = local
@@ -310,13 +297,13 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
         })
         .unwrap();
     let result = engine
-        .price_with_greeks(&note, &expired, request(), Default::default())
+        .price_with_greeks(&note, &expired, request())
         .unwrap();
     assert_eq!(result.get(Greek::Delta), None);
     assert_eq!(result.get(Greek::Gamma), None);
     assert_eq!(
         engine
-            .price_with_greeks(&note, &expired, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&note, &expired, GreeksRequest::all())
             .unwrap()
             .get(Greek::VegaPerPercentagePoint),
         None
@@ -328,14 +315,14 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
     .unwrap();
     let acc_engine = FiniteDifferenceAccumulatorEngine::default();
     let result = acc_engine
-        .price_with_greeks(&acc, &expired, request(), Default::default())
+        .price_with_greeks(&acc, &expired, request())
         .unwrap();
     assert_eq!(result.price(), -50.0);
     assert!((result.require(Greek::Delta).unwrap() - 5.0).abs() < 1e-10);
     assert_eq!(result.require(Greek::Gamma).unwrap(), 0.0);
     assert_eq!(
         acc_engine
-            .price_with_greeks(&acc, &expired, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&acc, &expired, GreeksRequest::all())
             .unwrap()
             .get(Greek::VegaPerPercentagePoint),
         None
@@ -404,9 +391,7 @@ fn fixed_surface_derivatives<I: OptionContract, E: PricingEngine<I>>(
     local: &PricingContext,
     tolerance: [f64; 2],
 ) {
-    let value = engine
-        .price_with_greeks(option, local, request(), Default::default())
-        .unwrap();
+    let value = engine.price_with_greeks(option, local, request()).unwrap();
     let shift = 0.05;
     let price = |offset| {
         engine

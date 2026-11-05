@@ -2,8 +2,8 @@ use crate::engines::analytic::barrier::{analytic_log_shift, hit_value, reflectio
 use crate::instruments::monitoring::validate_life;
 use crate::numerics::{checked, log_ratio, scaled_cash, scaled_cdf, standardize};
 use crate::{
-    AnalyticDigitalEngine, DigitalOption, GreeksRequest, NumericalShiftSettings, OptionContract,
-    OptionType, PricingContext, PricingEngine, PricingResult, Result,
+    AnalyticDigitalEngine, DigitalOption, GreeksRequest, OptionContract, OptionType,
+    PricingContext, PricingEngine, PricingResult, Result,
 };
 use crate::{BinaryBarrierOption, SettlementTiming, TouchOption};
 
@@ -61,11 +61,11 @@ impl AnalyticBinaryBarrierEngine {
         option: &I,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult>
     where
         Self: PricingEngine<I>,
     {
+        let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         crate::numerical_greeks(self, option, context, request, settings)
     }

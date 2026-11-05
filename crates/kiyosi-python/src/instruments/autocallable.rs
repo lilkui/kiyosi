@@ -97,14 +97,14 @@ macro_rules! snowball_properties {
         autocallable_properties! {
             $name,
             $($extra,)*
-            /// Returns an independent note with its observation first_observation_coupon schedule shifted.
+            /// Returns an independent note with its observation coupon schedule shifted.
             ///
             /// Parameters
             /// ----------
             /// first_observation_coupon : float
-            ///     New first observation first_observation_coupon; all observation coupons shift equally.
+            ///     New first observation coupon; all observation coupons shift equally.
             /// quote_convention : CouponQuoteConvention
-            ///     Whether to shift the maturity first_observation_coupon or preserve it.
+            ///     Whether to shift the maturity coupon or preserve it.
             ///
             /// Returns
             /// -------

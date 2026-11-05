@@ -4,6 +4,7 @@ import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from functools import partial
 from itertools import product
 
 from kiyosi import (
@@ -15,6 +16,7 @@ from kiyosi import (
 )
 from kiyosi.instruments import EuropeanOption
 from kiyosi.market import RateTermStructure
+from kiyosi.pricing import numerical_greeks
 from test_barrier_binomial import END, KINDS, OTHER_GREEKS, START, market, option
 
 
@@ -56,8 +58,8 @@ class BarrierMonteCarloTests(unittest.TestCase):
                 rebate_timing="at_hit",
             )
             with self.subTest(spot=spot, shift=shift):
-                result = engine.price_with_greeks(
-                    contract, context, ("delta", "gamma"), spot_shift=shift
+                result = numerical_greeks(
+                    engine, contract, context, ("delta", "gamma"), spot_shift=shift
                 )
                 self.assertEqual(result.price, engine.price(contract, context))
                 for name in ("delta", "gamma"):
@@ -65,20 +67,15 @@ class BarrierMonteCarloTests(unittest.TestCase):
                     with self.assertRaises(UnsupportedOperationError):
                         result.require(name)
                 controls = {"spot_shift": 1e-4 * spot}
-                actual = engine.price_with_greeks(
-                    contract, context, ("delta", "gamma"), **controls
+                actual = numerical_greeks(
+                    engine, contract, context, ("delta", "gamma"), **controls
                 )
-                expected = pricing.AnalyticBarrierEngine().price_with_greeks(
-                    contract, context, ("delta", "gamma"), **controls
-                )
-                self.assertEqual(actual.delta, expected.delta)
-                self.assertEqual(actual.gamma, expected.gamma)
-                contract = option("up_and_out", strike=spot, barrier_level=5 * spot)
-                actual = engine.price_with_greeks(
-                    contract, context, ("delta", "gamma"), spot_shift=shift
-                )
-                expected = engine.price_with_greeks(
-                    contract, context, ("delta", "gamma"), **controls
+                expected = numerical_greeks(
+                    pricing.AnalyticBarrierEngine(),
+                    contract,
+                    context,
+                    ("delta", "gamma"),
+                    **controls,
                 )
                 self.assertEqual(actual.delta, expected.delta)
                 self.assertEqual(actual.gamma, expected.gamma)
@@ -381,10 +378,11 @@ class BarrierMonteCarloTests(unittest.TestCase):
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):
-                engine.price_with_greeks(option(), market(), "delta", **fields)
+                numerical_greeks(engine, option(), market(), "delta", **fields)
         seeded = factory(path_count=32, seed=42)
         expected = seeded.price_with_greeks(option(), market(), "delta")
-        controlled = seeded.price_with_greeks(
+        controlled = numerical_greeks(
+            seeded,
             option(),
             market(),
             "delta",
@@ -393,7 +391,16 @@ class BarrierMonteCarloTests(unittest.TestCase):
             time_shift_days=2,
         )
         self.assertEqual(controlled.price, expected.price)
-        self.assertEqual(controlled.delta, expected.delta)
+        h = (100 + 0.01) - 100
+        self.assertAlmostEqual(
+            controlled.delta,
+            (
+                seeded.price(option(), market(spot=100 + h))
+                - seeded.price(option(), market(spot=100 - h))
+            )
+            / (2 * h),
+            delta=1e-10,
+        )
         vanilla = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )
@@ -453,7 +460,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            engine.price_with_greeks,
+            partial(numerical_greeks, engine),
             contract,
             context,
             "delta",

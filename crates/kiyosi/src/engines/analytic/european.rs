@@ -2,8 +2,8 @@ use crate::numerics::{log_ratio, standardize, weighted_cdf};
 use std::f64::consts::PI;
 
 use crate::{
-    Error, EuropeanOption, Greek, GreeksRequest, NumericalShiftSettings, OptionType,
-    PricingContext, PricingEngine, PricingResult, Result,
+    Error, EuropeanOption, Greek, GreeksRequest, OptionType, PricingContext, PricingEngine,
+    PricingResult, Result,
 };
 
 /// Prices European vanilla options analytically under the BSM model.
@@ -28,8 +28,8 @@ pub(crate) fn black_scholes_arguments(
 impl AnalyticEuropeanEngine {
     /// Returns the price and selected analytic Greeks.
     ///
-    /// Numerical shifts are unused before expiry; terminal stencils use the supplied spot bump.
-    /// All shifts are validated before pricing, including unused controls.
+    /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
+    /// Terminal stencils use engine-default spot bumps.
     /// At expiry spot Greeks follow terminal-payoff stencils; volatility and rate
     /// Greeks are zero, while time Greeks remain absent. Stencils crossing payoff
     /// kinks are unavailable. See [`crate::numerical_greeks`] for terminal rules.
@@ -39,7 +39,7 @@ impl AnalyticEuropeanEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for empty requests or invalid shifts,
+    /// Returns [`Error::InvalidInput`] for empty requests,
     /// then propagates [`Self::price`] errors. Non-finite requested derivatives
     /// return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price_with_greeks(
@@ -47,8 +47,8 @@ impl AnalyticEuropeanEngine {
         option: &EuropeanOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         request.validate()?;
         settings.validate()?;
@@ -284,10 +284,9 @@ impl PricingEngine for AnalyticEuropeanEngine {
         option: &EuropeanOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request, settings)
+        Self::price_with_greeks(self, option, context, request)
     }
 }
 

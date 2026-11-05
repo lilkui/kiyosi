@@ -763,7 +763,7 @@ impl FiniteDifferenceVanillaEngine {
     /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, Date::new(2026, 1, 1)?.start_of_day())?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start.into())?;
     /// let result = FiniteDifferenceVanillaEngine::default().price_with_greeks(
-    ///     &option, &context, GreeksRequest::new([Greek::Delta]), Default::default())?;
+    ///     &option, &context, GreeksRequest::new([Greek::Delta]))?;
     /// assert!((result.price() - 9.227005508154036).abs() < 0.002);
     /// assert!(result.require(Greek::Delta)? > 0.0);
     /// # Ok(()) }
@@ -773,12 +773,11 @@ impl FiniteDifferenceVanillaEngine {
         option: &I,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult>
     where
         Self: PricingEngine<I>,
     {
-        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request, settings)
+        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request)
     }
 }
 
@@ -841,8 +840,8 @@ macro_rules! vanilla_pricing {
                 option: &$option,
                 context: &PricingContext,
                 request: GreeksRequest,
-                settings: NumericalShiftSettings,
             ) -> Result<PricingResult> {
+                let settings = crate::NumericalShiftSettings::default();
                 if let Some(model) = local_volatility::local_model(context) {
                     request.validate()?;
                     settings.validate()?;
@@ -946,8 +945,8 @@ impl FiniteDifferenceDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let shifts = crate::NumericalShiftSettings::default();
         flat_rates(context)?;
         let payoff = Payoff::digital(option);
         analysis(
@@ -1005,8 +1004,7 @@ impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
-        Self::price_with_greeks(self, option, context, request, settings)
+        Self::price_with_greeks(self, option, context, request)
     }
 }

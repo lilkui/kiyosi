@@ -5,6 +5,7 @@ import math
 import unittest
 from datetime import datetime, timedelta
 from fractions import Fraction
+from functools import partial
 
 import QuantLib as ql
 from kiyosi import (
@@ -28,6 +29,7 @@ from kiyosi.pricing import (
     AnalyticGeometricAveragePriceEngine,
     TurnbullWakemanArithmeticAveragePriceEngine,
     implied_volatility,
+    numerical_greeks,
 )
 from support.terminal import assert_terminal_greeks
 
@@ -241,7 +243,7 @@ class AsianTests(unittest.TestCase):
                 ({"greeks": "delta", "time_shift_days": 2**40}, OverflowError),
             ):
                 with self.assertRaises(exception):
-                    engine.price_with_greeks(option, context, **settings)
+                    numerical_greeks(engine, option, context, **settings)
             self.assert_rejection(
                 InvalidInputError,
                 engine.price_with_greeks,
@@ -251,14 +253,14 @@ class AsianTests(unittest.TestCase):
             )
             self.assert_rejection(
                 InvalidInputError,
-                engine.price_with_greeks,
+                partial(numerical_greeks, engine),
                 option,
                 context,
                 "delta",
                 spot_shift=0,
             )
-            collapsed = engine.price_with_greeks(
-                option, context, "delta", spot_shift=math.ulp(0.0)
+            collapsed = numerical_greeks(
+                engine, option, context, "delta", spot_shift=math.ulp(0.0)
             )
             self.assertIsNone(collapsed.delta)
             seasoned = option.replace_history(realized_average=100)
@@ -452,8 +454,12 @@ class AsianTests(unittest.TestCase):
                 )
                 requested = sorted(set(row["outputs"]) - {"price"})
                 if requested:
-                    joint = engine.price_with_greeks(
-                        option, context, requested, spot_shift=inputs["spot_shift"]
+                    joint = numerical_greeks(
+                        engine,
+                        option,
+                        context,
+                        requested,
+                        spot_shift=inputs["spot_shift"],
                     )
                     numeric = differences(
                         engine,

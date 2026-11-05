@@ -23,6 +23,7 @@ from kiyosi.pricing import (
     QuadratureAutocallableEngine,
     implied_snowball_coupon,
     implied_volatility,
+    numerical_greeks,
 )
 from test_snowball import END, START, autocallable_observations, market, structured
 
@@ -333,7 +334,8 @@ class SnowballVariantTests(unittest.TestCase):
                 mc = MonteCarloAutocallableEngine(path_count=128, seed=42)
                 self.assertEqual(mc.price(actual, ctx), mc.price(explicit, ctx))
                 for note in (actual, explicit):
-                    result = engine.price_with_greeks(
+                    result = numerical_greeks(
+                        engine,
                         note,
                         ctx,
                         ["delta", "vega_per_percentage_point"],
@@ -538,7 +540,7 @@ class SnowballVariantTests(unittest.TestCase):
             note = self.fixed(kind)
             ctx = market(103)
             original = repr(note)
-            result = engine.price_with_greeks(note, ctx, greeks="all", spot_shift=0.25)
+            result = numerical_greeks(engine, note, ctx, greeks="all", spot_shift=0.25)
             for name in (
                 "delta",
                 "gamma",

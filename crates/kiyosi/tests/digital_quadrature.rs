@@ -69,10 +69,10 @@ fn greeks_and_implied_volatility_use_shared_contracts() {
     for direction in [OptionType::Call, OptionType::Put] {
         for option in options(direction, 100.0, 10.0, dates().1) {
             let actual = engine
-                .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+                .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap();
             let expected = AnalyticDigitalEngine
-                .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+                .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap();
             for greek in Greek::ALL {
                 assert!(
@@ -82,12 +82,7 @@ fn greeks_and_implied_volatility_use_shared_contracts() {
                 );
             }
             let selected = engine
-                .price_with_greeks(
-                    &option,
-                    &context,
-                    GreeksRequest::new([Greek::Delta]),
-                    Default::default(),
-                )
+                .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Delta]))
                 .unwrap();
             assert_eq!(selected.get(Greek::Gamma), None);
             assert_eq!(selected.get(Greek::Delta), actual.get(Greek::Delta));
@@ -135,7 +130,7 @@ fn expiry_is_strict_and_life_validation_preserves_state() {
                     0.0
                 };
                 let result = engine
-                    .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+                    .price_with_greeks(&option, &context, GreeksRequest::all())
                     .unwrap();
                 assert_eq!(result.price(), expected);
                 for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
@@ -238,19 +233,14 @@ fn invalid_controls_and_unsupported_curves_keep_error_categories() {
                 Err(Error::UnsupportedOperation(_))
             ));
             assert!(matches!(
-                engine.price_with_greeks(
-                    option,
-                    &context,
-                    GreeksRequest::new([]),
-                    Default::default()
-                ),
+                engine.price_with_greeks(option, &context, GreeksRequest::new([])),
                 Err(Error::UnsupportedOperation(_))
             ));
         }
     }
     let context = market(100.0, 0.05, 0.02, 0.2);
     assert!(matches!(
-        engine.price_with_greeks(option, &context, GreeksRequest::new([]), Default::default()),
+        engine.price_with_greeks(option, &context, GreeksRequest::new([])),
         Err(Error::InvalidInput(_))
     ));
     assert!(matches!(

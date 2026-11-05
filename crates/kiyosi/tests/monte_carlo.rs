@@ -253,7 +253,7 @@ fn analyses_share_one_seed_and_solvers_recover_seeded_quotes() {
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
     for result in [
         engine
-            .price_with_greeks(&option, &market(), request, Default::default())
+            .price_with_greeks(&option, &market(), request)
             .unwrap(),
         numerical_greeks(&engine, &option, &market(), request, Default::default()).unwrap(),
     ] {
@@ -377,7 +377,7 @@ fn sample_block_boundaries_and_shared_instances_are_thread_invariant() {
     let option = contract(OptionType::Put);
     let context = market();
     let expected = engine
-        .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
     let quote = expected.price();
     let bounds = ImpliedVolatilitySettings {
@@ -394,7 +394,7 @@ fn sample_block_boundaries_and_shared_instances_are_thread_invariant() {
         .unwrap();
         assert_eq!(
             other
-                .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+                .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap(),
             expected
         );
@@ -408,12 +408,7 @@ fn sample_block_boundaries_and_shared_instances_are_thread_invariant() {
             .map(|_| {
                 scope.spawn(|| {
                     engine
-                        .price_with_greeks(
-                            &option,
-                            &context,
-                            GreeksRequest::all(),
-                            Default::default(),
-                        )
+                        .price_with_greeks(&option, &context, GreeksRequest::all())
                         .unwrap()
                 })
             })
@@ -449,12 +444,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
     assert_eq!(estimate.standard_error(), Some(0.0));
     assert_eq!(estimate.confidence_interval(), Some((0.0, 0.0)));
     let result = engine
-        .price_with_greeks(
-            &option,
-            &at(expiry),
-            GreeksRequest::all(),
-            Default::default(),
-        )
+        .price_with_greeks(&option, &at(expiry), GreeksRequest::all())
         .unwrap();
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
         assert_eq!(result.get(greek), None);
@@ -477,10 +467,14 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
         Timestamp::new(Date::new(2024, 12, 31).unwrap(), 23, 59, 59, 999_999).unwrap(),
         Timestamp::new(option.expiry_time().date(), 0, 0, 0, 1).unwrap(),
     ] {
-        assert!(matches!(
-            engine.price(&option, &at(time)).unwrap_err(),
-            Error::InvalidInput(_)
-        ));
+        if time <= option.expiry_time() {
+            assert!(engine.price(&option, &at(time)).unwrap().is_finite());
+        } else {
+            assert!(matches!(
+                engine.price(&option, &at(time)),
+                Err(Error::InvalidInput(_))
+            ));
+        }
     }
     assert!(
         engine
@@ -518,12 +512,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &node_context,
-                GreeksRequest::new([]),
-                Default::default()
-            )
+            .price_with_greeks(&option, &node_context, GreeksRequest::new([]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
@@ -556,42 +545,37 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
     }
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([]),
-                Default::default()
-            )
+            .price_with_greeks(&option, &context, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     let baseline = engine.price(&option, &context).unwrap();
     assert!(matches!(
-        engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([Greek::RhoPerPercentagePoint]),
-                NumericalShiftSettings {
-                    rate_shift: 1000.0,
-                    ..Default::default()
-                }
-            )
-            .unwrap_err(),
-        Error::ComputationFailure(_)
-    ));
-    let missing = engine
-        .price_with_greeks(
+        kiyosi::numerical_greeks(
+            &engine,
             &option,
             &context,
-            GreeksRequest::new([Greek::Delta, Greek::VegaPerPercentagePoint]),
+            GreeksRequest::new([Greek::RhoPerPercentagePoint]),
             NumericalShiftSettings {
-                spot_shift: Some(100.0),
-                volatility_shift: 0.2,
+                rate_shift: 1000.0,
                 ..Default::default()
-            },
+            }
         )
-        .unwrap();
+        .unwrap_err(),
+        Error::ComputationFailure(_)
+    ));
+    let missing = kiyosi::numerical_greeks(
+        &engine,
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Delta, Greek::VegaPerPercentagePoint]),
+        NumericalShiftSettings {
+            spot_shift: Some(100.0),
+            volatility_shift: 0.2,
+            ..Default::default()
+        },
+    )
+    .unwrap();
     assert!(!missing.has(Greek::Delta) && !missing.has(Greek::VegaPerPercentagePoint));
     assert_eq!(missing.price(), baseline);
     assert_eq!(engine.price(&option, &context).unwrap(), baseline);
@@ -691,25 +675,25 @@ fn sobol_prices_match_analytic_and_never_claim_sampling_uncertainty() {
         for direction in [OptionType::Call, OptionType::Put] {
             let option = contract(direction);
             let reference = AnalyticEuropeanEngine
-                .price_with_greeks(&option, &market(), GreeksRequest::all(), Default::default())
+                .price_with_greeks(&option, &market(), GreeksRequest::all())
                 .unwrap();
             let estimate = engine.price_with_statistics(&option, &market()).unwrap();
             assert!((estimate.price() - reference.price()).abs() < 0.005);
             assert_eq!(estimate.standard_error(), None);
             assert_eq!(estimate.confidence_interval(), None);
-            let analysis = engine
-                .price_with_greeks(
-                    &option,
-                    &market(),
-                    GreeksRequest::all(),
-                    NumericalShiftSettings {
-                        spot_shift: Some(1.0),
-                        volatility_shift: 0.001,
-                        rate_shift: 0.001,
-                        ..Default::default()
-                    },
-                )
-                .unwrap();
+            let analysis = kiyosi::numerical_greeks(
+                &engine,
+                &option,
+                &market(),
+                GreeksRequest::all(),
+                NumericalShiftSettings {
+                    spot_shift: Some(1.0),
+                    volatility_shift: 0.001,
+                    rate_shift: 0.001,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
             assert_eq!(estimate.price(), analysis.price());
             for (greek, tolerance) in [
                 (Greek::Delta, 2e-4),
@@ -912,7 +896,7 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
             let option = contract(OptionType::Call);
             let context = market();
             let expected = engine
-                .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+                .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap();
             let bounds = ImpliedVolatilitySettings {
                 lower_bound: 0.1,
@@ -930,12 +914,7 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
                 .unwrap();
                 assert_eq!(
                     parallel
-                        .price_with_greeks(
-                            &option,
-                            &context,
-                            GreeksRequest::all(),
-                            Default::default()
-                        )
+                        .price_with_greeks(&option, &context, GreeksRequest::all())
                         .unwrap(),
                     expected
                 );
@@ -957,17 +936,17 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
                     ..Default::default()
                 })
                 .unwrap();
-            let analysis = engine
-                .price_with_greeks(
-                    &option,
-                    &context,
-                    GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-                    NumericalShiftSettings {
-                        spot_shift: Some(1.0),
-                        ..Default::default()
-                    },
-                )
-                .unwrap();
+            let analysis = kiyosi::numerical_greeks(
+                &engine,
+                &option,
+                &context,
+                GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+                NumericalShiftSettings {
+                    spot_shift: Some(1.0),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
             let up_price = engine.price(&option, &shifted).unwrap();
             let down_price = engine.price(&option, &down).unwrap();
             assert!(
@@ -981,17 +960,17 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
                     < 1e-10
             );
             assert!(matches!(
-                engine
-                    .price_with_greeks(
-                        &option,
-                        &context,
-                        GreeksRequest::new([Greek::RhoPerPercentagePoint]),
-                        NumericalShiftSettings {
-                            rate_shift: 1000.0,
-                            ..Default::default()
-                        }
-                    )
-                    .unwrap_err(),
+                kiyosi::numerical_greeks(
+                    &engine,
+                    &option,
+                    &context,
+                    GreeksRequest::new([Greek::RhoPerPercentagePoint]),
+                    NumericalShiftSettings {
+                        rate_shift: 1000.0,
+                        ..Default::default()
+                    }
+                )
+                .unwrap_err(),
                 Error::ComputationFailure(_)
             ));
             assert_eq!(engine.price(&option, &context).unwrap(), expected.price());
@@ -1012,7 +991,6 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
                     &linear,
                     &context,
                     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-                    Default::default(),
                 )
                 .unwrap();
             assert!(

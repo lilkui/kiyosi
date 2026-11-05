@@ -59,7 +59,7 @@ impl FiniteDifferenceBinaryBarrierEngine {
     ///     100.0, start.into())?;
     /// let engine = FiniteDifferenceBinaryBarrierEngine::default();
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta]), Default::default())?;
+    ///     GreeksRequest::new([Greek::Delta]))?;
     /// assert!(result.price() > 0.0);
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
@@ -69,12 +69,12 @@ impl FiniteDifferenceBinaryBarrierEngine {
         option: &I,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult>
     where
         Self: PricingEngine<I>,
     {
-        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request, shifts)
+        let _shifts = crate::NumericalShiftSettings::default();
+        <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request)
     }
 }
 
@@ -119,8 +119,8 @@ macro_rules! binary_pricing {
                 option: &$option,
                 context: &PricingContext,
                 request: GreeksRequest,
-                shifts: NumericalShiftSettings,
             ) -> Result<PricingResult> {
+                let shifts = crate::NumericalShiftSettings::default();
                 request.validate()?;
                 shifts.validate()?;
                 local_volatility::validate_request(context, request)?;
@@ -199,7 +199,7 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.03, 0.01, 0.2)?,
     ///     100.0, start.into())?;
     /// let result = FiniteDifferenceDoubleTouchEngine::default().price_with_greeks(
-    ///     &option, &context, GreeksRequest::new([Greek::Delta]), Default::default())?;
+    ///     &option, &context, GreeksRequest::new([Greek::Delta]))?;
     /// assert!((result.price() - 0.36726156351907174).abs() < 0.00001);
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }
@@ -209,10 +209,10 @@ impl FiniteDifferenceDoubleTouchEngine {
         option: &DoubleTouchOption,
         context: &PricingContext,
         request: GreeksRequest,
-        shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let _shifts = crate::NumericalShiftSettings::default();
         <Self as PricingEngine<DoubleTouchOption>>::price_with_greeks(
-            self, option, context, request, shifts,
+            self, option, context, request,
         )
     }
 }

@@ -23,7 +23,7 @@ fn european_tree_refines_to_analytic_price_and_node_greeks() {
     for direction in [OptionType::Call, OptionType::Put] {
         let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
         let expected = AnalyticEuropeanEngine
-            .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&option, &context, GreeksRequest::all())
             .unwrap();
         for steps in [255, 256, 4095, 4096] {
             let engine =
@@ -34,7 +34,6 @@ fn european_tree_refines_to_analytic_price_and_node_greeks() {
                     &option,
                     &context,
                     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-                    Default::default(),
                 )
                 .unwrap();
             assert!((actual.price() - expected.price()).abs() < 3.0 / f64::from(steps));
@@ -73,7 +72,7 @@ fn digital_tree_matches_one_step_cash_and_asset_payments() {
         ),
     ] {
         let result = engine
-            .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&option, &context, GreeksRequest::all())
             .unwrap();
         assert!((result.price() - price).abs() < 1e-10);
         assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 1e-10);
@@ -99,7 +98,6 @@ fn american_early_exercise_and_no_dividend_limit() {
                     &option,
                     &market(spot, rate, dividend, 0.2),
                     GreeksRequest::all(),
-                    Default::default(),
                 )
                 .unwrap();
             assert_eq!(result.price(), 12.0);
@@ -116,12 +114,7 @@ fn american_early_exercise_and_no_dividend_limit() {
                 < 1e-10
         );
         let result = engine
-            .price_with_greeks(
-                &american,
-                &context,
-                GreeksRequest::all(),
-                Default::default(),
-            )
+            .price_with_greeks(&american, &context, GreeksRequest::all())
             .unwrap();
         assert!(Greek::ALL.into_iter().all(|g| result.has(g)));
     }
@@ -148,7 +141,6 @@ fn digital_odd_even_and_off_strike_grids_refine_with_negative_carry() {
                             &option,
                             &context,
                             GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-                            Default::default(),
                         )
                         .unwrap();
                     for steps in [255, 256, 4095, 4096] {
@@ -157,12 +149,7 @@ fn digital_odd_even_and_off_strike_grids_refine_with_negative_carry() {
                         })
                         .unwrap();
                         let actual = engine
-                            .price_with_greeks(
-                                &option,
-                                &context,
-                                GreeksRequest::all(),
-                                Default::default(),
-                            )
+                            .price_with_greeks(&option, &context, GreeksRequest::all())
                             .unwrap();
                         let budget = option.payout().unwrap_or(spot) / f64::from(steps).sqrt();
                         assert!((actual.price() - expected.price()).abs() < budget);
@@ -210,20 +197,10 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
             .max(0.0);
             for result in [
                 vanilla
-                    .price_with_greeks(
-                        &european,
-                        &context,
-                        GreeksRequest::all(),
-                        Default::default(),
-                    )
+                    .price_with_greeks(&european, &context, GreeksRequest::all())
                     .unwrap(),
                 vanilla
-                    .price_with_greeks(
-                        &american,
-                        &context,
-                        GreeksRequest::all(),
-                        Default::default(),
-                    )
+                    .price_with_greeks(&american, &context, GreeksRequest::all())
                     .unwrap(),
             ] {
                 assert_eq!(result.price(), intrinsic);
@@ -247,7 +224,7 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
                 DigitalOption::asset_or_nothing(direction, 100.0, start, end).unwrap(),
             ] {
                 let result = digital
-                    .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+                    .price_with_greeks(&option, &context, GreeksRequest::all())
                     .unwrap();
                 assert_eq!(
                     result.price(),
@@ -287,10 +264,12 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
                     ..Default::default()
                 })
                 .unwrap();
-            assert!(matches!(
-                vanilla.price(&european, &context).unwrap_err(),
-                Error::InvalidInput(_)
-            ));
+            if time > european.expiry_time() {
+                assert!(matches!(
+                    vanilla.price(&european, &context),
+                    Err(Error::InvalidInput(_))
+                ));
+            }
             assert!(matches!(
                 vanilla.price(&american, &context).unwrap_err(),
                 Error::InvalidInput(_)
@@ -355,18 +334,13 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
     .unwrap();
     assert!(matches!(
         vanilla
-            .price_with_greeks(
-                &option,
-                &nonflat,
-                GreeksRequest::new([]),
-                Default::default()
-            )
+            .price_with_greeks(&option, &nonflat, GreeksRequest::new([]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
     assert!(matches!(
         digital
-            .price_with_greeks(&cash, &nonflat, GreeksRequest::new([]), Default::default())
+            .price_with_greeks(&cash, &nonflat, GreeksRequest::new([]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
@@ -394,8 +368,7 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
         },
     ] {
         assert!(matches!(
-            vanilla
-                .price_with_greeks(&option, &context, GreeksRequest::all(), settings)
+            kiyosi::numerical_greeks(&vanilla, &option, &context, GreeksRequest::all(), settings)
                 .unwrap_err(),
             Error::InvalidInput(_)
         ));
@@ -525,8 +498,7 @@ fn deterministic_endpoints_and_underflowed_tail_weights_remain_finite() {
             .price_with_greeks(
                 &option,
                 &context,
-                GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-                Default::default()
+                GreeksRequest::new([Greek::Delta, Greek::Gamma])
             )
             .unwrap()
             .price()
@@ -547,10 +519,10 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
     for direction in [OptionType::Call, OptionType::Put] {
         let option = EuropeanOption::new(direction, 100.0, start, end).unwrap();
         let actual = engine
-            .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&option, &context, GreeksRequest::all())
             .unwrap();
         let expected = AnalyticEuropeanEngine
-            .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+            .price_with_greeks(&option, &context, GreeksRequest::all())
             .unwrap();
         for greek in [
             Greek::Speed,
@@ -565,14 +537,9 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
                 "{greek:?}"
             );
         }
-        let generic = PricingEngine::price_with_greeks(
-            &engine,
-            &option,
-            &context,
-            GreeksRequest::all(),
-            Default::default(),
-        )
-        .unwrap();
+        let generic =
+            PricingEngine::price_with_greeks(&engine, &option, &context, GreeksRequest::all())
+                .unwrap();
         assert_eq!(generic, actual);
     }
     let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1 }).unwrap();
@@ -581,17 +548,17 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
     let before = context.clone();
     let price = engine.price(&option, &context).unwrap();
     assert!(matches!(
-        engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([Greek::VegaPerPercentagePoint]),
-                NumericalShiftSettings {
-                    volatility_shift: 0.1,
-                    ..Default::default()
-                }
-            )
-            .unwrap_err(),
+        kiyosi::numerical_greeks(
+            &engine,
+            &option,
+            &context,
+            GreeksRequest::new([Greek::VegaPerPercentagePoint]),
+            NumericalShiftSettings {
+                volatility_shift: 0.1,
+                ..Default::default()
+            }
+        )
+        .unwrap_err(),
         Error::ComputationFailure(_)
     ));
     assert_eq!(context, before);
@@ -605,12 +572,7 @@ fn one_step_speed_omits_an_infeasible_scalar_stencil() {
     let context = market(0.015, 0.05, 0.02, 0.2);
     let engine = CoxRossRubinsteinVanillaEngine::new(BinomialSettings { step_count: 1 }).unwrap();
     let result = engine
-        .price_with_greeks(
-            &option,
-            &context,
-            GreeksRequest::new([Greek::Speed]),
-            Default::default(),
-        )
+        .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Speed]))
         .unwrap();
     assert_eq!(result.price(), engine.price(&option, &context).unwrap());
     assert_eq!(result.get(Greek::Speed), None);

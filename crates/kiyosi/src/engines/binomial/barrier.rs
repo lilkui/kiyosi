@@ -1,7 +1,7 @@
 use super::{
-    BinomialSettings, Error, Greek, GreeksRequest, ImpliedVolatilitySettings,
-    NumericalShiftSettings, OptionContract, OptionType, PricingContext, PricingEngine,
-    PricingResult, Result, flat_rates, parameters, prepare_implied, scaled, time_step, unstable,
+    BinomialSettings, Error, Greek, GreeksRequest, ImpliedVolatilitySettings, OptionContract,
+    OptionType, PricingContext, PricingEngine, PricingResult, Result, flat_rates, parameters,
+    prepare_implied, scaled, time_step, unstable,
 };
 use crate::{AnalyticEuropeanEngine, BarrierOption, RebateTiming};
 
@@ -73,8 +73,8 @@ impl CoxRossRubinsteinBarrierEngine {
 
     /// Returns requested node delta/gamma; other Greeks remain absent.
     ///
-    /// Numerical shifts are unused before expiry; terminal stencils use the supplied spot bump.
-    /// All shifts are validated before pricing, including unused controls.
+    /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
+    /// Terminal stencils use engine-default spot bumps.
     /// One-step gamma is absent before expiry. Expiry spot Greeks follow terminal payoffs. Current barrier equality also
     /// suppresses Greeks without a prior touch.
     /// See [`Self::price`] for a pricing example.
@@ -82,15 +82,15 @@ impl CoxRossRubinsteinBarrierEngine {
     /// # Errors
     ///
     /// Checks flat-rate applicability before request validation, then reuses
-    /// [`Self::price`] errors. Empty requests or invalid shifts return
+    /// [`Self::price`] errors. Empty requests return
     /// [`Error::InvalidInput`]. Inputs remain unchanged.
     pub fn price_with_greeks(
         &self,
         option: &BarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        let settings = crate::NumericalShiftSettings::default();
         context.bsm_parameters()?;
         flat_rates(context)?;
         request.validate()?;
@@ -146,7 +146,6 @@ impl CoxRossRubinsteinBarrierEngine {
                     option.vanilla(),
                     context,
                     request,
-                    Default::default(),
                 );
             }
             let mut result = PricingResult::new(value)?;
@@ -317,10 +316,9 @@ impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
         option: &BarrierOption,
         context: &PricingContext,
         request: GreeksRequest,
-        settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
         context.bsm_parameters()?;
-        Self::price_with_greeks(self, option, context, request, settings)
+        Self::price_with_greeks(self, option, context, request)
     }
     fn prepare_implied_volatility(
         &self,

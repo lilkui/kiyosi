@@ -204,9 +204,14 @@ fn numerical_greeks_match_independent_payoff_reference() {
             shifts,
         )
         .unwrap();
-        let actual = AnalyticRangeAccrualEngine
-            .price_with_greeks(&option, &context, GreeksRequest::all(), shifts)
-            .unwrap();
+        let actual = kiyosi::numerical_greeks(
+            &AnalyticRangeAccrualEngine,
+            &option,
+            &context,
+            GreeksRequest::all(),
+            shifts,
+        )
+        .unwrap();
         for greek in Greek::ALL {
             assert!(
                 (actual.require(greek).unwrap() - expected.require(greek).unwrap()).abs() < 2e-8,
@@ -242,17 +247,12 @@ fn greeks_respect_contract_life_and_observations() {
     .unwrap();
     let before = market(Date::new(2024, 12, 29).unwrap().start_of_day(), 99.0);
     assert!(matches!(
-        AnalyticRangeAccrualEngine.price_with_greeks(
-            &option,
-            &before,
-            GreeksRequest::all(),
-            Default::default()
-        ),
+        AnalyticRangeAccrualEngine.price_with_greeks(&option, &before, GreeksRequest::all()),
         Err(Error::InvalidInput(_))
     ));
     let current = market(day(2), 95.0);
     let result = AnalyticRangeAccrualEngine
-        .price_with_greeks(&option, &current, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&option, &current, GreeksRequest::all())
         .unwrap();
     for greek in Greek::ALL {
         assert_eq!(
@@ -277,12 +277,7 @@ fn greeks_respect_contract_life_and_observations() {
     let context = market(Timestamp::new(day(4).date(), 12, 0, 0, 0).unwrap(), 100.0);
     assert!(
         AnalyticRangeAccrualEngine
-            .price_with_greeks(
-                &weekend,
-                &context,
-                GreeksRequest::new([Greek::Theta]),
-                Default::default()
-            )
+            .price_with_greeks(&weekend, &context, GreeksRequest::new([Greek::Theta]))
             .unwrap()
             .has(Greek::Theta)
     );
@@ -584,36 +579,35 @@ fn request_and_solver_errors_preserve_inputs() {
     let context = market(day(1), 100.0);
     let shifts = NumericalShiftSettings::default();
     assert!(matches!(
-        engine
-            .price_with_greeks(&option, &context, GreeksRequest::new([]), shifts)
+        kiyosi::numerical_greeks(&engine, &option, &context, GreeksRequest::new([]), shifts)
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert!(matches!(
-        engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::all(),
-                NumericalShiftSettings {
-                    volatility_shift: 0.0,
-                    ..shifts
-                }
-            )
-            .unwrap_err(),
-        Error::InvalidInput(_)
-    ));
-    let unavailable = engine
-        .price_with_greeks(
+        kiyosi::numerical_greeks(
+            &engine,
             &option,
             &context,
-            GreeksRequest::new([Greek::Delta]),
+            GreeksRequest::all(),
             NumericalShiftSettings {
-                spot_shift: Some(200.0),
+                volatility_shift: 0.0,
                 ..shifts
-            },
+            }
         )
-        .unwrap();
+        .unwrap_err(),
+        Error::InvalidInput(_)
+    ));
+    let unavailable = kiyosi::numerical_greeks(
+        &engine,
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Delta]),
+        NumericalShiftSettings {
+            spot_shift: Some(200.0),
+            ..shifts
+        },
+    )
+    .unwrap();
     assert!(!unavailable.has(Greek::Delta));
     let settings = ImpliedVolatilitySettings {
         lower_bound: 0.1,
@@ -640,9 +634,8 @@ fn request_and_solver_errors_preserve_inputs() {
         implied_volatility(&engine, &end, &terminal, 0.0, settings).unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
-    let result = engine
-        .price_with_greeks(&end, &terminal, GreeksRequest::all(), shifts)
-        .unwrap();
+    let result =
+        kiyosi::numerical_greeks(&engine, &end, &terminal, GreeksRequest::all(), shifts).unwrap();
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
         assert_eq!(result.get(greek), None);
     }

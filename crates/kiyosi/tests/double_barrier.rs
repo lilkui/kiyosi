@@ -48,7 +48,6 @@ fn continuous_prices_and_greeks_match_independent_quantlib_regressions() {
                 &option,
                 &context,
                 GreeksRequest::new([Greek::Delta, Greek::Gamma]),
-                Default::default(),
             )
             .unwrap();
         assert!((result.price() - price).abs() < 1e-9);
@@ -222,7 +221,6 @@ fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows(
                     &option,
                     &market(spot, start, 0.2, 0.04, 0.01),
                     GreeksRequest::all(),
-                    Default::default(),
                 )
                 .unwrap();
             if spot == 80.0 || spot == 120.0 {
@@ -245,7 +243,7 @@ fn current_touches_strict_prior_history_and_expiry_preserve_remaining_cashflows(
                 2.0
             };
             let result = engine
-                .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+                .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap();
             assert_eq!(result.price(), expected);
             assert_eq!(result.get(Greek::Theta), None);
@@ -543,34 +541,29 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
     let known = option.replace_history(Some(BarrierTouchState::Untouched));
     let later = market(100.0, day(2025, 1, 2), 0.2, 0.04, 0.01);
     let result = engine
-        .price_with_greeks(&known, &later, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&known, &later, GreeksRequest::all())
         .unwrap();
     for greek in Greek::ALL {
         assert!(result.require(greek).unwrap().is_finite());
     }
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::new([]),
-                Default::default(),
-            )
+            .price_with_greeks(&option, &context, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert!(matches!(
-        engine
-            .price_with_greeks(
-                &option,
-                &context,
-                GreeksRequest::all(),
-                NumericalShiftSettings {
-                    spot_shift: Some(0.0),
-                    ..Default::default()
-                },
-            )
-            .unwrap_err(),
+        kiyosi::numerical_greeks(
+            &engine,
+            &option,
+            &context,
+            GreeksRequest::all(),
+            NumericalShiftSettings {
+                spot_shift: Some(0.0),
+                ..Default::default()
+            }
+        )
+        .unwrap_err(),
         Error::InvalidInput(_)
     ));
     t.rebate = 3.0;
@@ -620,7 +613,7 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
         ));
         assert!(matches!(
             engine
-                .price_with_greeks(&option, &curved, GreeksRequest::new([]), Default::default(),)
+                .price_with_greeks(&option, &curved, GreeksRequest::new([]))
                 .unwrap_err(),
             Error::UnsupportedOperation(_)
         ));
@@ -652,7 +645,6 @@ fn shared_analysis_solver_and_failure_categories_preserve_inputs() {
                 &narrow,
                 &context,
                 GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::VegaPerPercentagePoint]),
-                Default::default(),
             )
             .unwrap();
         assert!(!result.has(Greek::Delta));

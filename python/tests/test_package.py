@@ -11,6 +11,7 @@ from pathlib import Path
 
 import kiyosi
 from kiyosi import _native, instruments, market, pricing
+from kiyosi.pricing import numerical_greeks
 
 
 class PackageTests(unittest.TestCase):
@@ -302,28 +303,26 @@ class PackageTests(unittest.TestCase):
             option = kind(**terms)
             default = engine.price_with_greeks(option, context, "delta")
             shift_default = (
-                inspect.signature(engine.price_with_greeks)
-                .parameters["spot_shift"]
-                .default
+                inspect.signature(numerical_greeks).parameters["spot_shift"].default
             )
             with self.subTest(product=kind.__name__):
                 self.assertIs(shift_default, None)
                 self.assertEqual(
-                    engine.price_with_greeks(
-                        option, context, "delta", spot_shift=shift_default
+                    numerical_greeks(
+                        engine, option, context, "delta", spot_shift=shift_default
                     ).require("delta"),
                     default.require("delta"),
                 )
                 self.assertEqual(
-                    engine.price_with_greeks(
-                        option, context, "delta", spot_shift=shift
+                    numerical_greeks(
+                        engine, option, context, "delta", spot_shift=shift
                     ).require("delta"),
                     default.require("delta"),
                 )
                 for invalid in (True, "invalid", Ellipsis):
                     with self.assertRaises(TypeError):
-                        engine.price_with_greeks(
-                            option, context, "delta", spot_shift=invalid
+                        numerical_greeks(
+                            engine, option, context, "delta", spot_shift=invalid
                         )
 
     def test_numerical_spot_shift_none_uses_the_core_default(self):
@@ -343,10 +342,10 @@ class PackageTests(unittest.TestCase):
         )
         engine = pricing.QuadratureVanillaEngine()
         automatic = engine.price_with_greeks(option, context, "delta")
-        explicit = engine.price_with_greeks(option, context, "delta", spot_shift=0.01)
+        explicit = numerical_greeks(engine, option, context, "delta", spot_shift=0.01)
         self.assertEqual(automatic.delta, explicit.delta)
         self.assertEqual(
-            engine.price_with_greeks(option, context, "delta", spot_shift=None).delta,
+            numerical_greeks(engine, option, context, "delta", spot_shift=None).delta,
             explicit.delta,
         )
         for invalid in (0, -1, float("nan"), float("inf")):
@@ -354,9 +353,9 @@ class PackageTests(unittest.TestCase):
                 self.subTest(invalid=invalid),
                 self.assertRaises(kiyosi.InvalidInputError),
             ):
-                engine.price_with_greeks(option, context, "delta", spot_shift=invalid)
+                numerical_greeks(engine, option, context, "delta", spot_shift=invalid)
 
-    def test_native_greek_methods_accept_uniform_controls(self):
+    def test_native_greek_methods_reject_numerical_controls(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = market.PricingContext(
             model_parameters=market.BlackScholesMertonParameters(
@@ -407,13 +406,10 @@ class PackageTests(unittest.TestCase):
                         "instrument",
                         "context",
                         "greeks",
-                        "spot_shift",
-                        "volatility_shift",
-                        "rate_shift",
-                        "time_shift_days",
                     ),
                 )
-                result = engine.price_with_greeks(
+                result = numerical_greeks(
+                    engine,
                     option,
                     context,
                     "delta",
@@ -423,13 +419,23 @@ class PackageTests(unittest.TestCase):
                     time_shift_days=2,
                 )
                 self.assertEqual(result.price, engine.price(option, context))
+                for control in (
+                    "spot_shift",
+                    "volatility_shift",
+                    "rate_shift",
+                    "time_shift_days",
+                ):
+                    with self.subTest(control=control), self.assertRaises(TypeError):
+                        engine.price_with_greeks(
+                            option, context, "delta", **{control: 1}
+                        )
                 for invalid in (1, None, True):
                     with self.assertRaises(TypeError):
                         engine.price_with_greeks(option, context, greeks=invalid)
                 with self.assertRaises(TypeError):
                     engine.price_with_greeks(option, context, "delta", unknown=True)
 
-    def test_all_engines_expose_the_same_greek_controls(self):
+    def test_all_engines_expose_the_same_native_greek_signature(self):
         for name in pricing.__all__:
             if not name.endswith("Engine"):
                 continue
@@ -447,15 +453,7 @@ class PackageTests(unittest.TestCase):
                         "instrument",
                         "context",
                         "greeks",
-                        "spot_shift",
-                        "volatility_shift",
-                        "rate_shift",
-                        "time_shift_days",
                     ),
-                )
-                self.assertIs(
-                    signature.parameters["spot_shift"].kind,
-                    inspect.Parameter.KEYWORD_ONLY,
                 )
 
     def test_constructors_and_factories_match_declared_keywords(self):
@@ -575,7 +573,12 @@ class PackageTests(unittest.TestCase):
             with self.subTest(contract=cls.__name__):
                 signature = inspect.signature(cls)
                 self.assertIs(
-                    signature.parameters["payout"].default, inspect.Parameter.empty
+                    signature.parameters[
+                        "payout"
+                        if cls is instruments.DoubleTouchOption
+                        else "payoff_type"
+                    ].default,
+                    inspect.Parameter.empty,
                 )
                 self.assertTrue(
                     all(
@@ -700,6 +703,7 @@ class PackageTests(unittest.TestCase):
                     "Greek",
                     "FiniteDifferenceScheme",
                     "MonteCarloSampling",
+                    "MonteCarloUncertaintyStatus",
                     "CouponQuoteConvention",
                     "GreekMethod",
                     "GreekControl",

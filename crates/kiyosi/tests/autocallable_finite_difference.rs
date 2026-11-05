@@ -142,17 +142,17 @@ fn greeks_and_solvers_preserve_inputs_and_unidentifiable_errors() {
     let original = note.clone();
     let context = market(103.0, date(1, 1));
     let engine = FiniteDifferenceAutocallableEngine::default();
-    let result = engine
-        .price_with_greeks(
-            &note,
-            &context,
-            GreeksRequest::all(),
-            NumericalShiftSettings {
-                spot_shift: Some(0.25),
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let result = kiyosi::numerical_greeks(
+        &engine,
+        &note,
+        &context,
+        GreeksRequest::all(),
+        NumericalShiftSettings {
+            spot_shift: Some(0.25),
+            ..Default::default()
+        },
+    )
+    .unwrap();
     for greek in Greek::ALL {
         assert!(result.has(greek), "{greek:?}");
     }
@@ -358,12 +358,7 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
     let engine = FiniteDifferenceAutocallableEngine::default();
     let note = PhoenixOption::new(terms).unwrap();
     let result = engine
-        .price_with_greeks(
-            &note,
-            &market(90.0, date(2, 3)),
-            GreeksRequest::all(),
-            Default::default(),
-        )
+        .price_with_greeks(&note, &market(90.0, date(2, 3)), GreeksRequest::all())
         .unwrap();
     for greek in [Greek::Delta, Greek::Gamma, Greek::Speed, Greek::Theta] {
         assert!(!result.has(greek), "{greek:?}");
@@ -381,7 +376,7 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
     ))
     .unwrap();
     let result = engine
-        .price_with_greeks(&fixed, &ctx, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&fixed, &ctx, GreeksRequest::all())
         .unwrap();
     assert!((result.price() - 0.99).abs() < 1e-14);
     assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
@@ -444,23 +439,23 @@ fn native_spot_greeks_do_not_require_a_feasible_scalar_bump() {
         ))
         .unwrap();
         let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Speed]);
-        let reference = engine
-            .price_with_greeks(&note, &ctx, request, Default::default())
-            .unwrap();
+        let reference = engine.price_with_greeks(&note, &ctx, request).unwrap();
         for shift in [200.0, 1e-300] {
-            let actual = engine
-                .price_with_greeks(
-                    &note,
-                    &ctx,
-                    request,
-                    NumericalShiftSettings {
-                        spot_shift: Some(shift),
-                        ..Default::default()
-                    },
-                )
-                .unwrap();
-            assert_eq!(actual.get(Greek::Delta), reference.get(Greek::Delta));
-            assert_eq!(actual.get(Greek::Gamma), reference.get(Greek::Gamma));
+            let actual = kiyosi::numerical_greeks(
+                &engine,
+                &note,
+                &ctx,
+                request,
+                NumericalShiftSettings {
+                    spot_shift: Some(shift),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            assert!(reference.has(Greek::Delta));
+            assert!(!actual.has(Greek::Delta));
+            assert!(reference.has(Greek::Gamma));
+            assert!(!actual.has(Greek::Gamma));
             assert!(!actual.has(Greek::Speed));
         }
     }

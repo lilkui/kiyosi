@@ -145,12 +145,7 @@ macro_rules! contract_tests {
                 ));
                 assert_eq!($engine.price(&seasoned, &market(end)).unwrap(), 10.0);
                 let settled = $engine
-                    .price_with_greeks(
-                        &seasoned,
-                        &market(end),
-                        GreeksRequest::all(),
-                        Default::default(),
-                    )
+                    .price_with_greeks(&seasoned, &market(end), GreeksRequest::all())
                     .unwrap();
                 assert_eq!(settled.get(Greek::Theta), None);
                 for greek in [
@@ -190,7 +185,7 @@ macro_rules! contract_tests {
                     $option::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
                 let context = market(start);
                 let full = $engine
-                    .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
+                    .price_with_greeks(&option, &context, GreeksRequest::all())
                     .unwrap();
                 assert!(full.require(Greek::Delta).unwrap() > 0.0);
                 assert!(full.require(Greek::VegaPerPercentagePoint).unwrap() > 0.0);
@@ -208,12 +203,7 @@ macro_rules! contract_tests {
                 assert_eq!(full, scalar);
                 for greek in Greek::ALL {
                     let selected = $engine
-                        .price_with_greeks(
-                            &option,
-                            &context,
-                            GreeksRequest::new([greek, greek]),
-                            Default::default(),
-                        )
+                        .price_with_greeks(&option, &context, GreeksRequest::new([greek, greek]))
                         .unwrap();
                     assert_eq!(selected.get(greek), full.get(greek));
                     assert!(
@@ -238,27 +228,22 @@ macro_rules! contract_tests {
                 );
                 assert!(matches!(
                     $engine
-                        .price_with_greeks(
-                            &option,
-                            &context,
-                            GreeksRequest::new([]),
-                            Default::default()
-                        )
+                        .price_with_greeks(&option, &context, GreeksRequest::new([]))
                         .unwrap_err(),
                     Error::InvalidInput(_)
                 ));
                 assert!(matches!(
-                    $engine
-                        .price_with_greeks(
-                            &option,
-                            &context,
-                            GreeksRequest::all(),
-                            NumericalShiftSettings {
-                                spot_shift: Some(0.0),
-                                ..Default::default()
-                            }
-                        )
-                        .unwrap_err(),
+                    kiyosi::numerical_greeks(
+                        &$engine,
+                        &option,
+                        &context,
+                        GreeksRequest::all(),
+                        NumericalShiftSettings {
+                            spot_shift: Some(0.0),
+                            ..Default::default()
+                        }
+                    )
+                    .unwrap_err(),
                     Error::InvalidInput(_)
                 ));
                 assert!(matches!(
@@ -269,7 +254,7 @@ macro_rules! contract_tests {
                 let seasoned = option.replace_history(100.0).unwrap();
                 let middle = market(Date::new(2025, 7, 1).unwrap().start_of_day());
                 let result = $engine
-                    .price_with_greeks(&seasoned, &middle, GreeksRequest::all(), Default::default())
+                    .price_with_greeks(&seasoned, &middle, GreeksRequest::all())
                     .unwrap();
                 assert!(result.values().iter().all(Option::is_some));
                 assert_eq!(option.realized_average(), None);

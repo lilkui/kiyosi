@@ -39,12 +39,7 @@ fn american_path_storage_limit_rejects_large_grids_before_sampling() {
             Err(Error::InvalidInput(_))
         ));
         assert!(matches!(
-            engine.price_with_greeks(
-                &put,
-                &context,
-                GreeksRequest::new([Greek::Delta]),
-                Default::default()
-            ),
+            engine.price_with_greeks(&put, &context, GreeksRequest::new([Greek::Delta])),
             Err(Error::InvalidInput(_))
         ));
         assert!(matches!(
@@ -99,12 +94,7 @@ fn nonfinite_continuation_regressions_fail_without_changing_the_engine() {
             Err(Error::ComputationFailure(_))
         ));
         assert!(matches!(
-            engine.price_with_greeks(
-                &extreme,
-                &context,
-                GreeksRequest::new([Greek::Delta]),
-                Default::default()
-            ),
+            engine.price_with_greeks(&extreme, &context, GreeksRequest::new([Greek::Delta])),
             Err(Error::ComputationFailure(_))
         ));
     }
@@ -351,17 +341,22 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
                 6,
             )
             .unwrap();
-            let all = engine
-                .price_with_greeks(&put, &context, GreeksRequest::all(), shifts)
-                .unwrap();
+            let all =
+                kiyosi::numerical_greeks(&engine, &put, &context, GreeksRequest::all(), shifts)
+                    .unwrap();
             let scalar =
                 numerical_greeks(&engine, &put, &context, GreeksRequest::all(), shifts).unwrap();
             assert_eq!(all.values(), scalar.values());
             assert_eq!(all.price(), engine.price(&put, &context).unwrap());
             for greek in Greek::ALL {
-                let selected = engine
-                    .price_with_greeks(&put, &context, GreeksRequest::new([greek]), shifts)
-                    .unwrap();
+                let selected = kiyosi::numerical_greeks(
+                    &engine,
+                    &put,
+                    &context,
+                    GreeksRequest::new([greek]),
+                    shifts,
+                )
+                .unwrap();
                 assert_eq!(selected.get(greek), all.get(greek));
             }
             let solved = implied_volatility(
@@ -381,17 +376,17 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
                 implied_volatility(&engine, &put, &context, -1.0, Default::default()).unwrap_err(),
                 Error::RootNotBracketed(_)
             ));
-            let unavailable = engine
-                .price_with_greeks(
-                    &put,
-                    &context,
-                    GreeksRequest::new([Greek::Gamma]),
-                    NumericalShiftSettings {
-                        spot_shift: Some(200.0),
-                        ..shifts
-                    },
-                )
-                .unwrap();
+            let unavailable = kiyosi::numerical_greeks(
+                &engine,
+                &put,
+                &context,
+                GreeksRequest::new([Greek::Gamma]),
+                NumericalShiftSettings {
+                    spot_shift: Some(200.0),
+                    ..shifts
+                },
+            )
+            .unwrap();
             assert_eq!(unavailable.get(Greek::Gamma), None);
             assert_eq!(unavailable.price(), all.price());
             assert_eq!(engine.price(&put, &context).unwrap(), all.price());
@@ -410,14 +405,16 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
     )
     .unwrap();
     assert!(
-        unseeded
-            .price_with_greeks(&put, &context, GreeksRequest::all(), shifts)
-            .is_ok()
+        kiyosi::numerical_greeks(&unseeded, &put, &context, GreeksRequest::all(), shifts).is_ok()
     );
     assert_eq!(unseeded.sampling_settings().seed, None);
 }
 
 #[test]
+#[expect(
+    clippy::float_cmp,
+    reason = "Stencil distances must be exactly representably symmetric."
+)]
 fn rate_stencils_crossing_zero_keep_one_exercise_estimator() {
     let call = option(OptionType::Call, 100.0);
     let engine = MonteCarloVanillaEngine::with_step_count(
@@ -429,20 +426,21 @@ fn rate_stencils_crossing_zero_keep_one_exercise_estimator() {
         6,
     )
     .unwrap();
-    let shift = 1.0 / 8192.0;
-    for rate in [-1.0 / 16384.0, 0.0, 1.0 / 16384.0] {
+    let requested = NumericalShiftSettings::default().rate_shift;
+    for rate in [-requested / 2.0, 0.0, requested / 2.0] {
         let context = market(rate, 0.0, 0.2, 100.0);
         let result = engine
             .price_with_greeks(
                 &call,
                 &context,
                 GreeksRequest::new([Greek::RhoPerPercentagePoint]),
-                NumericalShiftSettings {
-                    rate_shift: shift,
-                    ..Default::default()
-                },
             )
             .unwrap();
+        let shift = (rate + requested) - rate;
+        if rate - (rate - shift) != shift {
+            assert!(!result.has(Greek::RhoPerPercentagePoint));
+            continue;
+        }
         // A subnormal positive dividend forces the grid without changing BSM coefficients.
         let up = engine
             .price(&call, &market(rate + shift, f64::from_bits(1), 0.2, 100.0))
@@ -481,7 +479,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
         })
         .unwrap();
     let result = engine
-        .price_with_greeks(&put, &at_expiry, GreeksRequest::all(), Default::default())
+        .price_with_greeks(&put, &at_expiry, GreeksRequest::all())
         .unwrap();
     assert_eq!(result.price(), 0.0);
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
@@ -544,7 +542,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(&put, &node, GreeksRequest::new([]), Default::default())
+            .price_with_greeks(&put, &node, GreeksRequest::new([]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));
@@ -554,22 +552,22 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
     ));
     assert!(matches!(
         engine
-            .price_with_greeks(&put, &context, GreeksRequest::new([]), Default::default())
+            .price_with_greeks(&put, &context, GreeksRequest::new([]))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert!(matches!(
-        engine
-            .price_with_greeks(
-                &put,
-                &context,
-                GreeksRequest::new([Greek::RhoPerPercentagePoint]),
-                NumericalShiftSettings {
-                    rate_shift: 1000.0,
-                    ..Default::default()
-                }
-            )
-            .unwrap_err(),
+        kiyosi::numerical_greeks(
+            &engine,
+            &put,
+            &context,
+            GreeksRequest::new([Greek::RhoPerPercentagePoint]),
+            NumericalShiftSettings {
+                rate_shift: 1000.0,
+                ..Default::default()
+            }
+        )
+        .unwrap_err(),
         Error::ComputationFailure(_)
     ));
     assert!(matches!(
@@ -600,20 +598,18 @@ fn automatic_spot_bumps_match_explicit_product_defaults() {
     .unwrap();
     let put = option(OptionType::Put, 100.0);
     let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
-    let automatic = engine
-        .price_with_greeks(&put, &context, request, Default::default())
-        .unwrap();
-    let explicit = engine
-        .price_with_greeks(
-            &put,
-            &context,
-            request,
-            NumericalShiftSettings {
-                spot_shift: Some(8.0),
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let automatic = engine.price_with_greeks(&put, &context, request).unwrap();
+    let explicit = kiyosi::numerical_greeks(
+        &engine,
+        &put,
+        &context,
+        request,
+        NumericalShiftSettings {
+            spot_shift: Some(8.0),
+            ..Default::default()
+        },
+    )
+    .unwrap();
     assert_eq!(automatic, explicit);
     let generic = numerical_greeks(&engine, &put, &context, request, Default::default()).unwrap();
     assert_eq!(automatic, generic);
@@ -626,19 +622,19 @@ fn automatic_spot_bumps_match_explicit_product_defaults() {
     .unwrap();
     assert_eq!(
         engine
-            .price_with_greeks(&european, &context, request, Default::default())
+            .price_with_greeks(&european, &context, request)
             .unwrap(),
-        engine
-            .price_with_greeks(
-                &european,
-                &context,
-                request,
-                NumericalShiftSettings {
-                    spot_shift: Some(0.01),
-                    ..Default::default()
-                }
-            )
-            .unwrap()
+        kiyosi::numerical_greeks(
+            &engine,
+            &european,
+            &context,
+            request,
+            NumericalShiftSettings {
+                spot_shift: Some(0.01),
+                ..Default::default()
+            }
+        )
+        .unwrap()
     );
 }
 

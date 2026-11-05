@@ -353,7 +353,7 @@ fn unsupported_requests_and_invalid_computations_preserve_categories() {
     let request = GreeksRequest::new([Greek::Delta]);
     assert_eq!(
         engine
-            .price_with_greeks(&option, &context, request, Default::default())
+            .price_with_greeks(&option, &context, request)
             .unwrap()
             .get(Greek::VegaPerPercentagePoint),
         None

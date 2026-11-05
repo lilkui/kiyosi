@@ -34,11 +34,11 @@ macro_rules! sampling_settings {
     (@structured $engine:ident, $instrument:ty, $with:path) => {
         numerical_greeks_methods!(
             $instrument,
-            |binding, py, instrument, context, request, shifts| {
+            |binding, py, instrument, context, request| {
                 let engine = binding.0;
                 let context = &context.0;
                 $with!(&instrument, option, Ok(risk::PricingResult(domain(py.detach(|| {
-                    engine.price_with_greeks(option, context, request, shifts)
+                    engine.price_with_greeks(option, context, request)
                 }))?)))
             },
             [
@@ -278,8 +278,8 @@ sampling_settings!(
     },
     /// Return shift-control names potentially used by this Greek calculation path.
     ///
-    /// Individual requests or resolved payoffs may use fewer controls. All
-    /// supplied controls are validated, including inactive controls.
+    /// Individual requests may use fewer internal default controls. Use
+    /// numerical_greeks for configurable scalar differences.
     fn active_greek_controls(
         &self,
         py: pyo3::Python<'_>,
@@ -333,20 +333,6 @@ sampling_settings!(
     ///     Market snapshot and valuation instant.
     /// greeks : str or iterable of str
     ///     Greek names or "all" to request every measure; duplicates are ignored.
-    /// spot_shift : float or None, optional
-    ///     Positive finite absolute spot bump. European default: 0.01 spot units.
-    ///     American default before expiry: 8% of spot; at expiry: 0.01 spot units.
-    ///     None selects the product's default.
-    /// volatility_shift : float, optional
-    ///     Positive finite volatility bump in decimal units; defaults to 0.0001.
-    /// rate_shift : float, optional
-    ///     Positive finite parallel rate bump in decimal units; defaults to 0.0001.
-    ///     Applied separately to the risk-free curve for rho and the dividend-yield
-    ///     curve for dividend rho.
-    /// time_shift_days : int, optional
-    ///     Positive forward/backward time bump in calendar days; defaults to 1.
-    ///     All bumps are validated even when analytic Greeks are available.
-    ///
     /// Returns
     /// -------
     /// PricingResult
@@ -356,18 +342,13 @@ sampling_settings!(
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If requests, shifts, pricing or a feasible bumped valuation fails.
+    ///     If requests, pricing or a feasible default bumped valuation fails.
     ///
     /// Notes
     /// -----
     /// System entropy and worker-creation failures raise OSError.
-    /// Omitted or None `spot_shift` uses the product's default; other bumps
-    /// use the shared core defaults.
-    #[pyo3(signature = (instrument, context, greeks, *, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift_days=kiyosi::NumericalShiftSettings::default().time_shift_days))]
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "explicit Python pricing controls"
-    )]
+    /// Uses the product's default estimation controls. Custom bumps belong to numerical_greeks.
+    #[pyo3(signature = (instrument, context, greeks))]
     ///
     /// See Also
     /// --------
@@ -380,24 +361,14 @@ sampling_settings!(
         instrument: binomial::VanillaInstrument<'_>,
         context: &PricingContext,
         greeks: &Bound<'_, PyAny>,
-        spot_shift: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
-        #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
-        #[pyo3(from_py_with = crate::conversions::integer)] time_shift_days: i32,
     ) -> PyResult<risk::PricingResult> {
         let request = risk::greeks_request(greeks)?;
         let engine = self.0;
         let context = &context.0;
-        let shifts = kiyosi::NumericalShiftSettings {
-            spot_shift: spot_shift.map(crate::conversions::real).transpose()?,
-            volatility_shift,
-            rate_shift,
-            time_shift_days,
-        };
         let result = binomial::with_vanilla!(
             instrument,
             option,
-            domain(py.detach(|| engine.price_with_greeks(option, context, request, shifts)))
+            domain(py.detach(|| engine.price_with_greeks(option, context, request)))
         )?;
         Ok(risk::PricingResult(result))
     }
@@ -480,12 +451,12 @@ pub(crate) struct MonteCarloDigitalEngine(pub(crate) kiyosi::MonteCarloDigitalEn
 
 numerical_greeks_methods!(
     digital::DigitalInstrument<'_>,
-    |binding, py, instrument, context, request, shifts| {
+    |binding, py, instrument, context, request| {
         let engine = binding.0;
         let option = instrument.contract();
         let context = &context.0;
         Ok(risk::PricingResult(domain(py.detach(|| {
-            engine.price_with_greeks(option, context, request, shifts)
+            engine.price_with_greeks(option, context, request)
         }))?))
     },
     [
@@ -581,14 +552,14 @@ pub(crate) struct MonteCarloAsianEngine(pub(crate) kiyosi::MonteCarloAsianEngine
 
 numerical_greeks_methods!(
     asian::AsianInstrument<'_>,
-    |binding, py, instrument, context, request, shifts| {
+    |binding, py, instrument, context, request| {
         let engine = binding.0;
         let context = &context.0;
         asian::with_asian!(
             instrument,
             option,
             Ok(risk::PricingResult(domain(py.detach(|| {
-                engine.price_with_greeks(option, context, request, shifts)
+                engine.price_with_greeks(option, context, request)
             }))?))
         )
     },

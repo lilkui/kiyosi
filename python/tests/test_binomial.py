@@ -8,6 +8,7 @@ import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from functools import partial
 
 import QuantLib as ql
 from kiyosi import (
@@ -33,6 +34,7 @@ from kiyosi.pricing import (
     CoxRossRubinsteinDigitalEngine,
     CoxRossRubinsteinVanillaEngine,
     implied_volatility,
+    numerical_greeks,
 )
 from support.terminal import assert_terminal_greeks
 
@@ -408,12 +410,17 @@ class BinomialTests(unittest.TestCase):
                     START - timedelta(days=1),
                     datetime(2026, 1, 1) + timedelta(microseconds=1),
                 ):
-                    self.assert_rejection(
-                        InvalidInputError,
-                        engine.price,
-                        option,
-                        market(valuation=time),
-                    )
+                    if kind is EuropeanOption and time < START:
+                        self.assertTrue(
+                            math.isfinite(engine.price(option, market(valuation=time)))
+                        )
+                    else:
+                        self.assert_rejection(
+                            InvalidInputError,
+                            engine.price,
+                            option,
+                            market(valuation=time),
+                        )
 
     def test_flat_rate_applicability_validation_order_and_failures(self):
         curve = RateTermStructure(
@@ -471,7 +478,7 @@ class BinomialTests(unittest.TestCase):
                 ):
                     self.assert_rejection(
                         InvalidInputError,
-                        engine.price_with_greeks,
+                        partial(numerical_greeks, engine),
                         option,
                         market(),
                         "delta",
@@ -484,10 +491,10 @@ class BinomialTests(unittest.TestCase):
                 {"unknown": 1},
             ):
                 with self.assertRaises(TypeError):
-                    engine.price_with_greeks(option, market(), "delta", **shifts)
+                    numerical_greeks(engine, option, market(), "delta", **shifts)
             with self.assertRaises(OverflowError):
-                engine.price_with_greeks(
-                    option, market(), "delta", time_shift_days=2**31
+                numerical_greeks(
+                    engine, option, market(), "delta", time_shift_days=2**31
                 )
             mismatch = contract(
                 CashOrNothingOption if kind in VANILLA else EuropeanOption
@@ -680,8 +687,13 @@ class BinomialTests(unittest.TestCase):
                         if name in ("price", "delta", "gamma")
                     }
                 names = sorted(reference.keys() - {"price"})
-                result = engine.price_with_greeks(
-                    option, context, names, **profile["shifts"]
+                result = engine.price_with_greeks(option, context, names)
+                volatility_greek = numerical_greeks(
+                    engine,
+                    option,
+                    context,
+                    "vega_per_percentage_point",
+                    **profile["shifts"],
                 )
                 for name, expected in reference.items():
                     budget = (
@@ -693,7 +705,11 @@ class BinomialTests(unittest.TestCase):
                         kind=kind, case=scenario["case_id"], measure=name
                     ):
                         self.assertAlmostEqual(
-                            getattr(result, name),
+                            (
+                                volatility_greek.vega_per_percentage_point
+                                if name == "vega_per_percentage_point"
+                                else getattr(result, name)
+                            ),
                             expected,
                             delta=budget[name] + metadata[f"uncertainty_{name}"],
                         )

@@ -8,6 +8,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from fractions import Fraction
+from functools import partial
 
 import QuantLib as ql
 from kiyosi import (
@@ -23,6 +24,7 @@ from kiyosi.pricing import (
     AnalyticEuropeanEngine,
     MonteCarloVanillaEngine,
     implied_volatility,
+    numerical_greeks,
 )
 from support.terminal import assert_terminal_greeks
 from test_binomial import END, GREEKS, START, market
@@ -231,16 +233,16 @@ class MonteCarloTests(unittest.TestCase):
                     )
                     context = market(spot=100.25, valuation=datetime(2025, 1, 1, 12))
                     expected = differences(engine, option, context, **shifts)
-                    actual = engine.price_with_greeks(
-                        option, context, greeks="all", **shifts
+                    actual = numerical_greeks(
+                        engine, option, context, greeks="all", **shifts
                     )
                     self.assertEqual(actual.price, expected.price)
                     for name in GREEKS:
                         self.assertAlmostEqual(
                             getattr(actual, name), getattr(expected, name), delta=1e-9
                         )
-                        selected = engine.price_with_greeks(
-                            option, context, name, **shifts
+                        selected = numerical_greeks(
+                            engine, option, context, name, **shifts
                         )
                         self.assertEqual(selected.require(name), getattr(actual, name))
         engine = MonteCarloVanillaEngine(path_count=1025)
@@ -273,7 +275,7 @@ class MonteCarloTests(unittest.TestCase):
             10,
         )
         for valuation in (
-            START - timedelta(days=1),
+            END + timedelta(microseconds=1),
             datetime(2026, 1, 1, 0, 0, 0, 1),
         ):
             self.assert_rejection(
@@ -322,7 +324,7 @@ class MonteCarloTests(unittest.TestCase):
         )
         self.assert_rejection(
             InvalidInputError,
-            engine.price_with_greeks,
+            partial(numerical_greeks, engine),
             option,
             context,
             "delta",
@@ -330,7 +332,7 @@ class MonteCarloTests(unittest.TestCase):
         )
         self.assert_rejection(
             ComputationFailureError,
-            engine.price_with_greeks,
+            partial(numerical_greeks, engine),
             option,
             context,
             "rho_per_percentage_point",
@@ -339,7 +341,8 @@ class MonteCarloTests(unittest.TestCase):
         self.assert_rejection(
             ComputationFailureError, engine.price, option, market(sigma=1e308)
         )
-        missing = engine.price_with_greeks(
+        missing = numerical_greeks(
+            engine,
             option,
             context,
             ["delta", "vega_per_percentage_point"],
@@ -350,7 +353,7 @@ class MonteCarloTests(unittest.TestCase):
         self.assertIsNone(missing.vega_per_percentage_point)
         self.assertEqual(missing.price, quote)
         with self.assertRaises(TypeError):
-            engine.price_with_greeks(option, context, "delta", spot_shift=True)
+            numerical_greeks(engine, option, context, "delta", spot_shift=True)
         self.assertEqual(engine.price(option, context), quote)
         for obj, field in (
             (engine, "path_count"),
@@ -467,7 +470,7 @@ class MonteCarloTests(unittest.TestCase):
             wrapped = inputs["spot"] == 100 and inputs["expiry_time"] == "2026-01-06"
             names = sorted(reference.keys() - {"price"}) if wrapped else []
             result = (
-                engine.price_with_greeks(option, context, names, **profile["shifts"])
+                numerical_greeks(engine, option, context, names, **profile["shifts"])
                 if wrapped
                 else None
             )
@@ -703,8 +706,8 @@ class SamplingTests(unittest.TestCase):
                     }
                     engine = MonteCarloVanillaEngine(**settings, thread_count=1)
                     reference = differences(engine, option, context, **shifts)
-                    expected = engine.price_with_greeks(
-                        option, context, greeks="all", **shifts
+                    expected = numerical_greeks(
+                        engine, option, context, greeks="all", **shifts
                     )
                     self.assertEqual(expected.price, reference.price)
                     for name in GREEKS:
@@ -726,8 +729,8 @@ class SamplingTests(unittest.TestCase):
                         other = MonteCarloVanillaEngine(
                             **settings, thread_count=threads
                         )
-                        actual = other.price_with_greeks(
-                            option, context, greeks="all", **shifts
+                        actual = numerical_greeks(
+                            other, option, context, greeks="all", **shifts
                         )
                         self.assertEqual(actual.price, expected.price)
                         self.assertEqual(
@@ -746,8 +749,12 @@ class SamplingTests(unittest.TestCase):
                             sigma,
                         )
                     with self.assertRaises(ComputationFailureError) as error:
-                        engine.price_with_greeks(
-                            option, context, "rho_per_percentage_point", rate_shift=1000
+                        numerical_greeks(
+                            engine,
+                            option,
+                            context,
+                            "rho_per_percentage_point",
+                            rate_shift=1000,
                         )
                     self.assertIs(type(error.exception), ComputationFailureError)
                     self.assertEqual(engine.price(option, context), expected.price)
@@ -877,7 +884,8 @@ class SamplingTests(unittest.TestCase):
                 engine = MonteCarloVanillaEngine(
                     path_count=65_536, seed=42, sampling="sobol", antithetic=antithetic
                 )
-                actual = engine.price_with_greeks(
+                actual = numerical_greeks(
+                    engine,
                     option,
                     context,
                     greeks="all",
@@ -920,7 +928,10 @@ class SamplingTests(unittest.TestCase):
                 )
                 option, context = contract(), market()
                 baseline = engine.price(option, context)
-                for valuation in (START - timedelta(days=1), END + timedelta(days=1)):
+                for valuation in (
+                    END + timedelta(microseconds=1),
+                    END + timedelta(days=1),
+                ):
                     with self.assertRaises(InvalidInputError) as error:
                         engine.price(option, market(valuation=valuation))
                     self.assertIs(type(error.exception), InvalidInputError)
