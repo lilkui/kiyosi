@@ -20,6 +20,49 @@ fn market() -> PricingContext {
 }
 
 #[test]
+fn uncertainty_status_explains_missing_estimates() -> Result<()> {
+    use MonteCarloUncertaintyStatus::{
+        Available, IncompleteAntitheticPair, InsufficientObservations, UnsupportedSampling,
+    };
+    for (paths, antithetic, sampling, expected) in [
+        (4, true, MonteCarloSampling::PseudoRandom, Available),
+        (
+            5,
+            true,
+            MonteCarloSampling::PseudoRandom,
+            IncompleteAntitheticPair,
+        ),
+        (
+            1,
+            false,
+            MonteCarloSampling::PseudoRandom,
+            InsufficientObservations,
+        ),
+        (
+            2,
+            true,
+            MonteCarloSampling::PseudoRandom,
+            InsufficientObservations,
+        ),
+        (4, false, MonteCarloSampling::Sobol, UnsupportedSampling),
+    ] {
+        let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
+            path_count: paths,
+            antithetic,
+            sampling,
+            seed: Some(42),
+            thread_count: 1,
+        })?;
+        let result = engine.price_with_statistics(&contract(OptionType::Call), &market())?;
+        assert_eq!(result.uncertainty_status(), expected);
+        assert_eq!(result.standard_error().is_some(), expected == Available);
+    }
+    assert!(MonteCarloEstimate::from_statistics(10.0, None, Available).is_err());
+    assert!(MonteCarloEstimate::from_statistics(10.0, Some(0.0), UnsupportedSampling).is_err());
+    Ok(())
+}
+
+#[test]
 fn prepared_vanilla_request_replays_prices_without_mutating_engine() {
     let engine = MonteCarloVanillaEngine::new(MonteCarloSettings {
         path_count: 256,
@@ -1043,7 +1086,12 @@ fn default_path_count_supports_both_sampling_methods() {
 
 #[test]
 fn estimate_reconstruction_validates_statistics_and_preserves_reporting() {
-    let estimate = MonteCarloEstimate::from_statistics(10.0, Some(2.0)).unwrap();
+    let estimate = MonteCarloEstimate::from_statistics(
+        10.0,
+        Some(2.0),
+        kiyosi::MonteCarloUncertaintyStatus::Available,
+    )
+    .unwrap();
     assert_eq!(estimate.price(), 10.0);
     assert_eq!(estimate.standard_error(), Some(2.0));
     assert_eq!(
@@ -1051,9 +1099,13 @@ fn estimate_reconstruction_validates_statistics_and_preserves_reporting() {
         Some((6.080_072_030_919_892, 13.919_927_969_080_108))
     );
     assert_eq!(
-        MonteCarloEstimate::from_statistics(10.0, None)
-            .unwrap()
-            .confidence_interval(),
+        MonteCarloEstimate::from_statistics(
+            10.0,
+            None,
+            kiyosi::MonteCarloUncertaintyStatus::InsufficientObservations
+        )
+        .unwrap()
+        .confidence_interval(),
         None
     );
     for (price, error) in [
@@ -1063,7 +1115,11 @@ fn estimate_reconstruction_validates_statistics_and_preserves_reporting() {
         (f64::MAX, Some(f64::MAX)),
     ] {
         assert!(matches!(
-            MonteCarloEstimate::from_statistics(price, error),
+            MonteCarloEstimate::from_statistics(
+                price,
+                error,
+                kiyosi::MonteCarloUncertaintyStatus::Available
+            ),
             Err(Error::ComputationFailure(_))
         ));
     }

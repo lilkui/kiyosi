@@ -104,7 +104,7 @@ impl MonteCarloDigitalEngine {
     ) -> Result<MonteCarloEstimate> {
         let (result, standard_error) =
             self.native(option, context, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_statistics(result.price(), standard_error)
+        MonteCarloEstimate::from_sampling(result.price(), standard_error, self.sampling_settings())
     }
 
     /// Returns requested likelihood-ratio delta/gamma from the price's normal draws.

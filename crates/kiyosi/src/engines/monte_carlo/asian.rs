@@ -527,7 +527,7 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         context.bsm_parameters()?;
         let (result, error) =
             self.native(&option.0, context, true, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_statistics(result.price(), error)
+        MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings())
     }
     fn prepare_request(
         &self,
@@ -603,7 +603,7 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         context.bsm_parameters()?;
         let (result, error) =
             self.native(&option.0, context, false, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_statistics(result.price(), error)
+        MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings())
     }
     fn prepare_request(
         &self,

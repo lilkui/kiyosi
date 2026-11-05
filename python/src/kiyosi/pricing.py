@@ -66,6 +66,9 @@ Save or pickle that returned engine to replay draws within the same build;
 Every Monte Carlo engine exposes ``price_with_statistics`` for its supported
 contracts; vanilla statistics require European options. It returns the same
 seeded price as ``price`` and also computes and validates sampling uncertainty.
+``estimate.uncertainty_status`` explains its availability: ``"available"``,
+``"unsupported_sampling"`` for Sobol, ``"insufficient_observations"``, or
+``"incomplete_antithetic_pair"`` for an odd antithetic path count.
 Sobol, fewer than two independent observations and odd antithetic counts omit
 uncertainty; known pseudorandom analytic branches have zero error. Sampling error
 does not measure arithmetic Asian integration bias or other approximation error.
@@ -377,6 +380,12 @@ FiniteDifferenceScheme = Literal[
     "explicit_euler", "implicit_euler", "crank_nicolson", "rannacher"
 ]
 MonteCarloSampling = Literal["pseudo_random", "sobol"]
+MonteCarloUncertaintyStatus = Literal[
+    "available",
+    "unsupported_sampling",
+    "insufficient_observations",
+    "incomplete_antithetic_pair",
+]
 
 __all__ = [
     "AnalyticBarrierEngine",
@@ -413,6 +422,7 @@ __all__ = [
     "MonteCarloDoubleBarrierEngine",
     "MonteCarloEstimate",
     "MonteCarloSampling",
+    "MonteCarloUncertaintyStatus",
     "MonteCarloVanillaEngine",
     "PricingResult",
     "QuadratureAccumulatorEngine",

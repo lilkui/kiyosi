@@ -443,10 +443,36 @@ pub struct MonteCarloEstimate {
     price: f64,
     standard_error: Option<f64>,
     confidence_interval: Option<(f64, f64)>,
+    uncertainty_status: MonteCarloUncertaintyStatus,
+}
+
+/// Explains uncertainty availability; see [`MonteCarloEstimate::uncertainty_status`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MonteCarloUncertaintyStatus {
+    /// Reports a finite standard error, including known zero uncertainty.
+    Available,
+    /// Reports Sobol sampling, which has no independent-sample error estimator.
+    UnsupportedSampling,
+    /// Reports fewer than two independent samples or antithetic pair means.
+    InsufficientObservations,
+    /// Reports an odd antithetic path count with an unmatched observation.
+    IncompleteAntitheticPair,
+}
+
+impl MonteCarloUncertaintyStatus {
+    /// Returns the Python status string; see [`MonteCarloEstimate::uncertainty_status`].
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Available => "available",
+            Self::UnsupportedSampling => "unsupported_sampling",
+            Self::InsufficientObservations => "insufficient_observations",
+            Self::IncompleteAntitheticPair => "incomplete_antithetic_pair",
+        }
+    }
 }
 
 impl MonteCarloEstimate {
-    /// Creates an estimate from a finite mean and optional nonnegative standard error.
+    /// Creates an estimate from a finite mean, optional standard error and its status.
     ///
     /// Computes the asymptotic 95% normal interval when uncertainty is available.
     /// See [`MonteCarloVanillaEngine::price_with_statistics`] for reporting units.
@@ -454,10 +480,16 @@ impl MonteCarloEstimate {
     /// # Errors
     ///
     /// Returns [`Error::ComputationFailure`] for non-finite values, a negative
-    /// standard error or confidence bounds that overflow.
-    pub fn from_statistics(price: f64, standard_error: Option<f64>) -> Result<Self> {
+    /// standard error, inconsistent status or confidence bounds that overflow.
+    pub fn from_statistics(
+        price: f64,
+        standard_error: Option<f64>,
+        uncertainty_status: MonteCarloUncertaintyStatus,
+    ) -> Result<Self> {
         if !price.is_finite()
             || standard_error.is_some_and(|error| !error.is_finite() || error < 0.0)
+            || standard_error.is_some()
+                != (uncertainty_status == MonteCarloUncertaintyStatus::Available)
         {
             return Err(unstable());
         }
@@ -474,7 +506,41 @@ impl MonteCarloEstimate {
             price,
             standard_error,
             confidence_interval,
+            uncertainty_status,
         })
+    }
+
+    fn from_sampling(
+        price: f64,
+        standard_error: Option<f64>,
+        settings: MonteCarloSettings,
+    ) -> Result<Self> {
+        let status = if standard_error.is_some() {
+            MonteCarloUncertaintyStatus::Available
+        } else if settings.sampling == MonteCarloSampling::Sobol {
+            MonteCarloUncertaintyStatus::UnsupportedSampling
+        } else if settings.antithetic && settings.path_count % 2 != 0 {
+            MonteCarloUncertaintyStatus::IncompleteAntitheticPair
+        } else {
+            MonteCarloUncertaintyStatus::InsufficientObservations
+        };
+        Self::from_statistics(price, standard_error, status)
+    }
+
+    /// Returns availability or the reason sampling uncertainty is absent.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{MonteCarloEstimate, MonteCarloUncertaintyStatus};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let result = MonteCarloEstimate::from_statistics(10.0, None,
+    ///     MonteCarloUncertaintyStatus::InsufficientObservations)?;
+    /// assert_eq!(result.uncertainty_status().name(), "insufficient_observations");
+    /// # Ok(()) }
+    /// ```
+    pub fn uncertainty_status(&self) -> MonteCarloUncertaintyStatus {
+        self.uncertainty_status
     }
 
     /// Returns the finite sample mean. See [`MonteCarloVanillaEngine::price_with_statistics`].
@@ -880,7 +946,7 @@ fn estimate(
     } else {
         None
     };
-    MonteCarloEstimate::from_statistics(price, standard_error)
+    MonteCarloEstimate::from_sampling(price, standard_error, settings)
 }
 
 fn terminal_samples<const N: usize>(

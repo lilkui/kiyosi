@@ -127,7 +127,7 @@ impl MonteCarloDoubleBarrierEngine {
             Default::default(),
             true,
         )?;
-        MonteCarloEstimate::from_statistics(result.price(), error)
+        MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings())
     }
 
     /// Returns requested delta/gamma using the price's normal samples.

@@ -16,6 +16,7 @@ from kiyosi.pricing import (
     MonteCarloDigitalEngine,
     MonteCarloDoubleBarrierEngine,
     MonteCarloEstimate,
+    MonteCarloUncertaintyStatus,
 )
 
 
@@ -32,6 +33,10 @@ def sampling_estimates(
         MonteCarloEstimate,
     )
     asian = MonteCarloAsianEngine()
+    assert_type(
+        asian.price_with_statistics(geometric, context).uncertainty_status,
+        MonteCarloUncertaintyStatus,
+    )
     assert_type(asian.price_with_statistics(geometric, context), MonteCarloEstimate)
     assert_type(asian.price_with_statistics(arithmetic, context), MonteCarloEstimate)
     assert_type(

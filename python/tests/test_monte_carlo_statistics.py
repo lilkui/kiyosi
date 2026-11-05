@@ -77,6 +77,7 @@ class MonteCarloStatisticsTests(unittest.TestCase):
                     estimate = serial.price_with_statistics(option, snapshot)
                     self.assertEqual(estimate.price, serial.price(option, snapshot))
                     self.assertGreater(estimate.standard_error, 0)
+                    self.assertEqual(estimate.uncertainty_status, "available")
                     lower, upper = estimate.confidence_interval
                     self.assertLess(lower, estimate.price)
                     self.assertLess(estimate.price, upper)
@@ -135,12 +136,20 @@ class MonteCarloStatisticsTests(unittest.TestCase):
 
     def test_uncertainty_omission_follows_sampling_and_independent_counts(self):
         cases = (
-            ("single", {"path_count": 1}),
-            ("single_pair", {"path_count": 2, "antithetic": True}),
-            ("unpaired", {"path_count": 3, "antithetic": True}),
-            ("sobol", {"path_count": 16, "sampling": "sobol"}),
+            ("single", {"path_count": 1}, "insufficient_observations"),
+            (
+                "single_pair",
+                {"path_count": 2, "antithetic": True},
+                "insufficient_observations",
+            ),
+            (
+                "unpaired",
+                {"path_count": 3, "antithetic": True},
+                "incomplete_antithetic_pair",
+            ),
+            ("sobol", {"path_count": 16, "sampling": "sobol"}, "unsupported_sampling"),
         )
-        for case, settings in cases:
+        for case, settings, status in cases:
             for name, factory, option in contracts():
                 with self.subTest(case=case, product=name):
                     sampler = engine(factory, **settings)
@@ -148,6 +157,8 @@ class MonteCarloStatisticsTests(unittest.TestCase):
                     self.assertEqual(estimate.price, sampler.price(option, context()))
                     self.assertIsNone(estimate.standard_error)
                     self.assertIsNone(estimate.confidence_interval)
+                    self.assertEqual(estimate.uncertainty_status, status)
+                    self.assertEqual(pickle.loads(pickle.dumps(estimate)), estimate)
 
     def test_terminal_statistics_report_known_values(self):
         snapshot = context().replace(spot_price=110, valuation_time=END)

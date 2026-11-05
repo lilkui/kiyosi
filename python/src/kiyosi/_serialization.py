@@ -101,7 +101,11 @@ def _reduce(
     if isinstance(value, _native.MonteCarloEstimate):
         return _restore, (
             _native._monte_carlo_estimate,
-            {"price": value.price, "standard_error": value.standard_error},
+            {
+                "price": value.price,
+                "standard_error": value.standard_error,
+                "uncertainty_status": value.uncertainty_status,
+            },
         )
     rate_fields = {
         "risk_free_rate": "risk_free_curve",

@@ -427,6 +427,11 @@ impl MonteCarloEstimate {
     fn standard_error(&self) -> Option<f64> {
         self.0.standard_error()
     }
+    /// Return availability or the reason sampling uncertainty is absent.
+    #[getter]
+    fn uncertainty_status(&self) -> &'static str {
+        self.0.uncertainty_status().name()
+    }
     /// Return the asymptotic 95% confidence interval, or None when unavailable.
     #[getter]
     fn confidence_interval(&self) -> Option<(f64, f64)> {
@@ -867,15 +872,32 @@ impl MonteCarloAsianEngine {
 }
 
 #[pyfunction]
-#[pyo3(signature = (*, price, standard_error))]
+#[pyo3(signature = (*, price, standard_error, uncertainty_status))]
 pub(crate) fn _monte_carlo_estimate(
     price: &Bound<'_, PyAny>,
     standard_error: Option<&Bound<'_, PyAny>>,
+    uncertainty_status: &str,
 ) -> PyResult<MonteCarloEstimate> {
+    let status = match uncertainty_status {
+        "available" => kiyosi::MonteCarloUncertaintyStatus::Available,
+        "unsupported_sampling" => kiyosi::MonteCarloUncertaintyStatus::UnsupportedSampling,
+        "insufficient_observations" => {
+            kiyosi::MonteCarloUncertaintyStatus::InsufficientObservations
+        }
+        "incomplete_antithetic_pair" => {
+            kiyosi::MonteCarloUncertaintyStatus::IncompleteAntitheticPair
+        }
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "unknown uncertainty status",
+            ));
+        }
+    };
     Ok(MonteCarloEstimate(domain(
         kiyosi::MonteCarloEstimate::from_statistics(
             crate::conversions::real(price)?,
             standard_error.map(crate::conversions::real).transpose()?,
+            status,
         ),
     )?))
 }

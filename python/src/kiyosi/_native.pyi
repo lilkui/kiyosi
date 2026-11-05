@@ -1117,6 +1117,8 @@ class MonteCarloEstimate:
     @property
     def standard_error(self) -> float | None: ...
     @property
+    def uncertainty_status(self) -> _pricing.MonteCarloUncertaintyStatus: ...
+    @property
     def confidence_interval(self) -> tuple[float, float] | None: ...
 
 class MonteCarloDigitalEngine:
@@ -3305,6 +3307,9 @@ def _pricing_result(
     supported: Iterable[Greek] | None = None,
 ) -> PricingResult: ...
 def _monte_carlo_estimate(
-    *, price: _Real, standard_error: _Real | None
+    *,
+    price: _Real,
+    standard_error: _Real | None,
+    uncertainty_status: _pricing.MonteCarloUncertaintyStatus,
 ) -> MonteCarloEstimate: ...
 def _curve_parts(curve: RateTermStructure) -> tuple[list[float], float]: ...
