@@ -64,6 +64,33 @@ impl AccumulatorTerms {
     }
 }
 
+/// Selects accumulator history replacements; absent fields retain their values.
+///
+/// See [`Accumulator::replace_history`] for an example. A quantity alone can be
+/// passed as `f64` or `Option<f64>`; it preserves termination state.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AccumulatorHistoryChanges {
+    /// Replaces outstanding quantity; `Some(None)` restores unknown history.
+    pub accumulated_quantity: Option<Option<f64>>,
+    /// Replaces the caller-asserted settled knock-out state.
+    pub terminated: Option<bool>,
+}
+
+impl From<f64> for AccumulatorHistoryChanges {
+    fn from(quantity: f64) -> Self {
+        Self::from(Some(quantity))
+    }
+}
+
+impl From<Option<f64>> for AccumulatorHistoryChanges {
+    fn from(quantity: Option<f64>) -> Self {
+        Self {
+            accumulated_quantity: Some(quantity),
+            terminated: None,
+        }
+    }
+}
+
 /// Owns daily accumulations settled together at knock-out or expiry.
 ///
 /// Calls purchase units and settle as `quantity * (spot - strike)`; puts sell units
@@ -195,16 +222,36 @@ impl Accumulator {
     pub fn calendar(&self) -> &TradingCalendar {
         &self.terms.calendar
     }
-    /// Returns an owning replacement of accrued quantity; `None` restores unknown history.
+    /// Returns a validated replacement of quantity, termination or both history fields.
     ///
-    /// See [`Self::new`].
+    /// Omitted fields retain their values. A quantity alone (`f64` or `Option<f64>`)
+    /// replaces only quantity; `None` restores unknown quantity. Time consistency
+    /// is checked at pricing. The original is unchanged on success and failure.
     ///
     /// # Errors
     ///
-    /// Reuses [`Self::new`] validation, preserving the original on success and failure.
-    pub fn replace_history(&self, accumulated_quantity: impl Into<Option<f64>>) -> Result<Self> {
+    /// Reuses [`Self::new`] numeric and contract validation.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Accumulator, AccumulatorHistoryChanges, AccumulatorTerms, Date};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = Accumulator::new(AccumulatorTerms::new(90.0, 110.0, 1.0, 2.0, start, start.add_days(9)?))?;
+    /// let settled = option.replace_history(AccumulatorHistoryChanges {
+    ///     terminated: Some(true), ..Default::default()
+    /// })?;
+    /// assert!(settled.terminated());
+    /// assert!(!option.terminated());
+    /// assert!(settled.replace_history(3.0)?.terminated());
+    /// # Ok(()) }
+    /// ```
+    pub fn replace_history(&self, changes: impl Into<AccumulatorHistoryChanges>) -> Result<Self> {
+        let changes = changes.into();
         self.replace(AccumulatorChanges {
-            accumulated_quantity: Some(accumulated_quantity.into()),
+            accumulated_quantity: changes.accumulated_quantity,
+            terminated: changes.terminated,
             ..Default::default()
         })
     }

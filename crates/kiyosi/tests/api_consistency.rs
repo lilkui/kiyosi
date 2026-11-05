@@ -1650,3 +1650,65 @@ fn observation_replacement_preserves_validity_and_original_values() -> Result<()
     }
     Ok(())
 }
+
+#[test]
+fn accumulator_history_replacement_updates_quantity_and_termination() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let original = Accumulator::new(AccumulatorTerms::new(
+        90.0,
+        110.0,
+        1.0,
+        2.0,
+        start,
+        start.add_days(9)?,
+    ))?;
+    let settled = original.replace_history(AccumulatorHistoryChanges {
+        accumulated_quantity: Some(Some(3.0)),
+        terminated: Some(true),
+    })?;
+    assert_eq!(settled.accumulated_quantity(), Some(3.0));
+    assert!(settled.terminated());
+    assert_eq!(original.accumulated_quantity(), None);
+    assert!(!original.terminated());
+    assert!(settled.replace_history(4.0)?.terminated());
+    assert_eq!(
+        settled
+            .replace_history(AccumulatorHistoryChanges {
+                terminated: Some(false),
+                ..Default::default()
+            })?
+            .accumulated_quantity(),
+        Some(3.0)
+    );
+    let cleared = settled.replace_history(None)?;
+    assert_eq!(cleared.accumulated_quantity(), None);
+    assert!(cleared.terminated());
+    assert_eq!(
+        settled.replace_history(AccumulatorHistoryChanges::default())?,
+        settled
+    );
+    assert!(matches!(
+        settled.replace_history(AccumulatorHistoryChanges {
+            accumulated_quantity: Some(Some(-1.0)),
+            terminated: Some(false)
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(settled.terminated());
+    assert_eq!(settled.accumulated_quantity(), Some(3.0));
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
+        100.0,
+        start.add_days(2)?,
+    )?;
+    assert_eq!(
+        QuadratureAccumulatorEngine::default().price(&settled, &context)?,
+        0.0
+    );
+    let active = settled.replace_history(AccumulatorHistoryChanges {
+        accumulated_quantity: Some(Some(0.0)),
+        terminated: Some(false),
+    })?;
+    assert!(QuadratureAccumulatorEngine::default().price(&active, &context)? > 0.0);
+    Ok(())
+}

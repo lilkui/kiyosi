@@ -226,17 +226,21 @@ impl Accumulator {
         #[pyo3(from_py_with = supplied)] accumulated_quantity: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] terminated: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        let quantity = match accumulated_quantity {
-            Some(value) if value.is_none() => None,
-            Some(value) => Some(real(value)?),
-            None => self.0.accumulated_quantity(),
-        };
-        Ok(Self(domain(self.0.replace(kiyosi::AccumulatorChanges {
-            accumulated_quantity: Some(quantity),
+        let changes = kiyosi::AccumulatorHistoryChanges {
+            accumulated_quantity: accumulated_quantity
+                .map(|value| {
+                    if value.is_none() {
+                        Ok(None)
+                    } else {
+                        real(value).map(Some)
+                    }
+                })
+                .transpose()?,
             terminated: terminated.map(crate::conversions::boolean).transpose()?,
-            ..Default::default()
-        }))?))
+        };
+        Ok(Self(domain(self.0.replace_history(changes))?))
     }
+
     /// Returns an owned copy of the contract's observation calendar.
     #[getter]
     fn calendar(&self) -> TradingCalendar {

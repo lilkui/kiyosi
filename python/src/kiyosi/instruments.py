@@ -56,7 +56,9 @@ Set ``terminated=True`` for a previously settled accumulator knock-out. Pricing
 requires a knock-out observation strictly before valuation, including for
 terminated contracts; an empty knock-out schedule cannot have this history. Its remaining price
 is zero; stored quantity is ignored. ``replace_history(terminated=True)`` records
-settlement without changing the original contract.
+settlement without changing the original contract. Rust uses the same operation
+with ``AccumulatorHistoryChanges`` to replace quantity, termination or both;
+omitted fields retain their values.
 Plain snowball, Phoenix and ternary snowball constructors default knock-in
 monitoring to ``"every_trading_day"``, matching Rust terms.
 

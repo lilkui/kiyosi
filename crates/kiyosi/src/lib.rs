@@ -162,7 +162,9 @@ pub use engines::quadrature::{
     QuadratureVanillaSettings,
 };
 pub use error::{Error, Result};
-pub use instruments::accumulator::{Accumulator, AccumulatorChanges, AccumulatorTerms};
+pub use instruments::accumulator::{
+    Accumulator, AccumulatorChanges, AccumulatorHistoryChanges, AccumulatorTerms,
+};
 pub use instruments::asian::{
     ArithmeticAveragePriceOption, AveragePriceOptionChanges, DEFAULT_REALIZED_AVERAGE,
     GeometricAveragePriceOption,
