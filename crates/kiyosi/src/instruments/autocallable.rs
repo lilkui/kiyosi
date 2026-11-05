@@ -1065,6 +1065,9 @@ impl sealed::View<'_> {
         if let Some(ki) = terms.knock_in {
             finite(ki.level, true, "knock_in_level")?;
         }
+        if let Coupon::Snowball(coupon) = terms.coupon {
+            finite(coupon, false, "maturity_coupon_rate")?;
+        }
         if let Redemption::FixedCoupon(coupon) = terms.redemption() {
             finite(coupon, false, "minimum_coupon_rate")?;
             if coupon > terms.maturity_coupon_rate() {
@@ -1089,17 +1092,14 @@ impl sealed::View<'_> {
                     ));
                 }
             }
-        } else {
-            finite(terms.maturity_coupon_rate(), false, "maturity_coupon_rate")?;
-            if terms
-                .observations
-                .iter()
-                .any(|r| r.coupon_barrier_level != 0.0)
-            {
-                return Err(Error::InvalidInput(
-                    "snowballs do not support conditional observation coupons".into(),
-                ));
-            }
+        } else if terms
+            .observations
+            .iter()
+            .any(|r| r.coupon_barrier_level != 0.0)
+        {
+            return Err(Error::InvalidInput(
+                "snowballs do not support conditional observation coupons".into(),
+            ));
         }
         Ok(())
     }

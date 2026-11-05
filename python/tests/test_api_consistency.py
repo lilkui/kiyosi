@@ -11,6 +11,44 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_snowball_coupon_diagnostics_identify_the_supplied_field(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        common = {
+            "effective_time": start,
+            "expiry_time": end,
+            "observations": ins.autocallable_observations([end], [110]),
+        }
+        for invalid in (math.nan, math.inf, -math.inf):
+            for factory, fields, field in (
+                (
+                    ins.BinarySnowballOption,
+                    {"maturity_coupon_rate": invalid},
+                    "maturity_coupon_rate",
+                ),
+                (
+                    ins.TernarySnowballOption,
+                    {
+                        "maturity_coupon_rate": invalid,
+                        "minimum_coupon_rate": 0,
+                        "knock_in_level": 80,
+                    },
+                    "maturity_coupon_rate",
+                ),
+                (
+                    ins.TernarySnowballOption,
+                    {
+                        "maturity_coupon_rate": 0.1,
+                        "minimum_coupon_rate": invalid,
+                        "knock_in_level": 80,
+                    },
+                    "minimum_coupon_rate",
+                ),
+            ):
+                with self.subTest(contract=factory.__name__, field=field):
+                    with self.assertRaises(InvalidInputError) as error:
+                        factory(**common, **fields)
+                    self.assertIn(field, str(error.exception))
+
     def test_structured_engines_require_curve_coverage_only_for_remaining_cashflows(
         self,
     ):

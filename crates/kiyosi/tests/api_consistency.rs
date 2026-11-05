@@ -1167,3 +1167,43 @@ fn accumulator_termination_requires_a_strictly_prior_knock_out_observation() -> 
     }
     Ok(())
 }
+
+#[test]
+fn snowball_coupon_diagnostics_identify_the_supplied_field() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let observations = autocallable_observations(&[end], &[110.0], None, None)?;
+    for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let binary = BinarySnowballOption::new(BinarySnowballTerms::new(
+            invalid,
+            start,
+            end,
+            observations.clone(),
+        ));
+        let ternary = TernarySnowballOption::new(TernarySnowballTerms::new(
+            invalid,
+            0.0,
+            80.0,
+            start,
+            end,
+            observations.clone(),
+        ));
+        let minimum = TernarySnowballOption::new(TernarySnowballTerms::new(
+            0.1,
+            invalid,
+            80.0,
+            start,
+            end,
+            observations.clone(),
+        ));
+        for (error, field) in [
+            (binary.unwrap_err(), "maturity_coupon_rate"),
+            (ternary.unwrap_err(), "maturity_coupon_rate"),
+            (minimum.unwrap_err(), "minimum_coupon_rate"),
+        ] {
+            assert!(matches!(error, Error::InvalidInput(_)));
+            assert!(error.to_string().contains(field), "{error}");
+        }
+    }
+    Ok(())
+}
