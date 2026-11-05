@@ -78,6 +78,26 @@ impl FiniteDifferenceBarrierEngine {
 }
 
 impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
+    fn greek_method(
+        &self,
+        option: &BarrierOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        <Self as PricingEngine<BarrierOption>>::validate_applicability(self, context)?;
+        Ok(crate::GreekMethod::for_valuation(
+            option,
+            context,
+            if matches!(
+                context.model_parameters(),
+                crate::ModelParameters::LocalVolatility(_)
+            ) {
+                crate::GreekMethod::NativeWithSpotControl
+            } else {
+                crate::GreekMethod::Mixed
+            },
+        ))
+    }
+
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         local_volatility::validate_model(context)
     }
@@ -232,6 +252,26 @@ impl FiniteDifferenceDoubleBarrierEngine {
     }
 }
 impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine {
+    fn greek_method(
+        &self,
+        option: &DoubleBarrierOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        <Self as PricingEngine<DoubleBarrierOption>>::validate_applicability(self, context)?;
+        Ok(crate::GreekMethod::for_valuation(
+            option,
+            context,
+            if matches!(
+                context.model_parameters(),
+                crate::ModelParameters::LocalVolatility(_)
+            ) {
+                crate::GreekMethod::NativeWithSpotControl
+            } else {
+                crate::GreekMethod::Mixed
+            },
+        ))
+    }
+
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         local_volatility::validate_model(context)
     }

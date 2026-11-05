@@ -1484,3 +1484,115 @@ fn settings_diagnostics_identify_invalid_fields() {
         assert!(error.to_string().contains(field), "{field}: {error}");
     }
 }
+
+#[test]
+fn greek_methods_report_estimators_and_active_controls() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let expiry = start.add_days(365)?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, expiry)?;
+    let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, expiry)?;
+    let barrier = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        expiry,
+        120.0,
+        BarrierType::UpAndOut,
+    ))?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let cases = [
+        (
+            AnalyticEuropeanEngine.greek_method(&option, &context)?,
+            GreekMethod::Native,
+            &[][..],
+        ),
+        (
+            QuadratureVanillaEngine::default().greek_method(&option, &context)?,
+            GreekMethod::Numerical,
+            &[
+                "spot_shift",
+                "volatility_shift",
+                "rate_shift",
+                "time_shift_days",
+            ][..],
+        ),
+        (
+            CoxRossRubinsteinVanillaEngine::default().greek_method(&option, &context)?,
+            GreekMethod::Mixed,
+            &[
+                "spot_shift",
+                "volatility_shift",
+                "rate_shift",
+                "time_shift_days",
+            ][..],
+        ),
+        (
+            MonteCarloDigitalEngine::default().greek_method(&digital, &context)?,
+            GreekMethod::Native,
+            &[][..],
+        ),
+        (
+            MonteCarloBarrierEngine::default().greek_method(&barrier, &context)?,
+            GreekMethod::NativeWithSpotControl,
+            &["spot_shift"][..],
+        ),
+    ];
+    for (method, expected, controls) in cases {
+        assert_eq!(method, expected);
+        assert_eq!(method.active_controls(), controls);
+    }
+    let terminal = context.replace(PricingContextChanges {
+        valuation_time: Some(expiry),
+        ..Default::default()
+    })?;
+    assert_eq!(
+        AnalyticEuropeanEngine.greek_method(&option, &terminal)?,
+        GreekMethod::Terminal
+    );
+    assert_eq!(GreekMethod::Terminal.active_controls(), &["spot_shift"]);
+    let zero = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.0)?,
+        100.0,
+        start,
+    )?;
+    assert_eq!(
+        AnalyticEuropeanEngine.greek_method(&option, &zero)?,
+        GreekMethod::Numerical
+    );
+    let local = PricingContext::new(
+        LocalVolatilityParameters::new(
+            0.05,
+            0.02,
+            LocalVolatilitySurface::new(
+                vec![start, expiry],
+                vec![80.0, 120.0],
+                vec![vec![0.2; 2]; 2],
+            )?,
+        )?,
+        100.0,
+        start,
+    )?;
+    assert_eq!(
+        FiniteDifferenceVanillaEngine::default().greek_method(&option, &local)?,
+        GreekMethod::NativeWithSpotControl
+    );
+    assert!(matches!(
+        AnalyticEuropeanEngine.greek_method(&option, &local),
+        Err(Error::UnsupportedOperation(_))
+    ));
+    let heston = PricingContext::new(
+        HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.5, 0.3, -0.7)?,
+        100.0,
+        start,
+    )?;
+    assert_eq!(
+        AnalyticHestonEuropeanEngine::default().greek_method(&option, &heston)?,
+        GreekMethod::Unsupported
+    );
+    assert_eq!(GreekMethod::Unsupported.active_controls(), [] as [&str; 0]);
+    Ok(())
+}

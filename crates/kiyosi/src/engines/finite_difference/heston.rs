@@ -182,6 +182,19 @@ impl FiniteDifferenceHestonVanillaEngine {
 macro_rules! pricing {
     ($instrument:ty, $american:literal) => {
         impl PricingEngine<$instrument> for FiniteDifferenceHestonVanillaEngine {
+            fn greek_method(
+                &self,
+                option: &$instrument,
+                context: &PricingContext,
+            ) -> Result<crate::GreekMethod> {
+                <Self as PricingEngine<$instrument>>::validate_applicability(self, context)?;
+                Ok(crate::GreekMethod::for_valuation(
+                    option,
+                    context,
+                    crate::GreekMethod::Unsupported,
+                ))
+            }
+
             fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
                 context.model_parameters().as_heston()?;
                 Ok(())

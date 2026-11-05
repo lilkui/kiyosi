@@ -1098,3 +1098,102 @@ class SettingsDiagnosticTests(unittest.TestCase):
                 times=[start, end], spots=[80, 100], values=[[0.2, -0.1], [0.2, 0.2]]
             )
         self.assertIn("values[0][1]", str(caught.exception))
+
+
+class GreekMethodTests(unittest.TestCase):
+    def test_greek_methods_report_estimators_and_active_controls(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        life = {"effective_time": start, "expiry_time": end}
+        option = ins.EuropeanOption(option_type="call", strike=100, **life)
+        digital = ins.CashOrNothingOption(
+            option_type="call", strike=100, payout=10, **life
+        )
+        barrier = ins.BarrierOption(
+            option_type="call",
+            strike=100,
+            barrier_level=120,
+            barrier_type="up_and_out",
+            **life,
+        )
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        all_controls = [
+            "spot_shift",
+            "volatility_shift",
+            "rate_shift",
+            "time_shift_days",
+        ]
+        for engine, contract, method, controls in [
+            (pricing.AnalyticEuropeanEngine(), option, "native", []),
+            (pricing.QuadratureVanillaEngine(), option, "numerical", all_controls),
+            (pricing.CoxRossRubinsteinVanillaEngine(), option, "mixed", all_controls),
+            (pricing.MonteCarloVanillaEngine(), option, "numerical", all_controls),
+            (pricing.MonteCarloDigitalEngine(), digital, "native", []),
+            (
+                pricing.MonteCarloBarrierEngine(),
+                barrier,
+                "native_with_spot_control",
+                ["spot_shift"],
+            ),
+        ]:
+            with self.subTest(engine=type(engine).__name__):
+                self.assertEqual(engine.greek_method(contract, context), method)
+                self.assertEqual(
+                    engine.active_greek_controls(contract, context), controls
+                )
+                terminal = context.replace(valuation_time=end)
+                self.assertEqual(engine.greek_method(contract, terminal), "terminal")
+                self.assertEqual(
+                    engine.active_greek_controls(contract, terminal), ["spot_shift"]
+                )
+        zero = context.replace(
+            model_parameters=context.model_parameters.replace(volatility=0)
+        )
+        self.assertEqual(
+            pricing.AnalyticEuropeanEngine().greek_method(option, zero), "numerical"
+        )
+        local = context.replace(
+            model_parameters=market.LocalVolatilityParameters(
+                risk_free_rate=0.05,
+                dividend_yield=0.02,
+                surface=market.LocalVolatilitySurface(
+                    times=[start, end], spots=[80, 120], values=[[0.2, 0.2], [0.2, 0.2]]
+                ),
+            )
+        )
+        self.assertEqual(
+            pricing.FiniteDifferenceVanillaEngine().active_greek_controls(
+                option, local
+            ),
+            ["spot_shift"],
+        )
+        with self.assertRaises(UnsupportedOperationError):
+            pricing.AnalyticEuropeanEngine().greek_method(option, local)
+        heston = context.replace(
+            model_parameters=market.HestonParameters(
+                risk_free_rate=0.05,
+                dividend_yield=0.02,
+                initial_variance=0.04,
+                long_run_variance=0.04,
+                mean_reversion_speed=1.5,
+                vol_of_vol=0.3,
+                correlation=-0.7,
+            )
+        )
+        self.assertEqual(
+            pricing.AnalyticHestonEuropeanEngine().greek_method(option, heston),
+            "unsupported",
+        )
+        self.assertEqual(
+            pricing.AnalyticHestonEuropeanEngine().active_greek_controls(
+                option, heston
+            ),
+            [],
+        )
+        with self.assertRaises(UnsupportedOperationError):
+            pricing.AnalyticEuropeanEngine().greek_method(digital, context)

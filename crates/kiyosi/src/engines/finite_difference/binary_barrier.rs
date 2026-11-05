@@ -81,6 +81,26 @@ impl FiniteDifferenceBinaryBarrierEngine {
 macro_rules! binary_pricing {
     ($engine:ty, $option:ty) => {
         impl PricingEngine<$option> for $engine {
+            fn greek_method(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+            ) -> Result<crate::GreekMethod> {
+                <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
+                Ok(crate::GreekMethod::for_valuation(
+                    option,
+                    context,
+                    if matches!(
+                        context.model_parameters(),
+                        crate::ModelParameters::LocalVolatility(_)
+                    ) {
+                        crate::GreekMethod::NativeWithSpotControl
+                    } else {
+                        crate::GreekMethod::Mixed
+                    },
+                ))
+            }
+
             fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
                 local_volatility::validate_model(context)
             }

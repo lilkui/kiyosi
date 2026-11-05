@@ -287,6 +287,23 @@ impl CoxRossRubinsteinBarrierEngine {
 }
 
 impl PricingEngine<BarrierOption> for CoxRossRubinsteinBarrierEngine {
+    fn greek_method(
+        &self,
+        option: &BarrierOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        <Self as PricingEngine<BarrierOption>>::validate_applicability(self, context)?;
+        Ok(crate::GreekMethod::for_valuation(
+            option,
+            context,
+            if crate::engines::deterministic::enabled(context) {
+                crate::GreekMethod::NativeWithSpotControl
+            } else {
+                crate::GreekMethod::Native
+            },
+        ))
+    }
+
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.bsm_parameters()?;
         flat_rates(context).map(|_| ())

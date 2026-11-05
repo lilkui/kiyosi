@@ -22,6 +22,30 @@ macro_rules! numerical_greeks_methods {
      $methods:ident!($($args:tt)*)) => {
         $methods! {
             $($args)*,
+            /// Return native, numerical, mixed, native_with_spot_control, terminal or unsupported.
+            ///
+            /// Checks model applicability without pricing or sampling. Life and history
+            /// validation remain part of pricing. Use numerical_greeks for scalar bumps.
+            fn greek_method(
+                &self,
+                py: pyo3::Python<'_>,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
+                context: &$crate::market::PricingContext,
+            ) -> pyo3::PyResult<&'static str> {
+                Ok(self.evaluate(py, instrument, context, $crate::engines::GreekMethodRequest)?.name())
+            },
+            /// Return shift-control names potentially used by this Greek calculation path.
+            ///
+            /// Individual requests or resolved payoffs may use fewer controls. All
+            /// supplied controls are validated, including inactive controls.
+            fn active_greek_controls(
+                &self,
+                py: pyo3::Python<'_>,
+                #[pyo3(from_py_with = crate::conversions::instrument)] instrument: $instrument,
+                context: &$crate::market::PricingContext,
+            ) -> pyo3::PyResult<Vec<&'static str>> {
+                Ok(self.evaluate(py, instrument, context, $crate::engines::GreekMethodRequest)?.active_controls().to_vec())
+            },
             /// Returns the price and selected sensitivities.
             ///
             /// Parameters
@@ -164,5 +188,19 @@ impl PricingRequest<kiyosi::PricingResult> for NumericalGreeksRequest {
         context: &kiyosi::PricingContext,
     ) -> kiyosi::Result<kiyosi::PricingResult> {
         kiyosi::numerical_greeks(engine, instrument, context, self.request, self.settings)
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct GreekMethodRequest;
+
+impl PricingRequest<kiyosi::GreekMethod> for GreekMethodRequest {
+    fn evaluate<I: kiyosi::OptionContract>(
+        self,
+        engine: &impl kiyosi::PricingEngine<I>,
+        instrument: &I,
+        context: &kiyosi::PricingContext,
+    ) -> kiyosi::Result<kiyosi::GreekMethod> {
+        engine.greek_method(instrument, context)
     }
 }

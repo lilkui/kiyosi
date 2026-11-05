@@ -432,6 +432,23 @@ fn native(
 macro_rules! vanilla_pricing {
     ($option:ty, $american:expr) => {
         impl PricingEngine<$option> for CoxRossRubinsteinVanillaEngine {
+            fn greek_method(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+            ) -> Result<crate::GreekMethod> {
+                <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
+                Ok(crate::GreekMethod::for_valuation(
+                    option,
+                    context,
+                    if crate::engines::deterministic::enabled(context) {
+                        crate::GreekMethod::Numerical
+                    } else {
+                        crate::GreekMethod::Mixed
+                    },
+                ))
+            }
+
             fn price(&self, option: &$option, context: &PricingContext) -> Result<f64> {
                 context.bsm_parameters()?;
                 Ok(native(
@@ -601,6 +618,23 @@ impl CoxRossRubinsteinDigitalEngine {
 }
 
 impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
+    fn greek_method(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        <Self as PricingEngine<DigitalOption>>::validate_applicability(self, context)?;
+        Ok(crate::GreekMethod::for_valuation(
+            option,
+            context,
+            if crate::engines::deterministic::enabled(context) {
+                crate::GreekMethod::NativeWithSpotControl
+            } else {
+                crate::GreekMethod::Native
+            },
+        ))
+    }
+
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         Self::price(self, option, context)

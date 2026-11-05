@@ -235,6 +235,19 @@ impl AnalyticHestonEuropeanEngine {
 }
 
 impl PricingEngine for AnalyticHestonEuropeanEngine {
+    fn greek_method(
+        &self,
+        option: &crate::EuropeanOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        <Self as PricingEngine<crate::EuropeanOption>>::validate_applicability(self, context)?;
+        Ok(crate::GreekMethod::for_valuation(
+            option,
+            context,
+            crate::GreekMethod::Unsupported,
+        ))
+    }
+
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         context.model_parameters().as_heston()?;
         Ok(())

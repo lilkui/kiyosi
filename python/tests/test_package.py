@@ -435,6 +435,11 @@ class PackageTests(unittest.TestCase):
                 continue
             engine = getattr(pricing, name)()
             with self.subTest(engine=name):
+                for method in ("greek_method", "active_greek_controls"):
+                    self.assertEqual(
+                        tuple(inspect.signature(getattr(engine, method)).parameters),
+                        ("instrument", "context"),
+                    )
                 signature = inspect.signature(engine.price_with_greeks)
                 self.assertEqual(
                     tuple(signature.parameters),
@@ -696,6 +701,8 @@ class PackageTests(unittest.TestCase):
                     "FiniteDifferenceScheme",
                     "MonteCarloSampling",
                     "CouponQuoteConvention",
+                    "GreekMethod",
+                    "GreekControl",
                 ):
                     self.assertIn(name, declarations)
                     self.assertIs(getattr(module, name), getattr(_native, name))

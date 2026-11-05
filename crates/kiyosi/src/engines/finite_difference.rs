@@ -789,6 +789,30 @@ impl FiniteDifferenceVanillaEngine {
 macro_rules! vanilla_pricing {
     ($option:ty, $american:literal) => {
         impl PricingEngine<$option> for FiniteDifferenceVanillaEngine {
+            fn greek_method(
+                &self,
+                option: &$option,
+                context: &PricingContext,
+            ) -> Result<crate::GreekMethod> {
+                <Self as PricingEngine<$option>>::validate_applicability(self, context)?;
+                Ok(crate::GreekMethod::for_valuation(
+                    option,
+                    context,
+                    if matches!(
+                        context.model_parameters(),
+                        crate::ModelParameters::LocalVolatility(_)
+                    ) {
+                        crate::GreekMethod::NativeWithSpotControl
+                    } else {
+                        if crate::engines::deterministic::enabled(context) {
+                            crate::GreekMethod::Numerical
+                        } else {
+                            crate::GreekMethod::Mixed
+                        }
+                    },
+                ))
+            }
+
             fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
                 local_volatility::validate_model(context)
             }
@@ -952,6 +976,28 @@ impl FiniteDifferenceDigitalEngine {
 }
 
 impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
+    fn greek_method(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        <Self as PricingEngine<DigitalOption>>::validate_applicability(self, context)?;
+        Ok(crate::GreekMethod::for_valuation(
+            option,
+            context,
+            if matches!(
+                context.model_parameters(),
+                crate::ModelParameters::LocalVolatility(_)
+            ) {
+                crate::GreekMethod::NativeWithSpotControl
+            } else if crate::engines::deterministic::enabled(context) {
+                crate::GreekMethod::Numerical
+            } else {
+                crate::GreekMethod::Mixed
+            },
+        ))
+    }
+
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         flat_rates(context)
     }

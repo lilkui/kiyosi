@@ -347,6 +347,71 @@ impl NumericalShiftSettings {
     }
 }
 
+/// Describes how an engine estimates Greeks and which shift controls it may use.
+///
+/// This describes the calculation path, independently of the requested measures.
+/// A listed control may be unused for a particular request or resolved payoff.
+/// All supplied controls are validated even when inactive. See
+/// [`PricingEngine::greek_method`] for an example.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GreekMethod {
+    /// Uses native analytic, grid or sampling estimates without numerical shifts.
+    Native,
+    /// Uses scalar numerical differences for the supported measures.
+    Numerical,
+    /// Combines native estimates with numerical completion of other measures.
+    Mixed,
+    /// Uses native estimates with spot shifts for availability or rebate derivatives.
+    NativeWithSpotControl,
+    /// Uses terminal-payoff spot stencils at expiry.
+    Terminal,
+    /// Provides no Greeks for this model and engine.
+    Unsupported,
+}
+
+impl GreekMethod {
+    /// Returns the stable choice string; see [`PricingEngine::greek_method`].
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Native => "native",
+            Self::Numerical => "numerical",
+            Self::Mixed => "mixed",
+            Self::NativeWithSpotControl => "native_with_spot_control",
+            Self::Terminal => "terminal",
+            Self::Unsupported => "unsupported",
+        }
+    }
+
+    /// Returns names of shift controls potentially used by this calculation path.
+    ///
+    /// Names correspond to [`NumericalShiftSettings`] fields. Inactive controls
+    /// are still validated. See [`PricingEngine::greek_method`] for an example.
+    pub const fn active_controls(self) -> &'static [&'static str] {
+        match self {
+            Self::Native | Self::Unsupported => &[],
+            Self::NativeWithSpotControl | Self::Terminal => &["spot_shift"],
+            Self::Numerical | Self::Mixed => &[
+                "spot_shift",
+                "volatility_shift",
+                "rate_shift",
+                "time_shift_days",
+            ],
+        }
+    }
+
+    pub(crate) fn for_valuation(
+        option: &impl crate::OptionContract,
+        context: &PricingContext,
+        before_expiry: Self,
+    ) -> Self {
+        if before_expiry != Self::Unsupported && context.valuation_time() == option.expiry_time() {
+            Self::Terminal
+        } else {
+            before_expiry
+        }
+    }
+}
+
 /// Provides scalar pricing for numerical analysis and solvers, independent of exercise style.
 ///
 /// Implementations must return domain failures through [`Result<T>`](crate::Result),
@@ -354,6 +419,42 @@ impl NumericalShiftSettings {
 /// The instrument parameter selects supported combinations; it defaults to
 /// [`EuropeanOption`]. See [`crate::AnalyticDigitalEngine::price`] for digital usage.
 pub trait PricingEngine<I = EuropeanOption> {
+    /// Reports the native Greek calculation path without pricing or drawing samples.
+    ///
+    /// Controls are potentially active across supported requests; individual requests,
+    /// current events and resolved payoffs may use fewer. Contract life and history
+    /// are validated by pricing, rather than by this query. The standalone
+    /// [`crate::numerical_greeks`] helper always selects numerical differences.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`Self::validate_applicability`] failures for unsupported models or curves.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::*;
+    /// # fn main() -> Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let option = EuropeanOption::new(OptionType::Call, 100.0, start, start.add_days(365)?)?;
+    /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?, 100.0, start)?;
+    /// let method = AnalyticEuropeanEngine.greek_method(&option, &context)?;
+    /// assert_eq!(method, GreekMethod::Native);
+    /// assert!(method.active_controls().is_empty());
+    /// # Ok(()) }
+    /// ```
+    fn greek_method(&self, option: &I, context: &PricingContext) -> Result<GreekMethod>
+    where
+        I: crate::OptionContract,
+    {
+        self.validate_applicability(context)?;
+        Ok(GreekMethod::for_valuation(
+            option,
+            context,
+            GreekMethod::Numerical,
+        ))
+    }
+
     /// Returns the automatic pre-expiry spot bump for this engine and contract family.
     ///
     /// Defaults to 0.01 spot units; American Monte Carlo uses 8% of spot.

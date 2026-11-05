@@ -261,6 +261,37 @@ pub(crate) struct MonteCarloVanillaEngine(pub(crate) kiyosi::MonteCarloVanillaEn
 sampling_settings!(
     MonteCarloVanillaEngine,
     [step_count],
+    /// Return native, numerical, mixed, native_with_spot_control, terminal or unsupported.
+    ///
+    /// Checks model applicability without pricing or sampling. Life and history
+    /// validation remain part of pricing. Use numerical_greeks for scalar bumps.
+    fn greek_method(
+        &self,
+        py: pyo3::Python<'_>,
+        #[pyo3(from_py_with = crate::conversions::instrument)]
+        instrument: binomial::VanillaInstrument<'_>,
+        context: &crate::market::PricingContext,
+    ) -> pyo3::PyResult<&'static str> {
+        Ok(self
+            .evaluate(py, instrument, context, crate::engines::GreekMethodRequest)?
+            .name())
+    },
+    /// Return shift-control names potentially used by this Greek calculation path.
+    ///
+    /// Individual requests or resolved payoffs may use fewer controls. All
+    /// supplied controls are validated, including inactive controls.
+    fn active_greek_controls(
+        &self,
+        py: pyo3::Python<'_>,
+        #[pyo3(from_py_with = crate::conversions::instrument)]
+        instrument: binomial::VanillaInstrument<'_>,
+        context: &crate::market::PricingContext,
+    ) -> pyo3::PyResult<Vec<&'static str>> {
+        Ok(self
+            .evaluate(py, instrument, context, crate::engines::GreekMethodRequest)?
+            .active_controls()
+            .to_vec())
+    },
     /// Return the price without changing the instrument or context.
     ///
     /// Parameters

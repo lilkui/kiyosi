@@ -254,6 +254,23 @@ impl AnalyticEuropeanEngine {
 }
 
 impl PricingEngine for AnalyticEuropeanEngine {
+    fn greek_method(
+        &self,
+        option: &crate::EuropeanOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        <Self as PricingEngine<crate::EuropeanOption>>::validate_applicability(self, context)?;
+        Ok(crate::GreekMethod::for_valuation(
+            option,
+            context,
+            if crate::engines::deterministic::enabled(context) {
+                crate::GreekMethod::Numerical
+            } else {
+                crate::GreekMethod::Native
+            },
+        ))
+    }
+
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         AnalyticEuropeanEngine::price(self, option, context)

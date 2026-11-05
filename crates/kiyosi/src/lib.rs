@@ -204,7 +204,8 @@ pub use market::{
     RateTermStructure,
 };
 pub use risk::analytics::{
-    Greek, GreekStatus, GreeksRequest, NumericalShiftSettings, PricingEngine, PricingResult,
+    Greek, GreekMethod, GreekStatus, GreeksRequest, NumericalShiftSettings, PricingEngine,
+    PricingResult,
 };
 pub use risk::coupon::{
     CouponQuoteConvention, ImpliedCouponSettings, implied_phoenix_coupon, implied_snowball_coupon,

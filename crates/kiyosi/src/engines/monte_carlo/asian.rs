@@ -500,6 +500,25 @@ fn result(means: [f64; 3], request: GreeksRequest) -> Result<PricingResult> {
 }
 
 impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
+    fn greek_method(
+        &self,
+        option: &GeometricAveragePriceOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        <Self as PricingEngine<GeometricAveragePriceOption>>::validate_applicability(
+            self, context,
+        )?;
+        Ok(crate::GreekMethod::for_valuation(
+            option,
+            context,
+            if crate::engines::deterministic::enabled(context) {
+                crate::GreekMethod::NativeWithSpotControl
+            } else {
+                crate::GreekMethod::Native
+            },
+        ))
+    }
+
     fn price_with_statistics(
         &self,
         option: &GeometricAveragePriceOption,
@@ -557,6 +576,25 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
 }
 
 impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
+    fn greek_method(
+        &self,
+        option: &ArithmeticAveragePriceOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        <Self as PricingEngine<ArithmeticAveragePriceOption>>::validate_applicability(
+            self, context,
+        )?;
+        Ok(crate::GreekMethod::for_valuation(
+            option,
+            context,
+            if crate::engines::deterministic::enabled(context) {
+                crate::GreekMethod::NativeWithSpotControl
+            } else {
+                crate::GreekMethod::Native
+            },
+        ))
+    }
+
     fn price_with_statistics(
         &self,
         option: &ArithmeticAveragePriceOption,

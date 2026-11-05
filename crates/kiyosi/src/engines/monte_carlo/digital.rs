@@ -288,6 +288,23 @@ impl MonteCarloDigitalEngine {
 }
 
 impl PricingEngine<DigitalOption> for MonteCarloDigitalEngine {
+    fn greek_method(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        <Self as PricingEngine<DigitalOption>>::validate_applicability(self, context)?;
+        Ok(crate::GreekMethod::for_valuation(
+            option,
+            context,
+            if crate::engines::deterministic::enabled(context) {
+                crate::GreekMethod::NativeWithSpotControl
+            } else {
+                crate::GreekMethod::Native
+            },
+        ))
+    }
+
     fn price_with_statistics(
         &self,
         option: &DigitalOption,

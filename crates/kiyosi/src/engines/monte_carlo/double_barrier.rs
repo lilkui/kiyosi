@@ -217,6 +217,19 @@ impl MonteCarloDoubleBarrierEngine {
 }
 
 impl PricingEngine<DoubleBarrierOption> for MonteCarloDoubleBarrierEngine {
+    fn greek_method(
+        &self,
+        option: &DoubleBarrierOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        <Self as PricingEngine<DoubleBarrierOption>>::validate_applicability(self, context)?;
+        Ok(crate::GreekMethod::for_valuation(
+            option,
+            context,
+            crate::GreekMethod::NativeWithSpotControl,
+        ))
+    }
+
     fn price_with_statistics(
         &self,
         option: &DoubleBarrierOption,

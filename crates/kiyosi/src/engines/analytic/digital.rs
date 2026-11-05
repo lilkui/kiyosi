@@ -189,6 +189,23 @@ impl AnalyticDigitalEngine {
 }
 
 impl PricingEngine<DigitalOption> for AnalyticDigitalEngine {
+    fn greek_method(
+        &self,
+        option: &DigitalOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        <Self as PricingEngine<DigitalOption>>::validate_applicability(self, context)?;
+        Ok(crate::GreekMethod::for_valuation(
+            option,
+            context,
+            if crate::engines::deterministic::enabled(context) {
+                crate::GreekMethod::Numerical
+            } else {
+                crate::GreekMethod::Mixed
+            },
+        ))
+    }
+
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         AnalyticDigitalEngine::price(self, option, context)

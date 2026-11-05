@@ -145,6 +145,17 @@ kink or product event remain unavailable, and engine/model coverage still applie
 Automatic terminal spot bumps use 0.01 spot units, including American Monte Carlo;
 explicit bump controls retain their usual meaning.
 
+Inspect ``engine.greek_method(instrument, context)`` before a parameter sweep:
+``"native"`` uses no numerical shifts, ``"numerical"`` uses scalar differences,
+``"mixed"`` completes native estimates numerically, and ``"native_with_spot_control"``
+uses spot controls for numerical derivatives or availability checks. ``"terminal"``
+uses expiry payoff stencils; ``"unsupported"`` supplies no Greeks.
+``engine.active_greek_controls(instrument, context)`` lists controls potentially
+used across supported requests; a specific request or resolved payoff may use
+fewer. Queries check model applicability without pricing or sampling. They do
+not validate contract life or history. Inactive supplied controls remain validated.
+Use ``numerical_greeks`` when bump settings must select the calculation method.
+
 Every engine shares ``price(instrument, context)`` and
 ``price_with_greeks(instrument, context, greeks)`` with the same keyword-only
 shift controls. For a uniform BSM numerical calculation, call
@@ -349,6 +360,18 @@ from ._native import (
     numerical_greeks,
 )
 
+GreekMethod = Literal[
+    "native",
+    "numerical",
+    "mixed",
+    "native_with_spot_control",
+    "terminal",
+    "unsupported",
+]
+GreekControl = Literal[
+    "spot_shift", "volatility_shift", "rate_shift", "time_shift_days"
+]
+
 CouponQuoteConvention = Literal["shift_maturity_coupon", "preserve_maturity_coupon"]
 FiniteDifferenceScheme = Literal[
     "explicit_euler", "implicit_euler", "crank_nicolson", "rannacher"
@@ -380,6 +403,8 @@ __all__ = [
     "FiniteDifferenceHestonVanillaEngine",
     "FiniteDifferenceScheme",
     "FiniteDifferenceVanillaEngine",
+    "GreekControl",
+    "GreekMethod",
     "MonteCarloAccumulatorEngine",
     "MonteCarloAsianEngine",
     "MonteCarloAutocallableEngine",
