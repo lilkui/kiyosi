@@ -106,8 +106,9 @@ pub fn implied_snowball_coupon<
 
 /// Solves a Phoenix price curve in its conditional coupon, preserving its units.
 ///
-/// Python exposes this operation through `pricing.implied_coupon`, which also
-/// dispatches snowball contracts to [`implied_snowball_coupon`].
+/// Python exposes this operation through `pricing.implied_phoenix_coupon`.
+/// Snowball contracts use `pricing.implied_snowball_coupon`, corresponding to
+/// [`implied_snowball_coupon`].
 ///
 /// Uses the validation, endpoint, convergence and failure-state contract of
 /// [`implied_snowball_coupon`], without a quote convention.
