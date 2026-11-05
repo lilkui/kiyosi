@@ -75,7 +75,7 @@ impl QuadratureDigitalEngine {
 
     /// Computes requested numerical Greeks with shared bump controls.
     ///
-    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent. Infeasible stencils leave affected
+    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. Infeasible stencils leave affected
     /// measures absent; feasible bumped failures propagate. See [`Self::new`].
     ///
     /// # Errors

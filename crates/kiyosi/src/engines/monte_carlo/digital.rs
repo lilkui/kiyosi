@@ -7,7 +7,7 @@ use crate::{
 /// Prices European cash-or-nothing and asset-or-nothing contracts by terminal sampling.
 ///
 /// Uses flat BSM rates, strict in-the-money tests in standardized normal coordinates and likelihood-ratio
-/// delta/gamma. Other engine Greeks remain absent; scalar numerical sensitivities
+/// delta/gamma. Other engine Greeks are absent; scalar numerical sensitivities
 /// are available through [`crate::numerical_greeks`].
 /// Sampling, exact path counts, thread caps and reproducibility follow
 /// [`crate::MonteCarloVanillaEngine`]. Shared and distinct instances permit concurrent
@@ -110,7 +110,7 @@ impl MonteCarloDigitalEngine {
     ///
     /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
     /// Terminal stencils use engine-default spot bumps.
-    /// Other Greeks remain absent. Expiry delta and gamma use terminal payoff stencils; before expiry no numerical bumps
+    /// Other Greeks are absent. Expiry delta and gamma use terminal payoff stencils; before expiry no numerical bumps
     /// are required. Near-expiry estimates can have substantial sampling error.
     ///
     /// # Errors

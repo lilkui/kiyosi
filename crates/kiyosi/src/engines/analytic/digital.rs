@@ -18,7 +18,7 @@ impl AnalyticDigitalEngine {
     /// Returns analytic delta/gamma and completes other requested Greeks numerically.
     ///
     /// At expiry spot Greeks follow terminal-payoff stencils; volatility and rate
-    /// Greeks are zero, while time Greeks remain absent. Stencils crossing payoff
+    /// Greeks are zero, while time Greeks are absent. Stencils crossing payoff
     /// discontinuities are unavailable. See [`crate::numerical_greeks`] for terminal
     /// rules. Bumps use [`crate::NumericalShiftSettings`].
     ///
@@ -71,7 +71,8 @@ impl AnalyticDigitalEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] outside contract life or curve coverage,
+    /// Returns [`Error::UnsupportedOperation`] for non-BSM models,
+    /// [`Error::InvalidInput`] outside contract life or curve coverage,
     /// and [`Error::ComputationFailure`] for non-finite numerical results.
     ///
     /// # Examples

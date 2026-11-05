@@ -18,7 +18,7 @@ impl FiniteDifferenceAccumulatorEngine {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside contract life or curve coverage,
-    /// for nontrading expiry or knock-out dates, clipped domains or unstable explicit steps.
+    /// for missing or impossible history, clipped domains or unstable explicit steps.
     /// Numerical failures return [`Error::ComputationFailure`][crate::Error::ComputationFailure]. Inputs remain unchanged.
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         Ok(native(
@@ -34,15 +34,16 @@ impl FiniteDifferenceAccumulatorEngine {
 
     /// Computes spline spot Greeks and completes other sensitivities with core bump defaults.
     ///
-    /// Fixes the central upper domain for bumped prices. Expiry Greeks and stencils
-    /// crossing current thresholds or trading events are unavailable.
+    /// Fixes the central upper domain for bumped prices. At expiry Greeks follow
+    /// terminal payoffs, with time Greeks absent. Stencils crossing current
+    /// thresholds or trading events are unavailable.
     /// Local volatility supports only delta and gamma with the absolute surface fixed.
     ///
     /// # Errors
     ///
     /// Validates requests and shifts, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors without changing inputs or settings.
-    /// Unsupported local-volatility Greeks remain absent.
+    /// Unsupported local-volatility Greeks are absent.
     ///
     /// # Examples
     ///

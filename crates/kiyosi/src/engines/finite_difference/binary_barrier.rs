@@ -25,7 +25,7 @@ impl FiniteDifferenceBinaryBarrierEngine {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve coverage,
-    /// for nontrading observations, missing or impossible history, invalid grids,
+    /// for missing or impossible history, invalid grids,
     /// or unstable explicit steps. Returns [`Error::ComputationFailure`][crate::Error::ComputationFailure] for
     /// numerical failures. Inputs remain unchanged.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
@@ -40,7 +40,7 @@ impl FiniteDifferenceBinaryBarrierEngine {
     /// Stencils crossing observations or barriers leave affected measures absent.
     /// Expiry Greeks follow terminal payoffs. Before expiry, a current barrier equality without a prior touch suppresses Greeks.
     /// Local volatility supports only delta and gamma with the local-volatility surface held fixed;
-    /// other requested Greeks remain absent.
+    /// other requested Greeks are absent.
     ///
     /// # Errors
     ///
@@ -167,7 +167,7 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve coverage,
-    /// for nontrading observations, unknown or impossible history, invalid grids,
+    /// for unknown or impossible history, invalid grids,
     /// or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`][crate::Error::ComputationFailure]. Inputs remain unchanged.
     pub fn price(&self, option: &DoubleTouchOption, context: &PricingContext) -> Result<f64> {
@@ -179,7 +179,7 @@ impl FiniteDifferenceDoubleTouchEngine {
     /// Stencils crossing either boundary or an observation omit affected measures.
     /// Expiry Greeks follow terminal payoffs. Before expiry, current boundary equality without a prior touch suppresses Greeks.
     /// Local volatility supports only delta and gamma with the local-volatility surface held fixed;
-    /// other requested Greeks remain absent.
+    /// other requested Greeks are absent.
     ///
     /// # Errors
     ///

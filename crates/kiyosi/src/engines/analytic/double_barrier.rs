@@ -23,8 +23,8 @@ impl AnalyticDoubleBarrierEngine {
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unresolved schedules at positive volatility,
-    /// [`Error::InvalidInput`] outside life, for nontrading fixings, or for
-    /// missing or impossible history, checked in that order. Unrepresentable
+    /// [`Error::InvalidInput`] outside life, for missing or impossible history,
+    /// or outside required curve coverage. Unrepresentable
     /// calculations return [`Error::ComputationFailure`]; series or integration
     /// limits reached without convergence return [`Error::NonConvergence`].
     /// Inputs remain unchanged.

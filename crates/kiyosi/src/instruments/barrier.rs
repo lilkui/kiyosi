@@ -131,15 +131,15 @@ impl BarrierOption {
     /// Defaults to weekdays. Construction and replacement check scheduled observations against this
     /// calendar; see [`Self::new`].
     ///
-    /// Amends an already validated contract; this is not an initial-construction builder.
-    /// Set [`BarrierOptionTerms::calendar`] before calling [`Self::new`] when the
-    /// terms require a custom calendar, such as a weekend expiry or observation.
+    /// Set [`BarrierOptionTerms::calendar`] before calling [`Self::new`] for
+    /// scheduled observations on dates closed by the default weekday calendar.
+    /// Continuous monitoring is independent of trading days; expiry need not be open.
     /// The original contract remains unchanged on success and failure.
     /// See [`crate::RangeAccrualOption::replace_calendar`] for an initial-calendar example.
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.
+    /// Returns [`crate::Error::InvalidInput`] if scheduled observations fall on closed dates.
     pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
         let mut updated = self.clone();
         updated.monitoring = updated.monitoring.replace_calendar(calendar)?;
@@ -366,7 +366,7 @@ pub struct BarrierOptionChanges {
 impl BarrierOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// See [`BarrierOption::new`] for construction examples.
     ///
     /// # Errors

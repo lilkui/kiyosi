@@ -27,7 +27,8 @@ numerical_greeks_methods!(
         ///
         /// Notes
         /// -----
-        /// Uses analytic Greeks before expiry and default terminal stencils at expiry.
+        /// Uses analytic Greeks at positive volatility before expiry, scalar differences
+        /// at zero volatility, and default terminal stencils at expiry.
         /// Use numerical_greeks for configurable scalar differences.
     ],
     engine_methods!(

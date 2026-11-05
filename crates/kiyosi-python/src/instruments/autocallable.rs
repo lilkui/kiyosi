@@ -180,7 +180,7 @@ fn reals(values: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
     values.try_iter()?.map(|item| real(&item?)).collect()
 }
 
-/// Input observation validated when its note is constructed.
+/// Observation with validated numeric terms for an autocallable note.
 ///
 /// Parameters
 /// ----------
@@ -191,7 +191,7 @@ fn reals(values: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
 /// coupon_rate : float, optional
 ///     Finite annual coupon rate in decimal units.
 /// coupon_barrier_level : float, optional
-///     Inclusive Phoenix coupon threshold; must be zero for snowballs.
+///     Finite nonnegative inclusive Phoenix coupon threshold; must be zero for snowballs.
 ///
 /// Notes
 /// -----
@@ -279,7 +279,7 @@ impl AutocallableObservation {
 /// Parameters
 /// ----------
 /// observation_times : iterable of datetime.datetime
-///     Strictly increasing observation times within the contract life.
+///     Observation times; the note constructor checks ordering and life bounds.
 /// knock_out_levels : iterable of float
 ///     Positive inclusive knock-out levels, one per observation timestamp.
 /// knock_out_coupon_rates : iterable of float or None, optional
@@ -353,6 +353,8 @@ macro_rules! snowball_preset {
         ///     Strictly prior events. None is unknown; the string no_event means no event.
         /// principal_ratio : float, optional
         ///     Nonnegative normalized principal, independent of coupons and losses.
+        /// calendar : TradingCalendar, optional
+        ///     Owned contractual calendar; defaults to weekdays.
         ///
         /// Returns
         /// -------
@@ -366,11 +368,10 @@ macro_rules! snowball_preset {
         ///
         /// Notes
         /// -----
-        /// The calendar keyword owns the contract calendar (weekdays by default).
         #[doc = concat!("Knock-in is observed ", $monitoring, ".")]
-        /// Unit principal, zero lower strike and initial spot as upper strike are used
-        /// unless the preset overrides them. Trading-calendar consistency is checked on construction; history
-        /// is checked during pricing.
+        /// Principal defaults to one. The lower strike is zero and the upper strike
+        /// is initial spot unless the preset overrides them. Calendar compatibility
+        /// is checked on construction; history is checked during pricing.
         #[doc = $notes]
         #[pyfunction]
         #[pyo3(signature = (*, $coupon, initial_spot, knock_in_level, $level, $($extra,)* observation_times, effective_time, expiry_time, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO, calendar=TradingCalendar::default()))]
@@ -571,7 +572,8 @@ times, stages may have no observations, and rates need not decrease."
 /// ------
 /// InvalidInputError
 ///     If amounts, strikes, life times or observation terms are invalid.
-///     Pricing checks the calendar and prior barrier history.
+///     Calendar compatibility is checked on construction; prior barrier history
+///     is checked during pricing.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct SnowballOption(pub kiyosi::SnowballOption);
@@ -616,7 +618,7 @@ snowball_properties! {
     /// KiyosiError
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
-    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    ///     If a representation or field name is invalid.
     #[pyo3(signature = (*, maturity_coupon_rate=crate::conversions::OMITTED, initial_spot=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, upper_strike=crate::conversions::OMITTED, lower_strike=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observations=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
     fn replace(
@@ -787,7 +789,7 @@ snowball_properties! {
     /// KiyosiError
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
-    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    ///     If a representation or field name is invalid.
     #[pyo3(signature = (*, maturity_coupon_rate=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observations=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
     fn replace(
@@ -924,7 +926,7 @@ snowball_properties! {
     /// KiyosiError
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
-    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    ///     If a representation or field name is invalid.
     #[pyo3(signature = (*, maturity_coupon_rate=crate::conversions::OMITTED, minimum_coupon_rate=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observations=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
     fn replace(
@@ -1113,7 +1115,7 @@ autocallable_properties! {
     /// KiyosiError
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
-    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    ///     If a representation or field name is invalid, or both coupon choices are supplied.
     #[pyo3(signature = (*, coupon_rate=crate::conversions::OMITTED, coupon_per_period=crate::conversions::OMITTED, initial_spot=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, upper_strike=crate::conversions::OMITTED, lower_strike=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observations=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
     fn replace(
@@ -1297,6 +1299,8 @@ macro_rules! phoenix_preset {
         ///     Strictly prior events; None means unknown history.
         /// principal_ratio : float, optional
         ///     Nonnegative normalized principal, independent of coupon and loss components.
+        /// calendar : TradingCalendar, optional
+        ///     Owned contractual calendar; defaults to weekdays.
         ///
         /// Returns
         /// -------
@@ -1310,12 +1314,11 @@ macro_rules! phoenix_preset {
         ///
         /// Notes
         /// -----
-        /// The calendar keyword owns the contract calendar (weekdays by default).
         /// Coupons pay once per qualifying observation, including a qualifying knock-out,
         /// with no day accrual or memory. Knock-out and coupon barriers are inclusive;
         /// knock-in is strict. Observation times are payment times; no observation
-        /// is implicitly added at expiry. Calendar and history consistency are
-        /// checked during pricing. Past coupons are settled.
+        /// is implicitly added at expiry. Calendar compatibility is checked on
+        /// construction; history consistency is checked during pricing. Past coupons are settled.
         #[pyfunction]
         #[pyo3(signature = (*, coupon_per_period, initial_spot, knock_in_level, knock_out_level, $($extra,)* observation_times, effective_time, expiry_time, barrier_state=None, principal_ratio=kiyosi::DEFAULT_PRINCIPAL_RATIO, calendar=TradingCalendar::default()))]
         #[expect(clippy::too_many_arguments, reason = "keyword-only preset terms")]

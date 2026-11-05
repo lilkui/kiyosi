@@ -95,7 +95,7 @@ impl QuadratureBarrierEngine {
         self.settings
     }
 
-    /// Prices after validating flat rates, inclusive life, calendar and strictly prior history.
+    /// Prices after validating flat rates, inclusive life and strictly prior history.
     ///
     /// Current boundary hits settle before future monitoring; prior at-hit rebates are paid.
     /// Settled cash flows do not require curve coverage through expiry.
@@ -104,8 +104,8 @@ impl QuadratureBarrierEngine {
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves. Returns
-    /// [`Error::InvalidInput`] outside life, for nontrading fixings, or for
-    /// missing or impossible history, checked in that order. Unrepresentable grids,
+    /// [`Error::InvalidInput`] outside life, for missing or impossible history,
+    /// or outside required curve coverage. Unrepresentable grids,
     /// transitions or results return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;

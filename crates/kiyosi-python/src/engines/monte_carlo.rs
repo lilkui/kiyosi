@@ -47,11 +47,11 @@ macro_rules! sampling_settings {
                 ///
                 /// Notes
                 /// -----
-                /// Barrier engines use spot_shift for event-availability checks and
-                /// continuous at-hit rebate derivatives; other shifts are validated
-                /// but unused. Autocallable and accumulator engines use numerical
-                /// differences with the corresponding shifts. At expiry spot_shift
-                /// controls terminal-payoff stencils. Use numerical_greeks for
+                /// Barrier engines use the default spot bump for event-availability
+                /// checks and continuous at-hit rebate derivatives. Autocallable and
+                /// accumulator engines use numerical differences with engine defaults.
+                /// At expiry spot Greeks use default terminal-payoff stencils.
+                /// Use numerical_greeks for
                 /// explicit scalar bump calculations on supported BSM pairs.
             ],
             sampling_settings!(
@@ -333,6 +333,7 @@ sampling_settings!(
     ///     Market snapshot and valuation instant.
     /// greeks : str or iterable of str
     ///     Greek names or "all" to request every measure; duplicates are ignored.
+    ///
     /// Returns
     /// -------
     /// PricingResult
@@ -342,7 +343,11 @@ sampling_settings!(
     /// Raises
     /// ------
     /// KiyosiError
-    ///     If requests, pricing or a feasible default bumped valuation fails.
+    ///     If the request is empty, pricing fails or a feasible default bumped valuation fails.
+    /// ValueError
+    ///     If a Greek name is unknown.
+    /// TypeError
+    ///     If greeks is not a string or iterable of strings.
     ///
     /// Notes
     /// -----
@@ -444,7 +449,7 @@ impl MonteCarloEstimate {
 /// Calls own their samples and share a library-owned Rayon pool. A worker cap
 /// does not reserve workers. Greeks and solves pin a seed per
 /// request; solver tolerances do not measure sampling error.
-/// Only likelihood-ratio delta and gamma are returned; other requested Greeks remain absent.
+/// Only likelihood-ratio delta and gamma are returned; other requested Greeks are absent.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloDigitalEngine(pub(crate) kiyosi::MonteCarloDigitalEngine);
@@ -465,9 +470,10 @@ numerical_greeks_methods!(
         ///
         /// Notes
         /// -----
-        /// Before expiry the native estimators ignore all numerical shifts,
-        /// which are still validated. At expiry spot_shift controls terminal-payoff
-        /// stencils. Use numerical_greeks for explicit bump-convergence checks.
+        /// At positive volatility before expiry delta and gamma use native
+        /// likelihood-ratio estimators. Zero volatility uses scalar differences.
+        /// At expiry they use default terminal-payoff stencils.
+        /// Use numerical_greeks for configurable scalar differences.
     ],
     sampling_settings!(
         MonteCarloDigitalEngine,
@@ -569,9 +575,10 @@ numerical_greeks_methods!(
         ///
         /// Notes
         /// -----
-        /// Before expiry the native estimators ignore all numerical shifts,
-        /// which are still validated. At expiry spot_shift controls terminal-payoff
-        /// stencils. Use numerical_greeks for explicit bump-convergence checks.
+        /// At positive volatility before expiry delta and gamma use native estimators.
+        /// Zero volatility uses scalar differences. At expiry delta and gamma
+        /// use default terminal-payoff stencils. Use numerical_greeks for
+        /// configurable scalar differences.
     ],
     sampling_settings!(
         MonteCarloAsianEngine,

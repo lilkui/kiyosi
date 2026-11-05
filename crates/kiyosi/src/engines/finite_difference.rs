@@ -71,7 +71,7 @@ pub struct FiniteDifferenceSettings {
     /// Explicit domains need convergence checks.
     /// Continuous barriers fix the corresponding domain edges: an up barrier or
     /// double barrier makes this bound inactive for the barrier grid. Local-volatility
-    /// knock-in vanilla components and scheduled monitoring still use the full domain.
+    /// knock-in vanilla components and scheduled monitoring use the full domain.
     pub asset_upper_boundary: Option<f64>,
 }
 
@@ -744,7 +744,7 @@ impl FiniteDifferenceVanillaEngine {
     ///
     /// Local-volatility results provide delta and gamma; other requested Greeks remain
     /// absent. Bumped contexts share the central spatial domain.
-    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent.
+    /// Expiry Greeks follow terminal payoffs; time Greeks are absent.
     /// Uses [`NumericalShiftSettings`] for bumps; unavailable stencils leave Greeks absent.
     ///
     /// # Errors
@@ -932,9 +932,9 @@ impl FiniteDifferenceDigitalEngine {
 
     /// Returns spline spot Greeks and numerical completion with the shared central domain.
     ///
-    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent. See [`Self::price`] for a pricing example.
+    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. See [`Self::price`] for a pricing example.
     /// Local volatility supports only delta and gamma with the absolute surface fixed;
-    /// other requested Greeks remain absent.
+    /// other requested Greeks are absent.
     ///
     /// # Errors
     ///

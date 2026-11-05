@@ -34,7 +34,7 @@ impl CoxRossRubinsteinBarrierEngine {
         self.settings
     }
 
-    /// Prices after validating flat rates, inclusive life, calendar and prior history.
+    /// Prices after validating flat rates, inclusive life and prior history.
     ///
     /// Resolved payoffs settle before grid validation; resolved vanilla payoffs use
     /// analytic pricing. Prior at-hit rebates are already paid. Inputs remain unchanged.
@@ -43,8 +43,8 @@ impl CoxRossRubinsteinBarrierEngine {
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
-    /// fixings. Returns [`Error::InvalidInput`] outside life, for nontrading
-    /// fixings, or for missing or impossible history, checked in that order.
+    /// fixings. Returns [`Error::InvalidInput`] outside life, for missing or
+    /// impossible history, or outside required curve coverage.
     /// Unstable tree parameters, nodes or results return [`Error::ComputationFailure`].
     /// Inputs remain unchanged.
     ///
@@ -71,7 +71,7 @@ impl CoxRossRubinsteinBarrierEngine {
             .price())
     }
 
-    /// Returns requested node delta/gamma; other Greeks remain absent.
+    /// Returns requested node delta/gamma; other Greeks are absent.
     ///
     /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
     /// Terminal stencils use engine-default spot bumps.

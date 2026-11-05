@@ -22,7 +22,7 @@ use pyo3::types::PyAny;
 ///     Inclusive expiry time.
 /// accumulated_quantity : float or None, optional
 ///     Outstanding quantity strictly before valuation. None means unknown; zero means no units.
-///     Explicit history is required after any prior trading-date observation.
+///     Explicit history is required after any prior accumulation or knock-out observation.
 /// terminated : bool, optional
 ///     Whether a prior knock-out has settled; defaults to False. Pricing requires
 ///     a knock-out observation strictly before valuation. Stored quantity
@@ -98,7 +98,7 @@ impl Accumulator {
     /// KiyosiError
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
-    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    ///     If a representation or field name is invalid.
     #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, knock_out_observation_times=crate::conversions::OMITTED, terminated=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,

@@ -67,9 +67,10 @@ numerical_greeks_methods!(
         ///
         /// Notes
         /// -----
-        /// Delta and gamma use tree nodes before expiry; one-step gamma uses
-        /// spot_shift. Remaining Greeks use their numerical shifts. At expiry
-        /// spot_shift controls terminal-payoff stencils.
+        /// At positive volatility before expiry delta and gamma use tree nodes; one-step gamma and
+        /// other Greeks use numerical differences with engine defaults. At expiry
+        /// spot Greeks use default terminal-payoff stencils. Use numerical_greeks
+        /// for configurable scalar differences. Zero volatility uses scalar differences.
     ],
     engine_methods!(
         CoxRossRubinsteinVanillaEngine,
@@ -159,9 +160,10 @@ macro_rules! binomial_engine {
                 ///
                 /// Notes
                 /// -----
-                /// Before expiry delta and gamma use tree nodes; all shifts are
-                /// validated but unused. Other Greeks remain unsupported. At expiry
-                /// spot_shift controls terminal-payoff stencils.
+                /// At positive volatility before expiry delta and gamma use tree nodes.
+                /// Zero volatility uses scalar differences. Other Greeks are
+                /// unsupported. At expiry spot Greeks use default terminal-payoff
+                /// stencils. Use numerical_greeks for configurable scalar differences.
             ],
             engine_methods!(
                 $name,

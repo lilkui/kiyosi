@@ -24,8 +24,8 @@ impl AnalyticBinaryBarrierEngine {
     /// # Errors
     ///
     /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
-    /// schedules. Returns [`crate::Error::InvalidInput`] outside life, for nontrading
-    /// fixings, or for missing or impossible history, checked in that order.
+    /// schedules. Returns [`crate::Error::InvalidInput`] outside life, for missing or
+    /// impossible history, or outside required curve coverage.
     /// Non-finite results return [`crate::Error::ComputationFailure`]. Inputs remain unchanged.
     ///
     /// # Examples

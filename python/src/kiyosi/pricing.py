@@ -2,7 +2,7 @@
 
 European vanilla contracts support valuation before effective_time, including
 Greeks and implied volatility, when the model data covers valuation through expiry.
-Other contracts retain their own life and history validation.
+Other contracts require valuation within their inclusive life and validate prior history.
 
 Engine ``price_with_greeks(instrument, context, greeks)`` methods use the engine's
 estimator and default controls. They accept no bump arguments. Configure scalar
@@ -12,9 +12,9 @@ time_shift_days=...)``. All numerical controls are validated there.
 
 BSM ``volatility=0`` uses exact deterministic valuation in each supported engine,
 including American exercise, continuous or scheduled touches, and structured-product
-events. Existing model and rate-curve restrictions still apply. Monte Carlo uses
+events. Model and rate-curve applicability is checked before deterministic pricing. Monte Carlo uses
 no sampling for these prices; pseudorandom statistics have zero standard error
-and Sobol uncertainty remains absent. Spot and rate Greeks use scalar differences;
+and Sobol uncertainty is absent. Spot and rate Greeks use scalar differences;
 before expiry, volatility Greeks are undefined at zero because symmetric volatility
 bumps leave the model domain. Deterministic payoff and event boundaries also leave
 sensitivities undefined. At expiry the usual terminal Greek rules apply.
@@ -24,7 +24,7 @@ zero-volatility endpoint before restricting a CRR bracket to positive tree width
 Finite-difference engines support local volatility for European and American
 vanilla options, digitals, single and double barriers, binary barriers, touch
 and no-touch options, autocallable notes and accumulators. They provide price,
-delta and gamma, holding the absolute surface fixed. Other requested Greeks remain None, including in "all" requests.
+delta and gamma, holding the absolute surface fixed. Other requested Greeks are None, including in "all" requests.
 Other engine families and implied-parameter solvers raise UnsupportedOperationError
 for this model. Digital finite-difference pricing requires constant risk-free
 rates and dividend yields. Delta and gamma are absent when their
@@ -49,13 +49,8 @@ reducing grid counts further.
 Continuous barrier grids use all ``asset_step_count`` intervals on the actual
 domain between barrier edges. Continuous up and double barriers fix the upper
 grid edge, so ``asset_upper_boundary`` is inactive for that barrier grid;
-scheduled monitoring and local-volatility knock-in vanilla components still use
+scheduled monitoring and local-volatility knock-in vanilla components use
 the full domain.
-Rust vanilla and Asian Monte Carlo ``settings()`` return complete
-``MonteCarloGridSettings``; pass them to ``new()`` to preserve sampling and grid
-controls together. ``sampling_settings()`` returns only the shared sampling
-component. Python constructors expose both sampling and grid controls.
-
 Monte Carlo ``step_count`` counts time intervals for both American exercise
 and arithmetic Asian integration; American pricing needs at least two intervals.
 ``MonteCarloSampling`` selects
@@ -64,7 +59,7 @@ across thread counts in the same build. Sobol estimates omit sampling error.
 Call ``engine.with_resolved_seed()`` before pricing to obtain an independent
 engine with a concrete seed. Existing seeds and all other controls are preserved.
 Save or pickle that returned engine to replay draws within the same build;
-``seed=None`` on the original engine continues to select fresh entropy per request.
+``seed=None`` selects fresh entropy per request.
 
 Every Monte Carlo engine exposes ``price_with_statistics`` for its supported
 contracts; vanilla statistics require European options. It returns the same
@@ -79,7 +74,7 @@ Future Monte Carlo barrier, knock-in, knock-out, coupon and acceleration tests
 retain log-price movements even when the simulated spot rounds to a threshold.
 Single- and double-barrier Monte Carlo payoffs also retain movements when
 terminal spot rounds to the strike.
-Current observations continue to use the supplied spot.
+Observations at valuation use the supplied spot.
 
 Autocallable quadrature extends its spatial domain for forward drift and the
 backward movement of event boundaries. Check spatial resolution and integration
@@ -126,15 +121,15 @@ vega and volga. Numerical volga requires a positive lower volatility leg.
 
 Pass ``greeks="all"`` to request every measure, a Greek name for one measure,
 or an iterable of names for a selection. The ``greeks`` argument is required;
-unavailable measures remain None. Inspect ``result.status(name)`` to distinguish
+unavailable measures are None. Inspect ``result.status(name)`` to distinguish
 unrequested, unsupported and undefined measures; ``result.requested`` and
 ``result.supported`` expose the request and engine/model coverage.
 
 At expiry, supported spot sensitivities use terminal-payoff stencils. Supported
 vega, volga, rho and dividend rho are zero because no stochastic evolution or
 discounting remains. Vanna and zomma are zero where spot derivatives exist.
-Theta, charm and color remain None at expiry. Spot stencils crossing a payoff
-kink or product event remain unavailable, and engine/model coverage still applies.
+Theta, charm and color are None at expiry. Spot stencils crossing a payoff
+kink or product event are unavailable. Terminal rules apply within engine/model coverage.
 Automatic terminal spot bumps use 0.01 spot units, including American Monte Carlo;
 custom terminal bumps belong to ``numerical_greeks``.
 
@@ -147,7 +142,7 @@ uses expiry payoff stencils; ``"unsupported"`` supplies no Greeks.
 controls potentially used across supported requests. Queries check model
 applicability without pricing or sampling; pricing validates life and history.
 Use ``numerical_greeks`` for configurable scalar differences. This can provide
-measures beyond native engine coverage; Heston and local volatility remain
+measures beyond native engine coverage; Heston and local volatility are
 unsupported by the scalar helper. Monte Carlo draws are pinned within each
 numerical request.
 
@@ -164,7 +159,7 @@ when forwarding settings to preserve engine-specific automatic resolution.
 ``AnalyticHestonEuropeanEngine`` prices European calls/puts with ``HestonParameters``
 using adaptive Fourier integration and a deterministic-variance control variate.
 It supports deterministic rate/dividend curves, zero parameters and correlation
-endpoints without imposing the Feller condition. Requested Greeks remain None; implied-parameter solvers
+endpoints without imposing the Feller condition. Requested Greeks are None; implied-parameter solvers
 raise ``UnsupportedOperationError``. Integration controls are
 ``absolute_tolerance=1e-8`` (price units), ``relative_tolerance=1e-8`` and
 ``max_evaluations=10000`` (a total characteristic-function budget, including the
@@ -185,13 +180,15 @@ at least 3 and the base time count is at least 1. Curve knots are added.
 Optional finite positive bounds must cover spot/strike or initial variance
 when the corresponding grid is required. With zero volatility of volatility,
 the engine uses the deterministic variance path; absorbing zero variance retains optimal American
-exercise, including between curve nodes. Requested Greeks remain absent; implied-parameter solvers are unsupported.
+exercise, including between curve nodes. Requested Greeks are absent; implied-parameter solvers are unsupported.
 Fixed-grid completion carries no error estimate: check spatial/time refinement
 and domain enlargement separately. Numerical failures raise
 ``ComputationFailureError``.
 
-For convergence checks across numerical engines, see the engine comparison guide:
-https://lilkui.github.io/kiyosi/guide/engines.html#compare-methods-carefully.
+Compare engines with identical contract terms, calendars, history and model inputs.
+Refine numerical grids and integration domains separately, and assess Monte Carlo
+sampling uncertainty alongside any time-discretization bias. Solver tolerances
+control the residual of the chosen engine's price curve, not its pricing accuracy.
 
 ``implied_snowball_coupon`` and ``implied_phoenix_coupon`` mirror the Rust
 solvers. Snowball solving requires ``quote_convention``; Phoenix solving has no

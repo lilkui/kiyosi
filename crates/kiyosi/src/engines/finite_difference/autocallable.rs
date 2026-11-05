@@ -22,7 +22,7 @@ impl FiniteDifferenceAutocallableEngine {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or curve coverage, for
-    /// nontrading observations or expiry, missing or impossible history, clipped
+    /// missing or impossible history, clipped
     /// grids, or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`][crate::Error::ComputationFailure]. Inputs remain unchanged.
     pub fn price<T: AutocallableTerms>(
@@ -44,15 +44,16 @@ impl FiniteDifferenceAutocallableEngine {
     /// Computes spline spot Greeks and completes other sensitivities with core bump defaults.
     ///
     /// Native delta/gamma do not require feasible spot bumps; speed requires a symmetric
-    /// in-domain stencil. Fixes the central upper domain for bumps. Expiry Greeks and event-crossing stencils
-    /// are absent; BSM vega and rho remain available at current thresholds.
+    /// in-domain stencil. Fixes the central upper domain for bumps. At expiry Greeks
+    /// follow terminal payoffs, with time Greeks absent. Event-crossing stencils
+    /// are unavailable; before expiry BSM vega and rho are available at current thresholds.
     /// Local volatility supports only delta and gamma with the absolute surface fixed.
     ///
     /// # Errors
     ///
     /// Validates requests and shifts, then propagates [`Self::price`] and
     /// [`crate::numerical_greeks`] errors without changing inputs or settings.
-    /// Unsupported local-volatility Greeks remain absent.
+    /// Unsupported local-volatility Greeks are absent.
     ///
     /// # Examples
     ///

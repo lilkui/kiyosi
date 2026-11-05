@@ -20,7 +20,7 @@ use crate::{BarrierOption, RebateTiming};
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AnalyticBarrierEngine;
 impl AnalyticBarrierEngine {
-    /// Prices after validating flat rates, inclusive life, calendar and strictly prior history.
+    /// Prices after validating flat rates, inclusive life and strictly prior history.
     ///
     /// Current boundary hits settle before future monitoring. Prior at-hit rebates are paid.
     /// Curve coverage is required only for remaining cash flows and stochastic evolution.
@@ -30,8 +30,8 @@ impl AnalyticBarrierEngine {
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unsupported
-    /// schedules. Returns [`Error::InvalidInput`] outside life, for nontrading
-    /// fixings, or for missing or impossible history, checked in that order.
+    /// schedules. Returns [`Error::InvalidInput`] outside life, for missing or
+    /// impossible history, or outside required curve coverage.
     /// Non-finite or materially negative prices return [`Error::ComputationFailure`].
     /// Only rounding-sized negative prices are clipped to zero. Inputs remain unchanged.
     ///

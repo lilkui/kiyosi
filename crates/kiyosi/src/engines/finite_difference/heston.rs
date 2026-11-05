@@ -83,7 +83,7 @@ impl HestonFiniteDifferenceSettings {
 /// the Feller condition, zero parameters and correlation endpoints. With zero
 /// volatility of volatility, pricing uses the deterministic variance path in
 /// one dimension. Absorbing zero variance uses optimal
-/// deterministic exercise. Requested Greeks remain absent; implied-parameter solvers are unsupported.
+/// deterministic exercise. Requested Greeks are absent; implied-parameter solvers are unsupported.
 ///
 /// Domain truncation and discretization both require convergence checks. No
 /// automatic error estimate or refinement is performed. Shared and independent
@@ -160,7 +160,7 @@ impl FiniteDifferenceHestonVanillaEngine {
     ///
     /// Checks Heston applicability first, then rejects empty requests
     /// with [`crate::Error::InvalidInput`] and propagates
-    /// [`Self::price`] errors. Inputs remain unchanged; valid numerical shifts are unused.
+    /// [`Self::price`] errors. Inputs remain unchanged.
     pub fn price_with_greeks<I: OptionContract>(
         &self,
         option: &I,

@@ -4,8 +4,7 @@
 knock-out levels, finite signed coupon rates and nonnegative coupon barriers
 on construction. Notes additionally validate ordering, life bounds and their
 product-specific coupon rules. Observation ``replace()`` validates supplied
-fields and preserves omitted values, like contract replacement. Rust observation
-fields are private; use accessors and validated ``replace()`` operations.
+fields and preserves omitted values, like contract replacement.
 
 ``OptionType`` selects ``"call"`` or ``"put"``. Contract effective and expiry
 boundaries are inclusive ``datetime.datetime`` values. Microseconds participate
@@ -42,7 +41,8 @@ Cash settlement requires a positive payout; ``payout=None`` cannot switch its ki
 ``replace_history()`` updates only prior history on path-dependent contracts.
 Asian averages use ``realized_average=None`` for unknown history; supplied averages
 must be finite and positive. History is required strictly after averaging starts.
-Both return new contracts and expose named keyword-only fields through ``inspect.signature``.
+``replace()`` and ``replace_history()`` return new contracts and expose named
+keyword-only fields through ``inspect.signature``.
 Snowball ``with_first_observation_coupon(first_observation_coupon, quote_convention=...)``
 shifts every observation coupon by the change to the first observation's annual
 rate, including past observations. The convention controls the maturity coupon.
@@ -55,7 +55,7 @@ that require a value.
 For autocallables, ``barrier_state=None`` means unknown history;
 ``barrier_state="no_event"`` records known absence of prior events. Accumulators
 use ``accumulated_quantity=None`` for unknown history and require an explicit
-quantity after a strictly prior trading-date observation; zero means no outstanding units.
+quantity after a strictly prior accumulation or knock-out observation; zero means no outstanding units.
 Set ``terminated=True`` for a previously settled accumulator knock-out. Pricing
 requires a knock-out observation strictly before valuation, including for
 terminated contracts; an empty knock-out schedule cannot have this history. Its remaining price
@@ -73,7 +73,7 @@ has no cash amount. Double-touch contracts require a cash payout.
 Single-touch ``barrier_type`` uses ``up_and_in`` or ``down_and_in`` for one-touch,
 and ``up_and_out`` or ``down_and_out`` for no-touch. Double-touch contracts use
 ``knock_in`` or ``knock_out`` respectively. The named cash/asset factory functions
-remain convenience forms of these constructors.
+are convenience forms of these constructors.
 
 ``fixed_coupon_note`` and ``digital_coupon_note`` return Phoenix contracts
 with fixed ``coupon_per_period`` and expiry-only knock-in. Explicit Phoenix

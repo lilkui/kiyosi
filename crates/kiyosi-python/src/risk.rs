@@ -157,7 +157,11 @@ impl PricingResult {
     /// Raises
     /// ------
     /// UnsupportedOperationError
-    ///     If the measure was not requested or is undefined at this valuation.
+    ///     If the measure was not requested, is unsupported or is undefined at this valuation.
+    /// ValueError
+    ///     If the Greek name is unknown.
+    /// TypeError
+    ///     If the measure is not a string.
     fn require(&self, measure: &Bound<'_, PyAny>) -> PyResult<f64> {
         domain(self.0.require(greek(measure)?))
     }
@@ -218,7 +222,11 @@ pub(crate) fn _pricing_result(
 /// Raises
 /// ------
 /// KiyosiError
-///     If the request, settings, model, contract or a feasible bumped price fails.
+///     If the request is empty, settings are invalid, or model, contract or bumped pricing fails.
+/// ValueError
+///     If a Greek name is unknown.
+/// TypeError
+///     If greeks is not a string or iterable of strings.
 /// OSError
 ///     If system entropy or worker creation fails. Monte Carlo draws are pinned
 ///     within the request, matching the Rust numerical_greeks operation.

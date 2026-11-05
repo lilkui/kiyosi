@@ -104,7 +104,7 @@ impl CoxRossRubinsteinVanillaEngine {
 
     /// Returns node delta/gamma and numerically completes missing requested Greeks.
     ///
-    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent. One-step gamma uses scalar differences.
+    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. One-step gamma uses scalar differences.
     /// Bumps use [`crate::NumericalShiftSettings`]; feasible bumped failures propagate.
     ///
     /// # Errors
@@ -501,7 +501,7 @@ vanilla_pricing!(AmericanOption, true);
 
 /// Prices European cash-or-nothing and asset-or-nothing contracts with a CRR tree.
 ///
-/// Supports only node delta/gamma; other requested Greeks remain absent.
+/// Supports only node delta/gamma; other requested Greeks are absent.
 /// Values own their settings; shared instances support concurrent pricing.
 /// See [`Self::price_with_greeks`] for an example.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -541,7 +541,7 @@ impl CoxRossRubinsteinDigitalEngine {
             .price())
     }
 
-    /// Returns requested node delta/gamma; all other Greeks remain absent.
+    /// Returns requested node delta/gamma; all other Greeks are absent.
     ///
     /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
     /// Terminal stencils use engine-default spot bumps.

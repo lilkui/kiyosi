@@ -13,7 +13,7 @@ pub struct AnalyticRangeAccrualEngine;
 impl AnalyticRangeAccrualEngine {
     /// Computes requested numerical Greeks from exact prices with core bump defaults.
     ///
-    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent. Spot stencils reaching current bounds and time
+    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. Spot stencils reaching current bounds and time
     /// stencils touching any observation are unavailable; vega/rho remain valid at bounds.
     /// See [`Self::price`] for contract construction and pricing.
     ///
@@ -33,13 +33,13 @@ impl AnalyticRangeAccrualEngine {
     }
     /// Prices the coupon, using spot for a current observation and explicit prior hit history.
     ///
-    /// Valuation must lie within the inclusive effective and expiry times, as for other contracts.
-    /// Zero coupons still validate calendar/history,
+    /// Valuation must lie within the inclusive effective and expiry times.
+    /// Zero coupons validate life and history,
     /// then return zero without requiring curve coverage. Payment occurs only at expiry.
     ///
     /// # Errors
     ///
-    /// Checks valuation outside contract life, nontrading expiry, missing or excessive
+    /// Checks valuation outside contract life, missing or excessive
     /// prior hits, and required curve coverage, in that order
     /// ([`Error::InvalidInput`]). Unresolvable curve knots or non-finite
     /// transitions or prices return [`Error::ComputationFailure`].

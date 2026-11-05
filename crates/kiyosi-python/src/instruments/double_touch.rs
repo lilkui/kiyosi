@@ -117,7 +117,7 @@ monitoring_properties!(
     /// KiyosiError
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
-    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    ///     If a representation or field name is invalid.
     #[pyo3(signature = (*, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, lower_barrier=crate::conversions::OMITTED, upper_barrier=crate::conversions::OMITTED, barrier_type=crate::conversions::OMITTED, settlement_timing=crate::conversions::OMITTED, observation_mode=crate::conversions::OMITTED, observation_times=crate::conversions::OMITTED, touch_state=crate::conversions::OMITTED, payout=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,

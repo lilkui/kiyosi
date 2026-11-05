@@ -61,7 +61,7 @@ impl RangeAccrualOption {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for invalid amounts, bounds or negative
-    /// history, then for nonpositive contract life.
+    /// history, then for nonpositive contract life or a nontrading expiry date.
     /// History relative to valuation is validated by [`crate::AnalyticRangeAccrualEngine::price`].
     ///
     /// # Examples
@@ -293,7 +293,7 @@ pub struct RangeAccrualOptionChanges {
 impl RangeAccrualOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// See [`RangeAccrualOption::new`] for construction examples.
     ///
     /// # Errors

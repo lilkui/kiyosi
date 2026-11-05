@@ -28,8 +28,10 @@ numerical_greeks_methods!(
         ///
         /// Notes
         /// -----
-        /// Delta and gamma are analytic before expiry and ignore spot_shift. Other
-        /// Greeks use engine defaults; numerical_greeks provides configurable scalar differences. Use numerical_greeks to bump every measure explicitly.
+        /// Delta and gamma are analytic at positive volatility before expiry.
+        /// At zero volatility they use scalar differences. Other Greeks use numerical
+        /// differences with engine defaults. At expiry spot Greeks use default
+        /// terminal-payoff stencils. Use numerical_greeks for configurable scalar differences.
     ],
     engine_methods!(
         AnalyticDigitalEngine,

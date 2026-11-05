@@ -49,7 +49,7 @@ macro_rules! fd_engine {
         ///     automatic domain. Must exceed spot, strike and barriers at pricing.
         ///     Continuous up and double barriers fix their own upper grid edge;
         ///     this bound is inactive for that grid. Local-volatility knock-in
-        ///     vanilla components and scheduled monitoring still use the full domain.
+        ///     vanilla components and scheduled monitoring use the full domain.
         ///
         /// Raises
         /// ------
@@ -67,7 +67,7 @@ macro_rules! fd_engine {
         /// variants and PhoenixOption. Other engines accept their named product.
         /// Digital pricing requires constant rates; other families accept
         /// deterministic rate curves. All FD product families support local-volatility
-        /// price, delta and gamma, including American exercise. Other requested Greeks remain None;
+        /// price, delta and gamma, including American exercise. Other requested Greeks are None;
         /// implied-parameter solvers raise UnsupportedOperationError. Sigma uses
         /// fixed absolute surface coordinates; expiry Greeks follow terminal payoffs and are absent where
         /// their stencils cross product events. Surface coverage follows remaining
@@ -90,10 +90,12 @@ macro_rules! fd_engine {
                 ///
                 /// Notes
                 /// -----
-                /// Before expiry delta and gamma come from the spatial solution; spot_shift
-                /// does not change them. BSM speed and remaining Greeks use the corresponding
-                /// numerical shifts. Local volatility provides only delta and gamma and ignores
-                /// these numerical shifts. At expiry spot_shift controls terminal-payoff stencils.
+                /// Before expiry delta and gamma come from the spatial solution,
+                /// except zero BSM volatility uses scalar differences.
+                /// Other BSM Greeks use numerical differences with engine defaults.
+                /// Local volatility provides only delta and gamma. At expiry spot
+                /// Greeks use default terminal-payoff stencils. Use numerical_greeks
+                /// for configurable scalar differences under BSM.
             ],
             engine_methods!(
                 $name,

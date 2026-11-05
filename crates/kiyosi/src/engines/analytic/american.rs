@@ -294,8 +294,8 @@ impl BjerksundStenslandVanillaEngine {
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves (before life
-    /// validation), negative transformed interest rates before expiry (call: rate;
-    /// put: dividend), or exercise boundaries at/below strike. Returns
+    /// validation), or, at positive volatility before expiry, negative transformed
+    /// interest rates (call: rate; put: dividend) or exercise boundaries at/below strike. Returns
     /// [`Error::InvalidInput`] outside the inclusive exercise window and
     /// [`Error::ComputationFailure`] for unstable exponents or non-finite results.
     /// European continuation pricing errors propagate. Inputs remain unchanged.
@@ -376,7 +376,7 @@ impl BjerksundStenslandVanillaEngine {
 
     /// Returns the price and requested finite-difference Greeks with core bump defaults.
     ///
-    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent. Feasible bumped domain failures propagate.
+    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. Feasible bumped domain failures propagate.
     ///
     /// # Errors
     ///

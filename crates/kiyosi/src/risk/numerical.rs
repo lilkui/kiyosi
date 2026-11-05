@@ -96,14 +96,14 @@ pub(crate) fn expiry_greeks(
 
 /// Computes BSM numerical price sensitivities for scalar engines.
 ///
-/// Local volatility returns [`crate::Error::UnsupportedOperation`]; use
+/// Heston and local volatility return [`crate::Error::UnsupportedOperation`]. For local volatility, use
 /// [`crate::FiniteDifferenceVanillaEngine::price_with_greeks`] for delta and gamma
 /// computed directly with the local-volatility surface held fixed.
 ///
 /// At expiry, supported spot Greeks use terminal-payoff stencils. Vega, volga,
 /// rho and dividend rho are zero; vanna and zomma are zero where spot derivatives
-/// exist. Theta, charm and color remain absent. Stencils crossing terminal kinks
-/// or product events remain unavailable. Automatic terminal spot bumps use 0.01
+/// exist. Theta, charm and color are absent. Stencils crossing terminal kinks
+/// or product events are unavailable. Automatic terminal spot bumps use 0.01
 /// spot units for every engine, including American Monte Carlo.
 ///
 /// Uses rounded symmetric absolute bumps; collapsed, asymmetric or nonpositive

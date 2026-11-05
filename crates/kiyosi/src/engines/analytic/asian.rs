@@ -23,7 +23,8 @@ impl AnalyticGeometricAveragePriceEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] outside life or curve coverage,
+    /// Returns [`Error::UnsupportedOperation`] for non-BSM models,
+    /// [`Error::InvalidInput`] outside life or curve coverage,
     /// for inconsistent history, and
     /// [`Error::ComputationFailure`] for non-finite calculations. Inputs remain unchanged.
     ///

@@ -65,16 +65,17 @@ impl QuadratureAutocallableEngine {
     /// Prices remaining cash flows, resolving current events before future integration.
     ///
     /// Knock-in is strict below its level; knock-out and Phoenix coupon barriers
-    /// are inclusive. Phoenix coupons accrue over contractual observation periods
-    /// and are paid independently of knock-out, principal and downside loss.
+    /// are inclusive. Annual Phoenix coupons accrue over contractual observation
+    /// periods; fixed per-period coupons pay without day accrual. Coupons are paid
+    /// independently of knock-out, principal and downside loss.
     /// Past knock-outs return zero, and terminal payments use normalized units.
     /// See [`Self::new`] for an example.
     ///
     /// # Errors
     ///
     /// Checks flat rates ([`Error::UnsupportedOperation`]), then inclusive life,
-    /// observation trading dates, missing or impossible prior history, and trading
-    /// expiry ([`Error::InvalidInput`]), in that order. Non-finite prices or
+    /// missing or impossible prior history, and required curve coverage
+    /// ([`Error::InvalidInput`]), in that order. Non-finite prices or
     /// unrepresentable transitions return [`Error::ComputationFailure`].
     /// Inputs remain unchanged on success and failure.
     pub fn price<T: AutocallableTerms>(
@@ -87,7 +88,7 @@ impl QuadratureAutocallableEngine {
     }
     /// Computes requested scalar sensitivities using shared core bump defaults.
     ///
-    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent. Spot and time stencils crossing active events
+    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. Spot and time stencils crossing active events
     /// are unavailable; vega and rho remain defined at current thresholds.
     /// See [`Self::new`] for an example.
     ///

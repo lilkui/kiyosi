@@ -21,7 +21,7 @@ node curves retain their reference, nodes and upper coverage bound; flat-rate
 engines accept them without discarding those bounds.
 Volatility is annualized and expressed in decimal units. BSM volatility is
 nonnegative: zero selects the exact deterministic path implied by the risk-free
-and dividend curves for every supported BSM product. Local surface values remain
+and dividend curves for every supported BSM product. Local surface values are
 strictly positive. Heston variance parameters may also be zero.
 Rate curves
 use the Actual/365 Fixed day-count convention; a calendar's trading-day basis
@@ -46,7 +46,7 @@ in the spot dimension, and no time extrapolation. Context changes keep these
 absolute nodes fixed. The one-dimensional finite-difference engines support
 LocalVolatilityParameters for price, delta and gamma; digital
 finite-difference pricing requires constant risk-free rates and dividend
-yields. Other requested Greeks remain None. Other engine families and
+yields. Other requested Greeks are None. Other engine families and
 implied-parameter solvers reject this model with UnsupportedOperationError.
 Barrier and touch contracts, range accruals, accumulators and autocallables own
 their contractual calendars.
@@ -59,7 +59,7 @@ rate curves. Initial variance is at valuation (20% volatility means 0.04).
 Variance parameters are finite and nonnegative; correlation includes [-1, 1].
 The Feller condition is not required. AnalyticHestonEuropeanEngine prices European
 options; FiniteDifferenceHestonVanillaEngine prices European and American options.
-Other engines and implied-parameter solvers reject this model; requested Greeks remain None.
+Other engines and implied-parameter solvers reject this model; requested Greeks are None.
 
 Examples
 --------
@@ -88,7 +88,7 @@ Validate an irregular schedule with exact observation times:
 >>> list(schedule) == times
 True
 
-Read a dated flat rate without discarding its coverage bound:
+Read a dated flat rate and its inclusive lower coverage bound:
 
 >>> from datetime import datetime
 >>> flat = RateTermStructure.flat(0.05, reference_time=datetime(2025, 1, 1))

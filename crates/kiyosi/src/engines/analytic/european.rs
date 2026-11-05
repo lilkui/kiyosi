@@ -31,7 +31,7 @@ impl AnalyticEuropeanEngine {
     /// Uses engine-default estimation controls; see [`crate::numerical_greeks`] for custom bumps.
     /// Terminal stencils use engine-default spot bumps.
     /// At expiry spot Greeks follow terminal-payoff stencils; volatility and rate
-    /// Greeks are zero, while time Greeks remain absent. Stencils crossing payoff
+    /// Greeks are zero, while time Greeks are absent. Stencils crossing payoff
     /// kinks are unavailable. See [`crate::numerical_greeks`] for terminal rules.
     /// Before expiry, time derivatives hold curve nodes fixed and use right-hand
     /// rates at knots. Native derivatives require no numerical bumps.
@@ -201,7 +201,8 @@ impl AnalyticEuropeanEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] after expiry or outside required curve
+    /// Returns [`Error::UnsupportedOperation`] for non-BSM models,
+    /// [`Error::InvalidInput`] after expiry or outside required curve
     /// coverage, and [`Error::ComputationFailure`] for non-finite results.
     /// Inputs remain unchanged.
     pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {

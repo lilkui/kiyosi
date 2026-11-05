@@ -55,7 +55,7 @@ impl MonteCarloDoubleBarrierEngine {
         self.engine.sampling_settings()
     }
 
-    /// Prices after validating flat rates, inclusive life, calendar and prior history.
+    /// Prices after validating flat rates, inclusive life and prior history.
     ///
     /// Current touches and resolved cash flows precede sampling. Resolved vanilla
     /// payoffs and continuous at-hit rebates use analytic formulas.
@@ -66,7 +66,6 @@ impl MonteCarloDoubleBarrierEngine {
     ///
     /// Returns [`crate::Error::UnsupportedOperation`] for nonconstant rate curves,
     /// [`crate::Error::InvalidInput`] outside life,
-    /// [`crate::Error::InvalidInput`] for nontrading fixings,
     /// [`crate::Error::InvalidInput`] for missing history or Sobol
     /// dimensions above 21,201, [`crate::Error::InvalidInput`] for
     /// impossible history, or [`crate::Error::ComputationFailure`] for
@@ -131,7 +130,7 @@ impl MonteCarloDoubleBarrierEngine {
 
     /// Returns requested delta/gamma using the price's normal samples.
     ///
-    /// Other Greeks remain absent. Expiry spot Greeks follow terminal payoffs; stencils crossing either
+    /// Other Greeks are absent. Expiry spot Greeks follow terminal payoffs; stencils crossing either
     /// current monitored boundary suppress delta/gamma. The positive finite
     /// `shifts.spot_shift` controls that availability and numerical derivatives of
     /// continuous at-hit rebates. Custom scalar differences use [`crate::numerical_greeks`].

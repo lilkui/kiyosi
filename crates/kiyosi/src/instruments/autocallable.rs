@@ -1311,7 +1311,7 @@ pub struct SnowballOptionChanges {
 impl SnowballOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// See [`SnowballOption::new`] for construction examples.
     ///
     /// # Errors
@@ -1376,7 +1376,7 @@ pub struct PhoenixOptionChanges {
 impl PhoenixOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// See [`PhoenixOption::new`] for construction examples.
     ///
     /// # Errors
@@ -1429,7 +1429,7 @@ pub struct BinarySnowballOptionChanges {
 impl BinarySnowballOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// See [`BinarySnowballOption::new`] for construction examples.
     ///
     /// # Errors
@@ -1483,7 +1483,7 @@ pub struct TernarySnowballOptionChanges {
 impl TernarySnowballOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// See [`TernarySnowballOption::new`] for construction examples.
     ///
     /// # Errors

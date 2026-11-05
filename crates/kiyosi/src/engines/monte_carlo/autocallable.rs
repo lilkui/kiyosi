@@ -272,8 +272,9 @@ impl MonteCarloAutocallableEngine {
 
     /// Computes requested finite-difference Greeks with shared normal draws.
     ///
-    /// Pins a request-local seed when none is configured. Expiry Greeks and
-    /// stencils crossing active spot/time events are unavailable, following
+    /// Pins a request-local seed when none is configured. At expiry Greeks follow
+    /// terminal payoffs, with time Greeks absent. Stencils crossing active
+    /// spot/time events are unavailable, following
     /// [`crate::numerical_greeks`]. Discontinuous payoffs can make small bumps
     /// noisy; shift sizes control the sampled curve, not statistical accuracy.
     /// See [`Self::new`] for an example.
@@ -281,7 +282,7 @@ impl MonteCarloAutocallableEngine {
     /// # Errors
     ///
     /// Checks flat rates before requests and shifts, then propagates
-    /// [`crate::numerical_greeks`] and [`Self::price_with_statistics`] errors.
+    /// [`crate::numerical_greeks`] and [`Self::price`] errors.
     /// Inputs and engine settings remain unchanged on every outcome.
     ///
     /// # Panics

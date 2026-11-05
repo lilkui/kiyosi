@@ -122,8 +122,8 @@ impl QuadratureVanillaEngine {
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for other models or nonconstant rate curves,
-    /// before life validation. Returns [`Error::InvalidInput`] outside inclusive
-    /// contract life, and [`Error::ComputationFailure`] for unrepresentable grids,
+    /// before life validation. Returns [`Error::InvalidInput`] outside permitted
+    /// valuation bounds or curve coverage, and [`Error::ComputationFailure`] for unrepresentable grids,
     /// transitions, tails or prices. Inputs and engine settings remain unchanged.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
@@ -134,7 +134,7 @@ impl QuadratureVanillaEngine {
 
     /// Computes requested numerical Greeks with shared bump controls.
     ///
-    /// Expiry Greeks follow terminal payoffs; time Greeks remain absent. Infeasible stencils leave affected measures
+    /// Expiry Greeks follow terminal payoffs; time Greeks are absent. Infeasible stencils leave affected measures
     /// absent; feasible bumped failures propagate. See [`Self::new`] for usage.
     ///
     /// # Errors

@@ -37,7 +37,8 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 /// ------
 /// InvalidInputError
 ///     If amounts, bounds or history are invalid, or expiry is not after
-///     effective_time. Pricing checks the inclusive contract life and history
+///     effective_time, or the expiry date is closed in the calendar.
+///     Pricing checks the inclusive contract life and history
 ///     against elapsed observations.
 ///
 /// Notes
@@ -82,7 +83,7 @@ impl RangeAccrualOption {
     /// KiyosiError
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
-    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    ///     If a representation or field name is invalid.
     #[pyo3(signature = (*, notional=crate::conversions::OMITTED, annual_coupon_rate=crate::conversions::OMITTED, lower_bound=crate::conversions::OMITTED, upper_bound=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, realized_hit_count=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,

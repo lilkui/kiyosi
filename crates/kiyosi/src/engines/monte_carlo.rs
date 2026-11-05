@@ -688,7 +688,7 @@ impl MonteCarloVanillaEngine {
     ///
     /// Pins one request-local seed, including when the engine has no configured seed.
     /// Replays identical normal draws for every feasible bump; no samples or state
-    /// survive the request. At expiry, time Greeks remain absent and other Greeks follow terminal payoffs. Uses
+    /// survive the request. At expiry, time Greeks are absent and other Greeks follow terminal payoffs. Uses
     /// [`NumericalShiftSettings`] and [`crate::numerical_greeks`] availability rules.
     /// American calls whose rate stencil crosses zero use the exercise grid on both
     /// rate legs. For American spot bumps, use [`Self::default_american_spot_shift`].

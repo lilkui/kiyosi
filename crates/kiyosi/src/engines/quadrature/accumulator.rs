@@ -55,8 +55,8 @@ impl QuadratureAccumulatorEngine {
     /// # Errors
     ///
     /// Checks flat rates ([`Error::UnsupportedOperation`]), inclusive life
-    /// ([`Error::InvalidInput`]), then trading expiry and knock-out dates
-    /// ([`Error::InvalidInput`]). Non-finite results or unrepresentable grids
+    /// and missing or impossible history ([`Error::InvalidInput`]), then required
+    /// curve coverage ([`Error::InvalidInput`]). Non-finite results or unrepresentable grids
     /// and transitions return [`Error::ComputationFailure`]. Inputs remain unchanged.
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
@@ -64,8 +64,9 @@ impl QuadratureAccumulatorEngine {
     }
     /// Computes requested scalar Greeks with shared core bump defaults; see [`Self::new`].
     ///
-    /// Expiry Greeks and spot/time stencils crossing active events are unavailable.
-    /// Vega and rho remain defined at current thresholds. Request-local curve reuse
+    /// At expiry Greeks follow terminal payoffs, with time Greeks absent.
+    /// Spot/time stencils crossing active events are unavailable. Before expiry
+    /// vega and rho are defined at current thresholds. Request-local curve reuse
     /// preserves the same prices as independent scalar repricing.
     ///
     /// # Errors

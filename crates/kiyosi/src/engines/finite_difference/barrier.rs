@@ -21,7 +21,7 @@ impl FiniteDifferenceBarrierEngine {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`][crate::Error::InvalidInput] outside life or required curve/surface coverage, for
-    /// nontrading observations, missing or impossible history, clipped or
+    /// missing or impossible history, clipped or
     /// degenerate grids, or unstable explicit steps. Numerical failures return
     /// [`Error::ComputationFailure`][crate::Error::ComputationFailure]. Inputs remain unchanged.
     pub fn price(&self, option: &BarrierOption, context: &PricingContext) -> Result<f64> {
@@ -199,7 +199,8 @@ impl FiniteDifferenceDoubleBarrierEngine {
     /// # Errors
     ///
     /// Reuses [`FiniteDifferenceBarrierEngine::price`] categories and validation timing,
-    /// including rejection of boundaries that do not exceed spot, strike and both barriers.
+    /// including explicit upper-domain coverage checks when a full-domain grid is needed.
+    /// Continuous barriers fix the barrier grid's edges independently of that upper bound.
     /// Inputs and engine settings remain unchanged on every outcome.
     pub fn price(&self, option: &DoubleBarrierOption, context: &PricingContext) -> Result<f64> {
         Ok(native_barrier(

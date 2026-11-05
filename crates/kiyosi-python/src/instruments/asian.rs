@@ -68,7 +68,7 @@ macro_rules! average_option {
     /// KiyosiError
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
-    ///     If a representation, field name or mutually exclusive coupon choice is invalid.
+    ///     If a representation or field name is invalid.
     #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, averaging_start_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, realized_average=crate::conversions::OMITTED))]
     fn replace(
         &self,

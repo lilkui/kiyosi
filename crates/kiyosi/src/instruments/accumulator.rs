@@ -104,7 +104,7 @@ impl From<Option<f64>> for AccumulatorHistoryChanges {
 /// `terminated` records an already settled knock-out and gives zero remaining value.
 /// Pricing rejects this state unless a knock-out observation strictly precedes valuation.
 /// Accrued quantity is ignored for terminated contracts. History is caller asserted,
-/// and is required after any strictly prior trading-date observation. `None` means unknown;
+/// and is required after any strictly prior accumulation or knock-out observation. `None` means unknown;
 /// an explicit zero records no outstanding units. No quantity is inferred from elapsed dates.
 /// Shared reads and owning replacements support concurrent use; see [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
@@ -591,7 +591,7 @@ pub struct AccumulatorChanges {
 impl Accumulator {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// Set `terminated: Some(true)` to record a settled knock-out without changing
     /// the stored accrued quantity. See [`Accumulator::new`] for construction examples.
     ///

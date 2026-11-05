@@ -11,7 +11,7 @@ impl MonteCarloVanillaEngine {
     /// Returns the American default absolute spot bump, 8% of spot.
     ///
     /// Exercise decisions amplify small-bump noise; sampling error and bump bias
-    /// still require convergence checks. Other shifts use [`NumericalShiftSettings`] defaults.
+    /// require convergence checks. Other shifts use [`NumericalShiftSettings`] defaults.
     /// Rust and Python use this value before expiry when `spot_shift` is automatic
     /// (`None`). Terminal payoffs use the shared 0.01 spot-unit default.
     ///

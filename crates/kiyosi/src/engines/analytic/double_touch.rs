@@ -26,8 +26,8 @@ impl AnalyticDoubleTouchEngine {
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves, then
-    /// [`Error::InvalidInput`] outside life, for nontrading observations or missing
-    /// or impossible history. Unresolved scheduled monitoring at positive volatility returns
+    /// [`Error::InvalidInput`] outside life, for missing or impossible history,
+    /// or outside required curve coverage. Unresolved scheduled monitoring at positive volatility returns
     /// [`Error::UnsupportedOperation`]. Unrepresentable calculations return
     /// [`Error::ComputationFailure`]; exhausted series or integration limits return
     /// [`Error::NonConvergence`]. Inputs remain unchanged on failure.

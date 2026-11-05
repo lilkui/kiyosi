@@ -536,7 +536,7 @@ pub struct BinaryBarrierOptionChanges {
 impl BinaryBarrierOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// See [`BinaryBarrierOption::cash`] for construction examples.
     ///
     /// # Errors
@@ -600,7 +600,7 @@ pub struct TouchOptionChanges {
 impl TouchOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
-    /// Calendar compatibility is validated here; valuation-relative history checks remain at pricing time.
+    /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
     /// See [`TouchOption::cash`] for construction examples.
     ///
     /// # Errors

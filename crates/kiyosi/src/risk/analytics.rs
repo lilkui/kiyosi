@@ -382,8 +382,8 @@ impl GreekMethod {
 
     /// Returns names of shift controls potentially used by this calculation path.
     ///
-    /// Names correspond to [`NumericalShiftSettings`] fields. Inactive controls
-    /// are still validated. See [`PricingEngine::greek_method`] for an example.
+    /// Names correspond to [`NumericalShiftSettings`] fields and describe internal
+    /// defaults. See [`PricingEngine::greek_method`] for an example.
     pub const fn active_controls(self) -> &'static [&'static str] {
         match self {
             Self::Native | Self::Unsupported => &[],

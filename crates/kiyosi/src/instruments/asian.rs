@@ -173,7 +173,7 @@ macro_rules! average_option {
         impl $name {
             /// Returns a validated replacement, preserving omitted terms and the original.
             ///
-            /// Valuation-relative history checks remain at pricing time.
+            /// Valuation-relative history checks occur at pricing time.
             /// See [`GeometricAveragePriceOption::new`] for construction examples.
             ///
             /// # Errors

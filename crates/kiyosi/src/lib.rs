@@ -40,8 +40,8 @@
 //! Annual rates and annualized volatility use decimal units. Rates and dividend
 //! yields are continuously compounded. BSM volatility may be zero; built-in engines
 //! then value the deterministic path exactly, including American exercise and
-//! contractual barrier, coupon and accumulation observations. Existing model and
-//! rate-curve applicability checks still apply. Before expiry, volatility Greeks
+//! contractual barrier, coupon and accumulation observations. Model and rate-curve
+//! applicability checks apply before deterministic pricing. Before expiry, volatility Greeks
 //! are undefined at zero because their symmetric stencils leave the model domain.
 //! Deterministic payoff kinks and event thresholds also leave affected Greeks absent. Rate curves use the Actual/365 Fixed
 //! day-count convention; [`TradingCalendar::trading_year_fraction`] uses its own
@@ -53,7 +53,7 @@
 //! engines support this model for European and American vanilla options, digitals,
 //! single and double barriers, binary barriers, touch and
 //! no-touch options, autocallable notes and accumulators. They provide price,
-//! delta and gamma with the surface held fixed. Other Greeks remain absent. Other engine families
+//! delta and gamma with the surface held fixed. Other Greeks are absent. Other engine families
 //! and implied-parameter solvers reject this model. Digital pricing requires
 //! constant risk-free rates and dividend yields.
 //! Future coverage follows remaining stochastic evolution and required discounts;
@@ -67,7 +67,7 @@
 //! European and American call and put prices using the modified Craig-Sneyd scheme
 //! with Ikonen-Toivanen splitting for American exercise. Both accept zero variance
 //! parameters, correlation endpoints and violations of the Feller condition.
-//! All Heston Greeks remain absent. Other engines and implied-parameter solvers reject Heston.
+//! All Heston Greeks are absent. Other engines and implied-parameter solvers reject Heston.
 //! See each engine's constructor for examples, numerical controls and convergence checks.
 //!
 //! # Concurrency and errors

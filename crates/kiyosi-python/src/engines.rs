@@ -56,6 +56,7 @@ macro_rules! numerical_greeks_methods {
             ///     Market snapshot and valuation instant.
             /// greeks : str or iterable of str
             ///     Greek names or "all" to request every measure; duplicates are ignored.
+            ///
             /// Returns
             /// -------
             /// PricingResult
@@ -65,7 +66,11 @@ macro_rules! numerical_greeks_methods {
             /// Raises
             /// ------
             /// KiyosiError
-            ///     If requests, pricing or a feasible default bumped valuation fails.
+            ///     If the request is empty, pricing fails or a feasible default bumped valuation fails.
+            /// ValueError
+            ///     If a Greek name is unknown.
+            /// TypeError
+            ///     If greeks is not a string or iterable of strings.
             $(#[$extra_doc])*
             #[pyo3(signature = (instrument, context, greeks))]
             ///
