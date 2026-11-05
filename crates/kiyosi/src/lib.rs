@@ -38,7 +38,12 @@
 //! as distinct floating-point year fractions.
 //!
 //! Annual rates and annualized volatility use decimal units. Rates and dividend
-//! yields are continuously compounded. Rate curves use the Actual/365 Fixed
+//! yields are continuously compounded. BSM volatility may be zero; built-in engines
+//! then value the deterministic path exactly, including American exercise and
+//! contractual barrier, coupon and accumulation observations. Existing model and
+//! rate-curve applicability checks still apply. Before expiry, volatility Greeks
+//! are undefined at zero because their symmetric stencils leave the model domain.
+//! Deterministic payoff kinks and event thresholds also leave affected Greeks absent. Rate curves use the Actual/365 Fixed
 //! day-count convention; [`TradingCalendar::trading_year_fraction`] uses its own
 //! basis. [`Greek`] documents sensitivity reporting units.
 //!

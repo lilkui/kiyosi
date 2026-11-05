@@ -148,6 +148,9 @@ fn price(
 ) -> Result<f64> {
     context.bsm_parameters()?;
     let (rate, dividend) = flat_rates(context)?;
+    if crate::engines::deterministic::enabled(context) {
+        return crate::engines::deterministic::accumulator(option, context);
+    }
     option.validate_pricing(context)?;
     let (quantity, settlement) = option.initial(context);
     if let Some(value) = settlement {

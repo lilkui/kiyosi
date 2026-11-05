@@ -446,8 +446,12 @@ impl OptionContract for Accumulator {
     fn expiry_time(&self) -> Timestamp {
         self.expiry_time()
     }
-    fn all_greeks_unavailable(&self, _context: &PricingContext) -> bool {
-        false
+    fn all_greeks_unavailable(&self, context: &PricingContext) -> bool {
+        context
+            .model_parameters()
+            .as_bsm()
+            .is_ok_and(|model| model.volatility() == 0.0)
+            && self.at_spot_discontinuity(context, 0.0)
     }
     #[expect(
         clippy::float_cmp,
@@ -456,6 +460,22 @@ impl OptionContract for Accumulator {
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         if self.terminated() {
             return false;
+        }
+        if context
+            .model_parameters()
+            .as_bsm()
+            .is_ok_and(|model| model.volatility() == 0.0)
+            && self.future_observation_times(context).is_ok_and(|times| {
+                times.into_iter().any(|time| {
+                    self.observes_knock_out(time)
+                        && context.deterministic_crosses(time, self.knock_out_level(), radius)
+                        || self.acceleration_factor() != 1.0
+                            && self.accumulates_at(time, self.calendar())
+                            && context.deterministic_crosses(time, self.strike(), radius)
+                })
+            })
+        {
+            return true;
         }
         let spot = context.spot_price();
         let crosses = |level| spot - radius <= level && level <= spot + radius;

@@ -570,7 +570,7 @@ fn scheduled_bgk_domain_flat_rate_restrictions_and_solver_failures_are_explicit(
         Error::UnsupportedOperation(_)
     ));
     let controls = ImpliedVolatilitySettings {
-        lower_bound: 0.0,
+        lower_bound: -0.1,
         ..Default::default()
     };
     assert!(matches!(

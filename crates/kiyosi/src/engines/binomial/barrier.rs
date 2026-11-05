@@ -95,6 +95,13 @@ impl CoxRossRubinsteinBarrierEngine {
         flat_rates(context)?;
         request.validate()?;
         settings.validate()?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::numerical_greeks(self, option, context, request, settings).map(
+                |result| {
+                    result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
+                },
+            );
+        }
         let result = self
             .native(option, context, request)?
             .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));
@@ -115,6 +122,9 @@ impl CoxRossRubinsteinBarrierEngine {
         request: GreeksRequest,
     ) -> Result<PricingResult> {
         let (rate, _) = flat_rates(context)?;
+        if crate::engines::deterministic::enabled(context) {
+            return PricingResult::new(crate::engines::deterministic::barrier(option, context)?);
+        }
         crate::instruments::monitoring::validate_life(option, context)?;
         let steps = self.settings.step_count as usize;
         let request = if context.valuation_time() == option.expiry_time()

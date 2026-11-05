@@ -1,7 +1,8 @@
 use super::grid::{Curve, SpatialGrid, TimeGrid, concentrate};
 use super::{FiniteDifferenceSettings, Payoff, invalid_grid, time_to_expiry, unstable};
 use crate::engines::analytic::heston::integrated_variance;
-use crate::numerics::{checked_with_scale, log_ratio, scaled_cash};
+use crate::engines::deterministic::exercise_value;
+use crate::numerics::{checked_with_scale, scaled_cash};
 use crate::{
     AmericanOption, EuropeanOption, GreeksRequest, HestonParameters, NumericalShiftSettings,
     OptionContract, PricingContext, PricingEngine, PricingResult, Result,
@@ -213,81 +214,6 @@ fn variance_at(model: &HestonParameters, time: f64) -> f64 {
         model.long_run_variance() * rise
     };
     model.initial_variance() * (-x).exp() + growth
-}
-
-// Discounted deterministic intrinsic values also supply the far-asset asymptote.
-#[expect(
-    clippy::float_cmp,
-    reason = "Equal forward rates have no isolated stationary point."
-)]
-fn exercise_value(
-    payoff: Payoff,
-    spot: f64,
-    start: f64,
-    end: f64,
-    risk: &Curve,
-    dividend: &Curve,
-) -> Result<f64> {
-    let value = |t| {
-        let dividend_log = dividend.log_factor(start, t);
-        let risk_log = risk.log_factor(start, t);
-        let price = if spot == 0.0 {
-            if payoff.sign < 0.0 {
-                scaled_cash(payoff.strike, risk_log)
-            } else {
-                0.0
-            }
-        } else if payoff.strike == 0.0 {
-            if payoff.sign > 0.0 {
-                scaled_cash(spot, dividend_log)
-            } else {
-                0.0
-            }
-        } else {
-            let m = log_ratio(spot, payoff.strike) + dividend_log - risk_log;
-            if m.is_nan() {
-                return Err(unstable());
-            }
-            if payoff.sign * m <= 0.0 {
-                0.0
-            } else if payoff.sign > 0.0 {
-                scaled_cash(spot, dividend_log + (-(-m).exp_m1()).ln())
-            } else {
-                scaled_cash(payoff.strike, risk_log + (-m.exp_m1()).ln())
-            }
-        };
-        checked_with_scale(price, 0.0)
-    };
-    if !payoff.american {
-        return value(end);
-    }
-    let mut knots: Vec<_> = risk
-        .ends()
-        .chain(dividend.ends())
-        .filter(|&t| t > start && t < end)
-        .chain([start, end])
-        .collect();
-    knots.sort_by(f64::total_cmp);
-    knots.dedup();
-    let mut best = value(start)?.max(value(end)?);
-    for pair in knots.windows(2) {
-        let [a, b] = [pair[0], pair[1]];
-        best = best.max(value(b)?);
-        let middle = a.midpoint(b);
-        let r = risk.rate(middle);
-        let q = dividend.rate(middle);
-        if spot > 0.0 && r != 0.0 && q != 0.0 && r.signum() == q.signum() && r != q {
-            let log = log_ratio(r.abs(), q.abs())
-                + log_ratio(payoff.strike, spot)
-                + risk.log_factor(start, a)
-                - dividend.log_factor(start, a);
-            let t = a + log / (r - q);
-            if t > a && t < b {
-                best = best.max(value(t)?);
-            }
-        }
-    }
-    Ok(best)
 }
 
 fn space(count: i32, upper: f64, level: f64, scale: f64, levels: Vec<f64>) -> Result<SpatialGrid> {

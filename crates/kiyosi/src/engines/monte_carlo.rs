@@ -654,7 +654,8 @@ impl MonteCarloVanillaEngine {
             sample,
             pairs,
             log_discount,
-            context.valuation_time() == option.expiry_time(),
+            context.valuation_time() == option.expiry_time()
+                || crate::engines::deterministic::enabled(context),
         )
     }
 
@@ -690,6 +691,18 @@ impl MonteCarloVanillaEngine {
             return Ok((sample, Moments::default(), 0.0));
         }
         let sigma = model.volatility();
+        if sigma == 0.0 {
+            let mut sample = Moments::default();
+            sample.add(
+                crate::engines::deterministic::vanilla(
+                    option,
+                    crate::engines::Payoff::vanilla(option.option_type(), option.strike(), false),
+                    context,
+                )?,
+                false,
+            );
+            return Ok((sample, Moments::default(), 0.0));
+        }
         let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
         let diffusion = sigma * time.sqrt();
         if !drift.is_finite() || !diffusion.is_finite() {

@@ -175,9 +175,10 @@ impl OptionContract for EuropeanOption {
         self.expiry_time()
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
-        context.valuation_time() == self.expiry_time()
+        (context.valuation_time() == self.expiry_time()
             && context.spot_price() - radius <= self.strike()
-            && self.strike() <= context.spot_price() + radius
+            && self.strike() <= context.spot_price() + radius)
+            || context.deterministic_crosses(self.expiry_time(), self.strike(), radius)
     }
 }
 

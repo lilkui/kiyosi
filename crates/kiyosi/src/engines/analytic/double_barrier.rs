@@ -22,7 +22,7 @@ impl AnalyticDoubleBarrierEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unresolved schedules,
+    /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves or unresolved schedules at positive volatility,
     /// [`Error::InvalidInput`] outside life, for nontrading fixings, or for
     /// missing or impossible history, checked in that order. Unrepresentable
     /// calculations return [`Error::ComputationFailure`]; series or integration
@@ -46,6 +46,9 @@ impl AnalyticDoubleBarrierEngine {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
         validate_life(&option.lower, context)?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::engines::deterministic::double_barrier(option, context);
+        }
         if let Some(value) = resolved_price(option, context)? {
             return Ok(value);
         }

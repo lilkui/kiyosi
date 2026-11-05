@@ -334,7 +334,7 @@ class DigitalTests(unittest.TestCase):
                     option, self.context, "delta", time_shift_days=2**40
                 )
             for settings in (
-                {"lower_bound": 0},
+                {"lower_bound": -0.1},
                 {"lower_bound": 4},
                 {"upper_bound": math.inf},
                 {"max_iterations": 0},

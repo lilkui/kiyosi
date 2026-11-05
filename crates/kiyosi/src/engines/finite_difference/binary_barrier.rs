@@ -219,6 +219,9 @@ fn native(
     shifts: NumericalShiftSettings,
 ) -> Result<PricingResult> {
     let request = local_volatility::validate_request(context, request)?;
+    if crate::engines::deterministic::enabled(context) {
+        return PricingResult::new(crate::engines::deterministic::binary(contract, context)?);
+    }
     match context.model_parameters() {
         crate::ModelParameters::Heston(_) => Err(crate::Error::UnsupportedOperation(
             "finite differences do not support Heston".into(),

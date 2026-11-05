@@ -198,7 +198,7 @@ class ApiConsistencyTests(unittest.TestCase):
             self.assertIn(field, str(error.exception))
         model = market.BlackScholesMertonParameters(**defaults)
         with self.assertRaises(InvalidInputError) as error:
-            model.replace(volatility=0)
+            model.replace(volatility=-0.1)
         self.assertIn("volatility", str(error.exception))
         self.assertEqual(model.volatility, 0.2)
 

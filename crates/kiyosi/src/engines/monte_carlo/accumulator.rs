@@ -126,6 +126,14 @@ impl MonteCarloAccumulatorEngine {
         let model = context.bsm_parameters()?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
+        if crate::engines::deterministic::enabled(context) {
+            let mut sample = Moments::default();
+            sample.add(
+                crate::engines::deterministic::accumulator(option, context)?,
+                false,
+            );
+            return Ok((sample, Moments::default(), true));
+        }
         option.validate_pricing(context)?;
         let (quantity, settlement) = option.initial(context);
         if let Some(value) = settlement {

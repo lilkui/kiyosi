@@ -102,6 +102,13 @@ impl PricingEngine<DigitalOption> for QuadratureDigitalEngine {
     fn price(&self, option: &DigitalOption, context: &PricingContext) -> Result<f64> {
         let (rate, dividend) = flat_rates(context)?;
         validate_life(option, context)?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::engines::deterministic::vanilla(
+                option,
+                crate::engines::Payoff::digital(option),
+                context,
+            );
+        }
         context.validate_curve_horizon(option.expiry_time())?;
         let spot = context.spot_price();
         let call = option.option_type() == OptionType::Call;

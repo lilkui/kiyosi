@@ -16,7 +16,8 @@ pub(crate) mod heston;
 mod local_volatility;
 mod step;
 use diffusion::{Diffusion, LocalDiffusion};
-use grid::{Curve, SpatialGrid, TimeGrid};
+pub(super) use grid::Curve;
+use grid::{SpatialGrid, TimeGrid};
 use step::Stepper;
 
 /// Selects the finite-difference time-marching scheme.
@@ -223,6 +224,14 @@ fn native(
     concentrate: bool,
 ) -> Result<(PricingResult, Option<f64>)> {
     let request = local_volatility::validate_request(context, request)?;
+    if crate::engines::deterministic::enabled(context) {
+        return Ok((
+            PricingResult::new(crate::engines::deterministic::vanilla(
+                option, payoff, context,
+            )?)?,
+            None,
+        ));
+    }
     match context.model_parameters() {
         crate::ModelParameters::Heston(_) => Err(Error::UnsupportedOperation(
             "finite differences do not support Heston".into(),

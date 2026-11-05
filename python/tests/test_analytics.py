@@ -298,7 +298,7 @@ class AnalyticsTests(unittest.TestCase):
             )
 
         for controls in (
-            {"lower_bound": 0},
+            {"lower_bound": -0.1},
             {"lower_bound": 4},
             {"upper_bound": math.inf},
             {"price_tolerance": 0},

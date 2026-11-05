@@ -18,15 +18,16 @@ impl AnalyticDoubleTouchEngine {
     /// Prices remaining cash flows using absorbing-density image and spectral series.
     ///
     /// At-hit payments integrate the discounted first-exit density adaptively.
-    /// Prior at-hit payments have zero remaining value. Resolved payments are
-    /// returned before rejecting scheduled monitoring; nonconstant rate curves are always rejected.
+    /// Prior at-hit payments have zero remaining value. Resolved payments and exact
+    /// zero-volatility paths are returned before rejecting scheduled monitoring;
+    /// nonconstant rate curves are always rejected.
     /// Settled cash flows do not require curve coverage through expiry.
     ///
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves, then
     /// [`Error::InvalidInput`] outside life, for nontrading observations or missing
-    /// or impossible history. Unresolved scheduled monitoring then returns
+    /// or impossible history. Unresolved scheduled monitoring at positive volatility returns
     /// [`Error::UnsupportedOperation`]. Unrepresentable calculations return
     /// [`Error::ComputationFailure`]; exhausted series or integration limits return
     /// [`Error::NonConvergence`]. Inputs remain unchanged on failure.
@@ -52,6 +53,9 @@ impl AnalyticDoubleTouchEngine {
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
         validate_life(option, context)?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::engines::deterministic::binary(&option.contract(), context);
+        }
         let (prior, touched, finished) = option.contract().state(context)?;
         let at_hit = option.settlement_timing() == SettlementTiming::AtHit;
         if prior && at_hit {

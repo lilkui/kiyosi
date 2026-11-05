@@ -79,6 +79,77 @@ impl AverageTerms {
             -1.0
         }
     }
+    pub(crate) fn deterministic_average(
+        &self,
+        context: &PricingContext,
+        geometric: bool,
+    ) -> Result<f64> {
+        let model = context.bsm_parameters()?;
+        let valuation = context.valuation_time();
+        let expiry = self.terms.expiry_time();
+        let carry = |time| -> Result<f64> {
+            Ok(model.dividend_curve().log_factor(valuation, time)?
+                - model.risk_free_curve().log_factor(valuation, time)?)
+        };
+        if self.period() == 0.0 {
+            return checked(crate::numerics::scaled_cash(
+                context.spot_price(),
+                carry(expiry)?,
+            ));
+        }
+        let start = self.averaging_start.max(valuation);
+        let mut times = vec![start, expiry];
+        for curve in [model.risk_free_curve(), model.dividend_curve()] {
+            times.extend(
+                curve
+                    .nodes()
+                    .iter()
+                    .copied()
+                    .filter(|&time| time > start && time < expiry),
+            );
+        }
+        times.sort_unstable();
+        times.dedup();
+        let prior_weight = (1.0 - start.years_until(expiry) / self.period()).max(0.0);
+        let mut total = crate::numerics::Sum::default();
+        for pair in times.windows(2) {
+            let a = carry(pair[0])?;
+            let b = carry(pair[1])?;
+            let weight = pair[0].years_until(pair[1]) / self.period();
+            if geometric {
+                total.add(a.midpoint(b) * weight);
+            } else {
+                let delta = b - a;
+                let growth = if delta == 0.0 {
+                    0.0
+                } else if delta > 0.0 {
+                    delta + (-(-delta).exp_m1() / delta).ln()
+                } else {
+                    (delta.exp_m1() / delta).ln()
+                };
+                total.add(crate::numerics::scaled_cash(context.spot_price(), a + growth) * weight);
+            }
+        }
+        if geometric {
+            if prior_weight > 0.0 {
+                total.add(
+                    prior_weight
+                        * crate::numerics::log_ratio(
+                            self.realized.unwrap_or(0.0),
+                            context.spot_price(),
+                        ),
+                );
+            }
+            checked(crate::numerics::scaled_cash(
+                context.spot_price(),
+                total.total(),
+            ))
+        } else {
+            total.add(self.realized.unwrap_or(0.0) * prior_weight);
+            checked(total.total())
+        }
+    }
+
     pub(crate) fn adjusted_strike(&self, tau: f64) -> f64 {
         let elapsed = self.period() - tau;
         if elapsed > 0.0 {
@@ -91,7 +162,7 @@ impl AverageTerms {
 }
 
 macro_rules! average_option {
-    ($name:ident, $description:literal) => {
+    ($name:ident, $description:literal, $geometric:literal) => {
         #[doc = $description]
         ///
         /// Owns validated continuously monitored averaging terms; a zero-length window fixes once at expiry.
@@ -231,6 +302,25 @@ macro_rules! average_option {
                 self.expiry_time()
             }
             fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
+                if context
+                    .model_parameters()
+                    .as_bsm()
+                    .is_ok_and(|model| model.volatility() == 0.0)
+                    && context.valuation_time() < self.expiry_time()
+                {
+                    let average = |spot| -> Result<f64> {
+                        let bumped = context.replace(crate::PricingContextChanges {
+                            spot_price: Some(spot),
+                            ..Default::default()
+                        })?;
+                        self.0.deterministic_average(&bumped, $geometric)
+                    };
+                    return average(context.spot_price() - radius)
+                        .and_then(|low| {
+                            average(context.spot_price() + radius).map(|high| (low, high))
+                        })
+                        .is_ok_and(|(low, high)| low <= self.strike() && self.strike() <= high);
+                }
                 self.realized_average().is_none()
                     && self.0.terms.at_spot_discontinuity(context, radius)
             }
@@ -252,11 +342,13 @@ macro_rules! average_option {
 }
 average_option!(
     GeometricAveragePriceOption,
-    "Defines a geometric average-price Asian option."
+    "Defines a geometric average-price Asian option.",
+    true
 );
 average_option!(
     ArithmeticAveragePriceOption,
-    "Defines an arithmetic average-price Asian option."
+    "Defines an arithmetic average-price Asian option.",
+    false
 );
 
 /// Selects replacements for [`GeometricAveragePriceOption::replace`]; absent fields retain their values.

@@ -52,6 +52,13 @@ impl MonteCarloVanillaEngine {
         context.validate_curve_horizon(option.expiry_time())?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::engines::deterministic::vanilla(
+                option,
+                crate::engines::Payoff::vanilla(option.option_type(), option.strike(), true),
+                context,
+            );
+        }
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
         if valuation < option.effective_time() || valuation > expiry {

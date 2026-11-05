@@ -43,17 +43,16 @@ pub struct BlackScholesMertonParameterChanges {
     pub risk_free_rate: Option<Rate>,
     /// Replaces the dividend yield or curve.
     pub dividend_yield: Option<Rate>,
-    /// Replaces the strictly positive annualized volatility in decimal units.
+    /// Replaces the nonnegative annualized volatility in decimal units.
     pub volatility: Option<f64>,
 }
 
 /// Owns Black-Scholes-Merton (BSM) rate curves and annualized log-return volatility.
 ///
-/// Volatility is strictly positive and expressed in decimal units.
-/// Zero volatility is outside this model's input domain, including at expiry.
-/// For exact deterministic vanilla pricing, use [`crate::HestonParameters`] with
-/// zero initial variance, long-run variance and volatility of volatility, and a
-/// Heston engine. See [`crate::AnalyticHestonEuropeanEngine::new`] for setup.
+/// Volatility is nonnegative and expressed in decimal units. Zero selects the
+/// deterministic path implied by the rate and dividend curves. BSM engines use
+/// exact deterministic payoffs and contractual observations instead of stochastic
+/// grids or draws. See [`Self::new`] and the crate-level sensitivity contract.
 ///
 /// See [`Self::new`] for construction.
 #[derive(Clone, Debug, PartialEq)]
@@ -68,7 +67,7 @@ impl BlackScholesMertonParameters {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] for non-finite scalar rates or nonpositive
+    /// Returns [`Error::InvalidInput`] for non-finite scalar rates or negative
     /// or non-finite volatility. Risk-free rate validation precedes dividend
     /// yield and volatility validation.
     ///
@@ -93,7 +92,10 @@ impl BlackScholesMertonParameters {
     ) -> Result<Self> {
         let risk_free_curve = risk_free_rate.into().into_curve("risk_free_rate")?;
         let dividend_curve = dividend_yield.into().into_curve("dividend_yield")?;
-        finite(volatility, true, "volatility")?;
+        finite(volatility, false, "volatility")?;
+        if volatility < 0.0 {
+            return Err(Error::InvalidInput("volatility must be nonnegative".into()));
+        }
         Ok(Self {
             risk_free_curve,
             dividend_curve,
@@ -330,6 +332,28 @@ impl PricingContext {
     pub fn model_parameters(&self) -> &ModelParameters {
         &self.model_parameters
     }
+    pub(crate) fn deterministic_crosses(&self, time: Timestamp, level: f64, radius: f64) -> bool {
+        let Ok(model) = self.bsm_parameters() else {
+            return false;
+        };
+        if model.volatility() != 0.0 || time < self.valuation_time {
+            return false;
+        }
+        let carry = model
+            .dividend_curve()
+            .log_factor(self.valuation_time, time)
+            .and_then(|q| {
+                model
+                    .risk_free_curve()
+                    .log_factor(self.valuation_time, time)
+                    .map(|r| q - r)
+            });
+        carry.is_ok_and(|carry| {
+            crate::numerics::scaled_cash((self.spot_price - radius).max(0.0), carry) <= level
+                && level <= crate::numerics::scaled_cash(self.spot_price + radius, carry)
+        })
+    }
+
     pub(crate) fn bsm_parameters(&self) -> Result<&BlackScholesMertonParameters> {
         self.model_parameters.as_bsm()
     }

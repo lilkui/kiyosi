@@ -270,6 +270,17 @@ fn native_barrier(
     shifts: NumericalShiftSettings,
 ) -> Result<PricingResult> {
     let request = local_volatility::validate_request(context, request)?;
+    if crate::engines::deterministic::enabled(context) {
+        validate_life(option.monitoring(), context)?;
+        if let Some(value) = option.resolved_price(context)? {
+            return PricingResult::new(value);
+        }
+        return PricingResult::new(crate::engines::deterministic::barrier_value(
+            option.monitoring(),
+            option.upper_barrier(),
+            context,
+        )?);
+    }
     if let Some(model) = local_volatility::local_model(context) {
         native_with_model(
             option,

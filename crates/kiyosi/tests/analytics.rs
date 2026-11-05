@@ -605,7 +605,7 @@ fn solver_categories_bounds_and_failure_state_are_stable() {
     }
     for settings in [
         ImpliedVolatilitySettings {
-            lower_bound: 0.0,
+            lower_bound: -0.1,
             ..defaults
         },
         ImpliedVolatilitySettings {

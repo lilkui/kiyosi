@@ -129,6 +129,12 @@ impl AnalyticRangeAccrualEngine {
                     "non-finite range transition".into(),
                 ));
             }
+            if volatility == 0.0 {
+                if lower <= drift && drift <= upper {
+                    value.add(scale.exp());
+                }
+                continue;
+            }
             let probability = log_interval_mass(
                 standardize(lower - drift, volatility, root),
                 standardize(upper - drift, volatility, root),

@@ -188,7 +188,7 @@ class EuropeanTests(unittest.TestCase):
     def test_domain_errors_and_failed_construction_preserve_inputs(self):
         context, option = self.context(), self.option()
         for bad in (0, -1, math.nan, math.inf, -math.inf):
-            for make, expected_error in (
+            factories = (
                 (
                     lambda bad=bad: self.option(strike=bad),
                     InvalidInputError,
@@ -203,7 +203,8 @@ class EuropeanTests(unittest.TestCase):
                     ),
                     InvalidInputError,
                 ),
-            ):
+            )
+            for make, expected_error in factories if bad != 0 else factories[:2]:
                 with (
                     self.subTest(bad=bad, expected_error=expected_error),
                     self.assertRaises(expected_error) as error,

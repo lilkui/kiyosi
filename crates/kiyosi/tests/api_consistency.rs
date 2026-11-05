@@ -1007,7 +1007,7 @@ fn numeric_rejections_identify_the_failing_field() -> Result<()> {
     let model = BlackScholesMertonParameters::new(0.02, 0.0, 0.2)?;
     let error = model
         .replace(BlackScholesMertonParameterChanges {
-            volatility: Some(0.0),
+            volatility: Some(-0.1),
             ..Default::default()
         })
         .unwrap_err();

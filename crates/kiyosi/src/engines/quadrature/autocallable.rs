@@ -317,6 +317,9 @@ fn price<T: AutocallableTerms>(
 ) -> Result<f64> {
     context.bsm_parameters()?;
     let (rate, dividend) = flat_rates(context)?;
+    if crate::engines::deterministic::enabled(context) {
+        return crate::engines::deterministic::autocallable(note, context);
+    }
     validate(note, context)?;
     let state = initial(note, context);
     if let Some(value) = state

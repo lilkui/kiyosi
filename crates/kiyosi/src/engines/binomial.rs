@@ -301,6 +301,11 @@ fn native(
 ) -> Result<PricingResult> {
     let (rate, dividend) = flat_rates(context)?;
     let dt = time_step(option, context, settings)?;
+    if crate::engines::deterministic::enabled(context) {
+        return PricingResult::new(crate::engines::deterministic::vanilla(
+            option, payoff, context,
+        )?);
+    }
     let spot = context.spot_price();
     let exercise = |s: f64| (payoff.sign * (s - payoff.strike)).max(0.0);
     if dt == 0.0 {
@@ -562,6 +567,13 @@ impl CoxRossRubinsteinDigitalEngine {
         flat_rates(context)?;
         request.validate()?;
         settings.validate()?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::numerical_greeks(self, option, context, request, settings).map(
+                |result| {
+                    result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
+                },
+            );
+        }
         let result = self
             .native(option, context, request)?
             .with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]));

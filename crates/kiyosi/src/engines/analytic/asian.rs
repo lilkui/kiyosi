@@ -55,6 +55,9 @@ impl AnalyticGeometricAveragePriceEngine {
             return o.settlement(context);
         }
         o.coverage(context)?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::engines::deterministic::average(o, context, true);
+        }
         if o.period() == 0.0 {
             return crate::AnalyticEuropeanEngine.price(&o.terms, context);
         }
@@ -197,6 +200,9 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
             ));
         }
         o.coverage(context)?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::engines::deterministic::average(o, context, false);
+        }
         if o.period() == 0.0 {
             return crate::AnalyticEuropeanEngine.price(&o.terms, context);
         }

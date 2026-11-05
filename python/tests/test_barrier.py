@@ -479,7 +479,7 @@ class BarrierTests(unittest.TestCase):
             InvalidInputError, lambda: engine.price_with_greeks(option, context, [])
         )
         for changes in (
-            {"lower_bound": 0},
+            {"lower_bound": -0.1},
             {"max_iterations": 0},
             {"price_tolerance": -1},
         ):

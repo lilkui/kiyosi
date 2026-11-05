@@ -7,6 +7,17 @@ does not use; its supported Greek set is unchanged. At expiry the spot bump
 controls terminal-payoff stencils. Use ``numerical_greeks`` to select scalar
 differences explicitly.
 
+BSM ``volatility=0`` uses exact deterministic valuation in each supported engine,
+including American exercise, continuous or scheduled touches, and structured-product
+events. Existing model and rate-curve restrictions still apply. Monte Carlo uses
+no sampling for these prices; pseudorandom statistics have zero standard error
+and Sobol uncertainty remains absent. Spot and rate Greeks use scalar differences;
+before expiry, volatility Greeks are undefined at zero because symmetric volatility
+bumps leave the model domain. Deterministic payoff and event boundaries also leave
+sensitivities undefined. At expiry the usual terminal Greek rules apply.
+The implied-volatility solver accepts ``lower_bound=0`` and can return an exact
+zero-volatility endpoint before restricting a CRR bracket to positive tree widths.
+
 Finite-difference engines support local volatility for European and American
 vanilla options, digitals, single and double barriers, binary barriers, touch
 and no-touch options, autocallable notes and accumulators. They provide price,

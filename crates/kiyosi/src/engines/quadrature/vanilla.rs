@@ -166,6 +166,9 @@ macro_rules! vanilla_pricing {
                 validate_life(option, context)?;
                 context.validate_curve_horizon(option.expiry_time())?;
                 let payoff = Payoff::vanilla(option.option_type(), option.strike(), $american);
+                if crate::engines::deterministic::enabled(context) {
+                    return crate::engines::deterministic::vanilla(option, payoff, context);
+                }
                 let time = context
                     .valuation_time()
                     .years_until(option.expiry_time().into());

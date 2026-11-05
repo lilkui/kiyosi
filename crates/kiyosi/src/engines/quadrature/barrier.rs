@@ -157,6 +157,9 @@ fn price(
 ) -> Result<f64> {
     context.bsm_parameters()?;
     flat_rates(context)?;
+    if crate::engines::deterministic::enabled(context) {
+        return crate::engines::deterministic::barrier(option, context);
+    }
     validate_life(option, context)?;
     if let Some(value) = resolved_price(option, context)? {
         return Ok(value);

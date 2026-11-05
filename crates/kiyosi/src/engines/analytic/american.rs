@@ -317,6 +317,13 @@ impl BjerksundStenslandVanillaEngine {
     pub fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         Self::require_flat(context)?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::engines::deterministic::vanilla(
+                option,
+                crate::engines::Payoff::vanilla(option.option_type(), option.strike(), true),
+                context,
+            );
+        }
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
         if valuation < option.effective_time() || valuation > expiry {

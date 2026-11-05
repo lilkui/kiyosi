@@ -96,6 +96,9 @@ impl Contract<'_> {
         let dividend = model.flat_dividend_yield()?;
         let valuation = context.valuation_time();
         validate_life(option, context)?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::engines::deterministic::binary(self, context);
+        }
         let (prior, touched, finished) = self.state(context)?;
         let t = valuation.years_until(option.expiry_time());
         let knock_in = option.barrier_type().is_knock_in();

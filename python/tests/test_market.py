@@ -411,7 +411,7 @@ class RateTermStructureTests(unittest.TestCase):
         self.assertEqual(replaced.risk_free_curve, risk_free)
         self.assertEqual(replaced.dividend_curve, dividend)
         self.assertEqual(replaced.volatility, 0.25)
-        self.assert_rejection(InvalidInputError, model.replace, volatility=0)
+        self.assert_rejection(InvalidInputError, model.replace, volatility=-0.1)
         self.assertEqual(model.volatility, 0.2)
 
     def test_curve_prices_match_quantlib_and_discounted_parity(self):
@@ -523,7 +523,7 @@ class RateTermStructureTests(unittest.TestCase):
         for field, value, expected_error in (
             ("risk_free_rate", math.nan, InvalidInputError),
             ("dividend_yield", math.inf, InvalidInputError),
-            ("volatility", 0, InvalidInputError),
+            ("volatility", -0.1, InvalidInputError),
         ):
             self.assert_rejection(expected_error, model.replace, **{field: value})
         for spot in (0, math.nan, math.inf):

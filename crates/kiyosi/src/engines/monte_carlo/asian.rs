@@ -200,6 +200,13 @@ impl MonteCarloAsianEngine {
     where
         Self: PricingEngine<I>,
     {
+        if crate::engines::deterministic::enabled(context) {
+            return crate::numerical_greeks(self, option, context, request, settings).map(
+                |result| {
+                    result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
+                },
+            );
+        }
         context.bsm_parameters()?;
         <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request, settings)
     }
@@ -233,6 +240,14 @@ impl MonteCarloAsianEngine {
             ));
         }
         o.coverage(context)?;
+        if crate::engines::deterministic::enabled(context) {
+            return Ok((
+                PricingResult::new(crate::engines::deterministic::average(
+                    o, context, geometric,
+                )?)?,
+                known_error,
+            ));
+        }
         let valuation = context.valuation_time();
         let start = o.averaging_start;
         let expiry = o.terms.expiry_time();
@@ -494,6 +509,13 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         context.bsm_parameters()?;
         request.validate()?;
         settings.validate()?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::numerical_greeks(self, option, context, request, settings).map(
+                |result| {
+                    result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
+                },
+            );
+        }
         let result = self
             .native(&option.0, context, true, request, false)?
             .0
@@ -548,6 +570,13 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         context.bsm_parameters()?;
         request.validate()?;
         settings.validate()?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::numerical_greeks(self, option, context, request, settings).map(
+                |result| {
+                    result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
+                },
+            );
+        }
         let result = self
             .native(&option.0, context, false, request, false)?
             .0

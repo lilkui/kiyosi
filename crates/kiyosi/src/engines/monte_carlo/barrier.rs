@@ -173,6 +173,11 @@ impl MonteCarloBarrierEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        if crate::engines::deterministic::enabled(context) {
+            return crate::numerical_greeks(self, option, context, request, shifts).map(|result| {
+                result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
+            });
+        }
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
         request.validate()?;
@@ -209,6 +214,19 @@ impl MonteCarloBarrierEngine {
         };
         self.validate_applicability(context)?;
         validate_life(option, context)?;
+        if crate::engines::deterministic::enabled(context) {
+            let value = match contract {
+                Contract::Single(option) => {
+                    crate::engines::deterministic::barrier(option, context)?
+                }
+                Contract::Double(option) => {
+                    crate::engines::deterministic::double_barrier(option, context)?
+                }
+            };
+            let error = (statistics && self.settings.sampling == MonteCarloSampling::PseudoRandom)
+                .then_some(0.0);
+            return Ok((PricingResult::new(value)?, error));
+        }
         let time = context.valuation_time();
         let expiry = option.expiry_time();
         let radius =

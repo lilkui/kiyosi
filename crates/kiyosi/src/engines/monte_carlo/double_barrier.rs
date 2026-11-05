@@ -156,10 +156,10 @@ impl MonteCarloDoubleBarrierEngine {
     ///     ..Default::default()
     /// })?;
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::Delta, Greek::Gamma]),
+    ///     GreeksRequest::new([crate::Greek::Delta, crate::Greek::Gamma]),
     ///     NumericalShiftSettings::default())?;
     /// assert!((result.price() - 1.0838814592583166).abs() < 0.003);
-    /// assert!(result.has(Greek::Delta));
+    /// assert!(result.has(crate::Greek::Delta));
     /// assert_eq!(engine.sampling_settings().path_count, 32768);
     /// let estimate = engine.price_with_statistics(&option, &context)?;
     /// assert_eq!(estimate.standard_error(), None); // Sobol omits sampling uncertainty.
@@ -172,6 +172,14 @@ impl MonteCarloDoubleBarrierEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        if crate::engines::deterministic::enabled(context) {
+            return crate::numerical_greeks(self, option, context, request, shifts).map(|result| {
+                result.with_request(
+                    request,
+                    GreeksRequest::new([crate::Greek::Delta, crate::Greek::Gamma]),
+                )
+            });
+        }
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
         request.validate()?;

@@ -266,15 +266,13 @@ pub(crate) fn rate(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Rate> {
 /// dividend_yield : float or RateTermStructure
 ///     Continuously compounded dividend yield or owned rate curve.
 /// volatility : float
-///     Positive finite annualized log-return volatility in decimal units.
-///     Zero is rejected, including for contracts valued at expiry. For an exact
-///     deterministic vanilla price, use HestonParameters with zero initial_variance,
-///     long_run_variance and vol_of_vol, together with a Heston engine.
+///     Nonnegative finite annualized log-return volatility in decimal units.
+///     Zero selects the exact deterministic path implied by the rate curves.
 ///
 /// Raises
 /// ------
 /// InvalidInputError
-///     If scalar rates are non-finite or volatility is nonpositive or non-finite.
+///     If scalar rates are non-finite or volatility is negative or non-finite.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct BlackScholesMertonParameters(pub(crate) kiyosi::BlackScholesMertonParameters);
@@ -303,7 +301,7 @@ impl BlackScholesMertonParameters {
     /// dividend_yield : float or RateTermStructure, optional
     ///     Continuously compounded dividend yield or owned rate curve.
     /// volatility : float, optional
-    ///     Positive finite annualized log-return volatility in decimal units.
+    ///     Nonnegative finite annualized log-return volatility in decimal units.
     ///
     /// Returns
     /// -------
@@ -354,7 +352,7 @@ impl BlackScholesMertonParameters {
     fn dividend_curve(&self) -> RateTermStructure {
         RateTermStructure(self.0.dividend_curve().clone())
     }
-    /// Return positive finite annualized volatility in decimal units.
+    /// Return nonnegative finite annualized volatility in decimal units.
     #[getter]
     fn volatility(&self) -> f64 {
         self.0.volatility()

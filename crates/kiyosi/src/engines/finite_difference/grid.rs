@@ -382,7 +382,7 @@ pub(super) fn concentrate(space: &mut SpatialGrid, mut levels: Vec<f64>, scale: 
     Ok(())
 }
 
-pub(super) struct Curve {
+pub(in crate::engines) struct Curve {
     segments: Vec<(f64, f64)>,
 }
 

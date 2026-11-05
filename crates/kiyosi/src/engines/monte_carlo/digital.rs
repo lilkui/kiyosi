@@ -138,6 +138,13 @@ impl MonteCarloDigitalEngine {
         request: GreeksRequest,
         settings: NumericalShiftSettings,
     ) -> Result<PricingResult> {
+        if crate::engines::deterministic::enabled(context) {
+            return crate::numerical_greeks(self, option, context, request, settings).map(
+                |result| {
+                    result.with_request(request, GreeksRequest::new([Greek::Delta, Greek::Gamma]))
+                },
+            );
+        }
         context.bsm_parameters()?;
         self.validate_applicability(context)?;
         request.validate()?;
@@ -159,6 +166,18 @@ impl MonteCarloDigitalEngine {
         statistics: bool,
     ) -> Result<(PricingResult, Option<f64>)> {
         self.validate_applicability(context)?;
+        if crate::engines::deterministic::enabled(context) {
+            let error = (statistics && self.settings.sampling == MonteCarloSampling::PseudoRandom)
+                .then_some(0.0);
+            return Ok((
+                PricingResult::new(crate::engines::deterministic::vanilla(
+                    option,
+                    crate::engines::Payoff::digital(option),
+                    context,
+                )?)?,
+                error,
+            ));
+        }
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
         if valuation < option.effective_time() || valuation > expiry {

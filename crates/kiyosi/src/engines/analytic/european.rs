@@ -54,6 +54,9 @@ impl AnalyticEuropeanEngine {
         settings.validate()?;
         let mut result = PricingResult::new(self.price(option, context)?)?
             .with_request(request, GreeksRequest::all());
+        if crate::engines::deterministic::enabled(context) {
+            return crate::numerical_greeks(self, option, context, request, settings);
+        }
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
         let time = valuation.years_until(expiry);
@@ -207,6 +210,13 @@ impl AnalyticEuropeanEngine {
     /// Inputs remain unchanged.
     pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
+        if crate::engines::deterministic::enabled(context) {
+            return crate::engines::deterministic::vanilla(
+                option,
+                crate::engines::Payoff::vanilla(option.option_type(), option.strike(), false),
+                context,
+            );
+        }
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
         if valuation < option.effective_time() || valuation > expiry {

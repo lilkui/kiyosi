@@ -3,12 +3,12 @@ use crate::{
     PricingContextChanges, PricingEngine, Result,
 };
 
-/// Configures a positive volatility bracket and convergence tolerances.
+/// Configures a nonnegative volatility bracket and convergence tolerances.
 ///
 /// Either tolerance stops iteration; see [`implied_volatility`] for usage.
 #[derive(Clone, Copy, Debug)]
 pub struct ImpliedVolatilitySettings {
-    /// Sets the positive lower volatility bound (default 0.0001 decimal units).
+    /// Sets the nonnegative lower volatility bound (default 0.0001 decimal units).
     pub lower_bound: f64,
     /// Sets the upper volatility bound, above the lower bound (default 4).
     pub upper_bound: f64,
@@ -37,7 +37,8 @@ impl Default for ImpliedVolatilitySettings {
 /// Pricing errors propagate; non-finite scalar prices or residuals return [`Error::ComputationFailure`].
 /// Digital prices need not be monotone in volatility; the supplied bracket may select
 /// one of several roots or fail to bracket a quote attainable elsewhere.
-/// CRR engines intersect the supplied bracket with the tree's admissible volatility range.
+/// A zero lower bound checks the exact deterministic price. CRR engines then
+/// intersect positive-volatility trials with the tree's admissible range.
 ///
 /// # Errors
 ///
@@ -81,7 +82,7 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     if !observed_price.is_finite()
         || !s.lower_bound.is_finite()
         || !s.upper_bound.is_finite()
-        || s.lower_bound <= 0.0
+        || s.lower_bound < 0.0
         || s.lower_bound >= s.upper_bound
         || !s.price_tolerance.is_finite()
         || s.price_tolerance <= 0.0
@@ -96,7 +97,6 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     if let Some(prepared) = engine.prepare_request()? {
         return implied_volatility(prepared.as_ref(), option, context, observed_price, settings);
     }
-    let s = engine.prepare_implied_volatility(option, context, s)?;
     let evaluate = |volatility| -> Result<f64> {
         let model = context
             .bsm_parameters()?
@@ -116,8 +116,34 @@ pub fn implied_volatility<I: OptionContract, E: PricingEngine<I> + ?Sized>(
         }
         Ok(residual)
     };
+    let zero_residual = if s.lower_bound == 0.0 {
+        Some(evaluate(0.0)?)
+    } else {
+        None
+    };
+    if zero_residual.is_some_and(|value| value.abs() <= s.price_tolerance) {
+        if context.valuation_time() == option.expiry_time()
+            || !engine.volatility_affects_price(option, context)
+        {
+            return Err(Error::UnsupportedOperation(
+                "volatility does not affect the remaining payoff".into(),
+            ));
+        }
+        return Ok(0.0);
+    }
+    let s = engine.prepare_implied_volatility(option, context, s)?;
     let (mut a, mut b) = (s.lower_bound, s.upper_bound);
-    let (mut fa, mut fb) = (evaluate(a)?, evaluate(b)?);
+    let (mut fa, mut fb) = (
+        if a == 0.0 {
+            match zero_residual {
+                Some(value) => value,
+                None => evaluate(a)?,
+            }
+        } else {
+            evaluate(a)?
+        },
+        evaluate(b)?,
+    );
     if context.valuation_time() == option.expiry_time()
         || !engine.volatility_affects_price(option, context)
     {

@@ -163,19 +163,52 @@ impl Monitoring {
                 option_type == OptionType::Put && strike <= self.barrier_level()
             }
     }
+    fn deterministic_discontinuity(
+        &self,
+        context: &PricingContext,
+        radius: f64,
+        upper: Option<f64>,
+    ) -> bool {
+        let Ok(model) = context.model_parameters().as_bsm() else {
+            return false;
+        };
+        if model.volatility() != 0.0 {
+            return false;
+        }
+        let mut times = self.observation_times().to_vec();
+        if self.continuous() {
+            times.extend([context.valuation_time(), self.expiry_time()]);
+            for curve in [model.risk_free_curve(), model.dividend_curve()] {
+                times.extend(
+                    curve
+                        .nodes()
+                        .iter()
+                        .copied()
+                        .filter(|&time| time <= self.expiry_time()),
+                );
+            }
+        }
+        times
+            .into_iter()
+            .filter(|&time| time >= context.valuation_time())
+            .any(|time| {
+                context.deterministic_crosses(time, self.barrier_level(), radius)
+                    || upper.is_some_and(|level| context.deterministic_crosses(time, level, radius))
+            })
+    }
+
     pub(crate) fn spot_discontinuity(
         &self,
         context: &PricingContext,
         radius: f64,
         upper: Option<f64>,
     ) -> bool {
+        let spot = context.spot_price();
+        let crosses = |level| spot - radius <= level && level <= spot + radius;
         self.touch_state() != Some(BarrierTouchState::Touched)
-            && self.monitored(context.valuation_time())
-            && (context.spot_price() - radius <= self.barrier_level()
-                && self.barrier_level() <= context.spot_price() + radius
-                || upper.is_some_and(|upper| {
-                    context.spot_price() - radius <= upper && upper <= context.spot_price() + radius
-                }))
+            && (self.deterministic_discontinuity(context, radius, upper)
+                || self.monitored(context.valuation_time())
+                    && (crosses(self.barrier_level()) || upper.is_some_and(crosses)))
     }
 }
 impl OptionContract for Monitoring {

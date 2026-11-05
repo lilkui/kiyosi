@@ -80,6 +80,9 @@ fn price(
     context.bsm_parameters()?.flat_risk_free_rate()?;
     context.bsm_parameters()?.flat_dividend_yield()?;
     validate_life(option, context)?;
+    if crate::engines::deterministic::enabled(context) {
+        return crate::engines::deterministic::barrier(option, context);
+    }
     let cached = schedule
         .and_then(|schedule| schedule.get())
         .filter(|cached| {

@@ -10,8 +10,9 @@ analytic_engine!(
     /// Either inclusive barrier triggers a touch. Supports expiry payments and
     /// double-touch at-hit payments; past at-hit payments have zero remaining value.
     /// Uses image/spectral series and adaptive first-exit integration for at-hit payments.
-    /// Node curves are always rejected; unresolved scheduled monitoring is unsupported.
-    /// Resolved scheduled cash flows are priced after calendar and history validation.
+    /// Nonconstant rate curves are rejected. At positive volatility, unresolved
+    /// scheduled monitoring is unsupported. Resolved cash flows and zero-volatility
+    /// paths support scheduled monitoring after calendar and history validation.
     /// Greeks use numerical differences; expiry and current barrier equality without
     /// a prior touch omit Greeks. Stencils crossing a barrier omit affected measures.
     ///

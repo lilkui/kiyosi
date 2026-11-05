@@ -138,6 +138,14 @@ impl MonteCarloAutocallableEngine {
         let model = context.bsm_parameters()?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
+        if crate::engines::deterministic::enabled(context) {
+            let mut sample = Moments::default();
+            sample.add(
+                crate::engines::deterministic::autocallable(note, context)?,
+                false,
+            );
+            return Ok((sample, Moments::default(), true));
+        }
         validate(note, context)?;
         let state = initial(note, context);
         if let Some(value) = state.settlement.or_else(|| {

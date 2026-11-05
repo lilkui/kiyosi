@@ -867,12 +867,93 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
     fn expiry_time(&self) -> Timestamp {
         self.expiry_time()
     }
-    fn all_greeks_unavailable(&self, _context: &PricingContext) -> bool {
-        false
+    fn all_greeks_unavailable(&self, context: &PricingContext) -> bool {
+        context
+            .model_parameters()
+            .as_bsm()
+            .is_ok_and(|model| model.volatility() == 0.0)
+            && self.at_spot_discontinuity(context, 0.0)
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         if self.barrier_state() == Some(AutocallableBarrierState::KnockedOut) {
             return false;
+        }
+        if context
+            .model_parameters()
+            .as_bsm()
+            .is_ok_and(|model| model.volatility() == 0.0)
+        {
+            for record in self
+                .observations()
+                .iter()
+                .filter(|record| record.time > context.valuation_time())
+            {
+                if context.deterministic_crosses(record.time, record.knock_out_level, radius)
+                    || matches!(self.view().coupon, Coupon::Phoenix(_))
+                        && self.period_coupon(record) != 0.0
+                        && context.deterministic_crosses(
+                            record.time,
+                            record.coupon_barrier_level,
+                            radius,
+                        )
+                {
+                    return true;
+                }
+            }
+            if self.knock_in_affects_payoff() {
+                if let Some(ki) = self.view().knock_in {
+                    let times = if self.view().daily_knock_in() {
+                        crate::ObservationSchedule::daily(
+                            self.effective_time(),
+                            self.expiry_time(),
+                            self.calendar(),
+                            true,
+                        )
+                        .map(|schedule| schedule.times().to_vec())
+                        .unwrap_or_default()
+                    } else {
+                        vec![self.expiry_time()]
+                    };
+                    let mut knocked_in =
+                        self.barrier_state() == Some(AutocallableBarrierState::KnockedIn);
+                    for time in times
+                        .into_iter()
+                        .filter(|&time| time >= context.valuation_time())
+                    {
+                        if !knocked_in && context.deterministic_crosses(time, ki.level, radius) {
+                            return true;
+                        }
+                        let model = context.model_parameters();
+                        let carry = model
+                            .dividend_curve()
+                            .log_factor(context.valuation_time(), time)
+                            .and_then(|q| {
+                                model
+                                    .risk_free_curve()
+                                    .log_factor(context.valuation_time(), time)
+                                    .map(|r| q - r)
+                            });
+                        knocked_in |= carry.is_ok_and(|carry| {
+                            crate::numerics::scaled_cash(context.spot_price(), carry) < ki.level
+                        });
+                    }
+                    if let Redemption::Downside(d) = ki.redemption {
+                        if knocked_in
+                            && (context.deterministic_crosses(
+                                self.expiry_time(),
+                                d.lower_strike,
+                                radius,
+                            ) || context.deterministic_crosses(
+                                self.expiry_time(),
+                                d.upper_strike,
+                                radius,
+                            ))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
         }
         let spot = context.spot_price();
         let crosses = |level| spot - radius <= level && level <= spot + radius;

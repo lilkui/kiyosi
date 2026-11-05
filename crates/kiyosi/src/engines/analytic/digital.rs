@@ -127,6 +127,13 @@ impl AnalyticDigitalEngine {
         let risk_log = model.risk_free_curve().log_factor(valuation, expiry)?;
         let dividend_log = model.dividend_curve().log_factor(valuation, expiry)?;
         let sigma = model.volatility();
+        if sigma == 0.0 {
+            return PricingResult::new(crate::engines::deterministic::vanilla(
+                option,
+                crate::engines::Payoff::digital(option),
+                context,
+            )?);
+        }
         let root = time.sqrt();
         let width = sigma * root;
         let (d1, d2) =
