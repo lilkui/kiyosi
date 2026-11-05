@@ -1,5 +1,9 @@
 """Price contracts, compute sensitivities, and solve implied parameters.
 
+European vanilla contracts support valuation before effective_time, including
+Greeks and implied volatility, when the model data covers valuation through expiry.
+Other contracts retain their own life and history validation.
+
 All engine ``price_with_greeks`` methods accept the same keyword-only controls:
 ``spot_shift=None``, ``volatility_shift``, ``rate_shift`` and ``time_shift_days``.
 All controls are validated before pricing, including controls a native estimator

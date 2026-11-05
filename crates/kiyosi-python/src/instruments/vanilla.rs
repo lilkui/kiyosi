@@ -19,6 +19,12 @@ use pyo3::prelude::*;
 /// ------
 /// InvalidInputError
 ///     If strike is nonpositive or non-finite, or expiry precedes effective_time.
+///
+/// Notes
+/// -----
+/// Pricing permits valuation before effective_time for this fixed-strike terminal
+/// payoff. Model data must cover valuation through expiry; valuation after expiry
+/// remains invalid. Other contract families retain their own valuation bounds.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct EuropeanOption(pub(crate) kiyosi::EuropeanOption);

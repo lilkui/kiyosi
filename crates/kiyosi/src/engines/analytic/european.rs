@@ -207,13 +207,13 @@ impl AnalyticEuropeanEngine {
         }
         Ok(result)
     }
-    /// Prices within the inclusive contract life, returning intrinsic value at expiry.
+    /// Prices through inclusive expiry, including before the contract's effective time.
     ///
     /// See the [crate example](crate) for construction and pricing.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] outside contract life or required curve
+    /// Returns [`Error::InvalidInput`] after expiry or outside required curve
     /// coverage, and [`Error::ComputationFailure`] for non-finite results.
     /// Inputs remain unchanged.
     pub fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
@@ -227,11 +227,7 @@ impl AnalyticEuropeanEngine {
         }
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
-        if valuation < option.effective_time() || valuation > expiry {
-            return Err(Error::InvalidInput(
-                "valuation must be within the contract life".into(),
-            ));
-        }
+        crate::instruments::monitoring::validate_life(option, context)?;
         let model = context.bsm_parameters()?;
         model
             .risk_free_curve()

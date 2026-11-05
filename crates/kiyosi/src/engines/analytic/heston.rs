@@ -119,7 +119,7 @@ impl AnalyticHestonEuropeanEngine {
         self.settings
     }
 
-    /// Prices within the inclusive contract life, returning intrinsic value at expiry.
+    /// Prices within the permitted valuation bounds, returning intrinsic value at expiry.
     ///
     /// Validates model applicability, contract life and rate/dividend coverage
     /// in that order. Initial variance is at valuation. See [`Self::new`].

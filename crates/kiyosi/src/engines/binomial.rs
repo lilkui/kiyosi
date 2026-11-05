@@ -92,7 +92,7 @@ impl CoxRossRubinsteinVanillaEngine {
     /// # Errors
     ///
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves before life
-    /// validation, [`Error::InvalidInput`] outside contract life, and
+    /// validation, [`Error::InvalidInput`] outside permitted valuation bounds, and
     /// [`Error::ComputationFailure`] for unstable probabilities, asset nodes or values.
     pub fn price<I>(&self, option: &I, context: &PricingContext) -> Result<f64>
     where
@@ -155,11 +155,7 @@ fn time_step(
     context.validate_curve_horizon(option.expiry_time())?;
     let valuation = context.valuation_time();
     let expiry = option.expiry_time();
-    if valuation < option.effective_time() || valuation > expiry {
-        return Err(Error::InvalidInput(
-            "valuation must be within contract life".into(),
-        ));
-    }
+    crate::instruments::monitoring::validate_life(option, context)?;
     Ok(valuation.years_until(expiry) / f64::from(settings.step_count))
 }
 

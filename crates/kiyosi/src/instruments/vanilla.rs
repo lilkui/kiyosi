@@ -12,6 +12,9 @@ pub enum OptionType {
 
 /// Owns a validated European vanilla contract.
 ///
+/// Fixed strike and terminal settlement permit valuation before its effective
+/// timestamp, subject to model coverage. See [`OptionContract::valuation_start`].
+///
 /// See [`Self::new`] for construction and [`crate::AnalyticEuropeanEngine`] for pricing.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EuropeanOption {
@@ -130,7 +133,8 @@ pub trait OptionContract {
 
     /// Returns the earliest valuation time, or `None` when pre-effective valuation is valid.
     ///
-    /// Built-in contracts use the default effective time. Custom contracts may
+    /// European vanilla contracts allow earlier valuation. Other built-in contracts
+    /// use the default effective time. Custom contracts may
     /// allow earlier valuation by returning `None`; see [`Self::effective_time`].
     fn valuation_start(&self) -> Option<Timestamp> {
         Some(self.effective_time())
@@ -173,6 +177,9 @@ impl OptionContract for EuropeanOption {
     }
     fn expiry_time(&self) -> Timestamp {
         self.expiry_time()
+    }
+    fn valuation_start(&self) -> Option<Timestamp> {
+        None
     }
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
         (context.valuation_time() == self.expiry_time()

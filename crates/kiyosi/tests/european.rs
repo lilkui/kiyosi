@@ -39,16 +39,16 @@ fn valuation_uses_microseconds_and_expiry_is_midnight() {
         AnalyticEuropeanEngine.price(&option, &expired).unwrap(),
         10.0
     );
-    for at in [
-        Date::new(2024, 12, 31).unwrap().start_of_day(),
+    let outside = PricingContext::new(
+        model.clone(),
+        110.0,
         Timestamp::new(end.date(), 0, 0, 0, 1).unwrap(),
-    ] {
-        let outside = PricingContext::new(model.clone(), 110.0, at).unwrap();
-        assert!(matches!(
-            AnalyticEuropeanEngine.price(&option, &outside).unwrap_err(),
-            Error::InvalidInput(_)
-        ));
-    }
+    )
+    .unwrap();
+    assert!(matches!(
+        AnalyticEuropeanEngine.price(&option, &outside),
+        Err(Error::InvalidInput(_))
+    ));
     let same_day = EuropeanOption::new(OptionType::Put, 120.0, end, end).unwrap();
     assert_eq!(
         AnalyticEuropeanEngine.price(&same_day, &expired).unwrap(),

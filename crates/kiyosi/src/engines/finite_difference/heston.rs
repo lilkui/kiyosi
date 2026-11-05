@@ -142,7 +142,7 @@ impl FiniteDifferenceHestonVanillaEngine {
     /// # Errors
     ///
     /// Returns [`crate::Error::UnsupportedOperation`] for other models,
-    /// [`crate::Error::InvalidInput`] outside contract life/curve coverage or for explicit
+    /// [`crate::Error::InvalidInput`] outside permitted valuation bounds/curve coverage or for explicit
     /// bounds that exclude spot, strike or initial variance, and
     /// [`crate::Error::ComputationFailure`] for unrepresentable grids, intermediates or
     /// invalid prices. Fixed grids do not report error-target nonconvergence.

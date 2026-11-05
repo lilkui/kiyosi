@@ -271,7 +271,12 @@ fn built_in_pricing_requires_valuation_within_inclusive_contract_life() -> Resul
         ($engine:expr, $option:expr) => {{
             let engine = $engine;
             let option = $option;
-            for (at, valid) in [(before, false), (start, true), (end, true), (after, false)] {
+            for (at, valid) in [
+                (before, option.valuation_start().is_none()),
+                (start, true),
+                (end, true),
+                (after, false),
+            ] {
                 let context = PricingContext::new(
                     BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
                     100.0,
@@ -306,6 +311,113 @@ fn built_in_pricing_requires_valuation_within_inclusive_contract_life() -> Resul
             ))?
         );
     }
+    Ok(())
+}
+
+#[test]
+fn european_vanilla_pre_effective_prices_greeks_and_solves_preserve_contract_dates() -> Result<()> {
+    let valuation = Date::new(2025, 1, 1)?.start_of_day();
+    let effective = valuation.add_days(30)?;
+    let expiry = valuation.add_days(365)?;
+    let future = EuropeanOption::new(OptionType::Call, 100.0, effective, expiry)?;
+    let existing = future.replace(EuropeanOptionChanges {
+        effective_time: Some(valuation),
+        ..Default::default()
+    })?;
+    let monte_carlo = MonteCarloVanillaEngine::new(MonteCarloSettings {
+        path_count: 128,
+        seed: Some(42),
+        thread_count: 1,
+        ..Default::default()
+    })?;
+    for volatility in [0.0, 0.2] {
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(0.05, 0.02, volatility)?,
+            100.0,
+            valuation,
+        )?;
+        for engine in [
+            &AnalyticEuropeanEngine as &dyn PricingEngine<EuropeanOption>,
+            &CoxRossRubinsteinVanillaEngine::default(),
+            &FiniteDifferenceVanillaEngine::default(),
+            &QuadratureVanillaEngine::default(),
+            &monte_carlo,
+        ] {
+            assert_eq!(
+                engine.price(&future, &context)?,
+                engine.price(&existing, &context)?
+            );
+            assert!(
+                engine
+                    .price_with_greeks(
+                        &future,
+                        &context,
+                        GreeksRequest::new([Greek::Delta]),
+                        Default::default()
+                    )?
+                    .require(Greek::Delta)?
+                    .is_finite()
+            );
+        }
+        if volatility > 0.0 {
+            let quote = AnalyticEuropeanEngine.price(&future, &context)?;
+            assert!(
+                (implied_volatility(
+                    &AnalyticEuropeanEngine,
+                    &future,
+                    &context,
+                    quote,
+                    Default::default()
+                )? - volatility)
+                    .abs()
+                    < 1e-7
+            );
+        }
+    }
+    let heston = PricingContext::new(
+        HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.5, 0.0, -0.7)?,
+        100.0,
+        valuation,
+    )?;
+    for engine in [
+        &AnalyticHestonEuropeanEngine::default() as &dyn PricingEngine<EuropeanOption>,
+        &FiniteDifferenceHestonVanillaEngine::new(HestonFiniteDifferenceSettings {
+            asset_step_count: 40,
+            variance_step_count: 10,
+            time_step_count: 20,
+            ..Default::default()
+        })?,
+    ] {
+        assert_eq!(
+            engine.price(&future, &heston)?,
+            engine.price(&existing, &heston)?
+        );
+    }
+    let surface = LocalVolatilitySurface::new(
+        vec![valuation, expiry],
+        vec![50.0, 150.0],
+        vec![vec![0.2; 2]; 2],
+    )?;
+    let local = PricingContext::new(
+        LocalVolatilityParameters::new(0.05, 0.02, surface)?,
+        100.0,
+        valuation,
+    )?;
+    let fd = FiniteDifferenceVanillaEngine::default();
+    assert_eq!(fd.price(&future, &local)?, fd.price(&existing, &local)?);
+    assert!(matches!(
+        PricingContext::new(
+            BlackScholesMertonParameters::new(
+                RateTermStructure::bounded_flat(0.05, effective, expiry)?,
+                0.02,
+                0.2
+            )?,
+            100.0,
+            valuation
+        ),
+        Err(Error::InvalidInput(_))
+    ));
+    assert_eq!(future.effective_time(), effective);
     Ok(())
 }
 

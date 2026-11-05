@@ -128,11 +128,7 @@ fn unstable() -> Error {
 fn time_to_expiry(option: &impl OptionContract, context: &PricingContext) -> Result<f64> {
     let valuation = context.valuation_time();
     let expiry = option.expiry_time();
-    if valuation < option.effective_time() || valuation > expiry {
-        return Err(Error::InvalidInput(
-            "valuation must be within contract life".into(),
-        ));
-    }
+    crate::instruments::monitoring::validate_life(option, context)?;
     Ok(valuation.years_until(expiry))
 }
 
@@ -732,7 +728,7 @@ impl FiniteDifferenceVanillaEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidInput`] outside contract life or curve coverage,
+    /// Returns [`Error::InvalidInput`] outside permitted valuation bounds or curve coverage,
     /// for clipped/degenerate grids or unstable explicit steps,
     /// and [`Error::ComputationFailure`] for numerical failures, including materially
     /// negative prices. Only rounding-sized negative prices are clipped to zero.

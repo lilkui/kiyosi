@@ -243,7 +243,7 @@ pub(crate) fn validate_life(
     context: &PricingContext,
 ) -> Result<()> {
     let time = context.valuation_time();
-    if time < option.effective_time() || time > option.expiry_time() {
+    if option.valuation_start().is_some_and(|start| time < start) || time > option.expiry_time() {
         return Err(Error::InvalidInput(
             "valuation outside contract life".into(),
         ));

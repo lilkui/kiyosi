@@ -111,7 +111,6 @@ class EuropeanTests(unittest.TestCase):
         same_day = self.option(effective_time=option.expiry_time)
         self.assertEqual(engine.price(same_day, expiry), 10)
         for at in (
-            datetime(2024, 12, 31),
             datetime(2026, 1, 1, 0, 0, 0, 1),
             datetime(2026, 1, 2),
         ):

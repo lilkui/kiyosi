@@ -11,6 +11,90 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_european_pre_effective_pricing_preserves_contract_and_model_coverage(self):
+        valuation = datetime(2025, 1, 1)
+        effective, expiry = (
+            valuation + timedelta(days=30),
+            valuation + timedelta(days=365),
+        )
+        future = ins.EuropeanOption(
+            option_type="call", strike=100, effective_time=effective, expiry_time=expiry
+        )
+        existing = future.replace(effective_time=valuation)
+        engines = [
+            pricing.AnalyticEuropeanEngine(),
+            pricing.CoxRossRubinsteinVanillaEngine(),
+            pricing.FiniteDifferenceVanillaEngine(),
+            pricing.QuadratureVanillaEngine(),
+            pricing.MonteCarloVanillaEngine(path_count=128, seed=42, thread_count=1),
+        ]
+        for volatility in (0, 0.2):
+            model = market.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=volatility
+            )
+            context = market.PricingContext(
+                model_parameters=model, spot_price=100, valuation_time=valuation
+            )
+            for engine in engines:
+                with self.subTest(engine=type(engine).__name__, volatility=volatility):
+                    self.assertEqual(
+                        engine.price(future, context), engine.price(existing, context)
+                    )
+                    self.assertTrue(
+                        math.isfinite(
+                            engine.price_with_greeks(future, context, "delta").require(
+                                "delta"
+                            )
+                        )
+                    )
+            if volatility:
+                engine = engines[0]
+                self.assertAlmostEqual(
+                    pricing.implied_volatility(
+                        engine, future, context, engine.price(future, context)
+                    ),
+                    volatility,
+                    delta=1e-7,
+                )
+        heston = market.HestonParameters(
+            risk_free_rate=0.05,
+            dividend_yield=0.02,
+            initial_variance=0.04,
+            long_run_variance=0.04,
+            mean_reversion_speed=1.5,
+            vol_of_vol=0,
+            correlation=-0.7,
+        )
+        context = context.replace(model_parameters=heston)
+        for engine in (
+            pricing.AnalyticHestonEuropeanEngine(),
+            pricing.FiniteDifferenceHestonVanillaEngine(
+                asset_step_count=40, variance_step_count=10, time_step_count=20
+            ),
+        ):
+            self.assertEqual(
+                engine.price(future, context), engine.price(existing, context)
+            )
+        surface = market.LocalVolatilitySurface(
+            times=[valuation, expiry], spots=[50, 150], values=[[0.2, 0.2], [0.2, 0.2]]
+        )
+        local = market.LocalVolatilityParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, surface=surface
+        )
+        context = context.replace(model_parameters=local)
+        self.assertEqual(
+            engines[2].price(future, context), engines[2].price(existing, context)
+        )
+        bounded = market.RateTermStructure.bounded_flat(
+            0.05, reference_time=effective, max_time=expiry
+        )
+        with self.assertRaises(InvalidInputError):
+            engines[0].price(
+                future,
+                context.replace(model_parameters=model.replace(risk_free_rate=bounded)),
+            )
+        self.assertEqual(future.effective_time, effective)
+
     def test_snowball_coupon_diagnostics_identify_the_supplied_field(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         common = {
@@ -529,7 +613,10 @@ class ApiConsistencyTests(unittest.TestCase):
         )
         for engine, option in cases:
             for at, valid in (
-                (start - timedelta(microseconds=1), False),
+                (
+                    start - timedelta(microseconds=1),
+                    isinstance(option, ins.EuropeanOption),
+                ),
                 (start, True),
                 (end, True),
                 (end + timedelta(microseconds=1), False),

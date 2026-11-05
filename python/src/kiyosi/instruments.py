@@ -10,8 +10,9 @@ fields are private; use accessors and validated ``replace()`` operations.
 ``OptionType`` selects ``"call"`` or ``"put"``. Contract effective and expiry
 boundaries are inclusive ``datetime.datetime`` values. Microseconds participate
 in expiry, observation and elapsed-time calculations. Calendars classify dates
-without moving contract boundaries. Pricing requires valuation within the
-inclusive effective and expiry times for every built-in contract, including range accruals.
+without moving contract boundaries. European vanilla options permit valuation
+before effective_time with model coverage through expiry. Other built-in contracts
+require valuation within inclusive effective and expiry times, including range accruals.
 Finite-difference pricing raises ``ComputationFailureError`` if distinct event times
 cannot be represented distinctly by its numerical grid.
 Barrier and touch contracts, range accruals, accumulators and autocallable notes own their ``calendar``

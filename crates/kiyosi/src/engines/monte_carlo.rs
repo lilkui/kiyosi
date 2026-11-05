@@ -831,11 +831,7 @@ impl MonteCarloVanillaEngine {
         let dividend = model.flat_dividend_yield()?;
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
-        if valuation < option.effective_time() || valuation > expiry {
-            return Err(Error::InvalidInput(
-                "valuation must be within contract life".into(),
-            ));
-        }
+        crate::instruments::monitoring::validate_life(option, context)?;
         let sign = if option.option_type() == OptionType::Call {
             1.0
         } else {
