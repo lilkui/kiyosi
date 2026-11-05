@@ -171,8 +171,8 @@ binary_properties!(
     /// calendar : TradingCalendar, optional
     ///     Owned observation calendar; defaults to weekdays on construction and is
     ///     retained on replacement.
-    /// payout : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// payout : float or None, optional
+    ///     Cash amount, or None for asset settlement; omission or Ellipsis retains settlement.
     ///
     /// Returns
     /// -------
@@ -237,7 +237,15 @@ binary_properties!(
             touch_state: touch_state
                 .map(crate::instruments::barrier::history)
                 .transpose()?,
-            payout: payout.map(crate::conversions::real).transpose()?,
+            payout: payout
+                .map(|value| {
+                    if value.is_none() {
+                        Ok(None)
+                    } else {
+                        real(value).map(Some)
+                    }
+                })
+                .transpose()?,
         };
         Ok(Self(domain(self.0.replace(changes))?))
     },
@@ -313,8 +321,8 @@ binary_properties!(
     /// calendar : TradingCalendar, optional
     ///     Owned observation calendar; defaults to weekdays on construction and is
     ///     retained on replacement.
-    /// payout : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    /// payout : float or None, optional
+    ///     Cash amount, or None for asset settlement; omission or Ellipsis retains settlement.
     ///
     /// Returns
     /// -------
@@ -381,7 +389,15 @@ binary_properties!(
             touch_state: touch_state
                 .map(crate::instruments::barrier::history)
                 .transpose()?,
-            payout: payout.map(crate::conversions::real).transpose()?,
+            payout: payout
+                .map(|value| {
+                    if value.is_none() {
+                        Ok(None)
+                    } else {
+                        real(value).map(Some)
+                    }
+                })
+                .transpose()?,
         };
         Ok(Self(domain(self.0.replace(changes))?))
     },

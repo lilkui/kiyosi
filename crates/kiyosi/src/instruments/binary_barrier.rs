@@ -508,8 +508,9 @@ pub struct BinaryBarrierOptionChanges {
     pub observation_times: Option<Vec<Timestamp>>,
     /// Replaces [`touch_state`](BinaryBarrierTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
-    /// Replaces [`payout`](BinaryBarrierOption::payout).
-    pub payout: Option<f64>,
+    /// Replaces settlement: `Some(None)` selects the asset; `Some(Some(value))` selects cash.
+    /// See [`BinaryBarrierOption::replace`].
+    pub payout: Option<Option<f64>>,
 }
 
 impl BinaryBarrierOption {
@@ -521,14 +522,9 @@ impl BinaryBarrierOption {
     /// # Errors
     ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged. Asset contracts reject cash payout replacements with
-    /// [`crate::Error::UnsupportedOperation`].
+    /// this value unchanged. A supplied payout selects cash settlement; `Some(None)`
+    /// selects asset settlement, matching construction. See [`Self::cash`] for an example.
     pub fn replace(&self, changes: BinaryBarrierOptionChanges) -> Result<Self> {
-        if self.payout().is_none() && changes.payout.is_some() {
-            return Err(Error::UnsupportedOperation(
-                "asset settlement has no cash payout".into(),
-            ));
-        }
         let terms = BinaryBarrierTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
@@ -543,8 +539,8 @@ impl BinaryBarrierOption {
                 .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
-        match self.payout() {
-            Some(payout) => Self::cash(terms, changes.payout.unwrap_or(payout)),
+        match changes.payout.unwrap_or(self.payout()) {
+            Some(payout) => Self::cash(terms, payout),
             None => Self::asset(terms),
         }
     }
@@ -573,8 +569,9 @@ pub struct TouchOptionChanges {
     pub observation_times: Option<Vec<Timestamp>>,
     /// Replaces [`touch_state`](TouchOptionTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
-    /// Replaces [`payout`](TouchOption::payout).
-    pub payout: Option<f64>,
+    /// Replaces settlement: `Some(None)` selects the asset; `Some(Some(value))` selects cash.
+    /// See [`TouchOption::replace`].
+    pub payout: Option<Option<f64>>,
 }
 
 impl TouchOption {
@@ -586,14 +583,9 @@ impl TouchOption {
     /// # Errors
     ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged. Asset contracts reject cash payout replacements with
-    /// [`crate::Error::UnsupportedOperation`].
+    /// this value unchanged. A supplied payout selects cash settlement; `Some(None)`
+    /// selects asset settlement, matching construction. See [`Self::cash`] for an example.
     pub fn replace(&self, changes: TouchOptionChanges) -> Result<Self> {
-        if self.payout().is_none() && changes.payout.is_some() {
-            return Err(Error::UnsupportedOperation(
-                "asset settlement has no cash payout".into(),
-            ));
-        }
         let terms = TouchOptionTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             effective_time: changes.effective_time.unwrap_or(self.effective_time()),
@@ -609,8 +601,8 @@ impl TouchOption {
                 .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
-        match self.payout() {
-            Some(payout) => Self::cash(terms, changes.payout.unwrap_or(payout)),
+        match changes.payout.unwrap_or(self.payout()) {
+            Some(payout) => Self::cash(terms, payout),
             None => Self::asset(terms),
         }
     }

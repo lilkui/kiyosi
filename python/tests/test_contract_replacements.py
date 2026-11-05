@@ -4,7 +4,7 @@ import inspect
 import unittest
 from datetime import datetime
 
-from kiyosi import InvalidInputError, UnsupportedOperationError
+from kiyosi import InvalidInputError
 from kiyosi import instruments as i
 from kiyosi.market import all_days_calendar
 
@@ -257,10 +257,6 @@ class ContractReplacementTests(unittest.TestCase):
                         else "down_and_in"
                     )
                 with self.subTest(contract=type(original).__name__, field=name):
-                    if name == "payout" and original.payout is None:
-                        with self.assertRaises(UnsupportedOperationError):
-                            original.replace(payout=value)
-                        continue
                     updates = {name: value}
                     if name == "effective_time" and isinstance(
                         original,
@@ -297,6 +293,26 @@ class ContractReplacementTests(unittest.TestCase):
                         )
                     self.assertEqual(original, factory(**initial))
 
+    def test_settlement_replacements_roundtrip_and_switch_cash_and_asset(self):
+        for asset in contracts():
+            if (
+                not isinstance(asset, (i.BinaryBarrierOption, i.TouchOption))
+                or asset.payout is not None
+            ):
+                continue
+            with self.subTest(contract=type(asset).__name__):
+                self.assertEqual(asset.replace(payout=asset.payout), asset)
+                cash = asset.replace(payout=10)
+                self.assertEqual(cash.payout, 10)
+                self.assertEqual(cash.payoff_type, "cash")
+                self.assertEqual(cash.replace(), cash)
+                self.assertEqual(cash.replace(payout=None), asset)
+                self.assertIsNone(asset.payout)
+                with self.assertRaises(InvalidInputError):
+                    asset.replace(payout=-1)
+                self.assertIsNone(asset.payout)
+                self.assertEqual(cash.payout, 10)
+
     def test_validation_representation_errors_and_failure_state(self):
         for original in contracts():
             fields = inspect.signature(original.replace).parameters
@@ -313,15 +329,21 @@ class ContractReplacementTests(unittest.TestCase):
             )
             value = float("nan") if invalid == "maturity_coupon_rate" else -1
             with self.subTest(contract=type(original).__name__):
-                if not (invalid == "payout" and original.payout is None):
-                    with self.assertRaises(InvalidInputError):
-                        original.replace(**{invalid: value})
+                with self.assertRaises(InvalidInputError):
+                    original.replace(**{invalid: value})
                 for field in fields:
                     with self.subTest(field=field), self.assertRaises(TypeError):
                         original.replace(
                             **{field: 1 if field == "terminated" else True}
                         )
-                    if field not in NULLABLE and field != "realized_average":
+                    nullable_payout = field == "payout" and isinstance(
+                        original, (i.BinaryBarrierOption, i.TouchOption)
+                    )
+                    if (
+                        field not in NULLABLE
+                        and field != "realized_average"
+                        and not nullable_payout
+                    ):
                         with self.assertRaises(TypeError):
                             original.replace(**{field: None})
                 with self.assertRaises(TypeError):

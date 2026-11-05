@@ -2043,7 +2043,7 @@ class BinaryBarrierOption:
         observation_mode: Literal["continuous", "scheduled"] | EllipsisType = ...,
         observation_times: Iterable[datetime] | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
-        payout: _Real | EllipsisType = ...,
+        payout: _Real | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
     def replace_history(
@@ -2109,7 +2109,7 @@ class TouchOption:
         observation_mode: Literal["continuous", "scheduled"] | EllipsisType = ...,
         observation_times: Iterable[datetime] | EllipsisType = ...,
         touch_state: Literal["untouched", "touched"] | None | EllipsisType = ...,
-        payout: _Real | EllipsisType = ...,
+        payout: _Real | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
     def replace_history(

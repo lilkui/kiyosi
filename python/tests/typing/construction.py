@@ -144,3 +144,12 @@ def binary_and_touch_constructors() -> None:
         barrier_type="knock_in",
         payout=None,  # ty: ignore[invalid-argument-type]
     )
+
+
+def settlement_replacement_types(
+    binary: BinaryBarrierOption, touch: TouchOption
+) -> None:
+    assert_type(binary.replace(payout=None), BinaryBarrierOption)
+    assert_type(binary.replace(payout=10), BinaryBarrierOption)
+    assert_type(touch.replace(payout=None), TouchOption)
+    assert_type(touch.replace(payout=10), TouchOption)

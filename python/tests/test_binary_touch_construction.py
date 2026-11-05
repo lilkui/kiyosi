@@ -5,7 +5,7 @@ import pickle
 import unittest
 from datetime import datetime
 
-from kiyosi import InvalidInputError, UnsupportedOperationError, market, pricing
+from kiyosi import InvalidInputError, market, pricing
 from kiyosi import instruments as ins
 
 
@@ -96,8 +96,9 @@ class BinaryTouchConstructionTests(unittest.TestCase):
                 self.assertEqual(restored, contract)
                 self.assertEqual(engine.price(restored, context), expected)
                 if terms["payout"] is None:
-                    with self.assertRaises(UnsupportedOperationError):
-                        contract.replace(payout=5)
+                    cash = contract.replace(payout=5)
+                    self.assertEqual(cash.payout, 5)
+                    self.assertEqual(engine.price(cash, context), 5 if expected else 0)
                 else:
                     self.assertEqual(
                         engine.price(contract.replace(payout=5), context), expected / 2

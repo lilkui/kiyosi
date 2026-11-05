@@ -271,7 +271,7 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
     assert_eq!(cleared.touch_state(), None);
     let updated = original
         .replace(BinaryBarrierOptionChanges {
-            payout: Some(15.0),
+            payout: Some(Some(15.0)),
             ..Default::default()
         })
         .unwrap();
@@ -366,7 +366,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     assert_eq!(cleared.touch_state(), None);
     let updated = original
         .replace(TouchOptionChanges {
-            payout: Some(15.0),
+            payout: Some(Some(15.0)),
             ..Default::default()
         })
         .unwrap();
@@ -389,7 +389,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     ));
     assert!(matches!(
         original.replace(TouchOptionChanges {
-            payout: Some(-1.0),
+            payout: Some(Some(-1.0)),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -1179,9 +1179,9 @@ fn arithmetic_average_price_option_replacements_preserve_omissions_and_validate_
 }
 
 #[test]
-fn asset_replacements_reject_cash_payouts_without_changing_settlement() {
-    let start = Date::new(2025, 1, 1).unwrap().start_of_day();
-    let end = Date::new(2026, 1, 1).unwrap().start_of_day();
+fn settlement_replacements_roundtrip_and_switch_cash_and_asset() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = Date::new(2026, 1, 1)?.start_of_day();
     let binary = BinaryBarrierOption::asset(BinaryBarrierTerms::new(
         OptionType::Call,
         100.0,
@@ -1189,29 +1189,47 @@ fn asset_replacements_reject_cash_payouts_without_changing_settlement() {
         end,
         120.0,
         BarrierType::UpAndOut,
-    ))
-    .unwrap();
-    assert!(matches!(
-        binary.replace(BinaryBarrierOptionChanges {
-            payout: Some(10.0),
-            ..Default::default()
-        }),
-        Err(Error::UnsupportedOperation(_))
-    ));
-    assert_eq!(binary.payout(), None);
+    ))?;
     let touch = TouchOption::asset(TouchOptionTerms::new(
         start,
         end,
         120.0,
         BarrierType::UpAndIn,
-    ))
-    .unwrap();
-    assert!(matches!(
-        touch.replace(TouchOptionChanges {
-            payout: Some(10.0),
-            ..Default::default()
-        }),
-        Err(Error::UnsupportedOperation(_))
-    ));
-    assert_eq!(touch.payout(), None);
+    ))?;
+    macro_rules! check {
+        ($original:ident, $changes:ident) => {{
+            assert_eq!(
+                $original.replace($changes {
+                    payout: Some($original.payout()),
+                    ..Default::default()
+                })?,
+                $original
+            );
+            let cash = $original.replace($changes {
+                payout: Some(Some(10.0)),
+                ..Default::default()
+            })?;
+            assert_eq!(cash.payout(), Some(10.0));
+            assert_eq!(cash.replace($changes::default())?, cash);
+            assert_eq!(
+                cash.replace($changes {
+                    payout: Some(None),
+                    ..Default::default()
+                })?,
+                $original
+            );
+            assert!(matches!(
+                $original.replace($changes {
+                    payout: Some(Some(-1.0)),
+                    ..Default::default()
+                }),
+                Err(Error::InvalidInput(_))
+            ));
+            assert_eq!($original.payout(), None);
+            assert_eq!(cash.payout(), Some(10.0));
+        }};
+    }
+    check!(binary, BinaryBarrierOptionChanges);
+    check!(touch, TouchOptionChanges);
+    Ok(())
 }

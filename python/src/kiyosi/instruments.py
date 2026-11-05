@@ -33,7 +33,9 @@ and changing monitoring to scheduled requires supplying the observation times in
 Phoenix replacements accept at most one coupon choice and can change coupon units.
 Double-touch contracts expose ``barrier_type="knock_in"`` or ``"knock_out"``
 for inspection and replacement;
-asset-settled binary and touch contracts reject cash payout replacements.
+binary and touch replacements use the constructor's settlement convention:
+``payout=None`` selects asset settlement, a positive payout selects cash settlement,
+and omission preserves the existing settlement.
 ``replace_history()`` updates only prior history on path-dependent contracts.
 Asian averages use ``realized_average=None`` for unknown history; supplied averages
 must be finite and positive. History is required strictly after averaging starts.
