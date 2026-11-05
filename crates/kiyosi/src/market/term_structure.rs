@@ -5,12 +5,13 @@ use crate::{Error, Result, Timestamp, error::finite};
 /// Uses the Actual/365 Fixed day-count convention and log-linear interpolation
 /// of discount factors, starting from an implicit factor of one at the reference
 /// time. This gives piecewise constant instantaneous forward rates.
-/// Dated curves reject queries before their reference; node-based rate
-/// curves also reject queries after their final node. Negative rates are allowed.
-/// See [`Self::flat`] and [`Self::new`] for construction.
+/// Dated curves reject queries before their reference; bounded flat curves and
+/// node-based curves also enforce their upper coverage bounds. Negative rates
+/// are allowed. See [`Self::flat`], [`Self::bounded_flat`] and [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct RateTermStructure {
     reference: Option<Timestamp>,
+    upper_bound: Option<Timestamp>,
     rate: Option<f64>,
     nodes: Vec<Timestamp>,
     factors: Vec<f64>,
@@ -40,12 +41,48 @@ impl RateTermStructure {
         finite(rate, false, "rate")?;
         Ok(Self {
             reference,
+            upper_bound: None,
             rate: Some(rate),
             nodes: vec![],
             factors: vec![],
             forwards: vec![],
             spread: 0.0,
         })
+    }
+
+    /// Creates an exactly constant rate with inclusive lower and upper coverage bounds.
+    ///
+    /// Preserves the supplied rate without reconstructing it from rounded discount
+    /// factors. Flat-rate engines accept this representation and retain its coverage.
+    /// Nodes and node factors are empty, as for [`Self::flat`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for a non-finite rate or an upper bound before
+    /// the reference. Equal bounds allow queries only at that instant.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Date, RateTermStructure};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 1)?.start_of_day();
+    /// let end = start.add_days(365)?;
+    /// let curve = RateTermStructure::bounded_flat(0.05, start, end)?;
+    /// assert_eq!(curve.flat_rate(), Some(0.05));
+    /// assert_eq!(curve.max_time(), Some(end));
+    /// assert!(curve.forward_rate(end.add_days(1)?).is_err());
+    /// # Ok(()) }
+    /// ```
+    pub fn bounded_flat(rate: f64, reference: Timestamp, max_time: Timestamp) -> Result<Self> {
+        let mut curve = Self::flat(rate, Some(reference))?;
+        if max_time < reference {
+            return Err(Error::InvalidInput(
+                "curve max_time precedes reference_time".into(),
+            ));
+        }
+        curve.upper_bound = Some(max_time);
+        Ok(curve)
     }
 
     /// Creates strictly increasing nodes after the reference with positive finite factors.
@@ -95,6 +132,7 @@ impl RateTermStructure {
         }
         Ok(Self {
             reference: Some(reference),
+            upper_bound: None,
             rate: None,
             nodes,
             factors,
@@ -126,11 +164,11 @@ impl RateTermStructure {
     pub fn reference_time(&self) -> Option<Timestamp> {
         self.reference
     }
-    /// Returns the inclusive upper coverage bound, or `None` for flat rates.
+    /// Returns the inclusive upper coverage bound, or `None` for unbounded flat rates.
     ///
     /// See [`Self::new`] for a dated curve example.
     pub fn max_time(&self) -> Option<Timestamp> {
-        self.nodes.last().copied()
+        self.upper_bound.or_else(|| self.nodes.last().copied())
     }
     /// Borrows the supplied nodes, excluding the implicit reference.
     ///

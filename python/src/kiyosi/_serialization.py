@@ -72,11 +72,14 @@ def _reduce(
             },
         )
     if isinstance(value, _native.RateTermStructure):
-        if value.max_time is None:
+        if not value.nodes:
             fields = {
                 "rate": value.forward_rate(value.reference_time or datetime(1, 1, 1)),
                 "reference_time": value.reference_time,
             }
+            if value.max_time is not None:
+                fields["max_time"] = value.max_time
+                return _restore, (_native.RateTermStructure.bounded_flat, fields)
             return _restore, (_native.RateTermStructure.flat, fields)
         factors, shift = _native._curve_parts(value)
         return _curve, (value.reference_time, value.nodes, factors, shift)

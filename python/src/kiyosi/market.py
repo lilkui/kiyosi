@@ -4,6 +4,12 @@ Rates use annual decimal units and continuous compounding (0.05 means 5%).
 ``RateTermStructure.factors`` allows underflow to zero and raises
 ``ComputationFailureError`` on overflow, matching ``factor()``. Underflowed factors
 cannot reconstruct a curve; pickle preserves the original factors and shift.
+Use ``RateTermStructure.bounded_flat(rate, reference_time=..., max_time=...)``
+for an explicitly constant curve with inclusive coverage bounds. It preserves
+its scalar rate exactly; node factors generated from a constant rate can have
+slightly different implied forwards because of rounding and fail exact flatness
+checks. Bounded flat curves retain their bounds through shifts and pickle.
+
 Model ``flat_risk_free_rate`` and ``flat_dividend_yield`` properties return scalar rates
 for dated or undated constant curves and raise ``UnsupportedOperationError``
 for nonconstant curves, matching Rust. Use ``risk_free_curve`` and ``dividend_curve``

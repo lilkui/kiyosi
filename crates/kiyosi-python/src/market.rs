@@ -80,6 +80,38 @@ impl RateTermStructure {
             reference_time.map(timestamp).transpose()?,
         ))?))
     }
+    /// Create an exactly constant rate with inclusive coverage bounds.
+    ///
+    /// Parameters
+    /// ----------
+    /// rate : float
+    ///     Finite continuously compounded annual rate; negative rates are allowed.
+    /// reference_time, max_time : datetime.datetime
+    ///     Inclusive coverage bounds. Equal bounds select a single instant.
+    ///
+    /// Returns
+    /// -------
+    /// RateTermStructure
+    ///     Owned curve retaining the exact scalar rate and both bounds, including
+    ///     through shifts and pickle. Nodes and factors are empty, as for flat().
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInputError
+    ///     If the rate is non-finite or max_time precedes reference_time.
+    #[staticmethod]
+    #[pyo3(signature = (rate, *, reference_time, max_time))]
+    fn bounded_flat(
+        rate: &Bound<'_, PyAny>,
+        reference_time: &Bound<'_, PyAny>,
+        max_time: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        Ok(Self(domain(kiyosi::RateTermStructure::bounded_flat(
+            real(rate)?,
+            timestamp(reference_time)?,
+            timestamp(max_time)?,
+        ))?))
+    }
     /// Return the scalar rate when all implied forwards are exactly constant.
     ///
     /// Nonconstant curves return None. Node-based coverage is preserved.
@@ -96,7 +128,7 @@ impl RateTermStructure {
             .map(|time| python_timestamp(py, time))
             .transpose()
     }
-    /// Return the final node time, or None for a flat curve.
+    /// Return the inclusive upper bound, or None for an unbounded flat curve.
     #[getter]
     fn max_time<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
         self.0

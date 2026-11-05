@@ -171,6 +171,10 @@ class RateTermStructure:
     def flat(
         rate: _Real, *, reference_time: datetime | None = None
     ) -> RateTermStructure: ...
+    @staticmethod
+    def bounded_flat(
+        rate: _Real, *, reference_time: datetime, max_time: datetime
+    ) -> RateTermStructure: ...
     @property
     def flat_rate(self) -> float | None: ...
     @property

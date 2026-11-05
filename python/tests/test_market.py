@@ -2,6 +2,7 @@
 
 import math
 import numbers
+import pickle
 import unittest
 from datetime import UTC, datetime, timedelta, timezone
 
@@ -58,6 +59,57 @@ def vanilla(direction="call", strike=103):
 
 
 class RateTermStructureTests(unittest.TestCase):
+    def test_bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        curve = RateTermStructure.bounded_flat(0.05, reference_time=start, max_time=end)
+        self.assertEqual(curve.flat_rate, 0.05)
+        self.assertEqual(curve.reference_time, start)
+        self.assertEqual(curve.max_time, end)
+        self.assertEqual(curve.forward_rate(start + timedelta(days=180)), 0.05)
+        self.assertEqual(curve.factor(start, end), math.exp(-0.05))
+        for outside in (start - timedelta(days=1), end + timedelta(days=1)):
+            with self.assertRaises(InvalidInputError):
+                curve.forward_rate(outside)
+        shifted = curve.shifted(0.01)
+        self.assertEqual(shifted.flat_rate, 0.05 + 0.01)
+        self.assertEqual(shifted.max_time, end)
+        self.assertEqual(curve.flat_rate, 0.05)
+        for value in (curve, shifted):
+            restored = pickle.loads(pickle.dumps(value))
+            self.assertEqual(restored, value)
+            self.assertEqual(restored.max_time, end)
+            self.assertIn("bounded_flat", repr(value))
+        for rate, reference, maximum in (
+            (0.05, end, start),
+            (float("nan"), start, end),
+        ):
+            with self.assertRaises(InvalidInputError):
+                RateTermStructure.bounded_flat(
+                    rate, reference_time=reference, max_time=maximum
+                )
+        point = RateTermStructure.bounded_flat(
+            0.05, reference_time=start, max_time=start
+        )
+        self.assertEqual(point.factor(start, start), 1)
+        option = EuropeanOption(
+            option_type="call", strike=100, effective_time=start, expiry_time=end
+        )
+        engine = pricing.CoxRossRubinsteinVanillaEngine()
+        prices = [
+            engine.price(
+                option,
+                PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=rate, dividend_yield=0.02, volatility=0.2
+                    ),
+                    spot_price=100,
+                    valuation_time=start,
+                ),
+            )
+            for rate in (curve, 0.05)
+        ]
+        self.assertEqual(prices[0], prices[1])
+
     def test_flat_rate_queries_and_curve_roundtrips_preserve_coverage(self):
         curve = RateTermStructure.flat(0.03, reference_time=REFERENCE)
         rates = {"risk_free_rate": curve, "dividend_yield": curve}

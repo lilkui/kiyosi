@@ -445,3 +445,56 @@ fn bulk_curve_factors_follow_scalar_overflow_and_underflow_rules() {
         Err(Error::InvalidInput(_))
     ));
 }
+
+#[test]
+fn bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support() -> kiyosi::Result<()> {
+    use kiyosi::{
+        BlackScholesMertonParameters, CoxRossRubinsteinVanillaEngine, EuropeanOption, OptionType,
+        PricingContext,
+    };
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let curve = RateTermStructure::bounded_flat(0.05, start, end)?;
+    assert_eq!(curve.flat_rate(), Some(0.05));
+    assert_eq!(curve.reference_time(), Some(start));
+    assert_eq!(curve.max_time(), Some(end));
+    assert_eq!(curve.forward_rate(start.add_days(180)?)?, 0.05);
+    assert_eq!(curve.factor(start, end)?, (-0.05_f64).exp());
+    for outside in [start.add_days(-1)?, end.add_days(1)?] {
+        assert!(matches!(
+            curve.forward_rate(outside),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    let shifted = curve.shifted(0.01)?;
+    assert_eq!(shifted.flat_rate(), Some(0.05 + 0.01));
+    assert_eq!(shifted.max_time(), Some(end));
+    assert_eq!(curve.flat_rate(), Some(0.05));
+    assert!(matches!(
+        RateTermStructure::bounded_flat(0.05, end, start),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(matches!(
+        RateTermStructure::bounded_flat(f64::NAN, start, end),
+        Err(Error::InvalidInput(_))
+    ));
+    let point = RateTermStructure::bounded_flat(0.05, start, start)?;
+    assert_eq!(point.factor(start, start)?, 1.0);
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let bounded = PricingContext::new(
+        BlackScholesMertonParameters::new(curve, 0.02, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let scalar = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let engine = CoxRossRubinsteinVanillaEngine::default();
+    assert_eq!(
+        engine.price(&option, &bounded)?,
+        engine.price(&option, &scalar)?
+    );
+    Ok(())
+}
