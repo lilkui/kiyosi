@@ -153,7 +153,8 @@ pub use engines::finite_difference::{
 pub use engines::monte_carlo::{
     MonteCarloAccumulatorEngine, MonteCarloAsianEngine, MonteCarloAutocallableEngine,
     MonteCarloBarrierEngine, MonteCarloDigitalEngine, MonteCarloDoubleBarrierEngine,
-    MonteCarloEstimate, MonteCarloSampling, MonteCarloSettings, MonteCarloVanillaEngine,
+    MonteCarloEstimate, MonteCarloGridSettings, MonteCarloSampling, MonteCarloSettings,
+    MonteCarloVanillaEngine,
 };
 pub use engines::quadrature::{
     QuadratureAccumulatorEngine, QuadratureAutocallableEngine, QuadratureBarrierEngine,

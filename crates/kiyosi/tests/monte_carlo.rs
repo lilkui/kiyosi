@@ -1107,3 +1107,62 @@ fn resolved_seed_engines_preserve_configuration_and_replay() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn grid_settings_roundtrip_and_changes_preserve_unmodified_controls() -> Result<()> {
+    let sampling = MonteCarloSettings {
+        path_count: 64,
+        thread_count: 1,
+        seed: Some(42),
+        sampling: MonteCarloSampling::Sobol,
+        antithetic: true,
+    };
+    let settings = MonteCarloGridSettings {
+        sampling,
+        step_count: 100,
+    };
+    let vanilla = MonteCarloVanillaEngine::new(settings)?;
+    let asian = MonteCarloAsianEngine::new(settings)?;
+    assert_eq!(vanilla.settings(), settings);
+    assert_eq!(asian.settings(), settings);
+    assert_eq!(MonteCarloVanillaEngine::new(vanilla.settings())?, vanilla);
+    assert_eq!(MonteCarloAsianEngine::new(asian.settings())?, asian);
+    let changed = MonteCarloGridSettings {
+        sampling: MonteCarloSettings {
+            path_count: 128,
+            ..sampling
+        },
+        ..settings
+    };
+    for actual in [
+        MonteCarloVanillaEngine::new(changed)?.settings(),
+        MonteCarloAsianEngine::new(changed)?.settings(),
+    ] {
+        assert_eq!(actual.step_count, 100);
+        assert_eq!(actual.sampling.path_count, 128);
+        assert_eq!(actual.sampling.seed, Some(42));
+        assert!(actual.sampling.antithetic);
+    }
+    assert!(
+        MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+            step_count: 1,
+            ..settings
+        })
+        .is_ok()
+    );
+    assert!(matches!(
+        MonteCarloAsianEngine::new(MonteCarloGridSettings {
+            step_count: 1,
+            ..settings
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(matches!(
+        MonteCarloVanillaEngine::new(MonteCarloGridSettings {
+            step_count: 0,
+            ..settings
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    Ok(())
+}

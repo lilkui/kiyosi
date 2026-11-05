@@ -49,16 +49,18 @@ impl MonteCarloAsianEngine {
         })
     }
 
-    /// Creates an engine with validated sampling settings and 50 integration intervals.
+    /// Creates an engine from sampling controls or complete sampling and grid settings.
     ///
+    /// Sampling-only inputs use 50 integration intervals. Complete inputs preserve their grid.
     /// See [`crate::MonteCarloVanillaEngine::new`] for sampling configuration examples,
     /// or [`Self::with_step_count`] to configure arithmetic-average integration.
     ///
     /// # Errors
     ///
     /// Reuses [`crate::MonteCarloVanillaEngine::new`] validation and error categories.
-    pub fn new(settings: MonteCarloSettings) -> Result<Self> {
-        Self::with_step_count(settings, super::DEFAULT_STEP_COUNT)
+    pub fn new(settings: impl Into<super::MonteCarloGridSettings>) -> Result<Self> {
+        let settings = settings.into();
+        Self::with_step_count(settings.sampling, settings.step_count)
     }
 
     /// Creates an engine with a configured arithmetic-average integration interval count.
@@ -89,6 +91,17 @@ impl MonteCarloAsianEngine {
             settings,
             step_count,
         })
+    }
+
+    /// Returns complete sampling and integration-grid settings.
+    ///
+    /// Reconstruct with [`Self::new`] without losing the grid. See
+    /// [`crate::MonteCarloVanillaEngine::settings`] for an example.
+    pub fn settings(&self) -> super::MonteCarloGridSettings {
+        super::MonteCarloGridSettings {
+            sampling: self.settings,
+            step_count: self.step_count,
+        }
     }
 
     /// Returns the arithmetic-average integration interval count; see [`Self::with_step_count`].

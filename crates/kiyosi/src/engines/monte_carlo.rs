@@ -80,6 +80,39 @@ impl Default for MonteCarloSettings {
     }
 }
 
+/// Configures sampling and the time grid for vanilla or Asian Monte Carlo engines.
+///
+/// Engine construction validates sampling and product-specific grid limits.
+/// See [`MonteCarloVanillaEngine::settings`] for a complete configuration round-trip.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MonteCarloGridSettings {
+    /// Sets the shared path, seed, thread and sampling controls.
+    pub sampling: MonteCarloSettings,
+    /// Sets integration or exercise intervals; defaults to 50.
+    ///
+    /// Vanilla construction accepts 1 through 10,000; Asian construction requires
+    /// at least 2. American exercise pricing also requires at least 2.
+    pub step_count: i32,
+}
+
+impl Default for MonteCarloGridSettings {
+    fn default() -> Self {
+        Self {
+            sampling: MonteCarloSettings::default(),
+            step_count: DEFAULT_STEP_COUNT,
+        }
+    }
+}
+
+impl From<MonteCarloSettings> for MonteCarloGridSettings {
+    fn from(sampling: MonteCarloSettings) -> Self {
+        Self {
+            sampling,
+            ..Default::default()
+        }
+    }
+}
+
 impl MonteCarloSettings {
     fn with_resolved_seed(self) -> Result<Self> {
         Ok(Self {
@@ -487,9 +520,10 @@ impl MonteCarloVanillaEngine {
         })
     }
 
-    /// Creates an engine with validated sampling settings and 50 exercise intervals.
+    /// Creates an engine from sampling controls or complete sampling and grid settings.
     ///
-    /// Use [`Self::with_step_count`] to configure the exercise grid.
+    /// Sampling-only inputs use 50 exercise intervals. Complete inputs preserve their grid.
+    /// See [`Self::settings`] for reconstruction or [`Self::with_step_count`] for a grid override.
     ///
     /// # Errors
     ///
@@ -512,8 +546,9 @@ impl MonteCarloVanillaEngine {
     /// assert!(sobol.sampling_settings().antithetic);
     /// # Ok(()) }
     /// ```
-    pub fn new(settings: MonteCarloSettings) -> Result<Self> {
-        Self::with_step_count(settings, DEFAULT_STEP_COUNT)
+    pub fn new(settings: impl Into<MonteCarloGridSettings>) -> Result<Self> {
+        let settings = settings.into();
+        Self::with_step_count(settings.sampling, settings.step_count)
     }
 
     /// Creates an engine with a configured American exercise interval count.
@@ -547,6 +582,28 @@ impl MonteCarloVanillaEngine {
             settings,
             step_count,
         })
+    }
+
+    /// Returns complete sampling and exercise-grid settings.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{MonteCarloSettings, MonteCarloVanillaEngine};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let engine = MonteCarloVanillaEngine::with_step_count(MonteCarloSettings::default(), 100)?;
+    /// assert_eq!(MonteCarloVanillaEngine::new(engine.settings())?, engine);
+    /// let mut settings = engine.settings();
+    /// settings.sampling.path_count = 4096;
+    /// let changed = MonteCarloVanillaEngine::new(settings)?;
+    /// assert_eq!(changed.step_count(), 100);
+    /// # Ok(()) }
+    /// ```
+    pub fn settings(&self) -> MonteCarloGridSettings {
+        MonteCarloGridSettings {
+            sampling: self.settings,
+            step_count: self.step_count,
+        }
     }
 
     /// Returns the American exercise interval count; see [`Self::with_step_count`].
