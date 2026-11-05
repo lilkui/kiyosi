@@ -45,10 +45,10 @@ GREEKS = [
     "theta",
     "charm",
     "color",
-    "vega_per_percentage_point",
-    "vanna_per_percentage_point",
-    "zomma_per_percentage_point",
-    "rho_per_percentage_point",
+    "vega",
+    "vanna",
+    "zomma",
+    "rho",
 ]
 
 
@@ -229,7 +229,7 @@ class AsianTests(unittest.TestCase):
             for request in (
                 "delta",
                 ["delta", "delta"],
-                (g for g in ("delta", "vega_per_percentage_point")),
+                (g for g in ("delta", "vega")),
             ):
                 selected = engine.price_with_greeks(option, context, request)
                 self.assertEqual(selected.delta, full.delta)

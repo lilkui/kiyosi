@@ -257,12 +257,7 @@ fn history_current_expiry_and_prior_payments_use_core_rules() {
                 for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
                     assert_eq!(result.get(greek), None);
                 }
-                for greek in [
-                    Greek::VegaPerPercentagePoint,
-                    Greek::VolgaPerSquaredPercentagePoint,
-                    Greek::RhoPerPercentagePoint,
-                    Greek::DividendRhoPerPercentagePoint,
-                ] {
+                for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
                     if result.supported().has(greek) {
                         assert_eq!(result.require(greek).unwrap(), 0.0);
                     }
@@ -368,21 +363,11 @@ fn greeks_and_implied_volatility_preserve_inputs_and_error_categories() {
         &engine,
         &option,
         &ctx,
-        GreeksRequest::new([
-            Greek::Delta,
-            Greek::Gamma,
-            Greek::VegaPerPercentagePoint,
-            Greek::RhoPerPercentagePoint,
-        ]),
+        GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega, Greek::Rho]),
         Default::default(),
     )
     .unwrap();
-    for greek in [
-        Greek::Delta,
-        Greek::Gamma,
-        Greek::VegaPerPercentagePoint,
-        Greek::RhoPerPercentagePoint,
-    ] {
+    for greek in [Greek::Delta, Greek::Gamma, Greek::Vega, Greek::Rho] {
         assert!(
             (scalar.require(greek).unwrap() - result.require(greek).unwrap()).abs() < 1e-5,
             "{greek:?}"

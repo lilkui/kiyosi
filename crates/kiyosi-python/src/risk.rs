@@ -29,16 +29,18 @@ pub(crate) fn greeks_request(greeks: &Bound<'_, PyAny>) -> PyResult<kiyosi::Gree
 ///
 /// Notes
 /// -----
-/// Unavailable or unrequested Greeks are None. Spot derivatives are per spot
-/// unit, volatility/rate derivatives per percentage point (squared for volga), and time
-/// derivatives per calendar day of forward valuation time.
+/// Unavailable or unrequested Greeks are None. All derivatives are unscaled:
+/// spot uses spot units, volatility and rates use decimal values, and forward
+/// valuation time uses years (Actual/365 Fixed). Other inputs, including expiry,
+/// remain fixed. With price V, spot S, volatility σ and valuation time t:
+/// delta = ∂V/∂S, gamma = ∂²V/∂S², speed = ∂³V/∂S³,
+/// theta = ∂V/∂t, charm = ∂²V/(∂S∂t), color = ∂³V/(∂S²∂t),
+/// vega = ∂V/∂σ, volga = ∂²V/∂σ², vanna = ∂²V/(∂S∂σ),
+/// and zomma = ∂³V/(∂S²∂σ).
 /// Rho shifts the risk-free curve in parallel; dividend rho shifts the dividend-yield
-/// curve in parallel, holding other market inputs fixed. Vega is the first volatility
-/// derivative divided by 100; volga is the second divided by 10000.
-/// Vanna is the spot-volatility cross derivative divided by 100; zomma is the
-/// volatility derivative of gamma divided by 100. Theta, charm and color are
-/// the valuation-time derivatives of price, delta and gamma, respectively,
-/// with the market curves held fixed. Positive time increments advance valuation.
+/// curve in parallel: rho = ∂V/∂r and dividend_rho = ∂V/∂q, with decimal
+/// continuously compounded shifts r and q. Time derivatives hold market curves
+/// fixed. Positive time increments advance valuation.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct PricingResult(pub kiyosi::PricingResult);
@@ -82,33 +84,33 @@ impl PricingResult {
     }
     /// Return vega, or None if unrequested or unavailable.
     #[getter]
-    fn vega_per_percentage_point(&self) -> Option<f64> {
-        self.0.get(kiyosi::Greek::VegaPerPercentagePoint)
+    fn vega(&self) -> Option<f64> {
+        self.0.get(kiyosi::Greek::Vega)
     }
-    /// Return volga per squared volatility percentage point, or None if unavailable.
+    /// Return volga, or None if unrequested or unavailable.
     #[getter]
-    fn volga_per_squared_percentage_point(&self) -> Option<f64> {
-        self.0.get(kiyosi::Greek::VolgaPerSquaredPercentagePoint)
+    fn volga(&self) -> Option<f64> {
+        self.0.get(kiyosi::Greek::Volga)
     }
     /// Return vanna, or None if unrequested or unavailable.
     #[getter]
-    fn vanna_per_percentage_point(&self) -> Option<f64> {
-        self.0.get(kiyosi::Greek::VannaPerPercentagePoint)
+    fn vanna(&self) -> Option<f64> {
+        self.0.get(kiyosi::Greek::Vanna)
     }
     /// Return zomma, or None if unrequested or unavailable.
     #[getter]
-    fn zomma_per_percentage_point(&self) -> Option<f64> {
-        self.0.get(kiyosi::Greek::ZommaPerPercentagePoint)
+    fn zomma(&self) -> Option<f64> {
+        self.0.get(kiyosi::Greek::Zomma)
     }
     /// Return rho, or None if unrequested or unavailable.
     #[getter]
-    fn rho_per_percentage_point(&self) -> Option<f64> {
-        self.0.get(kiyosi::Greek::RhoPerPercentagePoint)
+    fn rho(&self) -> Option<f64> {
+        self.0.get(kiyosi::Greek::Rho)
     }
-    /// Return dividend rho per yield percentage point, or None if unavailable.
+    /// Return dividend rho, or None if unrequested or unavailable.
     #[getter]
-    fn dividend_rho_per_percentage_point(&self) -> Option<f64> {
-        self.0.get(kiyosi::Greek::DividendRhoPerPercentagePoint)
+    fn dividend_rho(&self) -> Option<f64> {
+        self.0.get(kiyosi::Greek::DividendRho)
     }
     /// Return available, not_requested, unsupported or undefined for a Greek.
     ///

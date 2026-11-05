@@ -133,15 +133,15 @@ fn greeks_do_not_cross_touch_discontinuities_or_history_regimes() {
         Greek::Delta,
         Greek::Gamma,
         Greek::Speed,
-        Greek::VannaPerPercentagePoint,
-        Greek::ZommaPerPercentagePoint,
+        Greek::Vanna,
+        Greek::Zomma,
         Greek::Charm,
         Greek::Color,
     ] {
         assert!(!result.has(g), "{g:?}");
     }
-    assert!(result.has(Greek::VegaPerPercentagePoint));
-    assert!(result.has(Greek::RhoPerPercentagePoint));
+    assert!(result.has(Greek::Vega));
+    assert!(result.has(Greek::Rho));
     t.observation_mode = ObservationMode::Scheduled;
     t.observation_times = vec![Date::new(2025, 1, 2).unwrap().start_of_day(), t.expiry_time];
     let scheduled = BarrierOption::new(t).unwrap();
@@ -153,7 +153,7 @@ fn greeks_do_not_cross_touch_discontinuities_or_history_regimes() {
         )
         .unwrap();
     assert!(!result.has(Greek::Theta));
-    assert!(result.has(Greek::VegaPerPercentagePoint));
+    assert!(result.has(Greek::Vega));
 }
 
 #[test]

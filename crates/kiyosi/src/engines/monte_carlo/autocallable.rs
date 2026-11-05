@@ -70,8 +70,8 @@ impl MonteCarloAutocallableEngine {
     /// assert!(estimate.standard_error().is_some());
     /// assert_eq!(engine.sampling_settings().path_count, 4096);
     /// let result = engine.price_with_greeks(&note, &context,
-    ///     GreeksRequest::new([Greek::RhoPerPercentagePoint]))?;
-    /// assert!(result.has(Greek::RhoPerPercentagePoint));
+    ///     GreeksRequest::new([Greek::Rho]))?;
+    /// assert!(result.has(Greek::Rho));
     /// # Ok(()) }
     /// ```
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {

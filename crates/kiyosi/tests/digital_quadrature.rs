@@ -75,9 +75,15 @@ fn greeks_and_implied_volatility_use_shared_contracts() {
                 .price_with_greeks(&option, &context, GreeksRequest::all())
                 .unwrap();
             for greek in Greek::ALL {
+                let tolerance = match greek {
+                    Greek::Delta | Greek::Gamma | Greek::Speed => 1e-6,
+                    Greek::Theta | Greek::Charm | Greek::Color => 0.000_365,
+                    Greek::Volga => 0.01,
+                    _ => 0.0001,
+                };
                 assert!(
                     (actual.require(greek).unwrap() - expected.require(greek).unwrap()).abs()
-                        < 1e-6,
+                        < tolerance,
                     "{option:?} {greek:?}: {actual:?} != {expected:?}"
                 );
             }
@@ -136,12 +142,7 @@ fn expiry_is_strict_and_life_validation_preserves_state() {
                 for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
                     assert_eq!(result.get(greek), None);
                 }
-                for greek in [
-                    Greek::VegaPerPercentagePoint,
-                    Greek::VolgaPerSquaredPercentagePoint,
-                    Greek::RhoPerPercentagePoint,
-                    Greek::DividendRhoPerPercentagePoint,
-                ] {
+                for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
                     if result.supported().has(greek) {
                         assert_eq!(result.require(greek).unwrap(), 0.0);
                     }

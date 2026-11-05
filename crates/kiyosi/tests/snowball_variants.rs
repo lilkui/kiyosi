@@ -380,10 +380,7 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
             .price_with_greeks(note, &market(110.0, date(4, 1)), GreeksRequest::all())
             .unwrap();
         assert_eq!(at_expiry.get(Greek::Theta), None);
-        assert_eq!(
-            at_expiry.require(Greek::VegaPerPercentagePoint).unwrap(),
-            0.0
-        );
+        assert_eq!(at_expiry.require(Greek::Vega).unwrap(), 0.0);
         assert_eq!(*note, snapshot);
         assert_eq!(
             context.model_parameters().as_bsm().unwrap().volatility(),

@@ -301,8 +301,8 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
         .unwrap();
     assert!(!result.has(Greek::Delta));
     assert!(!result.has(Greek::Theta));
-    assert_eq!(result.get(Greek::VegaPerPercentagePoint), Some(0.0));
-    assert_eq!(result.get(Greek::RhoPerPercentagePoint), Some(0.0));
+    assert_eq!(result.get(Greek::Vega), Some(0.0));
+    assert_eq!(result.get(Greek::Rho), Some(0.0));
     assert!(matches!(
         implied_volatility(
             &engine,

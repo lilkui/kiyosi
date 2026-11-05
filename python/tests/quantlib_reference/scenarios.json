@@ -13,26 +13,26 @@
       "delta": 1e-10,
       "gamma": 1e-10,
       "speed": 1e-8,
-      "theta": 1e-10,
-      "charm": 0.000004,
-      "color": 5e-7,
-      "vega_per_percentage_point": 1e-10,
-      "vanna_per_percentage_point": 1e-8,
-      "zomma_per_percentage_point": 1e-9,
-      "rho_per_percentage_point": 1e-10
+      "theta": 3.65e-8,
+      "charm": 0.00146,
+      "color": 0.0001825,
+      "vega": 1e-8,
+      "vanna": 0.000001,
+      "zomma": 1e-7,
+      "rho": 1e-8
     },
     "numerical_tolerances": {
       "price": 1e-10,
       "delta": 0.000001,
       "gamma": 1e-7,
       "speed": 1e-7,
-      "theta": 0.00003,
-      "charm": 1e-7,
-      "color": 1e-8,
-      "vega_per_percentage_point": 0.000001,
-      "vanna_per_percentage_point": 1e-7,
-      "zomma_per_percentage_point": 1e-7,
-      "rho_per_percentage_point": 0.000001
+      "theta": 0.01095,
+      "charm": 0.0000365,
+      "color": 0.00000365,
+      "vega": 0.0001,
+      "vanna": 0.00001,
+      "zomma": 0.00001,
+      "rho": 0.0001
     }
   },
   "scenarios": [
@@ -54,7 +54,7 @@
     {"case_id":"ql-european-put-100-730d","inputs":{"option":"put","expiry_time":"2027-01-06","spot":100}},
     {"case_id":"ql-european-call-120-730d","inputs":{"option":"call","expiry_time":"2027-01-06","spot":120}},
     {"case_id":"ql-european-put-120-730d","inputs":{"option":"put","expiry_time":"2027-01-06","spot":120}},
-    {"case_id":"ql-european-call-100-1d","inputs":{"option":"call","expiry_time":"2025-01-07","spot":100},"numerical_tolerances":{"gamma":0.000001,"speed":5e-7,"zomma_per_percentage_point":2e-7}},
-    {"case_id":"ql-european-put-100-1d","inputs":{"option":"put","expiry_time":"2025-01-07","spot":100},"numerical_tolerances":{"gamma":0.000001,"speed":5e-7,"zomma_per_percentage_point":2e-7}}
+    {"case_id":"ql-european-call-100-1d","inputs":{"option":"call","expiry_time":"2025-01-07","spot":100},"numerical_tolerances":{"gamma":0.000001,"speed":5e-7,"zomma":0.00002}},
+    {"case_id":"ql-european-put-100-1d","inputs":{"option":"put","expiry_time":"2025-01-07","spot":100},"numerical_tolerances":{"gamma":0.000001,"speed":5e-7,"zomma":0.00002}}
   ]
 }

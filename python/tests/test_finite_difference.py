@@ -96,7 +96,7 @@ class FiniteDifferenceTests(unittest.TestCase):
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )
         context = market(spot=100, rate=0.05, dividend=0.02, sigma=0.2)
-        names = ["vega_per_percentage_point", "volga_per_squared_percentage_point"]
+        names = ["vega", "volga"]
         shift = 0.01
         actual = numerical_greeks(
             engine, option, context, names, volatility_shift=shift
@@ -108,14 +108,14 @@ class FiniteDifferenceTests(unittest.TestCase):
             for sigma in (0.2 - shift, 0.2 + shift)
         )
         self.assertAlmostEqual(
-            actual.vega_per_percentage_point,
-            (high - low) / (2 * shift * 100),
-            delta=1e-8,
+            actual.vega,
+            (high - low) / (2 * shift),
+            delta=0.000001,
         )
         self.assertAlmostEqual(
-            actual.volga_per_squared_percentage_point,
-            (high + low - 2 * actual.price) / (shift**2 * 10000),
-            delta=1e-8,
+            actual.volga,
+            (high + low - 2 * actual.price) / shift**2,
+            delta=0.0001,
         )
 
     def test_materially_negative_prices_fail_instead_of_being_clipped(self):
@@ -399,7 +399,7 @@ class FiniteDifferenceTests(unittest.TestCase):
         context = market(rate=risk)
         original = context.model_parameters
         option = contract(EuropeanOption)
-        greeks = ("delta", "vega_per_percentage_point", "rho_per_percentage_point")
+        greeks = ("delta", "vega", "rho")
         expected = AnalyticEuropeanEngine().price_with_greeks(option, context, greeks)
         actual = FiniteDifferenceVanillaEngine().price_with_greeks(
             option, context, greeks
@@ -727,8 +727,6 @@ class FiniteDifferenceTests(unittest.TestCase):
         self.assertAlmostEqual(refined, reference, delta=0.03)
         self.assertLess(abs(refined - reference), abs(coarse - reference))
         self.assertEqual(
-            engine.price_with_greeks(
-                option, context, "vega_per_percentage_point"
-            ).price,
+            engine.price_with_greeks(option, context, "vega").price,
             refined,
         )

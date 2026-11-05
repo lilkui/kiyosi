@@ -471,12 +471,7 @@ fn history_current_equalities_and_finished_monitoring_resolve_before_sampling() 
                 for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
                     assert_eq!(result.get(greek), None);
                 }
-                for greek in [
-                    Greek::VegaPerPercentagePoint,
-                    Greek::VolgaPerSquaredPercentagePoint,
-                    Greek::RhoPerPercentagePoint,
-                    Greek::DividendRhoPerPercentagePoint,
-                ] {
+                for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
                     if result.supported().has(greek) {
                         assert_eq!(result.require(greek).unwrap(), 0.0);
                     }
@@ -721,11 +716,7 @@ fn rare_hit_samples_retain_scaled_value_and_unrequested_greeks_do_not_fail_price
     let price = engine.price(&option, &tiny).unwrap();
     assert_eq!(
         engine
-            .price_with_greeks(
-                &option,
-                &tiny,
-                GreeksRequest::new([Greek::RhoPerPercentagePoint])
-            )
+            .price_with_greeks(&option, &tiny, GreeksRequest::new([Greek::Rho]))
             .unwrap()
             .price(),
         price

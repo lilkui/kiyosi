@@ -363,12 +363,12 @@ class HestonTests(unittest.TestCase):
                     self.assertRaises(InvalidInputError),
                 ):
                     original.replace(**{name: value})
-        for rho_per_percentage_point in (-1 - 1e-15, 1 + 1e-15, math.inf, math.nan):
+        for rho in (-1 - 1e-15, 1 + 1e-15, math.inf, math.nan):
             with (
-                self.subTest(rho_per_percentage_point=rho_per_percentage_point),
+                self.subTest(rho=rho),
                 self.assertRaises(InvalidInputError),
             ):
-                original.replace(correlation=rho_per_percentage_point)
+                original.replace(correlation=rho)
         changed = original.replace(initial_variance=0.09, correlation=1)
         self.assertEqual(changed.initial_variance, 0.09)
         self.assertEqual(changed.correlation, 1)

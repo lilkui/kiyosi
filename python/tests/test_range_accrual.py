@@ -379,8 +379,8 @@ class RangeAccrualTests(unittest.TestCase):
         after = market(datetime(2025, 1, 5, 12))
         self.assertAlmostEqual(
             result.theta,
-            (reference(option, after) - reference(option, before)) / 2,
-            delta=1e-12,
+            (reference(option, after) - reference(option, before)) / (2 / 365),
+            delta=3.65e-10,
         )
         self.assertIsNotNone(result.charm)
         self.assertIsNotNone(result.color)
@@ -584,29 +584,25 @@ class RangeAccrualTests(unittest.TestCase):
                     - price(spot=99 - 2 * h)
                 )
                 / (2 * h**3),
-                "vega_per_percentage_point": (price(vol=0.2 + v) - price(vol=0.2 - v))
-                / (200 * v),
-                "vanna_per_percentage_point": (delta(vol=0.2 + v) - delta(vol=0.2 - v))
-                / (200 * v),
-                "zomma_per_percentage_point": (gamma(vol=0.2 + v) - gamma(vol=0.2 - v))
-                / (200 * v),
-                "rho_per_percentage_point": (price(rate=r) - price(rate=-r))
-                / (200 * r),
+                "vega": (price(vol=0.2 + v) - price(vol=0.2 - v)) / (2 * v),
+                "vanna": (delta(vol=0.2 + v) - delta(vol=0.2 - v)) / (2 * v),
+                "zomma": (gamma(vol=0.2 + v) - gamma(vol=0.2 - v)) / (2 * v),
+                "rho": (price(rate=r) - price(rate=-r)) / (2 * r),
                 "theta": (
                     price(when=valuation + timedelta(days=1))
                     - price(when=valuation - timedelta(days=1))
                 )
-                / 2,
+                / (2 / 365),
                 "charm": (
                     delta(when=valuation + timedelta(days=1))
                     - delta(when=valuation - timedelta(days=1))
                 )
-                / 2,
+                / (2 / 365),
                 "color": (
                     gamma(when=valuation + timedelta(days=1))
                     - gamma(when=valuation - timedelta(days=1))
                 )
-                / 2,
+                / (2 / 365),
             }
             for name, value in expected.items():
                 with self.subTest(greek=name):
@@ -632,8 +628,8 @@ class RangeAccrualTests(unittest.TestCase):
         )
         self.assertAlmostEqual(
             result.theta,
-            reference(option, after) - reference(option, context),
-            delta=1e-12,
+            (reference(option, after) - reference(option, context)) * 365,
+            delta=3.65e-10,
         )
 
     def test_long_contract_and_current_spot_stencil(self):
@@ -664,15 +660,15 @@ class RangeAccrualTests(unittest.TestCase):
             "delta",
             "gamma",
             "speed",
-            "vanna_per_percentage_point",
-            "zomma_per_percentage_point",
+            "vanna",
+            "zomma",
             "theta",
             "charm",
             "color",
         ):
             self.assertIsNone(getattr(result, name))
-        self.assertIsNotNone(result.vega_per_percentage_point)
-        self.assertIsNotNone(result.rho_per_percentage_point)
+        self.assertIsNotNone(result.vega)
+        self.assertIsNotNone(result.rho)
         self.assert_rejection(
             InvalidInputError,
             engine.price_with_greeks,

@@ -373,16 +373,12 @@ fn nontrading_dates_do_not_trigger_daily_knock_out_or_suppress_vega() {
     )
     .unwrap();
     let result = QuadratureAccumulatorEngine::default()
-        .price_with_greeks(
-            &option,
-            &context,
-            GreeksRequest::new([Greek::VegaPerPercentagePoint]),
-        )
+        .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Vega]))
         .unwrap();
     let root_time = (2.0_f64 / 365.0).sqrt();
     let z = 0.1 * root_time;
-    let expected = -1.05 * root_time * (-0.5 * z * z).exp() / std::f64::consts::TAU.sqrt();
-    assert!((result.require(Greek::VegaPerPercentagePoint).unwrap() - expected).abs() < 1e-6);
+    let expected = -105.0 * root_time * (-0.5 * z * z).exp() / std::f64::consts::TAU.sqrt();
+    assert!((result.require(Greek::Vega).unwrap() - expected).abs() < 1e-6);
 }
 
 #[test]

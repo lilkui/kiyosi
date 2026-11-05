@@ -280,7 +280,7 @@ fn local_touch_coverage_follows_observations_and_known_cashflows() {
                 GreeksRequest::all()
             )
             .unwrap()
-            .get(Greek::VegaPerPercentagePoint),
+            .get(Greek::Vega),
         None
     );
 }
@@ -360,7 +360,7 @@ fn local_binary_triggered_continuation_and_event_greeks_follow_history() {
         engine
             .price_with_greeks(&option, &expiry, GreeksRequest::all())
             .unwrap()
-            .get(Greek::VegaPerPercentagePoint),
+            .get(Greek::Vega),
         None
     );
 }

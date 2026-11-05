@@ -89,18 +89,18 @@ impl AnalyticEuropeanEngine {
         if want(Greek::Delta) {
             result.set(request, Greek::Delta, sign * probability(1.0))?;
         }
-        if want(Greek::RhoPerPercentagePoint) {
+        if want(Greek::Rho) {
             result.set(
                 request,
-                Greek::RhoPerPercentagePoint,
-                sign * (time / 100.0) * weighted_cdf(strike, risk_log, sign * d2),
+                Greek::Rho,
+                sign * time * weighted_cdf(strike, risk_log, sign * d2),
             )?;
         }
-        if want(Greek::DividendRhoPerPercentagePoint) {
+        if want(Greek::DividendRho) {
             result.set(
                 request,
-                Greek::DividendRhoPerPercentagePoint,
-                -sign * (time / 100.0) * weighted_cdf(spot, dividend_log, sign * d1),
+                Greek::DividendRho,
+                -sign * time * weighted_cdf(spot, dividend_log, sign * d1),
             )?;
         }
         if ![
@@ -109,10 +109,10 @@ impl AnalyticEuropeanEngine {
             Greek::Theta,
             Greek::Charm,
             Greek::Color,
-            Greek::VegaPerPercentagePoint,
-            Greek::VolgaPerSquaredPercentagePoint,
-            Greek::VannaPerPercentagePoint,
-            Greek::ZommaPerPercentagePoint,
+            Greek::Vega,
+            Greek::Volga,
+            Greek::Vanna,
+            Greek::Zomma,
         ]
         .iter()
         .any(|g| want(*g))
@@ -143,9 +143,7 @@ impl AnalyticEuropeanEngine {
                 continue;
             }
             let value = match greek {
-                Greek::Delta
-                | Greek::RhoPerPercentagePoint
-                | Greek::DividendRhoPerPercentagePoint => continue,
+                Greek::Delta | Greek::Rho | Greek::DividendRho => continue,
                 Greek::Gamma => density(log_gamma, 1.0),
                 Greek::Speed => {
                     // Keep the half-width contribution exact when the width is subnormal or zero.
@@ -155,53 +153,43 @@ impl AnalyticEuropeanEngine {
                     )
                 }
                 Greek::Theta => {
-                    (-density(
+                    -density(
                         spot.ln() + dividend_log + sigma.ln() - 2.0_f64.ln() - root.ln(),
                         1.0,
-                    ) + carry())
-                        / 365.0
+                    ) + carry()
                 }
                 Greek::Charm => {
-                    (-density(dividend_log, (rate - dividend) / width - 0.5 * d2 / time)
-                        + sign * probability(dividend))
-                        / 365.0
+                    -density(dividend_log, (rate - dividend) / width - 0.5 * d2 / time)
+                        + sign * probability(dividend)
                 }
                 Greek::Color => {
-                    (density(log_gamma, dividend)
+                    density(log_gamma, dividend)
                         + d1.signum()
                             * density(
                                 log_gamma - sigma.ln() - root.ln() + d1.abs().ln(),
                                 rate - dividend,
                             )
-                        + density(log_gamma - 2.0_f64.ln() - time.ln(), 1.0 - d1 * d2))
-                        / 365.0
+                        + density(log_gamma - 2.0_f64.ln() - time.ln(), 1.0 - d1 * d2)
                 }
-                Greek::VegaPerPercentagePoint => {
-                    density(spot.ln() + dividend_log + root.ln() - 100.0_f64.ln(), 1.0)
-                }
-                Greek::VolgaPerSquaredPercentagePoint => {
+                Greek::Vega => density(spot.ln() + dividend_log + root.ln(), 1.0),
+                Greek::Volga => {
                     // Keep volatility curvature when the product d1*d2 underflows.
                     if d1.midpoint(d2) == 0.0 {
                         -density(
-                            spot.ln() + dividend_log + sigma.ln() + 3.0 * root.ln()
-                                - 40000.0_f64.ln(),
+                            spot.ln() + dividend_log + sigma.ln() + 3.0 * root.ln() - 4.0_f64.ln(),
                             1.0,
                         )
                     } else {
                         density(
-                            spot.ln() + dividend_log + root.ln() - sigma.ln() - 10000.0_f64.ln()
+                            spot.ln() + dividend_log + root.ln() - sigma.ln()
                                 + d1.abs().ln()
                                 + d2.abs().ln(),
                             d1.signum() * d2.signum(),
                         )
                     }
                 }
-                Greek::VannaPerPercentagePoint => {
-                    -density(dividend_log - sigma.ln() - 100.0_f64.ln(), d2)
-                }
-                Greek::ZommaPerPercentagePoint => {
-                    density(log_gamma - sigma.ln() - 100.0_f64.ln(), d1 * d2 - 1.0)
-                }
+                Greek::Vanna => -density(dividend_log - sigma.ln(), d2),
+                Greek::Zomma => density(log_gamma - sigma.ln(), d1 * d2 - 1.0),
             };
             result.set(request, greek, value)?;
         }

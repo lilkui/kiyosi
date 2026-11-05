@@ -89,8 +89,8 @@ class FiniteDifferenceMixedGreekTests(unittest.TestCase):
             valuation_time=datetime(2025, 7, 1),
         )
         request = [
-            "vanna_per_percentage_point",
-            "zomma_per_percentage_point",
+            "vanna",
+            "zomma",
             "charm",
             "color",
         ]

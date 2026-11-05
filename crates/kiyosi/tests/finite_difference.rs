@@ -137,19 +137,13 @@ fn automatic_mesh_policy_is_preserved_for_bumped_greeks() {
         ..Default::default()
     })
     .unwrap();
-    let request = GreeksRequest::new([
-        Greek::VegaPerPercentagePoint,
-        Greek::VolgaPerSquaredPercentagePoint,
-    ]);
+    let request = GreeksRequest::new([Greek::Vega, Greek::Volga]);
     let actual = engine
         .price_with_greeks(&option, &context, request)
         .unwrap();
     let expected =
         numerical_greeks(&engine, &option, &context, request, Default::default()).unwrap();
-    for greek in [
-        Greek::VegaPerPercentagePoint,
-        Greek::VolgaPerSquaredPercentagePoint,
-    ] {
+    for greek in [Greek::Vega, Greek::Volga] {
         assert!(
             (actual.require(greek).unwrap() - expected.require(greek).unwrap()).abs() < 1e-8,
             "{greek:?}"
@@ -602,7 +596,7 @@ fn validation_timing_expiry_and_failures_preserve_inputs() {
     assert_eq!(result.price(), 0.0);
     assert_eq!(result.get(Greek::Delta), None);
     assert_eq!(result.get(Greek::Theta), None);
-    assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
+    assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
     assert!(matches!(
         engine
             .price_with_greeks(&option, &context, GreeksRequest::new([]))
@@ -850,7 +844,7 @@ fn scaled_digital_discounts_and_strict_expiry_payments_remain_representable() {
                 );
                 assert_eq!(result.get(Greek::Delta), None);
                 assert_eq!(result.get(Greek::Theta), None);
-                assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
+                assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
             }
         }
     }

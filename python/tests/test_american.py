@@ -37,10 +37,10 @@ GREEKS = (
     "theta",
     "charm",
     "color",
-    "vega_per_percentage_point",
-    "vanna_per_percentage_point",
-    "zomma_per_percentage_point",
-    "rho_per_percentage_point",
+    "vega",
+    "vanna",
+    "zomma",
+    "rho",
 )
 
 
@@ -253,7 +253,7 @@ class AmericanTests(unittest.TestCase):
             self.engine.price_with_greeks,
             self.option,
             context,
-            "rho_per_percentage_point",
+            "rho",
         )
 
     def test_greeks_defaults_scalar_differences_and_shared_solving(self):

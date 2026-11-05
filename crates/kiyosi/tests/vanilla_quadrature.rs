@@ -170,12 +170,7 @@ fn settings_and_life_validation_preserve_expiry_and_failure_state() {
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
         assert_eq!(result.get(greek), None);
     }
-    for greek in [
-        Greek::VegaPerPercentagePoint,
-        Greek::VolgaPerSquaredPercentagePoint,
-        Greek::RhoPerPercentagePoint,
-        Greek::DividendRhoPerPercentagePoint,
-    ] {
+    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
         if result.supported().has(greek) {
             assert_eq!(result.require(greek).unwrap(), 0.0);
         }

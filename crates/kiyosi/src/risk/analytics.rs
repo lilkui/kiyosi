@@ -1,46 +1,42 @@
 use crate::{Error, EuropeanOption, PricingContext, Result};
 
-/// Selects a price sensitivity and its reporting units.
+/// Selects an unscaled partial derivative of the price.
 ///
-/// Spot derivatives are per spot unit, volatility/rate derivatives per percentage
-/// point (squared for volga), and time derivatives per calendar day of forward
-/// valuation time. Volga is `d²P/dσ² / 10000`; dividend rho is `dP/dq / 100`
-/// for a parallel continuously compounded dividend-yield shift with other inputs fixed.
-/// Risk-free rho likewise uses a parallel shift of the risk-free curve.
-/// Theta, charm and color differentiate with respect to valuation time, so their
-/// signs correspond to advancing valuation with the market curves held fixed.
-///
-/// With price `P`, spot `S` and decimal volatility `σ`, delta, gamma and speed
-/// are the first, second and third spot derivatives. Vega is `∂P/∂σ / 100`,
-/// vanna is `∂²P/(∂S∂σ) / 100`, and zomma is `∂³P/(∂S²∂σ) / 100`.
+/// Uses price `V`, spot `S`, decimal volatility `σ`, decimal continuously
+/// compounded rates `r` and `q`, and forward valuation time `t` in years
+/// (Actual/365 Fixed). Other inputs, including expiry, remain fixed.
+/// Rho and dividend rho differentiate parallel shifts of the entire risk-free
+/// and dividend-yield curves, respectively, rather than individual curve nodes.
+/// Theta, charm and color advance valuation with the market curves held fixed;
+/// they do not differentiate increasing time to expiry.
 /// See [`GreeksRequest::all`] for a request example.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(usize)]
 pub enum Greek {
-    /// Measures the first spot derivative per spot unit.
+    /// Measures `∂V/∂S`.
     Delta,
-    /// Measures the second spot derivative per squared spot unit.
+    /// Measures `∂²V/∂S²`.
     Gamma,
-    /// Measures the third spot derivative per cubed spot unit.
+    /// Measures `∂³V/∂S³`.
     Speed,
-    /// Measures the price change per calendar day of forward valuation time.
+    /// Measures `∂V/∂t` with valuation time in years.
     Theta,
-    /// Measures the delta change per calendar day of forward valuation time.
+    /// Measures `∂²V/(∂S∂t)` with valuation time in years.
     Charm,
-    /// Measures the gamma change per calendar day of forward valuation time.
+    /// Measures `∂³V/(∂S²∂t)` with valuation time in years.
     Color,
-    /// Measures the price change per volatility percentage point.
-    VegaPerPercentagePoint,
-    /// Measures the second volatility derivative per squared volatility percentage point.
-    VolgaPerSquaredPercentagePoint,
-    /// Measures the delta change per volatility percentage point.
-    VannaPerPercentagePoint,
-    /// Measures the gamma change per volatility percentage point.
-    ZommaPerPercentagePoint,
-    /// Measures the price change per percentage point of parallel risk-free-rate shift.
-    RhoPerPercentagePoint,
-    /// Measures the price change per parallel dividend-yield percentage point.
-    DividendRhoPerPercentagePoint,
+    /// Measures `∂V/∂σ` with decimal volatility.
+    Vega,
+    /// Measures `∂²V/∂σ²` with decimal volatility.
+    Volga,
+    /// Measures `∂²V/(∂S∂σ)` with decimal volatility.
+    Vanna,
+    /// Measures `∂³V/(∂S²∂σ)` with decimal volatility.
+    Zomma,
+    /// Measures `∂V/∂r` for a decimal parallel risk-free-rate shift.
+    Rho,
+    /// Measures `∂V/∂q` for a decimal parallel dividend-yield shift.
+    DividendRho,
 }
 
 impl Greek {
@@ -52,16 +48,16 @@ impl Greek {
         Self::Theta,
         Self::Charm,
         Self::Color,
-        Self::VegaPerPercentagePoint,
-        Self::VolgaPerSquaredPercentagePoint,
-        Self::VannaPerPercentagePoint,
-        Self::ZommaPerPercentagePoint,
-        Self::RhoPerPercentagePoint,
-        Self::DividendRhoPerPercentagePoint,
+        Self::Vega,
+        Self::Volga,
+        Self::Vanna,
+        Self::Zomma,
+        Self::Rho,
+        Self::DividendRho,
     ];
     /// Returns the lowercase Python choice string for this Greek.
     ///
-    /// For example, `Greek::VannaPerPercentagePoint.name()` is `"vanna_per_percentage_point"`; see [`Self::ALL`].
+    /// For example, `Greek::Vanna.name()` is `"vanna"`; see [`Self::ALL`].
     pub const fn name(self) -> &'static str {
         match self {
             Self::Delta => "delta",
@@ -70,12 +66,12 @@ impl Greek {
             Self::Theta => "theta",
             Self::Charm => "charm",
             Self::Color => "color",
-            Self::VegaPerPercentagePoint => "vega_per_percentage_point",
-            Self::VolgaPerSquaredPercentagePoint => "volga_per_squared_percentage_point",
-            Self::VannaPerPercentagePoint => "vanna_per_percentage_point",
-            Self::ZommaPerPercentagePoint => "zomma_per_percentage_point",
-            Self::RhoPerPercentagePoint => "rho_per_percentage_point",
-            Self::DividendRhoPerPercentagePoint => "dividend_rho_per_percentage_point",
+            Self::Vega => "vega",
+            Self::Volga => "volga",
+            Self::Vanna => "vanna",
+            Self::Zomma => "zomma",
+            Self::Rho => "rho",
+            Self::DividendRho => "dividend_rho",
         }
     }
 }
@@ -168,7 +164,7 @@ impl PricingResult {
     /// let result = PricingResult::new(10.0)?.with_request(
     ///     GreeksRequest::new([Greek::Delta]), GreeksRequest::all());
     /// assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
-    /// assert_eq!(result.status(Greek::VegaPerPercentagePoint), GreekStatus::NotRequested);
+    /// assert_eq!(result.status(Greek::Vega), GreekStatus::NotRequested);
     /// # Ok(()) }
     /// ```
     pub fn status(&self, greek: Greek) -> GreekStatus {
@@ -255,7 +251,7 @@ impl PricingResult {
     /// # fn main() -> kiyosi::Result<()> {
     /// let result = PricingResult::new(10.0)?.with_greek(Greek::Delta, 0.5)?;
     /// assert_eq!(result.require(Greek::Delta)?, 0.5);
-    /// assert_eq!(result.get(Greek::VegaPerPercentagePoint), None);
+    /// assert_eq!(result.get(Greek::Vega), None);
     /// # Ok(()) }
     /// ```
     pub fn with_greek(mut self, greek: Greek, value: f64) -> Result<Self> {

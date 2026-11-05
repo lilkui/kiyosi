@@ -189,10 +189,10 @@ class AsianMonteCarloTests(unittest.TestCase):
                         "theta",
                         "charm",
                         "color",
-                        "vega_per_percentage_point",
-                        "vanna_per_percentage_point",
-                        "zomma_per_percentage_point",
-                        "rho_per_percentage_point",
+                        "vega",
+                        "vanna",
+                        "zomma",
+                        "rho",
                     ):
                         self.assertIsNone(getattr(result, name))
                     if kind is GeometricAveragePriceOption:

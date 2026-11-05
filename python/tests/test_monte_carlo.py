@@ -335,7 +335,7 @@ class MonteCarloTests(unittest.TestCase):
             partial(numerical_greeks, engine),
             option,
             context,
-            "rho_per_percentage_point",
+            "rho",
             rate_shift=1000,
         )
         self.assert_rejection(
@@ -345,12 +345,12 @@ class MonteCarloTests(unittest.TestCase):
             engine,
             option,
             context,
-            ["delta", "vega_per_percentage_point"],
+            ["delta", "vega"],
             spot_shift=100,
             volatility_shift=0.2,
         )
         self.assertIsNone(missing.delta)
-        self.assertIsNone(missing.vega_per_percentage_point)
+        self.assertIsNone(missing.vega)
         self.assertEqual(missing.price, quote)
         with self.assertRaises(TypeError):
             numerical_greeks(engine, option, context, "delta", spot_shift=True)
@@ -753,7 +753,7 @@ class SamplingTests(unittest.TestCase):
                             engine,
                             option,
                             context,
-                            "rho_per_percentage_point",
+                            "rho",
                             rate_shift=1000,
                         )
                     self.assertIs(type(error.exception), ComputationFailureError)
@@ -867,13 +867,13 @@ class SamplingTests(unittest.TestCase):
             "delta": 2e-4,
             "gamma": 1e-5,
             "speed": 5e-6,
-            "vega_per_percentage_point": 5e-5,
-            "vanna_per_percentage_point": 1e-5,
-            "zomma_per_percentage_point": 5e-6,
-            "rho_per_percentage_point": 2e-5,
-            "theta": 2e-5,
-            "charm": 5e-7,
-            "color": 2e-7,
+            "vega": 0.005,
+            "vanna": 0.001,
+            "zomma": 0.0005,
+            "rho": 0.002,
+            "theta": 0.0073,
+            "charm": 0.0001825,
+            "color": 0.000073,
         }
         for antithetic in (False, True):
             for direction in ("call", "put"):

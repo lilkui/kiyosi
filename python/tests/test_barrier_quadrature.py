@@ -144,8 +144,8 @@ class BarrierQuadratureTests(unittest.TestCase):
         names = (
             "delta",
             "gamma",
-            "vega_per_percentage_point",
-            "rho_per_percentage_point",
+            "vega",
+            "rho",
         )
         expected = pricing.AnalyticBarrierEngine().price_with_greeks(
             contract, context, names

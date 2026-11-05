@@ -281,10 +281,7 @@ fn deterministic_payoff_boundaries_leave_greeks_undefined_and_solvers_accept_zer
     ] {
         let result = engine.price_with_greeks(&option, &context, GreeksRequest::all())?;
         assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
-        assert_eq!(
-            result.status(Greek::VegaPerPercentagePoint),
-            GreekStatus::Undefined
-        );
+        assert_eq!(result.status(Greek::Vega), GreekStatus::Undefined);
         assert_eq!(
             implied_volatility(
                 engine,

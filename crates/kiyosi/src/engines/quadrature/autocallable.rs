@@ -49,7 +49,7 @@ impl QuadratureAutocallableEngine {
     /// let engine = QuadratureAutocallableEngine::new(QuadratureSettings::default())?;
     /// assert_eq!(engine.settings().asset_step_count, 512);
     /// let result = engine.price_with_greeks(&note, &context,
-    ///     GreeksRequest::new([Greek::Delta, Greek::VegaPerPercentagePoint]))?;
+    ///     GreeksRequest::new([Greek::Delta, Greek::Vega]))?;
     /// assert!(result.price().is_finite());
     /// assert!(result.has(Greek::Delta));
     /// # Ok(()) }

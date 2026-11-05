@@ -675,16 +675,13 @@ fn greek_status_distinguishes_requests_support_and_stencils() -> Result<()> {
     let result = FiniteDifferenceVanillaEngine::default().price_with_greeks(
         &option,
         &local,
-        GreeksRequest::new([Greek::Delta, Greek::VegaPerPercentagePoint]),
+        GreeksRequest::new([Greek::Delta, Greek::Vega]),
     )?;
     assert_eq!(result.status(Greek::Delta), GreekStatus::Available);
-    assert_eq!(
-        result.status(Greek::VegaPerPercentagePoint),
-        GreekStatus::Unsupported
-    );
+    assert_eq!(result.status(Greek::Vega), GreekStatus::Unsupported);
     assert_eq!(
         result.requested(),
-        GreeksRequest::new([Greek::Delta, Greek::VegaPerPercentagePoint])
+        GreeksRequest::new([Greek::Delta, Greek::Vega])
     );
     Ok(())
 }

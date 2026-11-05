@@ -51,20 +51,20 @@
       },
       "tolerances": {
         "price": 0.5,
-        "theta": 0.001,
-        "charm": 0.00005,
-        "color": 0.00002,
-        "vega_per_percentage_point": 0.015,
-        "rho_per_percentage_point": 0.01
+        "theta": 0.365,
+        "charm": 0.01825,
+        "color": 0.0073,
+        "vega": 1.5,
+        "rho": 1
       },
       "numerical_tolerances": {
         "price": 0.5,
         "delta": 0.01,
-        "theta": 0.001,
-        "charm": 0.00005,
-        "color": 0.00002,
-        "vega_per_percentage_point": 0.015,
-        "rho_per_percentage_point": 0.01
+        "theta": 0.365,
+        "charm": 0.01825,
+        "color": 0.0073,
+        "vega": 1.5,
+        "rho": 1
       }
     }
   ],
@@ -80,26 +80,26 @@
       "delta": 0.003,
       "gamma": 0.0003,
       "speed": 0.0002,
-      "theta": 0.0003,
-      "charm": 0.00003,
-      "color": 0.00001,
-      "vega_per_percentage_point": 0.005,
-      "vanna_per_percentage_point": 0.001,
-      "zomma_per_percentage_point": 0.0003,
-      "rho_per_percentage_point": 0.005
+      "theta": 0.1095,
+      "charm": 0.01095,
+      "color": 0.00365,
+      "vega": 0.5,
+      "vanna": 0.1,
+      "zomma": 0.03,
+      "rho": 0.5
     },
     "numerical_tolerances": {
       "price": 0.04,
       "delta": 0.003,
       "gamma": 0.002,
       "speed": 0.0002,
-      "theta": 0.0003,
-      "charm": 0.00003,
-      "color": 0.00001,
-      "vega_per_percentage_point": 0.005,
-      "vanna_per_percentage_point": 0.001,
-      "zomma_per_percentage_point": 0.0003,
-      "rho_per_percentage_point": 0.005
+      "theta": 0.1095,
+      "charm": 0.01095,
+      "color": 0.00365,
+      "vega": 0.5,
+      "vanna": 0.1,
+      "zomma": 0.03,
+      "rho": 0.5
     }
   }
 }

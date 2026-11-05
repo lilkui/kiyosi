@@ -28,13 +28,13 @@ def option(inputs):
     return SimpleNamespace(
         NPV=lambda: price(tuple(sorted(inputs.items()))),
         **{
-            name: g.native_method(contract, name)
+            name: getattr(contract, name)
             for name in (
                 "delta",
                 "gamma",
                 "theta",
-                "vega_per_percentage_point",
-                "rho_per_percentage_point",
+                "vega",
+                "rho",
             )
             if hasattr(contract, name)
         },
@@ -141,15 +141,15 @@ def make_contract(inputs):
     return SimpleNamespace(
         **{
             name: lambda name=name: sum(
-                g.native_method(component, name)() for component in components
+                getattr(component, name)() for component in components
             )
             for name in (
                 "NPV",
                 "delta",
                 "gamma",
                 "theta",
-                "vega_per_percentage_point",
-                "rho_per_percentage_point",
+                "vega",
+                "rho",
             )
         }
     )
@@ -257,11 +257,11 @@ def check_bindings():
                             "delta",
                             "gamma",
                             "theta",
-                            "vega_per_percentage_point",
-                            "rho_per_percentage_point",
+                            "vega",
+                            "rho",
                         ):
                             try:
-                                g.native_method(contract, name)()
+                                getattr(contract, name)()
                             except RuntimeError as caught:
                                 assert "not provided" in str(caught)
                             else:
@@ -315,9 +315,9 @@ def check_bindings():
                     for name, unit in (
                         ("delta", 1),
                         ("gamma", 1),
-                        ("rho_per_percentage_point", 100),
+                        ("rho", 1),
                     ):
-                        direct = g.native_method(contract, name)() / unit
+                        direct = getattr(contract, name)() / unit
                         assert abs(measure(inputs, name) - direct) < 1e-12
                         assert (
                             abs(measure(inputs, name, price_only=True) - direct)
@@ -331,9 +331,9 @@ def check_bindings():
                     for name, unit in (
                         ("delta", 1),
                         ("gamma", 1),
-                        ("theta", 365),
-                        ("vega_per_percentage_point", 100),
-                        ("rho_per_percentage_point", 100),
+                        ("theta", 1),
+                        ("vega", 1),
+                        ("rho", 1),
                     ):
                         direct = (
                             sum(

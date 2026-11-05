@@ -338,11 +338,11 @@ class SnowballVariantTests(unittest.TestCase):
                         engine,
                         note,
                         ctx,
-                        ["delta", "vega_per_percentage_point"],
+                        ["delta", "vega"],
                         spot_shift=0.25,
                     )
                     self.assertIsNotNone(result.delta)
-                    self.assertIsNotNone(result.vega_per_percentage_point)
+                    self.assertIsNotNone(result.vega)
                 self.assertEqual(
                     actual.replace_history(barrier_state="knocked_in"),
                     explicit.replace_history(barrier_state="knocked_in"),
@@ -545,10 +545,10 @@ class SnowballVariantTests(unittest.TestCase):
                 "delta",
                 "gamma",
                 "speed",
-                "vega_per_percentage_point",
-                "vanna_per_percentage_point",
-                "zomma_per_percentage_point",
-                "rho_per_percentage_point",
+                "vega",
+                "vanna",
+                "zomma",
+                "rho",
                 "theta",
                 "charm",
                 "color",
@@ -586,7 +586,7 @@ class SnowballVariantTests(unittest.TestCase):
             self.assertIsNone(current.delta)
             self.assertIsNone(current.theta)
             self.assertEqual(
-                (current.vega_per_percentage_point, current.rho_per_percentage_point),
+                (current.vega, current.rho),
                 (0, 0),
             )
             self.assert_rejection(

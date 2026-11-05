@@ -17,10 +17,10 @@ MEASURES = [
     "theta",
     "charm",
     "color",
-    "vega_per_percentage_point",
-    "vanna_per_percentage_point",
-    "zomma_per_percentage_point",
-    "rho_per_percentage_point",
+    "vega",
+    "vanna",
+    "zomma",
+    "rho",
 ]
 TIME_MEASURES = {"theta", "charm", "color"}
 UNITS = {
@@ -28,13 +28,13 @@ UNITS = {
     "delta": "price/spot",
     "gamma": "price/spot^2",
     "speed": "price/spot^3",
-    "theta": "price/day",
-    "charm": "delta/day",
-    "color": "gamma/day",
-    "vega_per_percentage_point": "price/volatility-pp",
-    "vanna_per_percentage_point": "delta/volatility-pp",
-    "zomma_per_percentage_point": "gamma/volatility-pp",
-    "rho_per_percentage_point": "price/rate-pp",
+    "theta": "price/year",
+    "charm": "delta/year",
+    "color": "gamma/year",
+    "vega": "price/decimal-volatility",
+    "vanna": "delta/decimal-volatility",
+    "zomma": "gamma/decimal-volatility",
+    "rho": "price/decimal-rate",
 }
 # Independent stability ceilings, not Kiyosi error allowances.
 STABILITY = {
@@ -42,13 +42,13 @@ STABILITY = {
     "delta": 1e-6,
     "gamma": 1e-7,
     "speed": 1e-7,
-    "theta": 1e-4,
-    "charm": 1e-5,
-    "color": 2e-6,
-    "vega_per_percentage_point": 1e-6,
-    "vanna_per_percentage_point": 1e-7,
-    "zomma_per_percentage_point": 1e-8,
-    "rho_per_percentage_point": 1e-6,
+    "theta": 0.0365,
+    "charm": 0.00365,
+    "color": 0.00073,
+    "vega": 0.0001,
+    "vanna": 0.00001,
+    "zomma": 0.000001,
+    "rho": 0.0001,
 }
 CONVENTION = "Actual/365 Fixed, continuously compounded BSM"
 
@@ -137,13 +137,6 @@ def shifted(inputs, field, bump):
     return value
 
 
-def native_method(contract, name):
-    """Map Kiyosi reporting names to an independent reference's native methods."""
-    return getattr(
-        contract, name if hasattr(contract, name) else name.split("_per_", 1)[0]
-    )
-
-
 def measure(
     inputs,
     name,
@@ -158,16 +151,10 @@ def measure(
     if name == "price":
         value = option.NPV()
     else:
-        native = {
-            "delta": 1,
-            "gamma": 1,
-            "theta": 365,
-            "vega_per_percentage_point": 100,
-            "rho_per_percentage_point": 100,
-        }
+        native = {"delta", "gamma", "theta", "vega", "rho"}
         if name in native and not price_only and hasattr(option, name):
             try:
-                value = native_method(option, name)() / native[name]
+                value = getattr(option, name)()
             except RuntimeError as error:
                 if "not provided" not in str(error):
                     raise
@@ -178,13 +165,13 @@ def measure(
             "delta": ("spot", "price", 0.001, 1),
             "gamma": ("spot", "price", 0.001, 1),
             "speed": ("spot", "gamma", 0.001, 1),
-            "theta": ("valuation", "price", 1, 1),
-            "charm": ("valuation", "delta", 1, 1),
-            "color": ("valuation", "gamma", 1, 1),
-            "vega_per_percentage_point": ("volatility", "price", 0.0001, 100),
-            "vanna_per_percentage_point": ("volatility", "delta", 0.0001, 100),
-            "zomma_per_percentage_point": ("volatility", "gamma", 0.0001, 100),
-            "rho_per_percentage_point": ("rate", "price", 0.0001, 100),
+            "theta": ("valuation", "price", 1, 1 / 365),
+            "charm": ("valuation", "delta", 1, 1 / 365),
+            "color": ("valuation", "gamma", 1, 1 / 365),
+            "vega": ("volatility", "price", 0.0001, 1),
+            "vanna": ("volatility", "delta", 0.0001, 1),
+            "zomma": ("volatility", "gamma", 0.0001, 1),
+            "rho": ("rate", "price", 0.0001, 1),
         }[name]
         if (
             field == "spot"
@@ -275,8 +262,8 @@ def reference(inputs, stability=STABILITY, *, unavailable=None, measure_fn=None)
             "delta",
             "gamma",
             "theta",
-            "vega_per_percentage_point",
-            "rho_per_percentage_point",
+            "vega",
+            "rho",
         }
         estimates = [measure_fn(inputs, name, scale, fallback) for scale in (1, 2)]
         require(

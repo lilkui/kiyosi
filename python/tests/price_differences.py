@@ -19,12 +19,12 @@ def price_differences(
         "theta",
         "charm",
         "color",
-        "vega_per_percentage_point",
-        "volga_per_squared_percentage_point",
-        "vanna_per_percentage_point",
-        "zomma_per_percentage_point",
-        "rho_per_percentage_point",
-        "dividend_rho_per_percentage_point",
+        "vega",
+        "volga",
+        "vanna",
+        "zomma",
+        "rho",
+        "dividend_rho",
     ),
     *,
     spot_shift=0.01,
@@ -53,7 +53,7 @@ def price_differences(
         if isinstance(option, EuropeanOption)
         else (-min(step, time - start), min(step, end - time))
     )
-    days = (after - before).total_seconds() / 86400
+    years = (after - before).total_seconds() / (365 * 86400)
 
     @cache
     def price(ds=0, dv=0, dr=0, dt=timedelta(), dq=0):
@@ -85,26 +85,17 @@ def price_differences(
             / h
             / (2 * h)
         ),
-        "vega_per_percentage_point": lambda: (price(dv=v) - price(dv=-v)) / (200 * v),
-        "volga_per_squared_percentage_point": lambda: (
-            (price(dv=v) - 2 * price() + price(dv=-v)) / (100 * v) ** 2
+        "vega": lambda: (price(dv=v) - price(dv=-v)) / (2 * v),
+        "volga": lambda: (price(dv=v) - 2 * price() + price(dv=-v)) / v**2,
+        "vanna": lambda: (
+            ((price(h, v) - price(-h, v)) - (price(h, -v) - price(-h, -v))) / h / v / 4
         ),
-        "vanna_per_percentage_point": lambda: (
-            ((price(h, v) - price(-h, v)) - (price(h, -v) - price(-h, -v)))
-            / h
-            / (100 * v)
-            / 4
-        ),
-        "zomma_per_percentage_point": lambda: (
-            (curvature(v) / h / h - curvature(-v) / h / h) / (200 * v)
-        ),
-        "rho_per_percentage_point": lambda: (price(dr=r) - price(dr=-r)) / (200 * r),
-        "dividend_rho_per_percentage_point": lambda: (
-            (price(dq=q) - price(dq=-q)) / (200 * q)
-        ),
-        "theta": lambda: (price(dt=after) - price(dt=before)) / days,
-        "charm": lambda: (spread(dt=after) - spread(dt=before)) / h / days / 2,
-        "color": lambda: (curvature(dt=after) - curvature(dt=before)) / h / h / days,
+        "zomma": lambda: (curvature(v) / h / h - curvature(-v) / h / h) / (2 * v),
+        "rho": lambda: (price(dr=r) - price(dr=-r)) / (2 * r),
+        "dividend_rho": lambda: (price(dq=q) - price(dq=-q)) / (2 * q),
+        "theta": lambda: (price(dt=after) - price(dt=before)) / years,
+        "charm": lambda: (spread(dt=after) - spread(dt=before)) / h / years / 2,
+        "color": lambda: (curvature(dt=after) - curvature(dt=before)) / h / h / years,
     }
     return SimpleNamespace(
         price=engine.price(option, context),

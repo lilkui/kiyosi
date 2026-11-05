@@ -18,8 +18,8 @@ def assert_terminal_greeks(test, result, delta):
                     "delta",
                     "gamma",
                     "speed",
-                    "vanna_per_percentage_point",
-                    "zomma_per_percentage_point",
+                    "vanna",
+                    "zomma",
                 )
             )
         ):

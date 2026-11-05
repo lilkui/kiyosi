@@ -29,10 +29,10 @@ GREEKS = (
     "theta",
     "charm",
     "color",
-    "vega_per_percentage_point",
-    "vanna_per_percentage_point",
-    "zomma_per_percentage_point",
-    "rho_per_percentage_point",
+    "vega",
+    "vanna",
+    "zomma",
+    "rho",
 )
 
 
@@ -368,7 +368,7 @@ class BinaryBarrierTests(unittest.TestCase):
             near = engine.price_with_greeks(option, self.context(119.995), greeks="all")
             self.assertIsNone(near.delta)
             self.assertIsNone(near.speed)
-            self.assertIsNotNone(near.vega_per_percentage_point)
+            self.assertIsNotNone(near.vega)
             expiry = self.context(time=datetime(2026, 1, 1))
             terminal = engine.price_with_greeks(option, expiry, greeks="all")
             assert_terminal_greeks(

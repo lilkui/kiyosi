@@ -40,26 +40,26 @@
         "delta": 0.003,
         "gamma": 0.003,
         "speed": 0.0003,
-        "theta": 0.001,
-        "charm": 0.0001,
-        "color": 0.00003,
-        "vega_per_percentage_point": 0.01,
-        "vanna_per_percentage_point": 0.002,
-        "zomma_per_percentage_point": 0.0005,
-        "rho_per_percentage_point": 0.02
+        "theta": 0.365,
+        "charm": 0.0365,
+        "color": 0.01095,
+        "vega": 1,
+        "vanna": 0.2,
+        "zomma": 0.05,
+        "rho": 2
       },
       "numerical_tolerances": {
         "price": 0.03,
         "delta": 0.003,
         "gamma": 0.003,
         "speed": 0.0003,
-        "theta": 0.001,
-        "charm": 0.0001,
-        "color": 0.00003,
-        "vega_per_percentage_point": 0.01,
-        "vanna_per_percentage_point": 0.002,
-        "zomma_per_percentage_point": 0.0005,
-        "rho_per_percentage_point": 0.02
+        "theta": 0.365,
+        "charm": 0.0365,
+        "color": 0.01095,
+        "vega": 1,
+        "vanna": 0.2,
+        "zomma": 0.05,
+        "rho": 2
       },
       "boundary_settings": {
         "asset_step_count": 9602
@@ -78,26 +78,26 @@
       "delta": 1e-9,
       "gamma": 1e-9,
       "speed": 0.000001,
-      "theta": 0.0001,
-      "charm": 0.000001,
-      "color": 1e-7,
-      "vega_per_percentage_point": 0.00001,
-      "vanna_per_percentage_point": 0.000001,
-      "zomma_per_percentage_point": 0.000001,
-      "rho_per_percentage_point": 0.00001
+      "theta": 0.0365,
+      "charm": 0.000365,
+      "color": 0.0000365,
+      "vega": 0.001,
+      "vanna": 0.0001,
+      "zomma": 0.0001,
+      "rho": 0.001
     },
     "numerical_tolerances": {
       "price": 1e-8,
       "delta": 0.00001,
       "gamma": 0.000001,
       "speed": 0.000001,
-      "theta": 0.0001,
-      "charm": 0.000001,
-      "color": 1e-7,
-      "vega_per_percentage_point": 0.00001,
-      "vanna_per_percentage_point": 0.000001,
-      "zomma_per_percentage_point": 0.000001,
-      "rho_per_percentage_point": 0.00001
+      "theta": 0.0365,
+      "charm": 0.000365,
+      "color": 0.0000365,
+      "vega": 0.001,
+      "vanna": 0.0001,
+      "zomma": 0.0001,
+      "rho": 0.001
     }
   }
 }

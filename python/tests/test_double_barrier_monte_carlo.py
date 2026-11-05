@@ -101,7 +101,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
                 self.assertAlmostEqual(actual.delta, expected.delta, delta=0.003)
                 self.assertAlmostEqual(actual.gamma, expected.gamma, delta=0.003)
                 self.assertEqual(actual.price, engine.price(option, market()))
-                self.assertIsNone(actual.vega_per_percentage_point)
+                self.assertIsNone(actual.vega)
 
     def test_scheduled_prices_match_independent_integrals_and_greeks_match_fd(self):
         engine = pricing.MonteCarloDoubleBarrierEngine(
@@ -540,7 +540,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
         tiny = market(volatility=1e-200)
         price = engine.price(option, tiny)
         self.assertEqual(
-            engine.price_with_greeks(option, tiny, "rho_per_percentage_point").price,
+            engine.price_with_greeks(option, tiny, "rho").price,
             price,
         )
         self.assert_rejection(

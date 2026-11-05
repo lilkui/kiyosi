@@ -283,10 +283,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             let mut result = PricingResult::new(engine.price(option, context)?)?;
             let rate = context.bsm_parameters()?.flat_risk_free_rate()?;
             let dividend = context.bsm_parameters()?.flat_dividend_yield()?;
-            for (greek, value) in [
-                (Greek::RhoPerPercentagePoint, rate),
-                (Greek::DividendRhoPerPercentagePoint, dividend),
-            ] {
+            for (greek, value) in [(Greek::Rho, rate), (Greek::DividendRho, dividend)] {
                 if !requested.has(greek)
                     || context.valuation_time() == option.expiry_time()
                     || option.option_type() != OptionType::Call
@@ -294,12 +291,12 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
                     continue;
                 }
                 let shift = crate::risk::numerical::symmetric_shift(value, settings.rate_shift);
-                let crosses_shortcut = if greek == Greek::RhoPerPercentagePoint {
+                let crosses_shortcut = if greek == Greek::Rho {
                     dividend <= 0.0 && rate - shift < 0.0 && rate + shift >= 0.0
                 } else {
                     rate >= 0.0 && dividend - shift <= 0.0 && dividend + shift > 0.0
                 };
-                if shift <= 0.0 || !(200.0 * shift).is_finite() || !crosses_shortcut {
+                if shift <= 0.0 || !(2.0 * shift).is_finite() || !crosses_shortcut {
                     continue;
                 }
                 // Keep the exercise-grid estimator on both sides of the terminal shortcut boundary.
@@ -308,9 +305,8 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
                         context
                             .bsm_parameters()?
                             .replace(BlackScholesMertonParameterChanges {
-                                risk_free_rate: (greek == Greek::RhoPerPercentagePoint)
-                                    .then_some(value.into()),
-                                dividend_yield: (greek == Greek::DividendRhoPerPercentagePoint)
+                                risk_free_rate: (greek == Greek::Rho).then_some(value.into()),
+                                dividend_yield: (greek == Greek::DividendRho)
                                     .then_some(value.into()),
                                 ..Default::default()
                             })?;
@@ -323,7 +319,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
                 result.set(
                     requested,
                     greek,
-                    (evaluate(value + shift)? - evaluate(value - shift)?) / (200.0 * shift),
+                    (evaluate(value + shift)? - evaluate(value - shift)?) / (2.0 * shift),
                 )?;
             }
             Ok(result)
@@ -438,12 +434,12 @@ mod tests {
                     .price_with_greeks(
                         &option,
                         &context(dividend),
-                        GreeksRequest::new([Greek::DividendRhoPerPercentagePoint]),
+                        GreeksRequest::new([Greek::DividendRho]),
                     )
                     .unwrap();
                 let shift = crate::risk::numerical::symmetric_shift(dividend, shift);
                 if shift == 0.0 {
-                    assert!(!result.has(Greek::DividendRhoPerPercentagePoint));
+                    assert!(!result.has(Greek::DividendRho));
                     continue;
                 }
                 let up = engine
@@ -453,10 +449,7 @@ mod tests {
                     .american_price(&option, &context(dividend - shift), false)
                     .unwrap();
                 assert!(
-                    (result
-                        .require(Greek::DividendRhoPerPercentagePoint)
-                        .unwrap()
-                        - (up - down) / (200.0 * shift))
+                    (result.require(Greek::DividendRho).unwrap() - (up - down) / (2.0 * shift))
                         .abs()
                         < 1e-10
                 );
@@ -464,19 +457,19 @@ mod tests {
                     result.price(),
                     engine.price(&option, &context(dividend)).unwrap()
                 );
-                assert!(!result.has(Greek::RhoPerPercentagePoint));
+                assert!(!result.has(Greek::Rho));
                 let unavailable = crate::numerical_greeks(
                     &engine,
                     &option,
                     &context(dividend),
-                    GreeksRequest::new([Greek::DividendRhoPerPercentagePoint]),
+                    GreeksRequest::new([Greek::DividendRho]),
                     NumericalShiftSettings {
                         rate_shift: f64::MAX,
                         ..Default::default()
                     },
                 )
                 .unwrap();
-                assert!(!unavailable.has(Greek::DividendRhoPerPercentagePoint));
+                assert!(!unavailable.has(Greek::DividendRho));
             }
         }
     }

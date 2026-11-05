@@ -41,25 +41,21 @@ class VolgaDividendRhoTests(unittest.TestCase):
                         "volatility": 0.2,
                     }
                     reference = oracle.vanilla_option(inputs)
-                    expected_dividend = reference.dividendRho() / 100
-                    # Differentiate independent QuantLib vega_per_percentage_point at two resolutions.
-                    volga_per_squared_percentage_point = []
+                    expected_dividend = reference.dividendRho()
+                    # Differentiate independent QuantLib vega at two resolutions.
+                    volga = []
                     for h in (0.0001, 0.00005):
                         up = oracle.vanilla_option({**inputs, "volatility": 0.2 + h})
                         down = oracle.vanilla_option({**inputs, "volatility": 0.2 - h})
-                        volga_per_squared_percentage_point.append(
-                            (up.vega() - down.vega()) / (20000 * h)
-                        )
+                        volga.append((up.vega() - down.vega()) / (2 * h))
                     self.assertAlmostEqual(
-                        volga_per_squared_percentage_point[0],
-                        volga_per_squared_percentage_point[1],
-                        delta=1e-8,
+                        volga[0],
+                        volga[1],
+                        delta=1e-4,
                     )
                     expected = {
-                        "volga_per_squared_percentage_point": volga_per_squared_percentage_point[
-                            1
-                        ],
-                        "dividend_rho_per_percentage_point": expected_dividend,
+                        "volga": volga[1],
+                        "dividend_rho": expected_dividend,
                     }
                     full = engine.price_with_greeks(option, context, "all")
                     for name, value in expected.items():
@@ -68,32 +64,32 @@ class VolgaDividendRhoTests(unittest.TestCase):
                         ):
                             selected = engine.price_with_greeks(option, context, name)
                             self.assertAlmostEqual(
-                                selected.require(name), value, delta=1e-8
+                                selected.require(name),
+                                value,
+                                delta=1e-4 if name == "volga" else 1e-6,
                             )
                             self.assertEqual(selected.require(name), full.require(name))
                             self.assertIsNone(selected.delta)
                             self.assertEqual(selected.price, full.price)
                             other = (
-                                "volga_per_squared_percentage_point"
-                                if name == "dividend_rho_per_percentage_point"
-                                else "dividend_rho_per_percentage_point"
+                                "volga" if name == "dividend_rho" else "dividend_rho"
                             )
                             self.assertIsNone(getattr(selected, other))
                     if spot == 100 and dividend == 0.02:
                         self.assertAlmostEqual(
-                            full.volga_per_squared_percentage_point,
-                            0.000236882234437609,
-                            delta=1e-14,
+                            full.volga,
+                            2.36882234437609,
+                            delta=1e-10,
                         )
                         expected_q = (
-                            -0.586851146134764
+                            -58.6851146134764
                             if direction == "call"
-                            else 0.393347527171254
+                            else 39.3347527171254
                         )
                         self.assertAlmostEqual(
-                            full.dividend_rho_per_percentage_point,
+                            full.dividend_rho,
                             expected_q,
-                            delta=1e-12,
+                            delta=1e-10,
                         )
 
     def test_parallel_dividend_curves_numerical_bumps_and_availability(self):
@@ -113,7 +109,7 @@ class VolgaDividendRhoTests(unittest.TestCase):
         )
         exact = AnalyticEuropeanEngine().price_with_greeks(option, context, "all")
         self.assertAlmostEqual(
-            exact.dividend_rho_per_percentage_point, -exact.delta, delta=1e-12
+            exact.dividend_rho, -context.spot_price * exact.delta, delta=1e-10
         )
         for bump in (0.0001, 0.0002):
             actual = numerical_greeks(
@@ -121,21 +117,21 @@ class VolgaDividendRhoTests(unittest.TestCase):
                 option,
                 context,
                 [
-                    "volga_per_squared_percentage_point",
-                    "dividend_rho_per_percentage_point",
+                    "volga",
+                    "dividend_rho",
                 ],
                 volatility_shift=bump,
                 rate_shift=bump,
             )
             self.assertAlmostEqual(
-                actual.volga_per_squared_percentage_point,
-                exact.volga_per_squared_percentage_point,
-                delta=2e-5,
+                actual.volga,
+                exact.volga,
+                delta=0.2,
             )
             self.assertAlmostEqual(
-                actual.dividend_rho_per_percentage_point,
-                exact.dividend_rho_per_percentage_point,
-                delta=0.0002,
+                actual.dividend_rho,
+                exact.dividend_rho,
+                delta=0.02,
             )
             shifted_prices = [
                 engine.price(
@@ -149,31 +145,31 @@ class VolgaDividendRhoTests(unittest.TestCase):
                 for h in (bump, -bump)
             ]
             self.assertAlmostEqual(
-                actual.dividend_rho_per_percentage_point,
-                (shifted_prices[0] - shifted_prices[1]) / (200 * bump),
-                delta=1e-10,
+                actual.dividend_rho,
+                (shifted_prices[0] - shifted_prices[1]) / (2 * bump),
+                delta=1e-8,
             )
             self.assertIsNone(actual.delta)
-            self.assertIsNone(actual.rho_per_percentage_point)
+            self.assertIsNone(actual.rho)
         flat = market(dividend=0.02)
         actual = numerical_greeks(
             engine,
             option,
             flat,
-            ["volga_per_squared_percentage_point", "dividend_rho_per_percentage_point"],
+            ["volga", "dividend_rho"],
             volatility_shift=0.2,
         )
-        self.assertIsNone(actual.volga_per_squared_percentage_point)
-        self.assertIsNotNone(actual.dividend_rho_per_percentage_point)
+        self.assertIsNone(actual.volga)
+        self.assertIsNotNone(actual.dividend_rho)
         actual = numerical_greeks(
             engine,
             option,
             flat,
-            ["volga_per_squared_percentage_point", "dividend_rho_per_percentage_point"],
+            ["volga", "dividend_rho"],
             rate_shift=math.ulp(0.0),
         )
-        self.assertIsNotNone(actual.volga_per_squared_percentage_point)
-        self.assertIsNone(actual.dividend_rho_per_percentage_point)
+        self.assertIsNotNone(actual.volga)
+        self.assertIsNone(actual.dividend_rho)
         self.assertEqual(context.model_parameters.dividend_curve.factors, curve.factors)
 
     def test_american_dividend_stencil_crossing_zero_keeps_one_estimator(self):
@@ -184,12 +180,10 @@ class VolgaDividendRhoTests(unittest.TestCase):
         requested = 0.0001
         for dividend in (-requested / 2, 0, requested / 2, requested):
             context = market(rate=0, dividend=dividend)
-            actual = engine.price_with_greeks(
-                option, context, "dividend_rho_per_percentage_point"
-            )
+            actual = engine.price_with_greeks(option, context, "dividend_rho")
             shift = (dividend + requested) - dividend
             if dividend - (dividend - shift) != shift:
-                self.assertIsNone(actual.dividend_rho_per_percentage_point)
+                self.assertIsNone(actual.dividend_rho)
                 continue
             # A subnormal negative rate forces the exercise grid without changing BSM coefficients.
             up, down = [
@@ -199,9 +193,9 @@ class VolgaDividendRhoTests(unittest.TestCase):
                 for bump in (shift, -shift)
             ]
             self.assertAlmostEqual(
-                actual.dividend_rho_per_percentage_point,
-                (up - down) / (200 * shift),
-                delta=1e-10,
+                actual.dividend_rho,
+                (up - down) / (2 * shift),
+                delta=1e-8,
             )
             self.assertEqual(actual.price, engine.price(option, context))
-            self.assertIsNone(actual.rho_per_percentage_point)
+            self.assertIsNone(actual.rho)

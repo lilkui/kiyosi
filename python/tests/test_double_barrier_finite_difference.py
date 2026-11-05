@@ -299,12 +299,12 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                 observation_mode="scheduled", observation_times=[START, END], rebate=3
             )
             actual = engine.price_with_greeks(
-                observed, market(bound), ["delta", "gamma", "vega_per_percentage_point"]
+                observed, market(bound), ["delta", "gamma", "vega"]
             )
             self.assertAlmostEqual(actual.price, 3 * math.exp(-0.04), delta=1e-12)
             self.assertIsNone(actual.delta)
             self.assertIsNone(actual.gamma)
-            self.assertIsNone(actual.vega_per_percentage_point)
+            self.assertIsNone(actual.vega)
             future = contract(
                 observation_mode="scheduled", observation_times=[END], rebate=3
             )
@@ -439,7 +439,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
         native = engine.price_with_greeks(
             option,
             market(),
-            ["delta", "gamma", "vega_per_percentage_point", "rho_per_percentage_point"],
+            ["delta", "gamma", "vega", "rho"],
         )
 
         differences = importlib.import_module("price_differences").price_differences
@@ -450,16 +450,16 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             greeks=(
                 "delta",
                 "gamma",
-                "vega_per_percentage_point",
-                "rho_per_percentage_point",
+                "vega",
+                "rho",
             ),
         )
         self.assertEqual(native.price, engine.price(option, market()))
         for measure, budget in (
             ("delta", 1e-4),
             ("gamma", 2e-4),
-            ("vega_per_percentage_point", 1e-7),
-            ("rho_per_percentage_point", 1e-7),
+            ("vega", 1e-7),
+            ("rho", 1e-7),
         ):
             self.assertAlmostEqual(
                 getattr(native, measure), getattr(bumped, measure), delta=budget
@@ -756,10 +756,10 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             "theta",
             "charm",
             "color",
-            "vega_per_percentage_point",
-            "vanna_per_percentage_point",
-            "zomma_per_percentage_point",
-            "rho_per_percentage_point",
+            "vega",
+            "vanna",
+            "zomma",
+            "rho",
         ):
             self.assertTrue(math.isfinite(getattr(result, name)), name)
             selected = engine.price_with_greeks(instrument, context, name)
@@ -796,13 +796,13 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
                         "delta",
                         "gamma",
                         "speed",
-                        "vega_per_percentage_point",
-                        "rho_per_percentage_point",
+                        "vega",
+                        "rho",
                         "theta",
                         "charm",
                         "color",
-                        "vanna_per_percentage_point",
-                        "zomma_per_percentage_point",
+                        "vanna",
+                        "zomma",
                     )
                 )
             )

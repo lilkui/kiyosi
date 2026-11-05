@@ -12,13 +12,13 @@ STABILITY = {
     "delta": 0.0002,
     "gamma": 0.00005,
     "speed": 0.00002,
-    "theta": 0.00003,
-    "charm": 0.00002,
-    "color": 0.000002,
-    "vega_per_percentage_point": 0.001,
-    "vanna_per_percentage_point": 0.00003,
-    "zomma_per_percentage_point": 0.00001,
-    "rho_per_percentage_point": 0.001,
+    "theta": 0.01095,
+    "charm": 0.0073,
+    "color": 0.00073,
+    "vega": 0.1,
+    "vanna": 0.003,
+    "zomma": 0.001,
+    "rho": 0.1,
 }
 EXPIRY_REASON = "whole-day stability stencil touches expiry_time"
 EXERCISE_REASON = "whole-day stability stencil precedes exercise window"
@@ -48,13 +48,13 @@ def measure(inputs, name, grid=GRIDS[-1], scale=1):
         return native(tuple(sorted(inputs.items())), grid)[name]
     field, base, bump, unit = {
         "speed": ("spot", "gamma", 0.5, 1),
-        "theta": ("valuation", "price", 1, 1),
-        "charm": ("valuation", "delta", 1, 1),
-        "color": ("valuation", "gamma", 1, 1),
-        "vega_per_percentage_point": ("volatility", "price", 0.002, 100),
-        "vanna_per_percentage_point": ("volatility", "delta", 0.002, 100),
-        "zomma_per_percentage_point": ("volatility", "gamma", 0.002, 100),
-        "rho_per_percentage_point": ("rate", "price", 0.001, 100),
+        "theta": ("valuation", "price", 1, 1 / 365),
+        "charm": ("valuation", "delta", 1, 1 / 365),
+        "color": ("valuation", "gamma", 1, 1 / 365),
+        "vega": ("volatility", "price", 0.002, 1),
+        "vanna": ("volatility", "delta", 0.002, 1),
+        "zomma": ("volatility", "gamma", 0.002, 1),
+        "rho": ("rate", "price", 0.001, 1),
     }[name]
     h = bump * scale
     g.require(name not in exclusions(inputs), f"unavailable American {name}")

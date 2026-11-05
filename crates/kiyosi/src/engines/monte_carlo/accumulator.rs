@@ -66,8 +66,8 @@ impl MonteCarloAccumulatorEngine {
     /// assert_eq!(estimate.price(), 30.0);
     /// assert_eq!(estimate.standard_error(), Some(0.0));
     /// let result = engine.price_with_greeks(&option, &context,
-    ///     GreeksRequest::new([Greek::VegaPerPercentagePoint]))?;
-    /// assert_eq!(result.require(Greek::VegaPerPercentagePoint)?, 0.0);
+    ///     GreeksRequest::new([Greek::Vega]))?;
+    /// assert_eq!(result.require(Greek::Vega)?, 0.0);
     /// # Ok(()) }
     /// ```
     pub fn new(settings: MonteCarloSettings) -> Result<Self> {

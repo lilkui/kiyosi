@@ -37,12 +37,12 @@ OTHER_GREEKS = (
     "theta",
     "charm",
     "color",
-    "vega_per_percentage_point",
-    "volga_per_squared_percentage_point",
-    "vanna_per_percentage_point",
-    "zomma_per_percentage_point",
-    "rho_per_percentage_point",
-    "dividend_rho_per_percentage_point",
+    "vega",
+    "volga",
+    "vanna",
+    "zomma",
+    "rho",
+    "dividend_rho",
 )
 
 

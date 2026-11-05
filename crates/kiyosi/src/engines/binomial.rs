@@ -567,7 +567,7 @@ impl CoxRossRubinsteinDigitalEngine {
     /// let result = CoxRossRubinsteinDigitalEngine::default().price_with_greeks(
     ///     &option, &context, GreeksRequest::all())?;
     /// assert!(result.require(Greek::Delta)? > 0.0);
-    /// assert!(!result.has(Greek::VegaPerPercentagePoint));
+    /// assert!(!result.has(Greek::Vega));
     /// # Ok(()) }
     /// ```
     pub fn price_with_greeks(

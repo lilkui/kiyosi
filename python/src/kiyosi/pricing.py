@@ -131,8 +131,8 @@ unrequested, unsupported and undefined measures; ``result.requested`` and
 ``result.supported`` expose the request and engine/model coverage.
 
 At expiry, supported spot sensitivities use terminal-payoff stencils. Supported
-vega_per_percentage_point, volga_per_squared_percentage_point, rho_per_percentage_point and dividend rho_per_percentage_point are zero because no stochastic evolution or
-discounting remains. Vanna and zomma_per_percentage_point are zero where spot derivatives exist.
+vega, volga, rho and dividend rho are zero because no stochastic evolution or
+discounting remains. Vanna and zomma are zero where spot derivatives exist.
 Theta, charm and color remain None at expiry. Spot stencils crossing a payoff
 kink or product event remain unavailable, and engine/model coverage still applies.
 Automatic terminal spot bumps use 0.01 spot units, including American Monte Carlo;
@@ -155,6 +155,8 @@ Numerical bump controls are keyword-only and discoverable through
 ``inspect.signature(numerical_greeks)``. ``spot_shift=None`` selects 0.01 spot
 units, except American Monte Carlo before expiry uses 8% of spot. Volatility and
 rate shifts default to 0.0001 decimal units; time shifts use one calendar day.
+These are sampling steps: Greek outputs are unscaled partial derivatives,
+with time measured in Actual/365 Fixed years and volatility and rates in decimals.
 Rust ``NumericalShiftSettings`` supplies the same defaults. Its
 ``fallback_spot_shift()`` accessor returns the general fallback; keep ``None``
 when forwarding settings to preserve engine-specific automatic resolution.
@@ -211,7 +213,7 @@ for snowballs or ``note.with_coupon(coupon)`` for Phoenix, then price the new no
 
 Examples
 --------
-Price a European call and request its delta and vega_per_percentage_point:
+Price a European call and request its delta and vega:
 
 >>> from datetime import datetime
 >>> from kiyosi.instruments import EuropeanOption
@@ -228,7 +230,7 @@ Price a European call and request its delta and vega_per_percentage_point:
 ...     spot_price=100, valuation_time=datetime(2025, 1, 1),
 ... )
 >>> result = AnalyticEuropeanEngine().price_with_greeks(
-...     option, context, greeks=["delta", "vega_per_percentage_point"],
+...     option, context, greeks=["delta", "vega"],
 ... )
 >>> round(result.price, 6)
 9.227006
@@ -239,10 +241,10 @@ True
 ... )
 >>> sensitivities.require("gamma") > 0
 True
->>> round(sensitivities.require("volga_per_squared_percentage_point"), 8)
-0.00023688
->>> round(sensitivities.require("dividend_rho_per_percentage_point"), 6)
--0.586851
+>>> round(sensitivities.require("volga"), 8)
+2.36882234
+>>> round(sensitivities.require("dividend_rho"), 6)
+-58.685115
 
 Recover the model volatility from its price using a chosen bracket:
 

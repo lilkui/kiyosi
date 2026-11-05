@@ -629,9 +629,7 @@ class DeterministicBsmTests(unittest.TestCase):
             with self.subTest(engine=name):
                 result = engine.price_with_greeks(option, context, "all")
                 self.assertEqual(result.status("delta"), "undefined")
-                self.assertEqual(
-                    result.status("vega_per_percentage_point"), "undefined"
-                )
+                self.assertEqual(result.status("vega"), "undefined")
                 self.assertEqual(
                     pricing.implied_volatility(
                         engine, option, context, 0, lower_bound=0
@@ -654,8 +652,8 @@ class DeterministicBsmTests(unittest.TestCase):
         )
         self.assertAlmostEqual(result.delta, 1, delta=1e-10)
         self.assertAlmostEqual(result.gamma, 0, delta=1e-10)
-        self.assertIsNone(result.vega_per_percentage_point)
-        self.assertEqual(result.status("vega_per_percentage_point"), "undefined")
+        self.assertIsNone(result.vega)
+        self.assertEqual(result.status("vega"), "undefined")
         for bad in (-0.1, math.nan, math.inf):
             with self.assertRaises(InvalidInputError):
                 context.model_parameters.replace(volatility=bad)

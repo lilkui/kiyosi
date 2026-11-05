@@ -46,9 +46,7 @@ class AnalyticsTests(unittest.TestCase):
         result = self.engine.price_with_greeks(self.option, self.context, greeks="all")
         self.assertAlmostEqual(result.delta, 0.586851146134764, delta=1e-12)
         self.assertAlmostEqual(result.gamma, 0.0189505787550087, delta=1e-12)
-        self.assertAlmostEqual(
-            result.vega_per_percentage_point, 0.379011575100175, delta=1e-12
-        )
+        self.assertAlmostEqual(result.vega, 37.9011575100175, delta=1e-10)
         self.assertAlmostEqual(
             implied_volatility(self.engine, self.option, self.context, result.price),
             0.2,
@@ -173,8 +171,8 @@ class AnalyticsTests(unittest.TestCase):
         full = self.engine.price_with_greeks(self.option, self.context, greeks="all")
         for request in (
             "delta",
-            ["delta", "vega_per_percentage_point", "delta"],
-            (name for name in ("delta", "vega_per_percentage_point")),
+            ["delta", "vega", "delta"],
+            (name for name in ("delta", "vega")),
         ):
             selected = self.engine.price_with_greeks(self.option, self.context, request)
             self.assertEqual(selected.delta, full.delta)
@@ -200,12 +198,12 @@ class AnalyticsTests(unittest.TestCase):
         for name in (
             "gamma",
             "speed",
-            "vega_per_percentage_point",
-            "volga_per_squared_percentage_point",
-            "vanna_per_percentage_point",
-            "zomma_per_percentage_point",
-            "rho_per_percentage_point",
-            "dividend_rho_per_percentage_point",
+            "vega",
+            "volga",
+            "vanna",
+            "zomma",
+            "rho",
+            "dividend_rho",
         ):
             self.assertAlmostEqual(result.require(name), 0, delta=1e-8)
         for changes in (
@@ -376,8 +374,8 @@ class AnalyticsTests(unittest.TestCase):
         )
         self.assertAlmostEqual(
             result.theta,
-            (self.engine.price(self.option, after) - result.price) * 86400,
-            delta=1e-7,
+            (self.engine.price(self.option, after) - result.price) * (365 * 86400),
+            delta=0.0000365,
         )
         quote = result.price
 
@@ -438,9 +436,9 @@ class AnalyticsTests(unittest.TestCase):
                 ),
             )
             result = self.engine.price_with_greeks(
-                option, context, ["delta", "vega_per_percentage_point", "gamma"]
+                option, context, ["delta", "vega", "gamma"]
             )
-            for name in ("delta", "vega_per_percentage_point", "gamma"):
+            for name in ("delta", "vega", "gamma"):
                 self.assertTrue(math.isfinite(getattr(result, name)))
                 self.assertEqual(
                     getattr(result, name),

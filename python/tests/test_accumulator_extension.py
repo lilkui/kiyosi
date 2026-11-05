@@ -300,18 +300,18 @@ class AccumulatorExtensionTests(unittest.TestCase):
                     first = engine.price_with_greeks(
                         default,
                         context,
-                        ["delta", "gamma", "vega_per_percentage_point"],
+                        ["delta", "gamma", "vega"],
                     )
                     second = engine.price_with_greeks(
                         explicit,
                         context,
-                        ["delta", "gamma", "vega_per_percentage_point"],
+                        ["delta", "gamma", "vega"],
                     )
                     for field in (
                         "price",
                         "delta",
                         "gamma",
-                        "vega_per_percentage_point",
+                        "vega",
                     ):
                         self.assertEqual(getattr(first, field), getattr(second, field))
 
@@ -413,14 +413,14 @@ class AccumulatorExtensionTests(unittest.TestCase):
         for engine in engines():
             with self.subTest(engine=type(engine).__name__):
                 result = engine.price_with_greeks(
-                    option, context, ["delta", "gamma", "vega_per_percentage_point"]
+                    option, context, ["delta", "gamma", "vega"]
                 )
                 self.assertAlmostEqual(
                     result.price, engine.price(option, context), delta=1e-10
                 )
                 self.assertLess(result.delta, 0)
                 self.assertLess(result.gamma, 0)
-                self.assertLess(result.vega_per_percentage_point, 0)
+                self.assertLess(result.vega, 0)
                 recovered = pricing.implied_volatility(
                     engine,
                     option,

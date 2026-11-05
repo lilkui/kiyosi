@@ -430,15 +430,11 @@ fn rate_stencils_crossing_zero_keep_one_exercise_estimator() {
     for rate in [-requested / 2.0, 0.0, requested / 2.0] {
         let context = market(rate, 0.0, 0.2, 100.0);
         let result = engine
-            .price_with_greeks(
-                &call,
-                &context,
-                GreeksRequest::new([Greek::RhoPerPercentagePoint]),
-            )
+            .price_with_greeks(&call, &context, GreeksRequest::new([Greek::Rho]))
             .unwrap();
         let shift = (rate + requested) - rate;
         if rate - (rate - shift) != shift {
-            assert!(!result.has(Greek::RhoPerPercentagePoint));
+            assert!(!result.has(Greek::Rho));
             continue;
         }
         // A subnormal positive dividend forces the grid without changing BSM coefficients.
@@ -448,11 +444,7 @@ fn rate_stencils_crossing_zero_keep_one_exercise_estimator() {
         let down = engine
             .price(&call, &market(rate - shift, f64::from_bits(1), 0.2, 100.0))
             .unwrap();
-        assert!(
-            (result.require(Greek::RhoPerPercentagePoint).unwrap() - (up - down) / (200.0 * shift))
-                .abs()
-                < 1e-10
-        );
+        assert!((result.require(Greek::Rho).unwrap() - (up - down) / (2.0 * shift)).abs() < 1e-10);
         assert_eq!(result.price(), engine.price(&call, &context).unwrap());
     }
 }
@@ -485,12 +477,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
         assert_eq!(result.get(greek), None);
     }
-    for greek in [
-        Greek::VegaPerPercentagePoint,
-        Greek::VolgaPerSquaredPercentagePoint,
-        Greek::RhoPerPercentagePoint,
-        Greek::DividendRhoPerPercentagePoint,
-    ] {
+    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
         if result.supported().has(greek) {
             assert_eq!(result.require(greek).unwrap(), 0.0);
         }
@@ -561,7 +548,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
             &engine,
             &put,
             &context,
-            GreeksRequest::new([Greek::RhoPerPercentagePoint]),
+            GreeksRequest::new([Greek::Rho]),
             NumericalShiftSettings {
                 rate_shift: 1000.0,
                 ..Default::default()

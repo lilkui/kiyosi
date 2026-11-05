@@ -281,12 +281,7 @@ fn history_current_observations_and_expiry_preserve_settlement_order() {
         for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
             assert_eq!(result.get(greek), None);
         }
-        for greek in [
-            Greek::VegaPerPercentagePoint,
-            Greek::VolgaPerSquaredPercentagePoint,
-            Greek::RhoPerPercentagePoint,
-            Greek::DividendRhoPerPercentagePoint,
-        ] {
+        for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
             if result.supported().has(greek) {
                 assert_eq!(result.require(greek).unwrap(), 0.0);
             }
@@ -429,12 +424,7 @@ fn greeks_sensitivities_and_solving_share_scalar_semantics() {
         .unwrap()
         .replace_history(Some(BarrierTouchState::Untouched));
     let context = market(0.04);
-    let request = GreeksRequest::new([
-        Greek::Delta,
-        Greek::Gamma,
-        Greek::VegaPerPercentagePoint,
-        Greek::RhoPerPercentagePoint,
-    ]);
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega, Greek::Rho]);
     let actual = engine
         .price_with_greeks(&option, &context, request)
         .unwrap();
@@ -442,12 +432,7 @@ fn greeks_sensitivities_and_solving_share_scalar_semantics() {
         .price_with_greeks(&option, &context, request)
         .unwrap();
     let scalar = numerical_greeks(&engine, &option, &context, request, Default::default()).unwrap();
-    for greek in [
-        Greek::Delta,
-        Greek::Gamma,
-        Greek::VegaPerPercentagePoint,
-        Greek::RhoPerPercentagePoint,
-    ] {
+    for greek in [Greek::Delta, Greek::Gamma, Greek::Vega, Greek::Rho] {
         assert!(
             (actual.require(greek).unwrap() - expected.require(greek).unwrap()).abs() < 3e-6,
             "{greek:?}"

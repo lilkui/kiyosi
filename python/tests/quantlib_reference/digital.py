@@ -11,16 +11,16 @@ INSTRUMENTS = {
 # Whole-day time stencils see greater curvature for digital asset payouts.
 STABILITY = dict(
     g.STABILITY,
-    theta=0.0003,
-    charm=0.0002,
-    color=0.00001,
+    theta=0.1095,
+    charm=0.073,
+    color=0.00365,
     delta=0.00001,
     gamma=0.000001,
     speed=0.00001,
-    vega_per_percentage_point=0.00001,
-    vanna_per_percentage_point=0.000001,
-    zomma_per_percentage_point=0.000001,
-    rho_per_percentage_point=0.00001,
+    vega=0.001,
+    vanna=0.0001,
+    zomma=0.0001,
+    rho=0.001,
 )
 
 

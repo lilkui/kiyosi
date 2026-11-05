@@ -306,7 +306,7 @@ fn resolved_cash_uses_only_required_coverage_and_requests_fail_before_shortcuts(
         engine
             .price_with_greeks(&option, &short, GreeksRequest::all())
             .unwrap()
-            .get(Greek::VegaPerPercentagePoint),
+            .get(Greek::Vega),
         None
     );
     terms.rebate_timing = RebateTiming::AtHit;

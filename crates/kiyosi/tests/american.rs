@@ -116,7 +116,7 @@ fn american_expiry_and_exercise_window_are_inclusive() {
                 .unwrap();
             assert_eq!(result.price(), expected);
             assert_eq!(result.get(Greek::Theta), None);
-            assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
+            assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
             if (spot - 100.0).abs() <= 0.01 {
                 assert_eq!(result.get(Greek::Delta), None);
             } else {
@@ -191,10 +191,7 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
     // Independent finite differences of the Bjerksund–Stensland 2002 approximation (spot h=0.01).
     assert!((all.require(Greek::Delta).unwrap() - 0.562_171_802_046_119_7).abs() < 1e-7);
     assert!((all.require(Greek::Gamma).unwrap() - 0.018_979_671_807_509_157).abs() < 1e-7);
-    assert!(
-        (all.require(Greek::VegaPerPercentagePoint).unwrap() - 0.379_570_577_438_001_66).abs()
-            < 1e-7
-    );
+    assert!((all.require(Greek::Vega).unwrap() - 37.957_057_743_800_16).abs() < 1e-7);
     assert!(
         (implied_volatility(&engine, &option, &context, all.price(), Default::default()).unwrap()
             - 0.2)
@@ -357,11 +354,7 @@ fn american_applicability_and_error_order_are_preserved() {
     assert!(engine.price(&call, &zero_rate).is_ok());
     assert!(matches!(
         engine
-            .price_with_greeks(
-                &call,
-                &zero_rate,
-                GreeksRequest::new([Greek::RhoPerPercentagePoint])
-            )
+            .price_with_greeks(&call, &zero_rate, GreeksRequest::new([Greek::Rho]))
             .unwrap_err(),
         Error::UnsupportedOperation(_)
     ));

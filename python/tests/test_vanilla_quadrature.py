@@ -69,6 +69,20 @@ class VanillaQuadratureTests(unittest.TestCase):
     def test_european_prices_and_all_greeks_match_analytic(self):
         engine = pricing.QuadratureVanillaEngine()
         analytic = pricing.AnalyticEuropeanEngine()
+        tolerances = {
+            "delta": 1e-4,
+            "gamma": 1e-4,
+            "speed": 1e-4,
+            "theta": 0.0365,
+            "charm": 0.0365,
+            "color": 0.0365,
+            "vega": 0.01,
+            "volga": 1.0,
+            "vanna": 0.01,
+            "zomma": 0.01,
+            "rho": 0.01,
+            "dividend_rho": 0.01,
+        }
         for direction in ("call", "put"):
             for spot, rate, dividend, sigma in (
                 (80, 0.04, 0.01, 0.3),
@@ -84,7 +98,9 @@ class VanillaQuadratureTests(unittest.TestCase):
                 for name in GREEKS:
                     with self.subTest(direction=direction, spot=spot, greek=name):
                         self.assertAlmostEqual(
-                            getattr(actual, name), getattr(expected, name), delta=1e-4
+                            getattr(actual, name),
+                            getattr(expected, name),
+                            delta=tolerances[name],
                         )
 
     def test_time_space_and_extent_converge_separately(self):
@@ -264,18 +280,16 @@ class VanillaQuadratureTests(unittest.TestCase):
             engine,
             contract(AmericanOption, "put"),
             market(100, 0.04, 0.01, 0.3),
-            ["volga_per_squared_percentage_point", "dividend_rho_per_percentage_point"],
+            ["volga", "dividend_rho"],
             volatility_shift=0.01,
             rate_shift=0.001,
         )
         self.assertAlmostEqual(
-            result.volga_per_squared_percentage_point,
-            vol_up - 2 * base + vol_down,
-            delta=5e-5,
+            result.volga,
+            (vol_up - 2 * base + vol_down) / 0.01**2,
+            delta=0.5,
         )
-        self.assertAlmostEqual(
-            result.dividend_rho_per_percentage_point, (q_up - q_down) / 0.2, delta=0.002
-        )
+        self.assertAlmostEqual(result.dividend_rho, (q_up - q_down) / 0.002, delta=0.2)
 
     def test_life_curve_rejection_and_numerical_failures_preserve_state(self):
         engine = pricing.QuadratureVanillaEngine()

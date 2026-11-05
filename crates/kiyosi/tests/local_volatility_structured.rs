@@ -209,7 +209,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
         acc_engine
             .price_with_greeks(&acc, &settled, GreeksRequest::all())
             .unwrap()
-            .get(Greek::VegaPerPercentagePoint),
+            .get(Greek::Vega),
         None
     );
 
@@ -239,7 +239,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
         engine
             .price_with_greeks(&knocked_out, &later, GreeksRequest::all())
             .unwrap()
-            .get(Greek::VegaPerPercentagePoint),
+            .get(Greek::Vega),
         None
     );
 
@@ -305,7 +305,7 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
         engine
             .price_with_greeks(&note, &expired, GreeksRequest::all())
             .unwrap()
-            .get(Greek::VegaPerPercentagePoint),
+            .get(Greek::Vega),
         None
     );
     let acc = Accumulator::new(AccumulatorTerms {
@@ -324,7 +324,7 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
         acc_engine
             .price_with_greeks(&acc, &expired, GreeksRequest::all())
             .unwrap()
-            .get(Greek::VegaPerPercentagePoint),
+            .get(Greek::Vega),
         None
     );
 }

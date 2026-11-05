@@ -153,6 +153,20 @@ class DigitalQuadratureTests(unittest.TestCase):
     def test_all_greeks_selection_volga_dividend_rho_and_volatility_recovery(self):
         engine = pricing.QuadratureDigitalEngine(asset_step_count=2048)
         context = market(100, 0.04, 0.01, 0.3)
+        tolerances = {
+            "delta": 1e-6,
+            "gamma": 1e-6,
+            "speed": 1e-6,
+            "theta": 0.000365,
+            "charm": 0.000365,
+            "color": 0.000365,
+            "vega": 0.0001,
+            "volga": 0.01,
+            "vanna": 0.0001,
+            "zomma": 0.0001,
+            "rho": 0.0001,
+            "dividend_rho": 0.0001,
+        }
         for kind in DIGITAL:
             for direction in ("call", "put"):
                 option = contract(kind, direction)
@@ -163,7 +177,9 @@ class DigitalQuadratureTests(unittest.TestCase):
                 for name in GREEKS:
                     with self.subTest(kind=kind, direction=direction, measure=name):
                         self.assertAlmostEqual(
-                            getattr(result, name), getattr(expected, name), delta=1e-6
+                            getattr(result, name),
+                            getattr(expected, name),
+                            delta=tolerances[name],
                         )
                 selected = engine.price_with_greeks(option, context, "delta")
                 self.assertEqual(selected.delta, result.delta)
@@ -192,21 +208,21 @@ class DigitalQuadratureTests(unittest.TestCase):
                     option,
                     context,
                     [
-                        "volga_per_squared_percentage_point",
-                        "dividend_rho_per_percentage_point",
+                        "volga",
+                        "dividend_rho",
                     ],
                     volatility_shift=0.01,
                     rate_shift=0.001,
                 )
                 self.assertAlmostEqual(
-                    bumped.volga_per_squared_percentage_point,
-                    vol_up - 2 * base + vol_down,
-                    delta=1e-8,
+                    bumped.volga,
+                    (vol_up - 2 * base + vol_down) / 0.01**2,
+                    delta=0.0001,
                 )
                 self.assertAlmostEqual(
-                    bumped.dividend_rho_per_percentage_point,
-                    (q_up - q_down) / 0.2,
-                    delta=1e-8,
+                    bumped.dividend_rho,
+                    (q_up - q_down) / 0.002,
+                    delta=0.000001,
                 )
                 iv_context = market()
                 quote = pricing.AnalyticDigitalEngine().price(option, iv_context)

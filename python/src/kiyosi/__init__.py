@@ -51,18 +51,23 @@ For multiprocessing, use the `spawn` start method; library values can be passed
 to workers and pricing results returned through process queues. Forking after the worker
 pool has initialized leaves it unusable in the child process.
 
-`Greek` accepts delta, gamma, speed, theta, charm, color, vega_per_percentage_point, volga_per_squared_percentage_point, vanna_per_percentage_point,
-zomma_per_percentage_point, rho_per_percentage_point and dividend_rho_per_percentage_point. Spot derivatives use spot units, volatility and rate
-derivatives use percentage points (squared for volga_per_squared_percentage_point), and time derivatives use
-calendar days of forward valuation time. `PricingResult` leaves unavailable or
+`Greek` accepts delta, gamma, speed, theta, charm, color, vega, volga, vanna,
+zomma, rho and dividend_rho. All are unscaled partial derivatives of price V.
+Spot S uses spot units, volatility σ and rates use decimal values, and forward
+valuation time t uses years (Actual/365 Fixed). Other inputs, including expiry,
+remain fixed. Delta, gamma and speed are ∂V/∂S, ∂²V/∂S² and ∂³V/∂S³.
+Vega and volga are ∂V/∂σ and ∂²V/∂σ²; vanna and zomma are
+∂²V/(∂S∂σ) and ∂³V/(∂S²∂σ). Theta, charm and color are
+∂V/∂t, ∂²V/(∂S∂t) and ∂³V/(∂S²∂t), with market curves held fixed.
+`PricingResult` leaves unavailable or
 unrequested sensitivities as None; `require` raises if one is absent.
 Use ``result.status("delta")`` to distinguish ``"available"``, ``"not_requested"``,
 ``"unsupported"`` (outside the engine/model coverage) and ``"undefined"``
 (supported but unavailable at this valuation or numerical stencil). The
 ``requested`` and ``supported`` properties return owned lists of Greek names.
-Volga is the second volatility derivative divided by 10000. Dividend rho_per_percentage_point is
-the sensitivity to a parallel shift of the continuously compounded dividend-yield curve,
-divided by 100, holding other market inputs fixed.
+Rho and dividend rho are ∂V/∂r and ∂V/∂q for parallel decimal shifts of the
+continuously compounded risk-free and dividend-yield curves, respectively,
+holding other market inputs fixed.
 
 Calls are synchronous, without core cancellation or signal polling. Python
 signal handling, including `KeyboardInterrupt`, resumes when control

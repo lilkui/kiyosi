@@ -307,7 +307,7 @@ class BarrierTests(unittest.TestCase):
         near = engine.price_with_greeks(option, self.context(119.995), greeks="all")
         self.assertIsNone(near.delta)
         self.assertIsNone(near.speed)
-        self.assertIsNotNone(near.vega_per_percentage_point)
+        self.assertIsNotNone(near.vega)
 
     def test_quantlib_price_matrix_and_independent_greeks(self):
         engine = AnalyticBarrierEngine()
@@ -386,15 +386,13 @@ class BarrierTests(unittest.TestCase):
             "gamma": gamma(),
             "speed": (f(100 + 2 * h) - 2 * f(100 + h) + 2 * f(100 - h) - f(100 - 2 * h))
             / (2 * h**3),
-            "vega_per_percentage_point": (f(sigma=0.2 + v) - f(sigma=0.2 - v))
-            / (200 * v),
-            "vanna_per_percentage_point": (delta(0.2 + v) - delta(0.2 - v)) / (200 * v),
-            "zomma_per_percentage_point": (gamma(0.2 + v) - gamma(0.2 - v)) / (200 * v),
-            "rho_per_percentage_point": (f(rate=0.05 + r) - f(rate=0.05 - r))
-            / (200 * r),
-            "theta": f(days=1) - f(),
-            "charm": delta(days=1) - delta(),
-            "color": gamma(days=1) - gamma(),
+            "vega": (f(sigma=0.2 + v) - f(sigma=0.2 - v)) / (2 * v),
+            "vanna": (delta(0.2 + v) - delta(0.2 - v)) / (2 * v),
+            "zomma": (gamma(0.2 + v) - gamma(0.2 - v)) / (2 * v),
+            "rho": (f(rate=0.05 + r) - f(rate=0.05 - r)) / (2 * r),
+            "theta": (f(days=1) - f()) * 365,
+            "charm": (delta(days=1) - delta()) * 365,
+            "color": (gamma(days=1) - gamma()) * 365,
         }
         for greek, value in expected.items():
             with self.subTest(greek=greek):
@@ -530,22 +528,22 @@ GREEKS = (
     "theta",
     "charm",
     "color",
-    "vega_per_percentage_point",
-    "vanna_per_percentage_point",
-    "zomma_per_percentage_point",
-    "rho_per_percentage_point",
+    "vega",
+    "vanna",
+    "zomma",
+    "rho",
 )
 GREEK_TOLERANCES = {
     "delta": 1e-6,
     "gamma": 1e-7,
     "speed": 2e-7,
-    "theta": 1e-4,
-    "charm": 1e-5,
-    "color": 3e-6,
-    "vega_per_percentage_point": 1e-6,
-    "vanna_per_percentage_point": 1e-7,
-    "zomma_per_percentage_point": 2e-8,
-    "rho_per_percentage_point": 1e-6,
+    "theta": 0.0365,
+    "charm": 0.00365,
+    "color": 0.001095,
+    "vega": 0.0001,
+    "vanna": 0.00001,
+    "zomma": 0.000002,
+    "rho": 0.0001,
 }
 KINDS = {
     "up_and_in": ql.Barrier.UpIn,

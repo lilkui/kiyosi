@@ -147,7 +147,7 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
                 ] {
                     assert_eq!(result.price(), expected);
                     assert_eq!(result.get(Greek::Theta), None);
-                    assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
+                    assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
                     if (spot - 100.0).abs() <= 0.01 {
                         assert_eq!(result.get(Greek::Delta), None);
                     } else {
@@ -669,8 +669,12 @@ fn expiry_reaching_time_stencils_use_paired_scalar_fallback() {
         .price_with_greeks(&option, &context, request)
         .unwrap();
     // Both stencil legs use price differences when one reaches expiry.
-    assert!((actual.require(Greek::Charm).unwrap() - 124.876_159_391_942_8).abs() < 1e-9);
-    assert!((actual.require(Greek::Color).unwrap() - 50_137.338_210_869_29).abs() < 1e-7);
+    assert!(
+        (actual.require(Greek::Charm).unwrap() - (124.876_159_391_942_8 * 365.0)).abs() < 3.65e-7
+    );
+    assert!(
+        (actual.require(Greek::Color).unwrap() - (50_137.338_210_869_29 * 365.0)).abs() < 3.65e-5
+    );
     let numeric = numerical_greeks(
         &AnalyticDigitalEngine,
         &option,

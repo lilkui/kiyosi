@@ -19,21 +19,21 @@ STABILITY = dict(
     g.STABILITY,
     gamma=1e-6,
     speed=1e-6,
-    vanna_per_percentage_point=1e-6,
-    zomma_per_percentage_point=1e-6,
+    vanna=0.0001,
+    zomma=0.0001,
 )
 BUDGET = {
     "price": 1e-9,
     "delta": 1e-6,
     "gamma": 1e-6,
     "speed": 1e-6,
-    "theta": 1e-4,
-    "charm": 1e-5,
-    "color": 2e-6,
-    "vega_per_percentage_point": 1e-6,
-    "vanna_per_percentage_point": 1e-6,
-    "zomma_per_percentage_point": 1e-6,
-    "rho_per_percentage_point": 1e-6,
+    "theta": 0.0365,
+    "charm": 0.00365,
+    "color": 0.00073,
+    "vega": 0.0001,
+    "vanna": 0.0001,
+    "zomma": 0.0001,
+    "rho": 0.0001,
 }
 START_REASON = "averaging-start boundary: price only, no smooth time stencil"
 EXPIRY_REASON = "terminal average payoff: no smooth sensitivities"
@@ -222,11 +222,11 @@ def check_bindings():
                     "delta",
                     "gamma",
                     "theta",
-                    "vega_per_percentage_point",
-                    "rho_per_percentage_point",
+                    "vega",
+                    "rho",
                 ):
                     try:
-                        g.native_method(contract, name)()
+                        getattr(contract, name)()
                     except RuntimeError as error:
                         assert "not provided" in str(error)
                     else:
@@ -237,8 +237,8 @@ def check_bindings():
     for name in (
         "delta",
         "gamma",
-        "vega_per_percentage_point",
-        "rho_per_percentage_point",
+        "vega",
+        "rho",
     ):
         assert (
             abs(measure(geometric, name) - measure(geometric, name, price_only=True))

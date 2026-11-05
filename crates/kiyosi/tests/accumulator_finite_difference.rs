@@ -144,7 +144,7 @@ fn settlement_thresholds_history_replacement_and_expiry_greeks_are_exact() {
             .unwrap();
         assert_eq!(result.price(), quantity * (spot - 100.0));
         assert_eq!(result.get(Greek::Theta), None);
-        assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
+        assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
         if (spot - 100.0).abs() <= 0.01 || (spot - 110.0).abs() <= 0.01 {
             assert_eq!(result.get(Greek::Delta), None);
         } else {
@@ -321,8 +321,8 @@ fn spline_and_mixed_greeks_match_independent_public_repricing() {
         GreeksRequest::new([
             Greek::Delta,
             Greek::Gamma,
-            Greek::VegaPerPercentagePoint,
-            Greek::RhoPerPercentagePoint,
+            Greek::Vega,
+            Greek::Rho,
             Greek::Theta,
         ]),
         NumericalShiftSettings {
@@ -334,8 +334,8 @@ fn spline_and_mixed_greeks_match_independent_public_repricing() {
     for greek in [
         Greek::Delta,
         Greek::Gamma,
-        Greek::VegaPerPercentagePoint,
-        Greek::RhoPerPercentagePoint,
+        Greek::Vega,
+        Greek::Rho,
         Greek::Theta,
     ] {
         assert!(
@@ -353,8 +353,8 @@ fn spline_and_mixed_greeks_match_independent_public_repricing() {
     }
     for (greek, dependency, bump, scale) in [
         (Greek::Speed, Greek::Gamma, 0.01, 1.0),
-        (Greek::VannaPerPercentagePoint, Greek::Delta, 0.0001, 100.0),
-        (Greek::ZommaPerPercentagePoint, Greek::Gamma, 0.0001, 100.0),
+        (Greek::Vanna, Greek::Delta, 0.0001, 1.0),
+        (Greek::Zomma, Greek::Gamma, 0.0001, 1.0),
     ] {
         let center = if greek == Greek::Speed {
             context.spot_price()
@@ -408,17 +408,15 @@ fn spline_and_mixed_greeks_match_independent_public_repricing() {
         Greek::Delta,
         Greek::Gamma,
         Greek::Speed,
-        Greek::VannaPerPercentagePoint,
-        Greek::ZommaPerPercentagePoint,
+        Greek::Vanna,
+        Greek::Zomma,
         Greek::Theta,
         Greek::Charm,
         Greek::Color,
     ] {
         assert!(!boundary.has(greek), "{greek:?}");
     }
-    assert!(
-        boundary.has(Greek::VegaPerPercentagePoint) && boundary.has(Greek::RhoPerPercentagePoint)
-    );
+    assert!(boundary.has(Greek::Vega) && boundary.has(Greek::Rho));
 }
 
 #[test]

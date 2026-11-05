@@ -166,7 +166,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                                 numerical.speed,
                             ),
                         )
-                        self.assertIsNone(result.vega_per_percentage_point)
+                        self.assertIsNone(result.vega)
 
     def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(self):
         import math
@@ -214,7 +214,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     )
                     self.assertIsNotNone(result.theta)
                     self.assertAlmostEqual(
-                        result.theta, 0.04 / 365 * result.price, delta=1e-8
+                        result.theta, 0.04 * result.price, delta=0.00000365
                     )
 
     def test_completed_knock_in_preserves_time_greeks_without_hiding_live_events(self):

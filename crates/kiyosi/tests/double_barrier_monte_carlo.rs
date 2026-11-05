@@ -145,7 +145,7 @@ fn continuous_prices_and_shared_sample_greeks_match_independent_references() {
             assert!((result.require(Greek::Delta).unwrap() - delta).abs() < 0.003);
             assert!((result.require(Greek::Gamma).unwrap() - gamma).abs() < 0.003);
             assert_eq!(result.price(), engine.price(&option, &context).unwrap());
-            assert!(!result.has(Greek::VegaPerPercentagePoint));
+            assert!(!result.has(Greek::Vega));
         }
     }
 }
@@ -210,10 +210,10 @@ fn pseudo_random_prices_and_likelihood_greeks_match_across_seeds() {
                     Greek::Theta,
                     Greek::Charm,
                     Greek::Color,
-                    Greek::VegaPerPercentagePoint,
-                    Greek::VannaPerPercentagePoint,
-                    Greek::ZommaPerPercentagePoint,
-                    Greek::RhoPerPercentagePoint,
+                    Greek::Vega,
+                    Greek::Vanna,
+                    Greek::Zomma,
+                    Greek::Rho,
                 ] {
                     assert!(!result.has(greek));
                 }
@@ -831,11 +831,7 @@ fn invalid_settings_applicability_and_failure_categories_preserve_inputs() {
     let price = engine.price(&option, &tiny).unwrap();
     assert_eq!(
         engine
-            .price_with_greeks(
-                &option,
-                &tiny,
-                GreeksRequest::new([Greek::RhoPerPercentagePoint])
-            )
+            .price_with_greeks(&option, &tiny, GreeksRequest::new([Greek::Rho]))
             .unwrap()
             .price(),
         price

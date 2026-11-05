@@ -259,10 +259,10 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         )
         for greek in (
             "speed",
-            "vega_per_percentage_point",
-            "vanna_per_percentage_point",
-            "zomma_per_percentage_point",
-            "rho_per_percentage_point",
+            "vega",
+            "vanna",
+            "zomma",
+            "rho",
         ):
             self.assertTrue(math.isfinite(result.require(greek)))
         for greek in ("theta", "charm", "color"):
@@ -277,15 +277,15 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                 "delta",
                 "gamma",
                 "speed",
-                "vanna_per_percentage_point",
-                "zomma_per_percentage_point",
+                "vanna",
+                "zomma",
                 "theta",
                 "charm",
                 "color",
             ):
                 self.assertIsNone(getattr(boundary, greek))
-            self.assertIsNotNone(boundary.vega_per_percentage_point)
-            self.assertIsNotNone(boundary.rho_per_percentage_point)
+            self.assertIsNotNone(boundary.vega)
+            self.assertIsNotNone(boundary.rho)
         expired = engine.price_with_greeks(
             note, market(90, note.expiry_time), greeks="all"
         )
@@ -431,15 +431,11 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         low_up = price(100.5, 0.2 - v)
         low_down = price(100.0, 0.2 - v)
         expected = {
-            "rho_per_percentage_point": (price(rate=0.04 + r) - price(rate=0.04 - r))
-            / (200 * r),
-            "vega_per_percentage_point": (high - low) / (200 * v),
-            "vanna_per_percentage_point": (high_up - high_down - low_up + low_down)
-            / (400 * h * v),
-            "zomma_per_percentage_point": (
-                (high_up - 2 * high + high_down) - (low_up - 2 * low + low_down)
-            )
-            / (200 * h**2 * v),
+            "rho": (price(rate=0.04 + r) - price(rate=0.04 - r)) / (2 * r),
+            "vega": (high - low) / (2 * v),
+            "vanna": (high_up - high_down - low_up + low_down) / (4 * h * v),
+            "zomma": ((high_up - 2 * high + high_down) - (low_up - 2 * low + low_down))
+            / (2 * h**2 * v),
             "speed": (price(100.75) - 2 * price(100.5) + 2 * price(100) - price(99.75))
             / (2 * h**3),
         }

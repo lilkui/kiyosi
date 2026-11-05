@@ -83,12 +83,12 @@ class AsianRegressionTests(unittest.TestCase):
                     engine,
                     option,
                     context,
-                    greeks="vanna_per_percentage_point",
+                    greeks="vanna",
                     spot_shift=1e-201,
                     volatility_shift=1e-201,
                 )
                 self.assertAlmostEqual(result.price, 5e-201, delta=5e-213)
-                self.assertEqual(result.vanna_per_percentage_point, 0)
+                self.assertEqual(result.vanna, 0)
 
     def test_concurrent_asian_delta_requests_preserve_results_and_errors(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
@@ -137,10 +137,10 @@ class AsianRegressionTests(unittest.TestCase):
                     self.assertAlmostEqual(result.delta, expected_delta, delta=1e-12)
                     if selection["greeks"] != "all":
                         self.assertIsNone(result.gamma)
-                        self.assertIsNone(result.vega_per_percentage_point)
+                        self.assertIsNone(result.vega)
                     else:
                         self.assertGreater(result.gamma, 0)
-                        self.assertGreater(result.vega_per_percentage_point, 0)
+                        self.assertGreater(result.vega, 0)
                 for selection in selections[:3]:
                     with self.assertRaises(InvalidInputError) as error:
                         numerical_greeks(

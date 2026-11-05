@@ -406,8 +406,8 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         all_values = engine.price_with_greeks(contract, context, greeks="all")
         for greek in (
             "speed",
-            "vanna_per_percentage_point",
-            "zomma_per_percentage_point",
+            "vanna",
+            "zomma",
             "charm",
             "color",
         ):

@@ -856,8 +856,8 @@ class ApiConsistencyTests(unittest.TestCase):
                     "delta",
                     "gamma",
                     "theta",
-                    "vega_per_percentage_point",
-                    "rho_per_percentage_point",
+                    "vega",
+                    "rho",
                 ):
                     self.assertEqual(result.require(greek), 0)
                 with self.assertRaises(UnsupportedOperationError):
@@ -918,17 +918,17 @@ class ApiConsistencyTests(unittest.TestCase):
             )
         )
         partial = pricing.FiniteDifferenceVanillaEngine().price_with_greeks(
-            option, local, ["delta", "vega_per_percentage_point"]
+            option, local, ["delta", "vega"]
         )
         self.assertEqual(partial.status("delta"), "available")
-        self.assertEqual(partial.status("vega_per_percentage_point"), "unsupported")
-        self.assertEqual(partial.requested, ["delta", "vega_per_percentage_point"])
+        self.assertEqual(partial.status("vega"), "unsupported")
+        self.assertEqual(partial.requested, ["delta", "vega"])
         for original in (result, terminal, collapsed, unsupported, partial):
             restored = pickle.loads(pickle.dumps(original))
             self.assertEqual(restored.price, original.price)
             self.assertEqual(restored.requested, original.requested)
             self.assertEqual(restored.supported, original.supported)
-            for greek in ("delta", "gamma", "vega_per_percentage_point"):
+            for greek in ("delta", "gamma", "vega"):
                 self.assertEqual(restored.status(greek), original.status(greek))
                 self.assertEqual(getattr(restored, greek), getattr(original, greek))
         with self.assertRaises(ValueError):

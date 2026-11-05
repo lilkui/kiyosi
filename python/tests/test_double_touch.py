@@ -210,13 +210,13 @@ def reference_greeks(spot):
             "delta": b.delta,
             "gamma": b.gamma,
             "speed": b.speed,
-            "theta": t.price - b.price,
-            "charm": t.delta - b.delta,
-            "color": t.gamma - b.gamma,
-            "vega_per_percentage_point": (u.price - d.price) / (200 * shift),
-            "vanna_per_percentage_point": (u.delta - d.delta) / (200 * shift),
-            "zomma_per_percentage_point": (u.gamma - d.gamma) / (200 * shift),
-            "rho_per_percentage_point": (r.price - s.price) / (200 * shift),
+            "theta": (t.price - b.price) * 365,
+            "charm": (t.delta - b.delta) * 365,
+            "color": (t.gamma - b.gamma) * 365,
+            "vega": (u.price - d.price) / (2 * shift),
+            "vanna": (u.delta - d.delta) / (2 * shift),
+            "zomma": (u.gamma - d.gamma) / (2 * shift),
+            "rho": (r.price - s.price) / (2 * shift),
         }
         for b, u, d, r, s, t in zip(
             base, vol_up, vol_down, rate_up, rate_down, after, strict=True
@@ -523,10 +523,8 @@ class DoubleTouchTests(unittest.TestCase):
             result = engine.price_with_greeks(known, context, greeks="all")
             self.assertAlmostEqual(result.price, expected, delta=1e-12)
             self.assertEqual(result.delta, 0)
-            self.assertEqual(result.vega_per_percentage_point, 0)
-            self.assertAlmostEqual(
-                result.rho_per_percentage_point, -remaining * expected / 100, delta=1e-8
-            )
+            self.assertEqual(result.vega, 0)
+            self.assertAlmostEqual(result.rho, -remaining * expected, delta=0.000001)
             self.assert_core_error(
                 UnsupportedOperationError,
                 lambda context=context, expected=expected: pricing.implied_volatility(
@@ -554,14 +552,14 @@ class DoubleTouchTests(unittest.TestCase):
             for name in (
                 "delta",
                 "gamma",
-                "vega_per_percentage_point",
-                "rho_per_percentage_point",
+                "vega",
+                "rho",
                 "theta",
                 "charm",
                 "color",
                 "speed",
-                "vanna_per_percentage_point",
-                "zomma_per_percentage_point",
+                "vanna",
+                "zomma",
             ):
                 self.assertAlmostEqual(
                     getattr(result, name), getattr(bumped, name), delta=1e-5
@@ -587,8 +585,8 @@ class DoubleTouchTests(unittest.TestCase):
                     "delta",
                     "gamma",
                     "theta",
-                    "vega_per_percentage_point",
-                    "rho_per_percentage_point",
+                    "vega",
+                    "rho",
                 ):
                     self.assertIsNone(getattr(boundary, name))
         scheduled = contract(
@@ -615,13 +613,13 @@ class DoubleTouchTests(unittest.TestCase):
             "delta": 1e-7,
             "gamma": 1e-7,
             "speed": 1e-5,
-            "theta": 1e-8,
-            "charm": 1e-8,
-            "color": 1e-8,
-            "vega_per_percentage_point": 1e-8,
-            "vanna_per_percentage_point": 1e-7,
-            "zomma_per_percentage_point": 1e-6,
-            "rho_per_percentage_point": 1e-8,
+            "theta": 0.00000365,
+            "charm": 0.00000365,
+            "color": 0.00000365,
+            "vega": 0.000001,
+            "vanna": 0.00001,
+            "zomma": 0.0001,
+            "rho": 0.000001,
         }
         coarse = pricing.FiniteDifferenceDoubleTouchEngine(
             asset_step_count=800, time_step_count=200
@@ -1055,13 +1053,13 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
             "delta": 1e-7,
             "gamma": 1e-7,
             "speed": 1e-5,
-            "theta": 1e-8,
-            "charm": 1e-8,
-            "color": 1e-8,
-            "vega_per_percentage_point": 1e-8,
-            "vanna_per_percentage_point": 1e-7,
-            "zomma_per_percentage_point": 1e-6,
-            "rho_per_percentage_point": 1e-8,
+            "theta": 0.00000365,
+            "charm": 0.00000365,
+            "color": 0.00000365,
+            "vega": 0.000001,
+            "vanna": 0.00001,
+            "zomma": 0.0001,
+            "rho": 0.000001,
         }
         self.assertEqual(str(inspect.signature(type(engine))), "()")
         signature = inspect.signature(numerical_greeks)
@@ -1116,7 +1114,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
             for spot in (80, 120):
                 result = engine.price_with_greeks(option, market(spot), greeks="all")
                 self.assertIsNone(result.delta)
-                self.assertIsNone(result.vega_per_percentage_point)
+                self.assertIsNone(result.vega)
         with ThreadPoolExecutor(max_workers=2) as executor:
             values = list(
                 executor.map(lambda _: engine.price(options[0], market()), range(4))

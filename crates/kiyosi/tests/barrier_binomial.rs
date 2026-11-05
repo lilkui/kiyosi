@@ -497,12 +497,7 @@ fn resolved_states_expiry_and_original_fixing_times_match_analytic_settlement() 
                 for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
                     assert_eq!(result.get(greek), None);
                 }
-                for greek in [
-                    Greek::VegaPerPercentagePoint,
-                    Greek::VolgaPerSquaredPercentagePoint,
-                    Greek::RhoPerPercentagePoint,
-                    Greek::DividendRhoPerPercentagePoint,
-                ] {
+                for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
                     if result.supported().has(greek) {
                         assert_eq!(result.require(greek).unwrap(), 0.0);
                     }
@@ -576,7 +571,7 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
         &engine,
         &option,
         &context,
-        GreeksRequest::new([Greek::VegaPerPercentagePoint, Greek::RhoPerPercentagePoint]),
+        GreeksRequest::new([Greek::Vega, Greek::Rho]),
         Default::default(),
     )
     .unwrap();
@@ -586,16 +581,10 @@ fn solver_tree_bounds_scalar_sensitivities_and_fixed_cashflows() {
         .price_with_greeks(&vanilla, &context, GreeksRequest::all())
         .unwrap();
     assert!(
-        (result.require(Greek::VegaPerPercentagePoint).unwrap()
-            - expected.require(Greek::VegaPerPercentagePoint).unwrap())
-        .abs()
-            < 0.005
+        (result.require(Greek::Vega).unwrap() - expected.require(Greek::Vega).unwrap()).abs() < 0.5
     );
     assert!(
-        (result.require(Greek::RhoPerPercentagePoint).unwrap()
-            - expected.require(Greek::RhoPerPercentagePoint).unwrap())
-        .abs()
-            < 0.005
+        (result.require(Greek::Rho).unwrap() - expected.require(Greek::Rho).unwrap()).abs() < 0.5
     );
     t.touch_state = Some(BarrierTouchState::Touched);
     t.rebate = 7.0;

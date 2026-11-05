@@ -19,22 +19,22 @@ STABILITY = dict(
     delta=1e-5,
     gamma=1e-6,
     speed=1e-6,
-    color=3e-6,
-    vanna_per_percentage_point=1e-6,
-    zomma_per_percentage_point=1e-7,
+    color=0.001095,
+    vanna=0.0001,
+    zomma=0.00001,
 )
 ANALYTIC = {
     "price": 1e-8,
     "delta": 1e-6,
     "gamma": 1e-7,
     "speed": 2e-7,
-    "theta": 1e-4,
-    "charm": 1e-5,
-    "color": 3e-6,
-    "vega_per_percentage_point": 1e-6,
-    "vanna_per_percentage_point": 1e-7,
-    "zomma_per_percentage_point": 2e-8,
-    "rho_per_percentage_point": 1e-6,
+    "theta": 0.0365,
+    "charm": 0.00365,
+    "color": 0.001095,
+    "vega": 0.0001,
+    "vanna": 0.00001,
+    "zomma": 0.000002,
+    "rho": 0.0001,
 }
 # Fixed-grid interpolation requires spot bumps spanning several cells.
 FD = {
@@ -42,13 +42,13 @@ FD = {
     "delta": 0.005,
     "gamma": 0.002,
     "speed": 0.0005,
-    "theta": 0.001,
-    "charm": 0.0002,
-    "color": 0.00005,
-    "vega_per_percentage_point": 0.005,
-    "vanna_per_percentage_point": 0.001,
-    "zomma_per_percentage_point": 0.0002,
-    "rho_per_percentage_point": 0.005,
+    "theta": 0.365,
+    "charm": 0.073,
+    "color": 0.01825,
+    "vega": 0.5,
+    "vanna": 0.1,
+    "zomma": 0.02,
+    "rho": 0.5,
 }
 
 
@@ -212,11 +212,11 @@ def check_bindings():
         "delta",
         "gamma",
         "theta",
-        "vega_per_percentage_point",
-        "rho_per_percentage_point",
+        "vega",
+        "rho",
     ):
         try:
-            g.native_method(contract, name)()
+            getattr(contract, name)()
         except RuntimeError as caught:
             assert "not provided" in str(caught)
         else:

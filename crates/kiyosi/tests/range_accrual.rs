@@ -213,8 +213,15 @@ fn numerical_greeks_match_independent_payoff_reference() {
         )
         .unwrap();
         for greek in Greek::ALL {
+            let tolerance = match greek {
+                Greek::Delta | Greek::Gamma | Greek::Speed => 2e-8,
+                Greek::Theta | Greek::Charm | Greek::Color => 7.3e-6,
+                Greek::Volga => 0.0002,
+                _ => 2e-6,
+            };
             assert!(
-                (actual.require(greek).unwrap() - expected.require(greek).unwrap()).abs() < 2e-8,
+                (actual.require(greek).unwrap() - expected.require(greek).unwrap()).abs()
+                    < tolerance,
                 "{greek:?}"
             );
         }
@@ -259,10 +266,7 @@ fn greeks_respect_contract_life_and_observations() {
             result.has(greek),
             matches!(
                 greek,
-                Greek::VegaPerPercentagePoint
-                    | Greek::VolgaPerSquaredPercentagePoint
-                    | Greek::RhoPerPercentagePoint
-                    | Greek::DividendRhoPerPercentagePoint
+                Greek::Vega | Greek::Volga | Greek::Rho | Greek::DividendRho
             ),
             "{greek:?}"
         );
@@ -639,12 +643,7 @@ fn request_and_solver_errors_preserve_inputs() {
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
         assert_eq!(result.get(greek), None);
     }
-    for greek in [
-        Greek::VegaPerPercentagePoint,
-        Greek::VolgaPerSquaredPercentagePoint,
-        Greek::RhoPerPercentagePoint,
-        Greek::DividendRhoPerPercentagePoint,
-    ] {
+    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
         if result.supported().has(greek) {
             assert_eq!(result.require(greek).unwrap(), 0.0);
         }
