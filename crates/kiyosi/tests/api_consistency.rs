@@ -1010,3 +1010,103 @@ fn numeric_rejections_identify_the_failing_field() -> Result<()> {
     assert!(error.to_string().contains("spot_price"));
     Ok(())
 }
+
+#[test]
+fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let expiry = start.add_days(365)?;
+    let curve = RateTermStructure::new(start, vec![start.add_days(31)?], vec![1.0])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(curve.clone(), curve, 0.2)?,
+        125.0,
+        start.add_days(2)?,
+    )?;
+    let mut terms = AccumulatorTerms::new(100.0, 120.0, 1.0, 2.0, start, expiry);
+    terms.accumulated_quantity = Some(3.0);
+    let accumulator = Accumulator::new(terms)?;
+    let settled = accumulator.replace(AccumulatorChanges {
+        terminated: Some(true),
+        ..Default::default()
+    })?;
+    let active = accumulator.replace(AccumulatorChanges {
+        knock_out_level: Some(150.0),
+        ..Default::default()
+    })?;
+    let mc = MonteCarloAccumulatorEngine::default();
+    for engine in [
+        &FiniteDifferenceAccumulatorEngine::default() as &dyn PricingEngine<Accumulator>,
+        &QuadratureAccumulatorEngine::default(),
+        &mc,
+    ] {
+        assert_eq!(engine.price(&settled, &context)?, 0.0);
+        assert_eq!(engine.price(&accumulator, &context)?, 75.0);
+        assert_eq!(
+            engine
+                .price_with_greeks(
+                    &settled,
+                    &context,
+                    GreeksRequest::new([Greek::Delta]),
+                    Default::default()
+                )?
+                .require(Greek::Delta)?,
+            0.0
+        );
+        assert!(matches!(
+            engine.price(&active, &context),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    assert_eq!(
+        mc.price_with_statistics(&settled, &context)?
+            .standard_error(),
+        Some(0.0)
+    );
+    let mut terms = BinarySnowballTerms::new(
+        0.1,
+        start,
+        expiry,
+        autocallable_observations(
+            &[start.add_days(1)?, start.add_days(2)?, expiry],
+            &[120.0; 3],
+            None,
+            None,
+        )?,
+    );
+    terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    let note = BinarySnowballOption::new(terms)?;
+    let settled = note.replace_history(Some(AutocallableBarrierState::KnockedOut))?;
+    let active_context = context.replace(PricingContextChanges {
+        spot_price: Some(100.0),
+        ..Default::default()
+    })?;
+    let mc = MonteCarloAutocallableEngine::default();
+    for engine in [
+        &FiniteDifferenceAutocallableEngine::default() as &dyn PricingEngine<BinarySnowballOption>,
+        &QuadratureAutocallableEngine::default(),
+        &mc,
+    ] {
+        assert_eq!(engine.price(&settled, &context)?, 0.0);
+        assert_eq!(engine.price(&note, &context)?, 1.0);
+        assert_eq!(
+            engine
+                .price_with_greeks(
+                    &settled,
+                    &context,
+                    GreeksRequest::new([Greek::Delta]),
+                    Default::default()
+                )?
+                .require(Greek::Delta)?,
+            0.0
+        );
+        assert!(matches!(
+            engine.price(&note, &active_context),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    assert_eq!(
+        mc.price_with_statistics(&settled, &context)?
+            .standard_error(),
+        Some(0.0)
+    );
+    Ok(())
+}

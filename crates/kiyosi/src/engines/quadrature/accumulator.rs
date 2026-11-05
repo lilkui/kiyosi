@@ -149,12 +149,12 @@ fn price(
     context.bsm_parameters()?;
     let (rate, dividend) = flat_rates(context)?;
     option.validate_pricing(context)?;
-    context.validate_curve_horizon(option.expiry_time())?;
-    let horizon = context.valuation_time().years_until(option.expiry_time());
     let (quantity, settlement) = option.initial(context);
     if let Some(value) = settlement {
         return checked(value);
     }
+    context.validate_curve_horizon(option.expiry_time())?;
+    let horizon = context.valuation_time().years_until(option.expiry_time());
     let strike = option.strike();
     let current = log_ratio(context.spot_price(), strike);
     let evaluate = |nodes: &[f64], layers: &[Layer; 2], drift, deviation, discount| {

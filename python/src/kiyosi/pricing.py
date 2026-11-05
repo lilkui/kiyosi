@@ -80,7 +80,7 @@ Check step-count, extent and numerical Greek bump convergence separately;
 completion provides no error estimate. Equality at expiry pays zero.
 
 Pricing raises ``ComputationFailureError`` for materially negative option
-prices. Settled barrier cash flows do not require curve coverage through expiry;
+prices. Settled barrier, accumulator and autocallable cash flows do not require curve coverage through expiry;
 remaining payments and stochastic evolution retain their coverage checks. Only
 rounding-sized negative results may be clipped to zero.
 Coarse numerical grids may require refinement before pricing succeeds.

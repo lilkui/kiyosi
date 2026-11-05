@@ -50,6 +50,8 @@
 //! constant risk-free rates and dividend yields.
 //! Future coverage follows remaining stochastic evolution and required discounts;
 //! settled cash flows do not require volatility coverage through contractual expiry.
+//! Settled barrier, accumulator and autocallable payments do not require rate
+//! curves through contractual expiry either; remaining cash flows retain coverage checks.
 //! [`ModelParameters`] selects the concrete model at the pricing entry point.
 //! [`HestonParameters`] supplies constant risk-neutral variance parameters and
 //! deterministic rate curves. [`AnalyticHestonEuropeanEngine`] supports European call/put

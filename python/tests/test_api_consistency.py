@@ -11,6 +11,77 @@ from kiyosi import instruments as ins
 
 
 class ApiConsistencyTests(unittest.TestCase):
+    def test_structured_engines_require_curve_coverage_only_for_remaining_cashflows(
+        self,
+    ):
+        start, valuation, end = (
+            datetime(2025, 1, 1),
+            datetime(2025, 1, 3),
+            datetime(2026, 1, 1),
+        )
+        curve = market.RateTermStructure(
+            reference_time=start, times=[datetime(2025, 2, 1)], factors=[1]
+        )
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=curve, dividend_yield=curve, volatility=0.2
+            ),
+            spot_price=125,
+            valuation_time=valuation,
+        )
+        accumulator = ins.Accumulator(
+            strike=100,
+            knock_out_level=120,
+            daily_quantity=1,
+            acceleration_factor=2,
+            accumulated_quantity=3,
+            effective_time=start,
+            expiry_time=end,
+        )
+        note = ins.BinarySnowballOption(
+            maturity_coupon_rate=0.1,
+            effective_time=start,
+            expiry_time=end,
+            barrier_state="no_event",
+            observations=ins.autocallable_observations(
+                [datetime(2025, 1, 2), valuation, end], [120, 120, 120]
+            ),
+        )
+        for kind, contract, settled, active, current_value in (
+            (
+                "Accumulator",
+                accumulator,
+                accumulator.replace(terminated=True),
+                accumulator.replace(knock_out_level=150),
+                75,
+            ),
+            (
+                "Autocallable",
+                note,
+                note.replace_history(barrier_state="knocked_out"),
+                note.replace(
+                    observations=ins.autocallable_observations(
+                        [datetime(2025, 1, 2), valuation, end], [150, 150, 150]
+                    )
+                ),
+                1,
+            ),
+        ):
+            for family in ("FiniteDifference", "Quadrature", "MonteCarlo"):
+                engine = getattr(pricing, family + kind + "Engine")()
+                with self.subTest(kind=kind, engine=family):
+                    self.assertEqual(engine.price(settled, context), 0)
+                    self.assertEqual(engine.price(contract, context), current_value)
+                    self.assertEqual(
+                        engine.price_with_greeks(settled, context, "delta").delta, 0
+                    )
+                    with self.assertRaises(InvalidInputError):
+                        engine.price(active, context)
+                    if family == "MonteCarlo":
+                        estimate = engine.price_with_statistics(settled, context)
+                        self.assertEqual(estimate.price, 0)
+                        self.assertEqual(estimate.standard_error, 0)
+
     def test_numeric_rejections_identify_the_failing_field(self):
         defaults = {"risk_free_rate": 0.02, "dividend_yield": 0, "volatility": 0.2}
         for field, invalid in (
