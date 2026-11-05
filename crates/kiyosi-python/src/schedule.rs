@@ -1,8 +1,9 @@
 use crate::calendar::TradingCalendar;
 use crate::conversions::{integer, integer_index, python_timestamp, timestamp};
 use crate::error::domain;
-use pyo3::exceptions::{PyIndexError, PyOverflowError};
+use pyo3::exceptions::{PyIndexError, PyOverflowError, PyTypeError};
 use pyo3::prelude::*;
+use pyo3::types::{PyBool, PyList, PySlice};
 
 /// Immutable ordered observation times with sequence access.
 ///
@@ -28,7 +29,9 @@ use pyo3::prelude::*;
 /// Empty schedules are valid. The times property
 /// returns a copy; iteration retains the schedule owner. Integer indexing
 /// accepts negative indices, rejects bool, and raises IndexError outside the sequence.
-/// Slices are not supported. len(schedule) counts observations.
+/// Slices return owned lists of timestamps, including reversed slices.
+/// Slice bounds and steps accept integers excluding bool; a zero step raises ValueError.
+/// len(schedule) counts observations.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct ObservationSchedule(pub(crate) kiyosi::ObservationSchedule);
@@ -72,6 +75,26 @@ impl ObservationSchedule {
         py: Python<'py>,
         index: &Bound<'_, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        if let Ok(slice) = index.cast::<PySlice>() {
+            for name in ["start", "stop", "step"] {
+                if slice.getattr(name)?.is_instance_of::<PyBool>() {
+                    return Err(PyTypeError::new_err("expected an integer, excluding bool"));
+                }
+            }
+            let length = isize::try_from(self.0.len())
+                .map_err(|_| PyOverflowError::new_err("schedule is too long to slice"))?;
+            let indices = slice.indices(length)?;
+            let result = PyList::empty(py);
+            let mut position = indices.start;
+            for _ in 0..indices.slicelength {
+                result.append(python_timestamp(
+                    py,
+                    self.0.times()[position.unsigned_abs()],
+                )?)?;
+                position = position.saturating_add(indices.step);
+            }
+            return Ok(result.into_any());
+        }
         let index = integer_index(index)?;
         let index = index.extract::<isize>().map_err(|error| {
             if error.is_instance_of::<PyOverflowError>(py) {

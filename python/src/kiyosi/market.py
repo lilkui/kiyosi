@@ -34,6 +34,8 @@ empty overrides compare equal to the base when the basis is unchanged.
 Calendar representations identify the base kind and abbreviate open/closed overrides.
 Observation schedules accept integer indices, including negative positions,
 and reject boolean indices with TypeError. Out-of-range indices raise IndexError.
+Slices return independent lists of timestamps and support negative steps. Slice
+bounds and steps reject booleans; a zero step raises ValueError.
 Construct ``ObservationSchedule(times=..., start_time=..., end_time=..., calendar=...)``
 for explicit or irregular observations. Times must increase strictly within the
 inclusive bounds and fall on open calendar dates. Empty schedules are valid;

@@ -281,10 +281,45 @@ class CalendarTests(unittest.TestCase):
                 return -1
 
         self.assertEqual(schedule[Index()], datetime(2025, 1, 5))
-        for index in (True, False, 1.0, 1.5, "1", None, slice(None)):
+        for index in (True, False, 1.0, 1.5, "1", None):
             with self.subTest(index=index), self.assertRaises(TypeError):
                 _ = schedule[index]
         self.assertEqual(list(schedule), [datetime(2025, 1, i) for i in range(2, 6)])
+
+    def test_schedule_slices_follow_sequence_semantics_and_own_their_results(self):
+        schedule = fixed_interval_schedule(
+            start_time=datetime(2025, 1, 1),
+            end_time=datetime(2025, 1, 5),
+            interval_days=1,
+            calendar=all_days_calendar(),
+        )
+        expected = list(schedule)
+        for selection in (
+            slice(None),
+            slice(1, 3),
+            slice(None, None, -1),
+            slice(-3, None, 2),
+            slice(3, 1),
+            slice(-(10**100), 10**100),
+            slice(None, None, 10**100),
+            slice(None, None, -(10**100)),
+        ):
+            with self.subTest(selection=selection):
+                self.assertEqual(schedule[selection], expected[selection])
+        result = schedule[:]
+        result.clear()
+        self.assertEqual(list(schedule), expected)
+        self.assertEqual(schedule[0:0], [])
+        with self.assertRaises(ValueError):
+            _ = schedule[::0]
+        for selection in (
+            slice(True),
+            slice(None, False),
+            slice(None, None, True),
+            slice(1.5),
+        ):
+            with self.subTest(selection=selection), self.assertRaises(TypeError):
+                _ = schedule[selection]
 
     def test_validation_errors_and_order(self):
         start, end = datetime(2025, 1, 1), datetime(2025, 2, 1)
