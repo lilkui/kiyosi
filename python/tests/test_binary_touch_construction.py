@@ -10,6 +10,36 @@ from kiyosi import instruments as ins
 
 
 class BinaryTouchConstructionTests(unittest.TestCase):
+    def test_payoff_kind_is_explicit_and_null_amount_cannot_change_cash_settlement(
+        self,
+    ):
+        common = dict(
+            effective_time=datetime(2025, 1, 3),
+            expiry_time=datetime(2025, 1, 6),
+            barrier_level=120,
+            barrier_type="up_and_in",
+        )
+        for cls, extra in (
+            (ins.TouchOption, {}),
+            (ins.BinaryBarrierOption, {"strike": 100, "option_type": "call"}),
+        ):
+            with self.subTest(contract=cls.__name__):
+                cash = cls(**common, **extra, payoff_type="cash", payout=10)
+                for fields, error in (
+                    ({"payoff_type": "cash", "payout": None}, TypeError),
+                    ({"payoff_type": "asset", "payout": 10}, TypeError),
+                    ({"payoff_type": "unknown"}, ValueError),
+                    ({"payoff_type": True}, TypeError),
+                ):
+                    with self.assertRaises(error):
+                        cls(**common, **extra, **fields)
+                with self.assertRaises(TypeError):
+                    cash.replace(payout=None)
+                self.assertEqual((cash.payoff_type, cash.payout), ("cash", 10))
+                asset = cash.replace(payoff_type="asset")
+                self.assertEqual((asset.payoff_type, asset.payout), ("asset", None))
+                self.assertEqual(asset.replace(payoff_type="cash", payout=10), cash)
+
     def test_constructors_preserve_settlement_monitoring_and_terminal_payments(self):
         start, end = datetime(2025, 1, 3), datetime(2025, 1, 4)
         life = {"effective_time": start, "expiry_time": end}
@@ -73,10 +103,15 @@ class BinaryTouchConstructionTests(unittest.TestCase):
         for cls, factory, terms, expected in cases:
             with self.subTest(contract=cls.__name__, factory=factory.__name__):
                 fields = dict(life, **terms, **monitoring)
+                if cls is not ins.DoubleTouchOption:
+                    fields["payoff_type"] = (
+                        "cash" if terms["payout"] is not None else "asset"
+                    )
                 arguments = inspect.signature(cls).bind(**fields)
                 arguments.apply_defaults()
                 contract = cls(*arguments.args, **arguments.kwargs)
                 factory_fields = fields.copy()
+                factory_fields.pop("payoff_type", None)
                 if cls is ins.DoubleTouchOption:
                     factory_fields.pop("barrier_type")
                 elif fields["payout"] is None:
@@ -96,7 +131,7 @@ class BinaryTouchConstructionTests(unittest.TestCase):
                 self.assertEqual(restored, contract)
                 self.assertEqual(engine.price(restored, context), expected)
                 if terms["payout"] is None:
-                    cash = contract.replace(payout=5)
+                    cash = contract.replace(payoff_type="cash", payout=5)
                     self.assertEqual(cash.payout, 5)
                     self.assertEqual(engine.price(cash, context), 5 if expected else 0)
                 else:
@@ -127,6 +162,8 @@ class BinaryTouchConstructionTests(unittest.TestCase):
             ),
         ):
             fields = dict(life, **specific, calendar=market.all_days_calendar())
+            if cls is not ins.DoubleTouchOption:
+                fields["payoff_type"] = "cash"
             for changes, error in (
                 ({"payout": True}, TypeError),
                 ({"payout": "10"}, TypeError),
@@ -169,6 +206,7 @@ class BinaryTouchConstructionTests(unittest.TestCase):
         }
         for payout in (10, None):
             contract = ins.TouchOption(
+                payoff_type="cash" if payout is not None else "asset",
                 **life,
                 barrier_level=120,
                 barrier_type="up_and_in",
@@ -179,6 +217,7 @@ class BinaryTouchConstructionTests(unittest.TestCase):
             self.assertTrue(contract.is_one_touch)
             with self.subTest(payout=payout), self.assertRaises(InvalidInputError):
                 ins.TouchOption(
+                    payoff_type="cash" if payout is not None else "asset",
                     **life,
                     barrier_level=120,
                     barrier_type="up_and_out",

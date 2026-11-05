@@ -93,14 +93,22 @@ def cases():
     for payout, expected in ((None, 100), (10, 10)):
         yield (
             ins.BinaryBarrierOption(
-                **vanilla, barrier_level=80, barrier_type="down_and_out", payout=payout
+                payoff_type="cash" if payout is not None else "asset",
+                **vanilla,
+                barrier_level=80,
+                barrier_type="down_and_out",
+                payout=payout,
             ),
             ("AnalyticBinaryBarrierEngine", "FiniteDifferenceBinaryBarrierEngine"),
             expected,
         )
         yield (
             ins.TouchOption(
-                **life, barrier_level=80, barrier_type="down_and_out", payout=payout
+                payoff_type="cash" if payout is not None else "asset",
+                **life,
+                barrier_level=80,
+                barrier_type="down_and_out",
+                payout=payout,
             ),
             ("AnalyticBinaryBarrierEngine", "FiniteDifferenceBinaryBarrierEngine"),
             expected,
@@ -308,6 +316,7 @@ class DeterministicBsmTests(unittest.TestCase):
             ),
             (
                 ins.TouchOption(
+                    payoff_type="cash",
                     **life,
                     barrier_level=105,
                     barrier_type="up_and_in",
@@ -319,6 +328,7 @@ class DeterministicBsmTests(unittest.TestCase):
             ),
             (
                 ins.TouchOption(
+                    payoff_type="asset",
                     **life,
                     barrier_level=105,
                     barrier_type="up_and_in",
@@ -342,6 +352,7 @@ class DeterministicBsmTests(unittest.TestCase):
             ),
             (
                 ins.TouchOption(
+                    payoff_type="cash",
                     **life,
                     barrier_level=105,
                     barrier_type="up_and_in",
@@ -380,6 +391,7 @@ class DeterministicBsmTests(unittest.TestCase):
             valuation_time=START,
         )
         continuous = ins.TouchOption(
+            payoff_type="cash",
             effective_time=START,
             expiry_time=end,
             barrier_level=105,

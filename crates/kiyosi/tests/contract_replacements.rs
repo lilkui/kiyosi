@@ -271,7 +271,7 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
     assert_eq!(cleared.touch_state(), None);
     let updated = original
         .replace(BinaryBarrierOptionChanges {
-            payout: Some(Some(15.0)),
+            payoff: Some(kiyosi::BinaryPayoff::Cash(15.0)),
             ..Default::default()
         })
         .unwrap();
@@ -366,7 +366,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     assert_eq!(cleared.touch_state(), None);
     let updated = original
         .replace(TouchOptionChanges {
-            payout: Some(Some(15.0)),
+            payoff: Some(kiyosi::BinaryPayoff::Cash(15.0)),
             ..Default::default()
         })
         .unwrap();
@@ -389,7 +389,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     ));
     assert!(matches!(
         original.replace(TouchOptionChanges {
-            payout: Some(Some(-1.0)),
+            payoff: Some(kiyosi::BinaryPayoff::Cash(-1.0)),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -1200,27 +1200,31 @@ fn settlement_replacements_roundtrip_and_switch_cash_and_asset() -> Result<()> {
         ($original:ident, $changes:ident) => {{
             assert_eq!(
                 $original.replace($changes {
-                    payout: Some($original.payout()),
+                    payoff: Some(
+                        $original
+                            .payout()
+                            .map_or(BinaryPayoff::Asset, BinaryPayoff::Cash)
+                    ),
                     ..Default::default()
                 })?,
                 $original
             );
             let cash = $original.replace($changes {
-                payout: Some(Some(10.0)),
+                payoff: Some(kiyosi::BinaryPayoff::Cash(10.0)),
                 ..Default::default()
             })?;
             assert_eq!(cash.payout(), Some(10.0));
             assert_eq!(cash.replace($changes::default())?, cash);
             assert_eq!(
                 cash.replace($changes {
-                    payout: Some(None),
+                    payoff: Some(kiyosi::BinaryPayoff::Asset),
                     ..Default::default()
                 })?,
                 $original
             );
             assert!(matches!(
                 $original.replace($changes {
-                    payout: Some(Some(-1.0)),
+                    payoff: Some(kiyosi::BinaryPayoff::Cash(-1.0)),
                     ..Default::default()
                 }),
                 Err(Error::InvalidInput(_))

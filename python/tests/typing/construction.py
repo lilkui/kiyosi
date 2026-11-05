@@ -83,6 +83,7 @@ def binary_and_touch_constructors() -> None:
     start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
     assert_type(
         BinaryBarrierOption(
+            payoff_type="cash",
             option_type="call",
             strike=100,
             effective_time=start,
@@ -95,6 +96,7 @@ def binary_and_touch_constructors() -> None:
     )
     assert_type(
         BinaryBarrierOption(
+            payoff_type="asset",
             option_type="put",
             strike=100,
             effective_time=start,
@@ -107,6 +109,7 @@ def binary_and_touch_constructors() -> None:
     )
     assert_type(
         TouchOption(
+            payoff_type="asset",
             effective_time=start,
             expiry_time=end,
             barrier_level=120,
@@ -117,6 +120,7 @@ def binary_and_touch_constructors() -> None:
     )
     assert_type(
         TouchOption(
+            payoff_type="cash",
             effective_time=start,
             expiry_time=end,
             barrier_level=120,

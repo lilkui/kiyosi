@@ -258,6 +258,17 @@ class ContractReplacementTests(unittest.TestCase):
                     )
                 with self.subTest(contract=type(original).__name__, field=name):
                     updates = {name: value}
+                    if isinstance(original, (i.BinaryBarrierOption, i.TouchOption)):
+                        if name == "payoff_type":
+                            value = (
+                                "asset" if original.payoff_type == "cash" else "cash"
+                            )
+                            updates = {
+                                name: value,
+                                "payout": None if value == "asset" else 10,
+                            }
+                        elif name == "payout" and original.payoff_type == "asset":
+                            updates["payoff_type"] = "cash"
                     if name == "effective_time" and isinstance(
                         original,
                         (i.GeometricAveragePriceOption, i.ArithmeticAveragePriceOption),
@@ -302,14 +313,16 @@ class ContractReplacementTests(unittest.TestCase):
                 continue
             with self.subTest(contract=type(asset).__name__):
                 self.assertEqual(asset.replace(payout=asset.payout), asset)
-                cash = asset.replace(payout=10)
+                cash = asset.replace(payoff_type="cash", payout=10)
                 self.assertEqual(cash.payout, 10)
                 self.assertEqual(cash.payoff_type, "cash")
                 self.assertEqual(cash.replace(), cash)
-                self.assertEqual(cash.replace(payout=None), asset)
+                self.assertEqual(cash.replace(payoff_type="asset"), asset)
+                with self.assertRaises(TypeError):
+                    cash.replace(payout=None)
                 self.assertIsNone(asset.payout)
                 with self.assertRaises(InvalidInputError):
-                    asset.replace(payout=-1)
+                    asset.replace(payoff_type="cash", payout=-1)
                 self.assertIsNone(asset.payout)
                 self.assertEqual(cash.payout, 10)
 
@@ -330,7 +343,10 @@ class ContractReplacementTests(unittest.TestCase):
             value = float("nan") if invalid == "maturity_coupon_rate" else -1
             with self.subTest(contract=type(original).__name__):
                 with self.assertRaises(InvalidInputError):
-                    original.replace(**{invalid: value})
+                    updates = {invalid: value}
+                    if invalid == "payout" and isinstance(original, i.TouchOption):
+                        updates["payoff_type"] = "cash"
+                    original.replace(**updates)
                 for field in fields:
                     with self.subTest(field=field), self.assertRaises(TypeError):
                         original.replace(

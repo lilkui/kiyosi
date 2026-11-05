@@ -4,6 +4,25 @@ use crate::{
     OptionContract, OptionType, PricingContext, Result, Timestamp, TradingCalendar,
 };
 
+/// Selects explicit cash or asset settlement for binary and touch replacements.
+///
+/// # Examples
+///
+/// ```rust
+/// use kiyosi::{BinaryBarrierOptionChanges, BinaryPayoff};
+/// let changes = BinaryBarrierOptionChanges {
+///     payoff: Some(BinaryPayoff::Asset), ..Default::default()
+/// };
+/// assert_eq!(changes.payoff, Some(BinaryPayoff::Asset));
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum BinaryPayoff {
+    /// Pays a fixed positive finite cash amount, validated by the contract.
+    Cash(f64),
+    /// Pays the asset according to the contract's settlement timing.
+    Asset,
+}
+
 /// Payment timing for a touch contract; see [`TouchOption::cash`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SettlementTiming {
@@ -509,9 +528,9 @@ pub struct BinaryBarrierOptionChanges {
     pub observation_times: Option<Vec<Timestamp>>,
     /// Replaces [`touch_state`](BinaryBarrierTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
-    /// Replaces settlement: `Some(None)` selects the asset; `Some(Some(value))` selects cash.
+    /// Replaces settlement explicitly with cash or the asset.
     /// See [`BinaryBarrierOption::replace`].
-    pub payout: Option<Option<f64>>,
+    pub payoff: Option<BinaryPayoff>,
 }
 
 impl BinaryBarrierOption {
@@ -523,8 +542,8 @@ impl BinaryBarrierOption {
     /// # Errors
     ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged. A supplied payout selects cash settlement; `Some(None)`
-    /// selects asset settlement, matching construction. See [`Self::cash`] for an example.
+    /// this value unchanged. [`BinaryPayoff`] selects settlement explicitly.
+    /// See [`Self::cash`] for a construction example.
     pub fn replace(&self, changes: BinaryBarrierOptionChanges) -> Result<Self> {
         let terms = BinaryBarrierTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
@@ -540,9 +559,12 @@ impl BinaryBarrierOption {
                 .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
-        match changes.payout.unwrap_or(self.payout()) {
-            Some(payout) => Self::cash(terms, payout),
-            None => Self::asset(terms),
+        match changes.payoff.unwrap_or_else(|| {
+            self.payout()
+                .map_or(BinaryPayoff::Asset, BinaryPayoff::Cash)
+        }) {
+            BinaryPayoff::Cash(payout) => Self::cash(terms, payout),
+            BinaryPayoff::Asset => Self::asset(terms),
         }
     }
 }
@@ -570,9 +592,9 @@ pub struct TouchOptionChanges {
     pub observation_times: Option<Vec<Timestamp>>,
     /// Replaces [`touch_state`](TouchOptionTerms::touch_state).
     pub touch_state: Option<Option<BarrierTouchState>>,
-    /// Replaces settlement: `Some(None)` selects the asset; `Some(Some(value))` selects cash.
+    /// Replaces settlement explicitly with cash or the asset.
     /// See [`TouchOption::replace`].
-    pub payout: Option<Option<f64>>,
+    pub payoff: Option<BinaryPayoff>,
 }
 
 impl TouchOption {
@@ -584,8 +606,8 @@ impl TouchOption {
     /// # Errors
     ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
-    /// this value unchanged. A supplied payout selects cash settlement; `Some(None)`
-    /// selects asset settlement, matching construction. See [`Self::cash`] for an example.
+    /// this value unchanged. [`BinaryPayoff`] selects settlement explicitly.
+    /// See [`Self::cash`] for a construction example.
     pub fn replace(&self, changes: TouchOptionChanges) -> Result<Self> {
         let terms = TouchOptionTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
@@ -602,9 +624,12 @@ impl TouchOption {
                 .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
-        match changes.payout.unwrap_or(self.payout()) {
-            Some(payout) => Self::cash(terms, payout),
-            None => Self::asset(terms),
+        match changes.payoff.unwrap_or_else(|| {
+            self.payout()
+                .map_or(BinaryPayoff::Asset, BinaryPayoff::Cash)
+        }) {
+            BinaryPayoff::Cash(payout) => Self::cash(terms, payout),
+            BinaryPayoff::Asset => Self::asset(terms),
         }
     }
 }

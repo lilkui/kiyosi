@@ -183,8 +183,8 @@ pub use instruments::barrier::{
     ObservationMode, RebateTiming,
 };
 pub use instruments::binary_barrier::{
-    BinaryBarrierOption, BinaryBarrierOptionChanges, BinaryBarrierTerms, SettlementTiming,
-    TouchOption, TouchOptionChanges, TouchOptionTerms,
+    BinaryBarrierOption, BinaryBarrierOptionChanges, BinaryBarrierTerms, BinaryPayoff,
+    SettlementTiming, TouchOption, TouchOptionChanges, TouchOptionTerms,
 };
 pub use instruments::double_barrier::{
     DoubleBarrierOption, DoubleBarrierOptionChanges, DoubleBarrierOptionTerms, DoubleBarrierType,

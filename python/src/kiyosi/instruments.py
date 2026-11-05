@@ -35,9 +35,9 @@ and changing monitoring to scheduled requires supplying the observation times in
 Phoenix replacements accept at most one coupon choice and can change coupon units.
 Double-touch contracts expose ``barrier_type="knock_in"`` or ``"knock_out"``
 for inspection and replacement;
-binary and touch replacements use the constructor's settlement convention:
-``payout=None`` selects asset settlement, a positive payout selects cash settlement,
-and omission preserves the existing settlement.
+binary and touch constructors require explicit ``payoff_type="cash"`` or
+``"asset"``. Replacements preserve this kind unless ``payoff_type`` is supplied.
+Cash settlement requires a positive payout; ``payout=None`` cannot switch its kind.
 ``replace_history()`` updates only prior history on path-dependent contracts.
 Asian averages use ``realized_average=None`` for unknown history; supplied averages
 must be finite and positive. History is required strictly after averaging starts.
@@ -67,8 +67,8 @@ monitoring to ``"every_trading_day"``, matching Rust terms.
 
 ``BinaryBarrierOption``, ``TouchOption`` and ``DoubleTouchOption`` have keyword-only
 constructors, like other contracts. Binary barriers and single-touch contracts
-require ``payout``: a positive cash amount selects cash settlement; explicit
-``None`` selects asset settlement. Double-touch contracts require a cash payout.
+require ``payoff_type``: ``"cash"`` requires a positive ``payout``; ``"asset"``
+has no cash amount. Double-touch contracts require a cash payout.
 Single-touch ``barrier_type`` uses ``up_and_in`` or ``down_and_in`` for one-touch,
 and ``up_and_out`` or ``down_and_out`` for no-touch. Double-touch contracts use
 ``knock_in`` or ``knock_out`` respectively. The named cash/asset factory functions
@@ -97,22 +97,22 @@ Cash and asset digitals pay zero when the expiry spot equals the strike:
 (100.0, 105.0, 10.0)
 
 Construct a cash no-touch contract using the same barrier choices as barrier options.
-Pass ``payout=None`` for asset settlement. At-hit settlement is available
+Pass ``payoff_type="asset"`` for asset settlement. At-hit settlement is available
 only for one-touch contracts (``up_and_in`` or ``down_and_in``):
 
 >>> touch = TouchOption(
 ...     effective_time=datetime(2025, 1, 1), expiry_time=datetime(2026, 1, 1),
-...     barrier_level=80, barrier_type="down_and_out", payout=10,
+...     barrier_level=80, barrier_type="down_and_out", payoff_type="cash", payout=10,
 ... )
 >>> (touch.barrier_type, touch.is_one_touch, touch.settlement_timing)
 ('down_and_out', False, 'at_expiry')
 
-Construct an asset binary barrier with explicit ``payout=None``:
+Construct an asset binary barrier with explicit ``payoff_type="asset"``:
 
 >>> binary = BinaryBarrierOption(
 ...     option_type="call", strike=100,
 ...     effective_time=touch.effective_time, expiry_time=touch.expiry_time,
-...     barrier_level=120, barrier_type="up_and_in", payout=None,
+...     barrier_level=120, barrier_type="up_and_in", payoff_type="asset",
 ... )
 >>> binary.payoff_type
 'asset'
