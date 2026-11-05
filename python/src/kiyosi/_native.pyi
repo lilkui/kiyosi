@@ -2013,6 +2013,21 @@ class AnalyticDoubleTouchEngine:
     ) -> PricingResult: ...
 
 class BinaryBarrierOption:
+    def __init__(
+        self,
+        *,
+        option_type: Literal["call", "put"],
+        strike: _Real,
+        effective_time: datetime,
+        expiry_time: datetime,
+        barrier_level: _Real,
+        barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
+        payout: _Real | None,
+        observation_mode: Literal["continuous", "scheduled"] = ...,
+        observation_times: Iterable[datetime] = ...,
+        touch_state: Literal["untouched", "touched"] | None = None,
+        calendar: TradingCalendar = ...,
+    ) -> None: ...
     @property
     def calendar(self) -> TradingCalendar: ...
     def replace(
@@ -2031,7 +2046,6 @@ class BinaryBarrierOption:
         payout: _Real | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
-    def __new__(cls, _token: Never, /) -> Self: ...
     def replace_history(
         self,
         *,
@@ -2067,6 +2081,20 @@ class BinaryBarrierOption:
     def strike(self) -> float: ...
 
 class TouchOption:
+    def __init__(
+        self,
+        *,
+        effective_time: datetime,
+        expiry_time: datetime,
+        barrier_level: _Real,
+        barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
+        payout: _Real | None,
+        settlement_timing: Literal["at_hit", "at_expiry"] = ...,
+        observation_mode: Literal["continuous", "scheduled"] = ...,
+        observation_times: Iterable[datetime] = ...,
+        touch_state: Literal["untouched", "touched"] | None = None,
+        calendar: TradingCalendar = ...,
+    ) -> None: ...
     @property
     def calendar(self) -> TradingCalendar: ...
     def replace(
@@ -2084,7 +2112,6 @@ class TouchOption:
         payout: _Real | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
-    def __new__(cls, _token: Never, /) -> Self: ...
     def replace_history(
         self,
         *,
@@ -2193,6 +2220,21 @@ class AnalyticBinaryBarrierEngine:
     ) -> PricingResult: ...
 
 class DoubleTouchOption:
+    def __init__(
+        self,
+        *,
+        effective_time: datetime,
+        expiry_time: datetime,
+        lower_barrier: _Real,
+        upper_barrier: _Real,
+        barrier_type: Literal["knock_in", "knock_out"],
+        payout: _Real,
+        settlement_timing: Literal["at_hit", "at_expiry"] = ...,
+        observation_mode: Literal["continuous", "scheduled"] = ...,
+        observation_times: Iterable[datetime] = ...,
+        touch_state: Literal["untouched", "touched"] | None = None,
+        calendar: TradingCalendar = ...,
+    ) -> None: ...
     @property
     def calendar(self) -> TradingCalendar: ...
     def replace(
@@ -2210,7 +2252,6 @@ class DoubleTouchOption:
         payout: _Real | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
-    def __new__(cls, _token: Never, /) -> Self: ...
     def replace_history(
         self,
         *,

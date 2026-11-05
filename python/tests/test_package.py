@@ -561,14 +561,27 @@ class PackageTests(unittest.TestCase):
                     with self.assertRaises((TypeError, ValueError)):
                         cls(**common, **extra, knock_in_observation_mode=invalid)
 
-    def test_factory_only_contracts_reject_direct_construction(self):
+    def test_binary_and_touch_constructors_require_explicit_terms(self):
         for cls in (
             instruments.BinaryBarrierOption,
             instruments.TouchOption,
             instruments.DoubleTouchOption,
         ):
-            with self.subTest(contract=cls.__name__), self.assertRaises(TypeError):
-                cls()
+            with self.subTest(contract=cls.__name__):
+                signature = inspect.signature(cls)
+                self.assertIs(
+                    signature.parameters["payout"].default, inspect.Parameter.empty
+                )
+                self.assertTrue(
+                    all(
+                        p.kind is inspect.Parameter.KEYWORD_ONLY
+                        for p in signature.parameters.values()
+                    )
+                )
+                with self.assertRaises(TypeError):
+                    signature.bind()
+                with self.assertRaises(TypeError):
+                    cls()
 
     def test_engine_constructors_expose_keyword_only_signatures(self):
         package = Path(kiyosi.__file__).parent

@@ -7,9 +7,37 @@ use pyo3::prelude::*;
 
 /// Cash-or-nothing or asset-or-nothing option with barrier monitoring.
 ///
+/// Parameters
+/// ----------
+/// option_type : {'call', 'put'}
+///     Terminal payoff direction; strike equality pays zero.
+/// strike : float
+///     Positive finite terminal exercise price.
+/// effective_time, expiry_time : datetime.datetime
+///     Inclusive contract life.
+/// barrier_level : float
+///     Positive finite trigger level.
+/// barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
+///     Trigger direction and knock-in or knock-out behavior.
+/// payout : float or None
+///     Positive finite cash payment, or explicit None for asset settlement.
+/// observation_mode : {'continuous', 'scheduled'}, optional
+///     Monitoring frequency; defaults to continuous.
+/// observation_times : iterable of datetime.datetime, optional
+///     Strictly increasing scheduled times within life; empty for continuous monitoring.
+/// touch_state : {'untouched', 'touched'} or None, optional
+///     Strictly prior touch history; defaults to unknown.
+/// calendar : TradingCalendar, optional
+///     Owned observation calendar; defaults to weekdays.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If numeric terms, life, schedule or calendar compatibility are invalid.
+///
 /// Notes
 /// -----
-/// Construct with cash_binary_barrier_option or asset_binary_barrier_option.
+/// The cash_binary_barrier_option and asset_binary_barrier_option functions are conveniences.
 /// Barrier equality touches; terminal strike equality pays zero.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -17,9 +45,36 @@ pub(crate) struct BinaryBarrierOption(pub kiyosi::BinaryBarrierOption);
 
 /// Strike-free cash or asset one-touch or no-touch contract.
 ///
+/// Parameters
+/// ----------
+/// effective_time, expiry_time : datetime.datetime
+///     Inclusive contract life.
+/// barrier_level : float
+///     Positive finite trigger level; equality counts as a touch.
+/// barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
+///     In selects one-touch; out selects no-touch. Up/down selects direction.
+/// payout : float or None
+///     Positive finite cash payment, or explicit None for asset settlement.
+/// settlement_timing : {'at_hit', 'at_expiry'}, optional
+///     Defaults to expiry; at-hit settlement requires a one-touch.
+/// observation_mode : {'continuous', 'scheduled'}, optional
+///     Monitoring frequency; defaults to continuous.
+/// observation_times : iterable of datetime.datetime, optional
+///     Strictly increasing scheduled times within life; empty for continuous monitoring.
+/// touch_state : {'untouched', 'touched'} or None, optional
+///     Strictly prior touch history; defaults to unknown.
+/// calendar : TradingCalendar, optional
+///     Owned observation calendar; defaults to weekdays.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If numeric terms, life, monitoring or calendar terms are invalid, or
+///     at-hit settlement is requested for a no-touch.
+///
 /// Notes
 /// -----
-/// Construct with cash_touch_option or asset_touch_option and an explicit barrier_type.
+/// The cash_touch_option and asset_touch_option functions are conveniences.
 /// Prior at-hit payments are settled.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -57,6 +112,40 @@ macro_rules! binary_properties {
 }
 binary_properties!(
     BinaryBarrierOption,
+    #[new]
+    #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, barrier_level, barrier_type, payout, observation_mode=kiyosi::ObservationMode::default(), observation_times=Vec::new(), touch_state=None, calendar=TradingCalendar::default()))]
+    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
+    pub(crate) fn new(
+        option_type: &Bound<'_, PyAny>,
+        strike: &Bound<'_, PyAny>,
+        effective_time: &Bound<'_, PyAny>,
+        expiry_time: &Bound<'_, PyAny>,
+        barrier_level: &Bound<'_, PyAny>,
+        barrier_type: &Bound<'_, PyAny>,
+        payout: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = barrier::mode)] observation_mode: kiyosi::ObservationMode,
+        #[pyo3(from_py_with = timestamps)] observation_times: Vec<kiyosi::Timestamp>,
+        #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
+        calendar: TradingCalendar,
+    ) -> PyResult<Self> {
+        let mut terms = kiyosi::BinaryBarrierTerms::new(
+            direction(option_type)?,
+            real(strike)?,
+            timestamp(effective_time)?,
+            timestamp(expiry_time)?,
+            real(barrier_level)?,
+            barrier::kind(barrier_type)?,
+        );
+        let payout = payout.map(real).transpose()?;
+        terms.observation_mode = observation_mode;
+        terms.observation_times = observation_times;
+        terms.touch_state = touch_state;
+        terms.calendar = calendar.0;
+        Ok(Self(domain(match payout {
+            Some(payout) => kiyosi::BinaryBarrierOption::cash(terms, payout),
+            None => kiyosi::BinaryBarrierOption::asset(terms),
+        })?))
+    },
     /// Returns a validated replacement without changing this contract.
     ///
     /// Parameters
@@ -169,6 +258,38 @@ binary_properties!(
 );
 binary_properties!(
     TouchOption,
+    #[new]
+    #[pyo3(signature = (*, effective_time, expiry_time, barrier_level, barrier_type, payout, settlement_timing=kiyosi::SettlementTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_times=Vec::new(), touch_state=None, calendar=TradingCalendar::default()))]
+    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
+    pub(crate) fn new(
+        effective_time: &Bound<'_, PyAny>,
+        expiry_time: &Bound<'_, PyAny>,
+        barrier_level: &Bound<'_, PyAny>,
+        barrier_type: &Bound<'_, PyAny>,
+        payout: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = settlement)] settlement_timing: kiyosi::SettlementTiming,
+        #[pyo3(from_py_with = barrier::mode)] observation_mode: kiyosi::ObservationMode,
+        #[pyo3(from_py_with = timestamps)] observation_times: Vec<kiyosi::Timestamp>,
+        #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
+        calendar: TradingCalendar,
+    ) -> PyResult<Self> {
+        let mut terms = kiyosi::TouchOptionTerms::new(
+            timestamp(effective_time)?,
+            timestamp(expiry_time)?,
+            real(barrier_level)?,
+            barrier::kind(barrier_type)?,
+        );
+        let payout = payout.map(real).transpose()?;
+        terms.settlement_timing = settlement_timing;
+        terms.observation_mode = observation_mode;
+        terms.observation_times = observation_times;
+        terms.touch_state = touch_state;
+        terms.calendar = calendar.0;
+        Ok(Self(domain(match payout {
+            Some(payout) => kiyosi::TouchOption::cash(terms, payout),
+            None => kiyosi::TouchOption::asset(terms),
+        })?))
+    },
     /// Returns a validated replacement without changing this contract.
     ///
     /// Parameters
@@ -285,6 +406,8 @@ binary_properties!(
 );
 
 macro_rules! binary_factory {
+    (@payout) => { None };
+    (@payout $payout:ident) => { Some($payout) };
     ($name:ident, $constructor:ident $(, $payout:ident)?, $doc:literal) => {
         #[doc = $doc]
         #[pyfunction]
@@ -299,14 +422,9 @@ macro_rules! binary_factory {
             #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
             calendar: TradingCalendar,
         ) -> PyResult<BinaryBarrierOption> {
-            let mut terms = kiyosi::BinaryBarrierTerms::new(direction(option_type)?, real(strike)?,
-                timestamp(effective_time)?, timestamp(expiry_time)?, real(barrier_level)?, barrier::kind(barrier_type)?);
-            $(let $payout = real($payout)?;)?
-            terms.observation_mode = observation_mode;
-            terms.observation_times = observation_times;
-            terms.touch_state = touch_state;
-            terms.calendar = calendar.0;
-            Ok(BinaryBarrierOption(domain(kiyosi::BinaryBarrierOption::$constructor(terms $(, $payout)?))?))
+            BinaryBarrierOption::new(option_type, strike, effective_time, expiry_time,
+                barrier_level, barrier_type, binary_factory!(@payout $($payout)?),
+                observation_mode, observation_times, touch_state, calendar)
         }
     };
 }
@@ -415,6 +533,8 @@ pub(crate) fn settlement(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Settlemen
 }
 
 macro_rules! touch_factory {
+    (@payout) => { None };
+    (@payout $payout:ident) => { Some($payout) };
     ($name:ident, $constructor:ident $(, $payout:ident)?) => {
         /// Creates a cash or asset one-touch or no-touch contract.
         ///
@@ -473,14 +593,9 @@ macro_rules! touch_factory {
             #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
             calendar: TradingCalendar,
         ) -> PyResult<TouchOption> {
-            let mut terms = kiyosi::TouchOptionTerms::new(timestamp(effective_time)?, timestamp(expiry_time)?, real(barrier_level)?, barrier::kind(barrier_type)?);
-            $(let $payout = real($payout)?;)?
-            terms.settlement_timing = settlement_timing;
-            terms.observation_mode = observation_mode;
-            terms.observation_times = observation_times;
-            terms.touch_state = touch_state;
-            terms.calendar = calendar.0;
-            Ok(TouchOption(domain(kiyosi::TouchOption::$constructor(terms $(, $payout)?))?))
+            TouchOption::new(effective_time, expiry_time, barrier_level, barrier_type,
+                touch_factory!(@payout $($payout)?), settlement_timing,
+                observation_mode, observation_times, touch_state, calendar)
         }
     };
 }

@@ -6,11 +6,38 @@ use pyo3::prelude::*;
 
 /// Cash double one-touch or double no-touch option with inclusive barriers.
 ///
+/// Parameters
+/// ----------
+/// effective_time, expiry_time : datetime.datetime
+///     Inclusive contract life.
+/// lower_barrier, upper_barrier : float
+///     Positive finite boundaries, with lower strictly below upper.
+/// barrier_type : {'knock_in', 'knock_out'}
+///     Knock-in selects double one-touch; knock-out selects double no-touch.
+/// payout : float
+///     Positive finite cash payment.
+/// settlement_timing : {'at_hit', 'at_expiry'}, optional
+///     Defaults to expiry; at-hit settlement requires double one-touch.
+/// observation_mode : {'continuous', 'scheduled'}, optional
+///     Monitoring frequency; defaults to continuous.
+/// observation_times : iterable of datetime.datetime, optional
+///     Strictly increasing scheduled times within life; empty for continuous monitoring.
+/// touch_state : {'untouched', 'touched'} or None, optional
+///     Strictly prior touch history; defaults to unknown.
+/// calendar : TradingCalendar, optional
+///     Owned observation calendar; defaults to weekdays.
+///
+/// Raises
+/// ------
+/// InvalidInputError
+///     If numeric terms, life, monitoring or calendar terms are invalid, or
+///     at-hit settlement is requested for double no-touch.
+///
 /// Notes
 /// -----
 /// Double one-touch pays when either barrier is touched; double no-touch
 /// pays only if neither barrier is touched during monitoring.
-/// Construct with cash_double_touch or cash_double_no_touch. Prior at-hit
+/// The cash_double_touch and cash_double_no_touch functions are conveniences. Prior at-hit
 /// payments have no remaining value.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
@@ -18,6 +45,40 @@ pub(crate) struct DoubleTouchOption(pub kiyosi::DoubleTouchOption);
 
 monitoring_properties!(
     DoubleTouchOption,
+    #[new]
+    #[pyo3(signature = (*, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, payout, settlement_timing=kiyosi::SettlementTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_times=Vec::new(), touch_state=None, calendar=TradingCalendar::default()))]
+    #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
+    pub(crate) fn new(
+        effective_time: &Bound<'_, PyAny>,
+        expiry_time: &Bound<'_, PyAny>,
+        lower_barrier: &Bound<'_, PyAny>,
+        upper_barrier: &Bound<'_, PyAny>,
+        #[pyo3(from_py_with = super::double_barrier::kind)] barrier_type: kiyosi::DoubleBarrierType,
+        payout: &Bound<'_, PyAny>,
+        #[pyo3(from_py_with = super::binary_barrier::settlement)]
+        settlement_timing: kiyosi::SettlementTiming,
+        #[pyo3(from_py_with = barrier::mode)] observation_mode: kiyosi::ObservationMode,
+        #[pyo3(from_py_with = timestamps)] observation_times: Vec<kiyosi::Timestamp>,
+        #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
+        calendar: TradingCalendar,
+    ) -> PyResult<Self> {
+        let mut terms = kiyosi::DoubleTouchOptionTerms::new(
+            timestamp(effective_time)?,
+            timestamp(expiry_time)?,
+            real(lower_barrier)?,
+            real(upper_barrier)?,
+            barrier_type,
+        );
+        let payout = real(payout)?;
+        terms.settlement_timing = settlement_timing;
+        terms.observation_mode = observation_mode;
+        terms.observation_times = observation_times;
+        terms.touch_state = touch_state;
+        terms.calendar = calendar.0;
+        Ok(Self(domain(kiyosi::DoubleTouchOption::cash(
+            terms, payout,
+        ))?))
+    },
     /// Returns a validated replacement without changing this contract.
     ///
     /// Parameters
@@ -158,6 +219,8 @@ monitoring_properties!(
 );
 
 macro_rules! double_touch_factory {
+    (@settlement) => { kiyosi::SettlementTiming::default() };
+    (@settlement $settlement:ident) => { $settlement };
     ($name:ident, $kind:ident, [$($settlement:ident)?], $doc:literal) => {
         #[doc = $doc]
         #[pyfunction]
@@ -172,14 +235,10 @@ macro_rules! double_touch_factory {
             #[pyo3(from_py_with = barrier::history)] touch_state: Option<kiyosi::BarrierTouchState>,
             calendar: TradingCalendar,
         ) -> PyResult<DoubleTouchOption> {
-            let mut terms = kiyosi::DoubleTouchOptionTerms::new(timestamp(effective_time)?, timestamp(expiry_time)?, real(lower_barrier)?, real(upper_barrier)?, kiyosi::DoubleBarrierType::$kind);
-            let payout = real(payout)?;
-            $(terms.settlement_timing = $settlement;)?
-            terms.observation_mode = observation_mode;
-            terms.observation_times = observation_times;
-            terms.touch_state = touch_state;
-            terms.calendar = calendar.0;
-            Ok(DoubleTouchOption(domain(kiyosi::DoubleTouchOption::cash(terms, payout))?))
+            DoubleTouchOption::new(effective_time, expiry_time, lower_barrier, upper_barrier,
+                kiyosi::DoubleBarrierType::$kind, payout,
+                double_touch_factory!(@settlement $($settlement)?),
+                observation_mode, observation_times, touch_state, calendar)
         }
     };
 }

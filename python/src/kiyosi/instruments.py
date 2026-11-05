@@ -53,8 +53,14 @@ settlement without changing the original contract.
 Plain snowball, Phoenix and ternary snowball constructors default knock-in
 monitoring to ``"every_trading_day"``, matching Rust terms.
 
-``BinaryBarrierOption``, ``TouchOption`` and ``DoubleTouchOption`` are factory-only
-result types; construct them with the corresponding cash/asset factory functions.
+``BinaryBarrierOption``, ``TouchOption`` and ``DoubleTouchOption`` have keyword-only
+constructors, like other contracts. Binary barriers and single-touch contracts
+require ``payout``: a positive cash amount selects cash settlement; explicit
+``None`` selects asset settlement. Double-touch contracts require a cash payout.
+Single-touch ``barrier_type`` uses ``up_and_in`` or ``down_and_in`` for one-touch,
+and ``up_and_out`` or ``down_and_out`` for no-touch. Double-touch contracts use
+``knock_in`` or ``knock_out`` respectively. The named cash/asset factory functions
+remain convenience forms of these constructors.
 
 ``fixed_coupon_note`` and ``digital_coupon_note`` return Phoenix contracts
 with fixed ``coupon_per_period`` and expiry-only knock-in. Explicit Phoenix
@@ -79,15 +85,34 @@ Cash and asset digitals pay zero when the expiry spot equals the strike:
 (100.0, 105.0, 10.0)
 
 Construct a cash no-touch contract using the same barrier choices as barrier options.
-Use ``asset_touch_option`` for asset settlement. At-hit settlement is available
+Pass ``payout=None`` for asset settlement. At-hit settlement is available
 only for one-touch contracts (``up_and_in`` or ``down_and_in``):
 
->>> touch = cash_touch_option(
+>>> touch = TouchOption(
 ...     effective_time=datetime(2025, 1, 1), expiry_time=datetime(2026, 1, 1),
 ...     barrier_level=80, barrier_type="down_and_out", payout=10,
 ... )
 >>> (touch.barrier_type, touch.is_one_touch, touch.settlement_timing)
 ('down_and_out', False, 'at_expiry')
+
+Construct an asset binary barrier with explicit ``payout=None``:
+
+>>> binary = BinaryBarrierOption(
+...     option_type="call", strike=100,
+...     effective_time=touch.effective_time, expiry_time=touch.expiry_time,
+...     barrier_level=120, barrier_type="up_and_in", payout=None,
+... )
+>>> binary.payoff_type
+'asset'
+
+Construct a double no-touch with the same class-based interface:
+
+>>> double_no_touch = DoubleTouchOption(
+...     effective_time=touch.effective_time, expiry_time=touch.expiry_time,
+...     lower_barrier=80, upper_barrier=120, barrier_type="knock_out", payout=10,
+... )
+>>> double_no_touch.is_one_touch
+False
 
 Select an all-days contractual calendar independently of the market snapshot:
 

@@ -77,3 +77,70 @@ def phoenix_replacements(note: PhoenixOption) -> None:
     assert_type(note.replace(coupon_rate=0.1), PhoenixOption)
     assert_type(note.replace(coupon_per_period=0.01), PhoenixOption)
     note.replace(coupon_rate=0.1, coupon_per_period=0.01)  # ty: ignore[no-matching-overload]
+
+
+def binary_and_touch_constructors() -> None:
+    start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
+    assert_type(
+        BinaryBarrierOption(
+            option_type="call",
+            strike=100,
+            effective_time=start,
+            expiry_time=end,
+            barrier_level=120,
+            barrier_type="up_and_in",
+            payout=10,
+        ),
+        BinaryBarrierOption,
+    )
+    assert_type(
+        BinaryBarrierOption(
+            option_type="put",
+            strike=100,
+            effective_time=start,
+            expiry_time=end,
+            barrier_level=80,
+            barrier_type="down_and_out",
+            payout=None,
+        ),
+        BinaryBarrierOption,
+    )
+    assert_type(
+        TouchOption(
+            effective_time=start,
+            expiry_time=end,
+            barrier_level=120,
+            barrier_type="up_and_in",
+            payout=None,
+        ),
+        TouchOption,
+    )
+    assert_type(
+        TouchOption(
+            effective_time=start,
+            expiry_time=end,
+            barrier_level=120,
+            barrier_type="up_and_out",
+            payout=10,
+        ),
+        TouchOption,
+    )
+    assert_type(
+        DoubleTouchOption(
+            effective_time=start,
+            expiry_time=end,
+            lower_barrier=80,
+            upper_barrier=120,
+            barrier_type="knock_out",
+            payout=10,
+        ),
+        DoubleTouchOption,
+    )
+    DoubleTouchOption(
+        effective_time=start,
+        expiry_time=end,
+        lower_barrier=80,
+        upper_barrier=120,
+        barrier_type="knock_in",
+        payout=None,  # ty: ignore[invalid-argument-type]
+    )

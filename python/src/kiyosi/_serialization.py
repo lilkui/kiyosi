@@ -100,24 +100,6 @@ def _reduce(
             _native._monte_carlo_estimate,
             {"price": value.price, "standard_error": value.standard_error},
         )
-    if isinstance(value, _native.BinaryBarrierOption):
-        factory = (
-            _native.cash_binary_barrier_option
-            if value.payoff_type == "cash"
-            else _native.asset_binary_barrier_option
-        )
-    elif isinstance(value, _native.TouchOption):
-        factory = (
-            _native.cash_touch_option
-            if value.payoff_type == "cash"
-            else _native.asset_touch_option
-        )
-    elif isinstance(value, _native.DoubleTouchOption):
-        factory = (
-            _native.cash_double_touch
-            if value.is_one_touch
-            else _native.cash_double_no_touch
-        )
     rate_fields = {
         "risk_free_rate": "risk_free_curve",
         "dividend_yield": "dividend_curve",
@@ -163,10 +145,6 @@ def _repr(value: Any) -> str:
         suffix = ""
         if isinstance(value, _native.RateTermStructure):
             name += ".flat"
-        elif isinstance(value, (_native.BinaryBarrierOption, _native.TouchOption)):
-            fields = {"payoff_type": value.payoff_type, **fields}
-        elif isinstance(value, _native.DoubleTouchOption):
-            fields = {"barrier_type": value.barrier_type, **fields}
     terms = ", ".join(
         f"{key}={field.text if isinstance(field, _Preview) else _repr_formatter.repr(field)}"
         for key, field in fields.items()
