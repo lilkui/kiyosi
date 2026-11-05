@@ -168,18 +168,19 @@ fn solve<I, E: PricingEngine<I> + ?Sized>(
     replace: &impl Fn(&I, f64) -> Result<I>,
 ) -> Result<f64> {
     context.bsm_parameters()?;
-    if !observed.is_finite()
-        || !s.lower_bound.is_finite()
-        || !s.upper_bound.is_finite()
-        || s.lower_bound >= s.upper_bound
-        || !s.price_tolerance.is_finite()
-        || s.price_tolerance <= 0.0
-        || !s.parameter_tolerance.is_finite()
-        || s.parameter_tolerance <= 0.0
-        || s.max_iterations <= 0
-    {
+    crate::error::finite(observed, false, "observed_price")?;
+    crate::error::finite(s.lower_bound, false, "lower_bound")?;
+    crate::error::finite(s.upper_bound, false, "upper_bound")?;
+    crate::error::finite(s.price_tolerance, true, "price_tolerance")?;
+    crate::error::finite(s.parameter_tolerance, true, "parameter_tolerance")?;
+    if s.lower_bound >= s.upper_bound {
         return Err(Error::InvalidInput(
-            "implied-coupon settings or price are invalid".into(),
+            "upper_bound must exceed lower_bound".into(),
+        ));
+    }
+    if s.max_iterations <= 0 {
+        return Err(Error::InvalidInput(
+            "max_iterations must be positive".into(),
         ));
     }
     if let Some(minimum) = minimum {

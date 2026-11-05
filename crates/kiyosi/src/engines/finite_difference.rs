@@ -105,13 +105,14 @@ impl FiniteDifferenceSettings {
     /// # Ok(()) }
     /// ```
     pub fn validate(&self) -> Result<()> {
-        if self.asset_step_count < 3
-            || self.time_step_count < 1
-            || self
-                .asset_upper_boundary
-                .is_some_and(|v| !v.is_finite() || v <= 0.0)
-        {
-            return Err(invalid_grid("finite-difference settings are invalid"));
+        if self.asset_step_count < 3 {
+            return Err(invalid_grid("asset_step_count must be at least 3"));
+        }
+        if self.time_step_count < 1 {
+            return Err(invalid_grid("time_step_count must be positive"));
+        }
+        if let Some(boundary) = self.asset_upper_boundary {
+            crate::error::finite(boundary, true, "asset_upper_boundary")?;
         }
         Ok(())
     }

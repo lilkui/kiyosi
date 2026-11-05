@@ -39,22 +39,37 @@ impl LocalVolatilitySurface {
     /// # Ok(()) }
     /// ```
     pub fn new(times: Vec<Timestamp>, spots: Vec<f64>, values: Vec<Vec<f64>>) -> Result<Self> {
-        if times.len() < 2
-            || spots.len() < 2
-            || times.windows(2).any(|p| p[0] >= p[1])
-            || spots.windows(2).any(|p| p[0] >= p[1])
-            || spots.iter().any(|s| !s.is_finite() || *s <= 0.0)
-            || values.len() != times.len()
-            || values
-                .iter()
-                .any(|r| r.len() != spots.len() || r.iter().any(|v| !v.is_finite() || *v <= 0.0))
-        {
-            return Err(Error::InvalidInput("invalid local-volatility table".into()));
+        if times.len() < 2 || times.windows(2).any(|p| p[0] >= p[1]) {
+            return Err(Error::InvalidInput(
+                "times must contain at least two strictly increasing nodes".into(),
+            ));
+        }
+        if spots.len() < 2 || spots.windows(2).any(|p| p[0] >= p[1]) {
+            return Err(Error::InvalidInput(
+                "spots must contain at least two strictly increasing nodes".into(),
+            ));
+        }
+        for &spot in &spots {
+            finite(spot, true, "spots")?;
+        }
+        if values.len() != times.len() || values.iter().any(|row| row.len() != spots.len()) {
+            return Err(Error::InvalidInput(
+                "values shape must match times and spots".into(),
+            ));
+        }
+        for (row, values) in values.iter().enumerate() {
+            for (column, &value) in values.iter().enumerate() {
+                if !value.is_finite() || value <= 0.0 {
+                    return Err(Error::InvalidInput(
+                        format!("values[{row}][{column}] must be finite and positive").into(),
+                    ));
+                }
+            }
         }
         let years: Vec<_> = times.iter().map(|&t| times[0].years_until(t)).collect();
         if years.windows(2).any(|p| p[0] >= p[1]) {
             return Err(Error::InvalidInput(
-                "local-volatility time nodes collapse".into(),
+                "times collapse in floating-point year fractions".into(),
             ));
         }
         let values: Vec<_> = values.into_iter().flatten().collect();

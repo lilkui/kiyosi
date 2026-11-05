@@ -1043,3 +1043,58 @@ class GreekShiftValidationTests(unittest.TestCase):
                                 engine.price_with_greeks(
                                     option, context, "delta", **{field: bad}
                                 )
+
+
+class SettingsDiagnosticTests(unittest.TestCase):
+    def test_settings_diagnostics_identify_invalid_fields(self):
+        cases = [
+            (pricing.CoxRossRubinsteinVanillaEngine, "step_count", 0),
+            (pricing.CoxRossRubinsteinVanillaEngine, "step_count", 1_000_001),
+            (pricing.MonteCarloVanillaEngine, "path_count", 0),
+            (pricing.MonteCarloVanillaEngine, "path_count", 10_000_001),
+            (pricing.MonteCarloVanillaEngine, "thread_count", -1),
+            (pricing.FiniteDifferenceVanillaEngine, "asset_step_count", 2),
+            (pricing.FiniteDifferenceVanillaEngine, "time_step_count", 0),
+            (pricing.FiniteDifferenceVanillaEngine, "asset_upper_boundary", 0.0),
+            (pricing.FiniteDifferenceVanillaEngine, "asset_upper_boundary", math.nan),
+            (pricing.FiniteDifferenceHestonVanillaEngine, "variance_step_count", 2),
+            (pricing.FiniteDifferenceHestonVanillaEngine, "asset_step_count", 2),
+            (pricing.FiniteDifferenceHestonVanillaEngine, "time_step_count", 0),
+            (
+                pricing.FiniteDifferenceHestonVanillaEngine,
+                "variance_upper_boundary",
+                -1.0,
+            ),
+            (
+                pricing.FiniteDifferenceHestonVanillaEngine,
+                "variance_upper_boundary",
+                math.inf,
+            ),
+            (pricing.FiniteDifferenceHestonVanillaEngine, "asset_upper_boundary", 0.0),
+            (pricing.QuadratureBarrierEngine, "asset_step_count", 3),
+            (pricing.QuadratureBarrierEngine, "integration_standard_deviations", 0.0),
+            (
+                pricing.QuadratureBarrierEngine,
+                "integration_standard_deviations",
+                math.nan,
+            ),
+            (pricing.QuadratureVanillaEngine, "time_step_count", 0),
+            (pricing.AnalyticHestonEuropeanEngine, "absolute_tolerance", -1.0),
+            (pricing.AnalyticHestonEuropeanEngine, "absolute_tolerance", math.nan),
+            (pricing.AnalyticHestonEuropeanEngine, "relative_tolerance", -1.0),
+            (pricing.AnalyticHestonEuropeanEngine, "relative_tolerance", math.inf),
+            (pricing.AnalyticHestonEuropeanEngine, "max_evaluations", 0),
+        ]
+        for factory, field, invalid in cases:
+            with self.subTest(engine=factory.__name__, field=field):
+                with self.assertRaises(InvalidInputError) as caught:
+                    factory(**{field: invalid})
+                self.assertIn(field, str(caught.exception))
+
+    def test_surface_diagnostics_identify_the_invalid_node(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        with self.assertRaises(InvalidInputError) as caught:
+            market.LocalVolatilitySurface(
+                times=[start, end], spots=[80, 100], values=[[0.2, -0.1], [0.2, 0.2]]
+            )
+        self.assertIn("values[0][1]", str(caught.exception))

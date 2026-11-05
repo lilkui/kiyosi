@@ -51,17 +51,24 @@ impl HestonFiniteDifferenceSettings {
     /// Returns [`crate::Error::InvalidInput`] for insufficient counts or nonpositive or
     /// non-finite explicit bounds, without changing inputs.
     pub fn validate(&self) -> Result<()> {
-        if self.asset_step_count < 3
-            || self.variance_step_count < 3
-            || self.time_step_count < 1
-            || [self.asset_upper_boundary, self.variance_upper_boundary]
-                .into_iter()
-                .flatten()
-                .any(|x| !x.is_finite() || x <= 0.0)
-        {
-            return Err(invalid_grid(
-                "Heston finite-difference settings are invalid",
-            ));
+        for (name, count, minimum) in [
+            ("asset_step_count", self.asset_step_count, 3),
+            ("variance_step_count", self.variance_step_count, 3),
+            ("time_step_count", self.time_step_count, 1),
+        ] {
+            if count < minimum {
+                return Err(crate::Error::InvalidInput(
+                    format!("{name} must be at least {minimum}").into(),
+                ));
+            }
+        }
+        for (name, boundary) in [
+            ("asset_upper_boundary", self.asset_upper_boundary),
+            ("variance_upper_boundary", self.variance_upper_boundary),
+        ] {
+            if let Some(value) = boundary {
+                crate::error::finite(value, true, name)?;
+            }
         }
         Ok(())
     }

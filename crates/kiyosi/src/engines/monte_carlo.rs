@@ -117,14 +117,21 @@ impl MonteCarloSettings {
     /// # Ok(()) }
     /// ```
     pub fn validate(&self) -> Result<()> {
-        if !(1..=10_000_000).contains(&self.path_count) || self.thread_count < 0 {
-            return Err(Error::InvalidInput("invalid Monte Carlo settings".into()));
+        if !(1..=10_000_000).contains(&self.path_count) {
+            return Err(Error::InvalidInput(
+                "path_count must be between 1 and 10000000".into(),
+            ));
+        }
+        if self.thread_count < 0 {
+            return Err(Error::InvalidInput(
+                "thread_count must be nonnegative".into(),
+            ));
         }
         if self.sampling == MonteCarloSampling::Sobol
             && !self.path_count.unsigned_abs().is_power_of_two()
         {
             return Err(Error::InvalidInput(
-                "Sobol path count must be a power of two".into(),
+                "path_count must be a power of two for Sobol sampling".into(),
             ));
         }
         Ok(())
@@ -380,7 +387,9 @@ impl Default for MonteCarloVanillaEngine {
 
 fn validate_step_count(step_count: i32, minimum: i32) -> Result<()> {
     if !(minimum..=10_000).contains(&step_count) {
-        return Err(Error::InvalidInput("invalid Monte Carlo step count".into()));
+        return Err(Error::InvalidInput(
+            "step_count is outside the supported Monte Carlo range".into(),
+        ));
     }
     Ok(())
 }

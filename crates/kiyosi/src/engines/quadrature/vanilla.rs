@@ -51,7 +51,7 @@ impl QuadratureVanillaSettings {
         .validate()?;
         if self.time_step_count < 1 {
             return Err(Error::InvalidInput(
-                "vanilla quadrature requires at least one time interval".into(),
+                "time_step_count must be positive".into(),
             ));
         }
         Ok(())

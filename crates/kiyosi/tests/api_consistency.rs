@@ -1249,3 +1249,238 @@ fn spot_shift_fallback_is_distinct_from_engine_resolution() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn settings_diagnostics_identify_invalid_fields() {
+    let cases = [
+        ("step_count", BinomialSettings { step_count: 0 }.validate()),
+        (
+            "step_count",
+            BinomialSettings {
+                step_count: 1_000_001,
+            }
+            .validate(),
+        ),
+        (
+            "path_count",
+            MonteCarloSettings {
+                path_count: 0,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "path_count",
+            MonteCarloSettings {
+                path_count: 10_000_001,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "thread_count",
+            MonteCarloSettings {
+                thread_count: -1,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "asset_step_count",
+            FiniteDifferenceSettings {
+                asset_step_count: 2,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "time_step_count",
+            FiniteDifferenceSettings {
+                time_step_count: 0,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "asset_upper_boundary",
+            FiniteDifferenceSettings {
+                asset_upper_boundary: Some(0.0),
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "asset_upper_boundary",
+            FiniteDifferenceSettings {
+                asset_upper_boundary: Some(f64::NAN),
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "variance_step_count",
+            HestonFiniteDifferenceSettings {
+                variance_step_count: 2,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "asset_step_count",
+            HestonFiniteDifferenceSettings {
+                asset_step_count: 2,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "time_step_count",
+            HestonFiniteDifferenceSettings {
+                time_step_count: 0,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "variance_upper_boundary",
+            HestonFiniteDifferenceSettings {
+                variance_upper_boundary: Some(-1.0),
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "variance_upper_boundary",
+            HestonFiniteDifferenceSettings {
+                variance_upper_boundary: Some(f64::INFINITY),
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "asset_upper_boundary",
+            HestonFiniteDifferenceSettings {
+                asset_upper_boundary: Some(0.0),
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "asset_step_count",
+            QuadratureSettings {
+                asset_step_count: 3,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "integration_standard_deviations",
+            QuadratureSettings {
+                integration_standard_deviations: 0.0,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "integration_standard_deviations",
+            QuadratureSettings {
+                integration_standard_deviations: f64::NAN,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "time_step_count",
+            QuadratureVanillaSettings {
+                time_step_count: 0,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "absolute_tolerance",
+            HestonIntegrationSettings {
+                absolute_tolerance: -1.0,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "absolute_tolerance",
+            HestonIntegrationSettings {
+                absolute_tolerance: f64::NAN,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "relative_tolerance",
+            HestonIntegrationSettings {
+                relative_tolerance: -1.0,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "relative_tolerance",
+            HestonIntegrationSettings {
+                relative_tolerance: f64::INFINITY,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "max_evaluations",
+            HestonIntegrationSettings {
+                max_evaluations: 0,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "spot_shift",
+            NumericalShiftSettings {
+                spot_shift: Some(0.0),
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "spot_shift",
+            NumericalShiftSettings {
+                spot_shift: Some(f64::NAN),
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "volatility_shift",
+            NumericalShiftSettings {
+                volatility_shift: 0.0,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "rate_shift",
+            NumericalShiftSettings {
+                rate_shift: f64::INFINITY,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+        (
+            "time_shift_days",
+            NumericalShiftSettings {
+                time_shift_days: 0,
+                ..Default::default()
+            }
+            .validate(),
+        ),
+    ];
+    for (field, result) in cases {
+        let error = result.unwrap_err();
+        assert!(matches!(&error, Error::InvalidInput(_)));
+        assert!(error.to_string().contains(field), "{field}: {error}");
+    }
+}

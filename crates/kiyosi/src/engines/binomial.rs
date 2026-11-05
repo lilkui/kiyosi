@@ -41,7 +41,9 @@ impl BinomialSettings {
     /// ```
     pub fn validate(&self) -> Result<()> {
         if !(1..=1_000_000).contains(&self.step_count) {
-            return Err(Error::InvalidInput("invalid binomial step count".into()));
+            return Err(Error::InvalidInput(
+                "step_count must be between 1 and 1000000".into(),
+            ));
         }
         Ok(())
     }

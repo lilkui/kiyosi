@@ -36,12 +36,16 @@ impl QuadratureSettings {
     /// Returns [`Error::InvalidInput`] below four steps or for a non-finite
     /// or nonpositive extent. Does not change the settings.
     pub fn validate(&self) -> Result<()> {
-        if self.asset_step_count < 4
-            || !self.integration_standard_deviations.is_finite()
-            || self.integration_standard_deviations <= 0.0
-        {
-            return Err(Error::InvalidInput("quadrature requires at least four asset steps and a finite positive integration extent".into()));
+        if self.asset_step_count < 4 {
+            return Err(Error::InvalidInput(
+                "asset_step_count must be at least 4".into(),
+            ));
         }
+        crate::error::finite(
+            self.integration_standard_deviations,
+            true,
+            "integration_standard_deviations",
+        )?;
         Ok(())
     }
 }

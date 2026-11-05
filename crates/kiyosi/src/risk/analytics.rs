@@ -331,16 +331,17 @@ impl NumericalShiftSettings {
     /// # Ok(()) }
     /// ```
     pub fn validate(&self) -> Result<()> {
-        if [
-            self.fallback_spot_shift(),
-            self.volatility_shift,
-            self.rate_shift,
-        ]
-        .iter()
-        .any(|x| !x.is_finite() || *x <= 0.0)
-            || self.time_shift_days <= 0
-        {
-            return Err(Error::InvalidInput("numerical shifts are invalid".into()));
+        for (name, value) in [
+            ("spot_shift", self.fallback_spot_shift()),
+            ("volatility_shift", self.volatility_shift),
+            ("rate_shift", self.rate_shift),
+        ] {
+            crate::error::finite(value, true, name)?;
+        }
+        if self.time_shift_days <= 0 {
+            return Err(Error::InvalidInput(
+                "time_shift_days must be positive".into(),
+            ));
         }
         Ok(())
     }

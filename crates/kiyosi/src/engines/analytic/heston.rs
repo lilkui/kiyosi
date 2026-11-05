@@ -46,14 +46,26 @@ impl HestonIntegrationSettings {
     /// Returns [`Error::InvalidInput`] for non-finite or negative tolerances,
     /// two zero tolerances, or a zero evaluation budget. Inputs remain unchanged.
     pub fn validate(&self) -> Result<()> {
-        if !self.absolute_tolerance.is_finite()
-            || self.absolute_tolerance < 0.0
-            || !self.relative_tolerance.is_finite()
-            || self.relative_tolerance < 0.0
-            || (self.absolute_tolerance == 0.0 && self.relative_tolerance == 0.0)
-            || self.max_evaluations == 0
-        {
-            return Err(Error::InvalidInput("Heston requires finite nonnegative tolerances, at least one positive, and a positive evaluation budget".into()));
+        for (name, value) in [
+            ("absolute_tolerance", self.absolute_tolerance),
+            ("relative_tolerance", self.relative_tolerance),
+        ] {
+            crate::error::finite(value, false, name)?;
+            if value < 0.0 {
+                return Err(Error::InvalidInput(
+                    format!("{name} must be nonnegative").into(),
+                ));
+            }
+        }
+        if self.absolute_tolerance == 0.0 && self.relative_tolerance == 0.0 {
+            return Err(Error::InvalidInput(
+                "absolute_tolerance and relative_tolerance must not both be zero".into(),
+            ));
+        }
+        if self.max_evaluations == 0 {
+            return Err(Error::InvalidInput(
+                "max_evaluations must be positive".into(),
+            ));
         }
         Ok(())
     }
