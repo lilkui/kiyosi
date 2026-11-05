@@ -450,6 +450,34 @@ impl MonteCarloEstimate {
 }
 
 impl MonteCarloVanillaEngine {
+    /// Returns a replayable engine, drawing a seed only when none is configured.
+    ///
+    /// All other controls, including any integration or exercise grid, are preserved.
+    /// The original engine remains unchanged. Save this engine before pricing to
+    /// replay the calculation within the same build; see
+    /// [`crate::MonteCarloVanillaEngine::with_resolved_seed`] for an example.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::Error::Io`] if system entropy is unavailable.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::MonteCarloVanillaEngine;
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let engine = MonteCarloVanillaEngine::default().with_resolved_seed()?;
+    /// assert!(engine.sampling_settings().seed.is_some());
+    /// assert_eq!(engine.with_resolved_seed()?, engine);
+    /// # Ok(()) }
+    /// ```
+    pub fn with_resolved_seed(&self) -> crate::Result<Self> {
+        Ok(Self {
+            settings: self.settings.with_resolved_seed()?,
+            ..*self
+        })
+    }
+
     /// Creates an engine with validated sampling settings and 50 exercise intervals.
     ///
     /// Use [`Self::with_step_count`] to configure the exercise grid.

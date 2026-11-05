@@ -57,6 +57,11 @@ and arithmetic Asian integration; American pricing needs at least two intervals.
 ``MonteCarloSampling`` selects
 ``"pseudo_random"`` or scrambled ``"sobol"``; a fixed seed reproduces draws
 across thread counts in the same build. Sobol estimates omit sampling error.
+Call ``engine.with_resolved_seed()`` before pricing to obtain an independent
+engine with a concrete seed. Existing seeds and all other controls are preserved.
+Save or pickle that returned engine to replay draws within the same build;
+``seed=None`` on the original engine continues to select fresh entropy per request.
+
 Every Monte Carlo engine exposes ``price_with_statistics`` for its supported
 contracts; vanilla statistics require European options. It returns the same
 seeded price as ``price`` and also computes and validates sampling uncertainty.

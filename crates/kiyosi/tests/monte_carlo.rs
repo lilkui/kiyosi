@@ -1063,3 +1063,47 @@ fn estimate_reconstruction_validates_statistics_and_preserves_reporting() {
         ));
     }
 }
+
+#[test]
+fn resolved_seed_engines_preserve_configuration_and_replay() -> Result<()> {
+    let settings = MonteCarloSettings {
+        path_count: 64,
+        thread_count: 1,
+        antithetic: true,
+        sampling: MonteCarloSampling::Sobol,
+        ..Default::default()
+    };
+    macro_rules! check {
+        ($engine:expr) => {{
+            let original = $engine;
+            let seeded = original.with_resolved_seed()?;
+            assert_eq!(original.sampling_settings().seed, None);
+            let seed = seeded.sampling_settings().seed.expect("resolved seed");
+            assert_eq!(
+                seeded.sampling_settings(),
+                MonteCarloSettings {
+                    seed: Some(seed),
+                    ..settings
+                }
+            );
+            assert_eq!(seeded.with_resolved_seed()?, seeded);
+        }};
+    }
+    check!(MonteCarloDigitalEngine::new(settings)?);
+    check!(MonteCarloBarrierEngine::new(settings)?);
+    check!(MonteCarloDoubleBarrierEngine::new(settings)?);
+    check!(MonteCarloAutocallableEngine::new(settings)?);
+    check!(MonteCarloAccumulatorEngine::new(settings)?);
+    let vanilla = MonteCarloVanillaEngine::with_step_count(settings, 100)?.with_resolved_seed()?;
+    let asian = MonteCarloAsianEngine::with_step_count(settings, 100)?.with_resolved_seed()?;
+    assert_eq!(vanilla.step_count(), 100);
+    assert_eq!(asian.step_count(), 100);
+    assert_eq!(vanilla.with_resolved_seed()?, vanilla);
+    assert_eq!(asian.with_resolved_seed()?, asian);
+    let price = vanilla.price(&contract(OptionType::Call), &market())?;
+    assert_eq!(
+        vanilla.price(&contract(OptionType::Call), &market())?,
+        price
+    );
+    Ok(())
+}

@@ -19,6 +19,22 @@ pub struct MonteCarloDigitalEngine {
 }
 
 impl MonteCarloDigitalEngine {
+    /// Returns a replayable engine, drawing a seed only when none is configured.
+    ///
+    /// All other controls, including any integration or exercise grid, are preserved.
+    /// The original engine remains unchanged. Save this engine before pricing to
+    /// replay the calculation within the same build; see
+    /// [`crate::MonteCarloVanillaEngine::with_resolved_seed`] for an example.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::Error::Io`] if system entropy is unavailable.
+    pub fn with_resolved_seed(&self) -> crate::Result<Self> {
+        Ok(Self {
+            settings: self.settings.with_resolved_seed()?,
+        })
+    }
+
     /// Creates an engine with validated shared CPU sampling settings.
     ///
     /// See [`crate::MonteCarloVanillaEngine::new`] for sampling configuration examples.

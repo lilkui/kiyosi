@@ -957,3 +957,34 @@ class SamplingTests(unittest.TestCase):
             paired.price(contract(), context)
         self.assertIs(type(error.exception), ComputationFailureError)
         self.assertEqual(paired.price(contract(), market()), baseline)
+
+
+class ResolvedSeedTests(unittest.TestCase):
+    def test_resolved_seed_preserves_configuration_and_pickle_replay(self):
+        import inspect
+        import pickle
+
+        from kiyosi import pricing
+
+        for name in pricing.__all__:
+            if not (name.startswith("MonteCarlo") and name.endswith("Engine")):
+                continue
+            factory = getattr(pricing, name)
+            controls = {
+                "path_count": 64,
+                "thread_count": 1,
+                "sampling": "sobol",
+                "antithetic": True,
+            }
+            if "step_count" in inspect.signature(factory).parameters:
+                controls["step_count"] = 100
+            original = factory(**controls)
+            with self.subTest(engine=name):
+                seeded = original.with_resolved_seed()
+                self.assertIsNone(original.seed)
+                self.assertIsInstance(seeded.seed, int)
+                self.assertGreaterEqual(seeded.seed, 0)
+                self.assertLess(seeded.seed, 2**64)
+                self.assertEqual(seeded, factory(seed=seeded.seed, **controls))
+                self.assertEqual(seeded.with_resolved_seed(), seeded)
+                self.assertEqual(pickle.loads(pickle.dumps(seeded)), seeded)

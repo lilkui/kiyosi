@@ -162,6 +162,15 @@ macro_rules! sampling_settings {
                 Ok(Self(domain(sampling_settings!(@new $engine, settings, [$($step)?]))?))
             }
 
+            /// Return an engine with a concrete seed, preserving all other controls.
+            ///
+            /// An existing seed is retained. Save or pickle the returned engine before
+            /// pricing to replay its draws within the same build. The original is unchanged.
+            /// Entropy failures raise OSError.
+            fn with_resolved_seed(&self) -> PyResult<Self> {
+                Ok(Self(domain(self.0.with_resolved_seed())?))
+            }
+
             /// Return the exact number of sampled paths.
             #[getter]
             fn path_count(&self) -> i32 {
