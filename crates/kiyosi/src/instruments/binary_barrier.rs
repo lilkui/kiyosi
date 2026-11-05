@@ -347,7 +347,12 @@ macro_rules! monitoring_accessors {
         impl $contract {
             /// Replaces the owned observation calendar; see [`crate::BarrierOption::with_calendar`].
             ///
-            /// Defaults to weekdays; pricing checks scheduled dates independently of the market context.
+            /// Amends an already validated contract; this is not an initial-construction builder.
+            /// Set [`BinaryBarrierTerms::calendar`] or [`TouchOptionTerms::calendar`]
+            /// before calling the corresponding cash or asset constructor. Otherwise,
+            /// default weekday validation can reject weekend observations before this method runs.
+            /// This method consumes the contract even on failure; [`Self::replace`] preserves it.
+            /// See [`crate::RangeAccrualOption::with_calendar`] for an initial-calendar example.
             ///
             /// # Errors
             ///

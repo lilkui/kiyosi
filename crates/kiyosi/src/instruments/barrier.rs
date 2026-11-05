@@ -131,6 +131,12 @@ impl BarrierOption {
     /// Defaults to weekdays. Construction and replacement check scheduled observations against this
     /// calendar; see [`Self::new`].
     ///
+    /// Amends an already validated contract; this is not an initial-construction builder.
+    /// Set [`BarrierOptionTerms::calendar`] before calling [`Self::new`] when the
+    /// terms require a custom calendar, such as a weekend expiry or observation.
+    /// This method consumes the contract even on failure; [`Self::replace`] preserves it.
+    /// See [`crate::RangeAccrualOption::with_calendar`] for an initial-calendar example.
+    ///
     /// # Errors
     ///
     /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.

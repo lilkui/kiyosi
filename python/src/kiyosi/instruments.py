@@ -14,7 +14,10 @@ Finite-difference pricing raises ``ComputationFailureError`` if distinct event t
 cannot be represented distinctly by its numerical grid.
 Barrier and touch contracts, range accruals, accumulators and autocallable notes own their ``calendar``
 (weekdays by default). Supply the contractual calendar when constructing them or
-use ``replace(calendar=...)`` to amend it. Replacement, coupon shifts and pickle
+use ``replace(calendar=...)`` to amend an existing validated contract. A contract
+with weekend observations or a weekend expiry that requires a trading day must
+receive the appropriate calendar at construction; replacement cannot repair a
+constructor rejection. Replacement, coupon shifts and pickle
 preserve the contract calendar.
 Explicit observations use their supplied times; daily observations use the expiry
 clock time. Snowballs and accumulators include the effective instant; range accruals

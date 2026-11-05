@@ -71,8 +71,7 @@ impl RangeAccrualOption {
     /// # fn main() -> kiyosi::Result<()> {
     /// let terms = RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 17)?.start_of_day());
-    /// let option = RangeAccrualOption::new(terms)?
-    ///     .with_calendar(kiyosi::TradingCalendar::weekdays())?;
+    /// let option = RangeAccrualOption::new(terms)?;
     /// let seasoned = option.replace_history(Some(3))?;
     /// assert_eq!(seasoned.realized_hit_count(), Some(3));
     /// assert_eq!(seasoned.replace_history(None)?, option);
@@ -108,9 +107,33 @@ impl RangeAccrualOption {
     /// Defaults to weekdays. Construction and replacement check expiry against this calendar.
     /// Other terms remain unchanged.
     ///
+    /// Amends an already validated contract; this is not an initial-construction builder.
+    /// Set [`RangeAccrualTerms::calendar`] before calling [`Self::new`] when the
+    /// terms require a custom calendar, such as a weekend expiry or observation.
+    /// This method consumes the contract even on failure; [`Self::replace`] preserves it.
+    ///
     /// # Errors
     ///
     /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.
+    ///
+    /// # Examples
+    ///
+    /// Selects an all-days calendar before validating a Saturday expiry:
+    ///
+    /// ```rust
+    /// use kiyosi::{Date, Error, RangeAccrualOption, RangeAccrualTerms, TradingCalendar};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 3)?.start_of_day();
+    /// let expiry = Date::new(2025, 1, 4)?.start_of_day();
+    /// let mut terms = RangeAccrualTerms::new(1000.0, 0.12, 80.0, 120.0, start, expiry);
+    /// terms.calendar = TradingCalendar::all_days();
+    /// let option = RangeAccrualOption::new(terms)?;
+    /// assert!(option.calendar().is_trading_day(expiry.date()));
+    /// // An amendment also validates the existing Saturday expiry.
+    /// assert!(matches!(option.with_calendar(TradingCalendar::weekdays()),
+    ///     Err(Error::InvalidInput(_))));
+    /// # Ok(()) }
+    /// ```
     pub fn with_calendar(mut self, calendar: TradingCalendar) -> Result<Self> {
         self.terms.calendar = calendar;
         self.validate_calendar()?;

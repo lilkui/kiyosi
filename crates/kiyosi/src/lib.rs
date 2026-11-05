@@ -25,8 +25,11 @@
 //! boundaries. Pure calendar inputs remain [`Date`] values.
 //! Barrier and touch contracts, range accruals, accumulators and autocallables own their observation calendars
 //! (weekdays by default). Set `terms.calendar` before construction to validate
-//! observations against a custom calendar. Their fallible `with_calendar` and
-//! `replace` operations validate calendar changes independently of [`PricingContext`].
+//! observations against a custom calendar. Construction validates immediately, so
+//! chaining `with_calendar` cannot select the initial calendar. That method amends
+//! an existing validated contract and consumes it even on failure; `replace`
+//! preserves the original. Both validate independently of [`PricingContext`].
+//! See [`RangeAccrualOption::with_calendar`] for a weekend-expiry construction example.
 //! Explicit observations use their exact timestamps. Implicit daily observations use
 //! the expiry clock time; snowballs and accumulators include the effective instant,
 //! while range accruals exclude it. Events strictly before valuation require history;

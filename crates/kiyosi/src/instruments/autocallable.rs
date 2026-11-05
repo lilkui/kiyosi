@@ -683,6 +683,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     ///     0.06, 0.02, 80.0, start, end, records))?;
     /// assert_eq!(binary.terms().principal_ratio, 1.0);
     /// assert_eq!(ternary.terms().minimum_coupon_rate, 0.02);
+    /// // Amend an already validated contract to include weekend monitoring.
     /// let daily = ternary.with_calendar(kiyosi::TradingCalendar::all_days())?;
     /// assert_eq!(daily.calendar().trading_days_per_year(), 365);
     /// # Ok(()) }
@@ -698,6 +699,12 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     ///
     /// Defaults to weekdays. Expiry and observations are validated on replacement; daily monitoring
     /// uses this calendar. Other terms are retained.
+    ///
+    /// Amends an already validated contract; this is not an initial-construction builder.
+    /// Set [`SnowballTerms::calendar`] before calling [`Self::new`] when the
+    /// terms require a custom calendar, such as a weekend expiry or observation.
+    /// This method consumes the contract even on failure; [`Self::replace`] preserves it.
+    /// See [`crate::RangeAccrualOption::with_calendar`] for an initial-calendar example.
     ///
     /// # Errors
     ///

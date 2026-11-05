@@ -117,7 +117,8 @@ impl Accumulator {
     ///     Date::new(2025, 1, 1)?.start_of_day(), end);
     /// terms.option_type = OptionType::Put;
     /// terms.knock_out_observation_times = Some(vec![end]);
-    /// let sales = Accumulator::new(terms)?.with_calendar(kiyosi::TradingCalendar::all_days())?;
+    /// terms.calendar = kiyosi::TradingCalendar::all_days();
+    /// let sales = Accumulator::new(terms)?;
     /// assert_eq!(sales.option_type(), OptionType::Put);
     /// assert_eq!(sales.knock_out_observation_times(), Some([end].as_slice()));
     /// # Ok(()) }
@@ -157,6 +158,12 @@ impl Accumulator {
     ///
     /// Defaults to weekdays. Construction and replacement check observations and expiry against
     /// this calendar. Other terms are retained.
+    ///
+    /// Amends an already validated contract; this is not an initial-construction builder.
+    /// Set [`AccumulatorTerms::calendar`] before calling [`Self::new`] when the
+    /// terms require a custom calendar, such as a weekend expiry or observation.
+    /// This method consumes the contract even on failure; [`Self::replace`] preserves it.
+    /// See [`crate::RangeAccrualOption::with_calendar`] for an initial-calendar example.
     ///
     /// # Errors
     ///
