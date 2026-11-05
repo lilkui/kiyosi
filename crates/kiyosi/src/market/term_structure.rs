@@ -69,7 +69,7 @@ impl RateTermStructure {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = start.add_days(365)?;
     /// let curve = RateTermStructure::bounded_flat(0.05, start, end)?;
-    /// assert_eq!(curve.flat_rate(), Some(0.05));
+    /// assert_eq!(curve.exact_flat_rate(), Some(0.05));
     /// assert_eq!(curve.max_time(), Some(end));
     /// assert!(curve.forward_rate(end.add_days(1)?).is_err());
     /// # Ok(()) }
@@ -141,15 +141,17 @@ impl RateTermStructure {
         })
     }
 
-    /// Returns a constant rate, or `None` when the curve's forwards differ.
+    /// Returns an exactly constant rate, or `None` when any implied forwards differ.
     ///
     /// Node curves qualify only when every implied forward is exactly equal;
-    /// their coverage and representation remain unchanged. See [`Self::shifted`].
+    /// their coverage and representation remain unchanged. Rounded factors from a
+    /// flat rate may not qualify; use [`Self::bounded_flat`] to preserve an exact
+    /// constant rate with coverage bounds. See [`Self::shifted`] for an example.
     #[expect(
         clippy::float_cmp,
         reason = "Flat-rate algorithms require exactly constant forwards, without a numerical tolerance."
     )]
-    pub fn flat_rate(&self) -> Option<f64> {
+    pub fn exact_flat_rate(&self) -> Option<f64> {
         self.rate.or_else(|| {
             self.forwards
                 .first()
@@ -315,8 +317,8 @@ impl RateTermStructure {
     /// # fn main() -> kiyosi::Result<()> {
     /// let curve = RateTermStructure::flat(0.05, None)?;
     /// let shifted = curve.shifted(0.01)?;
-    /// assert_eq!(shifted.flat_rate(), Some(0.05 + 0.01));
-    /// assert_eq!(curve.flat_rate(), Some(0.05));
+    /// assert_eq!(shifted.exact_flat_rate(), Some(0.05 + 0.01));
+    /// assert_eq!(curve.exact_flat_rate(), Some(0.05));
     /// # Ok(()) }
     /// ```
     pub fn shifted(&self, shift: f64) -> Result<Self> {

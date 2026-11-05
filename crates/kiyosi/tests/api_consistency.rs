@@ -191,7 +191,7 @@ fn constant_node_curves_price_like_scalars_and_keep_coverage() -> Result<()> {
     let end = start.add_days(365)?;
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
     let curve = RateTermStructure::new(start, vec![end, end.add_days(365)?], vec![1.0, 1.0])?;
-    assert_eq!(curve.flat_rate(), Some(0.0));
+    assert_eq!(curve.exact_flat_rate(), Some(0.0));
     let short = RateTermStructure::new(start, vec![start.add_days(180)?], vec![1.0])?;
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
@@ -414,7 +414,7 @@ fn model_scalar_rate_queries_match_curve_representations() -> Result<()> {
                 assert_eq!(model.risk_free_curve(), &curve);
                 assert_eq!(model.dividend_curve(), &curve);
                 for rate in [model.flat_risk_free_rate(), model.flat_dividend_yield()] {
-                    if let Some(expected) = curve.flat_rate() {
+                    if let Some(expected) = curve.exact_flat_rate() {
                         assert_eq!(rate?, expected);
                     } else {
                         assert!(matches!(rate, Err(Error::UnsupportedOperation(_))));
@@ -604,12 +604,12 @@ fn flat_rate_query_is_independent_of_reference_time() -> Result<()> {
     let end = Date::new(2026, 1, 1)?.start_of_day();
     for reference in [None, Some(start)] {
         let curve = RateTermStructure::flat(0.05, reference)?;
-        assert_eq!(curve.flat_rate(), Some(0.05));
-        assert!((curve.shifted(0.01)?.flat_rate().unwrap() - 0.06).abs() < 1e-15);
+        assert_eq!(curve.exact_flat_rate(), Some(0.05));
+        assert!((curve.shifted(0.01)?.exact_flat_rate().unwrap() - 0.06).abs() < 1e-15);
         assert_eq!(curve.reference_time(), reference);
     }
     let nodes = RateTermStructure::new(start, vec![end], vec![(-0.05_f64).exp()])?;
-    assert!((nodes.flat_rate().unwrap() - 0.05).abs() < 1e-15);
+    assert!((nodes.exact_flat_rate().unwrap() - 0.05).abs() < 1e-15);
     Ok(())
 }
 

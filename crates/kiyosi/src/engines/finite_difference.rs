@@ -142,7 +142,7 @@ fn flat_rates(context: &PricingContext) -> Result<()> {
         context.model_parameters().risk_free_curve(),
         context.model_parameters().dividend_curve(),
     ] {
-        if curve.flat_rate().is_none() {
+        if curve.exact_flat_rate().is_none() {
             return Err(Error::UnsupportedOperation(
                 "digital finite differences require constant rates".into(),
             ));
@@ -357,8 +357,8 @@ fn native_model<D: Diffusion>(
         })
         .collect();
     let can_exercise = payoff.american
-        && (model.risk_free_curve().flat_rate().is_none()
-            || model.dividend_curve().flat_rate().is_none()
+        && (model.risk_free_curve().exact_flat_rate().is_none()
+            || model.dividend_curve().exact_flat_rate().is_none()
             || payoff.sign < 0.0
             || dividend.rate(0.0) > 0.0
             || risk.rate(0.0) < 0.0);

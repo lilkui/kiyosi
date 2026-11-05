@@ -440,7 +440,7 @@ class ApiConsistencyTests(unittest.TestCase):
         curve = market.RateTermStructure(
             reference_time=start, times=[end, end + timedelta(days=365)], factors=[1, 1]
         )
-        self.assertEqual(curve.flat_rate, 0)
+        self.assertEqual(curve.exact_flat_rate, 0)
         context = market.PricingContext(
             model_parameters=market.BlackScholesMertonParameters(
                 risk_free_rate=0, dividend_yield=0, volatility=0.2
@@ -842,16 +842,16 @@ class ApiConsistencyTests(unittest.TestCase):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         for reference in (None, start):
             curve = market.RateTermStructure.flat(0.05, reference_time=reference)
-            self.assertEqual(curve.flat_rate, 0.05)
-            self.assertAlmostEqual(curve.shifted(0.01).flat_rate, 0.06)
+            self.assertEqual(curve.exact_flat_rate, 0.05)
+            self.assertAlmostEqual(curve.shifted(0.01).exact_flat_rate, 0.06)
             self.assertEqual(curve.reference_time, reference)
             restored = pickle.loads(pickle.dumps(curve))
-            self.assertEqual(restored.flat_rate, 0.05)
+            self.assertEqual(restored.exact_flat_rate, 0.05)
             self.assertEqual(restored.reference_time, reference)
         nodes = market.RateTermStructure(
             reference_time=start, times=[end], factors=[0.95]
         )
-        self.assertAlmostEqual(nodes.flat_rate, -math.log(0.95))
+        self.assertAlmostEqual(nodes.exact_flat_rate, -math.log(0.95))
 
     def test_numerical_greeks_has_uniform_controls_across_engines(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)

@@ -5,6 +5,26 @@ fn at(year: i32, month: u32, day: u32) -> Timestamp {
 }
 
 #[test]
+fn rounded_flat_nodes_require_explicit_constant_curve_representation() {
+    let start = at(2025, 1, 1);
+    let end = start.add_days(365).unwrap();
+    let curve = RateTermStructure::new(
+        start,
+        vec![start.add_days(180).unwrap(), end],
+        vec![(-0.05_f64 * 180.0 / 365.0).exp(), (-0.05_f64).exp()],
+    )
+    .unwrap();
+    assert_eq!(curve.exact_flat_rate(), None);
+    let model = kiyosi::BlackScholesMertonParameters::new(curve, 0.0, 0.2).unwrap();
+    let error = model.flat_risk_free_rate().unwrap_err();
+    assert!(matches!(error, Error::UnsupportedOperation(_)));
+    assert!(error.to_string().contains("bounded_flat"));
+    let explicit = RateTermStructure::bounded_flat(0.05, start, end).unwrap();
+    assert_eq!(explicit.exact_flat_rate(), Some(0.05));
+    assert!(explicit.forward_rate(end.add_days(1).unwrap()).is_err());
+}
+
+#[test]
 fn log_interpolation_and_right_hand_forwards() {
     let reference = at(2025, 1, 1);
     let middle = at(2025, 6, 30);
@@ -239,7 +259,7 @@ fn flat_and_parallel_shifted_curves_preserve_coverage_and_ownership() {
     assert_eq!(changed.max_time(), curve.max_time());
     assert!((changed.factor(reference, end).unwrap() - 0.95 * (-0.01_f64).exp()).abs() < 1e-14);
     assert!((changed.factors().unwrap()[0] - 0.95 * (-0.01_f64).exp()).abs() < 1e-14);
-    assert!((flat.shifted(0.01).unwrap().flat_rate().unwrap() + 0.02).abs() < 1e-15);
+    assert!((flat.shifted(0.01).unwrap().exact_flat_rate().unwrap() + 0.02).abs() < 1e-15);
     assert_eq!(curve.factors().unwrap(), vec![0.95]);
     let mut factors = curve.factors().unwrap();
     factors.clear();
@@ -457,7 +477,7 @@ fn bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support() -> kiy
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = start.add_days(365)?;
     let curve = RateTermStructure::bounded_flat(0.05, start, end)?;
-    assert_eq!(curve.flat_rate(), Some(0.05));
+    assert_eq!(curve.exact_flat_rate(), Some(0.05));
     assert_eq!(curve.reference_time(), Some(start));
     assert_eq!(curve.max_time(), Some(end));
     assert_eq!(curve.forward_rate(start.add_days(180)?)?, 0.05);
@@ -469,9 +489,9 @@ fn bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support() -> kiy
         ));
     }
     let shifted = curve.shifted(0.01)?;
-    assert_eq!(shifted.flat_rate(), Some(0.05 + 0.01));
+    assert_eq!(shifted.exact_flat_rate(), Some(0.05 + 0.01));
     assert_eq!(shifted.max_time(), Some(end));
-    assert_eq!(curve.flat_rate(), Some(0.05));
+    assert_eq!(curve.exact_flat_rate(), Some(0.05));
     assert!(matches!(
         RateTermStructure::bounded_flat(0.05, end, start),
         Err(Error::InvalidInput(_))

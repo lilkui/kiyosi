@@ -59,10 +59,33 @@ def vanilla(direction="call", strike=103):
 
 
 class RateTermStructureTests(unittest.TestCase):
+    def test_rounded_flat_nodes_explain_exact_constant_curve_requirement(self):
+        curve = RateTermStructure(
+            reference_time=START,
+            times=[MIDDLE, END],
+            factors=[math.exp(-0.05 * 180 / 365), math.exp(-0.05)],
+        )
+        self.assertIsNone(curve.exact_flat_rate)
+        with self.assertRaisesRegex(UnsupportedOperationError, "bounded_flat"):
+            pricing.CoxRossRubinsteinVanillaEngine(step_count=64).price(
+                vanilla(), market(rate=curve)
+            )
+        explicit = RateTermStructure.bounded_flat(
+            0.05, reference_time=START, max_time=END
+        )
+        self.assertEqual(explicit.exact_flat_rate, 0.05)
+        self.assertTrue(
+            math.isfinite(
+                pricing.CoxRossRubinsteinVanillaEngine(step_count=64).price(
+                    vanilla(), market(rate=explicit)
+                )
+            )
+        )
+
     def test_bounded_flat_curves_preserve_exact_rates_coverage_and_engine_support(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         curve = RateTermStructure.bounded_flat(0.05, reference_time=start, max_time=end)
-        self.assertEqual(curve.flat_rate, 0.05)
+        self.assertEqual(curve.exact_flat_rate, 0.05)
         self.assertEqual(curve.reference_time, start)
         self.assertEqual(curve.max_time, end)
         self.assertEqual(curve.forward_rate(start + timedelta(days=180)), 0.05)
@@ -71,9 +94,9 @@ class RateTermStructureTests(unittest.TestCase):
             with self.assertRaises(InvalidInputError):
                 curve.forward_rate(outside)
         shifted = curve.shifted(0.01)
-        self.assertEqual(shifted.flat_rate, 0.05 + 0.01)
+        self.assertEqual(shifted.exact_flat_rate, 0.05 + 0.01)
         self.assertEqual(shifted.max_time, end)
-        self.assertEqual(curve.flat_rate, 0.05)
+        self.assertEqual(curve.exact_flat_rate, 0.05)
         for value in (curve, shifted):
             restored = pickle.loads(pickle.dumps(value))
             self.assertEqual(restored, value)

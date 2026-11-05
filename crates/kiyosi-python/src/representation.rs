@@ -33,7 +33,7 @@ fn curve(py: Python<'_>, value: &kiyosi::RateTermStructure) -> PyResult<String> 
         || Ok("None".into()),
         |time| Ok::<_, PyErr>(python_timestamp(py, time)?.repr()?.to_string()),
     )?;
-    if let Some(rate) = value.flat_rate().filter(|_| value.nodes().is_empty()) {
+    if let Some(rate) = value.exact_flat_rate().filter(|_| value.nodes().is_empty()) {
         if let Some(end) = value.max_time() {
             return Ok(format!(
                 "RateTermStructure.bounded_flat(rate={rate:?}, reference_time={reference}, max_time={})",

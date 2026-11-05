@@ -139,7 +139,7 @@ fn context_replacement_checks_coverage_and_preserves_absolute_surface() {
         }),
         Err(Error::InvalidInput(_))
     ));
-    assert_eq!(m.risk_free_curve().flat_rate(), Some(0.05));
+    assert_eq!(m.risk_free_curve().exact_flat_rate(), Some(0.05));
     let later = c
         .replace(PricingContextChanges {
             spot_price: Some(140.0),

@@ -262,8 +262,8 @@ impl MonteCarloAsianEngine {
         }
         let model = context.bsm_parameters()?;
         if geometric
-            && (model.risk_free_curve().flat_rate().is_none()
-                || model.dividend_curve().flat_rate().is_none())
+            && (model.risk_free_curve().exact_flat_rate().is_none()
+                || model.dividend_curve().exact_flat_rate().is_none())
         {
             return Err(Error::UnsupportedOperation(
                 "geometric Asian Monte Carlo requires flat rates".into(),
@@ -669,7 +669,7 @@ fn curve_log_factor(
     from: f64,
     to: f64,
 ) -> Result<f64> {
-    if let Some(rate) = curve.flat_rate() {
+    if let Some(rate) = curve.exact_flat_rate() {
         return Ok(-rate * (to - from));
     }
     let mut previous = valuation;

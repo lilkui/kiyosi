@@ -192,8 +192,8 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
             return o.settlement(context);
         }
         let model = context.bsm_parameters()?;
-        if model.risk_free_curve().flat_rate().is_none()
-            || model.dividend_curve().flat_rate().is_none()
+        if model.risk_free_curve().exact_flat_rate().is_none()
+            || model.dividend_curve().exact_flat_rate().is_none()
         {
             return Err(Error::UnsupportedOperation(
                 "Turnbull-Wakeman requires flat rates".into(),

@@ -154,8 +154,8 @@ impl HestonParameters {
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves.
     pub fn flat_risk_free_rate(&self) -> Result<f64> {
         self.risk_free_curve
-            .flat_rate()
-            .ok_or_else(|| Error::UnsupportedOperation("risk-free curve is not constant".into()))
+            .exact_flat_rate()
+            .ok_or_else(|| Error::UnsupportedOperation("risk-free curve is not exactly constant; use an explicitly flat curve (bounded_flat preserves coverage)".into()))
     }
     /// Returns the constant dividend yield; see [`Self::new`].
     ///
@@ -167,8 +167,8 @@ impl HestonParameters {
     /// Returns [`Error::UnsupportedOperation`] for nonconstant rate curves.
     pub fn flat_dividend_yield(&self) -> Result<f64> {
         self.dividend_curve
-            .flat_rate()
-            .ok_or_else(|| Error::UnsupportedOperation("dividend curve is not constant".into()))
+            .exact_flat_rate()
+            .ok_or_else(|| Error::UnsupportedOperation("dividend curve is not exactly constant; use an explicitly flat curve (bounded_flat preserves coverage)".into()))
     }
     /// Returns instantaneous variance at valuation; see [`Self::new`].
     pub fn initial_variance(&self) -> f64 {

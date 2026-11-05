@@ -437,8 +437,8 @@ impl Accumulator {
         let model = context.model_parameters();
         if context.valuation_time() == self.expiry_time()
             || (!accrues
-                && model.risk_free_curve().flat_rate() == Some(0.0)
-                && model.dividend_curve().flat_rate() == Some(0.0))
+                && model.risk_free_curve().exact_flat_rate() == Some(0.0)
+                && model.dividend_curve().exact_flat_rate() == Some(0.0))
         {
             return (quantity, Some(quantity * self.unit_payoff(spot)));
         }
@@ -482,8 +482,8 @@ impl Accumulator {
         let model = context.model_parameters();
         early_knock_out
             && quantity != 0.0
-            && (model.risk_free_curve().flat_rate() != Some(0.0)
-                || model.dividend_curve().flat_rate() != Some(0.0))
+            && (model.risk_free_curve().exact_flat_rate() != Some(0.0)
+                || model.dividend_curve().exact_flat_rate() != Some(0.0))
     }
 }
 impl OptionContract for Accumulator {

@@ -117,8 +117,8 @@ impl RateTermStructure {
     /// Nonconstant curves return None. Node-based coverage is preserved.
     /// This query does not change the curve or its coverage bounds.
     #[getter]
-    fn flat_rate(&self) -> Option<f64> {
-        self.0.flat_rate()
+    fn exact_flat_rate(&self) -> Option<f64> {
+        self.0.exact_flat_rate()
     }
     /// Return the inclusive lower coverage bound, or None if undated.
     #[getter]

@@ -15,7 +15,7 @@ for dated or undated constant curves and raise ``UnsupportedOperationError``
 for nonconstant curves, matching Rust. Use ``risk_free_curve`` and ``dividend_curve``
 for owned curves with stable return types and preserved coverage when passing them
 back to the ``risk_free_rate`` and ``dividend_yield`` constructor or
-``replace()`` arguments. Scalar queries discard coverage bounds. Either curve's ``flat_rate`` returns the
+``replace()`` arguments. Scalar queries discard coverage bounds. Either curve's ``exact_flat_rate`` returns the
 scalar rate when all forwards are exactly constant, or None otherwise. Constant
 node curves retain their reference, nodes and upper coverage bound; flat-rate
 engines accept them without discarding those bounds.
@@ -92,7 +92,7 @@ Read a dated flat rate without discarding its coverage bound:
 
 >>> from datetime import datetime
 >>> flat = RateTermStructure.flat(0.05, reference_time=datetime(2025, 1, 1))
->>> flat.flat_rate
+>>> flat.exact_flat_rate
 0.05
 >>> flat.reference_time
 datetime.datetime(2025, 1, 1, 0, 0)

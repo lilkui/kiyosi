@@ -215,7 +215,7 @@ pub(crate) fn complete_greeks(
     let model = context.bsm_parameters()?;
     let spot = context.spot_price();
     let vol = model.volatility();
-    let rate = model.risk_free_curve().flat_rate().unwrap_or(0.0);
+    let rate = model.risk_free_curve().exact_flat_rate().unwrap_or(0.0);
     let h = symmetric_shift(spot, settings.fallback_spot_shift());
     let v = symmetric_shift(vol, settings.volatility_shift);
     let r = symmetric_shift(rate, settings.rate_shift);
@@ -404,7 +404,7 @@ pub(crate) fn complete_greeks(
         )?;
     }
     if want(Greek::DividendRho) {
-        let dividend = model.dividend_curve().flat_rate().unwrap_or(0.0);
+        let dividend = model.dividend_curve().exact_flat_rate().unwrap_or(0.0);
         let q = symmetric_shift(dividend, settings.rate_shift);
         if q > 0.0 && (200.0 * q).is_finite() {
             let evaluate = |shift| -> Result<f64> {
