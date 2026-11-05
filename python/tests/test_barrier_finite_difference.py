@@ -402,7 +402,13 @@ class BarrierFiniteDifferenceTests(unittest.TestCase):
         contract = option(touch_state="untouched")
         context = market()
         all_values = engine.price_with_greeks(contract, context, greeks="all")
-        for greek in ("speed", "vanna", "zomma", "charm", "color"):
+        for greek in (
+            "speed",
+            "vanna_per_percentage_point",
+            "zomma_per_percentage_point",
+            "charm",
+            "color",
+        ):
             selected = engine.price_with_greeks(contract, context, greek)
             self.assertEqual(getattr(selected, greek), getattr(all_values, greek))
             self.assertIsNone(selected.delta)

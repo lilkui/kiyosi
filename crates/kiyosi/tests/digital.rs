@@ -157,7 +157,7 @@ fn expiry_is_strict_and_valuation_life_is_inclusive_to_the_microsecond() {
                 ] {
                     assert_eq!(result.price(), expected);
                     assert_eq!(result.get(Greek::Theta), None);
-                    assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
+                    assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
                     if (spot - 100.0).abs() <= 0.01 {
                         assert_eq!(result.get(Greek::Delta), None);
                     } else {

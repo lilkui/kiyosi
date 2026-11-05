@@ -153,7 +153,12 @@ macro_rules! contract_tests {
                     )
                     .unwrap();
                 assert_eq!(settled.get(Greek::Theta), None);
-                for greek in [Greek::Delta, Greek::Gamma, Greek::Vega, Greek::Rho] {
+                for greek in [
+                    Greek::Delta,
+                    Greek::Gamma,
+                    Greek::VegaPerPercentagePoint,
+                    Greek::RhoPerPercentagePoint,
+                ] {
                     assert_eq!(settled.require(greek).unwrap(), 0.0);
                 }
                 assert!(matches!(
@@ -188,7 +193,7 @@ macro_rules! contract_tests {
                     .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
                     .unwrap();
                 assert!(full.require(Greek::Delta).unwrap() > 0.0);
-                assert!(full.require(Greek::Vega).unwrap() > 0.0);
+                assert!(full.require(Greek::VegaPerPercentagePoint).unwrap() > 0.0);
                 for g in [Greek::Theta, Greek::Charm, Greek::Color] {
                     assert_eq!(full.get(g), None);
                 }

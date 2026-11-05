@@ -108,8 +108,8 @@
 //! let result = AnalyticEuropeanEngine.price_with_greeks(&option, &context,
 //!     kiyosi::GreeksRequest::all(), Default::default())?;
 //! assert!(result.require(kiyosi::Greek::Delta)? > 0.0);
-//! assert!((result.require(kiyosi::Greek::Volga)? - 0.000236882234437609).abs() < 1e-12);
-//! assert!(result.require(kiyosi::Greek::DividendRho)? < 0.0);
+//! assert!((result.require(kiyosi::Greek::VolgaPerSquaredPercentagePoint)? - 0.000236882234437609).abs() < 1e-12);
+//! assert!(result.require(kiyosi::Greek::DividendRhoPerPercentagePoint)? < 0.0);
 //! let sigma = kiyosi::implied_volatility(&AnalyticEuropeanEngine, &option,
 //!     &context, result.price(), Default::default())?;
 //! assert!((sigma - 0.2).abs() < 1e-8);

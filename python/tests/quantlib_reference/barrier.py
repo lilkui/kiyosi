@@ -15,7 +15,13 @@ KINDS = {
     "down_and_out": ql.Barrier.DownOut,
 }
 STABILITY = dict(
-    g.STABILITY, delta=1e-5, gamma=1e-6, speed=1e-6, color=3e-6, vanna=1e-6, zomma=1e-7
+    g.STABILITY,
+    delta=1e-5,
+    gamma=1e-6,
+    speed=1e-6,
+    color=3e-6,
+    vanna_per_percentage_point=1e-6,
+    zomma_per_percentage_point=1e-7,
 )
 ANALYTIC = {
     "price": 1e-8,
@@ -25,10 +31,10 @@ ANALYTIC = {
     "theta": 1e-4,
     "charm": 1e-5,
     "color": 3e-6,
-    "vega": 1e-6,
-    "vanna": 1e-7,
-    "zomma": 2e-8,
-    "rho": 1e-6,
+    "vega_per_percentage_point": 1e-6,
+    "vanna_per_percentage_point": 1e-7,
+    "zomma_per_percentage_point": 2e-8,
+    "rho_per_percentage_point": 1e-6,
 }
 # Fixed-grid interpolation requires spot bumps spanning several cells.
 FD = {
@@ -39,10 +45,10 @@ FD = {
     "theta": 0.001,
     "charm": 0.0002,
     "color": 0.00005,
-    "vega": 0.005,
-    "vanna": 0.001,
-    "zomma": 0.0002,
-    "rho": 0.005,
+    "vega_per_percentage_point": 0.005,
+    "vanna_per_percentage_point": 0.001,
+    "zomma_per_percentage_point": 0.0002,
+    "rho_per_percentage_point": 0.005,
 }
 
 
@@ -202,9 +208,15 @@ def check_bindings():
     )
     contract.setPricingEngine(ql.AnalyticBarrierEngine(process))
     assert math.isfinite(contract.NPV())
-    for name in ("delta", "gamma", "theta", "vega", "rho"):
+    for name in (
+        "delta",
+        "gamma",
+        "theta",
+        "vega_per_percentage_point",
+        "rho_per_percentage_point",
+    ):
         try:
-            getattr(contract, name)()
+            getattr(contract, name.split("_per_", 1)[0])()
         except RuntimeError as caught:
             assert "not provided" in str(caught)
         else:

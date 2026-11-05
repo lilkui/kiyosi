@@ -15,10 +15,10 @@ STABILITY = {
     "theta": 0.00003,
     "charm": 0.00002,
     "color": 0.000002,
-    "vega": 0.001,
-    "vanna": 0.00003,
-    "zomma": 0.00001,
-    "rho": 0.001,
+    "vega_per_percentage_point": 0.001,
+    "vanna_per_percentage_point": 0.00003,
+    "zomma_per_percentage_point": 0.00001,
+    "rho_per_percentage_point": 0.001,
 }
 EXPIRY_REASON = "whole-day stability stencil touches expiry_time"
 EXERCISE_REASON = "whole-day stability stencil precedes exercise window"
@@ -51,10 +51,10 @@ def measure(inputs, name, grid=GRIDS[-1], scale=1):
         "theta": ("valuation", "price", 1, 1),
         "charm": ("valuation", "delta", 1, 1),
         "color": ("valuation", "gamma", 1, 1),
-        "vega": ("volatility", "price", 0.002, 100),
-        "vanna": ("volatility", "delta", 0.002, 100),
-        "zomma": ("volatility", "gamma", 0.002, 100),
-        "rho": ("rate", "price", 0.001, 100),
+        "vega_per_percentage_point": ("volatility", "price", 0.002, 100),
+        "vanna_per_percentage_point": ("volatility", "delta", 0.002, 100),
+        "zomma_per_percentage_point": ("volatility", "gamma", 0.002, 100),
+        "rho_per_percentage_point": ("rate", "price", 0.001, 100),
     }[name]
     h = bump * scale
     g.require(name not in exclusions(inputs), f"unavailable American {name}")

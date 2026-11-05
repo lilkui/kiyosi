@@ -88,7 +88,12 @@ class FiniteDifferenceMixedGreekTests(unittest.TestCase):
             spot_price=100,
             valuation_time=datetime(2025, 7, 1),
         )
-        request = ["vanna", "zomma", "charm", "color"]
+        request = [
+            "vanna_per_percentage_point",
+            "zomma_per_percentage_point",
+            "charm",
+            "color",
+        ]
         expected = pricing.AnalyticEuropeanEngine().price_with_greeks(
             option, context, request
         )

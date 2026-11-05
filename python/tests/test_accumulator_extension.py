@@ -298,12 +298,21 @@ class AccumulatorExtensionTests(unittest.TestCase):
                         engine.price(default, context), engine.price(explicit, context)
                     )
                     first = engine.price_with_greeks(
-                        default, context, ["delta", "gamma", "vega"]
+                        default,
+                        context,
+                        ["delta", "gamma", "vega_per_percentage_point"],
                     )
                     second = engine.price_with_greeks(
-                        explicit, context, ["delta", "gamma", "vega"]
+                        explicit,
+                        context,
+                        ["delta", "gamma", "vega_per_percentage_point"],
                     )
-                    for field in ("price", "delta", "gamma", "vega"):
+                    for field in (
+                        "price",
+                        "delta",
+                        "gamma",
+                        "vega_per_percentage_point",
+                    ):
                         self.assertEqual(getattr(first, field), getattr(second, field))
 
     def test_midnight_and_intraday_history_and_first_observation_knock_out(self):
@@ -404,14 +413,14 @@ class AccumulatorExtensionTests(unittest.TestCase):
         for engine in engines():
             with self.subTest(engine=type(engine).__name__):
                 result = engine.price_with_greeks(
-                    option, context, ["delta", "gamma", "vega"]
+                    option, context, ["delta", "gamma", "vega_per_percentage_point"]
                 )
                 self.assertAlmostEqual(
                     result.price, engine.price(option, context), delta=1e-10
                 )
                 self.assertLess(result.delta, 0)
                 self.assertLess(result.gamma, 0)
-                self.assertLess(result.vega, 0)
+                self.assertLess(result.vega_per_percentage_point, 0)
                 recovered = pricing.implied_volatility(
                     engine,
                     option,

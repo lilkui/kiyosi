@@ -15,7 +15,13 @@ ENGINES = {
     "geometric": "AnalyticGeometricAveragePriceEngine",
     "arithmetic": "TurnbullWakemanArithmeticAveragePriceEngine",
 }
-STABILITY = dict(g.STABILITY, gamma=1e-6, speed=1e-6, vanna=1e-6, zomma=1e-6)
+STABILITY = dict(
+    g.STABILITY,
+    gamma=1e-6,
+    speed=1e-6,
+    vanna_per_percentage_point=1e-6,
+    zomma_per_percentage_point=1e-6,
+)
 BUDGET = {
     "price": 1e-9,
     "delta": 1e-6,
@@ -24,10 +30,10 @@ BUDGET = {
     "theta": 1e-4,
     "charm": 1e-5,
     "color": 2e-6,
-    "vega": 1e-6,
-    "vanna": 1e-6,
-    "zomma": 1e-6,
-    "rho": 1e-6,
+    "vega_per_percentage_point": 1e-6,
+    "vanna_per_percentage_point": 1e-6,
+    "zomma_per_percentage_point": 1e-6,
+    "rho_per_percentage_point": 1e-6,
 }
 START_REASON = "averaging-start boundary: price only, no smooth time stencil"
 EXPIRY_REASON = "terminal average payoff: no smooth sensitivities"
@@ -212,9 +218,15 @@ def check_bindings():
                 ), str(error)
             else:
                 assert kind == "arithmetic" and offset <= 0 and math.isfinite(value)
-                for name in ("delta", "gamma", "theta", "vega", "rho"):
+                for name in (
+                    "delta",
+                    "gamma",
+                    "theta",
+                    "vega_per_percentage_point",
+                    "rho_per_percentage_point",
+                ):
                     try:
-                        getattr(contract, name)()
+                        getattr(contract, name.split("_per_", 1)[0])()
                     except RuntimeError as error:
                         assert "not provided" in str(error)
                     else:
@@ -222,7 +234,12 @@ def check_bindings():
     for identifier, inputs in scenarios():
         assert math.isfinite(option(inputs).NPV()), identifier
     geometric = next(inputs for _, inputs in scenarios())
-    for name in ("delta", "gamma", "vega", "rho"):
+    for name in (
+        "delta",
+        "gamma",
+        "vega_per_percentage_point",
+        "rho_per_percentage_point",
+    ):
         assert (
             abs(measure(geometric, name) - measure(geometric, name, price_only=True))
             <= STABILITY[name]

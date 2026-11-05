@@ -261,12 +261,18 @@ class VanillaQuadratureTests(unittest.TestCase):
         result = engine.price_with_greeks(
             contract(AmericanOption, "put"),
             market(100, 0.04, 0.01, 0.3),
-            ["volga", "dividend_rho"],
+            ["volga_per_squared_percentage_point", "dividend_rho_per_percentage_point"],
             volatility_shift=0.01,
             rate_shift=0.001,
         )
-        self.assertAlmostEqual(result.volga, vol_up - 2 * base + vol_down, delta=5e-5)
-        self.assertAlmostEqual(result.dividend_rho, (q_up - q_down) / 0.2, delta=0.002)
+        self.assertAlmostEqual(
+            result.volga_per_squared_percentage_point,
+            vol_up - 2 * base + vol_down,
+            delta=5e-5,
+        )
+        self.assertAlmostEqual(
+            result.dividend_rho_per_percentage_point, (q_up - q_down) / 0.2, delta=0.002
+        )
 
     def test_life_curve_rejection_and_numerical_failures_preserve_state(self):
         engine = pricing.QuadratureVanillaEngine()

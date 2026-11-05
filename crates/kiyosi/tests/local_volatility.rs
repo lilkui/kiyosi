@@ -382,13 +382,13 @@ fn unsupported_models_requests_and_solves_fail_even_at_expiry() {
         ));
         for request in [
             GreeksRequest::all(),
-            GreeksRequest::new([Greek::Delta, Greek::Vega]),
+            GreeksRequest::new([Greek::Delta, Greek::VegaPerPercentagePoint]),
         ] {
             assert_eq!(
                 engine(100, 100, 400.0)
                     .price_with_greeks(&option, &c, request, Default::default())
                     .unwrap()
-                    .get(Greek::Vega),
+                    .get(Greek::VegaPerPercentagePoint),
                 None
             );
         }
@@ -508,7 +508,7 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
                             Default::default()
                         )
                         .unwrap()
-                        .get(Greek::Vega),
+                        .get(Greek::VegaPerPercentagePoint),
                     None
                 );
             }
@@ -545,7 +545,7 @@ fn american_and_digital_constant_surfaces_match_bsm_and_expiry() {
                         Default::default()
                     )
                     .unwrap()
-                    .get(Greek::Vega),
+                    .get(Greek::VegaPerPercentagePoint),
                 None
             );
         }

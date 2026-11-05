@@ -93,7 +93,7 @@ class DoubleBarrierTests(unittest.TestCase):
             self.assertAlmostEqual(
                 result.gamma, (high - 2 * expected + low) / 0.01**2, delta=1e-6
             )
-            self.assertIsNone(result.vega)
+            self.assertIsNone(result.vega_per_percentage_point)
             other = contract(
                 option_type=direction,
                 barrier_type="knock_in" if kind == "knock_out" else "knock_out",
@@ -249,14 +249,14 @@ class DoubleBarrierTests(unittest.TestCase):
                 for name in (
                     "delta",
                     "gamma",
-                    "vega",
-                    "rho",
+                    "vega_per_percentage_point",
+                    "rho_per_percentage_point",
                     "theta",
                     "speed",
                     "charm",
                     "color",
-                    "vanna",
-                    "zomma",
+                    "vanna_per_percentage_point",
+                    "zomma_per_percentage_point",
                 ):
                     self.assertIsNone(getattr(result, name))
         self.assert_rejection(
@@ -478,14 +478,14 @@ class DoubleBarrierTests(unittest.TestCase):
         for name in (
             "delta",
             "gamma",
-            "vega",
-            "rho",
+            "vega_per_percentage_point",
+            "rho_per_percentage_point",
             "theta",
             "speed",
             "charm",
             "color",
-            "vanna",
-            "zomma",
+            "vanna_per_percentage_point",
+            "zomma_per_percentage_point",
         ):
             self.assertTrue(math.isfinite(getattr(result, name)))
         for field in (
@@ -537,10 +537,12 @@ class DoubleBarrierTests(unittest.TestCase):
             lambda: implied_volatility(engine, option, curved, math.nan),
         )
         near = market(80.005)
-        guarded = engine.price_with_greeks(contract(), near, ["delta", "gamma", "vega"])
+        guarded = engine.price_with_greeks(
+            contract(), near, ["delta", "gamma", "vega_per_percentage_point"]
+        )
         self.assertIsNone(guarded.delta)
         self.assertIsNone(guarded.gamma)
-        self.assertIsNotNone(guarded.vega)
+        self.assertIsNotNone(guarded.vega_per_percentage_point)
         with ThreadPoolExecutor(max_workers=2) as pool:
             self.assertEqual(
                 list(pool.map(lambda _: engine.price(option, context), range(4))),

@@ -355,7 +355,12 @@ fn analytic_history_current_boundaries_and_expiry_preserve_cashflows() {
         for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
             assert_eq!(terminal.get(greek), None);
         }
-        for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+        for greek in [
+            Greek::VegaPerPercentagePoint,
+            Greek::VolgaPerSquaredPercentagePoint,
+            Greek::RhoPerPercentagePoint,
+            Greek::DividendRhoPerPercentagePoint,
+        ] {
             if terminal.supported().has(greek) {
                 assert_eq!(terminal.require(greek).unwrap(), 0.0);
             }
@@ -520,8 +525,8 @@ fn analytic_greeks_implied_volatility_and_boundary_availability() {
         for greek in [
             Greek::Delta,
             Greek::Gamma,
-            Greek::Vega,
-            Greek::Rho,
+            Greek::VegaPerPercentagePoint,
+            Greek::RhoPerPercentagePoint,
             Greek::Theta,
         ] {
             assert!(result.has(greek));
@@ -809,7 +814,12 @@ fn current_prior_and_expiry_payments_resolve_before_grid_validation() {
             for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
                 assert_eq!(result.get(greek), None);
             }
-            for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+            for greek in [
+                Greek::VegaPerPercentagePoint,
+                Greek::VolgaPerSquaredPercentagePoint,
+                Greek::RhoPerPercentagePoint,
+                Greek::DividendRhoPerPercentagePoint,
+            ] {
                 if result.supported().has(greek) {
                     assert_eq!(result.require(greek).unwrap(), 0.0);
                 }
@@ -903,8 +913,12 @@ fn early_window_history_utc_calendar_and_fixed_cash_greeks() {
         .unwrap();
     assert!((result.price() - expected).abs() < 1e-12);
     assert_eq!(result.require(Greek::Delta).unwrap(), 0.0);
-    assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
-    assert!((result.require(Greek::Rho).unwrap() + remaining * expected / 100.0).abs() < 1e-8);
+    assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
+    assert!(
+        (result.require(Greek::RhoPerPercentagePoint).unwrap() + remaining * expected / 100.0)
+            .abs()
+            < 1e-8
+    );
     assert!(matches!(
         implied_volatility(&engine, &known, &ctx, expected, Default::default()).unwrap_err(),
         Error::UnsupportedOperation(_)

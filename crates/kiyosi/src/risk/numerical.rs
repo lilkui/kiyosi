@@ -45,7 +45,12 @@ pub(crate) fn expiry_greeks(
             .filter(|&greek| result.requested().has(greek) && result.supported().has(greek)),
     );
     // Terminal payments no longer depend on volatility or discount rates.
-    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+    for greek in [
+        Greek::VegaPerPercentagePoint,
+        Greek::VolgaPerSquaredPercentagePoint,
+        Greek::RhoPerPercentagePoint,
+        Greek::DividendRhoPerPercentagePoint,
+    ] {
         result.set(request, greek, 0.0)?;
     }
     let spot = context.spot_price();
@@ -53,7 +58,10 @@ pub(crate) fn expiry_greeks(
     if h <= 0.0 || spot <= h || option.at_spot_discontinuity(context, h) {
         return Ok(result);
     }
-    for greek in [Greek::Vanna, Greek::Zomma] {
+    for greek in [
+        Greek::VannaPerPercentagePoint,
+        Greek::ZommaPerPercentagePoint,
+    ] {
         result.set(request, greek, 0.0)?;
     }
     if [Greek::Delta, Greek::Gamma, Greek::Speed]
@@ -110,7 +118,7 @@ pub(crate) fn expiry_greeks(
 /// stencils are unavailable.
 /// Time rolls stay within permitted valuation dates, curve coverage and neighboring knots, with
 /// right-hand differences at knots. Feasible bumped pricing errors fail the request.
-/// Vega/vanna/zomma/rho/dividend rho are per percentage point, volga per squared
+/// VegaPerPercentagePoint/vanna/zomma/rho/dividend rho are per percentage point, volga per squared
 /// volatility percentage point, and time Greeks per calendar day.
 /// Dividend rho shifts the dividend curve in parallel using `settings.rate_shift`.
 /// [`crate::EuropeanOption`], [`crate::DigitalOption`] and [`crate::AmericanOption`] expose their inclusive
@@ -223,8 +231,8 @@ pub(crate) fn complete_greeks(
         Greek::Delta,
         Greek::Gamma,
         Greek::Speed,
-        Greek::Vanna,
-        Greek::Zomma,
+        Greek::VannaPerPercentagePoint,
+        Greek::ZommaPerPercentagePoint,
         Greek::Charm,
         Greek::Color,
     ]
@@ -362,48 +370,63 @@ pub(crate) fn complete_greeks(
     if v > 0.0
         && vol > v
         && (100.0 * v).is_finite()
-        && (want(Greek::Vega)
-            || want(Greek::Volga)
-            || (spot_ok && (want(Greek::Vanna) || want(Greek::Zomma))))
+        && (want(Greek::VegaPerPercentagePoint)
+            || want(Greek::VolgaPerSquaredPercentagePoint)
+            || (spot_ok
+                && (want(Greek::VannaPerPercentagePoint) || want(Greek::ZommaPerPercentagePoint))))
     {
-        let prices = if want(Greek::Vega) || want(Greek::Volga) {
-            Some((
-                price(spot, vol + v, 0.0, time)?,
-                price(spot, vol - v, 0.0, time)?,
-            ))
-        } else {
-            None
-        };
+        let prices =
+            if want(Greek::VegaPerPercentagePoint) || want(Greek::VolgaPerSquaredPercentagePoint) {
+                Some((
+                    price(spot, vol + v, 0.0, time)?,
+                    price(spot, vol - v, 0.0, time)?,
+                ))
+            } else {
+                None
+            };
         if let Some((up, down)) = prices {
-            result.set(request, Greek::Vega, (up - down) / (200.0 * v))?;
             result.set(
                 request,
-                Greek::Volga,
+                Greek::VegaPerPercentagePoint,
+                (up - down) / (200.0 * v),
+            )?;
+            result.set(
+                request,
+                Greek::VolgaPerSquaredPercentagePoint,
                 ((up - p0) - (p0 - down)) / (100.0 * v) / (100.0 * v),
             )?;
         }
-        if spot_ok && (want(Greek::Vanna) || want(Greek::Zomma)) {
+        if spot_ok && (want(Greek::VannaPerPercentagePoint) || want(Greek::ZommaPerPercentagePoint))
+        {
             let (high, low) = paired_derivatives(
                 vol + v,
                 time,
                 vol - v,
                 time,
-                want(Greek::Vanna),
-                want(Greek::Zomma),
+                want(Greek::VannaPerPercentagePoint),
+                want(Greek::ZommaPerPercentagePoint),
                 prices,
             )?;
-            result.set(request, Greek::Vanna, (high.0 - low.0) / (200.0 * v))?;
-            result.set(request, Greek::Zomma, (high.1 - low.1) / (200.0 * v))?;
+            result.set(
+                request,
+                Greek::VannaPerPercentagePoint,
+                (high.0 - low.0) / (200.0 * v),
+            )?;
+            result.set(
+                request,
+                Greek::ZommaPerPercentagePoint,
+                (high.1 - low.1) / (200.0 * v),
+            )?;
         }
     }
-    if want(Greek::Rho) && r > 0.0 && (200.0 * r).is_finite() {
+    if want(Greek::RhoPerPercentagePoint) && r > 0.0 && (200.0 * r).is_finite() {
         result.set(
             request,
-            Greek::Rho,
+            Greek::RhoPerPercentagePoint,
             (price(spot, vol, r, time)? - price(spot, vol, -r, time)?) / (200.0 * r),
         )?;
     }
-    if want(Greek::DividendRho) {
+    if want(Greek::DividendRhoPerPercentagePoint) {
         let dividend = model.dividend_curve().exact_flat_rate().unwrap_or(0.0);
         let q = symmetric_shift(dividend, settings.rate_shift);
         if q > 0.0 && (200.0 * q).is_finite() {
@@ -420,7 +443,7 @@ pub(crate) fn complete_greeks(
             };
             result.set(
                 request,
-                Greek::DividendRho,
+                Greek::DividendRhoPerPercentagePoint,
                 (evaluate(q)? - evaluate(-q)?) / (200.0 * q),
             )?;
         }
@@ -528,7 +551,7 @@ mod tests {
     #[test]
     fn vega_completion_preserves_native_delta() {
         let (option, context) = inputs();
-        let request = GreeksRequest::new([Greek::Delta, Greek::Vega]);
+        let request = GreeksRequest::new([Greek::Delta, Greek::VegaPerPercentagePoint]);
         let mut central = PricingResult::new(4.0).unwrap();
         central.set(request, Greek::Delta, 1.0).unwrap();
         let result = complete_greeks(
@@ -547,7 +570,7 @@ mod tests {
         .unwrap();
         assert_eq!(result.price(), 4.0);
         assert_eq!(result.require(Greek::Delta).unwrap(), 1.0);
-        assert!((result.require(Greek::Vega).unwrap() - 0.1).abs() < 1e-10);
+        assert!((result.require(Greek::VegaPerPercentagePoint).unwrap() - 0.1).abs() < 1e-10);
         assert_eq!(result.get(Greek::Gamma), None);
     }
 
@@ -594,10 +617,18 @@ mod tests {
             })
             .unwrap();
         for request in [
-            GreeksRequest::new([Greek::Volga]),
-            GreeksRequest::new([Greek::DividendRho]),
-            GreeksRequest::new([Greek::Vega, Greek::Volga]),
-            GreeksRequest::new([Greek::Vega, Greek::Volga, Greek::Vanna, Greek::Zomma]),
+            GreeksRequest::new([Greek::VolgaPerSquaredPercentagePoint]),
+            GreeksRequest::new([Greek::DividendRhoPerPercentagePoint]),
+            GreeksRequest::new([
+                Greek::VegaPerPercentagePoint,
+                Greek::VolgaPerSquaredPercentagePoint,
+            ]),
+            GreeksRequest::new([
+                Greek::VegaPerPercentagePoint,
+                Greek::VolgaPerSquaredPercentagePoint,
+                Greek::VannaPerPercentagePoint,
+                Greek::ZommaPerPercentagePoint,
+            ]),
             GreeksRequest::new([Greek::Theta, Greek::Charm, Greek::Color]),
             GreeksRequest::all(),
         ] {
@@ -635,15 +666,15 @@ mod tests {
                 (Greek::Delta, 23.078_125),
                 (Greek::Gamma, 19.0),
                 (Greek::Speed, 7.5),
-                (Greek::Vega, 0.08),
-                (Greek::Volga, 0.0016),
-                (Greek::Vanna, 0.120_625),
-                (Greek::Zomma, 0.12),
+                (Greek::VegaPerPercentagePoint, 0.08),
+                (Greek::VolgaPerSquaredPercentagePoint, 0.0016),
+                (Greek::VannaPerPercentagePoint, 0.120_625),
+                (Greek::ZommaPerPercentagePoint, 0.12),
                 (Greek::Theta, 4.0),
                 (Greek::Charm, 4.0),
                 (Greek::Color, 2.0),
-                (Greek::Rho, 0.01),
-                (Greek::DividendRho, 0.03),
+                (Greek::RhoPerPercentagePoint, 0.01),
+                (Greek::DividendRhoPerPercentagePoint, 0.03),
             ] {
                 if request.has(greek) {
                     assert!((result.require(greek).unwrap() - expected).abs() < 1e-12);
@@ -657,7 +688,7 @@ mod tests {
     #[test]
     fn missing_native_gamma_falls_back_to_scalar_derivatives() {
         let (option, context) = inputs();
-        let request = GreeksRequest::new([Greek::Zomma]);
+        let request = GreeksRequest::new([Greek::ZommaPerPercentagePoint]);
         let evaluate = |context: &PricingContext, _| {
             PricingResult::new(
                 context.spot_price().powi(2) * context.bsm_parameters()?.volatility().powi(2),
@@ -677,7 +708,7 @@ mod tests {
             evaluate,
         )
         .unwrap();
-        assert!((result.require(Greek::Zomma).unwrap() - 0.008).abs() < 1e-12);
+        assert!((result.require(Greek::ZommaPerPercentagePoint).unwrap() - 0.008).abs() < 1e-12);
         assert_eq!(result.get(Greek::Gamma), None);
     }
 }

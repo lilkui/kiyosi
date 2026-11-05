@@ -120,8 +120,8 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         self.assertIsNone(result.gamma)
         self.assertIsNone(result.speed)
         self.assertIsNone(result.theta)
-        self.assertIsNotNone(result.vega)
-        self.assertIsNotNone(result.rho)
+        self.assertIsNotNone(result.vega_per_percentage_point)
+        self.assertIsNotNone(result.rho_per_percentage_point)
         snapshot = note.observations
         with self.assertRaises(ValueError):
             note.replace_history(barrier_state="invalid")
@@ -157,9 +157,17 @@ class AutocallableFiniteDifferenceTests(unittest.TestCase):
         )
         context = market(rate=0)
         engine = FD(asset_upper_boundary=1)
-        result = engine.price_with_greeks(note, context, ["delta", "gamma", "vega"])
+        result = engine.price_with_greeks(
+            note, context, ["delta", "gamma", "vega_per_percentage_point"]
+        )
         self.assertEqual(
-            (result.price, result.delta, result.gamma, result.vega), (1, 0, 0, 0)
+            (
+                result.price,
+                result.delta,
+                result.gamma,
+                result.vega_per_percentage_point,
+            ),
+            (1, 0, 0, 0),
         )
         self.assert_rejection(
             UnsupportedOperationError,

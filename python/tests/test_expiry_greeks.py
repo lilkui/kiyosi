@@ -130,12 +130,12 @@ class ExpiryGreekTests(unittest.TestCase):
                         for greek in (
                             "gamma",
                             "speed",
-                            "vega",
-                            "volga",
-                            "vanna",
-                            "zomma",
-                            "rho",
-                            "dividend_rho",
+                            "vega_per_percentage_point",
+                            "volga_per_squared_percentage_point",
+                            "vanna_per_percentage_point",
+                            "zomma_per_percentage_point",
+                            "rho_per_percentage_point",
+                            "dividend_rho_per_percentage_point",
                         ):
                             self.assertAlmostEqual(result.require(greek), 0, delta=1e-8)
                         for greek in ("theta", "charm", "color"):
@@ -164,16 +164,20 @@ class ExpiryGreekTests(unittest.TestCase):
             expiry_time=end,
         )
         engine = pricing.AnalyticDigitalEngine()
-        result = engine.price_with_greeks(option, context, ["delta", "gamma", "vega"])
+        result = engine.price_with_greeks(
+            option, context, ["delta", "gamma", "vega_per_percentage_point"]
+        )
         self.assertEqual(result.status("delta"), "undefined")
         self.assertEqual(result.status("gamma"), "undefined")
-        self.assertEqual(result.require("vega"), 0)
-        self.assertEqual(result.status("rho"), "not_requested")
+        self.assertEqual(result.require("vega_per_percentage_point"), 0)
+        self.assertEqual(result.status("rho_per_percentage_point"), "not_requested")
         result = pricing.MonteCarloDigitalEngine(
             path_count=32, seed=42
         ).price_with_greeks(
-            option, context.replace(spot_price=120), ["delta", "gamma", "vega"]
+            option,
+            context.replace(spot_price=120),
+            ["delta", "gamma", "vega_per_percentage_point"],
         )
         self.assertEqual(result.require("delta"), 0)
         self.assertEqual(result.require("gamma"), 0)
-        self.assertEqual(result.status("vega"), "unsupported")
+        self.assertEqual(result.status("vega_per_percentage_point"), "unsupported")

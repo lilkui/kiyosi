@@ -237,8 +237,8 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         )
         for greek, dependency, field, bump, scale in (
             ("speed", "gamma", "spot_price", h, 1),
-            ("vanna", "delta", "volatility", 0.0001, 100),
-            ("zomma", "gamma", "volatility", 0.0001, 100),
+            ("vanna_per_percentage_point", "delta", "volatility", 0.0001, 100),
+            ("zomma_per_percentage_point", "gamma", "volatility", 0.0001, 100),
         ):
             bumped = []
             center = context.spot_price if field == "spot_price" else 0.2
@@ -294,15 +294,15 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                 "delta",
                 "gamma",
                 "speed",
-                "vanna",
-                "zomma",
+                "vanna_per_percentage_point",
+                "zomma_per_percentage_point",
                 "theta",
                 "charm",
                 "color",
             ):
                 self.assertIsNone(getattr(boundary, greek))
-            self.assertIsNotNone(boundary.vega)
-            self.assertIsNotNone(boundary.rho)
+            self.assertIsNotNone(boundary.vega_per_percentage_point)
+            self.assertIsNotNone(boundary.rho_per_percentage_point)
         sunday = engine.price_with_greeks(
             option,
             market(90, datetime(2025, 1, 5, 23, 59, 59)),
@@ -310,11 +310,17 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         )
         self.assertIsNone(sunday.theta)
         small = engine.price_with_greeks(
-            option, market(90, volatility=0.0001), ["vega", "vanna", "zomma"]
+            option,
+            market(90, volatility=0.0001),
+            [
+                "vega_per_percentage_point",
+                "vanna_per_percentage_point",
+                "zomma_per_percentage_point",
+            ],
         )
-        self.assertIsNone(small.vega)
-        self.assertIsNone(small.vanna)
-        self.assertIsNone(small.zomma)
+        self.assertIsNone(small.vega_per_percentage_point)
+        self.assertIsNone(small.vanna_per_percentage_point)
+        self.assertIsNone(small.zomma_per_percentage_point)
 
     def test_node_curves_terminal_forward_and_coverage_order(self):
         end = datetime(2026, 1, 1)

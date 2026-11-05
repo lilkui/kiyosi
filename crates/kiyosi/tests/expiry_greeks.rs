@@ -124,12 +124,12 @@ fn terminal_vanilla_greeks_match_payoff_derivatives_across_engines() -> Result<(
                     for greek in [
                         Greek::Gamma,
                         Greek::Speed,
-                        Greek::Vega,
-                        Greek::Volga,
-                        Greek::Vanna,
-                        Greek::Zomma,
-                        Greek::Rho,
-                        Greek::DividendRho,
+                        Greek::VegaPerPercentagePoint,
+                        Greek::VolgaPerSquaredPercentagePoint,
+                        Greek::VannaPerPercentagePoint,
+                        Greek::ZommaPerPercentagePoint,
+                        Greek::RhoPerPercentagePoint,
+                        Greek::DividendRhoPerPercentagePoint,
                     ] {
                         assert!(result.require(greek)?.abs() < 1e-8, "{greek:?}: {result:?}");
                     }
@@ -161,13 +161,16 @@ fn terminal_spot_stencils_respect_payoff_kinks_and_request_metadata() -> Result<
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let context = context(100.0)?;
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, context.valuation_time())?;
-    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]);
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::VegaPerPercentagePoint]);
     let result =
         AnalyticEuropeanEngine.price_with_greeks(&option, &context, request, Default::default())?;
     assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
     assert_eq!(result.status(Greek::Gamma), GreekStatus::Undefined);
-    assert_eq!(result.require(Greek::Vega)?, 0.0);
-    assert_eq!(result.status(Greek::Rho), GreekStatus::NotRequested);
+    assert_eq!(result.require(Greek::VegaPerPercentagePoint)?, 0.0);
+    assert_eq!(
+        result.status(Greek::RhoPerPercentagePoint),
+        GreekStatus::NotRequested
+    );
     let away = context.replace(PricingContextChanges {
         spot_price: Some(120.0),
         ..Default::default()
@@ -183,7 +186,7 @@ fn terminal_spot_stencils_respect_payoff_kinks_and_request_metadata() -> Result<
         },
     )?;
     assert_eq!(crossed.status(Greek::Delta), GreekStatus::Undefined);
-    assert_eq!(crossed.require(Greek::Vega)?, 0.0);
+    assert_eq!(crossed.require(Greek::VegaPerPercentagePoint)?, 0.0);
     Ok(())
 }
 
@@ -222,7 +225,7 @@ fn terminal_autocallable_stencils_preserve_knock_in_and_redemption_regimes() -> 
         } else {
             assert_eq!(result.get(Greek::Delta), None);
         }
-        assert_eq!(result.require(Greek::Vega)?, 0.0);
+        assert_eq!(result.require(Greek::VegaPerPercentagePoint)?, 0.0);
     }
     Ok(())
 }

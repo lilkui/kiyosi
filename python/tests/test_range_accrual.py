@@ -579,10 +579,14 @@ class RangeAccrualTests(unittest.TestCase):
                     - price(spot=99 - 2 * h)
                 )
                 / (2 * h**3),
-                "vega": (price(vol=0.2 + v) - price(vol=0.2 - v)) / (200 * v),
-                "vanna": (delta(vol=0.2 + v) - delta(vol=0.2 - v)) / (200 * v),
-                "zomma": (gamma(vol=0.2 + v) - gamma(vol=0.2 - v)) / (200 * v),
-                "rho": (price(rate=r) - price(rate=-r)) / (200 * r),
+                "vega_per_percentage_point": (price(vol=0.2 + v) - price(vol=0.2 - v))
+                / (200 * v),
+                "vanna_per_percentage_point": (delta(vol=0.2 + v) - delta(vol=0.2 - v))
+                / (200 * v),
+                "zomma_per_percentage_point": (gamma(vol=0.2 + v) - gamma(vol=0.2 - v))
+                / (200 * v),
+                "rho_per_percentage_point": (price(rate=r) - price(rate=-r))
+                / (200 * r),
                 "theta": (
                     price(when=valuation + timedelta(days=1))
                     - price(when=valuation - timedelta(days=1))
@@ -655,15 +659,15 @@ class RangeAccrualTests(unittest.TestCase):
             "delta",
             "gamma",
             "speed",
-            "vanna",
-            "zomma",
+            "vanna_per_percentage_point",
+            "zomma_per_percentage_point",
             "theta",
             "charm",
             "color",
         ):
             self.assertIsNone(getattr(result, name))
-        self.assertIsNotNone(result.vega)
-        self.assertIsNotNone(result.rho)
+        self.assertIsNotNone(result.vega_per_percentage_point)
+        self.assertIsNotNone(result.rho_per_percentage_point)
         self.assert_rejection(
             InvalidInputError,
             engine.price_with_greeks,

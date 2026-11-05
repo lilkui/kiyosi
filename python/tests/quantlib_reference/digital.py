@@ -17,10 +17,10 @@ STABILITY = dict(
     delta=0.00001,
     gamma=0.000001,
     speed=0.00001,
-    vega=0.00001,
-    vanna=0.000001,
-    zomma=0.000001,
-    rho=0.00001,
+    vega_per_percentage_point=0.00001,
+    vanna_per_percentage_point=0.000001,
+    zomma_per_percentage_point=0.000001,
+    rho_per_percentage_point=0.00001,
 )
 
 

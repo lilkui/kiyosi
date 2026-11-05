@@ -12,7 +12,15 @@ def assert_terminal_greeks(test, result, delta):
             or greek not in result.supported
             or greek in ("theta", "charm", "color")
             or (
-                delta is None and greek in ("delta", "gamma", "speed", "vanna", "zomma")
+                delta is None
+                and greek
+                in (
+                    "delta",
+                    "gamma",
+                    "speed",
+                    "vanna_per_percentage_point",
+                    "zomma_per_percentage_point",
+                )
             )
         ):
             test.assertIsNone(getattr(result, greek), greek)

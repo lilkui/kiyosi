@@ -99,9 +99,26 @@ fn analytic_greeks_and_volatility_recovery_use_public_api() {
         .unwrap();
     assert!((result.require(Greek::Delta).unwrap() - 0.586_851_146_134_764).abs() < 1e-12);
     assert!((result.require(Greek::Gamma).unwrap() - 0.018_950_578_755_008_7).abs() < 1e-12);
-    assert!((result.require(Greek::Vega).unwrap() - 0.379_011_575_100_175).abs() < 1e-12);
-    assert!((result.require(Greek::Volga).unwrap() - 0.000_236_882_234_437_609).abs() < 1e-14);
-    assert!((result.require(Greek::DividendRho).unwrap() + 0.586_851_146_134_764).abs() < 1e-12);
+    assert!(
+        (result.require(Greek::VegaPerPercentagePoint).unwrap() - 0.379_011_575_100_175).abs()
+            < 1e-12
+    );
+    assert!(
+        (result
+            .require(Greek::VolgaPerSquaredPercentagePoint)
+            .unwrap()
+            - 0.000_236_882_234_437_609)
+            .abs()
+            < 1e-14
+    );
+    assert!(
+        (result
+            .require(Greek::DividendRhoPerPercentagePoint)
+            .unwrap()
+            + 0.586_851_146_134_764)
+            .abs()
+            < 1e-12
+    );
     let recovered = implied_volatility(
         &AnalyticEuropeanEngine,
         &option,
@@ -187,11 +204,15 @@ fn volga_and_dividend_rho_preserve_units_curves_and_selectivity() {
                 .unwrap();
             // A full year gives dividend rho = -spot * delta / 100.
             assert!(
-                (exact.require(Greek::DividendRho).unwrap() + exact.require(Greek::Delta).unwrap())
-                    .abs()
+                (exact.require(Greek::DividendRhoPerPercentagePoint).unwrap()
+                    + exact.require(Greek::Delta).unwrap())
+                .abs()
                     < 1e-12
             );
-            for greek in [Greek::Volga, Greek::DividendRho] {
+            for greek in [
+                Greek::VolgaPerSquaredPercentagePoint,
+                Greek::DividendRhoPerPercentagePoint,
+            ] {
                 for bump in [0.00005, 0.0001] {
                     let numeric = numerical_greeks(
                         &AnalyticEuropeanEngine,
@@ -249,13 +270,21 @@ fn volga_preserves_tiny_volatility_curvature() {
             .price_with_greeks(
                 &option,
                 &context,
-                GreeksRequest::new([Greek::Volga]),
+                GreeksRequest::new([Greek::VolgaPerSquaredPercentagePoint]),
                 Default::default(),
             )
             .unwrap();
         // At zero carry the small-volatility limit is -S*sigma*phi(0)/40000.
         let expected = -(spot * sigma) / (40000.0 * (2.0 * std::f64::consts::PI).sqrt());
-        assert!((result.require(Greek::Volga).unwrap() / expected - 1.0).abs() < 1e-12);
+        assert!(
+            (result
+                .require(Greek::VolgaPerSquaredPercentagePoint)
+                .unwrap()
+                / expected
+                - 1.0)
+                .abs()
+                < 1e-12
+        );
     }
 }
 
@@ -280,7 +309,10 @@ fn new_parameter_greeks_keep_unavailable_stencils_and_bump_errors() {
     }
 
     let (option, context) = market();
-    let request = GreeksRequest::new([Greek::Volga, Greek::DividendRho]);
+    let request = GreeksRequest::new([
+        Greek::VolgaPerSquaredPercentagePoint,
+        Greek::DividendRhoPerPercentagePoint,
+    ]);
     let result = numerical_greeks(
         &AnalyticEuropeanEngine,
         &option,
@@ -292,8 +324,8 @@ fn new_parameter_greeks_keep_unavailable_stencils_and_bump_errors() {
         },
     )
     .unwrap();
-    assert!(!result.has(Greek::Volga));
-    assert!(result.has(Greek::DividendRho));
+    assert!(!result.has(Greek::VolgaPerSquaredPercentagePoint));
+    assert!(result.has(Greek::DividendRhoPerPercentagePoint));
     let collapsed = numerical_greeks(
         &AnalyticEuropeanEngine,
         &option,
@@ -305,8 +337,8 @@ fn new_parameter_greeks_keep_unavailable_stencils_and_bump_errors() {
         },
     )
     .unwrap();
-    assert!(collapsed.has(Greek::Volga));
-    assert!(!collapsed.has(Greek::DividendRho));
+    assert!(collapsed.has(Greek::VolgaPerSquaredPercentagePoint));
+    assert!(!collapsed.has(Greek::DividendRhoPerPercentagePoint));
 
     assert!(matches!(
         numerical_greeks(
@@ -332,11 +364,11 @@ fn new_parameter_greeks_keep_unavailable_stencils_and_bump_errors() {
 #[test]
 fn selections_expiry_and_validation_timing_preserve_availability() {
     let (option, context) = market();
-    let request = GreeksRequest::new([Greek::Delta, Greek::Vega, Greek::Delta]);
+    let request = GreeksRequest::new([Greek::Delta, Greek::VegaPerPercentagePoint, Greek::Delta]);
     let result = AnalyticEuropeanEngine
         .price_with_greeks(&option, &context, request, Default::default())
         .unwrap();
-    assert!(result.has(Greek::Delta) && result.has(Greek::Vega));
+    assert!(result.has(Greek::Delta) && result.has(Greek::VegaPerPercentagePoint));
     assert_eq!(result.get(Greek::Gamma), None);
     assert!(matches!(
         result.require(Greek::Gamma).unwrap_err(),
@@ -365,7 +397,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
         assert_eq!(result.price(), 10.0);
         assert_eq!(result.get(Greek::Theta), None);
         assert!((result.require(Greek::Delta).unwrap() - 1.0).abs() < 1e-10);
-        assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
+        assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
         assert!(matches!(
             result.require(Greek::Theta).unwrap_err(),
             Error::UnsupportedOperation(_)
@@ -808,20 +840,20 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
         Greek::Delta,
         Greek::Gamma,
         Greek::Speed,
-        Greek::Vega,
-        Greek::Vanna,
-        Greek::Zomma,
+        Greek::VegaPerPercentagePoint,
+        Greek::VannaPerPercentagePoint,
+        Greek::ZommaPerPercentagePoint,
         Greek::Charm,
         Greek::Color,
     ] {
         assert!(!result.has(greek), "{greek:?}");
     }
-    assert!(result.has(Greek::Theta) && result.has(Greek::Rho));
+    assert!(result.has(Greek::Theta) && result.has(Greek::RhoPerPercentagePoint));
     let collapsed = numerical_greeks(
         &AnalyticEuropeanEngine,
         &option,
         &context,
-        GreeksRequest::new([Greek::Delta, Greek::Vega]),
+        GreeksRequest::new([Greek::Delta, Greek::VegaPerPercentagePoint]),
         NumericalShiftSettings {
             spot_shift: Some(f64::MIN_POSITIVE),
             ..Default::default()
@@ -829,7 +861,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
     )
     .unwrap();
     assert!(!collapsed.has(Greek::Delta));
-    assert!(collapsed.has(Greek::Vega));
+    assert!(collapsed.has(Greek::VegaPerPercentagePoint));
     let huge_time = numerical_greeks(
         &AnalyticEuropeanEngine,
         &option,
@@ -958,7 +990,7 @@ fn curve_knots_use_right_hand_time_sensitivities_and_parallel_rho() {
     assert_eq!(context, saved);
     for greek in Greek::ALL {
         let tolerance = match greek {
-            Greek::Rho => 1e-8,
+            Greek::RhoPerPercentagePoint => 1e-8,
             Greek::Theta | Greek::Charm | Greek::Color => 1e-4,
             _ => 1e-5,
         };
@@ -1070,13 +1102,15 @@ fn scaled_tail_greeks_and_selected_extreme_results_remain_representable() {
         .price_with_greeks(
             &far,
             &huge,
-            GreeksRequest::new([Greek::Vega]),
+            GreeksRequest::new([Greek::VegaPerPercentagePoint]),
             Default::default(),
         )
         .unwrap();
     // Independently evaluated log-density at d1 = log(1e-4)/0.2 + 0.1.
     let expected = 1.207_035_364_719_334_4e-161;
-    assert!((result.require(Greek::Vega).unwrap() / expected - 1.0).abs() < 1e-10);
+    assert!(
+        (result.require(Greek::VegaPerPercentagePoint).unwrap() / expected - 1.0).abs() < 1e-10
+    );
     let tiny = context
         .replace(PricingContextChanges {
             spot_price: Some(1e-300),
@@ -1150,7 +1184,7 @@ fn custom_engines_can_return_validated_analytic_results() {
         .unwrap();
     assert_eq!(result.price(), 10.0);
     assert_eq!(result.require(Greek::Delta).unwrap(), 0.5);
-    assert_eq!(result.get(Greek::Vega), None);
+    assert_eq!(result.get(Greek::VegaPerPercentagePoint), None);
     assert_eq!(
         result
             .with_greek(Greek::Delta, 0.6)

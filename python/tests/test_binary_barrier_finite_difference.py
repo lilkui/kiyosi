@@ -249,10 +249,10 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
             "theta",
             "charm",
             "color",
-            "vega",
-            "vanna",
-            "zomma",
-            "rho",
+            "vega_per_percentage_point",
+            "vanna_per_percentage_point",
+            "zomma_per_percentage_point",
+            "rho_per_percentage_point",
         )
         self.assertTrue(all(math.isfinite(getattr(result, g)) for g in greeks))
         h = 0.01
@@ -453,10 +453,10 @@ class BinaryBarrierFiniteDifferenceTests(unittest.TestCase):
                         "theta",
                         "charm",
                         "color",
-                        "vega",
-                        "vanna",
-                        "zomma",
-                        "rho",
+                        "vega_per_percentage_point",
+                        "vanna_per_percentage_point",
+                        "zomma_per_percentage_point",
+                        "rho_per_percentage_point",
                     ):
                         self.assertAlmostEqual(
                             getattr(result, greek),

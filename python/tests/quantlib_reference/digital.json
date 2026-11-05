@@ -43,10 +43,10 @@
         "theta": 0.001,
         "charm": 0.0001,
         "color": 0.00003,
-        "vega": 0.01,
-        "vanna": 0.002,
-        "zomma": 0.0005,
-        "rho": 0.02
+        "vega_per_percentage_point": 0.01,
+        "vanna_per_percentage_point": 0.002,
+        "zomma_per_percentage_point": 0.0005,
+        "rho_per_percentage_point": 0.02
       },
       "numerical_tolerances": {
         "price": 0.03,
@@ -56,10 +56,10 @@
         "theta": 0.001,
         "charm": 0.0001,
         "color": 0.00003,
-        "vega": 0.01,
-        "vanna": 0.002,
-        "zomma": 0.0005,
-        "rho": 0.02
+        "vega_per_percentage_point": 0.01,
+        "vanna_per_percentage_point": 0.002,
+        "zomma_per_percentage_point": 0.0005,
+        "rho_per_percentage_point": 0.02
       },
       "boundary_settings": {
         "asset_step_count": 9602
@@ -81,10 +81,10 @@
       "theta": 0.0001,
       "charm": 0.000001,
       "color": 1e-7,
-      "vega": 0.00001,
-      "vanna": 0.000001,
-      "zomma": 0.000001,
-      "rho": 0.00001
+      "vega_per_percentage_point": 0.00001,
+      "vanna_per_percentage_point": 0.000001,
+      "zomma_per_percentage_point": 0.000001,
+      "rho_per_percentage_point": 0.00001
     },
     "numerical_tolerances": {
       "price": 1e-8,
@@ -94,10 +94,10 @@
       "theta": 0.0001,
       "charm": 0.000001,
       "color": 1e-7,
-      "vega": 0.00001,
-      "vanna": 0.000001,
-      "zomma": 0.000001,
-      "rho": 0.00001
+      "vega_per_percentage_point": 0.00001,
+      "vanna_per_percentage_point": 0.000001,
+      "zomma_per_percentage_point": 0.000001,
+      "rho_per_percentage_point": 0.00001
     }
   }
 }

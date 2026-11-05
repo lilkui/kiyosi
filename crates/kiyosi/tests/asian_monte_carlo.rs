@@ -164,11 +164,11 @@ fn native_greeks_use_all_future_spots_and_fixed_history() {
                 &engine,
                 &a,
                 &context,
-                GreeksRequest::new([Greek::Vega, Greek::Theta]),
+                GreeksRequest::new([Greek::VegaPerPercentagePoint, Greek::Theta]),
                 Default::default(),
             )
             .unwrap();
-            assert!(scalar.has(Greek::Vega));
+            assert!(scalar.has(Greek::VegaPerPercentagePoint));
             assert_eq!(scalar.has(Greek::Theta), averaging != valuation);
             let quote = result.price();
             let solved = implied_volatility(
@@ -374,7 +374,12 @@ fn history_life_expiry_and_validation_precedence_preserve_state() {
             for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
                 assert_eq!(result.get(greek), None);
             }
-            for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+            for greek in [
+                Greek::VegaPerPercentagePoint,
+                Greek::VolgaPerSquaredPercentagePoint,
+                Greek::RhoPerPercentagePoint,
+                Greek::DividendRhoPerPercentagePoint,
+            ] {
                 if result.supported().has(greek) {
                     assert_eq!(result.require(greek).unwrap(), 0.0);
                 }
@@ -737,12 +742,12 @@ fn unseeded_analyses_pin_request_samples_without_mutation() {
         &engine,
         &option,
         &context,
-        GreeksRequest::new([Greek::Delta, Greek::Vega]),
+        GreeksRequest::new([Greek::Delta, Greek::VegaPerPercentagePoint]),
         Default::default(),
     )
     .unwrap();
     assert!((0.5..0.65).contains(&result.require(Greek::Delta).unwrap()));
-    assert!((0.18..0.28).contains(&result.require(Greek::Vega).unwrap()));
+    assert!((0.18..0.28).contains(&result.require(Greek::VegaPerPercentagePoint).unwrap()));
     let sigma = implied_volatility(
         &engine,
         &option,

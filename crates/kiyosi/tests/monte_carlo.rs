@@ -416,7 +416,12 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
         assert_eq!(result.get(greek), None);
     }
-    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+    for greek in [
+        Greek::VegaPerPercentagePoint,
+        Greek::VolgaPerSquaredPercentagePoint,
+        Greek::RhoPerPercentagePoint,
+        Greek::DividendRhoPerPercentagePoint,
+    ] {
         if result.supported().has(greek) {
             assert_eq!(result.require(greek).unwrap(), 0.0);
         }
@@ -523,7 +528,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
             .price_with_greeks(
                 &option,
                 &context,
-                GreeksRequest::new([Greek::Rho]),
+                GreeksRequest::new([Greek::RhoPerPercentagePoint]),
                 NumericalShiftSettings {
                     rate_shift: 1000.0,
                     ..Default::default()
@@ -536,7 +541,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
         .price_with_greeks(
             &option,
             &context,
-            GreeksRequest::new([Greek::Delta, Greek::Vega]),
+            GreeksRequest::new([Greek::Delta, Greek::VegaPerPercentagePoint]),
             NumericalShiftSettings {
                 spot_shift: Some(100.0),
                 volatility_shift: 0.2,
@@ -544,7 +549,7 @@ fn expiry_life_applicability_and_failed_requests_leave_inputs_unchanged() {
             },
         )
         .unwrap();
-    assert!(!missing.has(Greek::Delta) && !missing.has(Greek::Vega));
+    assert!(!missing.has(Greek::Delta) && !missing.has(Greek::VegaPerPercentagePoint));
     assert_eq!(missing.price(), baseline);
     assert_eq!(engine.price(&option, &context).unwrap(), baseline);
     assert_eq!(context, market());
@@ -667,10 +672,10 @@ fn sobol_prices_match_analytic_and_never_claim_sampling_uncertainty() {
                 (Greek::Delta, 2e-4),
                 (Greek::Gamma, 1e-5),
                 (Greek::Speed, 5e-6),
-                (Greek::Vega, 5e-5),
-                (Greek::Vanna, 1e-5),
-                (Greek::Zomma, 5e-6),
-                (Greek::Rho, 2e-5),
+                (Greek::VegaPerPercentagePoint, 5e-5),
+                (Greek::VannaPerPercentagePoint, 1e-5),
+                (Greek::ZommaPerPercentagePoint, 5e-6),
+                (Greek::RhoPerPercentagePoint, 2e-5),
                 (Greek::Theta, 2e-5),
                 (Greek::Charm, 5e-7),
                 (Greek::Color, 2e-7),
@@ -937,7 +942,7 @@ fn every_sampling_combination_replays_analytics_across_threads_and_failures() {
                     .price_with_greeks(
                         &option,
                         &context,
-                        GreeksRequest::new([Greek::Rho]),
+                        GreeksRequest::new([Greek::RhoPerPercentagePoint]),
                         NumericalShiftSettings {
                             rate_shift: 1000.0,
                             ..Default::default()

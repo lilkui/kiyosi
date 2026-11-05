@@ -116,10 +116,10 @@ dividends and nonnegative rates) do not allocate this grid or apply this limit.
 before expiry. Their shared shift controls are validated but do not affect
 these pre-expiry estimates. At expiry, ``spot_shift`` controls terminal-payoff
 stencils. Engines that use numerical differences apply the relevant bumps:
-``volatility_shift`` controls the volatility bump for vega and volga;
+``volatility_shift`` controls the volatility bump for vega_per_percentage_point and volga_per_squared_percentage_point;
 ``rate_shift`` controls parallel bumps of both the risk-free and dividend-yield
-curves for rho and dividend_rho. Numerical volga requires a strictly positive
-lower volatility leg. Monte Carlo volga can amplify sampling and exercise noise;
+curves for rho_per_percentage_point and dividend_rho_per_percentage_point. Numerical volga_per_squared_percentage_point requires a strictly positive
+lower volatility leg. Monte Carlo volga_per_squared_percentage_point can amplify sampling and exercise noise;
 check convergence across bump sizes and simulation settings.
 
 ``MonteCarloBarrierEngine`` and ``MonteCarloDoubleBarrierEngine`` return only
@@ -138,8 +138,8 @@ unrequested, unsupported and undefined measures; ``result.requested`` and
 ``result.supported`` expose the request and engine/model coverage.
 
 At expiry, supported spot sensitivities use terminal-payoff stencils. Supported
-vega, volga, rho and dividend rho are zero because no stochastic evolution or
-discounting remains. Vanna and zomma are zero where spot derivatives exist.
+vega_per_percentage_point, volga_per_squared_percentage_point, rho_per_percentage_point and dividend rho_per_percentage_point are zero because no stochastic evolution or
+discounting remains. Vanna and zomma_per_percentage_point are zero where spot derivatives exist.
 Theta, charm and color remain None at expiry. Spot stencils crossing a payoff
 kink or product event remain unavailable, and engine/model coverage still applies.
 Automatic terminal spot bumps use 0.01 spot units, including American Monte Carlo;
@@ -228,7 +228,7 @@ for snowballs or ``note.with_coupon(coupon)`` for Phoenix, then price the new no
 
 Examples
 --------
-Price a European call and request its delta and vega:
+Price a European call and request its delta and vega_per_percentage_point:
 
 >>> from datetime import datetime
 >>> from kiyosi.instruments import EuropeanOption
@@ -245,7 +245,7 @@ Price a European call and request its delta and vega:
 ...     spot_price=100, valuation_time=datetime(2025, 1, 1),
 ... )
 >>> result = AnalyticEuropeanEngine().price_with_greeks(
-...     option, context, greeks=["delta", "vega"],
+...     option, context, greeks=["delta", "vega_per_percentage_point"],
 ... )
 >>> round(result.price, 6)
 9.227006
@@ -256,9 +256,9 @@ True
 ... )
 >>> sensitivities.require("gamma") > 0
 True
->>> round(sensitivities.require("volga"), 8)
+>>> round(sensitivities.require("volga_per_squared_percentage_point"), 8)
 0.00023688
->>> round(sensitivities.require("dividend_rho"), 6)
+>>> round(sensitivities.require("dividend_rho_per_percentage_point"), 6)
 -0.586851
 
 Recover the model volatility from its price using a chosen bracket:

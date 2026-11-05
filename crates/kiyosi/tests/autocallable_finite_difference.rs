@@ -368,8 +368,8 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
     for greek in [Greek::Delta, Greek::Gamma, Greek::Speed, Greek::Theta] {
         assert!(!result.has(greek), "{greek:?}");
     }
-    assert!(result.has(Greek::Vega));
-    assert!(result.has(Greek::Rho));
+    assert!(result.has(Greek::VegaPerPercentagePoint));
+    assert!(result.has(Greek::RhoPerPercentagePoint));
     let curve = RateTermStructure::new(start, vec![end], vec![0.99]).unwrap();
     let model = BlackScholesMertonParameters::new(curve, 0.01, 0.2).unwrap();
     let ctx = PricingContext::new(model, 100.0, start).unwrap();
@@ -384,7 +384,7 @@ fn current_threshold_greeks_and_fixed_node_curve_identifiability() {
         .price_with_greeks(&fixed, &ctx, GreeksRequest::all(), Default::default())
         .unwrap();
     assert!((result.price() - 0.99).abs() < 1e-14);
-    assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
+    assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
     assert!(matches!(
         implied_volatility(&engine, &fixed, &ctx, result.price(), Default::default()).unwrap_err(),
         Error::UnsupportedOperation(_)

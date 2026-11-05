@@ -49,7 +49,7 @@ fn european_tree_refines_to_analytic_price_and_node_greeks() {
                     < 0.04 / f64::from(steps)
             );
             assert_eq!(actual.price(), engine.price(&option, &context).unwrap());
-            assert!(!actual.has(Greek::Vega));
+            assert!(!actual.has(Greek::VegaPerPercentagePoint));
         }
     }
 }
@@ -179,7 +179,7 @@ fn digital_odd_even_and_off_strike_grids_refine_with_negative_carry() {
                                 < budget / spot / spot / sigma / sigma
                         );
                         assert_eq!(actual.price(), engine.price(&option, &context).unwrap());
-                        assert!(!actual.has(Greek::Vega));
+                        assert!(!actual.has(Greek::VegaPerPercentagePoint));
                     }
                 }
             }
@@ -228,7 +228,7 @@ fn expiry_boundaries_settle_strictly_and_life_errors_precede_trees() {
             ] {
                 assert_eq!(result.price(), intrinsic);
                 assert_eq!(result.get(Greek::Theta), None);
-                assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
+                assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
                 if (spot - 100.0).abs() <= 0.01 {
                     assert_eq!(result.get(Greek::Delta), None);
                 } else {
@@ -554,8 +554,8 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
             .unwrap();
         for greek in [
             Greek::Speed,
-            Greek::Vanna,
-            Greek::Zomma,
+            Greek::VannaPerPercentagePoint,
+            Greek::ZommaPerPercentagePoint,
             Greek::Charm,
             Greek::Color,
         ] {
@@ -585,7 +585,7 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
             .price_with_greeks(
                 &option,
                 &context,
-                GreeksRequest::new([Greek::Vega]),
+                GreeksRequest::new([Greek::VegaPerPercentagePoint]),
                 NumericalShiftSettings {
                     volatility_shift: 0.1,
                     ..Default::default()

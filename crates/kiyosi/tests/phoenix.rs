@@ -212,8 +212,8 @@ fn phoenix_greeks_and_volatility_preserve_thresholds_and_failure_state() {
         .unwrap();
     assert!(!result.has(Greek::Delta));
     assert!(!result.has(Greek::Theta));
-    assert!(result.has(Greek::Vega));
-    assert!(result.has(Greek::Rho));
+    assert!(result.has(Greek::VegaPerPercentagePoint));
+    assert!(result.has(Greek::RhoPerPercentagePoint));
     let settled = note
         .replace_history(Some(AutocallableBarrierState::KnockedOut))
         .unwrap();

@@ -56,13 +56,27 @@ class AutocallableRegressionTests(unittest.TestCase):
                 ),
             )
             expected = price_differences(
-                engine, note, context, ["vega", "rho"], **shifts
+                engine,
+                note,
+                context,
+                ["vega_per_percentage_point", "rho_per_percentage_point"],
+                **shifts,
             )
             actual = engine.price_with_greeks(note, context, greeks="all", **shifts)
             self.assertEqual(actual.price, expected.price)
-            self.assertEqual(actual.vega, expected.vega)
-            self.assertEqual(actual.rho, expected.rho)
-            for greek in ("speed", "vanna", "zomma", "charm", "color"):
+            self.assertEqual(
+                actual.vega_per_percentage_point, expected.vega_per_percentage_point
+            )
+            self.assertEqual(
+                actual.rho_per_percentage_point, expected.rho_per_percentage_point
+            )
+            for greek in (
+                "speed",
+                "vanna_per_percentage_point",
+                "zomma_per_percentage_point",
+                "charm",
+                "color",
+            ):
                 with self.subTest(mode=mode, greek=greek):
                     single = engine.price_with_greeks(note, context, greek, **shifts)
                     self.assertEqual(getattr(single, greek), getattr(actual, greek))
@@ -148,13 +162,24 @@ class AutocallableRegressionTests(unittest.TestCase):
             with self.subTest(product=type(note).__name__):
                 self.assertAlmostEqual(engine.price(note, context), value, delta=0.0003)
         result = engine.price_with_greeks(
-            binary, context, ["delta", "gamma", "vega", "rho"]
+            binary,
+            context,
+            ["delta", "gamma", "vega_per_percentage_point", "rho_per_percentage_point"],
         )
         reference = pricing.AnalyticDigitalEngine().price_with_greeks(
-            digital, context, ["delta", "gamma", "vega", "rho"]
+            digital,
+            context,
+            ["delta", "gamma", "vega_per_percentage_point", "rho_per_percentage_point"],
         )
-        for greek in ("delta", "gamma", "vega", "rho"):
-            value = getattr(reference, greek) - (0.01 if greek == "rho" else 0)
+        for greek in (
+            "delta",
+            "gamma",
+            "vega_per_percentage_point",
+            "rho_per_percentage_point",
+        ):
+            value = getattr(reference, greek) - (
+                0.01 if greek == "rho_per_percentage_point" else 0
+            )
             self.assertAlmostEqual(
                 getattr(result, greek), value, delta=abs(value) * 0.02 + 1e-8
             )
@@ -562,12 +587,15 @@ class AutocallableRegressionTests(unittest.TestCase):
                 with self.subTest(engine=type(engine).__name__):
                     shifts = {"volatility_shift": 0.01, "rate_shift": 0.01}
                     result = engine.price_with_greeks(
-                        note, base, ["vega", "rho"], **shifts
+                        note,
+                        base,
+                        ["vega_per_percentage_point", "rho_per_percentage_point"],
+                        **shifts,
                     )
                     self.assertEqual(result.price, engine.price(note, base))
                     vol_shift = (0.2 + 0.01) - 0.2
                     self.assertEqual(
-                        result.vega,
+                        result.vega_per_percentage_point,
                         (
                             engine.price(note, context(volatility=0.2 + vol_shift))
                             - engine.price(note, context(volatility=0.2 - vol_shift))
@@ -576,7 +604,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                     )
                     rate_shift = (0.04 + 0.01) - 0.04
                     self.assertEqual(
-                        result.rho,
+                        result.rho_per_percentage_point,
                         (
                             engine.price(note, context(rate=0.04 + rate_shift))
                             - engine.price(note, context(rate=0.04 - rate_shift))
@@ -589,14 +617,27 @@ class AutocallableRegressionTests(unittest.TestCase):
                         (missing_history, base, InvalidInputError),
                     ):
                         with self.assertRaises(expected_error) as error:
-                            engine.price_with_greeks(option, shifted, ["vega", "rho"])
+                            engine.price_with_greeks(
+                                option,
+                                shifted,
+                                [
+                                    "vega_per_percentage_point",
+                                    "rho_per_percentage_point",
+                                ],
+                            )
                         self.assertIs(type(error.exception), expected_error)
                     with ThreadPoolExecutor(max_workers=2) as pool:
                         results = list(
                             pool.map(
                                 lambda _, *, engine=engine, note=note, shifts=shifts: (
                                     engine.price_with_greeks(
-                                        note, base, ["vega", "rho"], **shifts
+                                        note,
+                                        base,
+                                        [
+                                            "vega_per_percentage_point",
+                                            "rho_per_percentage_point",
+                                        ],
+                                        **shifts,
                                     )
                                 ),
                                 range(2),
@@ -604,8 +645,16 @@ class AutocallableRegressionTests(unittest.TestCase):
                         )
                     for recovered in results:
                         self.assertEqual(
-                            (recovered.price, recovered.vega, recovered.rho),
-                            (result.price, result.vega, result.rho),
+                            (
+                                recovered.price,
+                                recovered.vega_per_percentage_point,
+                                recovered.rho_per_percentage_point,
+                            ),
+                            (
+                                result.price,
+                                result.vega_per_percentage_point,
+                                result.rho_per_percentage_point,
+                            ),
                         )
 
     def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(self):
@@ -879,8 +928,14 @@ class AutocallableRegressionTests(unittest.TestCase):
             valuation_time=start,
         )
         result = pricing.FiniteDifferenceAutocallableEngine().price_with_greeks(
-            note, context, ["delta", "gamma", "vega", "rho"]
+            note,
+            context,
+            ["delta", "gamma", "vega_per_percentage_point", "rho_per_percentage_point"],
         )
         self.assertEqual(result.price, math.exp(-0.04))
-        self.assertEqual((result.delta, result.gamma, result.vega), (0, 0, 0))
-        self.assertAlmostEqual(result.rho, -math.exp(-0.04) / 100, delta=1e-8)
+        self.assertEqual(
+            (result.delta, result.gamma, result.vega_per_percentage_point), (0, 0, 0)
+        )
+        self.assertAlmostEqual(
+            result.rho_per_percentage_point, -math.exp(-0.04) / 100, delta=1e-8
+        )

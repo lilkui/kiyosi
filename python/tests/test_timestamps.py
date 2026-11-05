@@ -324,7 +324,7 @@ class TimestampTests(unittest.TestCase):
             valuation_time=time(4, 15),
         )
         result = QuadratureAccumulatorEngine().price_with_greeks(
-            option, context, "vega"
+            option, context, "vega_per_percentage_point"
         )
         root_time = math.sqrt(2 / 365)
         expected = (
@@ -333,7 +333,7 @@ class TimestampTests(unittest.TestCase):
             * math.exp(-0.5 * (0.1 * root_time) ** 2)
             / math.sqrt(2 * math.pi)
         )
-        self.assertAlmostEqual(result.vega, expected, delta=1e-6)
+        self.assertAlmostEqual(result.vega_per_percentage_point, expected, delta=1e-6)
 
     def test_finite_difference_rejects_unresolvable_microsecond_events(self):
         start = datetime(1, 1, 1)

@@ -204,18 +204,18 @@
         "theta": 0.00003,
         "charm": 1e-7,
         "color": 1e-8,
-        "vega": 0.000001,
-        "vanna": 1e-7,
-        "zomma": 1e-7,
-        "rho": 0.000001
+        "vega_per_percentage_point": 0.000001,
+        "vanna_per_percentage_point": 1e-7,
+        "zomma_per_percentage_point": 1e-7,
+        "rho_per_percentage_point": 0.000001
       },
       "numerical_tolerances": {
         "price": 0.15,
         "delta": 0.015,
         "speed": 0.0003,
         "color": 0.00002,
-        "vega": 0.02,
-        "rho": 0.04
+        "vega_per_percentage_point": 0.02,
+        "rho_per_percentage_point": 0.04
       }
     },
     {
@@ -236,8 +236,8 @@
         "theta": 0.001,
         "charm": 0.00005,
         "color": 0.00002,
-        "vega": 0.015,
-        "rho": 0.01
+        "vega_per_percentage_point": 0.015,
+        "rho_per_percentage_point": 0.01
       },
       "numerical_tolerances": {
         "price": 0.7,
@@ -247,10 +247,10 @@
         "theta": 0.005,
         "charm": 0.001,
         "color": 0.0003,
-        "vega": 0.05,
-        "vanna": 0.004,
-        "zomma": 0.002,
-        "rho": 0.08
+        "vega_per_percentage_point": 0.05,
+        "vanna_per_percentage_point": 0.004,
+        "zomma_per_percentage_point": 0.002,
+        "rho_per_percentage_point": 0.08
       }
     }
   ],
@@ -269,10 +269,10 @@
       "theta": 0.0003,
       "charm": 0.00003,
       "color": 0.00001,
-      "vega": 0.005,
-      "vanna": 0.001,
-      "zomma": 0.0003,
-      "rho": 0.005
+      "vega_per_percentage_point": 0.005,
+      "vanna_per_percentage_point": 0.001,
+      "zomma_per_percentage_point": 0.0003,
+      "rho_per_percentage_point": 0.005
     },
     "numerical_tolerances": {
       "price": 0.04,
@@ -282,10 +282,10 @@
       "theta": 0.001,
       "charm": 0.0001,
       "color": 0.00003,
-      "vega": 0.01,
-      "vanna": 0.002,
-      "zomma": 0.0005,
-      "rho": 0.02
+      "vega_per_percentage_point": 0.01,
+      "vanna_per_percentage_point": 0.002,
+      "zomma_per_percentage_point": 0.0005,
+      "rho_per_percentage_point": 0.02
     }
   }
 }

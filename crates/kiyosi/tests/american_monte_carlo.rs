@@ -436,7 +436,7 @@ fn rate_stencils_crossing_zero_keep_one_exercise_estimator() {
             .price_with_greeks(
                 &call,
                 &context,
-                GreeksRequest::new([Greek::Rho]),
+                GreeksRequest::new([Greek::RhoPerPercentagePoint]),
                 NumericalShiftSettings {
                     rate_shift: shift,
                     ..Default::default()
@@ -451,7 +451,9 @@ fn rate_stencils_crossing_zero_keep_one_exercise_estimator() {
             .price(&call, &market(rate - shift, f64::from_bits(1), 0.2, 100.0))
             .unwrap();
         assert!(
-            (result.require(Greek::Rho).unwrap() - (up - down) / (200.0 * shift)).abs() < 1e-10
+            (result.require(Greek::RhoPerPercentagePoint).unwrap() - (up - down) / (200.0 * shift))
+                .abs()
+                < 1e-10
         );
         assert_eq!(result.price(), engine.price(&call, &context).unwrap());
     }
@@ -485,7 +487,12 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
         assert_eq!(result.get(greek), None);
     }
-    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+    for greek in [
+        Greek::VegaPerPercentagePoint,
+        Greek::VolgaPerSquaredPercentagePoint,
+        Greek::RhoPerPercentagePoint,
+        Greek::DividendRhoPerPercentagePoint,
+    ] {
         if result.supported().has(greek) {
             assert_eq!(result.require(greek).unwrap(), 0.0);
         }
@@ -556,7 +563,7 @@ fn validation_order_expiry_and_failed_bumps_preserve_valid_inputs() {
             .price_with_greeks(
                 &put,
                 &context,
-                GreeksRequest::new([Greek::Rho]),
+                GreeksRequest::new([Greek::RhoPerPercentagePoint]),
                 NumericalShiftSettings {
                     rate_shift: 1000.0,
                     ..Default::default()

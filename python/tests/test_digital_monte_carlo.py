@@ -23,10 +23,10 @@ GREEKS = (
     "theta",
     "charm",
     "color",
-    "vega",
-    "vanna",
-    "zomma",
-    "rho",
+    "vega_per_percentage_point",
+    "vanna_per_percentage_point",
+    "zomma_per_percentage_point",
+    "rho_per_percentage_point",
 )
 
 
@@ -168,7 +168,7 @@ class DigitalNumericalTests(unittest.TestCase):
                         other = pricing.MonteCarloDigitalEngine(
                             **settings, thread_count=threads
                         )
-                        for name in ("delta", "gamma", "rho"):
+                        for name in ("delta", "gamma", "rho_per_percentage_point"):
                             actual = other.price_with_greeks(option, market(), name)
                             self.assertEqual(actual.price, expected.price)
                             self.assertEqual(
@@ -200,14 +200,16 @@ class DigitalNumericalTests(unittest.TestCase):
                 controlled = engine.price_with_greeks(
                     option,
                     market(),
-                    "rho",
+                    "rho_per_percentage_point",
                     spot_shift=0.1,
                     volatility_shift=0.001,
                     rate_shift=0.001,
                     time_shift_days=2,
                 )
                 self.assertEqual(controlled.price, engine.price(option, market()))
-                self.assertEqual(controlled.status("rho"), "unsupported")
+                self.assertEqual(
+                    controlled.status("rho_per_percentage_point"), "unsupported"
+                )
                 with self.assertRaises(TypeError):
                     engine.price_with_greeks(option, market(), "delta", spot_shift=True)
                 for valuation in (START - timedelta(days=1), END + timedelta(days=1)):
@@ -228,7 +230,11 @@ class DigitalNumericalTests(unittest.TestCase):
                     path_count=2, seed=42, antithetic=True
                 )
                 self.assertEqual(engine.price(option, context), 50 if asset else 5)
-                self.assertIsNone(engine.price_with_greeks(option, context, "rho").rho)
+                self.assertIsNone(
+                    engine.price_with_greeks(
+                        option, context, "rho_per_percentage_point"
+                    ).rho_per_percentage_point
+                )
                 self.assert_rejection(
                     ComputationFailureError,
                     engine.price_with_greeks,

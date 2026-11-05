@@ -355,7 +355,7 @@ fn unsupported_requests_and_invalid_computations_preserve_categories() {
         engine
             .price_with_greeks(&option, &context, request, Default::default())
             .unwrap()
-            .get(Greek::Vega),
+            .get(Greek::VegaPerPercentagePoint),
         None
     );
     assert!(matches!(

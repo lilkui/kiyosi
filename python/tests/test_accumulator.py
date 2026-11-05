@@ -554,9 +554,19 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         for greek in ("delta", "gamma", "speed", "theta"):
             self.assertIsNone(getattr(boundary, greek))
         small = engine.price_with_greeks(
-            option, market(90, volatility=1e-4), greeks=["vega", "vanna", "zomma"]
+            option,
+            market(90, volatility=1e-4),
+            greeks=[
+                "vega_per_percentage_point",
+                "vanna_per_percentage_point",
+                "zomma_per_percentage_point",
+            ],
         )
-        for greek in ("vega", "vanna", "zomma"):
+        for greek in (
+            "vega_per_percentage_point",
+            "vanna_per_percentage_point",
+            "zomma_per_percentage_point",
+        ):
             self.assertIsNone(getattr(small, greek))
         valuation = datetime(2025, 1, 4, 12)
         cases = (
@@ -587,13 +597,13 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                 for greek, order, absolute, relative in (
                     ("delta", 1, 1e-6, 0.005),
                     ("gamma", 2, 1e-5, 0.01),
-                    ("vega", 0, 1e-8, 0.005),
-                    ("rho", 0, 1e-8, 0.005),
+                    ("vega_per_percentage_point", 0, 1e-8, 0.005),
+                    ("rho_per_percentage_point", 0, 1e-8, 0.005),
                     ("theta", 0, 1e-8, 0.02),
                     ("speed", 3, 1e-4, 0.05),
-                    ("vanna", 1, 1e-7, 0.05),
+                    ("vanna_per_percentage_point", 1, 1e-7, 0.05),
                     ("charm", 1, 1e-7, 0.05),
-                    ("zomma", 2, 1e-6, 0.05),
+                    ("zomma_per_percentage_point", 2, 1e-6, 0.05),
                     ("color", 2, 1e-6, 0.05),
                 ):
                     with self.subTest(greek=greek):
@@ -633,9 +643,11 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                         "delta": (up - down) / (2 * h),
                         "gamma": (up - 2 * center + down) / h**2,
                         "speed": (up2 - 2 * up + 2 * down - down2) / (2 * h**3),
-                        "vanna": (high_up - high_down - low_up + low_down)
+                        "vanna_per_percentage_point": (
+                            high_up - high_down - low_up + low_down
+                        )
                         / (400 * h * v),
-                        "zomma": (
+                        "zomma_per_percentage_point": (
                             (high_up - 2 * high + high_down)
                             - (low_up - 2 * low + low_down)
                         )
@@ -648,7 +660,13 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             return engine.price_with_greeks(
                 option,
                 market(spot, valuation, volatility, -0.02),
-                ["delta", "gamma", "speed", "vanna", "zomma"],
+                [
+                    "delta",
+                    "gamma",
+                    "speed",
+                    "vanna_per_percentage_point",
+                    "zomma_per_percentage_point",
+                ],
                 spot_shift=h,
                 volatility_shift=0.002,
             )

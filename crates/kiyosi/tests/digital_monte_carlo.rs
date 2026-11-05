@@ -122,11 +122,11 @@ fn tiny_volatility_preserves_exercise_and_only_checks_requested_greeks() {
                     .price_with_greeks(
                         &option,
                         &context,
-                        GreeksRequest::new([Greek::Rho]),
+                        GreeksRequest::new([Greek::RhoPerPercentagePoint]),
                         Default::default(),
                     )
                     .unwrap();
-                assert!(!result.has(Greek::Rho));
+                assert!(!result.has(Greek::RhoPerPercentagePoint));
                 assert!(matches!(
                     engine
                         .price_with_greeks(
@@ -187,7 +187,12 @@ fn expiry_is_strict_and_validation_precedes_pricing_without_mutation() {
                 for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
                     assert_eq!(result.get(greek), None);
                 }
-                for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+                for greek in [
+                    Greek::VegaPerPercentagePoint,
+                    Greek::VolgaPerSquaredPercentagePoint,
+                    Greek::RhoPerPercentagePoint,
+                    Greek::DividendRhoPerPercentagePoint,
+                ] {
                     if result.supported().has(greek) {
                         assert_eq!(result.require(greek).unwrap(), 0.0);
                     }

@@ -764,7 +764,13 @@ class ApiConsistencyTests(unittest.TestCase):
                 with self.assertRaises(InvalidInputError):
                     engine.price(settled.replace_history(terminated=False), context)
                 result = engine.price_with_greeks(settled, context, "all")
-                for greek in ("delta", "gamma", "theta", "vega", "rho"):
+                for greek in (
+                    "delta",
+                    "gamma",
+                    "theta",
+                    "vega_per_percentage_point",
+                    "rho_per_percentage_point",
+                ):
                     self.assertEqual(result.require(greek), 0)
                 with self.assertRaises(UnsupportedOperationError):
                     pricing.implied_volatility(engine, settled, context, 0)
@@ -824,17 +830,17 @@ class ApiConsistencyTests(unittest.TestCase):
             )
         )
         partial = pricing.FiniteDifferenceVanillaEngine().price_with_greeks(
-            option, local, ["delta", "vega"]
+            option, local, ["delta", "vega_per_percentage_point"]
         )
         self.assertEqual(partial.status("delta"), "available")
-        self.assertEqual(partial.status("vega"), "unsupported")
-        self.assertEqual(partial.requested, ["delta", "vega"])
+        self.assertEqual(partial.status("vega_per_percentage_point"), "unsupported")
+        self.assertEqual(partial.requested, ["delta", "vega_per_percentage_point"])
         for original in (result, terminal, collapsed, unsupported, partial):
             restored = pickle.loads(pickle.dumps(original))
             self.assertEqual(restored.price, original.price)
             self.assertEqual(restored.requested, original.requested)
             self.assertEqual(restored.supported, original.supported)
-            for greek in ("delta", "gamma", "vega"):
+            for greek in ("delta", "gamma", "vega_per_percentage_point"):
                 self.assertEqual(restored.status(greek), original.status(greek))
                 self.assertEqual(getattr(restored, greek), getattr(original, greek))
         with self.assertRaises(ValueError):

@@ -139,7 +139,12 @@ class BarrierQuadratureTests(unittest.TestCase):
 
     def test_quadrature_refinement_and_requested_higher_greeks(self):
         contract, context = option(rebate=2), market()
-        names = ("delta", "gamma", "vega", "rho")
+        names = (
+            "delta",
+            "gamma",
+            "vega_per_percentage_point",
+            "rho_per_percentage_point",
+        )
         expected = pricing.AnalyticBarrierEngine().price_with_greeks(
             contract, context, names
         )

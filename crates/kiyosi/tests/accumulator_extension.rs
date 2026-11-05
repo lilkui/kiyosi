@@ -146,7 +146,7 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
                 .unwrap();
             assert_eq!(result.price(), expected);
             assert_eq!(result.get(Greek::Theta), None);
-            assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
+            assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
             let barrier = if direction == OptionType::Call {
                 110.0
             } else {
@@ -721,12 +721,12 @@ fn scheduled_decumulator_supports_greeks_and_identifiable_volatility() {
             .price_with_greeks(
                 &option,
                 &context,
-                GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]),
+                GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::VegaPerPercentagePoint]),
                 Default::default(),
             )
             .unwrap();
         assert_eq!(result.price(), engine.price(&option, &context).unwrap());
-        for greek in [Greek::Delta, Greek::Gamma, Greek::Vega] {
+        for greek in [Greek::Delta, Greek::Gamma, Greek::VegaPerPercentagePoint] {
             assert!(result.has(greek), "missing {greek:?}");
         }
         if index < 2 {
@@ -845,13 +845,17 @@ fn current_greek_discontinuities_follow_the_knock_out_schedule() {
                     .price_with_greeks(
                         &option,
                         &context,
-                        GreeksRequest::new([Greek::Delta, Greek::Gamma, Greek::Vega]),
+                        GreeksRequest::new([
+                            Greek::Delta,
+                            Greek::Gamma,
+                            Greek::VegaPerPercentagePoint,
+                        ]),
                         Default::default(),
                     )
                     .unwrap();
                 assert_eq!(result.has(Greek::Delta), !monitored);
                 assert_eq!(result.has(Greek::Gamma), !monitored);
-                assert!(result.has(Greek::Vega));
+                assert!(result.has(Greek::VegaPerPercentagePoint));
             }
         }
         let option = Accumulator::new(terms(direction, Some(Vec::new()))).unwrap();

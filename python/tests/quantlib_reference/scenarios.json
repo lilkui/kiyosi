@@ -16,10 +16,10 @@
       "theta": 1e-10,
       "charm": 0.000004,
       "color": 5e-7,
-      "vega": 1e-10,
-      "vanna": 1e-8,
-      "zomma": 1e-9,
-      "rho": 1e-10
+      "vega_per_percentage_point": 1e-10,
+      "vanna_per_percentage_point": 1e-8,
+      "zomma_per_percentage_point": 1e-9,
+      "rho_per_percentage_point": 1e-10
     },
     "numerical_tolerances": {
       "price": 1e-10,
@@ -29,10 +29,10 @@
       "theta": 0.00003,
       "charm": 1e-7,
       "color": 1e-8,
-      "vega": 0.000001,
-      "vanna": 1e-7,
-      "zomma": 1e-7,
-      "rho": 0.000001
+      "vega_per_percentage_point": 0.000001,
+      "vanna_per_percentage_point": 1e-7,
+      "zomma_per_percentage_point": 1e-7,
+      "rho_per_percentage_point": 0.000001
     }
   },
   "scenarios": [
@@ -54,7 +54,7 @@
     {"case_id":"ql-european-put-100-730d","inputs":{"option":"put","expiry_time":"2027-01-06","spot":100}},
     {"case_id":"ql-european-call-120-730d","inputs":{"option":"call","expiry_time":"2027-01-06","spot":120}},
     {"case_id":"ql-european-put-120-730d","inputs":{"option":"put","expiry_time":"2027-01-06","spot":120}},
-    {"case_id":"ql-european-call-100-1d","inputs":{"option":"call","expiry_time":"2025-01-07","spot":100},"numerical_tolerances":{"gamma":0.000001,"speed":5e-7,"zomma":2e-7}},
-    {"case_id":"ql-european-put-100-1d","inputs":{"option":"put","expiry_time":"2025-01-07","spot":100},"numerical_tolerances":{"gamma":0.000001,"speed":5e-7,"zomma":2e-7}}
+    {"case_id":"ql-european-call-100-1d","inputs":{"option":"call","expiry_time":"2025-01-07","spot":100},"numerical_tolerances":{"gamma":0.000001,"speed":5e-7,"zomma_per_percentage_point":2e-7}},
+    {"case_id":"ql-european-put-100-1d","inputs":{"option":"put","expiry_time":"2025-01-07","spot":100},"numerical_tolerances":{"gamma":0.000001,"speed":5e-7,"zomma_per_percentage_point":2e-7}}
   ]
 }

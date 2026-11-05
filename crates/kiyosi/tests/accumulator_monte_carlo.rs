@@ -232,10 +232,10 @@ fn shared_sample_greeks_and_volatility_solves_preserve_inputs() {
         Greek::Delta,
         Greek::Gamma,
         Greek::Speed,
-        Greek::Vega,
-        Greek::Vanna,
-        Greek::Zomma,
-        Greek::Rho,
+        Greek::VegaPerPercentagePoint,
+        Greek::VannaPerPercentagePoint,
+        Greek::ZommaPerPercentagePoint,
+        Greek::RhoPerPercentagePoint,
     ] {
         assert!(result.has(greek));
     }
@@ -492,16 +492,16 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
             Greek::Delta,
             Greek::Gamma,
             Greek::Speed,
-            Greek::Vanna,
-            Greek::Zomma,
+            Greek::VannaPerPercentagePoint,
+            Greek::ZommaPerPercentagePoint,
             Greek::Theta,
             Greek::Charm,
             Greek::Color,
         ] {
             assert!(!result.has(greek));
         }
-        assert!(result.has(Greek::Vega));
-        assert!(result.has(Greek::Rho));
+        assert!(result.has(Greek::VegaPerPercentagePoint));
+        assert!(result.has(Greek::RhoPerPercentagePoint));
     }
     let expired = market(90.0, day(1, 6));
     let result = engine
@@ -510,7 +510,12 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
         assert_eq!(result.get(greek), None);
     }
-    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+    for greek in [
+        Greek::VegaPerPercentagePoint,
+        Greek::VolgaPerSquaredPercentagePoint,
+        Greek::RhoPerPercentagePoint,
+        Greek::DividendRhoPerPercentagePoint,
+    ] {
         if result.supported().has(greek) {
             assert_eq!(result.require(greek).unwrap(), 0.0);
         }

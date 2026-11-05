@@ -17,10 +17,10 @@ MEASURES = [
     "theta",
     "charm",
     "color",
-    "vega",
-    "vanna",
-    "zomma",
-    "rho",
+    "vega_per_percentage_point",
+    "vanna_per_percentage_point",
+    "zomma_per_percentage_point",
+    "rho_per_percentage_point",
 ]
 TIME_MEASURES = {"theta", "charm", "color"}
 UNITS = {
@@ -31,10 +31,10 @@ UNITS = {
     "theta": "price/day",
     "charm": "delta/day",
     "color": "gamma/day",
-    "vega": "price/volatility-pp",
-    "vanna": "delta/volatility-pp",
-    "zomma": "gamma/volatility-pp",
-    "rho": "price/rate-pp",
+    "vega_per_percentage_point": "price/volatility-pp",
+    "vanna_per_percentage_point": "delta/volatility-pp",
+    "zomma_per_percentage_point": "gamma/volatility-pp",
+    "rho_per_percentage_point": "price/rate-pp",
 }
 # Independent stability ceilings, not Kiyosi error allowances.
 STABILITY = {
@@ -45,10 +45,10 @@ STABILITY = {
     "theta": 1e-4,
     "charm": 1e-5,
     "color": 2e-6,
-    "vega": 1e-6,
-    "vanna": 1e-7,
-    "zomma": 1e-8,
-    "rho": 1e-6,
+    "vega_per_percentage_point": 1e-6,
+    "vanna_per_percentage_point": 1e-7,
+    "zomma_per_percentage_point": 1e-8,
+    "rho_per_percentage_point": 1e-6,
 }
 CONVENTION = "Actual/365 Fixed, continuously compounded BSM"
 
@@ -151,10 +151,16 @@ def measure(
     if name == "price":
         value = option.NPV()
     else:
-        native = {"delta": 1, "gamma": 1, "theta": 365, "vega": 100, "rho": 100}
+        native = {
+            "delta": 1,
+            "gamma": 1,
+            "theta": 365,
+            "vega_per_percentage_point": 100,
+            "rho_per_percentage_point": 100,
+        }
         if name in native and not price_only and hasattr(option, name):
             try:
-                value = getattr(option, name)() / native[name]
+                value = getattr(option, name.split("_per_", 1)[0])() / native[name]
             except RuntimeError as error:
                 if "not provided" not in str(error):
                     raise
@@ -168,10 +174,10 @@ def measure(
             "theta": ("valuation", "price", 1, 1),
             "charm": ("valuation", "delta", 1, 1),
             "color": ("valuation", "gamma", 1, 1),
-            "vega": ("volatility", "price", 0.0001, 100),
-            "vanna": ("volatility", "delta", 0.0001, 100),
-            "zomma": ("volatility", "gamma", 0.0001, 100),
-            "rho": ("rate", "price", 0.0001, 100),
+            "vega_per_percentage_point": ("volatility", "price", 0.0001, 100),
+            "vanna_per_percentage_point": ("volatility", "delta", 0.0001, 100),
+            "zomma_per_percentage_point": ("volatility", "gamma", 0.0001, 100),
+            "rho_per_percentage_point": ("rate", "price", 0.0001, 100),
         }[name]
         if (
             field == "spot"
@@ -258,7 +264,13 @@ def reference(inputs, stability=STABILITY, *, unavailable=None, measure_fn=None)
             continue
         value = measure_fn(inputs, name)
         # Force price fallback for first-order measures and gamma to validate both paths.
-        fallback = name in {"delta", "gamma", "theta", "vega", "rho"}
+        fallback = name in {
+            "delta",
+            "gamma",
+            "theta",
+            "vega_per_percentage_point",
+            "rho_per_percentage_point",
+        }
         estimates = [measure_fn(inputs, name, scale, fallback) for scale in (1, 2)]
         require(
             all(math.isfinite(v) for v in [value, *estimates]), f"non-finite {name}"

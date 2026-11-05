@@ -29,7 +29,13 @@ def option(inputs):
         NPV=lambda: price(tuple(sorted(inputs.items()))),
         **{
             name: getattr(contract, name)
-            for name in ("delta", "gamma", "theta", "vega", "rho")
+            for name in (
+                "delta",
+                "gamma",
+                "theta",
+                "vega_per_percentage_point",
+                "rho_per_percentage_point",
+            )
             if hasattr(contract, name)
         },
     )
@@ -137,7 +143,14 @@ def make_contract(inputs):
             name: lambda name=name: sum(
                 getattr(component, name)() for component in components
             )
-            for name in ("NPV", "delta", "gamma", "theta", "vega", "rho")
+            for name in (
+                "NPV",
+                "delta",
+                "gamma",
+                "theta",
+                "vega_per_percentage_point",
+                "rho_per_percentage_point",
+            )
         }
     )
 
@@ -240,7 +253,13 @@ def check_bindings():
                 else:
                     assert error is None and math.isfinite(result), (engine, error)
                     if engine == ql.AnalyticBinaryBarrierEngine:
-                        for name in ("delta", "gamma", "theta", "vega", "rho"):
+                        for name in (
+                            "delta",
+                            "gamma",
+                            "theta",
+                            "vega_per_percentage_point",
+                            "rho_per_percentage_point",
+                        ):
                             try:
                                 getattr(contract, name)()
                             except RuntimeError as caught:
@@ -293,7 +312,11 @@ def check_bindings():
                         ql.AnalyticDigitalAmericanEngine(g.market_process(touched))
                     )
                     assert abs(measure(touched, "price") - immediate.NPV()) < 1e-11
-                    for name, unit in (("delta", 1), ("gamma", 1), ("rho", 100)):
+                    for name, unit in (
+                        ("delta", 1),
+                        ("gamma", 1),
+                        ("rho_per_percentage_point", 100),
+                    ):
                         direct = getattr(contract, name)() / unit
                         assert abs(measure(inputs, name) - direct) < 1e-12
                         assert (
@@ -309,8 +332,8 @@ def check_bindings():
                         ("delta", 1),
                         ("gamma", 1),
                         ("theta", 365),
-                        ("vega", 100),
-                        ("rho", 100),
+                        ("vega_per_percentage_point", 100),
+                        ("rho_per_percentage_point", 100),
                     ):
                         direct = (
                             sum(

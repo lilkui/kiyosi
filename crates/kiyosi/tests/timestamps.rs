@@ -376,14 +376,14 @@ fn nontrading_dates_do_not_trigger_daily_knock_out_or_suppress_vega() {
         .price_with_greeks(
             &option,
             &context,
-            GreeksRequest::new([Greek::Vega]),
+            GreeksRequest::new([Greek::VegaPerPercentagePoint]),
             Default::default(),
         )
         .unwrap();
     let root_time = (2.0_f64 / 365.0).sqrt();
     let z = 0.1 * root_time;
     let expected = -1.05 * root_time * (-0.5 * z * z).exp() / std::f64::consts::TAU.sqrt();
-    assert!((result.require(Greek::Vega).unwrap() - expected).abs() < 1e-6);
+    assert!((result.require(Greek::VegaPerPercentagePoint).unwrap() - expected).abs() < 1e-6);
 }
 
 #[test]

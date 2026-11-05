@@ -25,10 +25,10 @@ GREEKS = (
     "delta",
     "gamma",
     "speed",
-    "vega",
-    "vanna",
-    "zomma",
-    "rho",
+    "vega_per_percentage_point",
+    "vanna_per_percentage_point",
+    "zomma_per_percentage_point",
+    "rho_per_percentage_point",
     "theta",
     "charm",
     "color",
@@ -336,10 +336,12 @@ class PhoenixTests(unittest.TestCase):
         self.assertIsNone(result.delta)
         self.assertIsNone(result.gamma)
         self.assertIsNone(result.theta)
-        self.assertIsNotNone(result.vega)
-        self.assertIsNotNone(result.rho)
+        self.assertIsNotNone(result.vega_per_percentage_point)
+        self.assertIsNotNone(result.rho_per_percentage_point)
         result = engine.price_with_greeks(note, market(110, MIDDLE), greeks="all")
-        self.assertEqual((result.vega, result.rho), (0, 0))
+        self.assertEqual(
+            (result.vega_per_percentage_point, result.rho_per_percentage_point), (0, 0)
+        )
         self.assert_rejection(
             UnsupportedOperationError,
             implied_volatility,
@@ -527,10 +529,10 @@ class PhoenixTests(unittest.TestCase):
             "delta": (3e-6, 0.005),
             "gamma": (3e-7, 0.01),
             "speed": (1e-7, 0.05),
-            "vega": (3e-6, 0.005),
-            "vanna": (1e-7, 0.05),
-            "zomma": (1e-7, 0.05),
-            "rho": (3e-6, 0.005),
+            "vega_per_percentage_point": (3e-6, 0.005),
+            "vanna_per_percentage_point": (1e-7, 0.05),
+            "zomma_per_percentage_point": (1e-7, 0.05),
+            "rho_per_percentage_point": (3e-6, 0.005),
             "theta": (1e-7, 0.02),
             "charm": (1e-7, 0.05),
             "color": (1e-7, 0.05),
@@ -588,10 +590,12 @@ class PhoenixTests(unittest.TestCase):
                 - value(spot - 2 * h)
             )
             / (2 * h**3),
-            "vega": (value(sigma=vol + v) - value(sigma=vol - v)) / (200 * v),
-            "vanna": (delta(vol + v) - delta(vol - v)) / (200 * v),
-            "zomma": (gamma(vol + v) - gamma(vol - v)) / (200 * v),
-            "rho": (value(rf=rate + r) - value(rf=rate - r)) / (200 * r),
+            "vega_per_percentage_point": (value(sigma=vol + v) - value(sigma=vol - v))
+            / (200 * v),
+            "vanna_per_percentage_point": (delta(vol + v) - delta(vol - v)) / (200 * v),
+            "zomma_per_percentage_point": (gamma(vol + v) - gamma(vol - v)) / (200 * v),
+            "rho_per_percentage_point": (value(rf=rate + r) - value(rf=rate - r))
+            / (200 * r),
             "theta": value(t=1 - dt) - value(),
             "charm": delta(t=1 - dt) - delta(),
             "color": gamma(t=1 - dt) - gamma(),

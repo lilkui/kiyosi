@@ -334,10 +334,13 @@ class SnowballVariantTests(unittest.TestCase):
                 self.assertEqual(mc.price(actual, ctx), mc.price(explicit, ctx))
                 for note in (actual, explicit):
                     result = engine.price_with_greeks(
-                        note, ctx, ["delta", "vega"], spot_shift=0.25
+                        note,
+                        ctx,
+                        ["delta", "vega_per_percentage_point"],
+                        spot_shift=0.25,
                     )
                     self.assertIsNotNone(result.delta)
-                    self.assertIsNotNone(result.vega)
+                    self.assertIsNotNone(result.vega_per_percentage_point)
                 self.assertEqual(
                     actual.replace_history(barrier_state="knocked_in"),
                     explicit.replace_history(barrier_state="knocked_in"),
@@ -540,10 +543,10 @@ class SnowballVariantTests(unittest.TestCase):
                 "delta",
                 "gamma",
                 "speed",
-                "vega",
-                "vanna",
-                "zomma",
-                "rho",
+                "vega_per_percentage_point",
+                "vanna_per_percentage_point",
+                "zomma_per_percentage_point",
+                "rho_per_percentage_point",
                 "theta",
                 "charm",
                 "color",
@@ -580,7 +583,10 @@ class SnowballVariantTests(unittest.TestCase):
             self.assertAlmostEqual(current.price, 1 + 0.08 * 33 / 365)
             self.assertIsNone(current.delta)
             self.assertIsNone(current.theta)
-            self.assertEqual((current.vega, current.rho), (0, 0))
+            self.assertEqual(
+                (current.vega_per_percentage_point, current.rho_per_percentage_point),
+                (0, 0),
+            )
             self.assert_rejection(
                 UnsupportedOperationError,
                 implied_volatility,

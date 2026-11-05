@@ -179,7 +179,7 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
             .price_with_greeks(&option, &context, GreeksRequest::all(), Default::default())
             .unwrap();
         assert_eq!(result.get(Greek::Theta), None);
-        assert_eq!(result.require(Greek::Vega).unwrap(), 0.0);
+        assert_eq!(result.require(Greek::VegaPerPercentagePoint).unwrap(), 0.0);
         if (spot - 100.0).abs() <= 0.01 || (spot - 110.0).abs() <= 0.01 {
             assert_eq!(result.get(Greek::Delta), None);
         } else {
@@ -556,13 +556,13 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
         Greek::Theta,
         Greek::Charm,
         Greek::Color,
-        Greek::Vanna,
-        Greek::Zomma,
+        Greek::VannaPerPercentagePoint,
+        Greek::ZommaPerPercentagePoint,
     ] {
         assert!(!result.has(greek));
     }
-    assert!(result.has(Greek::Vega));
-    assert!(result.has(Greek::Rho));
+    assert!(result.has(Greek::VegaPerPercentagePoint));
+    assert!(result.has(Greek::RhoPerPercentagePoint));
     let option = Accumulator::new(terms(day(1, 6)))
         .unwrap()
         .replace_history(3.0)
@@ -715,13 +715,13 @@ fn greeks_converge_under_spatial_refinement_and_smaller_bumps() {
         for (greek, order, absolute, relative) in [
             (Greek::Delta, 1, 1e-6, 0.005),
             (Greek::Gamma, 2, 1e-5, 0.01),
-            (Greek::Vega, 0, 1e-8, 0.005),
-            (Greek::Rho, 0, 1e-8, 0.005),
+            (Greek::VegaPerPercentagePoint, 0, 1e-8, 0.005),
+            (Greek::RhoPerPercentagePoint, 0, 1e-8, 0.005),
             (Greek::Theta, 0, 1e-8, 0.02),
             (Greek::Speed, 3, 1e-4, 0.05),
-            (Greek::Vanna, 1, 1e-7, 0.05),
+            (Greek::VannaPerPercentagePoint, 1, 1e-7, 0.05),
             (Greek::Charm, 1, 1e-7, 0.05),
-            (Greek::Zomma, 2, 1e-6, 0.05),
+            (Greek::ZommaPerPercentagePoint, 2, 1e-6, 0.05),
             (Greek::Color, 2, 1e-6, 0.05),
         ] {
             let scale = 100.0_f64.powi(order) / exposure;

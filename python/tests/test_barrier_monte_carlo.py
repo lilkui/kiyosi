@@ -534,7 +534,10 @@ class BarrierMonteCarloTests(unittest.TestCase):
         context = market(volatility=1e-200)
         price = engine.price(contract, context)
         self.assertEqual(
-            engine.price_with_greeks(contract, context, "rho").price, price
+            engine.price_with_greeks(
+                contract, context, "rho_per_percentage_point"
+            ).price,
+            price,
         )
         self.assert_rejection(
             ComputationFailureError,

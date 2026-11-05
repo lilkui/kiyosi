@@ -189,15 +189,22 @@ class DigitalQuadratureTests(unittest.TestCase):
                 bumped = engine.price_with_greeks(
                     option,
                     context,
-                    ["volga", "dividend_rho"],
+                    [
+                        "volga_per_squared_percentage_point",
+                        "dividend_rho_per_percentage_point",
+                    ],
                     volatility_shift=0.01,
                     rate_shift=0.001,
                 )
                 self.assertAlmostEqual(
-                    bumped.volga, vol_up - 2 * base + vol_down, delta=1e-8
+                    bumped.volga_per_squared_percentage_point,
+                    vol_up - 2 * base + vol_down,
+                    delta=1e-8,
                 )
                 self.assertAlmostEqual(
-                    bumped.dividend_rho, (q_up - q_down) / 0.2, delta=1e-8
+                    bumped.dividend_rho_per_percentage_point,
+                    (q_up - q_down) / 0.2,
+                    delta=1e-8,
                 )
                 iv_context = market()
                 quote = pricing.AnalyticDigitalEngine().price(option, iv_context)

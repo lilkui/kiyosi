@@ -34,10 +34,10 @@ GREEKS = (
     "theta",
     "charm",
     "color",
-    "vega",
-    "vanna",
-    "zomma",
-    "rho",
+    "vega_per_percentage_point",
+    "vanna_per_percentage_point",
+    "zomma_per_percentage_point",
+    "rho_per_percentage_point",
 )
 
 

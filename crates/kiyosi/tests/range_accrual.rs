@@ -259,7 +259,10 @@ fn greeks_respect_contract_life_and_observations() {
             result.has(greek),
             matches!(
                 greek,
-                Greek::Vega | Greek::Volga | Greek::Rho | Greek::DividendRho
+                Greek::VegaPerPercentagePoint
+                    | Greek::VolgaPerSquaredPercentagePoint
+                    | Greek::RhoPerPercentagePoint
+                    | Greek::DividendRhoPerPercentagePoint
             ),
             "{greek:?}"
         );
@@ -643,7 +646,12 @@ fn request_and_solver_errors_preserve_inputs() {
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
         assert_eq!(result.get(greek), None);
     }
-    for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+    for greek in [
+        Greek::VegaPerPercentagePoint,
+        Greek::VolgaPerSquaredPercentagePoint,
+        Greek::RhoPerPercentagePoint,
+        Greek::DividendRhoPerPercentagePoint,
+    ] {
         if result.supported().has(greek) {
             assert_eq!(result.require(greek).unwrap(), 0.0);
         }

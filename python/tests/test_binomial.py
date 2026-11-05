@@ -44,12 +44,12 @@ GREEKS = (
     "theta",
     "charm",
     "color",
-    "vega",
-    "volga",
-    "vanna",
-    "zomma",
-    "rho",
-    "dividend_rho",
+    "vega_per_percentage_point",
+    "volga_per_squared_percentage_point",
+    "vanna_per_percentage_point",
+    "zomma_per_percentage_point",
+    "rho_per_percentage_point",
+    "dividend_rho_per_percentage_point",
 )
 VANILLA = (EuropeanOption, AmericanOption)
 DIGITAL = (CashOrNothingOption, AssetOrNothingOption)
@@ -294,7 +294,7 @@ class BinomialTests(unittest.TestCase):
                             self.assertIsNotNone(result.gamma)
                         else:
                             self.assertIsNone(result.gamma)
-                        self.assertIsNone(result.vega)
+                        self.assertIsNone(result.vega_per_percentage_point)
                         self.assertEqual(result.price, engine.price(option, market()))
 
     def test_grid_refinement_and_negative_carry(self):

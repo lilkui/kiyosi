@@ -286,7 +286,10 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
             let mut result = PricingResult::new(engine.price(option, context)?)?;
             let rate = context.bsm_parameters()?.flat_risk_free_rate()?;
             let dividend = context.bsm_parameters()?.flat_dividend_yield()?;
-            for (greek, value) in [(Greek::Rho, rate), (Greek::DividendRho, dividend)] {
+            for (greek, value) in [
+                (Greek::RhoPerPercentagePoint, rate),
+                (Greek::DividendRhoPerPercentagePoint, dividend),
+            ] {
                 if !requested.has(greek)
                     || context.valuation_time() == option.expiry_time()
                     || option.option_type() != OptionType::Call
@@ -294,7 +297,7 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
                     continue;
                 }
                 let shift = crate::risk::numerical::symmetric_shift(value, settings.rate_shift);
-                let crosses_shortcut = if greek == Greek::Rho {
+                let crosses_shortcut = if greek == Greek::RhoPerPercentagePoint {
                     dividend <= 0.0 && rate - shift < 0.0 && rate + shift >= 0.0
                 } else {
                     rate >= 0.0 && dividend - shift <= 0.0 && dividend + shift > 0.0
@@ -308,8 +311,9 @@ impl PricingEngine<AmericanOption> for MonteCarloVanillaEngine {
                         context
                             .bsm_parameters()?
                             .replace(BlackScholesMertonParameterChanges {
-                                risk_free_rate: (greek == Greek::Rho).then_some(value.into()),
-                                dividend_yield: (greek == Greek::DividendRho)
+                                risk_free_rate: (greek == Greek::RhoPerPercentagePoint)
+                                    .then_some(value.into()),
+                                dividend_yield: (greek == Greek::DividendRhoPerPercentagePoint)
                                     .then_some(value.into()),
                                 ..Default::default()
                             })?;
@@ -437,7 +441,7 @@ mod tests {
                     .price_with_greeks(
                         &option,
                         &context(dividend),
-                        GreeksRequest::new([Greek::DividendRho]),
+                        GreeksRequest::new([Greek::DividendRhoPerPercentagePoint]),
                         NumericalShiftSettings {
                             rate_shift: shift,
                             ..Default::default()
@@ -451,7 +455,10 @@ mod tests {
                     .american_price(&option, &context(dividend - shift), false)
                     .unwrap();
                 assert!(
-                    (result.require(Greek::DividendRho).unwrap() - (up - down) / (200.0 * shift))
+                    (result
+                        .require(Greek::DividendRhoPerPercentagePoint)
+                        .unwrap()
+                        - (up - down) / (200.0 * shift))
                         .abs()
                         < 1e-10
                 );
@@ -459,19 +466,19 @@ mod tests {
                     result.price(),
                     engine.price(&option, &context(dividend)).unwrap()
                 );
-                assert!(!result.has(Greek::Rho));
+                assert!(!result.has(Greek::RhoPerPercentagePoint));
                 let unavailable = engine
                     .price_with_greeks(
                         &option,
                         &context(dividend),
-                        GreeksRequest::new([Greek::DividendRho]),
+                        GreeksRequest::new([Greek::DividendRhoPerPercentagePoint]),
                         NumericalShiftSettings {
                             rate_shift: f64::MAX,
                             ..Default::default()
                         },
                     )
                     .unwrap();
-                assert!(!unavailable.has(Greek::DividendRho));
+                assert!(!unavailable.has(Greek::DividendRhoPerPercentagePoint));
             }
         }
     }

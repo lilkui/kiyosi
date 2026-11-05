@@ -323,7 +323,12 @@ fn validation_expiry_and_numerical_analysis_preserve_contracts() {
         for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
             assert_eq!(result.get(greek), None);
         }
-        for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
+        for greek in [
+            Greek::VegaPerPercentagePoint,
+            Greek::VolgaPerSquaredPercentagePoint,
+            Greek::RhoPerPercentagePoint,
+            Greek::DividendRhoPerPercentagePoint,
+        ] {
             if result.supported().has(greek) {
                 assert_eq!(result.require(greek).unwrap(), 0.0);
             }

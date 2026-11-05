@@ -306,7 +306,7 @@ class BarrierTests(unittest.TestCase):
         near = engine.price_with_greeks(option, self.context(119.995), greeks="all")
         self.assertIsNone(near.delta)
         self.assertIsNone(near.speed)
-        self.assertIsNotNone(near.vega)
+        self.assertIsNotNone(near.vega_per_percentage_point)
 
     def test_quantlib_price_matrix_and_independent_greeks(self):
         engine = AnalyticBarrierEngine()
@@ -385,10 +385,12 @@ class BarrierTests(unittest.TestCase):
             "gamma": gamma(),
             "speed": (f(100 + 2 * h) - 2 * f(100 + h) + 2 * f(100 - h) - f(100 - 2 * h))
             / (2 * h**3),
-            "vega": (f(sigma=0.2 + v) - f(sigma=0.2 - v)) / (200 * v),
-            "vanna": (delta(0.2 + v) - delta(0.2 - v)) / (200 * v),
-            "zomma": (gamma(0.2 + v) - gamma(0.2 - v)) / (200 * v),
-            "rho": (f(rate=0.05 + r) - f(rate=0.05 - r)) / (200 * r),
+            "vega_per_percentage_point": (f(sigma=0.2 + v) - f(sigma=0.2 - v))
+            / (200 * v),
+            "vanna_per_percentage_point": (delta(0.2 + v) - delta(0.2 - v)) / (200 * v),
+            "zomma_per_percentage_point": (gamma(0.2 + v) - gamma(0.2 - v)) / (200 * v),
+            "rho_per_percentage_point": (f(rate=0.05 + r) - f(rate=0.05 - r))
+            / (200 * r),
             "theta": f(days=1) - f(),
             "charm": delta(days=1) - delta(),
             "color": gamma(days=1) - gamma(),
@@ -527,10 +529,10 @@ GREEKS = (
     "theta",
     "charm",
     "color",
-    "vega",
-    "vanna",
-    "zomma",
-    "rho",
+    "vega_per_percentage_point",
+    "vanna_per_percentage_point",
+    "zomma_per_percentage_point",
+    "rho_per_percentage_point",
 )
 GREEK_TOLERANCES = {
     "delta": 1e-6,
@@ -539,10 +541,10 @@ GREEK_TOLERANCES = {
     "theta": 1e-4,
     "charm": 1e-5,
     "color": 3e-6,
-    "vega": 1e-6,
-    "vanna": 1e-7,
-    "zomma": 2e-8,
-    "rho": 1e-6,
+    "vega_per_percentage_point": 1e-6,
+    "vanna_per_percentage_point": 1e-7,
+    "zomma_per_percentage_point": 2e-8,
+    "rho_per_percentage_point": 1e-6,
 }
 KINDS = {
     "up_and_in": ql.Barrier.UpIn,

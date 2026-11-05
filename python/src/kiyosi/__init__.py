@@ -51,16 +51,16 @@ For multiprocessing, use the `spawn` start method; library values can be passed
 to workers and pricing results returned through process queues. Forking after the worker
 pool has initialized leaves it unusable in the child process.
 
-`Greek` accepts delta, gamma, speed, theta, charm, color, vega, volga, vanna,
-zomma, rho and dividend_rho. Spot derivatives use spot units, volatility and rate
-derivatives use percentage points (squared for volga), and time derivatives use
+`Greek` accepts delta, gamma, speed, theta, charm, color, vega_per_percentage_point, volga_per_squared_percentage_point, vanna_per_percentage_point,
+zomma_per_percentage_point, rho_per_percentage_point and dividend_rho_per_percentage_point. Spot derivatives use spot units, volatility and rate
+derivatives use percentage points (squared for volga_per_squared_percentage_point), and time derivatives use
 calendar days of forward valuation time. `PricingResult` leaves unavailable or
 unrequested sensitivities as None; `require` raises if one is absent.
 Use ``result.status("delta")`` to distinguish ``"available"``, ``"not_requested"``,
 ``"unsupported"`` (outside the engine/model coverage) and ``"undefined"``
 (supported but unavailable at this valuation or numerical stencil). The
 ``requested`` and ``supported`` properties return owned lists of Greek names.
-Volga is the second volatility derivative divided by 10000. Dividend rho is
+Volga is the second volatility derivative divided by 10000. Dividend rho_per_percentage_point is
 the sensitivity to a parallel shift of the continuously compounded dividend-yield curve,
 divided by 100, holding other market inputs fixed.
 

@@ -333,17 +333,21 @@ class MonteCarloTests(unittest.TestCase):
             engine.price_with_greeks,
             option,
             context,
-            "rho",
+            "rho_per_percentage_point",
             rate_shift=1000,
         )
         self.assert_rejection(
             ComputationFailureError, engine.price, option, market(sigma=1e308)
         )
         missing = engine.price_with_greeks(
-            option, context, ["delta", "vega"], spot_shift=100, volatility_shift=0.2
+            option,
+            context,
+            ["delta", "vega_per_percentage_point"],
+            spot_shift=100,
+            volatility_shift=0.2,
         )
         self.assertIsNone(missing.delta)
-        self.assertIsNone(missing.vega)
+        self.assertIsNone(missing.vega_per_percentage_point)
         self.assertEqual(missing.price, quote)
         with self.assertRaises(TypeError):
             engine.price_with_greeks(option, context, "delta", spot_shift=True)
@@ -743,7 +747,7 @@ class SamplingTests(unittest.TestCase):
                         )
                     with self.assertRaises(ComputationFailureError) as error:
                         engine.price_with_greeks(
-                            option, context, "rho", rate_shift=1000
+                            option, context, "rho_per_percentage_point", rate_shift=1000
                         )
                     self.assertIs(type(error.exception), ComputationFailureError)
                     self.assertEqual(engine.price(option, context), expected.price)
@@ -856,10 +860,10 @@ class SamplingTests(unittest.TestCase):
             "delta": 2e-4,
             "gamma": 1e-5,
             "speed": 5e-6,
-            "vega": 5e-5,
-            "vanna": 1e-5,
-            "zomma": 5e-6,
-            "rho": 2e-5,
+            "vega_per_percentage_point": 5e-5,
+            "vanna_per_percentage_point": 1e-5,
+            "zomma_per_percentage_point": 5e-6,
+            "rho_per_percentage_point": 2e-5,
             "theta": 2e-5,
             "charm": 5e-7,
             "color": 2e-7,

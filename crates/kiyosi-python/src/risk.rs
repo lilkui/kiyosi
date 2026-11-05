@@ -82,33 +82,33 @@ impl PricingResult {
     }
     /// Return vega, or None if unrequested or unavailable.
     #[getter]
-    fn vega(&self) -> Option<f64> {
-        self.0.get(kiyosi::Greek::Vega)
+    fn vega_per_percentage_point(&self) -> Option<f64> {
+        self.0.get(kiyosi::Greek::VegaPerPercentagePoint)
     }
     /// Return volga per squared volatility percentage point, or None if unavailable.
     #[getter]
-    fn volga(&self) -> Option<f64> {
-        self.0.get(kiyosi::Greek::Volga)
+    fn volga_per_squared_percentage_point(&self) -> Option<f64> {
+        self.0.get(kiyosi::Greek::VolgaPerSquaredPercentagePoint)
     }
     /// Return vanna, or None if unrequested or unavailable.
     #[getter]
-    fn vanna(&self) -> Option<f64> {
-        self.0.get(kiyosi::Greek::Vanna)
+    fn vanna_per_percentage_point(&self) -> Option<f64> {
+        self.0.get(kiyosi::Greek::VannaPerPercentagePoint)
     }
     /// Return zomma, or None if unrequested or unavailable.
     #[getter]
-    fn zomma(&self) -> Option<f64> {
-        self.0.get(kiyosi::Greek::Zomma)
+    fn zomma_per_percentage_point(&self) -> Option<f64> {
+        self.0.get(kiyosi::Greek::ZommaPerPercentagePoint)
     }
     /// Return rho, or None if unrequested or unavailable.
     #[getter]
-    fn rho(&self) -> Option<f64> {
-        self.0.get(kiyosi::Greek::Rho)
+    fn rho_per_percentage_point(&self) -> Option<f64> {
+        self.0.get(kiyosi::Greek::RhoPerPercentagePoint)
     }
     /// Return dividend rho per yield percentage point, or None if unavailable.
     #[getter]
-    fn dividend_rho(&self) -> Option<f64> {
-        self.0.get(kiyosi::Greek::DividendRho)
+    fn dividend_rho_per_percentage_point(&self) -> Option<f64> {
+        self.0.get(kiyosi::Greek::DividendRhoPerPercentagePoint)
     }
     /// Return available, not_requested, unsupported or undefined for a Greek.
     ///

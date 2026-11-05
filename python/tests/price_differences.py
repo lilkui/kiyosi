@@ -18,12 +18,12 @@ def price_differences(
         "theta",
         "charm",
         "color",
-        "vega",
-        "volga",
-        "vanna",
-        "zomma",
-        "rho",
-        "dividend_rho",
+        "vega_per_percentage_point",
+        "volga_per_squared_percentage_point",
+        "vanna_per_percentage_point",
+        "zomma_per_percentage_point",
+        "rho_per_percentage_point",
+        "dividend_rho_per_percentage_point",
     ),
     *,
     spot_shift=0.01,
@@ -80,17 +80,23 @@ def price_differences(
             / h
             / (2 * h)
         ),
-        "vega": lambda: (price(dv=v) - price(dv=-v)) / (200 * v),
-        "volga": lambda: (price(dv=v) - 2 * price() + price(dv=-v)) / (100 * v) ** 2,
-        "vanna": lambda: (
+        "vega_per_percentage_point": lambda: (price(dv=v) - price(dv=-v)) / (200 * v),
+        "volga_per_squared_percentage_point": lambda: (
+            (price(dv=v) - 2 * price() + price(dv=-v)) / (100 * v) ** 2
+        ),
+        "vanna_per_percentage_point": lambda: (
             ((price(h, v) - price(-h, v)) - (price(h, -v) - price(-h, -v)))
             / h
             / (100 * v)
             / 4
         ),
-        "zomma": lambda: (curvature(v) / h / h - curvature(-v) / h / h) / (200 * v),
-        "rho": lambda: (price(dr=r) - price(dr=-r)) / (200 * r),
-        "dividend_rho": lambda: (price(dq=q) - price(dq=-q)) / (200 * q),
+        "zomma_per_percentage_point": lambda: (
+            (curvature(v) / h / h - curvature(-v) / h / h) / (200 * v)
+        ),
+        "rho_per_percentage_point": lambda: (price(dr=r) - price(dr=-r)) / (200 * r),
+        "dividend_rho_per_percentage_point": lambda: (
+            (price(dq=q) - price(dq=-q)) / (200 * q)
+        ),
         "theta": lambda: (price(dt=after) - price(dt=before)) / days,
         "charm": lambda: (spread(dt=after) - spread(dt=before)) / h / days / 2,
         "color": lambda: (curvature(dt=after) - curvature(dt=before)) / h / h / days,

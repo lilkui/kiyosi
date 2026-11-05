@@ -142,7 +142,7 @@ impl MonteCarloDigitalEngine {
     /// let result = engine.price_with_greeks(&option, &context,
     ///     GreeksRequest::all(), Default::default())?;
     /// assert!(result.require(Greek::Delta)? > 0.0);
-    /// assert!(!result.has(Greek::Vega));
+    /// assert!(!result.has(Greek::VegaPerPercentagePoint));
     /// let estimate = engine.price_with_statistics(&option, &context)?;
     /// assert!(estimate.standard_error().is_some());
     /// # Ok(()) }

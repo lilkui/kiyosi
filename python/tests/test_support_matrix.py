@@ -389,15 +389,19 @@ class SupportMatrixTests(unittest.TestCase):
                     continue
                 with self.subTest(instrument=type(instrument).__name__, engine=name):
                     result = self.engines[name].price_with_greeks(
-                        instrument, local, ["delta", "vega"]
+                        instrument, local, ["delta", "vega_per_percentage_point"]
                     )
-                    self.assertEqual(result.requested, ["delta", "vega"])
+                    self.assertEqual(
+                        result.requested, ["delta", "vega_per_percentage_point"]
+                    )
                     self.assertEqual(result.supported, ["delta", "gamma"])
                     self.assertEqual(result.status("delta"), "available")
                     self.assertAlmostEqual(
                         result.delta, terminal_delta(instrument), delta=1e-10
                     )
-                    self.assertEqual(result.status("vega"), "unsupported")
+                    self.assertEqual(
+                        result.status("vega_per_percentage_point"), "unsupported"
+                    )
                     self.assertEqual(result.status("gamma"), "not_requested")
 
     def test_other_product_engine_pairs_raise_domain_errors(self):

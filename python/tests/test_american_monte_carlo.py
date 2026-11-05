@@ -203,10 +203,16 @@ class AmericanMonteCarloTests(unittest.TestCase):
         shift = 1 / 8192
         for rate in (-1 / 16384, 0, 1 / 16384):
             context = market(rate=rate, dividend=0)
-            result = engine.price_with_greeks(call, context, "rho", rate_shift=shift)
+            result = engine.price_with_greeks(
+                call, context, "rho_per_percentage_point", rate_shift=shift
+            )
             up = engine.price(call, market(rate=rate + shift, dividend=math.ulp(0.0)))
             down = engine.price(call, market(rate=rate - shift, dividend=math.ulp(0.0)))
-            self.assertAlmostEqual(result.rho, (up - down) / (200 * shift), delta=1e-10)
+            self.assertAlmostEqual(
+                result.rho_per_percentage_point,
+                (up - down) / (200 * shift),
+                delta=1e-10,
+            )
             self.assertEqual(result.price, engine.price(call, context))
 
     def test_shared_samples_defaults_solving_and_concurrent_calls(self):
@@ -342,7 +348,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
             engine.price_with_greeks,
             option,
             context,
-            "rho",
+            "rho_per_percentage_point",
             rate_shift=1000,
         )
         digital = CashOrNothingOption(
