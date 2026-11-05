@@ -31,7 +31,12 @@ fn current_settlement_preserves_strict_knock_in_and_inclusive_knock_out() {
     let mut t = terms();
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     t.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    t.observations[0].coupon_rate = 0.08;
+    t.observations[0] = t.observations[0]
+        .replace(AutocallableObservationChanges {
+            coupon_rate: Some(0.08),
+            ..Default::default()
+        })
+        .unwrap();
     let note = SnowballOption::new(t).unwrap();
     let engine = QuadratureAutocallableEngine::default();
     let term = 90.0 / 365.0;
@@ -289,7 +294,12 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     let mut t = terms();
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
     t.barrier_state = Some(AutocallableBarrierState::NoEvent);
-    t.observations[0].time = date(2, 3);
+    t.observations[0] = t.observations[0]
+        .replace(AutocallableObservationChanges {
+            time: Some(date(2, 3)),
+            ..Default::default()
+        })
+        .unwrap();
     let note = SnowballOption::new(t).unwrap();
     let result = engine
         .price_with_greeks(

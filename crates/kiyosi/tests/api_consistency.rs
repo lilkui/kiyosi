@@ -335,11 +335,17 @@ fn observation_construction_validates_numeric_terms_before_note_creation() -> Re
         ));
     }
     let records = autocallable_observations(&[time], &[110.0], Some(&[-0.01]), Some(&[0.0]))?;
-    assert_eq!(records[0].coupon_rate, -0.01);
-    assert_eq!(records[0].coupon_barrier_level, 0.0);
-    let mut edited = AutocallableObservation::new(time, 110.0)?;
-    edited.coupon_rate = f64::NAN;
-    assert!(matches!(edited.validate(), Err(Error::InvalidInput(_))));
+    assert_eq!(records[0].coupon_rate(), -0.01);
+    assert_eq!(records[0].coupon_barrier_level(), 0.0);
+    let edited = AutocallableObservation::new(time, 110.0)?;
+    assert!(matches!(
+        edited.replace(AutocallableObservationChanges {
+            coupon_rate: Some(f64::NAN),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    assert_eq!(edited.coupon_rate(), 0.0);
     Ok(())
 }
 
@@ -1594,5 +1600,53 @@ fn greek_methods_report_estimators_and_active_controls() -> Result<()> {
         GreekMethod::Unsupported
     );
     assert_eq!(GreekMethod::Unsupported.active_controls(), [] as [&str; 0]);
+    Ok(())
+}
+
+#[test]
+fn observation_replacement_preserves_validity_and_original_values() -> Result<()> {
+    let time = Date::new(2026, 1, 1)?.start_of_day();
+    let original = AutocallableObservation::with_coupons(time, 110.0, -0.01, 90.0)?;
+    let changed = original.replace(AutocallableObservationChanges {
+        time: Some(time.add_days(1)?),
+        knock_out_level: Some(120.0),
+        coupon_rate: Some(0.08),
+        ..Default::default()
+    })?;
+    assert_eq!(changed.time(), time.add_days(1)?);
+    assert_eq!(changed.knock_out_level(), 120.0);
+    assert_eq!(changed.coupon_rate(), 0.08);
+    assert_eq!(changed.coupon_barrier_level(), 90.0);
+    assert_eq!(original.replace(Default::default())?, original);
+    for changes in [
+        AutocallableObservationChanges {
+            knock_out_level: Some(0.0),
+            ..Default::default()
+        },
+        AutocallableObservationChanges {
+            knock_out_level: Some(f64::INFINITY),
+            ..Default::default()
+        },
+        AutocallableObservationChanges {
+            coupon_rate: Some(f64::NAN),
+            ..Default::default()
+        },
+        AutocallableObservationChanges {
+            coupon_barrier_level: Some(-1.0),
+            ..Default::default()
+        },
+        AutocallableObservationChanges {
+            coupon_barrier_level: Some(f64::INFINITY),
+            ..Default::default()
+        },
+    ] {
+        assert!(matches!(
+            original.replace(changes),
+            Err(Error::InvalidInput(_))
+        ));
+        assert_eq!(original.knock_out_level(), 110.0);
+        assert_eq!(original.coupon_rate(), -0.01);
+        assert_eq!(original.coupon_barrier_level(), 90.0);
+    }
     Ok(())
 }

@@ -345,7 +345,12 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
         expiry,
         vec![AutocallableObservation::new(time(6, 10, 0), 110.0).unwrap()],
     );
-    terms.observations[0].coupon_rate = 0.12;
+    terms.observations[0] = terms.observations[0]
+        .replace(AutocallableObservationChanges {
+            coupon_rate: Some(0.12),
+            ..Default::default()
+        })
+        .unwrap();
     let note = SnowballOption::new(terms).unwrap();
     let context = market(start, 120.0);
     let expected = 1.0 + 0.12 / (365.0 * 24.0);

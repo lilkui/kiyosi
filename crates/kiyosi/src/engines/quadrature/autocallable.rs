@@ -208,7 +208,7 @@ fn event<T: AutocallableTerms>(
     date: Timestamp,
 ) -> Option<&AutocallableObservation> {
     note.observations()
-        .binary_search_by_key(&date, |r| r.time)
+        .binary_search_by_key(&date, crate::AutocallableObservation::time)
         .ok()
         .map(|i| &note.observations()[i])
 }
@@ -235,7 +235,7 @@ fn terminal<T: AutocallableTerms>(
             };
             let mut cash;
             let mut asset = 0.0;
-            if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level, anchor)) {
+            if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level(), anchor)) {
                 cash = note.knock_out_payment(r);
             } else if knocked_in
                 || t.knock_in
@@ -258,7 +258,8 @@ fn terminal<T: AutocallableTerms>(
                 cash = note.terminal(anchor, false);
             }
             if let Some(r) = record.filter(|r| {
-                r.coupon_barrier_level == 0.0 || point > log_ratio(r.coupon_barrier_level, anchor)
+                r.coupon_barrier_level() == 0.0
+                    || point > log_ratio(r.coupon_barrier_level(), anchor)
             }) {
                 cash += note.period_coupon(r);
             }
@@ -285,7 +286,8 @@ fn apply_event<T: AutocallableTerms>(
     let coupon = |point: f64| {
         record
             .filter(|r| {
-                r.coupon_barrier_level == 0.0 || point >= log_ratio(r.coupon_barrier_level, anchor)
+                r.coupon_barrier_level() == 0.0
+                    || point >= log_ratio(r.coupon_barrier_level(), anchor)
             })
             .map_or(0.0, |_| amount)
     };
@@ -298,7 +300,7 @@ fn apply_event<T: AutocallableTerms>(
     alive.low[0] += coupon(f64::NEG_INFINITY);
     for (i, cell) in alive.cells.iter_mut().enumerate() {
         let point = nodes[i].midpoint(nodes[i + 1]);
-        if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level, anchor)) {
+        if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level(), anchor)) {
             *cell = [note.knock_out_payment(r), 0.0, 0.0, 0.0];
         } else if let Some(knocked) = knocked.filter(|_| {
             t.knock_in
@@ -379,11 +381,11 @@ fn price<T: AutocallableTerms>(
     for r in note
         .observations()
         .iter()
-        .filter(|r| r.time > context.valuation_time())
+        .filter(|r| r.time() > context.valuation_time())
     {
-        breaks.push(log_ratio(r.knock_out_level, anchor));
-        if matches!(t.coupon, Coupon::Phoenix(_)) && r.coupon_barrier_level > 0.0 {
-            breaks.push(log_ratio(r.coupon_barrier_level, anchor));
+        breaks.push(log_ratio(r.knock_out_level(), anchor));
+        if matches!(t.coupon, Coupon::Phoenix(_)) && r.coupon_barrier_level() > 0.0 {
+            breaks.push(log_ratio(r.coupon_barrier_level(), anchor));
         }
     }
     breaks.sort_by(f64::total_cmp);

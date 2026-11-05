@@ -217,7 +217,7 @@ pub(crate) fn _repr_previews<'py>(
                 }
                 result.set_item("observations", preview(v.0.observations(), |r| Ok(format!(
                     "AutocallableObservation({}, {:?}, coupon_rate={:?}, coupon_barrier_level={:?})",
-                    python_timestamp(py, r.time)?.repr()?, r.knock_out_level, r.coupon_rate, r.coupon_barrier_level)))?)?;
+                    python_timestamp(py, r.time())?.repr()?, r.knock_out_level(), r.coupon_rate(), r.coupon_barrier_level())))?)?;
             }
         )+};
     }

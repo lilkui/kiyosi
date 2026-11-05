@@ -106,17 +106,24 @@ fn terminal_coupon_and_downside_match_an_independent_vanilla_digital_portfolio()
 #[test]
 fn phoenix_validation_defaults_and_history_share_core_categories() {
     let mut t = terms();
-    t.observations[0].coupon_rate = 0.1;
+    t.observations[0] = t.observations[0]
+        .replace(AutocallableObservationChanges {
+            coupon_rate: Some(0.1),
+            ..Default::default()
+        })
+        .unwrap();
     assert!(matches!(
         PhoenixOption::new(t).unwrap_err(),
         Error::InvalidInput(_)
     ));
     for value in [-1.0, f64::NAN, f64::INFINITY] {
-        let mut t = terms();
-        t.observations[0].coupon_barrier_level = value;
+        let t = terms();
         assert!(matches!(
-            PhoenixOption::new(t).unwrap_err(),
-            Error::InvalidInput(_)
+            t.observations[0].replace(AutocallableObservationChanges {
+                coupon_barrier_level: Some(value),
+                ..Default::default()
+            }),
+            Err(Error::InvalidInput(_))
         ));
     }
     let mut t = terms();

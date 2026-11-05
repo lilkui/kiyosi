@@ -154,7 +154,7 @@ impl SnowballPresetTerms {
     /// let note = terms.expand(SnowballPreset::EarlyProfit {
     ///     first_stage_end_time: Date::new(2025, 7, 1)?.start_of_day(), second_coupon_rate: 0.05,
     /// })?;
-    /// assert_eq!(note.observations()[0].coupon_rate, 0.05);
+    /// assert_eq!(note.observations()[0].coupon_rate(), 0.05);
     /// # Ok(()) }
     /// ```
     #[expect(

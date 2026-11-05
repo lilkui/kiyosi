@@ -261,9 +261,9 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
         let expected = SnowballOption::new(explicit).unwrap();
         let actual = base.clone().expand(preset).unwrap();
         for (a, b) in actual.observations().iter().zip(expected.observations()) {
-            assert_eq!(a.time, b.time);
-            assert!((a.knock_out_level - b.knock_out_level).abs() < 1e-14);
-            assert!((a.coupon_rate - b.coupon_rate).abs() < 1e-14);
+            assert_eq!(a.time(), b.time());
+            assert!((a.knock_out_level() - b.knock_out_level()).abs() < 1e-14);
+            assert!((a.coupon_rate() - b.coupon_rate()).abs() < 1e-14);
         }
         assert_eq!(actual.terms().knock_in_observation_mode, mode);
         assert!((actual.terms().maturity_coupon_rate - maturity).abs() < 1e-14);
@@ -579,7 +579,12 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
         Error::InvalidInput(_)
     ));
     let mut binary = BinarySnowballTerms::new(0.06, date(1, 1), date(4, 1), observations());
-    binary.observations[0].coupon_barrier_level = 1.0;
+    binary.observations[0] = binary.observations[0]
+        .replace(AutocallableObservationChanges {
+            coupon_barrier_level: Some(1.0),
+            ..Default::default()
+        })
+        .unwrap();
     assert!(matches!(
         BinarySnowballOption::new(binary).unwrap_err(),
         Error::InvalidInput(_)

@@ -56,7 +56,7 @@ macro_rules! autocallable_properties {
                 self.0
                     .observations()
                     .iter()
-                    .map(|r| python_timestamp(py, r.time))
+                    .map(|r| python_timestamp(py, r.time()))
                     .collect()
             }
             /// Returns copied knock-out thresholds in observation order.
@@ -65,7 +65,7 @@ macro_rules! autocallable_properties {
                 self.0
                     .observations()
                     .iter()
-                    .map(|r| r.knock_out_level)
+                    .map(|r| r.knock_out_level())
                     .collect()
             }
             /// Returns nonnegative normalized principal, independent of coupons and losses.
@@ -211,42 +211,65 @@ impl AutocallableObservation {
         #[pyo3(from_py_with = real)] coupon_rate: f64,
         #[pyo3(from_py_with = real)] coupon_barrier_level: f64,
     ) -> PyResult<Self> {
-        let mut record = domain(kiyosi::AutocallableObservation::new(
-            crate::conversions::timestamp(time)?,
-            real(knock_out_level)?,
-        ))?;
-        record.coupon_rate = coupon_rate;
-        record.coupon_barrier_level = coupon_barrier_level;
-        domain(record.validate())?;
-        Ok(Self(record))
+        Ok(Self(domain(
+            kiyosi::AutocallableObservation::with_coupons(
+                crate::conversions::timestamp(time)?,
+                real(knock_out_level)?,
+                coupon_rate,
+                coupon_barrier_level,
+            ),
+        )?))
+    }
+
+    /// Return a validated observation with the supplied fields replaced.
+    ///
+    /// Omitted fields or Ellipsis retain their values. Invalid numeric terms raise
+    /// InvalidInputError; representation failures use native Python exceptions.
+    /// Note construction checks schedule and product-specific constraints.
+    #[pyo3(signature = (*, time=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, coupon_rate=crate::conversions::OMITTED, coupon_barrier_level=crate::conversions::OMITTED))]
+    fn replace(
+        &self,
+        #[pyo3(from_py_with = supplied)] time: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] knock_out_level: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] coupon_rate: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] coupon_barrier_level: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        Ok(Self(domain(self.0.replace(
+            kiyosi::AutocallableObservationChanges {
+                time: time.map(timestamp).transpose()?,
+                knock_out_level: knock_out_level.map(real).transpose()?,
+                coupon_rate: coupon_rate.map(real).transpose()?,
+                coupon_barrier_level: coupon_barrier_level.map(real).transpose()?,
+            },
+        ))?))
     }
     /// Return exact observation time.
     #[getter]
     fn time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        python_timestamp(py, self.0.time)
+        python_timestamp(py, self.0.time())
     }
     /// Return the positive finite knock-out threshold.
     #[getter]
     fn knock_out_level(&self) -> f64 {
-        self.0.knock_out_level
+        self.0.knock_out_level()
     }
     /// Return the finite signed annual coupon in decimal units.
     #[getter]
     fn coupon_rate(&self) -> f64 {
-        self.0.coupon_rate
+        self.0.coupon_rate()
     }
     /// Return the finite nonnegative Phoenix coupon threshold.
     #[getter]
     fn coupon_barrier_level(&self) -> f64 {
-        self.0.coupon_barrier_level
+        self.0.coupon_barrier_level()
     }
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         Ok(format!(
             "AutocallableObservation({}, {:?}, coupon_rate={:?}, coupon_barrier_level={:?})",
             self.time(py)?.repr()?,
-            self.0.knock_out_level,
-            self.0.coupon_rate,
-            self.0.coupon_barrier_level
+            self.0.knock_out_level(),
+            self.0.coupon_rate(),
+            self.0.coupon_barrier_level()
         ))
     }
 }
@@ -669,7 +692,7 @@ snowball_properties! {
         self.0
             .observations()
             .iter()
-            .map(|r| r.coupon_rate)
+            .map(kiyosi::AutocallableObservation::coupon_rate)
             .collect()
     },
     /// Return finite annual maturity coupon rate in decimal units.
@@ -819,7 +842,7 @@ snowball_properties! {
         self.0
             .observations()
             .iter()
-            .map(|r| r.coupon_rate)
+            .map(kiyosi::AutocallableObservation::coupon_rate)
             .collect()
     },
     /// Return finite annual maturity coupon rate in decimal units.
@@ -969,7 +992,7 @@ snowball_properties! {
         self.0
             .observations()
             .iter()
-            .map(|r| r.coupon_rate)
+            .map(kiyosi::AutocallableObservation::coupon_rate)
             .collect()
     },
     /// Return finite annual maturity coupon rate in decimal units.
@@ -1200,7 +1223,7 @@ autocallable_properties! {
         self.0
             .observations()
             .iter()
-            .map(|r| r.coupon_barrier_level)
+            .map(kiyosi::AutocallableObservation::coupon_barrier_level)
             .collect()
     },
     /// Returns the annual coupon rate, or None for a fixed per-period coupon.

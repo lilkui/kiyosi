@@ -185,7 +185,9 @@ impl MonteCarloAutocallableEngine {
         let knock_in = terms.knock_in.map(|ki| log_ratio(ki.level, initial_spot));
         let below_knock_in = |log_return| knock_in.is_some_and(|level| log_return < level);
         let mut steps = Vec::with_capacity(dates.len());
-        let mut next = note.observations().partition_point(|r| r.time <= valuation);
+        let mut next = note
+            .observations()
+            .partition_point(|r| r.time() <= valuation);
         for date in dates {
             let time = previous.years_until(date);
             let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
@@ -194,15 +196,15 @@ impl MonteCarloAutocallableEngine {
             if !drift.is_finite() || !diffusion.is_finite() || !log_discount.is_finite() {
                 return Err(unstable());
             }
-            let record = note.observations().get(next).filter(|r| r.time == date);
+            let record = note.observations().get(next).filter(|r| r.time() == date);
             if record.is_some() {
                 next += 1;
             }
             let record = record.map(|record| {
                 (
                     record,
-                    log_ratio(record.knock_out_level, initial_spot),
-                    log_ratio(record.coupon_barrier_level, initial_spot),
+                    log_ratio(record.knock_out_level(), initial_spot),
+                    log_ratio(record.coupon_barrier_level(), initial_spot),
                     note.period_coupon(record),
                 )
             });

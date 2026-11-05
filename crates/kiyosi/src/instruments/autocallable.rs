@@ -31,20 +31,36 @@ pub enum AutocallableBarrierState {
 
 /// Associates one observation time with its contractual levels and coupon.
 ///
-/// Constructors validate numeric terms; note construction also validates ordering,
-/// life bounds and product-specific coupon constraints. Public field edits are
-/// revalidated by the note constructor. See [`autocallable_observations`].
+/// Constructors and replacements validate numeric terms. Note construction also
+/// validates ordering, life bounds and product-specific coupon constraints.
+/// Fields are private so every public record has valid numeric terms. See
+/// [`Self::with_coupons`] and [`Self::replace`] for construction and replacement.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AutocallableObservation {
     /// Sets the exact observation time.
-    pub time: Timestamp,
+    time: Timestamp,
     /// Sets the positive inclusive knock-out threshold.
-    pub knock_out_level: f64,
+    knock_out_level: f64,
     /// Sets the finite annual snowball knock-out coupon; must be zero for Phoenix.
-    pub coupon_rate: f64,
+    coupon_rate: f64,
     /// Sets the inclusive nonnegative Phoenix coupon threshold; must be zero for snowballs.
-    pub coupon_barrier_level: f64,
+    coupon_barrier_level: f64,
 }
+/// Selects observation replacements; absent fields retain their values.
+///
+/// See [`AutocallableObservation::replace`] for an example.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AutocallableObservationChanges {
+    /// Replaces the exact observation timestamp.
+    pub time: Option<Timestamp>,
+    /// Replaces the positive finite knock-out threshold.
+    pub knock_out_level: Option<f64>,
+    /// Replaces the finite annual coupon rate.
+    pub coupon_rate: Option<f64>,
+    /// Replaces the finite nonnegative coupon threshold.
+    pub coupon_barrier_level: Option<f64>,
+}
+
 impl AutocallableObservation {
     /// Supplies a zero observation coupon; see [`Self::new`].
     pub const DEFAULT_COUPON_RATE: f64 = 0.0;
@@ -68,7 +84,9 @@ impl AutocallableObservation {
         Ok(record)
     }
 
-    /// Checks numeric terms independently of the note's product and observation schedule.
+    /// Creates a validated record with explicit coupon terms.
+    ///
+    /// Note construction checks ordering, life bounds and product-specific constraints.
     ///
     /// # Errors
     ///
@@ -80,13 +98,76 @@ impl AutocallableObservation {
     /// ```rust
     /// use kiyosi::{AutocallableObservation, Date};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let mut observation = AutocallableObservation::new(
-    ///     Date::new(2026, 1, 1)?.start_of_day(), 110.0)?;
-    /// observation.coupon_rate = -0.01;
-    /// observation.validate()?;
+    /// let record = AutocallableObservation::with_coupons(
+    ///     Date::new(2026, 1, 1)?.start_of_day(), 110.0, -0.01, 0.0)?;
+    /// assert_eq!(record.coupon_rate(), -0.01);
     /// # Ok(()) }
     /// ```
-    pub fn validate(&self) -> Result<()> {
+    pub fn with_coupons(
+        time: Timestamp,
+        knock_out_level: f64,
+        coupon_rate: f64,
+        coupon_barrier_level: f64,
+    ) -> Result<Self> {
+        let record = Self {
+            time,
+            knock_out_level,
+            coupon_rate,
+            coupon_barrier_level,
+        };
+        record.validate()?;
+        Ok(record)
+    }
+
+    /// Returns a validated replacement without changing this observation.
+    ///
+    /// # Errors
+    ///
+    /// Reuses [`Self::with_coupons`] numeric validation. The original is preserved
+    /// on success and failure; the note validates schedule and product constraints.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{AutocallableObservation, AutocallableObservationChanges, Date};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let record = AutocallableObservation::new(Date::new(2026, 1, 1)?.start_of_day(), 110.0)?;
+    /// let changed = record.replace(AutocallableObservationChanges {
+    ///     coupon_rate: Some(0.08), ..Default::default()
+    /// })?;
+    /// assert_eq!(changed.coupon_rate(), 0.08);
+    /// assert_eq!(record.coupon_rate(), 0.0);
+    /// # Ok(()) }
+    /// ```
+    pub fn replace(&self, changes: AutocallableObservationChanges) -> Result<Self> {
+        Self::with_coupons(
+            changes.time.unwrap_or(self.time),
+            changes.knock_out_level.unwrap_or(self.knock_out_level),
+            changes.coupon_rate.unwrap_or(self.coupon_rate),
+            changes
+                .coupon_barrier_level
+                .unwrap_or(self.coupon_barrier_level),
+        )
+    }
+
+    /// Returns the exact timestamp; see [`Self::with_coupons`].
+    pub fn time(&self) -> Timestamp {
+        self.time
+    }
+    /// Returns the positive finite knock-out threshold; see [`Self::with_coupons`].
+    pub fn knock_out_level(&self) -> f64 {
+        self.knock_out_level
+    }
+    /// Returns the finite annual coupon rate; see [`Self::with_coupons`].
+    pub fn coupon_rate(&self) -> f64 {
+        self.coupon_rate
+    }
+    /// Returns the finite nonnegative coupon threshold; see [`Self::with_coupons`].
+    pub fn coupon_barrier_level(&self) -> f64 {
+        self.coupon_barrier_level
+    }
+
+    fn validate(&self) -> Result<()> {
         finite(self.knock_out_level, true, "knock_out_level")?;
         finite(self.coupon_rate, false, "coupon_rate")?;
         finite(self.coupon_barrier_level, false, "coupon_barrier_level")?;
@@ -105,7 +186,7 @@ impl AutocallableObservation {
 /// # Errors
 ///
 /// Returns [`Error::InvalidInput`] for unequal sequence lengths or invalid numeric
-/// terms; see [`AutocallableObservation::validate`].
+/// terms; see [`AutocallableObservation::with_coupons`].
 ///
 /// # Examples
 ///
@@ -114,7 +195,7 @@ impl AutocallableObservation {
 /// # fn main() -> kiyosi::Result<()> {
 /// let times = [Date::new(2026, 1, 1)?.start_of_day()];
 /// let records = autocallable_observations(&times, &[110.0], Some(&[0.08]), None)?;
-/// assert_eq!(records[0].coupon_rate, 0.08);
+/// assert_eq!(records[0].coupon_rate(), 0.08);
 /// # Ok(()) }
 /// ```
 pub fn autocallable_observations(
@@ -136,15 +217,17 @@ pub fn autocallable_observations(
         .zip(levels)
         .enumerate()
         .map(|(i, (&time, &level))| {
-            let mut record = AutocallableObservation::new(time, level)?;
-            if let Some(values) = coupons {
-                record.coupon_rate = values[i];
-            }
-            if let Some(values) = coupon_barriers {
-                record.coupon_barrier_level = values[i];
-            }
-            record.validate()?;
-            Ok(record)
+            AutocallableObservation::with_coupons(
+                time,
+                level,
+                coupons.map_or(AutocallableObservation::DEFAULT_COUPON_RATE, |values| {
+                    values[i]
+                }),
+                coupon_barriers.map_or(
+                    AutocallableObservation::DEFAULT_COUPON_BARRIER_LEVEL,
+                    |values| values[i],
+                ),
+            )
         })
         .collect()
 }

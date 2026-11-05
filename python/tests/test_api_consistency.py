@@ -1197,3 +1197,42 @@ class GreekMethodTests(unittest.TestCase):
         )
         with self.assertRaises(UnsupportedOperationError):
             pricing.AnalyticEuropeanEngine().greek_method(digital, context)
+
+
+class ObservationReplacementTests(unittest.TestCase):
+    def test_observation_replacement_preserves_validity_and_original_values(self):
+        time = datetime(2026, 1, 1)
+        original = ins.AutocallableObservation(
+            time, 110, coupon_rate=-0.01, coupon_barrier_level=90
+        )
+        changed = original.replace(
+            time=time + timedelta(days=1), knock_out_level=120, coupon_rate=0.08
+        )
+        self.assertEqual(changed.time, time + timedelta(days=1))
+        self.assertEqual(changed.knock_out_level, 120)
+        self.assertEqual(changed.coupon_rate, 0.08)
+        self.assertEqual(changed.coupon_barrier_level, 90)
+        self.assertEqual(original.replace(), original)
+        self.assertEqual(original.replace(coupon_rate=...), original)
+        self.assertEqual(pickle.loads(pickle.dumps(changed)), changed)
+        for fields in (
+            {"knock_out_level": 0},
+            {"knock_out_level": math.inf},
+            {"coupon_rate": math.nan},
+            {"coupon_barrier_level": -1},
+            {"coupon_barrier_level": math.inf},
+        ):
+            with self.subTest(fields=fields), self.assertRaises(InvalidInputError):
+                original.replace(**fields)
+            self.assertEqual(
+                (
+                    original.time,
+                    original.knock_out_level,
+                    original.coupon_rate,
+                    original.coupon_barrier_level,
+                ),
+                (time, 110, -0.01, 90),
+            )
+        for value in (None, True):
+            with self.subTest(value=value), self.assertRaises(TypeError):
+                original.replace(coupon_rate=value)

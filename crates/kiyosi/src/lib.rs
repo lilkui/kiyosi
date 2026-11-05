@@ -168,13 +168,13 @@ pub use instruments::asian::{
     GeometricAveragePriceOption,
 };
 pub use instruments::autocallable::{
-    AutocallableBarrierState, AutocallableNote, AutocallableObservation, AutocallableTerms,
-    BinarySnowballOption, BinarySnowballOptionChanges, BinarySnowballTerms,
-    DEFAULT_PRINCIPAL_RATIO, KnockInObservationMode, PhoenixCoupon, PhoenixOption,
-    PhoenixOptionChanges, PhoenixPreset, PhoenixPresetTerms, PhoenixTerms, SnowballCouponTerms,
-    SnowballOption, SnowballOptionChanges, SnowballPreset, SnowballPresetTerms, SnowballTerms,
-    TernarySnowballOption, TernarySnowballOptionChanges, TernarySnowballTerms,
-    autocallable_observations,
+    AutocallableBarrierState, AutocallableNote, AutocallableObservation,
+    AutocallableObservationChanges, AutocallableTerms, BinarySnowballOption,
+    BinarySnowballOptionChanges, BinarySnowballTerms, DEFAULT_PRINCIPAL_RATIO,
+    KnockInObservationMode, PhoenixCoupon, PhoenixOption, PhoenixOptionChanges, PhoenixPreset,
+    PhoenixPresetTerms, PhoenixTerms, SnowballCouponTerms, SnowballOption, SnowballOptionChanges,
+    SnowballPreset, SnowballPresetTerms, SnowballTerms, TernarySnowballOption,
+    TernarySnowballOptionChanges, TernarySnowballTerms, autocallable_observations,
 };
 pub use instruments::barrier::{
     BarrierOption, BarrierOptionChanges, BarrierOptionTerms, BarrierTouchState, BarrierType,

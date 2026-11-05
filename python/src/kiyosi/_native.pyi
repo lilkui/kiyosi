@@ -2621,6 +2621,14 @@ class QuadratureAutocallableEngine:
     ) -> PricingResult: ...
 
 class AutocallableObservation:
+    def replace(
+        self,
+        *,
+        time: datetime | EllipsisType = ...,
+        knock_out_level: _Real | EllipsisType = ...,
+        coupon_rate: _Real | EllipsisType = ...,
+        coupon_barrier_level: _Real | EllipsisType = ...,
+    ) -> Self: ...
     def __init__(
         self,
         time: datetime,

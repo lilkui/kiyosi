@@ -330,7 +330,7 @@ pub(super) fn autocallable<T: AutocallableTerms>(
     let mut coupons = state.coupon;
     let mut next = note
         .observations()
-        .partition_point(|record| record.time <= context.valuation_time());
+        .partition_point(|record| record.time() <= context.valuation_time());
     for time in future_event_times(note, context, note.view().daily_knock_in())? {
         let spot = spot(context, time)?;
         if note.view().daily_knock_in() && note.daily_time(time, note.calendar()) {
@@ -339,11 +339,11 @@ pub(super) fn autocallable<T: AutocallableTerms>(
         if let Some(record) = note
             .observations()
             .get(next)
-            .filter(|record| record.time == time)
+            .filter(|record| record.time() == time)
         {
             next += 1;
             let coupon = note.observation_coupon(record, spot);
-            if spot >= record.knock_out_level {
+            if spot >= record.knock_out_level() {
                 return finite(
                     coupons
                         + scaled_cash(

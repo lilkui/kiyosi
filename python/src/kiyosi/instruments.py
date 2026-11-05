@@ -3,7 +3,9 @@
 ``AutocallableObservation`` and ``autocallable_observations`` validate positive
 knock-out levels, finite signed coupon rates and nonnegative coupon barriers
 on construction. Notes additionally validate ordering, life bounds and their
-product-specific coupon rules.
+product-specific coupon rules. Observation ``replace()`` validates supplied
+fields and preserves omitted values, like contract replacement. Rust observation
+fields are private; use accessors and validated ``replace()`` operations.
 
 ``OptionType`` selects ``"call"`` or ``"put"``. Contract effective and expiry
 boundaries are inclusive ``datetime.datetime`` values. Microseconds participate
