@@ -282,7 +282,12 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         CouponQuoteConvention::PreserveMaturityCoupon,
     ] {
         let quote = engine
-            .price(&note.with_coupon(0.12, convention).unwrap(), &context)
+            .price(
+                &note
+                    .with_first_observation_coupon(0.12, convention)
+                    .unwrap(),
+                &context,
+            )
             .unwrap();
         let coupon = implied_snowball_coupon(
             &engine,

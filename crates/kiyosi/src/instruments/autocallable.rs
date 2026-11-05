@@ -516,7 +516,7 @@ macro_rules! snowball_coupon {
     ($($terms:ty),+) => {$(
         impl SnowballCouponTerms for $terms {}
         impl sealed::SnowballCoupon for $terms {
-            fn with_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self {
+            fn with_first_observation_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self {
                 let mut terms = self.clone();
                 let shift = coupon - terms.observations.first().map_or(0.0, |record| record.coupon_rate);
                 for record in &mut terms.observations {
@@ -561,7 +561,7 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
         })
     }
 
-    /// Returns an owning note with the observation coupon schedule shifted to `coupon`.
+    /// Returns a note with its coupon schedule shifted to the supplied first observation rate.
     ///
     /// The first observation anchors the shift, including past observations.
     /// `convention` controls the maturity coupon; the ternary minimum stays fixed.
@@ -571,12 +571,15 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
     ///
     /// Propagates term validation errors, including a shifted maturity coupon below
     /// the ternary minimum. This note remains unchanged on success and failure.
-    pub fn with_coupon(
+    pub fn with_first_observation_coupon(
         &self,
-        coupon: f64,
+        first_observation_coupon: f64,
         convention: crate::CouponQuoteConvention,
     ) -> Result<Self> {
-        Self::new(self.0.with_coupon(coupon, convention))
+        Self::new(
+            self.0
+                .with_first_observation_coupon(first_observation_coupon, convention),
+        )
     }
 }
 
@@ -610,7 +613,11 @@ mod sealed {
         fn set_history(&mut self, state: Option<AutocallableBarrierState>);
     }
     pub trait SnowballCoupon: Sized {
-        fn with_coupon(&self, coupon: f64, convention: crate::CouponQuoteConvention) -> Self;
+        fn with_first_observation_coupon(
+            &self,
+            coupon: f64,
+            convention: crate::CouponQuoteConvention,
+        ) -> Self;
     }
     #[derive(Clone, Copy)]
     pub struct Downside {

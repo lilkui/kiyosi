@@ -2677,8 +2677,11 @@ class SnowballOption:
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
-    def with_coupon(
-        self, coupon: _Real, *, quote_convention: _pricing.CouponQuoteConvention
+    def with_first_observation_coupon(
+        self,
+        first_observation_coupon: _Real,
+        *,
+        quote_convention: _pricing.CouponQuoteConvention,
     ) -> Self: ...
     def __init__(
         self,
@@ -2897,8 +2900,11 @@ class BinarySnowballOption:
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
-    def with_coupon(
-        self, coupon: _Real, *, quote_convention: _pricing.CouponQuoteConvention
+    def with_first_observation_coupon(
+        self,
+        first_observation_coupon: _Real,
+        *,
+        quote_convention: _pricing.CouponQuoteConvention,
     ) -> Self: ...
     def __init__(
         self,
@@ -2959,8 +2965,11 @@ class TernarySnowballOption:
         observations: Iterable[AutocallableObservation] | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
-    def with_coupon(
-        self, coupon: _Real, *, quote_convention: _pricing.CouponQuoteConvention
+    def with_first_observation_coupon(
+        self,
+        first_observation_coupon: _Real,
+        *,
+        quote_convention: _pricing.CouponQuoteConvention,
     ) -> Self: ...
     def __init__(
         self,

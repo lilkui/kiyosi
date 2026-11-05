@@ -75,7 +75,7 @@ impl Default for ImpliedCouponSettings {
 ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.3)?, 100.0, start.into())?;
 /// let engine = QuadratureAutocallableEngine::default();
 /// let convention = CouponQuoteConvention::PreserveMaturityCoupon;
-/// let target = note.with_coupon(0.12, convention)?;
+/// let target = note.with_first_observation_coupon(0.12, convention)?;
 /// let price = engine.price(&target, &market)?;
 /// let coupon = implied_snowball_coupon(&engine, &note, &market, price,
 ///     convention, ImpliedCouponSettings::default())?;
@@ -100,7 +100,7 @@ pub fn implied_snowball_coupon<
         observed_price,
         settings,
         option.minimum_quoted_coupon(convention),
-        &|note, coupon| note.with_coupon(coupon, convention),
+        &|note, coupon| note.with_first_observation_coupon(coupon, convention),
     )
 }
 

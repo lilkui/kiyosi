@@ -42,9 +42,12 @@ and omission preserves the existing settlement.
 Asian averages use ``realized_average=None`` for unknown history; supplied averages
 must be finite and positive. History is required strictly after averaging starts.
 Both return new contracts and expose named keyword-only fields through ``inspect.signature``.
-Autocallable ``with_coupon(coupon, ...)`` returns a new note using the same
-quote convention and coupon units as ``pricing.implied_snowball_coupon`` or ``pricing.implied_phoenix_coupon``. Snowballs
-require ``quote_convention``; Phoenix preserves annual or per-period units.
+Snowball ``with_first_observation_coupon(first_observation_coupon, quote_convention=...)``
+shifts every observation coupon by the change to the first observation's annual
+rate, including past observations. The convention controls the maturity coupon.
+It applies the quote returned by ``pricing.implied_snowball_coupon``.
+Phoenix ``with_coupon(coupon)`` replaces its coupon in the existing annual or
+per-period units, matching ``pricing.implied_phoenix_coupon``.
 Omitted fields, or the displayed default ``...`` (``Ellipsis``), retain their
 values. Explicit ``None`` clears nullable history and is rejected for fields
 that require a value.

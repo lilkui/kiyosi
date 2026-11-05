@@ -428,7 +428,9 @@ class ApiConsistencyTests(unittest.TestCase):
             self.assertEqual(pickle.loads(pickle.dumps(value)).calendar, value.calendar)
             self.assertEqual(value.replace_history().calendar, value.calendar)
         self.assertEqual(
-            note.with_coupon(0.2, quote_convention="shift_maturity_coupon").calendar,
+            note.with_first_observation_coupon(
+                0.2, quote_convention="shift_maturity_coupon"
+            ).calendar,
             note.calendar,
         )
 

@@ -97,14 +97,14 @@ macro_rules! snowball_properties {
         autocallable_properties! {
             $name,
             $($extra,)*
-            /// Returns an independent note with its observation coupon schedule shifted.
+            /// Returns an independent note with its observation first_observation_coupon schedule shifted.
             ///
             /// Parameters
             /// ----------
-            /// coupon : float
-            ///     New first observation coupon; all observation coupons shift equally.
+            /// first_observation_coupon : float
+            ///     New first observation first_observation_coupon; all observation coupons shift equally.
             /// quote_convention : CouponQuoteConvention
-            ///     Whether to shift the maturity coupon or preserve it.
+            ///     Whether to shift the maturity first_observation_coupon or preserve it.
             ///
             /// Returns
             /// -------
@@ -115,13 +115,13 @@ macro_rules! snowball_properties {
             /// ------
             /// InvalidInputError
             ///     If shifted coupons are non-finite or violate contractual constraints.
-            #[pyo3(signature = (coupon, *, quote_convention))]
-            fn with_coupon(
+            #[pyo3(signature = (first_observation_coupon, *, quote_convention))]
+            fn with_first_observation_coupon(
                 &self,
-                coupon: &Bound<'_, PyAny>,
+                first_observation_coupon: &Bound<'_, PyAny>,
                 quote_convention: &Bound<'_, PyAny>,
             ) -> PyResult<Self> {
-                Ok(Self(domain(self.0.with_coupon(real(coupon)?, coupon_convention(quote_convention)?))?))
+                Ok(Self(domain(self.0.with_first_observation_coupon(real(first_observation_coupon)?, coupon_convention(quote_convention)?))?))
             }
         }
     };
