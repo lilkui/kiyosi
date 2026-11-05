@@ -1110,3 +1110,60 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
     );
     Ok(())
 }
+
+#[test]
+fn accumulator_termination_requires_a_strictly_prior_knock_out_observation() -> Result<()> {
+    let start = Date::new(2025, 1, 6)?.start_of_day();
+    let expiry = start.add_days(4)?;
+    let model = BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?;
+    let mc = MonteCarloAccumulatorEngine::default();
+    for times in [None, Some(vec![start.add_days(2)?]), Some(vec![])] {
+        let mut terms = AccumulatorTerms::new(100.0, 120.0, 1.0, 2.0, start, expiry);
+        terms.knock_out_observation_times = times.clone();
+        let original = Accumulator::new(terms)?;
+        let settled = original.replace(AccumulatorChanges {
+            terminated: Some(true),
+            ..Default::default()
+        })?;
+        let first = times.as_ref().map_or(Some(start), |t| t.first().copied());
+        for valuation in [
+            start,
+            start.add_days(2)?,
+            Timestamp::new(start.add_days(2)?.date(), 0, 0, 0, 1)?,
+            expiry,
+        ] {
+            let context = PricingContext::new(model.clone(), 100.0, valuation)?;
+            let valid = first.is_some_and(|first| first < valuation);
+            for engine in [
+                &FiniteDifferenceAccumulatorEngine::default() as &dyn PricingEngine<Accumulator>,
+                &QuadratureAccumulatorEngine::default(),
+                &mc,
+            ] {
+                let price = engine.price(&settled, &context);
+                let greeks = engine.price_with_greeks(
+                    &settled,
+                    &context,
+                    GreeksRequest::new([Greek::Delta]),
+                    Default::default(),
+                );
+                if valid {
+                    assert_eq!(price?, 0.0);
+                    assert_eq!(greeks?.require(Greek::Delta)?, 0.0);
+                } else {
+                    assert!(matches!(price, Err(Error::InvalidInput(_))));
+                    assert!(matches!(greeks, Err(Error::InvalidInput(_))));
+                }
+            }
+            let statistics = mc.price_with_statistics(&settled, &context);
+            if valid {
+                assert_eq!(statistics?.price(), 0.0);
+            } else {
+                assert!(matches!(statistics, Err(Error::InvalidInput(_))));
+            }
+        }
+        assert!(!original.terminated());
+        assert_eq!(original.accumulated_quantity(), None);
+        assert_eq!(original.knock_out_observation_times(), times.as_deref());
+    }
+    Ok(())
+}

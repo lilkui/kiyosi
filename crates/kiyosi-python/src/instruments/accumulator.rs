@@ -24,7 +24,8 @@ use pyo3::types::PyAny;
 ///     Outstanding quantity strictly before valuation. None means unknown; zero means no units.
 ///     Explicit history is required after any prior trading-date observation.
 /// terminated : bool, optional
-///     Whether a prior termination has settled; defaults to False. Stored quantity
+///     Whether a prior knock-out has settled; defaults to False. Pricing requires
+///     a knock-out observation strictly before valuation. Stored quantity
 ///     is ignored and remaining value is zero when True.
 /// option_type : {'call', 'put'}, optional
 ///     Call accumulates purchases (the default); put accumulates sales.
@@ -77,7 +78,7 @@ impl Accumulator {
     /// accumulated_quantity : float or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// terminated : bool, optional
-    ///     Records a previously settled termination.
+    ///     Records a settled knock-out strictly before valuation.
     /// effective_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// expiry_time : datetime.datetime, optional
@@ -207,7 +208,8 @@ impl Accumulator {
     ///     Required after a prior observation unless terminated is True.
     ///
     /// terminated : bool, optional
-    ///     Records a settled termination; omission retains the current state.
+    ///     Records a settled knock-out; omission retains the current state. Pricing
+    ///     rejects termination before or at the first knock-out observation.
     ///
     /// Returns
     /// -------

@@ -82,6 +82,69 @@ class ApiConsistencyTests(unittest.TestCase):
                         self.assertEqual(estimate.price, 0)
                         self.assertEqual(estimate.standard_error, 0)
 
+    def test_accumulator_termination_requires_a_strictly_prior_knock_out_observation(
+        self,
+    ):
+        start, first_explicit, end = (datetime(2025, 1, day) for day in (6, 8, 10))
+        model = market.BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0.2
+        )
+        for times, first in (
+            (None, start),
+            ([first_explicit], first_explicit),
+            ([], None),
+        ):
+            original = ins.Accumulator(
+                strike=100,
+                knock_out_level=120,
+                daily_quantity=1,
+                acceleration_factor=2,
+                effective_time=start,
+                expiry_time=end,
+                knock_out_observation_times=times,
+            )
+            settled = original.replace_history(terminated=True)
+            for valuation in (
+                start,
+                first_explicit,
+                first_explicit + timedelta(microseconds=1),
+                end,
+            ):
+                context = market.PricingContext(
+                    model_parameters=model, spot_price=100, valuation_time=valuation
+                )
+                for family in ("FiniteDifference", "Quadrature", "MonteCarlo"):
+                    engine = getattr(pricing, family + "AccumulatorEngine")()
+                    with self.subTest(
+                        schedule=times, valuation=valuation, engine=family
+                    ):
+                        if first is not None and first < valuation:
+                            self.assertEqual(engine.price(settled, context), 0)
+                            self.assertEqual(
+                                engine.price_with_greeks(
+                                    settled, context, "delta"
+                                ).delta,
+                                0,
+                            )
+                            if family == "MonteCarlo":
+                                self.assertEqual(
+                                    engine.price_with_statistics(
+                                        settled, context
+                                    ).price,
+                                    0,
+                                )
+                        else:
+                            with self.assertRaises(InvalidInputError):
+                                engine.price(settled, context)
+                            with self.assertRaises(InvalidInputError):
+                                engine.price_with_greeks(settled, context, "delta")
+                            if family == "MonteCarlo":
+                                with self.assertRaises(InvalidInputError):
+                                    engine.price_with_statistics(settled, context)
+            self.assertFalse(original.terminated)
+            self.assertIsNone(original.accumulated_quantity)
+            self.assertEqual(original.knock_out_observation_times, times)
+
     def test_numeric_rejections_identify_the_failing_field(self):
         defaults = {"risk_free_rate": 0.02, "dividend_yield": 0, "volatility": 0.2}
         for field, invalid in (

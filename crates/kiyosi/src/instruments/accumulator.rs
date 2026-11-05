@@ -20,7 +20,7 @@ pub struct AccumulatorTerms {
     pub acceleration_factor: f64,
     /// Caller-asserted quantity strictly before valuation; `None` means unknown.
     pub accumulated_quantity: Option<f64>,
-    /// Records a previously settled termination; no remaining cash flows are valued.
+    /// Records a settled knock-out strictly before valuation; no remaining cash flows are valued.
     pub terminated: bool,
     /// Inclusive effective time for daily observations at the expiry clock time.
     pub effective_time: Timestamp,
@@ -74,7 +74,8 @@ impl AccumulatorTerms {
 /// schedule disables knock-out. Calls knock out at or above the barrier,
 /// puts at or below it; knock-out adds no units at its own timestamp. A non-knock-out expiry
 /// accumulates normally before settlement. Prices exclude previously settled cash flows;
-/// `terminated` records an already settled contract and gives zero remaining value.
+/// `terminated` records an already settled knock-out and gives zero remaining value.
+/// Pricing rejects this state unless a knock-out observation strictly precedes valuation.
 /// Accrued quantity is ignored for terminated contracts. History is caller asserted,
 /// and is required after any strictly prior trading-date observation. `None` means unknown;
 /// an explicit zero records no outstanding units. No quantity is inferred from elapsed dates.
@@ -230,7 +231,7 @@ impl Accumulator {
     pub fn accumulated_quantity(&self) -> Option<f64> {
         self.terms.accumulated_quantity
     }
-    /// Returns whether a prior termination has settled; see [`Self::replace`].
+    /// Returns whether a prior knock-out has settled; see [`Self::replace`].
     pub fn terminated(&self) -> bool {
         self.terms.terminated
     }
@@ -250,7 +251,7 @@ impl Accumulator {
                 "valuation must be within contract life".into(),
             ));
         }
-        let has_prior = ObservationSchedule::daily(
+        let had_accumulation = ObservationSchedule::daily(
             self.effective_time(),
             self.expiry_time(),
             self.calendar(),
@@ -258,10 +259,18 @@ impl Accumulator {
         )?
         .times()
         .iter()
-        .any(|&time| time < valuation)
-            || self
-                .knock_out_observation_times()
-                .is_some_and(|times| times.iter().any(|&time| time < valuation));
+        .any(|&time| time < valuation);
+        let had_knock_out = self
+            .knock_out_observation_times()
+            .map_or(had_accumulation, |times| {
+                times.iter().any(|&time| time < valuation)
+            });
+        if self.terminated() && !had_knock_out {
+            return Err(Error::InvalidInput(
+                "termination predates knock-out observations".into(),
+            ));
+        }
+        let has_prior = had_accumulation || had_knock_out;
         if has_prior && !self.terminated() && self.accumulated_quantity().is_none() {
             return Err(Error::InvalidInput(
                 "prior accumulated quantity is required".into(),
