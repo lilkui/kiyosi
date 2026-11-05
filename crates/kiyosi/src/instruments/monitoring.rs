@@ -69,10 +69,11 @@ impl Monitoring {
             ..self.clone()
         }
     }
-    pub(crate) fn with_calendar(mut self, calendar: TradingCalendar) -> Result<Self> {
+    pub(crate) fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
         validate_schedule(&self.schedule, &calendar)?;
-        self.calendar = calendar;
-        Ok(self)
+        let mut updated = self.clone();
+        updated.calendar = calendar;
+        Ok(updated)
     }
     pub(crate) fn calendar(&self) -> &TradingCalendar {
         &self.calendar

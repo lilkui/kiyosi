@@ -390,7 +390,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             None,
         )
         .unwrap();
-        let holiday_option = option.clone().with_calendar(holidays).unwrap();
+        let holiday_option = option.replace_calendar(holidays).unwrap();
         let result = monte_carlo
             .price_with_statistics(&holiday_option, &context)
             .unwrap();

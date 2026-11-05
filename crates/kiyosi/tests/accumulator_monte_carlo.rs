@@ -297,7 +297,7 @@ fn trading_midnights_intraday_history_and_calendar_control_purchases() {
             -50.0,
         ),
     ] {
-        let option = option.clone().with_calendar(calendar).unwrap();
+        let option = option.replace_calendar(calendar).unwrap();
         let context = PricingContext::new(model.clone(), 90.0, at).unwrap();
         assert_eq!(engine.price(&option, &context).unwrap(), expected);
     }
@@ -568,7 +568,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
 fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
     let end = Date::new(2090, 1, 2).unwrap().start_of_day();
     let option = option(end)
-        .with_calendar(TradingCalendar::all_days())
+        .replace_calendar(TradingCalendar::all_days())
         .unwrap();
     let context = market(100.25, day(1, 1));
     let engine = MonteCarloAccumulatorEngine::new(MonteCarloSettings {

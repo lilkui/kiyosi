@@ -760,7 +760,7 @@ fn publicly_prepared_requests_revalidate_different_schedules_and_calendars() {
     prepared.price(&option, &context).unwrap();
     let closed = TradingCalendar::new(|_| false, 365).unwrap();
     assert!(matches!(
-        option.with_calendar(closed),
+        option.replace_calendar(closed),
         Err(Error::InvalidInput(_))
     ));
     t.observation_times = vec![Date::new(2025, 1, 4).unwrap().start_of_day()];

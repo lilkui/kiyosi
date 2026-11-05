@@ -189,7 +189,9 @@ fn numerical_greeks_match_independent_payoff_reference() {
                 ..Default::default()
             })
             .unwrap();
-        let option = option.with_calendar(TradingCalendar::weekdays()).unwrap();
+        let option = option
+            .replace_calendar(TradingCalendar::weekdays())
+            .unwrap();
         let shifts = NumericalShiftSettings {
             spot_shift: Some(0.1),
             ..Default::default()

@@ -110,7 +110,7 @@ impl RangeAccrualOption {
     /// Amends an already validated contract; this is not an initial-construction builder.
     /// Set [`RangeAccrualTerms::calendar`] before calling [`Self::new`] when the
     /// terms require a custom calendar, such as a weekend expiry or observation.
-    /// This method consumes the contract even on failure; [`Self::replace`] preserves it.
+    /// The original contract remains unchanged on success and failure.
     ///
     /// # Errors
     ///
@@ -130,14 +130,15 @@ impl RangeAccrualOption {
     /// let option = RangeAccrualOption::new(terms)?;
     /// assert!(option.calendar().is_trading_day(expiry.date()));
     /// // An amendment also validates the existing Saturday expiry.
-    /// assert!(matches!(option.with_calendar(TradingCalendar::weekdays()),
+    /// assert!(matches!(option.replace_calendar(TradingCalendar::weekdays()),
     ///     Err(Error::InvalidInput(_))));
     /// # Ok(()) }
     /// ```
-    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Result<Self> {
-        self.terms.calendar = calendar;
-        self.validate_calendar()?;
-        Ok(self)
+    pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
+        let mut updated = self.clone();
+        updated.terms.calendar = calendar;
+        updated.validate_calendar()?;
+        Ok(updated)
     }
 
     fn validate_calendar(&self) -> Result<()> {
@@ -147,7 +148,7 @@ impl RangeAccrualOption {
         Ok(())
     }
 
-    /// Borrows the contract's observation calendar; see [`Self::with_calendar`].
+    /// Borrows the contract's observation calendar; see [`Self::replace_calendar`].
     pub fn calendar(&self) -> &TradingCalendar {
         &self.terms.calendar
     }
@@ -243,7 +244,7 @@ impl OptionContract for RangeAccrualOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct RangeAccrualOptionChanges {
-    /// Replaces the owned observation calendar; see [`RangeAccrualOption::with_calendar`].
+    /// Replaces the owned observation calendar; see [`RangeAccrualOption::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`notional`](RangeAccrualTerms::notional).
     pub notional: Option<f64>,

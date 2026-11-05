@@ -341,7 +341,7 @@ fn prepared_pricing_rebuilds_when_the_calendar_changes_monitoring_dates() {
         TradingCalendar::all_days(),
         TradingCalendar::weekdays(),
     ] {
-        let note = note.clone().with_calendar(calendar).unwrap();
+        let note = note.replace_calendar(calendar).unwrap();
         assert_eq!(
             prepared.price(&note, &context).unwrap(),
             engine.price(&note, &context).unwrap()

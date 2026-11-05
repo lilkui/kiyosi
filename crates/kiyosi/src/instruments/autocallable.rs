@@ -684,7 +684,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// assert_eq!(binary.terms().principal_ratio, 1.0);
     /// assert_eq!(ternary.terms().minimum_coupon_rate, 0.02);
     /// // Amend an already validated contract to include weekend monitoring.
-    /// let daily = ternary.with_calendar(kiyosi::TradingCalendar::all_days())?;
+    /// let daily = ternary.replace_calendar(kiyosi::TradingCalendar::all_days())?;
     /// assert_eq!(daily.calendar().trading_days_per_year(), 365);
     /// # Ok(()) }
     /// ```
@@ -703,19 +703,20 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// Amends an already validated contract; this is not an initial-construction builder.
     /// Set [`SnowballTerms::calendar`] before calling [`Self::new`] when the
     /// terms require a custom calendar, such as a weekend expiry or observation.
-    /// This method consumes the contract even on failure; [`Self::replace`] preserves it.
-    /// See [`crate::RangeAccrualOption::with_calendar`] for an initial-calendar example.
+    /// The original contract remains unchanged on success and failure.
+    /// See [`crate::RangeAccrualOption::replace_calendar`] for an initial-calendar example.
     ///
     /// # Errors
     ///
     /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.
-    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Result<Self> {
-        self.0.set_calendar(calendar);
-        self.view().validate_calendar()?;
-        Ok(self)
+    pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
+        let mut updated = self.clone();
+        updated.0.set_calendar(calendar);
+        updated.view().validate_calendar()?;
+        Ok(updated)
     }
 
-    /// Borrows the contract's monitoring calendar; see [`Self::with_calendar`].
+    /// Borrows the contract's monitoring calendar; see [`Self::replace_calendar`].
     pub fn calendar(&self) -> &TradingCalendar {
         self.view().calendar
     }
@@ -1110,7 +1111,7 @@ impl sealed::View<'_> {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct SnowballOptionChanges {
-    /// Replaces the owned monitoring calendar; see [`AutocallableNote::with_calendar`].
+    /// Replaces the owned monitoring calendar; see [`AutocallableNote::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`maturity_coupon_rate`](SnowballTerms::maturity_coupon_rate).
     pub maturity_coupon_rate: Option<f64>,
@@ -1175,7 +1176,7 @@ impl SnowballOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct PhoenixOptionChanges {
-    /// Replaces the owned monitoring calendar; see [`AutocallableNote::with_calendar`].
+    /// Replaces the owned monitoring calendar; see [`AutocallableNote::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`coupon`](PhoenixTerms::coupon).
     pub coupon: Option<PhoenixCoupon>,
@@ -1238,7 +1239,7 @@ impl PhoenixOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct BinarySnowballOptionChanges {
-    /// Replaces the owned monitoring calendar; see [`AutocallableNote::with_calendar`].
+    /// Replaces the owned monitoring calendar; see [`AutocallableNote::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`maturity_coupon_rate`](BinarySnowballTerms::maturity_coupon_rate).
     pub maturity_coupon_rate: Option<f64>,
@@ -1286,7 +1287,7 @@ impl BinarySnowballOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct TernarySnowballOptionChanges {
-    /// Replaces the owned monitoring calendar; see [`AutocallableNote::with_calendar`].
+    /// Replaces the owned monitoring calendar; see [`AutocallableNote::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`maturity_coupon_rate`](TernarySnowballTerms::maturity_coupon_rate).
     pub maturity_coupon_rate: Option<f64>,

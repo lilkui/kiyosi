@@ -443,7 +443,7 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
         } else {
             TradingCalendar::default()
         };
-        let option = option.with_calendar(calendar).unwrap();
+        let option = option.replace_calendar(calendar).unwrap();
         let observations =
             ObservationSchedule::fixed_interval(day(1, 2), end, 1, option.calendar())
                 .unwrap()

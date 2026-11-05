@@ -92,18 +92,19 @@ impl DoubleBarrierOption {
     /// Amends an already validated contract; this is not an initial-construction builder.
     /// Set [`DoubleBarrierOptionTerms::calendar`] before calling [`Self::new`] when the
     /// terms require a custom calendar, such as a weekend expiry or observation.
-    /// This method consumes the contract even on failure; [`Self::replace`] preserves it.
-    /// See [`crate::RangeAccrualOption::with_calendar`] for an initial-calendar example.
+    /// The original contract remains unchanged on success and failure.
+    /// See [`crate::RangeAccrualOption::replace_calendar`] for an initial-calendar example.
     ///
     /// # Errors
     ///
     /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.
-    pub fn with_calendar(mut self, calendar: TradingCalendar) -> Result<Self> {
-        self.lower = self.lower.with_calendar(calendar)?;
-        Ok(self)
+    pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
+        let mut updated = self.clone();
+        updated.lower = updated.lower.replace_calendar(calendar)?;
+        Ok(updated)
     }
 
-    /// Borrows the contract's observation calendar; see [`Self::with_calendar`].
+    /// Borrows the contract's observation calendar; see [`Self::replace_calendar`].
     pub fn calendar(&self) -> &TradingCalendar {
         self.lower.calendar()
     }
@@ -293,7 +294,7 @@ impl OptionContract for DoubleBarrierOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct DoubleBarrierOptionChanges {
-    /// Replaces the owned observation calendar; see [`DoubleBarrierOption::with_calendar`].
+    /// Replaces the owned observation calendar; see [`DoubleBarrierOption::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`option_type`](DoubleBarrierOptionTerms::option_type).
     pub option_type: Option<OptionType>,

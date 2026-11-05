@@ -139,10 +139,7 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
     })?;
     let price = AnalyticRangeAccrualEngine.price(&range, &at_expiry)?;
     assert!((price - 360.0 / 365.0).abs() < 1e-12);
-    let daily = range
-        .clone()
-        .with_calendar(TradingCalendar::all_days())
-        .unwrap();
+    let daily = range.replace_calendar(TradingCalendar::all_days()).unwrap();
     assert!((AnalyticRangeAccrualEngine.price(&daily, &at_expiry)? - price / 3.0).abs() < 1e-12);
     assert_eq!(daily.replace_history(None)?.calendar(), daily.calendar());
     assert_eq!(daily.replace(Default::default())?, daily);
@@ -156,7 +153,7 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
     };
     let engine = MonteCarloAccumulatorEngine::new(sampling)?;
     let daily = accumulator
-        .with_calendar(TradingCalendar::all_days())
+        .replace_calendar(TradingCalendar::all_days())
         .unwrap();
     assert!((engine.price(&daily, &context)? - 40.0).abs() < 1e-7);
     assert_eq!(daily.replace_history(0.0)?.calendar(), daily.calendar());
@@ -171,7 +168,7 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
         end,
         vec![AutocallableObservation::new(end, 110.0)?],
     ))?;
-    let daily = note.with_calendar(TradingCalendar::all_days()).unwrap();
+    let daily = note.replace_calendar(TradingCalendar::all_days()).unwrap();
     assert_eq!(
         daily
             .replace_history(Some(AutocallableBarrierState::NoEvent))?
@@ -911,7 +908,7 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
         Err(Error::InvalidInput(_))
     ));
     assert!(matches!(
-        option.clone().with_calendar(TradingCalendar::weekdays()),
+        option.replace_calendar(TradingCalendar::weekdays()),
         Err(Error::InvalidInput(_))
     ));
     assert_eq!(option.calendar(), &TradingCalendar::all_days());
@@ -977,6 +974,22 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
         }),
         Err(Error::InvalidInput(_))
     ));
+    macro_rules! unchanged {
+        ($option:ident) => {
+            assert!(matches!(
+                $option.replace_calendar(TradingCalendar::weekdays()),
+                Err(Error::InvalidInput(_))
+            ));
+            assert_eq!(
+                $option.replace_calendar(TradingCalendar::all_days())?,
+                $option
+            );
+            assert_eq!($option.calendar(), &TradingCalendar::all_days());
+        };
+    }
+    unchanged!(accumulator);
+    unchanged!(note);
+    unchanged!(range);
     Ok(())
 }
 

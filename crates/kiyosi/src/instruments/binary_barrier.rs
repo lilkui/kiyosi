@@ -345,23 +345,24 @@ impl TouchOption {
 macro_rules! monitoring_accessors {
     ($contract:ty) => {
         impl $contract {
-            /// Replaces the owned observation calendar; see [`crate::BarrierOption::with_calendar`].
+            /// Replaces the owned observation calendar; see [`crate::BarrierOption::replace_calendar`].
             ///
             /// Amends an already validated contract; this is not an initial-construction builder.
             /// Set [`BinaryBarrierTerms::calendar`] or [`TouchOptionTerms::calendar`]
             /// before calling the corresponding cash or asset constructor. Otherwise,
             /// default weekday validation can reject weekend observations before this method runs.
-            /// This method consumes the contract even on failure; [`Self::replace`] preserves it.
-            /// See [`crate::RangeAccrualOption::with_calendar`] for an initial-calendar example.
+            /// The original contract remains unchanged on success and failure.
+            /// See [`crate::RangeAccrualOption::replace_calendar`] for an initial-calendar example.
             ///
             /// # Errors
             ///
             /// Returns [`crate::Error::InvalidInput`] for scheduled observations on closed dates.
-            pub fn with_calendar(mut self, calendar: TradingCalendar) -> Result<Self> {
-                self.monitoring = self.monitoring.with_calendar(calendar)?;
-                Ok(self)
+            pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
+                let mut updated = self.clone();
+                updated.monitoring = updated.monitoring.replace_calendar(calendar)?;
+                Ok(updated)
             }
-            /// Borrows the contract's observation calendar; see [`Self::with_calendar`].
+            /// Borrows the contract's observation calendar; see [`Self::replace_calendar`].
             pub fn calendar(&self) -> &TradingCalendar {
                 self.monitoring.calendar()
             }
@@ -488,7 +489,7 @@ impl TouchOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct BinaryBarrierOptionChanges {
-    /// Replaces the owned observation calendar; see [`BinaryBarrierOption::with_calendar`].
+    /// Replaces the owned observation calendar; see [`BinaryBarrierOption::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`option_type`](BinaryBarrierTerms::option_type).
     pub option_type: Option<OptionType>,
@@ -551,7 +552,7 @@ impl BinaryBarrierOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct TouchOptionChanges {
-    /// Replaces the owned observation calendar; see [`TouchOption::with_calendar`].
+    /// Replaces the owned observation calendar; see [`TouchOption::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`effective_time`](TouchOptionTerms::effective_time).
     pub effective_time: Option<Timestamp>,
