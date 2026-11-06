@@ -105,7 +105,9 @@ impl AnalyticRangeAccrualEngine {
             scale += risk;
         }
         if future < dates.len() {
-            model.dividend_curve().validate_horizon(valuation, expiry)?;
+            model
+                .dividend_curve()
+                .validate_horizon(valuation, dates[dates.len() - 1])?;
         }
         // Anchor at spot to keep adjacent floating-point price bounds distinct.
         let lower = if option.lower_bound() == 0.0 {

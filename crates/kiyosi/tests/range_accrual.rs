@@ -28,6 +28,40 @@ fn market(at: impl Into<Timestamp>, spot: f64) -> PricingContext {
     .unwrap()
 }
 
+#[test]
+fn dividend_coverage_ends_at_the_last_observation() -> Result<()> {
+    let start = Timestamp::new(day(2).date(), 16, 0, 0, 0)?;
+    let last = Timestamp::new(day(3).date(), 9, 0, 0, 0)?;
+    let expiry = Timestamp::new(day(3).date(), 17, 0, 0, 0)?;
+    let option = RangeAccrualOption::new(RangeAccrualTerms::new(
+        1000.0,
+        0.12,
+        90.0,
+        110.0,
+        start,
+        expiry,
+        last.time_of_day(),
+    ))?;
+    let price = |risk_end, dividend_end| {
+        AnalyticRangeAccrualEngine.price(
+            &option,
+            &PricingContext::new(
+                BlackScholesMertonParameters::new(
+                    RateTermStructure::bounded_flat(0.04, start, risk_end)?,
+                    RateTermStructure::bounded_flat(0.01, start, dividend_end)?,
+                    0.2,
+                )?,
+                100.0,
+                start,
+            )?,
+        )
+    };
+    assert_eq!(price(expiry, last)?, price(expiry, expiry)?);
+    assert!(matches!(price(last, last), Err(Error::InvalidInput(_))));
+    assert!(matches!(price(expiry, start), Err(Error::InvalidInput(_))));
+    Ok(())
+}
+
 fn civil(date: Date) -> NaiveDate {
     NaiveDate::from_ymd_opt(date.year(), date.month(), date.day()).unwrap()
 }

@@ -104,6 +104,42 @@ def reference(option, context):
 
 
 class RangeAccrualTests(unittest.TestCase):
+    def test_dividend_coverage_ends_at_the_last_observation(self):
+        start = datetime(2025, 1, 2, 16)
+        last = datetime(2025, 1, 3, 9)
+        expiry = datetime(2025, 1, 3, 17)
+        option = RangeAccrualOption(
+            notional=1000,
+            annual_coupon_rate=0.12,
+            lower_bound=90,
+            upper_bound=110,
+            effective_time=start,
+            expiry_time=expiry,
+            observation_clock_time=time(9),
+        )
+
+        def price(risk_end, dividend_end):
+            return AnalyticRangeAccrualEngine().price(
+                option,
+                market(
+                    valuation=start,
+                    rate=RateTermStructure.bounded_flat(
+                        0.04, reference_time=start, max_time=risk_end
+                    ),
+                    dividend=RateTermStructure.bounded_flat(
+                        0.01, reference_time=start, max_time=dividend_end
+                    ),
+                ),
+            )
+
+        self.assertEqual(price(expiry, last), price(expiry, expiry))
+        for risk_end, dividend_end in ((last, last), (expiry, start)):
+            with (
+                self.subTest(risk_end=risk_end, dividend_end=dividend_end),
+                self.assertRaises(InvalidInputError),
+            ):
+                price(risk_end, dividend_end)
+
     def test_unresolvable_curve_knots_fail_before_future_pricing(self):
         knot, expiry = datetime(2500, 1, 1), datetime(2500, 1, 2)
         curve = RateTermStructure(
