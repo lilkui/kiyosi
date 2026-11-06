@@ -208,13 +208,17 @@ class BinomialTests(unittest.TestCase):
                         start.set()
                         worker.join()
 
-    def test_one_step_speed_omits_infeasible_scalar_stencil(self):
+    def test_one_step_speed_respects_automatic_and_explicit_spot_bumps(self):
         engine = engine_for(EuropeanOption, 1)
         option = contract(EuropeanOption, strike=0.015)
         context = market(spot=0.015)
         result = engine.price_with_greeks(option, context, "speed")
         self.assertEqual(result.price, engine.price(option, context))
-        self.assertIsNone(result.speed)
+        self.assertAlmostEqual(
+            result.require("speed") * context.spot_price**2, 0, delta=1e-8
+        )
+        explicit = numerical_greeks(engine, option, context, "speed", spot_shift=0.01)
+        self.assertEqual(explicit.status("speed"), "undefined")
 
     def assert_rejection(self, expected_error, operation, *args, **kwargs):
         with self.assertRaises(expected_error) as error:

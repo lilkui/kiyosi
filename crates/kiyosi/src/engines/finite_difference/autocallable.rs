@@ -253,8 +253,10 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
 ) -> Result<(PricingResult, Option<f64>)> {
     validate(note, context)?;
     let state = initial(note, context);
-    let h =
-        crate::risk::numerical::symmetric_shift(context.spot_price(), shifts.fallback_spot_shift());
+    let h = crate::risk::numerical::symmetric_shift(
+        context.spot_price(),
+        shifts.spot_shift_at(context.spot_price()),
+    );
     let spot_greeks = !note.at_spot_discontinuity(context, h);
     if let Some(value) = state.settlement {
         return Ok((PricingResult::new(value)?, None));
@@ -506,7 +508,7 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
         }
     }
     if spot_greeks && request.has(Greek::Speed) {
-        let h = crate::risk::numerical::symmetric_shift(spot, shifts.fallback_spot_shift());
+        let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
         if h > 0.0 && spot > h && spot + h < upper {
             let up = space.sample(&alive, &curvature, spot + h)[2];
             let down = space.sample(&alive, &curvature, spot - h)[2];

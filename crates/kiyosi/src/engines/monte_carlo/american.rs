@@ -13,7 +13,7 @@ impl MonteCarloVanillaEngine {
     /// Exercise decisions amplify small-bump noise; sampling error and bump bias
     /// require convergence checks. Other shifts use [`NumericalShiftSettings`] defaults.
     /// Rust and Python use this value before expiry when `spot_shift` is automatic
-    /// (`None`). Terminal payoffs use the shared 0.01 spot-unit default.
+    /// (`None`). Terminal payoffs use the smaller of 0.01 spot units and 1% of spot.
     ///
     /// # Examples
     ///

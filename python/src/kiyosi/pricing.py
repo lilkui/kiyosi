@@ -130,8 +130,8 @@ vega, volga, rho and dividend rho are zero because no stochastic evolution or
 discounting remains. Vanna and zomma are zero where spot derivatives exist.
 Theta, charm and color are None at expiry. Spot stencils crossing a payoff
 kink or product event are unavailable. Terminal rules apply within engine/model coverage.
-Automatic terminal spot bumps use 0.01 spot units, including American Monte Carlo;
-custom terminal bumps belong to ``numerical_greeks``.
+Automatic terminal spot bumps use the smaller of 0.01 spot units and 1% of spot,
+including American Monte Carlo; custom terminal bumps belong to ``numerical_greeks``.
 
 Inspect ``engine.greek_method(instrument, context)`` before a parameter sweep:
 ``"native"`` uses no numerical shifts, ``"numerical"`` uses scalar differences,
@@ -147,14 +147,15 @@ unsupported by the scalar helper. Monte Carlo draws are pinned within each
 numerical request.
 
 Numerical bump controls are keyword-only and discoverable through
-``inspect.signature(numerical_greeks)``. ``spot_shift=None`` selects 0.01 spot
-units, except American Monte Carlo before expiry uses 8% of spot. Volatility and
-rate shifts default to 0.0001 decimal units; time shifts use one calendar day.
+``inspect.signature(numerical_greeks)``. ``spot_shift=None`` selects the smaller
+of 0.01 spot units and 1% of spot, except American Monte Carlo before expiry uses
+8% of spot. Volatility and rate shifts default to 0.0001 decimal units; time
+shifts use one calendar day.
 These are sampling steps: Greek outputs are unscaled partial derivatives,
 with time measured in Actual/365 Fixed years and volatility and rates in decimals.
 Rust ``NumericalShiftSettings`` supplies the same defaults. Its
-``fallback_spot_shift()`` accessor returns the general fallback; keep ``None``
-when forwarding settings to preserve engine-specific automatic resolution.
+``fallback_spot_shift()`` accessor returns the uncapped general fallback; keep
+``None`` when forwarding settings to preserve engine-specific automatic resolution.
 
 ``AnalyticHestonEuropeanEngine`` prices European calls/puts with ``HestonParameters``
 using adaptive Fourier integration and a deterministic-variance control variate.

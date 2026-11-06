@@ -10,6 +10,54 @@ from support.terminal import assert_terminal_greeks
 
 
 class ExpiryGreekTests(unittest.TestCase):
+    def test_automatic_spot_bumps_fit_small_price_units(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        model = market.BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        )
+        engines = (
+            pricing.AnalyticEuropeanEngine(),
+            pricing.CoxRossRubinsteinVanillaEngine(),
+            pricing.FiniteDifferenceVanillaEngine(),
+            pricing.QuadratureVanillaEngine(),
+            pricing.MonteCarloVanillaEngine(path_count=32, seed=42),
+        )
+        for spot in (0.005, 0.5, 50):
+            context = market.PricingContext(
+                model_parameters=model, spot_price=spot, valuation_time=end
+            )
+            option = ins.EuropeanOption(
+                option_type="call",
+                strike=0.2 * spot,
+                effective_time=start,
+                expiry_time=end,
+            )
+            for engine in engines:
+                with self.subTest(spot=spot, engine=type(engine).__name__):
+                    result = engine.price_with_greeks(
+                        option, context, ["delta", "gamma"]
+                    )
+                    self.assertAlmostEqual(result.require("delta"), 1, delta=1e-10)
+                    self.assertAlmostEqual(
+                        result.require("gamma") * spot, 0, delta=1e-8
+                    )
+            explicit = numerical_greeks(
+                engines[0], option, context, "delta", spot_shift=2 * spot
+            )
+            self.assertEqual(explicit.status("delta"), "undefined")
+            active = context.replace(valuation_time=start)
+            atm = option.replace(strike=spot)
+            exact = engines[0].price_with_greeks(atm, active, ["delta", "gamma"])
+            numerical = numerical_greeks(engines[0], atm, active, ["delta", "gamma"])
+            self.assertAlmostEqual(
+                numerical.require("delta"), exact.require("delta"), delta=1e-4
+            )
+            self.assertAlmostEqual(
+                (numerical.require("gamma") - exact.require("gamma")) * spot,
+                0,
+                delta=1e-3,
+            )
+
     def test_native_terminal_greeks_honor_spot_bumps(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         context = market.PricingContext(

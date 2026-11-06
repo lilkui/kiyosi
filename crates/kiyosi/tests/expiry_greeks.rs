@@ -9,6 +9,65 @@ fn context(spot: f64) -> Result<PricingContext> {
 }
 
 #[test]
+fn automatic_spot_bumps_fit_small_price_units() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let engines: [&dyn PricingEngine; 5] = [
+        &AnalyticEuropeanEngine,
+        &CoxRossRubinsteinVanillaEngine::default(),
+        &FiniteDifferenceVanillaEngine::default(),
+        &QuadratureVanillaEngine::default(),
+        &MonteCarloVanillaEngine::default(),
+    ];
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    for spot in [0.005, 0.5, 50.0] {
+        let context = context(spot)?;
+        let option = EuropeanOption::new(
+            OptionType::Call,
+            0.2 * spot,
+            start,
+            context.valuation_time(),
+        )?;
+        for engine in engines {
+            let result = engine.price_with_greeks(&option, &context, request)?;
+            assert!((result.require(Greek::Delta)? - 1.0).abs() < 1e-10);
+            assert!((result.require(Greek::Gamma)? * spot).abs() < 1e-8);
+        }
+        let explicit = numerical_greeks(
+            &AnalyticEuropeanEngine,
+            &option,
+            &context,
+            request,
+            NumericalShiftSettings {
+                spot_shift: Some(2.0 * spot),
+                ..Default::default()
+            },
+        )?;
+        assert_eq!(explicit.status(Greek::Delta), GreekStatus::Undefined);
+        let active = context.replace(PricingContextChanges {
+            valuation_time: Some(start),
+            ..Default::default()
+        })?;
+        let atm = option.replace(EuropeanOptionChanges {
+            strike: Some(spot),
+            ..Default::default()
+        })?;
+        let exact = AnalyticEuropeanEngine.price_with_greeks(&atm, &active, request)?;
+        let numerical = numerical_greeks(
+            &AnalyticEuropeanEngine,
+            &atm,
+            &active,
+            request,
+            Default::default(),
+        )?;
+        assert!((numerical.require(Greek::Delta)? - exact.require(Greek::Delta)?).abs() < 1e-4);
+        assert!(
+            ((numerical.require(Greek::Gamma)? - exact.require(Greek::Gamma)?) * spot).abs() < 1e-3
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn native_terminal_greeks_honor_spot_bumps_through_trait_and_direct_calls() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let context = context(100.005)?;

@@ -49,7 +49,7 @@ pub(crate) fn expiry_greeks(
         result.set(request, greek, 0.0)?;
     }
     let spot = context.spot_price();
-    let h = symmetric_shift(spot, settings.fallback_spot_shift());
+    let h = symmetric_shift(spot, settings.spot_shift_at(spot));
     if h <= 0.0 || spot <= h || option.at_spot_discontinuity(context, h) {
         return Ok(result);
     }
@@ -103,8 +103,8 @@ pub(crate) fn expiry_greeks(
 /// At expiry, supported spot Greeks use terminal-payoff stencils. Vega, volga,
 /// rho and dividend rho are zero; vanna and zomma are zero where spot derivatives
 /// exist. Theta, charm and color are absent. Stencils crossing terminal kinks
-/// or product events are unavailable. Automatic terminal spot bumps use 0.01
-/// spot units for every engine, including American Monte Carlo.
+/// or product events are unavailable. Automatic terminal spot bumps use the smaller
+/// of 0.01 spot units and 1% of spot for every engine, including American Monte Carlo.
 ///
 /// Uses rounded symmetric absolute bumps; collapsed, asymmetric or nonpositive
 /// stencils are unavailable.
@@ -153,7 +153,7 @@ pub fn numerical_greeks<I: OptionContract, E: PricingEngine<I> + ?Sized>(
     let settings = NumericalShiftSettings {
         spot_shift: Some(settings.spot_shift.unwrap_or_else(|| {
             if context.valuation_time() == option.expiry_time() {
-                NumericalShiftSettings::default().fallback_spot_shift()
+                settings.spot_shift_at(context.spot_price())
             } else {
                 engine.default_spot_shift(context)
             }
@@ -215,7 +215,7 @@ pub(crate) fn complete_greeks(
     let spot = context.spot_price();
     let vol = model.volatility();
     let rate = model.risk_free_curve().exact_flat_rate().unwrap_or(0.0);
-    let h = symmetric_shift(spot, settings.fallback_spot_shift());
+    let h = symmetric_shift(spot, settings.spot_shift_at(spot));
     let v = symmetric_shift(vol, settings.volatility_shift);
     let r = symmetric_shift(rate, settings.rate_shift);
     let spot_ok = [

@@ -382,7 +382,7 @@ fn local_resolved(
     if touched || finished || fixed {
         let h = crate::risk::numerical::symmetric_shift(
             context.spot_price(),
-            shifts.fallback_spot_shift(),
+            shifts.spot_shift_at(context.spot_price()),
         );
         let request =
             if option.all_greeks_unavailable(context) || option.at_spot_discontinuity(context, h) {
@@ -770,7 +770,7 @@ fn native_with_model<D: Diffusion>(
         risk.log_factor(0.0, time),
     ));
     let mut result = PricingResult::new(crate::numerics::checked_with_scale(sample[0], scale)?)?;
-    let h = crate::risk::numerical::symmetric_shift(spot, shifts.fallback_spot_shift());
+    let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
     if !option.at_spot_discontinuity(context, h) {
         result.set(request, Greek::Delta, sample[1])?;
         result.set(request, Greek::Gamma, sample[2])?;

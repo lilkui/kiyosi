@@ -566,7 +566,7 @@ fn vanilla_numerical_completion_tracks_analytic_and_propagates_bump_failures() {
 }
 
 #[test]
-fn one_step_speed_omits_an_infeasible_scalar_stencil() {
+fn one_step_speed_respects_automatic_and_explicit_spot_bumps() {
     let (start, end) = dates();
     let option = EuropeanOption::new(OptionType::Call, 0.015, start, end).unwrap();
     let context = market(0.015, 0.05, 0.02, 0.2);
@@ -575,5 +575,17 @@ fn one_step_speed_omits_an_infeasible_scalar_stencil() {
         .price_with_greeks(&option, &context, GreeksRequest::new([Greek::Speed]))
         .unwrap();
     assert_eq!(result.price(), engine.price(&option, &context).unwrap());
-    assert_eq!(result.get(Greek::Speed), None);
+    assert!(result.require(Greek::Speed).unwrap().abs() * context.spot_price().powi(2) < 1e-8);
+    let explicit = numerical_greeks(
+        &engine,
+        &option,
+        &context,
+        GreeksRequest::new([Greek::Speed]),
+        NumericalShiftSettings {
+            spot_shift: Some(0.01),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(explicit.status(Greek::Speed), GreekStatus::Undefined);
 }

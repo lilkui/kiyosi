@@ -318,7 +318,7 @@ fn native_with_diffusion<D: Diffusion>(
         }
         let value = if let Some(digital) = contract.digital {
             if D::LOCAL {
-                let h = crate::risk::numerical::symmetric_shift(spot, shifts.fallback_spot_shift());
+                let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
                 let request = if option.spot_discontinuity(context, h, contract.upper_barrier) {
                     GreeksRequest::new([])
                 } else {
@@ -623,7 +623,7 @@ fn native_with_diffusion<D: Diffusion>(
         },
     );
     let mut result = PricingResult::new(crate::numerics::checked_with_scale(sample[0], scale)?)?;
-    let h = crate::risk::numerical::symmetric_shift(spot, shifts.fallback_spot_shift());
+    let h = crate::risk::numerical::symmetric_shift(spot, shifts.spot_shift_at(spot));
     if !option.spot_discontinuity(context, h, contract.upper_barrier) {
         result.set(request, Greek::Delta, sample[1])?;
         result.set(request, Greek::Gamma, sample[2])?;
