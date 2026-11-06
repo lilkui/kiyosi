@@ -6,7 +6,7 @@ fn day(month: u32, date: u32) -> Timestamp {
 fn option(end: Timestamp) -> Accumulator {
     Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(3.0),
-        ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end)
+        ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end, (end).time_of_day())
     })
     .unwrap()
 }
@@ -212,7 +212,8 @@ fn validation_order_domains_and_failures_preserve_engine_and_inputs() {
             1.0,
             2.0,
             day(1, 1),
-            day(1, 5)
+            day(1, 5),
+            (day(1, 5)).time_of_day()
         )),
         Err(Error::InvalidInput(_))
     ));
@@ -430,7 +431,7 @@ fn node_curves_price_fixed_holdings_and_only_future_cashflows_require_coverage()
     let option = Accumulator::new(AccumulatorTerms {
         daily_quantity: 0.0,
         accumulated_quantity: Some(2.0),
-        ..AccumulatorTerms::new(100.0, 399.0, 0.0, 1.0, day(1, 1), end)
+        ..AccumulatorTerms::new(100.0, 399.0, 0.0, 1.0, day(1, 1), end, (end).time_of_day())
     })
     .unwrap();
     let engine = FiniteDifferenceAccumulatorEngine::new(FiniteDifferenceSettings {
@@ -482,7 +483,15 @@ fn node_curves_price_fixed_holdings_and_only_future_cashflows_require_coverage()
 fn speed_propagates_nonfinite_shifted_prices_without_changing_inputs() {
     let option = Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(f64::MAX),
-        ..AccumulatorTerms::new(100.0, 110.0, 0.0, 2.0, day(1, 1), day(1, 6))
+        ..AccumulatorTerms::new(
+            100.0,
+            110.0,
+            0.0,
+            2.0,
+            day(1, 1),
+            day(1, 6),
+            (day(1, 6)).time_of_day(),
+        )
     })
     .unwrap();
     let context = market(
@@ -585,7 +594,15 @@ fn implied_volatility_recovers_quotes_and_preserves_solver_failures_and_identifi
         let option = Accumulator::new(AccumulatorTerms {
             daily_quantity: 0.0,
             accumulated_quantity: Some(quantity),
-            ..AccumulatorTerms::new(100.0, 110.0, 0.0, 2.0, day(1, 1), day(1, 6))
+            ..AccumulatorTerms::new(
+                100.0,
+                110.0,
+                0.0,
+                2.0,
+                day(1, 1),
+                day(1, 6),
+                (day(1, 6)).time_of_day(),
+            )
         })
         .unwrap();
         let context = PricingContext::new(

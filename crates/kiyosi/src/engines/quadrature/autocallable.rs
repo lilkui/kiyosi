@@ -41,8 +41,9 @@ impl QuadratureAutocallableEngine {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2025, 4, 1)?.start_of_day();
     /// let mut terms = SnowballTerms::new(0.08, 100.0, 80.0, 100.0, 0.0, start, end,
-    ///     autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?);
+    ///     autocallable_observations(&[end], &[110.0], Some(&[0.08]), None)?, Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?));
     /// terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+    /// terms.observation_clock_time = None;
     /// let note = SnowballOption::new(terms)?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     100.0, start.into())?;
@@ -238,8 +239,9 @@ fn terminal<T: AutocallableTerms>(
             if let Some(r) = record.filter(|r| point > log_ratio(r.knock_out_level(), anchor)) {
                 cash = note.knock_out_payment(r);
             } else if knocked_in
-                || t.knock_in
-                    .is_some_and(|ki| point < log_ratio(ki.level, anchor))
+                || note.observes_knock_in(note.expiry_time())
+                    && t.knock_in
+                        .is_some_and(|ki| point < log_ratio(ki.level, anchor))
             {
                 if let Some(d) = t.downside() {
                     if d.lower_strike > 0.0 && point < log_ratio(d.lower_strike, anchor) {

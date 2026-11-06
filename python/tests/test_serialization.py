@@ -7,6 +7,7 @@ import pickle
 import unittest
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
+from datetime import time as clock_time
 
 from kiyosi import InvalidInputError
 from kiyosi import instruments as i
@@ -38,7 +39,10 @@ def values():
         trading_days_per_year=260,
     )
     schedule = m.monthly_schedule(
-        start_time=START, end_time=END, first_observation_month=1
+        observation_clock_time=clock_time(),
+        start_time=START,
+        end_time=END,
+        first_observation_month=1,
     )
     common = {
         "initial_spot": 100,
@@ -70,7 +74,12 @@ def values():
         m.weekdays_calendar(),
         m.all_days_calendar(),
         schedule,
-        m.fixed_interval_schedule(start_time=START, end_time=END, interval_days=2),
+        m.fixed_interval_schedule(
+            observation_clock_time=clock_time(),
+            start_time=START,
+            end_time=END,
+            interval_days=2,
+        ),
         m.PricingContext(
             model_parameters=model,
             spot_price=100,
@@ -95,6 +104,7 @@ def values():
             lower_barrier=80, upper_barrier=120, barrier_type="knock_out", **vanilla
         ),
         i.RangeAccrualOption(
+            observation_clock_time=clock_time(),
             notional=100,
             annual_coupon_rate=0.1,
             lower_bound=80,
@@ -103,6 +113,7 @@ def values():
             **life,
         ),
         i.Accumulator(
+            observation_clock_time=clock_time(),
             strike=100,
             knock_out_level=110,
             daily_quantity=1,
@@ -110,6 +121,7 @@ def values():
             **life,
         ),
         i.Accumulator(
+            observation_clock_time=clock_time(),
             strike=100,
             knock_out_level=110,
             daily_quantity=1,
@@ -118,13 +130,26 @@ def values():
             knock_out_observation_times=[],
             **life,
         ),
-        i.SnowballOption(maturity_coupon_rate=0.1, **common),
-        i.PhoenixOption(coupon_rate=0.1, **common),
-        i.PhoenixOption(coupon_per_period=0.01, **common),
+        i.SnowballOption(
+            observation_clock_time=clock_time(),
+            maturity_coupon_rate=0.1,
+            **common,
+        ),
+        i.PhoenixOption(
+            observation_clock_time=clock_time(),
+            coupon_rate=0.1,
+            **common,
+        ),
+        i.PhoenixOption(
+            observation_clock_time=clock_time(),
+            coupon_per_period=0.01,
+            **common,
+        ),
         i.BinarySnowballOption(
             maturity_coupon_rate=0.1, observations=common["observations"], **life
         ),
         i.TernarySnowballOption(
+            observation_clock_time=clock_time(),
             maturity_coupon_rate=0.1,
             minimum_coupon_rate=0.02,
             knock_in_level=80,

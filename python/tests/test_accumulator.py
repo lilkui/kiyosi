@@ -3,6 +3,7 @@ import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, time, timedelta
+from datetime import time as clock_time
 from functools import partial
 from itertools import pairwise
 
@@ -34,6 +35,7 @@ def contract(
     calendar=None,
 ):
     return Accumulator(
+        observation_clock_time=clock_time(),
         strike=100,
         knock_out_level=knock_out,
         daily_quantity=daily,
@@ -119,6 +121,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             (datetime(2025, 1, 4), datetime(2025, 1, 6)),
         ):
             option = Accumulator(
+                observation_clock_time=clock_time(),
                 strike=90,
                 knock_out_level=150,
                 daily_quantity=1,
@@ -174,7 +177,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             "effective_time": START,
             "expiry_time": datetime(2025, 2, 3),
         }
-        option = Accumulator(**fields)
+        option = Accumulator(observation_clock_time=clock_time(), **fields)
         self.assertIsNone(option.accumulated_quantity)
         self.assertEqual(option.strike, 100)
         self.assertEqual(option.knock_out_level, 110)
@@ -209,13 +212,18 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                     self.subTest(field=field, value=value),
                     self.assertRaises(TypeError),
                 ):
-                    Accumulator(**(fields | {field: value}))
+                    Accumulator(
+                        observation_clock_time=clock_time(), **(fields | {field: value})
+                    )
             with self.subTest(field=field), self.assertRaises(OverflowError):
-                Accumulator(**(fields | {field: 10**400}))
+                Accumulator(
+                    observation_clock_time=clock_time(), **(fields | {field: 10**400})
+                )
             for value in (-1, math.nan, math.inf):
                 self.assert_rejection(
                     InvalidInputError,
                     Accumulator,
+                    observation_clock_time=clock_time(),
                     **(fields | {field: value}),
                 )
         for value in (True, "3", object()):
@@ -237,19 +245,24 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         for field in ("effective_time", "expiry_time"):
             for value in (datetime(2025, 1, 1, tzinfo=UTC), "2025-01-01", None):
                 with self.assertRaises(TypeError):
-                    Accumulator(**(fields | {field: value}))
+                    Accumulator(
+                        observation_clock_time=clock_time(), **(fields | {field: value})
+                    )
         self.assert_rejection(
             InvalidInputError,
             Accumulator,
+            observation_clock_time=clock_time(),
             **(fields | {"expiry_time": START - timedelta(days=1)}),
         )
         self.assert_rejection(
             InvalidInputError,
             Accumulator,
+            observation_clock_time=clock_time(),
             **(fields | {"strike": 0, "expiry_time": START - timedelta(days=1)}),
         )
         self.assertEqual(
             Accumulator(
+                observation_clock_time=clock_time(),
                 **(
                     fields
                     | {
@@ -257,7 +270,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
                         "daily_quantity": 0,
                         "acceleration_factor": 0,
                     }
-                )
+                ),
             ).daily_quantity,
             0,
         )

@@ -1,6 +1,7 @@
 """Numeric protocols accepted by the public Python interface."""
 
 from datetime import datetime
+from datetime import time as clock_time
 from fractions import Fraction
 from typing import assert_type
 
@@ -19,7 +20,10 @@ def numeric_protocol_inputs() -> None:
     assert_type(CoxRossRubinsteinVanillaEngine(step_count=Index()).step_count, int)
     assert_type(MonteCarloVanillaEngine(seed=Index()).seed, int | None)
     schedule = fixed_interval_schedule(
-        start_time=start, end_time=end, interval_days=Index()
+        observation_clock_time=clock_time(),
+        start_time=start,
+        end_time=end,
+        interval_days=Index(),
     )
     assert_type(schedule[Index()], datetime)
     option = EuropeanOption(

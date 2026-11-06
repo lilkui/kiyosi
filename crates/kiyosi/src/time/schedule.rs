@@ -1,4 +1,4 @@
-use crate::{Error, Result, Timestamp, TradingCalendar};
+use crate::{Error, Result, TimeOfDay, Timestamp, TradingCalendar};
 
 /// Owns immutable, strictly ordered observation times.
 ///
@@ -48,13 +48,15 @@ impl ObservationSchedule {
         end_time: Timestamp,
         calendar: &TradingCalendar,
         include_start: bool,
+        observation_clock_time: TimeOfDay,
     ) -> Result<Self> {
         validate_range(start_time, end_time)?;
         let mut times = Vec::new();
         let mut date = start_time.date();
         loop {
-            let time = end_time.on_date(date);
+            let time = date.at_time(observation_clock_time);
             if (time > start_time || include_start && time == start_time)
+                && time <= end_time
                 && calendar.is_trading_day(date)
             {
                 times.push(time);
@@ -67,7 +69,7 @@ impl ObservationSchedule {
         Ok(Self { times })
     }
 
-    /// Creates candidates at `start_time + n * interval_days` for positive `n`.
+    /// Creates candidates every `interval_days` after the start date at the supplied clock time.
     ///
     /// `start_time` is excluded and `end_time` is inclusive. Following adjustment merges collisions
     /// and stops before crossing `end_time`; `end_time` need not appear.
@@ -80,11 +82,11 @@ impl ObservationSchedule {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{Date, ObservationSchedule, TradingCalendar};
+    /// use kiyosi::{Date, ObservationSchedule, TimeOfDay, TradingCalendar};
     /// # fn main() -> kiyosi::Result<()> {
     /// let schedule = ObservationSchedule::fixed_interval(
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 10)?.start_of_day(), 3,
-    ///     &TradingCalendar::all_days())?;
+    ///     &TradingCalendar::all_days(), TimeOfDay::new(0, 0, 0, 0)?)?;
     /// assert_eq!(schedule.len(), 3);
     /// # Ok(()) }
     /// ```
@@ -93,13 +95,14 @@ impl ObservationSchedule {
         end_time: Timestamp,
         interval_days: i64,
         calendar: &TradingCalendar,
+        observation_clock_time: TimeOfDay,
     ) -> Result<Self> {
         validate_range(start_time, end_time)?;
         if interval_days <= 0 {
             return Err(Error::InvalidInput("interval must be positive".into()));
         }
         let mut times = Vec::new();
-        let mut target = start_time;
+        let mut target = start_time.date().at_time(observation_clock_time);
         while interval_days <= target.date().days_until(end_time.date()) {
             target = target.add_days(interval_days)?;
             if !push_following(&mut times, target, end_time, calendar)? {
@@ -111,7 +114,7 @@ impl ObservationSchedule {
 
     /// Creates monthly candidates anchored to `start_time`'s day, clamped at month end.
     ///
-    /// Day and month shifts preserve the time of day, including microseconds.
+    /// Candidates use the supplied clock time, including microseconds.
     ///
     /// The first offset must be positive; subsequent observations are monthly.
     /// Uses [`Self::fixed_interval`]'s adjustment, collision and endpoint rules.
@@ -130,6 +133,7 @@ impl ObservationSchedule {
         end_time: Timestamp,
         first_observation_month: i32,
         calendar: &TradingCalendar,
+        observation_clock_time: TimeOfDay,
     ) -> Result<Self> {
         validate_range(start_time, end_time)?;
         if first_observation_month <= 0 {
@@ -146,7 +150,7 @@ impl ObservationSchedule {
             // Clamp each candidate from the original day so February does not shift later months.
             let target = loop {
                 match crate::Date::new(year, month, day) {
-                    Ok(date) => break start_time.on_date(date),
+                    Ok(date) => break date.at_time(observation_clock_time),
                     Err(_) => day -= 1,
                 }
             };

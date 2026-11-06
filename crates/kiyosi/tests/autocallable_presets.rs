@@ -58,9 +58,11 @@ fn fcn_dcn_expand_to_owned_phoenix_terms_and_pay_fixed_coupons_at_boundaries() {
                     Some(&[barrier; 2]),
                 )
                 .unwrap(),
+                Some((date(4, 1)).time_of_day()),
             );
             expected.coupon = PhoenixCoupon::PerPeriod(coupon);
             expected.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+            expected.observation_clock_time = None;
             expected.barrier_state = Some(AutocallableBarrierState::NoEvent);
             expected.principal_ratio = 0.25;
             assert_eq!(note, PhoenixOption::new(expected).unwrap());
@@ -281,6 +283,7 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
         date(1, 1),
         date(4, 1),
         dates.clone(),
+        Some((date(4, 1)).time_of_day()),
     );
     for (preset, rates, maturity) in [
         (
@@ -324,6 +327,7 @@ fn stage_cutoffs_are_inclusive_and_coupon_uses_the_whole_holding_period() {
             date(1, 1),
             date(4, 1),
             autocallable_observations(&dates, &[110.0; 5], Some(&rates), None).unwrap(),
+            Some((date(4, 1)).time_of_day()),
         );
         expected.barrier_state = Some(AutocallableBarrierState::NoEvent);
         assert_eq!(note, SnowballOption::new(expected).unwrap());
@@ -370,6 +374,7 @@ fn stage_validation_checks_unused_rates_and_allows_empty_stages_and_non_observat
         date(1, 1),
         date(4, 1),
         vec![date(4, 1)],
+        Some((date(4, 1)).time_of_day()),
     );
     for cutoff in [date(1, 1), date(2, 1)] {
         let note = base

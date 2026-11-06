@@ -14,6 +14,7 @@ fn terms() -> SnowballTerms {
         date(1, 1),
         date(4, 1),
         vec![AutocallableObservation::new(date(4, 1), 110.0).unwrap()],
+        Some((date(4, 1)).time_of_day()),
     )
 }
 
@@ -30,6 +31,7 @@ fn market(spot: f64, valuation: Timestamp) -> PricingContext {
 fn current_settlement_preserves_strict_knock_in_and_inclusive_knock_out() {
     let mut t = terms();
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+    t.observation_clock_time = None;
     t.barrier_state = Some(AutocallableBarrierState::NoEvent);
     t.observations[0] = t.observations[0]
         .replace(AutocallableObservationChanges {
@@ -94,6 +96,7 @@ fn invalid_terms_and_history_fail_without_changing_the_note() {
     ));
     let mut t = terms();
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+    t.observation_clock_time = None;
     t.barrier_state = Some(AutocallableBarrierState::KnockedIn);
     assert!(matches!(
         engine
@@ -114,6 +117,7 @@ fn terminal_portfolios_preserve_signed_coupons_affine_tails_and_principal() {
                 t.effective_time = date(1, 1);
                 t.expiry_time = Date::new(2026, 1, 1).unwrap().start_of_day();
                 t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+                t.observation_clock_time = None;
                 t.maturity_coupon_rate = 0.0;
                 t.knock_in_level = 100.0;
                 t.lower_strike = lower;
@@ -181,6 +185,8 @@ fn multi_observation_affine_tails_preserve_cash_asset_and_greeks() {
             t.principal_ratio = principal;
             t.maturity_coupon_rate = 0.0;
             t.knock_in_observation_mode = mode;
+            t.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
+                .then_some(t.expiry_time.time_of_day());
             t.barrier_state = history;
             t.observations = autocallable_observations(
                 &[date(1, 3), date(1, 6), date(1, 7)],
@@ -224,6 +230,8 @@ fn daily_monitoring_converges_and_prices_recovery_risk() {
         let mut t = terms();
         t.knock_in_level = 95.0;
         t.knock_in_observation_mode = mode;
+        t.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
+            .then_some(t.expiry_time.time_of_day());
         t.observations = autocallable_observations(
             &[date(2, 3), date(3, 3), date(4, 1)],
             &[110.0, 108.0, 105.0],
@@ -255,6 +263,7 @@ fn daily_monitoring_converges_and_prices_recovery_risk() {
 fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     let mut t = terms();
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+    t.observation_clock_time = None;
     let note = SnowballOption::new(t).unwrap();
     let ctx = market(103.0, date(1, 1));
     let engine = QuadratureAutocallableEngine::default();
@@ -288,6 +297,7 @@ fn greeks_and_volatility_use_public_scalar_analysis_contract() {
     assert_eq!(ctx.model_parameters().as_bsm().unwrap().volatility(), 0.3);
     let mut t = terms();
     t.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+    t.observation_clock_time = None;
     t.barrier_state = Some(AutocallableBarrierState::NoEvent);
     t.observations[0] = t.observations[0]
         .replace(AutocallableObservationChanges {

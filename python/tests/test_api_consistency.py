@@ -4,6 +4,7 @@ import math
 import pickle
 import unittest
 from datetime import datetime, timedelta
+from datetime import time as clock_time
 from fractions import Fraction
 
 from kiyosi import InvalidInputError, UnsupportedOperationError, market, pricing
@@ -116,6 +117,7 @@ class ApiConsistencyTests(unittest.TestCase):
                         "maturity_coupon_rate": invalid,
                         "minimum_coupon_rate": 0,
                         "knock_in_level": 80,
+                        "observation_clock_time": clock_time(),
                     },
                     "maturity_coupon_rate",
                 ),
@@ -125,6 +127,7 @@ class ApiConsistencyTests(unittest.TestCase):
                         "maturity_coupon_rate": 0.1,
                         "minimum_coupon_rate": invalid,
                         "knock_in_level": 80,
+                        "observation_clock_time": clock_time(),
                     },
                     "minimum_coupon_rate",
                 ),
@@ -153,6 +156,7 @@ class ApiConsistencyTests(unittest.TestCase):
             valuation_time=valuation,
         )
         accumulator = ins.Accumulator(
+            observation_clock_time=clock_time(),
             strike=100,
             knock_out_level=120,
             daily_quantity=1,
@@ -218,6 +222,7 @@ class ApiConsistencyTests(unittest.TestCase):
             ([], None),
         ):
             original = ins.Accumulator(
+                observation_clock_time=clock_time(),
                 strike=100,
                 knock_out_level=120,
                 daily_quantity=1,
@@ -331,6 +336,7 @@ class ApiConsistencyTests(unittest.TestCase):
                     daily_quantity=1,
                     acceleration_factor=2,
                     knock_out_observation_times=[closed],
+                    observation_clock_time=clock_time(),
                 ),
             ),
             (
@@ -350,6 +356,7 @@ class ApiConsistencyTests(unittest.TestCase):
                     knock_out_level=110,
                     coupon_rate=0.1,
                     observation_times=[closed],
+                    observation_clock_time=clock_time(),
                 ),
             ),
             (
@@ -361,6 +368,7 @@ class ApiConsistencyTests(unittest.TestCase):
                     "annual_coupon_rate": 0.1,
                     "lower_bound": 80,
                     "upper_bound": 120,
+                    "observation_clock_time": clock_time(),
                 },
             ),
         ]
@@ -476,6 +484,7 @@ class ApiConsistencyTests(unittest.TestCase):
             model_parameters=model, spot_price=100, valuation_time=start
         )
         accrual = ins.RangeAccrualOption(
+            observation_clock_time=clock_time(),
             notional=1000,
             annual_coupon_rate=0.12,
             lower_bound=90,
@@ -491,6 +500,7 @@ class ApiConsistencyTests(unittest.TestCase):
         daily = accrual.replace(calendar=market.all_days_calendar())
         self.assertAlmostEqual(engine.price(daily, expiry), price / 3, delta=1e-12)
         accumulator = ins.Accumulator(
+            observation_clock_time=clock_time(),
             strike=90,
             knock_out_level=200,
             daily_quantity=1,
@@ -499,6 +509,7 @@ class ApiConsistencyTests(unittest.TestCase):
             expiry_time=end,
         )
         note = ins.standard_snowball(
+            observation_clock_time=clock_time(),
             coupon_rate=0.1,
             initial_spot=100,
             knock_in_level=80,
@@ -603,6 +614,7 @@ class ApiConsistencyTests(unittest.TestCase):
             (
                 pricing.AnalyticRangeAccrualEngine(),
                 ins.RangeAccrualOption(
+                    observation_clock_time=clock_time(),
                     notional=100,
                     annual_coupon_rate=coupon,
                     lower_bound=90,
@@ -731,6 +743,7 @@ class ApiConsistencyTests(unittest.TestCase):
                 return self.value
 
         schedule = market.fixed_interval_schedule(
+            observation_clock_time=clock_time(),
             start_time=datetime(2025, 1, 1),
             end_time=datetime(2025, 1, 10),
             interval_days=Index(2),
@@ -801,6 +814,7 @@ class ApiConsistencyTests(unittest.TestCase):
 
         start, end = datetime(2025, 1, 1), datetime(2025, 1, 10)
         option = ins.Accumulator(
+            observation_clock_time=clock_time(),
             strike=90,
             knock_out_level=110,
             daily_quantity=1,
@@ -815,6 +829,7 @@ class ApiConsistencyTests(unittest.TestCase):
         self.assertEqual(pickle.loads(pickle.dumps(settled)), settled)
         self.assertTrue(
             ins.Accumulator(
+                observation_clock_time=clock_time(),
                 strike=90,
                 knock_out_level=110,
                 daily_quantity=1,

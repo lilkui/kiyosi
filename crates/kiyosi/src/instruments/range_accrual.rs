@@ -1,4 +1,4 @@
-use crate::{Error, OptionContract, PricingContext, Result, Timestamp, TradingCalendar};
+use crate::{Error, OptionContract, PricingContext, Result, TimeOfDay, Timestamp, TradingCalendar};
 
 /// Supplies equally weighted range-coupon terms; see [`RangeAccrualOption::new`].
 #[derive(Clone, Debug, PartialEq)]
@@ -15,8 +15,10 @@ pub struct RangeAccrualTerms {
     pub upper_bound: f64,
     /// Effective time, excluded from observations.
     pub effective_time: Timestamp,
-    /// Payment time and final observation.
+    /// Maturity payment time.
     pub expiry_time: Timestamp,
+    /// Sets the explicit daily observation clock; see [`TimeOfDay::new`].
+    pub observation_clock_time: TimeOfDay,
     /// Hits strictly before valuation; `None` means unknown history.
     pub realized_hit_count: Option<i32>,
 }
@@ -30,6 +32,7 @@ impl RangeAccrualTerms {
         upper_bound: f64,
         effective_time: Timestamp,
         expiry_time: Timestamp,
+        observation_clock_time: TimeOfDay,
     ) -> Self {
         Self {
             calendar: TradingCalendar::default(),
@@ -39,6 +42,7 @@ impl RangeAccrualTerms {
             upper_bound,
             effective_time,
             expiry_time,
+            observation_clock_time,
             realized_hit_count: None,
         }
     }
@@ -46,7 +50,7 @@ impl RangeAccrualTerms {
 
 /// Owns a validated range coupon with no principal payment or early termination.
 ///
-/// Observes at the expiry clock time on trading dates in `(effective_time, expiry_time]`.
+/// Observes at the specified observation clock time on trading dates in `(effective_time, expiry_time]`.
 /// Pays `notional * annual_coupon_rate * ACT/365 * hits / observations` at expiry.
 /// Calendar compatibility is checked on construction; history consistency is checked during pricing. Shared reads are safe.
 /// See [`Self::new`] for an example.
@@ -61,7 +65,8 @@ impl RangeAccrualOption {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for invalid amounts, bounds or negative
-    /// history, then for nonpositive contract life or a nontrading expiry date.
+    /// history, then for nonpositive contract life, a nontrading expiry date or
+    /// an empty daily observation schedule.
     /// History relative to valuation is validated by [`crate::AnalyticRangeAccrualEngine::price`].
     ///
     /// # Examples
@@ -70,7 +75,7 @@ impl RangeAccrualOption {
     /// use kiyosi::{Date, RangeAccrualOption, RangeAccrualTerms};
     /// # fn main() -> kiyosi::Result<()> {
     /// let terms = RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
-    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 17)?.start_of_day());
+    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 17)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?);
     /// let option = RangeAccrualOption::new(terms)?;
     /// let seasoned = option.replace_history(Some(3))?;
     /// assert_eq!(seasoned.realized_hit_count(), Some(3));
@@ -114,7 +119,8 @@ impl RangeAccrualOption {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.
+    /// Returns [`crate::Error::InvalidInput`] if expiry falls on a closed date
+    /// or the resulting daily observation schedule is empty.
     ///
     /// # Examples
     ///
@@ -125,7 +131,7 @@ impl RangeAccrualOption {
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 3)?.start_of_day();
     /// let expiry = Date::new(2025, 1, 4)?.start_of_day();
-    /// let mut terms = RangeAccrualTerms::new(1000.0, 0.12, 80.0, 120.0, start, expiry);
+    /// let mut terms = RangeAccrualTerms::new(1000.0, 0.12, 80.0, 120.0, start, expiry, kiyosi::TimeOfDay::new(0, 0, 0, 0)?);
     /// terms.calendar = TradingCalendar::all_days();
     /// let option = RangeAccrualOption::new(terms)?;
     /// assert!(option.calendar().is_trading_day(expiry.date()));
@@ -144,6 +150,19 @@ impl RangeAccrualOption {
     fn validate_calendar(&self) -> Result<()> {
         if !self.calendar().is_trading_day(self.expiry_time().date()) {
             return Err(Error::InvalidInput("expiry must be a trading day".into()));
+        }
+        if crate::ObservationSchedule::daily(
+            self.effective_time(),
+            self.expiry_time(),
+            self.calendar(),
+            false,
+            self.observation_clock_time(),
+        )?
+        .is_empty()
+        {
+            return Err(Error::InvalidInput(
+                "range accrual requires at least one observation".into(),
+            ));
         }
         Ok(())
     }
@@ -185,9 +204,13 @@ impl RangeAccrualOption {
     pub fn effective_time(&self) -> Timestamp {
         self.terms.effective_time
     }
-    /// Returns payment and final observation time; see [`Self::new`].
+    /// Returns maturity payment time; see [`Self::new`].
     pub fn expiry_time(&self) -> Timestamp {
         self.terms.expiry_time
+    }
+    /// Returns the daily observation clock; see [`TimeOfDay::new`].
+    pub fn observation_clock_time(&self) -> TimeOfDay {
+        self.terms.observation_clock_time
     }
     /// Returns hits strictly before valuation; see [`Self::new`].
     pub fn realized_hit_count(&self) -> Option<i32> {
@@ -220,6 +243,7 @@ impl OptionContract for RangeAccrualOption {
                 self.expiry_time(),
                 self.calendar(),
                 false,
+                self.observation_clock_time(),
             )
             .is_ok_and(|schedule| {
                 schedule
@@ -238,7 +262,7 @@ impl OptionContract for RangeAccrualOption {
         self.annual_coupon_rate() != 0.0
             && time > self.effective_time()
             && time <= self.expiry_time()
-            && time.micros_since_midnight() == self.expiry_time().micros_since_midnight()
+            && time.micros_since_midnight() == self.observation_clock_time().micros_since_midnight()
             && self.calendar().is_trading_day(time.date())
             && [self.lower_bound(), self.upper_bound()]
                 .iter()
@@ -257,6 +281,7 @@ impl OptionContract for RangeAccrualOption {
             self.expiry_time(),
             self.calendar(),
             false,
+            self.observation_clock_time(),
         ) else {
             return false;
         };
@@ -286,6 +311,8 @@ pub struct RangeAccrualOptionChanges {
     pub effective_time: Option<Timestamp>,
     /// Replaces [`expiry_time`](RangeAccrualTerms::expiry_time).
     pub expiry_time: Option<Timestamp>,
+    /// Replaces the daily observation clock; see [`TimeOfDay::new`].
+    pub observation_clock_time: Option<TimeOfDay>,
     /// Replaces [`realized_hit_count`](RangeAccrualTerms::realized_hit_count).
     pub realized_hit_count: Option<Option<i32>>,
 }
@@ -311,6 +338,9 @@ impl RangeAccrualOption {
             upper_bound: changes.upper_bound.unwrap_or(self.upper_bound()),
             effective_time: changes.effective_time.unwrap_or(self.effective_time()),
             expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
+            observation_clock_time: changes
+                .observation_clock_time
+                .unwrap_or(self.observation_clock_time()),
             realized_hit_count: changes
                 .realized_hit_count
                 .unwrap_or(self.realized_hit_count()),

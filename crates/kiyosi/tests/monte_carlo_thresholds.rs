@@ -105,8 +105,11 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
                 start,
                 end,
                 autocallable_observations(&[end], &[120.0], None, None).unwrap(),
+                Some((end).time_of_day()),
             );
             terms.knock_in_observation_mode = mode;
+            terms.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
+                .then_some(terms.expiry_time.time_of_day());
             terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
             let note = TernarySnowballOption::new(terms).unwrap();
             assert!((engine.price(&note, &context).unwrap() - (1.0 + 0.07 / 365.0)).abs() < 1e-12);
@@ -120,9 +123,11 @@ fn autocallable_knock_in_and_coupon_tests_preserve_sub_ulp_movements() {
             start,
             end,
             autocallable_observations(&[end], &[120.0], None, Some(&[100.0])).unwrap(),
+            Some((end).time_of_day()),
         );
         terms.coupon = PhoenixCoupon::PerPeriod(0.12);
         terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+        terms.observation_clock_time = None;
         let note = PhoenixOption::new(terms).unwrap();
         assert!((engine.price(&note, &context).unwrap() - 1.06).abs() < 1e-12);
     }
@@ -139,14 +144,22 @@ fn accumulator_thresholds_preserve_knock_out_and_accelerated_settlements() {
             (OptionType::Call, 90.0, 120.0),
             (OptionType::Put, 110.0, 80.0),
         ] {
-            let mut terms = AccumulatorTerms::new(strike, 100.0, 1.0, 1.0, start, end);
+            let mut terms =
+                AccumulatorTerms::new(strike, 100.0, 1.0, 1.0, start, end, (end).time_of_day());
             terms.option_type = direction;
             terms.accumulated_quantity = Some(1.0);
             let option = Accumulator::new(terms).unwrap();
             assert!((engine.price(&option, &context).unwrap() - 15.0).abs() < 1e-12);
 
-            let mut terms =
-                AccumulatorTerms::new(100.0, barrier, 1.0 / volatility, 2.0, start, end);
+            let mut terms = AccumulatorTerms::new(
+                100.0,
+                barrier,
+                1.0 / volatility,
+                2.0,
+                start,
+                end,
+                (end).time_of_day(),
+            );
             terms.accumulated_quantity = Some(0.0);
             terms.option_type = direction;
             let option = Accumulator::new(terms).unwrap();

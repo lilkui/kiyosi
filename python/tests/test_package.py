@@ -7,6 +7,7 @@ import pickle
 import tomllib
 import unittest
 from datetime import datetime
+from datetime import time as clock_time
 from pathlib import Path
 
 import kiyosi
@@ -81,6 +82,7 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(option.observation_mode, "continuous")
         self.assertEqual(option.observation_times, [])
         arguments = inspect.signature(market.monthly_schedule).bind(
+            observation_clock_time=clock_time(),
             start_time=start,
             end_time=datetime(2025, 3, 3),
             first_observation_month=1,
@@ -201,6 +203,7 @@ class PackageTests(unittest.TestCase):
                 touch_state="untouched",
             ),
             instruments.RangeAccrualOption(
+                observation_clock_time=clock_time(),
                 **dates,
                 notional=1000,
                 annual_coupon_rate=0.12,
@@ -546,7 +549,7 @@ class PackageTests(unittest.TestCase):
             ),
         ):
             with self.subTest(contract=cls.__name__):
-                note = cls(**common, **extra)
+                note = cls(observation_clock_time=clock_time(), **common, **extra)
                 self.assertEqual(note.knock_in_observation_mode, "every_trading_day")
                 default = (
                     inspect.signature(cls)
@@ -555,7 +558,13 @@ class PackageTests(unittest.TestCase):
                 )
                 self.assertEqual(default, "every_trading_day")
                 self.assertEqual(
-                    note, cls(**common, **extra, knock_in_observation_mode=default)
+                    note,
+                    cls(
+                        observation_clock_time=clock_time(),
+                        **common,
+                        **extra,
+                        knock_in_observation_mode=default,
+                    ),
                 )
                 self.assertNotEqual(
                     note, cls(**common, **extra, knock_in_observation_mode="at_expiry")

@@ -2,6 +2,7 @@
 
 import unittest
 from datetime import datetime
+from datetime import time as clock_time
 
 from kiyosi import instruments as ins
 from kiyosi import pricing
@@ -99,6 +100,9 @@ class MonteCarloThresholdTests(unittest.TestCase):
             context = market(volatility, intraday=True)
             for mode in ("every_trading_day", "at_expiry"):
                 note = ins.TernarySnowballOption(
+                    observation_clock_time=clock_time()
+                    if mode == "every_trading_day"
+                    else None,
                     **common,
                     maturity_coupon_rate=0.12,
                     minimum_coupon_rate=0.02,
@@ -112,6 +116,7 @@ class MonteCarloThresholdTests(unittest.TestCase):
                         engine.price(note, context), 1 + 0.07 / 365, delta=1e-12
                     )
             note = ins.PhoenixOption(
+                observation_clock_time=None,
                 **common,
                 coupon_per_period=0.12,
                 initial_spot=100,
@@ -139,6 +144,7 @@ class MonteCarloThresholdTests(unittest.TestCase):
                     "expiry_time": end,
                 }
                 option = ins.Accumulator(
+                    observation_clock_time=clock_time(),
                     **common,
                     strike=strike,
                     knock_out_level=100,
@@ -151,6 +157,7 @@ class MonteCarloThresholdTests(unittest.TestCase):
                         engine.price(option, context), 15, delta=1e-12
                     )
                     option = ins.Accumulator(
+                        observation_clock_time=clock_time(),
                         **common,
                         strike=100,
                         knock_out_level=barrier,

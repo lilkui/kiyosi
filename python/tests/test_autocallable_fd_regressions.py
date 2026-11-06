@@ -3,6 +3,7 @@
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from datetime import time as clock_time
 
 from kiyosi import InvalidInputError, RootNotBracketedError, pricing
 from kiyosi.instruments import (
@@ -41,6 +42,9 @@ class AutocallableRegressionTests(unittest.TestCase):
         shifts = {"spot_shift": 0.25, "volatility_shift": 0.002, "rate_shift": 0.001}
         for mode in ("every_trading_day", "at_expiry"):
             note = SnowballOption(
+                observation_clock_time=clock_time()
+                if mode == "every_trading_day"
+                else None,
                 maturity_coupon_rate=0.06,
                 initial_spot=100,
                 knock_in_level=80,
@@ -128,6 +132,7 @@ class AutocallableRegressionTests(unittest.TestCase):
         for note, value in (
             (
                 SnowballOption(
+                    observation_clock_time=clock_time(),
                     **common,
                     **downside,
                     maturity_coupon_rate=0,
@@ -137,6 +142,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             ),
             (
                 PhoenixOption(
+                    observation_clock_time=clock_time(),
                     **common,
                     **downside,
                     coupon_rate=0.1,
@@ -148,6 +154,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             ),
             (
                 TernarySnowballOption(
+                    observation_clock_time=clock_time(),
                     **common,
                     maturity_coupon_rate=0.1,
                     minimum_coupon_rate=0,
@@ -240,7 +247,13 @@ class AutocallableRegressionTests(unittest.TestCase):
         base = context(0.27)
         bounds = {"lower_bound": 0.1, "upper_bound": 0.4, "price_tolerance": 1e-12}
         for mode in ("at_expiry", "every_trading_day"):
-            knock_in = {"knock_in_level": 99, "knock_in_observation_mode": mode}
+            knock_in = {
+                "knock_in_level": 99,
+                "knock_in_observation_mode": mode,
+                "observation_clock_time": clock_time()
+                if mode == "every_trading_day"
+                else None,
+            }
             cases = (
                 (
                     PhoenixOption,
@@ -350,7 +363,13 @@ class AutocallableRegressionTests(unittest.TestCase):
             valuation_time=datetime(2025, 1, 1, 12),
         )
         for mode in ("at_expiry", "every_trading_day"):
-            knock_in = {"knock_in_level": 99, "knock_in_observation_mode": mode}
+            knock_in = {
+                "knock_in_level": 99,
+                "knock_in_observation_mode": mode,
+                "observation_clock_time": clock_time()
+                if mode == "every_trading_day"
+                else None,
+            }
             cases = (
                 (
                     PhoenixOption,
@@ -532,6 +551,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             "upper_strike": 100,
             "lower_strike": 60,
             "knock_in_observation_mode": "every_trading_day",
+            "observation_clock_time": clock_time(),
         }
         cases = (
             (BinarySnowballOption, coupons),
@@ -543,6 +563,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                     "knock_in_level": 99,
                     "minimum_coupon_rate": 0.02,
                     "knock_in_observation_mode": "every_trading_day",
+                    "observation_clock_time": clock_time(),
                 },
             ),
             (
@@ -659,6 +680,7 @@ class AutocallableRegressionTests(unittest.TestCase):
 
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = SnowballOption(
+            observation_clock_time=clock_time(),
             maturity_coupon_rate=0,
             initial_spot=100,
             knock_in_level=75,
@@ -716,6 +738,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             for state in ("no_event", "knocked_in"):
                 with self.subTest(engine=type(engine).__name__, state=state):
                     note = SnowballOption(
+                        observation_clock_time=clock_time(),
                         maturity_coupon_rate=0.06,
                         initial_spot=100,
                         knock_in_level=75,
@@ -755,6 +778,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             "expiry_time": end,
         }
         snowball = SnowballOption(
+            observation_clock_time=None,
             **common,
             maturity_coupon_rate=0.06,
             initial_spot=100,
@@ -765,6 +789,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             ),
         )
         phoenix = PhoenixOption(
+            observation_clock_time=None,
             **common,
             coupon_rate=0.08,
             initial_spot=100,
@@ -775,6 +800,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             ),
         )
         ternary = TernarySnowballOption(
+            observation_clock_time=None,
             **common,
             maturity_coupon_rate=0.06,
             minimum_coupon_rate=0.02,
@@ -873,12 +899,18 @@ class AutocallableRegressionTests(unittest.TestCase):
                 self.assertEqual(
                     engine.price(
                         SnowballOption(
-                            **terms, knock_in_observation_mode="every_trading_day"
+                            observation_clock_time=clock_time(),
+                            **terms,
+                            knock_in_observation_mode="every_trading_day",
                         ),
                         context,
                     ),
                     engine.price(
-                        SnowballOption(**terms, knock_in_observation_mode="at_expiry"),
+                        SnowballOption(
+                            observation_clock_time=None,
+                            **terms,
+                            knock_in_observation_mode="at_expiry",
+                        ),
                         context,
                     ),
                 )
@@ -889,7 +921,11 @@ class AutocallableRegressionTests(unittest.TestCase):
             asset_upper_boundary=400,
         )
         actual = explicit.price(
-            SnowballOption(**terms, knock_in_observation_mode="every_trading_day"),
+            SnowballOption(
+                observation_clock_time=clock_time(),
+                **terms,
+                knock_in_observation_mode="every_trading_day",
+            ),
             context,
         )
         reference = pricing.FiniteDifferenceAutocallableEngine(
@@ -897,11 +933,23 @@ class AutocallableRegressionTests(unittest.TestCase):
             time_step_count=2000,
             scheme="explicit_euler",
             asset_upper_boundary=400,
-        ).price(SnowballOption(**terms, knock_in_observation_mode="at_expiry"), context)
+        ).price(
+            SnowballOption(
+                observation_clock_time=None,
+                **terms,
+                knock_in_observation_mode="at_expiry",
+            ),
+            context,
+        )
         self.assertAlmostEqual(actual, reference, delta=0.0002)
         with self.assertRaises(InvalidInputError) as error:
             explicit.price(
-                SnowballOption(**terms, knock_in_observation_mode="at_expiry"), context
+                SnowballOption(
+                    observation_clock_time=None,
+                    **terms,
+                    knock_in_observation_mode="at_expiry",
+                ),
+                context,
             )
         self.assertIs(type(error.exception), InvalidInputError)
 

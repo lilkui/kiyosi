@@ -1,6 +1,7 @@
 """Static constructor contracts; checked with unused ignores reported as errors."""
 
 from datetime import datetime
+from datetime import time as clock_time
 from typing import assert_type
 
 from kiyosi.instruments import (
@@ -22,6 +23,7 @@ def phoenix_choices() -> None:
     observations = [AutocallableObservation(end, 110)]
     assert_type(
         PhoenixOption(
+            observation_clock_time=clock_time(),
             coupon_rate=0.1,
             initial_spot=100,
             knock_in_level=80,
@@ -36,6 +38,7 @@ def phoenix_choices() -> None:
     )
     assert_type(
         PhoenixOption(
+            observation_clock_time=clock_time(),
             coupon_per_period=0.01,
             initial_spot=100,
             knock_in_level=80,
@@ -49,6 +52,7 @@ def phoenix_choices() -> None:
         PhoenixOption,
     )
     PhoenixOption(
+        observation_clock_time=clock_time(),
         coupon_rate=0.1,
         coupon_per_period=0.01,
         initial_spot=100,
@@ -61,6 +65,7 @@ def phoenix_choices() -> None:
         observations=observations,
     )  # ty: ignore[no-matching-overload]
     PhoenixOption(
+        observation_clock_time=clock_time(),
         initial_spot=100,
         knock_in_level=80,
         upper_strike=100,

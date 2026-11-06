@@ -665,7 +665,16 @@ fn every_fd_engine_keeps_schemes_coverage_and_explicit_stability_contracts() {
     );
     check!(
         FiniteDifferenceAccumulatorEngine,
-        Accumulator::new(AccumulatorTerms::new(100.0, 120.0, 1.0, 2.0, start, end)).unwrap()
+        Accumulator::new(AccumulatorTerms::new(
+            100.0,
+            120.0,
+            1.0,
+            2.0,
+            start,
+            end,
+            (end).time_of_day()
+        ))
+        .unwrap()
     );
     check!(
         FiniteDifferenceAutocallableEngine,

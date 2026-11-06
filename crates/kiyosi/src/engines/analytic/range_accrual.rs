@@ -1,8 +1,6 @@
 use crate::RangeAccrualOption;
 use crate::numerics::{Sum, checked, log_interval_mass, log_ratio, scaled_cash, standardize};
-use crate::{
-    Error, GreeksRequest, ObservationSchedule, PricingContext, PricingEngine, PricingResult, Result,
-};
+use crate::{Error, GreeksRequest, PricingContext, PricingEngine, PricingResult, Result};
 
 /// Prices range coupons by summing exact BSM marginal probabilities with deterministic curves.
 ///
@@ -51,7 +49,7 @@ impl AnalyticRangeAccrualEngine {
     /// use kiyosi::*;
     /// # fn main() -> Result<()> {
     /// let option = RangeAccrualOption::new(RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0,
-    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 3)?.start_of_day()))?.replace_history(Some(1))?;
+    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?.replace_history(Some(1))?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     95.0, option.expiry_time().into())?;
     /// assert!((AnalyticRangeAccrualEngine.price(&option, &context)? - 240.0 / 365.0).abs() < 1e-12);
@@ -67,11 +65,12 @@ impl AnalyticRangeAccrualEngine {
         crate::instruments::monitoring::validate_life(option, context)?;
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
-        let schedule = ObservationSchedule::daily(
+        let schedule = crate::ObservationSchedule::daily(
             option.effective_time(),
             option.expiry_time(),
             option.calendar(),
             false,
+            option.observation_clock_time(),
         )?;
         let dates = schedule.times();
         let first = dates.partition_point(|date| *date < valuation);
@@ -91,21 +90,22 @@ impl AnalyticRangeAccrualEngine {
             );
             future += 1;
         }
-        if option.annual_coupon_rate() == 0.0 {
+        if option.annual_coupon_rate() == 0.0 || future == dates.len() && hits == 0.0 {
             return Ok(0.0);
         }
         let term = option.effective_time().years_until(expiry);
         let mut scale = option.notional().ln() + option.annual_coupon_rate().ln() + term.ln()
             - (dates.len() as f64).ln();
         let model = context.bsm_parameters()?;
-        if future < dates.len() {
+        if valuation < expiry {
             model
                 .risk_free_curve()
                 .validate_horizon(valuation, expiry)?;
-            model.dividend_curve().validate_horizon(valuation, expiry)?;
             let risk = model.risk_free_curve().log_factor(valuation, expiry)?;
-            model.dividend_curve().log_factor(valuation, expiry)?;
             scale += risk;
+        }
+        if future < dates.len() {
+            model.dividend_curve().validate_horizon(valuation, expiry)?;
         }
         // Anchor at spot to keep adjacent floating-point price bounds distinct.
         let lower = if option.lower_bound() == 0.0 {
@@ -154,6 +154,19 @@ impl PricingEngine<RangeAccrualOption> for AnalyticRangeAccrualEngine {
         option: &RangeAccrualOption,
         context: &PricingContext,
     ) -> bool {
-        option.annual_coupon_rate() != 0.0 && context.valuation_time() < option.expiry_time()
+        option.annual_coupon_rate() != 0.0
+            && crate::ObservationSchedule::daily(
+                option.effective_time(),
+                option.expiry_time(),
+                option.calendar(),
+                false,
+                option.observation_clock_time(),
+            )
+            .map_or(true, |schedule| {
+                schedule
+                    .times()
+                    .iter()
+                    .any(|&time| time > context.valuation_time())
+            })
     }
 }

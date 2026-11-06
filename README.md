@@ -40,7 +40,7 @@ wheel 安装无需 Rust；源码安装需 Rust/Cargo 和本机编译工具。
 使用有限差分（FD）引擎为标准雪球定价：
 
 ```python
-from datetime import datetime
+from datetime import datetime, time
 
 from kiyosi.instruments import standard_snowball
 from kiyosi.market import (
@@ -57,6 +57,7 @@ observations = monthly_schedule(
     start_time=start,
     end_time=end,
     first_observation_month=1,
+    observation_clock_time=time(15),
     calendar=calendar,
 )
 snowball = standard_snowball(
@@ -66,6 +67,7 @@ snowball = standard_snowball(
     knock_in_level=80.0,
     knock_out_level=103.0,
     observation_times=observations,
+    observation_clock_time=time(15),
     effective_time=start,
     expiry_time=end,
 )

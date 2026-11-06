@@ -4,6 +4,7 @@ import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, time, timedelta
+from datetime import time as clock_time
 from functools import partial
 
 from kiyosi import (
@@ -49,7 +50,7 @@ def contract(**changes):
         "expiry_time": START + timedelta(days=16),
     }
     values.update(changes)
-    return RangeAccrualOption(**values)
+    return RangeAccrualOption(observation_clock_time=clock_time(), **values)
 
 
 def market(valuation=START, spot=100, rate=0.04, dividend=0.01, volatility=0.2):

@@ -20,6 +20,7 @@ fn terms(direction: OptionType, dates: Option<Vec<Timestamp>>) -> AccumulatorTer
             2.0,
             day(1),
             day(6),
+            (day(6)).time_of_day(),
         )
     }
 }
@@ -257,7 +258,15 @@ fn sparse_knock_out_grid_covers_drift_back_inside_the_barrier() {
             option_type: direction,
             accumulated_quantity: Some(3.0),
             knock_out_observation_times: Some(vec![day(15)]),
-            ..AccumulatorTerms::new(100.0, barrier, 1.0, 1.0, day(1), expiry)
+            ..AccumulatorTerms::new(
+                100.0,
+                barrier,
+                1.0,
+                1.0,
+                day(1),
+                expiry,
+                (expiry).time_of_day(),
+            )
         })
         .unwrap();
         let alive = if direction == OptionType::Call {
@@ -335,7 +344,15 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
                 option_type: direction,
                 knock_out_observation_times: dates,
                 accumulated_quantity: Some(0.0),
-                ..AccumulatorTerms::new(100.0, barrier, 1.0, 0.0, day(1), day(3))
+                ..AccumulatorTerms::new(
+                    100.0,
+                    barrier,
+                    1.0,
+                    0.0,
+                    day(1),
+                    day(3),
+                    (day(3)).time_of_day(),
+                )
             })
             .unwrap();
             let result = monte_carlo
@@ -369,7 +386,15 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             option_type: direction,
             knock_out_observation_times: Some(vec![day(3)]),
             accumulated_quantity: Some(0.0),
-            ..AccumulatorTerms::new(100.0, barrier, 1.0, 0.0, day(1), day(3))
+            ..AccumulatorTerms::new(
+                100.0,
+                barrier,
+                1.0,
+                0.0,
+                day(1),
+                day(3),
+                (day(3)).time_of_day(),
+            )
         })
         .unwrap();
         let spot = if direction == OptionType::Call {

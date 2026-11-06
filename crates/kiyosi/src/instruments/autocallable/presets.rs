@@ -3,10 +3,10 @@ use super::{
     KnockInObservationMode, PhoenixCoupon, PhoenixOption, PhoenixTerms, SnowballOption,
     SnowballTerms,
 };
-use crate::Timestamp;
 use crate::TradingCalendar;
 use crate::error::finite;
 use crate::{Error, Result};
+use crate::{TimeOfDay, Timestamp};
 
 /// Selects a named convention expanded by [`SnowballPresetTerms::expand`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -92,11 +92,17 @@ pub struct SnowballPresetTerms {
     pub expiry_time: Timestamp,
     /// Supplies nonempty, strictly increasing observation times within life.
     pub observation_times: Vec<Timestamp>,
+    /// Supplies the daily observation clock, absent for European monitoring; see [`TimeOfDay::new`].
+    pub observation_clock_time: Option<TimeOfDay>,
 }
 impl SnowballPresetTerms {
     /// Creates input terms with the core snowball history and principal defaults.
     ///
     /// Validation occurs on [`Self::expand`]; see its example.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit contractual input terms"
+    )]
     pub fn new(
         coupon_rate: f64,
         initial_spot: f64,
@@ -105,6 +111,7 @@ impl SnowballPresetTerms {
         effective_time: Timestamp,
         expiry_time: Timestamp,
         observation_times: Vec<Timestamp>,
+        observation_clock_time: Option<TimeOfDay>,
     ) -> Self {
         Self {
             calendar: TradingCalendar::default(),
@@ -117,6 +124,7 @@ impl SnowballPresetTerms {
             effective_time,
             expiry_time,
             observation_times,
+            observation_clock_time,
         }
     }
     /// Expands a named convention into an ordinary validated [`SnowballOption`].
@@ -146,11 +154,11 @@ impl SnowballPresetTerms {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let end = Date::new(2026, 1, 1)?.start_of_day();
     /// let terms = SnowballPresetTerms::new(0.08, 100.0, 80.0, 110.0,
-    ///     start, end, vec![end]);
+    ///     start, end, vec![end], Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?));
     /// let note = terms.expand(SnowballPreset::LossCapped { lower_strike: 60.0 })?;
     /// assert_eq!(note.terms().lower_strike, 60.0);
     /// let terms = SnowballPresetTerms::new(0.20, 100.0, 80.0, 110.0,
-    ///     start, end, vec![end]);
+    ///     start, end, vec![end], Some(kiyosi::TimeOfDay::new(0, 0, 0, 0)?));
     /// let note = terms.expand(SnowballPreset::EarlyProfit {
     ///     first_stage_end_time: Date::new(2025, 7, 1)?.start_of_day(), second_coupon_rate: 0.05,
     /// })?;
@@ -185,6 +193,7 @@ impl SnowballPresetTerms {
             self.effective_time,
             self.expiry_time,
             observations,
+            self.observation_clock_time,
         );
         terms.barrier_state = self.barrier_state;
         terms.calendar = self.calendar;
@@ -397,6 +406,7 @@ impl PhoenixPresetTerms {
             self.effective_time,
             self.expiry_time,
             observations,
+            None,
         );
         terms.coupon = PhoenixCoupon::PerPeriod(self.coupon_per_period);
         terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;

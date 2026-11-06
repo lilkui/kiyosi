@@ -285,17 +285,12 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
     let mut trading = Vec::new();
     if daily && (layered || settings.scheme == FiniteDifferenceScheme::ExplicitEuler) {
         trading.extend(
-            crate::ObservationSchedule::daily(
-                note.effective_time(),
-                note.expiry_time(),
-                note.calendar(),
-                true,
-            )?
-            .times()
-            .iter()
-            .copied()
-            .filter(|&time| time > context.valuation_time())
-            .map(|time| context.valuation_time().years_until(time)),
+            note.daily_observation_schedule()?
+                .times()
+                .iter()
+                .copied()
+                .filter(|&time| time > context.valuation_time())
+                .map(|time| context.valuation_time().years_until(time)),
         );
     }
     observations.extend_from_slice(&trading);
@@ -407,7 +402,10 @@ fn native_with_diffusion<T: AutocallableTerms, D: Diffusion>(
             + if let Some(r) = record.filter(|r| asset >= r.knock_out_level()) {
                 note.knock_out_payment(r)
             } else {
-                note.terminal(asset, knocked_in || t.below_knock_in(asset))
+                note.terminal(
+                    asset,
+                    knocked_in || note.observes_knock_in(expiry) && t.below_knock_in(asset),
+                )
             }
     };
     for i in 0..size {

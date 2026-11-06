@@ -7,7 +7,7 @@ fn day(month: u32, day: u32) -> Timestamp {
 fn option(end: Timestamp) -> Accumulator {
     Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(3.0),
-        ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end)
+        ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end, (end).time_of_day())
     })
     .unwrap()
 }
@@ -46,7 +46,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
     let end = day(1, 2);
     let option = Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(1.0),
-        ..AccumulatorTerms::new(100.0, 200.0, 0.0, 1.0, start, end)
+        ..AccumulatorTerms::new(100.0, 200.0, 0.0, 1.0, start, end, (end).time_of_day())
     })
     .unwrap();
     let context = PricingContext::new(
@@ -318,7 +318,7 @@ fn antithetic_pair_uses_both_opposite_normals_and_exact_path_counts() {
     let end = day(1, 6);
     let option = Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(3.0),
-        ..AccumulatorTerms::new(100.0, 1e300, 0.0, 2.0, start, end)
+        ..AccumulatorTerms::new(100.0, 1e300, 0.0, 2.0, start, end, (end).time_of_day())
     })
     .unwrap();
     let context = market(100.25, Timestamp::new(start.date(), 12, 0, 0, 0).unwrap());
@@ -511,7 +511,15 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
     }
     let fixed = Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(3.0),
-        ..AccumulatorTerms::new(100.0, 110.0, 0.0, 2.0, day(1, 1), day(1, 6))
+        ..AccumulatorTerms::new(
+            100.0,
+            110.0,
+            0.0,
+            2.0,
+            day(1, 1),
+            day(1, 6),
+            (day(1, 6)).time_of_day(),
+        )
     })
     .unwrap();
     let zero_rates = PricingContext::new(
@@ -592,6 +600,7 @@ fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
         2.0,
         day(1, 1),
         end,
+        (end).time_of_day(),
     ))
     .unwrap();
     assert_eq!(engine.price(&zero, &context).unwrap(), 0.0);

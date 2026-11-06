@@ -40,6 +40,9 @@ Construct ``ObservationSchedule(times=..., start_time=..., end_time=..., calenda
 for explicit or irregular observations. Times must increase strictly within the
 inclusive bounds and fall on open calendar dates. Empty schedules are valid;
 bounds and calendar are validation inputs, while schedules store only timestamps.
+``fixed_interval_schedule`` and ``monthly_schedule`` require an explicit
+``observation_clock_time`` as a timezone-free ``datetime.time``; their bounds use
+complete timestamps, independently of that clock.
 LocalVolatilitySurface owns a rectangular table (rows=time, columns=absolute
 spot), with bilinear interpolation of local volatility, constant extrapolation
 in the spot dimension, and no time extrapolation. Context changes keep these
@@ -100,10 +103,11 @@ datetime.datetime(2025, 1, 1, 0, 0)
 Build monthly observations from a month-end anchor. February is clamped
 without moving the March anchor:
 
->>> from datetime import datetime
+>>> from datetime import datetime, time
 >>> schedule = monthly_schedule(
 ...     start_time=datetime(2025, 1, 31), end_time=datetime(2025, 3, 31),
-...     first_observation_month=1, calendar=all_days_calendar(),
+...     first_observation_month=1, observation_clock_time=time(0),
+...     calendar=all_days_calendar(),
 ... )
 >>> list(schedule)
 [datetime.datetime(2025, 2, 28, 0, 0), datetime.datetime(2025, 3, 31, 0, 0)]

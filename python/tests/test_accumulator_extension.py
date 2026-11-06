@@ -2,6 +2,7 @@ import inspect
 import math
 import unittest
 from datetime import UTC, datetime, timedelta
+from datetime import time as clock_time
 
 import QuantLib as ql
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
@@ -14,6 +15,7 @@ END = datetime(2025, 1, 6)
 
 def contract(**changes):
     return Accumulator(
+        observation_clock_time=clock_time(),
         **(
             {
                 "strike": 100,
@@ -25,7 +27,7 @@ def contract(**changes):
                 "expiry_time": END,
             }
             | changes
-        )
+        ),
     )
 
 
@@ -136,6 +138,7 @@ class AccumulatorExtensionTests(unittest.TestCase):
             signature.parameters["option_type"].kind, inspect.Parameter.KEYWORD_ONLY
         )
         schedule = monthly_schedule(
+            observation_clock_time=clock_time(),
             start_time=START,
             end_time=datetime(2025, 2, 3),
             first_observation_month=1,

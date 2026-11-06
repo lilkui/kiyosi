@@ -134,6 +134,8 @@ impl ObservationSchedule {
 ///     Last timestamp of the interval.
 /// interval_days : int
 ///     Positive calendar-day spacing of unadjusted observations, up to 2**63 - 1.
+/// observation_clock_time : datetime.time
+///     Required observation time of day, without timezone information.
 /// calendar : TradingCalendar, optional
 ///     Trading calendar. Defaults to weekdays with a 252-day basis.
 ///
@@ -156,7 +158,7 @@ impl ObservationSchedule {
 /// Exclude start_time and include candidates through end_time. Following adjustment
 /// merges collisions and stops before crossing `end_time`; `end_time` need not appear.
 #[pyfunction]
-#[pyo3(signature = (*, start_time, end_time, interval_days, calendar=TradingCalendar::default()))]
+#[pyo3(signature = (*, start_time, end_time, interval_days, observation_clock_time, calendar=TradingCalendar::default()))]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "PyO3 extracts an owned calendar and supplies its default"
@@ -165,6 +167,7 @@ pub(crate) fn fixed_interval_schedule(
     start_time: &Bound<'_, PyAny>,
     end_time: &Bound<'_, PyAny>,
     interval_days: &Bound<'_, PyAny>,
+    observation_clock_time: &Bound<'_, PyAny>,
     calendar: TradingCalendar,
 ) -> PyResult<ObservationSchedule> {
     let start_time = timestamp(start_time)?;
@@ -176,6 +179,7 @@ pub(crate) fn fixed_interval_schedule(
             end_time,
             interval_days,
             &calendar.0,
+            crate::conversions::clock_time(observation_clock_time)?,
         ),
     )?))
 }
@@ -190,6 +194,8 @@ pub(crate) fn fixed_interval_schedule(
 ///     Last timestamp of the interval.
 /// first_observation_month : int
 ///     Positive month offset from start_time to the first observation.
+/// observation_clock_time : datetime.time
+///     Required observation time of day, without timezone information.
 /// calendar : TradingCalendar, optional
 ///     Trading calendar. Defaults to weekdays with a 252-day basis.
 ///
@@ -210,7 +216,7 @@ pub(crate) fn fixed_interval_schedule(
 /// Exclude start_time and include candidates through end_time. Following adjustment
 /// merges collisions and stops before crossing `end_time`; `end_time` need not appear.
 #[pyfunction]
-#[pyo3(signature = (*, start_time, end_time, first_observation_month, calendar=TradingCalendar::default()))]
+#[pyo3(signature = (*, start_time, end_time, first_observation_month, observation_clock_time, calendar=TradingCalendar::default()))]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "PyO3 extracts an owned calendar and supplies its default"
@@ -219,6 +225,7 @@ pub(crate) fn monthly_schedule(
     start_time: &Bound<'_, PyAny>,
     end_time: &Bound<'_, PyAny>,
     first_observation_month: &Bound<'_, PyAny>,
+    observation_clock_time: &Bound<'_, PyAny>,
     calendar: TradingCalendar,
 ) -> PyResult<ObservationSchedule> {
     Ok(ObservationSchedule(domain(
@@ -227,6 +234,7 @@ pub(crate) fn monthly_schedule(
             timestamp(end_time)?,
             integer(first_observation_month)?,
             &calendar.0,
+            crate::conversions::clock_time(observation_clock_time)?,
         ),
     )?))
 }

@@ -356,7 +356,7 @@ pub(super) fn autocallable<T: AutocallableTerms>(
             coupons += scaled_cash(coupon.abs(), discount(context, time)?).copysign(coupon);
         }
         if time == note.expiry_time() {
-            knocked_in |= note.view().below_knock_in(spot);
+            knocked_in |= note.observes_knock_in(time) && note.view().below_knock_in(spot);
             let terminal = note.terminal(spot, knocked_in);
             return finite(
                 coupons + scaled_cash(terminal.abs(), discount(context, time)?).copysign(terminal),

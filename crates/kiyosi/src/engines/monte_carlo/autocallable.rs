@@ -258,7 +258,8 @@ impl MonteCarloAutocallableEngine {
                         coupons += scaled_value(1.0, coupon, *log_discount)?;
                     }
                 }
-                knocked_in |= below_knock_in(log_return);
+                knocked_in |=
+                    note.observes_knock_in(note.expiry_time()) && below_knock_in(log_return);
                 let value = coupons
                     + scaled_value(1.0, note.terminal(spot, knocked_in), terminal_log_discount)?;
                 if value.is_finite() {

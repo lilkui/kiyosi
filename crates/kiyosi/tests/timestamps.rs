@@ -109,11 +109,23 @@ fn observation_schedules_preserve_clock_and_full_timestamp_order() {
         Timestamp::new(Date::new(2025, month, day).unwrap(), hour, 11, 12, 123_456).unwrap()
     };
     let calendar = TradingCalendar::weekdays();
-    let schedule =
-        ObservationSchedule::monthly(clock(1, 31, 10), clock(3, 31, 15), 1, &calendar).unwrap();
+    let schedule = ObservationSchedule::monthly(
+        clock(1, 31, 10),
+        clock(3, 31, 15),
+        1,
+        &calendar,
+        (clock(1, 31, 10)).time_of_day(),
+    )
+    .unwrap();
     assert_eq!(schedule.times(), &[clock(2, 28, 10), clock(3, 31, 10)]);
-    let fixed =
-        ObservationSchedule::fixed_interval(clock(1, 3, 10), clock(1, 7, 9), 1, &calendar).unwrap();
+    let fixed = ObservationSchedule::fixed_interval(
+        clock(1, 3, 10),
+        clock(1, 7, 9),
+        1,
+        &calendar,
+        (clock(1, 3, 10)).time_of_day(),
+    )
+    .unwrap();
     assert_eq!(fixed.times(), &[clock(1, 6, 10)]);
     let times = vec![time(6, 10, 0), time(6, 10, 1), time(6, 15, 0)];
     assert_eq!(
@@ -180,6 +192,7 @@ fn range_accrual_observes_same_day_and_excludes_only_the_effective_instant() {
         1000.0,
         time(6, 9, 0),
         time(6, 15, 0),
+        (time(6, 15, 0)).time_of_day(),
     ))
     .unwrap();
     let expected = 1000.0 * 0.12 * 6.0 / (24.0 * 365.0);
@@ -216,7 +229,7 @@ fn range_accrual_observes_same_day_and_excludes_only_the_effective_instant() {
 }
 
 #[test]
-fn daily_history_uses_expiry_clock_and_inclusive_start() {
+fn daily_history_uses_specified_clock_and_inclusive_start() {
     let option = Accumulator::new(AccumulatorTerms::new(
         100.0,
         110.0,
@@ -224,6 +237,7 @@ fn daily_history_uses_expiry_clock_and_inclusive_start() {
         1.0,
         time(6, 9, 0),
         time(7, 15, 0),
+        (time(7, 15, 0)).time_of_day(),
     ))
     .unwrap();
     for engine in accumulator_engines() {
@@ -261,6 +275,7 @@ fn daily_history_uses_expiry_clock_and_inclusive_start() {
         time(6, 9, 0),
         time(7, 15, 0),
         vec![AutocallableObservation::new(time(7, 15, 0), 110.0).unwrap()],
+        Some((time(7, 15, 0)).time_of_day()),
     ))
     .unwrap();
     assert!(
@@ -278,6 +293,318 @@ fn daily_history_uses_expiry_clock_and_inclusive_start() {
 }
 
 #[test]
+fn time_of_day_preserves_microseconds_and_rejects_invalid_components() -> Result<()> {
+    let clock = TimeOfDay::new(15, 11, 12, 123_456)?;
+    assert_eq!(clock.micros_since_midnight(), 54_672_123_456);
+    let date = Date::new(2025, 1, 6)?;
+    assert_eq!(
+        date.at_time(clock),
+        Timestamp::new(date, 15, 11, 12, 123_456)?
+    );
+    assert_eq!(date.at_time(clock).time_of_day(), clock);
+    for (hour, minute, second, microsecond) in [
+        (24, 0, 0, 0),
+        (0, 60, 0, 0),
+        (0, 0, 60, 0),
+        (0, 0, 0, 1_000_000),
+    ] {
+        assert!(matches!(
+            TimeOfDay::new(hour, minute, second, microsecond),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    Ok(())
+}
+
+#[test]
+fn generated_schedules_use_an_independent_clock_and_complete_upper_bound() -> Result<()> {
+    let calendar = TradingCalendar::weekdays();
+    let clock = TimeOfDay::new(15, 0, 0, 123_456)?;
+    let start = time(3, 9, 0);
+    let end = time(7, 14, 0);
+    let fixed = ObservationSchedule::fixed_interval(start, end, 1, &calendar, clock)?;
+    assert_eq!(fixed.times(), &[time(6, 15, 123_456)]);
+    let start = Timestamp::new(Date::new(2025, 1, 31)?, 9, 0, 0, 0)?;
+    let end = Timestamp::new(Date::new(2025, 3, 31)?, 14, 0, 0, 0)?;
+    let monthly = ObservationSchedule::monthly(start, end, 1, &calendar, clock)?;
+    assert_eq!(monthly.times(), &[Date::new(2025, 2, 28)?.at_time(clock)]);
+    let inclusive = ObservationSchedule::monthly(
+        start,
+        Date::new(2025, 3, 31)?.at_time(clock),
+        1,
+        &calendar,
+        clock,
+    )?;
+    assert_eq!(
+        inclusive.times(),
+        &[
+            Date::new(2025, 2, 28)?.at_time(clock),
+            Date::new(2025, 3, 31)?.at_time(clock),
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn daily_clock_controls_current_history_and_does_not_add_expiry_units() -> Result<()> {
+    let clock = TimeOfDay::new(15, 0, 0, 123_456)?;
+    let option = Accumulator::new(AccumulatorTerms::new(
+        100.0,
+        110.0,
+        1.0,
+        1.0,
+        time(6, 9, 0),
+        time(6, 18, 0),
+        clock,
+    ))?;
+    assert_eq!(option.observation_clock_time(), clock);
+    for engine in accumulator_engines() {
+        let before = engine.price(&option, &market(time(6, 15, 123_455), 105.0))?;
+        assert!((before - 5.0).abs() < 1e-4, "before={before}");
+        let current = engine.price(&option, &market(time(6, 15, 123_456), 105.0))?;
+        assert!((current - 5.0).abs() < 1e-4);
+        assert_eq!(
+            engine.price(&option, &market(time(6, 15, 123_456), 115.0))?,
+            0.0
+        );
+        assert!(matches!(
+            engine.price(&option, &market(time(6, 15, 123_457), 105.0)),
+            Err(Error::InvalidInput(_))
+        ));
+        let seasoned = option.replace_history(1.0)?;
+        assert_eq!(
+            engine.price(&seasoned, &market(time(6, 18, 0), 105.0))?,
+            5.0
+        );
+        assert_eq!(
+            engine.price(&seasoned, &market(time(6, 18, 0), 115.0))?,
+            15.0
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn empty_daily_windows_are_valid_except_for_range_accrual() -> Result<()> {
+    let start = time(6, 16, 0);
+    let end = time(7, 14, 0);
+    let clock = TimeOfDay::new(15, 0, 0, 0)?;
+    let option = Accumulator::new(AccumulatorTerms::new(
+        100.0, 110.0, 1.0, 1.0, start, end, clock,
+    ))?;
+    for engine in accumulator_engines() {
+        assert_eq!(engine.price(&option, &market(start, 105.0))?, 0.0);
+    }
+    assert!(matches!(
+        RangeAccrualOption::new(RangeAccrualTerms::new(
+            1000.0, 0.12, 90.0, 110.0, start, end, clock,
+        )),
+        Err(Error::InvalidInput(_))
+    ));
+    let note = SnowballOption::new(SnowballTerms::new(
+        0.0,
+        100.0,
+        80.0,
+        100.0,
+        0.0,
+        start,
+        end,
+        vec![AutocallableObservation::new(end, 1000.0)?],
+        Some(clock),
+    ))?;
+    assert_eq!(
+        QuadratureAutocallableEngine::default().price(&note, &market(start, 70.0))?,
+        1.0
+    );
+    Ok(())
+}
+
+#[test]
+fn range_accrual_discounts_known_coupon_between_final_observation_and_payment() -> Result<()> {
+    let clock = TimeOfDay::new(15, 0, 0, 0)?;
+    let option = RangeAccrualOption::new(RangeAccrualTerms::new(
+        1000.0,
+        0.12,
+        90.0,
+        110.0,
+        time(6, 9, 0),
+        time(6, 18, 0),
+        clock,
+    ))?;
+    let coupon = 120.0 * 9.0 / (365.0 * 24.0);
+    for (hour, hits) in [(15, None), (16, Some(1)), (18, Some(1))] {
+        let context = PricingContext::new(
+            BlackScholesMertonParameters::new(0.5, 0.0, 0.2)?,
+            100.0,
+            time(6, hour, 0),
+        )?;
+        let expected = coupon * (-0.5 * f64::from(18 - hour) / (365.0 * 24.0)).exp();
+        let seasoned = option.replace_history(hits)?;
+        let actual = AnalyticRangeAccrualEngine.price(&seasoned, &context)?;
+        assert!(
+            (actual - expected).abs() < 1e-14,
+            "hour={hour}: {actual} != {expected}"
+        );
+        assert!(matches!(
+            implied_volatility(
+                &AnalyticRangeAccrualEngine,
+                &seasoned,
+                &context,
+                actual,
+                Default::default(),
+            ),
+            Err(Error::UnsupportedOperation(_))
+        ));
+    }
+    assert!(matches!(
+        option.replace(RangeAccrualOptionChanges {
+            observation_clock_time: Some(TimeOfDay::new(8, 0, 0, 0)?),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    assert_eq!(option.observation_clock_time(), clock);
+    Ok(())
+}
+
+#[test]
+fn off_clock_maturity_settles_without_additional_knock_in_in_every_engine() -> Result<()> {
+    let clock = TimeOfDay::new(15, 0, 0, 0)?;
+    let mut terms = SnowballTerms::new(
+        0.12,
+        100.0,
+        80.0,
+        100.0,
+        0.0,
+        time(6, 9, 0),
+        time(6, 18, 0),
+        vec![AutocallableObservation::new(time(6, 10, 0), 1000.0)?],
+        Some(clock),
+    );
+    terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+    let daily = SnowballOption::new(terms)?;
+    let at_expiry = daily.replace(SnowballOptionChanges {
+        knock_in_observation_mode: Some(KnockInObservationMode::AtExpiry),
+        ..Default::default()
+    })?;
+    let mc = MonteCarloAutocallableEngine::new(MonteCarloSettings {
+        path_count: 128,
+        seed: Some(42),
+        ..Default::default()
+    })?;
+    let fd = FiniteDifferenceAutocallableEngine::default();
+    let quad = QuadratureAutocallableEngine::default();
+    let expected = 1.0 + 0.12 * 9.0 / (365.0 * 24.0);
+    for hour in [16, 18] {
+        for volatility in [0.0, 0.0001] {
+            let context = PricingContext::new(
+                BlackScholesMertonParameters::new(0.0, 0.0, volatility)?,
+                70.0,
+                time(6, hour, 0),
+            )?;
+            for engine in [&mc as &dyn PricingEngine<SnowballOption>, &fd, &quad] {
+                let actual = engine.price(&daily, &context)?;
+                assert!((actual - expected).abs() < 1e-8, "{actual} != {expected}");
+                assert!(matches!(
+                    implied_volatility(engine, &daily, &context, actual, Default::default()),
+                    Err(Error::UnsupportedOperation(_))
+                ));
+                let observed = engine.price(&at_expiry, &context)?;
+                assert!((observed - 0.7).abs() < 1e-5, "{observed} != 0.7");
+            }
+        }
+    }
+    let before_final_observation = PricingContext::new(
+        BlackScholesMertonParameters::new(-1000.0, 0.0, 0.0001)?,
+        100.0,
+        time(6, 14, 0),
+    )?;
+    let expected_discounted = expected * (1000.0_f64 * 4.0 / (365.0 * 24.0)).exp();
+    for engine in [&mc as &dyn PricingEngine<SnowballOption>, &fd, &quad] {
+        let actual = engine.price(&daily, &before_final_observation)?;
+        assert!(
+            (actual - expected_discounted).abs() < 1e-5,
+            "daily: {actual} != {expected_discounted}"
+        );
+        let observed = engine.price(&at_expiry, &before_final_observation)?;
+        assert!((observed - 1.0).abs() < 1e-5, "at_expiry: {observed} != 1");
+    }
+    let context = market(time(6, 18, 0), 80.0);
+    let request = GreeksRequest::new([Greek::Delta, Greek::Gamma]);
+    for result in [
+        quad.price_with_greeks(&daily, &context, request)?,
+        fd.price_with_greeks(&daily, &context, request)?,
+        mc.price_with_greeks(&daily, &context, request)?,
+    ] {
+        assert_eq!(result.require(Greek::Delta)?, 0.0);
+        assert_eq!(result.require(Greek::Gamma)?, 0.0);
+    }
+    assert_eq!(
+        quad.price_with_greeks(&at_expiry, &context, request)?
+            .get(Greek::Delta),
+        None
+    );
+    Ok(())
+}
+
+#[test]
+fn knock_in_mode_replacement_requires_clock_and_preserves_original_on_failure() -> Result<()> {
+    let clock = TimeOfDay::new(15, 0, 0, 123_456)?;
+    let original = SnowballOption::new(SnowballTerms::new(
+        0.12,
+        100.0,
+        80.0,
+        100.0,
+        0.0,
+        time(6, 9, 0),
+        time(7, 18, 0),
+        vec![AutocallableObservation::new(time(7, 15, 0), 110.0)?],
+        Some(clock),
+    ))?;
+    let inactive = original.replace(SnowballOptionChanges {
+        knock_in_observation_mode: Some(KnockInObservationMode::AtExpiry),
+        ..Default::default()
+    })?;
+    assert_eq!(inactive.observation_clock_time(), None);
+    let mut missing = original.terms().clone();
+    missing.observation_clock_time = None;
+    assert!(matches!(
+        SnowballOption::new(missing),
+        Err(Error::InvalidInput(_))
+    ));
+    let mut redundant = inactive.terms().clone();
+    redundant.observation_clock_time = Some(clock);
+    assert!(matches!(
+        SnowballOption::new(redundant),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(matches!(
+        inactive.replace(SnowballOptionChanges {
+            knock_in_observation_mode: Some(KnockInObservationMode::EveryTradingDay),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(matches!(
+        original.replace(SnowballOptionChanges {
+            knock_in_observation_mode: Some(KnockInObservationMode::AtExpiry),
+            observation_clock_time: Some(Some(clock)),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    let active = inactive.replace(SnowballOptionChanges {
+        knock_in_observation_mode: Some(KnockInObservationMode::EveryTradingDay),
+        observation_clock_time: Some(Some(clock)),
+        ..Default::default()
+    })?;
+    assert_eq!(active, original);
+    assert_eq!(original.observation_clock_time(), Some(clock));
+    assert_eq!(inactive.observation_clock_time(), None);
+    Ok(())
+}
+
+#[test]
 fn explicit_accumulator_knock_outs_do_not_add_daily_quantity() {
     for (hour, barrier, expected) in [
         (10, 110.0, 10.0),
@@ -285,8 +612,15 @@ fn explicit_accumulator_knock_outs_do_not_add_daily_quantity() {
         (15, 100.0, 0.0),
         (16, 100.0, 5.0),
     ] {
-        let mut terms =
-            AccumulatorTerms::new(100.0, barrier, 1.0, 1.0, time(6, 9, 0), time(7, 15, 0));
+        let mut terms = AccumulatorTerms::new(
+            100.0,
+            barrier,
+            1.0,
+            1.0,
+            time(6, 9, 0),
+            time(7, 15, 0),
+            (time(7, 15, 0)).time_of_day(),
+        );
         terms.knock_out_observation_times = Some(vec![time(6, hour, 0)]);
         let option = Accumulator::new(terms).unwrap();
         for engine in accumulator_engines() {
@@ -314,6 +648,7 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
         start,
         expiry,
         vec![AutocallableObservation::new(time(6, 10, 0), 1000.0).unwrap()],
+        Some((expiry).time_of_day()),
     ))
     .unwrap();
     let context = PricingContext::new(
@@ -344,6 +679,7 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
         start,
         expiry,
         vec![AutocallableObservation::new(time(6, 10, 0), 110.0).unwrap()],
+        Some((expiry).time_of_day()),
     );
     terms.observations[0] = terms.observations[0]
         .replace(AutocallableObservationChanges {
@@ -363,7 +699,15 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
 fn nontrading_dates_do_not_trigger_daily_knock_out_or_suppress_vega() {
     let option = Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(3.0),
-        ..AccumulatorTerms::new(100.0, 110.0, 1.0, 1.0, time(3, 9, 0), time(6, 15, 0))
+        ..AccumulatorTerms::new(
+            100.0,
+            110.0,
+            1.0,
+            1.0,
+            time(3, 9, 0),
+            time(6, 15, 0),
+            (time(6, 15, 0)).time_of_day(),
+        )
     })
     .unwrap();
     let context = PricingContext::new(
@@ -387,6 +731,7 @@ fn finite_difference_rejects_unresolvable_microsecond_events() {
     let first = Timestamp::new(Date::new(9998, 1, 1).unwrap(), 10, 0, 0, 1).unwrap();
     let last = Timestamp::new(first.date(), 10, 0, 0, 2).unwrap();
     let note = PhoenixOption::new(PhoenixTerms {
+        observation_clock_time: None,
         coupon: PhoenixCoupon::PerPeriod(0.01),
         knock_in_observation_mode: KnockInObservationMode::AtExpiry,
         ..PhoenixTerms::new(
@@ -401,6 +746,7 @@ fn finite_difference_rejects_unresolvable_microsecond_events() {
                 AutocallableObservation::new(first, 1000.0).unwrap(),
                 AutocallableObservation::new(last, 1000.0).unwrap(),
             ],
+            Some((last).time_of_day()),
         )
     })
     .unwrap();

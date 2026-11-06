@@ -121,6 +121,7 @@ fn discounted_cashflows_preserve_representable_values_beyond_discount_range() {
         start,
         end,
         autocallable_observations(&[end], &[1.0], None, Some(&[0.0])).unwrap(),
+        Some((end).time_of_day()),
     );
     terms.principal_ratio = 1e308;
     let note = PhoenixOption::new(terms).unwrap();
@@ -227,6 +228,7 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         end,
         autocallable_observations(&[date(2, 3), end], &[103.0, 105.0], Some(&[0.08; 2]), None)
             .unwrap(),
+        Some((end).time_of_day()),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = SnowballOption::new(terms).unwrap();
@@ -319,8 +321,10 @@ fn shared_greeks_and_solvers_leave_engine_and_inputs_unchanged() {
         date(1, 1),
         end,
         autocallable_observations(&[end], &[100.0], Some(&[0.0]), None).unwrap(),
+        Some((end).time_of_day()),
     );
     smooth_terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+    smooth_terms.observation_clock_time = None;
     let smooth = SnowballOption::new(smooth_terms).unwrap();
     let price = prepared.price(&smooth, &context).unwrap();
     assert_eq!(price, prepared.price(&smooth, &context).unwrap());
@@ -360,6 +364,7 @@ fn known_cashflows_and_history_validate_before_shortcuts() {
             None,
         )
         .unwrap(),
+        Some((date(4, 1)).time_of_day()),
     );
     let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
         path_count: 1,
@@ -460,6 +465,7 @@ fn sobol_dimension_limit_applies_only_to_remaining_simulation_dates() {
         start,
         end,
         autocallable_observations(&[end], &[110.0], Some(&[0.08]), None).unwrap(),
+        Some((end).time_of_day()),
     );
     let note = SnowballOption::new(terms.clone()).unwrap();
     let engine = MonteCarloAutocallableEngine::new(MonteCarloSettings {
@@ -474,6 +480,7 @@ fn sobol_dimension_limit_applies_only_to_remaining_simulation_dates() {
         Error::InvalidInput(_)
     ));
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+    terms.observation_clock_time = None;
     assert!(
         engine
             .price(&SnowballOption::new(terms).unwrap(), &market(100.0, start))
@@ -530,12 +537,24 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
             start,
             end,
             observations.clone(),
+            Some((end).time_of_day()),
         );
         snow.knock_in_observation_mode = mode;
+        snow.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
+            .then_some(snow.expiry_time.time_of_day());
         snow.barrier_state = Some(AutocallableBarrierState::NoEvent);
-        let mut ternary =
-            TernarySnowballTerms::new(0.06, 0.01, 95.0, start, end, observations.clone());
+        let mut ternary = TernarySnowballTerms::new(
+            0.06,
+            0.01,
+            95.0,
+            start,
+            end,
+            observations.clone(),
+            Some((end).time_of_day()),
+        );
         ternary.knock_in_observation_mode = mode;
+        ternary.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
+            .then_some(ternary.expiry_time.time_of_day());
         ternary.barrier_state = Some(AutocallableBarrierState::NoEvent);
         let mut phoenix = PhoenixTerms::new(
             0.08,
@@ -552,8 +571,11 @@ fn daily_monitoring_and_all_variants_agree_with_quadrature() {
                 Some(&[95.0; 3]),
             )
             .unwrap(),
+            Some((end).time_of_day()),
         );
         phoenix.knock_in_observation_mode = mode;
+        phoenix.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
+            .then_some(phoenix.expiry_time.time_of_day());
         phoenix.barrier_state = Some(AutocallableBarrierState::NoEvent);
 
         check(&SnowballOption::new(snow).unwrap(), &context);

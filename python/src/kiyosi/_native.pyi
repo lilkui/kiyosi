@@ -1,7 +1,7 @@
 """Typed Python interfaces for the native contracts, market data, and pricing API."""
 
 from collections.abc import Iterable, Iterator
-from datetime import date, datetime
+from datetime import date, datetime, time
 from numbers import Real as _RealNumber
 from types import EllipsisType
 from typing import Literal, Never, Self, SupportsIndex, overload
@@ -347,6 +347,7 @@ def fixed_interval_schedule(
     start_time: datetime,
     end_time: datetime,
     interval_days: SupportsIndex,
+    observation_clock_time: time,
     calendar: TradingCalendar = ...,
 ) -> ObservationSchedule: ...
 def monthly_schedule(
@@ -354,6 +355,7 @@ def monthly_schedule(
     start_time: datetime,
     end_time: datetime,
     first_observation_month: SupportsIndex,
+    observation_clock_time: time,
     calendar: TradingCalendar = ...,
 ) -> ObservationSchedule: ...
 
@@ -2011,6 +2013,8 @@ class DoubleBarrierOption:
     def touch_state(self) -> Literal["untouched", "touched"] | None: ...
 
 class RangeAccrualOption:
+    @property
+    def observation_clock_time(self) -> time: ...
     def replace(
         self,
         *,
@@ -2020,6 +2024,7 @@ class RangeAccrualOption:
         upper_bound: _Real | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
+        observation_clock_time: time | EllipsisType = ...,
         realized_hit_count: SupportsIndex | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
@@ -2032,6 +2037,7 @@ class RangeAccrualOption:
         upper_bound: _Real,
         effective_time: datetime,
         expiry_time: datetime,
+        observation_clock_time: time,
         realized_hit_count: SupportsIndex | None = ...,
         calendar: TradingCalendar = ...,
     ) -> None: ...
@@ -2494,6 +2500,8 @@ def autocallable_observations(
 ) -> list[AutocallableObservation]: ...
 
 class SnowballOption:
+    @property
+    def observation_clock_time(self) -> time | None: ...
     def replace(
         self,
         *,
@@ -2504,6 +2512,7 @@ class SnowballOption:
         lower_strike: _Real | EllipsisType = ...,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
         | EllipsisType = ...,
+        observation_clock_time: time | None | EllipsisType = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
@@ -2528,6 +2537,7 @@ class SnowballOption:
         upper_strike: _Real,
         lower_strike: _Real,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
+        observation_clock_time: time | None = None,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
@@ -2578,6 +2588,8 @@ class SnowballOption:
     def calendar(self) -> TradingCalendar: ...
 
 class PhoenixOption:
+    @property
+    def observation_clock_time(self) -> time | None: ...
     @overload
     def replace(
         self,
@@ -2590,6 +2602,7 @@ class PhoenixOption:
         lower_strike: _Real | EllipsisType = ...,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
         | EllipsisType = ...,
+        observation_clock_time: time | None | EllipsisType = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
@@ -2611,6 +2624,7 @@ class PhoenixOption:
         lower_strike: _Real | EllipsisType = ...,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
         | EllipsisType = ...,
+        observation_clock_time: time | None | EllipsisType = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
@@ -2632,6 +2646,7 @@ class PhoenixOption:
         lower_strike: _Real | EllipsisType = ...,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
         | EllipsisType = ...,
+        observation_clock_time: time | None | EllipsisType = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
@@ -2653,6 +2668,7 @@ class PhoenixOption:
         upper_strike: _Real,
         lower_strike: _Real,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
+        observation_clock_time: time | None = None,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
@@ -2671,6 +2687,7 @@ class PhoenixOption:
         upper_strike: _Real,
         lower_strike: _Real,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
+        observation_clock_time: time | None = None,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
@@ -2784,6 +2801,8 @@ class BinarySnowballOption:
     def calendar(self) -> TradingCalendar: ...
 
 class TernarySnowballOption:
+    @property
+    def observation_clock_time(self) -> time | None: ...
     def replace(
         self,
         *,
@@ -2792,6 +2811,7 @@ class TernarySnowballOption:
         knock_in_level: _Real | EllipsisType = ...,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"]
         | EllipsisType = ...,
+        observation_clock_time: time | None | EllipsisType = ...,
         barrier_state: Literal["no_event", "knocked_in", "knocked_out"]
         | None
         | EllipsisType = ...,
@@ -2814,6 +2834,7 @@ class TernarySnowballOption:
         minimum_coupon_rate: _Real,
         knock_in_level: _Real,
         knock_in_observation_mode: Literal["every_trading_day", "at_expiry"] = ...,
+        observation_clock_time: time | None = None,
         effective_time: datetime,
         expiry_time: datetime,
         observations: Iterable[AutocallableObservation],
@@ -2868,6 +2889,7 @@ def standard_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
+    observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
@@ -2881,6 +2903,7 @@ def european_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
+    observation_clock_time: time | None = None,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
@@ -2895,6 +2918,7 @@ def step_down_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
+    observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
@@ -2910,6 +2934,7 @@ def both_down_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
+    observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
@@ -2924,6 +2949,7 @@ def dual_coupon_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
+    observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
@@ -2938,6 +2964,7 @@ def parachute_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
+    observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
@@ -2952,6 +2979,7 @@ def otm_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
+    observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
@@ -2966,12 +2994,15 @@ def loss_capped_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
+    observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
 ) -> SnowballOption: ...
 
 class Accumulator:
+    @property
+    def observation_clock_time(self) -> time: ...
     def replace(
         self,
         *,
@@ -2983,6 +3014,7 @@ class Accumulator:
         accumulated_quantity: _Real | None | EllipsisType = ...,
         effective_time: datetime | EllipsisType = ...,
         expiry_time: datetime | EllipsisType = ...,
+        observation_clock_time: time | EllipsisType = ...,
         knock_out_observation_times: Iterable[datetime] | None | EllipsisType = ...,
         terminated: bool | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
@@ -2996,6 +3028,7 @@ class Accumulator:
         acceleration_factor: _Real,
         effective_time: datetime,
         expiry_time: datetime,
+        observation_clock_time: time,
         accumulated_quantity: _Real | None = None,
         option_type: Literal["call", "put"] = ...,
         knock_out_observation_times: Iterable[datetime] | None = None,
@@ -3104,6 +3137,7 @@ def early_profit_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
+    observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: _Real = ...,
     calendar: TradingCalendar = ...,
@@ -3121,6 +3155,7 @@ def butterfly_snowball(
     observation_times: Iterable[datetime],
     effective_time: datetime,
     expiry_time: datetime,
+    observation_clock_time: time,
     barrier_state: Literal["no_event", "knocked_in", "knocked_out"] | None = None,
     principal_ratio: _Real = ...,
     calendar: TradingCalendar = ...,

@@ -7,6 +7,7 @@ fn day(day: u32) -> Timestamp {
 
 fn terms() -> RangeAccrualTerms {
     RangeAccrualTerms {
+        observation_clock_time: (day(17)).time_of_day(),
         calendar: TradingCalendar::default(),
         notional: 1000.0,
         annual_coupon_rate: 0.12,
@@ -296,7 +297,15 @@ fn terms_validate_before_dates_and_replacement_preserves_original() {
     .unwrap();
     assert_eq!(option.realized_hit_count(), None);
     assert_eq!(
-        RangeAccrualTerms::new(1000.0, 0.12, 95.0, 110.0, day(1), day(17)),
+        RangeAccrualTerms::new(
+            1000.0,
+            0.12,
+            95.0,
+            110.0,
+            day(1),
+            day(17),
+            (day(17)).time_of_day()
+        ),
         terms()
     );
     let changed = option.replace_history(Some(3)).unwrap();

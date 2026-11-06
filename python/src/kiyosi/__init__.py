@@ -15,7 +15,9 @@ Contract, valuation, curve and observation times use ``datetime.datetime``
 with ``tzinfo=None`` and microsecond precision. Plain dates and datetimes with
 timezone information raise ``TypeError`` for time parameters. Calendar inputs
 require ``datetime.date``, excluding datetime instances. Callers must supply a
-consistent time basis. Python dates and datetimes support years 1 through 9999.
+consistent time basis. Automatic schedules use an explicit ``datetime.time``
+observation clock with the same timezone and precision rules. Python dates and
+datetimes support years 1 through 9999.
 The Rust core has a wider date range; converting a result outside Python's range
 raises ``ValueError``, including calendar adjustments past either Python limit.
 Numeric inputs reject booleans and unintended lossy conversions. Integers and

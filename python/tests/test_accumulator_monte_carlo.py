@@ -5,6 +5,7 @@ import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from datetime import time as clock_time
 
 from kiyosi import (
     ComputationFailureError,
@@ -218,6 +219,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                 expected,
             )
         omitted = Accumulator(
+            observation_clock_time=clock_time(),
             strike=100,
             knock_out_level=110,
             daily_quantity=1,

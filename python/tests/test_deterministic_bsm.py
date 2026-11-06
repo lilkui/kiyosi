@@ -3,6 +3,7 @@
 import math
 import unittest
 from datetime import datetime, timedelta
+from datetime import time as clock_time
 
 from kiyosi import InvalidInputError, pricing
 from kiyosi import instruments as ins
@@ -133,11 +134,25 @@ def cases():
         "lower_strike": 0,
     }
     for contract in (
-        ins.SnowballOption(**note, **downside, maturity_coupon_rate=0.1),
-        ins.PhoenixOption(**note, **downside, coupon_rate=0.1),
+        ins.SnowballOption(
+            observation_clock_time=clock_time(),
+            **note,
+            **downside,
+            maturity_coupon_rate=0.1,
+        ),
+        ins.PhoenixOption(
+            observation_clock_time=clock_time(),
+            **note,
+            **downside,
+            coupon_rate=0.1,
+        ),
         ins.BinarySnowballOption(**note, maturity_coupon_rate=0.1),
         ins.TernarySnowballOption(
-            **note, knock_in_level=80, maturity_coupon_rate=0.1, minimum_coupon_rate=0
+            observation_clock_time=clock_time(),
+            **note,
+            knock_in_level=80,
+            maturity_coupon_rate=0.1,
+            minimum_coupon_rate=0,
         ),
     ):
         yield (
@@ -151,6 +166,7 @@ def cases():
         )
     yield (
         ins.Accumulator(
+            observation_clock_time=clock_time(),
             **life,
             strike=90,
             knock_out_level=120,
@@ -166,6 +182,7 @@ def cases():
     )
     yield (
         ins.RangeAccrualOption(
+            observation_clock_time=clock_time(),
             **life,
             notional=1000,
             annual_coupon_rate=0.1,
@@ -554,6 +571,7 @@ class DeterministicBsmTests(unittest.TestCase):
                     delta=1e-10,
                 )
         accumulator = ins.Accumulator(
+            observation_clock_time=clock_time(),
             effective_time=START,
             expiry_time=end,
             strike=90,
@@ -586,6 +604,7 @@ class DeterministicBsmTests(unittest.TestCase):
             valuation_time=START,
         )
         note = ins.SnowballOption(
+            observation_clock_time=None,
             effective_time=START,
             expiry_time=end,
             maturity_coupon_rate=0.1,

@@ -1,7 +1,7 @@
 use crate::error::domain;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDate, PyDateAccess, PyDateTime, PyFloat, PyTimeAccess};
+use pyo3::types::{PyBool, PyDate, PyDateAccess, PyDateTime, PyFloat, PyTime, PyTimeAccess};
 
 pub(crate) fn instrument<'a, 'py, T>(value: &'a Bound<'py, PyAny>) -> PyResult<T>
 where
@@ -118,6 +118,51 @@ pub(crate) fn date(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Date> {
 
 pub(crate) fn timestamps(value: &Bound<'_, PyAny>) -> PyResult<Vec<kiyosi::Timestamp>> {
     value.try_iter()?.map(|item| timestamp(&item?)).collect()
+}
+
+pub(crate) fn clock_time(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::TimeOfDay> {
+    let time = value.cast::<PyTime>()?;
+    if !value
+        .py()
+        .get_type::<PyTime>()
+        .getattr("tzinfo")?
+        .call_method1("__get__", (value,))?
+        .is_none()
+    {
+        return Err(PyTypeError::new_err("expected a timezone-free time"));
+    }
+    if value.hasattr("nanosecond")? && value.getattr("nanosecond")?.extract::<u32>()? != 0 {
+        return Err(PyTypeError::new_err(
+            "time precision must not exceed microseconds",
+        ));
+    }
+    domain(kiyosi::TimeOfDay::new(
+        time.get_hour().into(),
+        time.get_minute().into(),
+        time.get_second().into(),
+        time.get_microsecond(),
+    ))
+}
+
+pub(crate) fn optional_clock_time(value: &Bound<'_, PyAny>) -> PyResult<Option<kiyosi::TimeOfDay>> {
+    if value.is_none() {
+        Ok(None)
+    } else {
+        clock_time(value).map(Some)
+    }
+}
+
+pub(crate) fn python_clock_time(
+    py: Python<'_>,
+    at: kiyosi::TimeOfDay,
+) -> PyResult<Bound<'_, PyAny>> {
+    let micros = at.micros_since_midnight();
+    py.import("datetime")?.getattr("time")?.call1((
+        micros / 3_600_000_000,
+        micros / 60_000_000 % 60,
+        micros / 1_000_000 % 60,
+        micros % 1_000_000,
+    ))
 }
 
 pub(crate) fn timestamp(value: &Bound<'_, PyAny>) -> PyResult<kiyosi::Timestamp> {

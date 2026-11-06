@@ -4,6 +4,7 @@ import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from datetime import time as clock_time
 
 from kiyosi import (
     InvalidInputError,
@@ -60,6 +61,7 @@ class SnowballVariantTests(unittest.TestCase):
     def test_quadrature_covers_drift_below_future_knock_out(self):
         end = datetime(2026, 1, 1)
         note = SnowballOption(
+            observation_clock_time=clock_time(),
             maturity_coupon_rate=0,
             initial_spot=100,
             knock_in_level=80,
@@ -110,6 +112,7 @@ class SnowballVariantTests(unittest.TestCase):
         }
         binary = BinarySnowballOption(**common)
         ternary = TernarySnowballOption(
+            observation_clock_time=None,
             **common,
             minimum_coupon_rate=-0.02,
             knock_in_level=80,
@@ -162,6 +165,13 @@ class SnowballVariantTests(unittest.TestCase):
                 knock_in_observation_mode="at_expiry",
             )
         fields.update(changes)
+        if kind is TernarySnowballOption:
+            fields.setdefault(
+                "observation_clock_time",
+                clock_time()
+                if fields["knock_in_observation_mode"] == "every_trading_day"
+                else None,
+            )
         return kind(**fields)
 
     def test_existing_quantlib_terminal_portfolios(self):
@@ -187,6 +197,9 @@ class SnowballVariantTests(unittest.TestCase):
                         minimum_coupon_rate=inputs["minimum_coupon_rate"],
                         knock_in_level=inputs["knock_in_level"],
                         knock_in_observation_mode=inputs["knock_in_mode"],
+                        observation_clock_time=clock_time()
+                        if inputs["knock_in_mode"] == "every_trading_day"
+                        else None,
                     )
                 note = getattr(instruments, kind)(**fields)
                 ctx = market(
@@ -313,8 +326,17 @@ class SnowballVariantTests(unittest.TestCase):
         ctx = market(100, datetime(2025, 1, 15))
         for name, extra, levels, coupons, maturity, upper, lower, mode in cases:
             with self.subTest(preset=name):
-                actual = getattr(instruments, name)(**common, **extra)
+                actual = getattr(instruments, name)(
+                    observation_clock_time=clock_time()
+                    if mode == "every_trading_day"
+                    else None,
+                    **common,
+                    **extra,
+                )
                 explicit = SnowballOption(
+                    observation_clock_time=clock_time()
+                    if mode == "every_trading_day"
+                    else None,
                     maturity_coupon_rate=maturity,
                     initial_spot=100,
                     knock_in_level=80,
@@ -355,6 +377,7 @@ class SnowballVariantTests(unittest.TestCase):
                     actual,
                 )
         defaults = instruments.standard_snowball(
+            observation_clock_time=clock_time(),
             coupon_rate=0.08,
             initial_spot=100,
             knock_in_level=80,
@@ -493,27 +516,33 @@ class SnowballVariantTests(unittest.TestCase):
         ):
             for value in (True, "100"):
                 with self.assertRaises(TypeError):
-                    instruments.standard_snowball(**(common | {field: value}))
+                    instruments.standard_snowball(
+                        observation_clock_time=clock_time(), **(common | {field: value})
+                    )
         self.assert_rejection(
             InvalidInputError,
             instruments.standard_snowball,
+            observation_clock_time=clock_time(),
             **(common | {"observation_times": []}),
         )
         self.assert_rejection(
             InvalidInputError,
             instruments.loss_capped_snowball,
+            observation_clock_time=clock_time(),
             **common,
             lower_strike=101,
         )
         self.assert_rejection(
             InvalidInputError,
             instruments.parachute_snowball,
+            observation_clock_time=clock_time(),
             **common,
             final_knock_out_level=0,
         )
         self.assert_rejection(
             InvalidInputError,
             instruments.otm_snowball,
+            observation_clock_time=clock_time(),
             **common,
             upper_strike=math.nan,
         )
@@ -522,11 +551,13 @@ class SnowballVariantTests(unittest.TestCase):
         self.assert_rejection(
             InvalidInputError,
             instruments.step_down_snowball,
+            observation_clock_time=clock_time(),
             **stepped,
             knock_out_level_decrement=math.inf,
         )
         # A negative decrement is supported if the expanded levels remain positive.
         note = instruments.step_down_snowball(
+            observation_clock_time=clock_time(),
             **(stepped | {"observation_times": [datetime(2025, 2, 3), END]}),
             knock_out_level_decrement=-2,
         )

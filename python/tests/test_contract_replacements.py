@@ -3,6 +3,7 @@
 import inspect
 import unittest
 from datetime import datetime
+from datetime import time as clock_time
 
 from kiyosi import InvalidInputError
 from kiyosi import instruments as i
@@ -95,6 +96,7 @@ def contracts():
         payout=10,
     )
     yield i.Accumulator(
+        observation_clock_time=clock_time(),
         option_type="call",
         strike=100,
         knock_out_level=120,
@@ -106,6 +108,7 @@ def contracts():
         knock_out_observation_times=[END],
     )
     yield i.RangeAccrualOption(
+        observation_clock_time=clock_time(),
         notional=1000,
         annual_coupon_rate=0.12,
         lower_bound=90,
@@ -115,6 +118,7 @@ def contracts():
         realized_hit_count=1,
     )
     yield i.SnowballOption(
+        observation_clock_time=clock_time(),
         maturity_coupon_rate=0.1,
         initial_spot=100,
         knock_in_level=80,
@@ -128,6 +132,7 @@ def contracts():
         observations=[i.AutocallableObservation(END, 110)],
     )
     yield i.PhoenixOption(
+        observation_clock_time=clock_time(),
         coupon_rate=0.1,
         initial_spot=100,
         knock_in_level=80,
@@ -149,6 +154,7 @@ def contracts():
         observations=[i.AutocallableObservation(END, 110)],
     )
     yield i.TernarySnowballOption(
+        observation_clock_time=clock_time(),
         maturity_coupon_rate=0.1,
         minimum_coupon_rate=0.02,
         knock_in_level=80,
@@ -208,6 +214,7 @@ UPDATES = {
     "upper_strike": 105,
     "lower_strike": 5,
     "knock_in_observation_mode": "at_expiry",
+    "observation_clock_time": clock_time(1, 2, 3, 456789),
     "barrier_state": "knocked_out",
     "principal_ratio": 0.9,
     "observations": [i.AutocallableObservation(END, 115)],
@@ -283,6 +290,8 @@ class ContractReplacementTests(unittest.TestCase):
                     else:
                         self.assertEqual(getattr(changed, name), value)
                     expected = initial | updates
+                    if name == "knock_in_observation_mode":
+                        expected["observation_clock_time"] = None
                     if isinstance(original, i.PhoenixOption) and name in (
                         "coupon_rate",
                         "coupon_per_period",
@@ -360,7 +369,20 @@ class ContractReplacementTests(unittest.TestCase):
                         and field != "realized_average"
                         and not nullable_payout
                     ):
-                        with self.assertRaises(TypeError):
+                        error = (
+                            InvalidInputError
+                            if field == "observation_clock_time"
+                            and isinstance(
+                                original,
+                                (
+                                    i.SnowballOption,
+                                    i.PhoenixOption,
+                                    i.TernarySnowballOption,
+                                ),
+                            )
+                            else TypeError
+                        )
+                        with self.assertRaises(error):
                             original.replace(**{field: None})
                 with self.assertRaises(TypeError):
                     original.replace(unknown=1)

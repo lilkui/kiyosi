@@ -1,6 +1,6 @@
 use crate::{
-    Error, ObservationSchedule, OptionContract, OptionType, PricingContext, Result, Timestamp,
-    TradingCalendar,
+    Error, ObservationSchedule, OptionContract, OptionType, PricingContext, Result, TimeOfDay,
+    Timestamp, TradingCalendar,
 };
 
 /// Supplies accumulator terms; see [`Accumulator::new`] for validation and usage.
@@ -22,10 +22,12 @@ pub struct AccumulatorTerms {
     pub accumulated_quantity: Option<f64>,
     /// Records a settled knock-out strictly before valuation; no remaining cash flows are valued.
     pub terminated: bool,
-    /// Inclusive effective time for daily observations at the expiry clock time.
+    /// Inclusive effective time for daily observations at the specified observation clock time.
     pub effective_time: Timestamp,
-    /// Final observation and settlement time.
+    /// Maturity settlement time.
     pub expiry_time: Timestamp,
+    /// Sets the explicit daily observation clock; see [`TimeOfDay::new`].
+    pub observation_clock_time: TimeOfDay,
     /// Strictly ordered knock-out times within life; `None` observes every trading date.
     pub knock_out_observation_times: Option<Vec<Timestamp>>,
 }
@@ -47,6 +49,7 @@ impl AccumulatorTerms {
         acceleration_factor: f64,
         effective_time: Timestamp,
         expiry_time: Timestamp,
+        observation_clock_time: TimeOfDay,
     ) -> Self {
         Self {
             calendar: TradingCalendar::default(),
@@ -59,6 +62,7 @@ impl AccumulatorTerms {
             terminated: Self::DEFAULT_TERMINATED,
             effective_time,
             expiry_time,
+            observation_clock_time,
             knock_out_observation_times: None,
         }
     }
@@ -96,11 +100,12 @@ impl From<Option<f64>> for AccumulatorHistoryChanges {
 /// Calls purchase units and settle as `quantity * (spot - strike)`; puts sell units
 /// and settle as `quantity * (strike - spot)`. Acceleration applies strictly below
 /// strike for calls, strictly above for puts, and not at equality. Both accumulate
-/// at the expiry clock time on trading dates within the inclusive contract life. Knock-out
+/// at the specified observation clock time on trading dates within the inclusive contract life. Knock-out
 /// observes every trading date by default, or only the explicit times. An empty
 /// schedule disables knock-out. Calls knock out at or above the barrier,
-/// puts at or below it; knock-out adds no units at its own timestamp. A non-knock-out expiry
-/// accumulates normally before settlement. Prices exclude previously settled cash flows;
+/// puts at or below it; knock-out adds no units at its own timestamp. Expiry
+/// accumulates before settlement only when it is a daily observation and does not knock out.
+/// Prices exclude previously settled cash flows;
 /// `terminated` records an already settled knock-out and gives zero remaining value.
 /// Pricing rejects this state unless a knock-out observation strictly precedes valuation.
 /// Accrued quantity is ignored for terminated contracts. History is caller asserted,
@@ -131,7 +136,7 @@ impl Accumulator {
     /// use kiyosi::{Accumulator, AccumulatorTerms, Date, OptionType};
     /// # fn main() -> kiyosi::Result<()> {
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
-    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 2, 3)?.start_of_day()))?;
+    ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 2, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?;
     /// let seasoned = option.replace_history(3.0)?;
     /// assert_eq!(seasoned.accumulated_quantity(), Some(3.0));
     /// assert_eq!(option.accumulated_quantity(), None);
@@ -141,7 +146,7 @@ impl Accumulator {
     /// assert!(settled.terminated());
     /// let end = Date::new(2025, 2, 3)?.start_of_day();
     /// let mut terms = AccumulatorTerms::new(100.0, 90.0, 1.0, 2.0,
-    ///     Date::new(2025, 1, 1)?.start_of_day(), end);
+    ///     Date::new(2025, 1, 1)?.start_of_day(), end, kiyosi::TimeOfDay::new(0, 0, 0, 0)?);
     /// terms.option_type = OptionType::Put;
     /// terms.knock_out_observation_times = Some(vec![end]);
     /// terms.calendar = kiyosi::TradingCalendar::all_days();
@@ -238,7 +243,7 @@ impl Accumulator {
     /// use kiyosi::{Accumulator, AccumulatorHistoryChanges, AccumulatorTerms, Date};
     /// # fn main() -> kiyosi::Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
-    /// let option = Accumulator::new(AccumulatorTerms::new(90.0, 110.0, 1.0, 2.0, start, start.add_days(9)?))?;
+    /// let option = Accumulator::new(AccumulatorTerms::new(90.0, 110.0, 1.0, 2.0, start, start.add_days(9)?, kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?;
     /// let settled = option.replace_history(AccumulatorHistoryChanges {
     ///     terminated: Some(true), ..Default::default()
     /// })?;
@@ -294,9 +299,13 @@ impl Accumulator {
     pub fn effective_time(&self) -> Timestamp {
         self.terms.effective_time
     }
-    /// Returns the final observation and settlement time; see [`Self::new`].
+    /// Returns the maturity settlement time; see [`Self::new`].
     pub fn expiry_time(&self) -> Timestamp {
         self.terms.expiry_time
+    }
+    /// Returns the daily observation clock; see [`TimeOfDay::new`].
+    pub fn observation_clock_time(&self) -> TimeOfDay {
+        self.terms.observation_clock_time
     }
 
     pub(crate) fn validate_pricing(&self, context: &PricingContext) -> Result<()> {
@@ -306,11 +315,12 @@ impl Accumulator {
                 "valuation must be within contract life".into(),
             ));
         }
-        let had_accumulation = ObservationSchedule::daily(
+        let had_accumulation = crate::ObservationSchedule::daily(
             self.effective_time(),
             self.expiry_time(),
             self.calendar(),
             true,
+            self.observation_clock_time(),
         )?
         .times()
         .iter()
@@ -338,11 +348,12 @@ impl Accumulator {
         &self,
         context: &PricingContext,
     ) -> Result<Vec<Timestamp>> {
-        let mut times = ObservationSchedule::daily(
+        let mut times = crate::ObservationSchedule::daily(
             self.effective_time(),
             self.expiry_time(),
             self.calendar(),
             true,
+            self.observation_clock_time(),
         )?
         .times()
         .to_vec();
@@ -361,11 +372,12 @@ impl Accumulator {
         {
             return false;
         }
-        let Ok(schedule) = ObservationSchedule::daily(
+        let Ok(schedule) = crate::ObservationSchedule::daily(
             self.effective_time(),
             self.expiry_time(),
             self.calendar(),
             true,
+            self.observation_clock_time(),
         ) else {
             return true;
         };
@@ -401,7 +413,7 @@ impl Accumulator {
     }
     pub(crate) fn observes_knock_out(&self, date: Timestamp) -> bool {
         self.knock_out_observation_times().map_or(
-            date.micros_since_midnight() == self.expiry_time().micros_since_midnight(),
+            date.micros_since_midnight() == self.observation_clock_time().micros_since_midnight(),
             |times| times.binary_search(&date).is_ok(),
         )
     }
@@ -411,7 +423,7 @@ impl Accumulator {
     pub(crate) fn accumulates_at(&self, time: Timestamp, calendar: &TradingCalendar) -> bool {
         self.effective_time() <= time
             && time <= self.expiry_time()
-            && time.micros_since_midnight() == self.expiry_time().micros_since_midnight()
+            && time.micros_since_midnight() == self.observation_clock_time().micros_since_midnight()
             && calendar.is_trading_day(time.date())
     }
 
@@ -543,11 +555,12 @@ impl OptionContract for Accumulator {
         if self.terminated() {
             return true;
         }
-        let Ok(schedule) = ObservationSchedule::daily(
+        let Ok(schedule) = crate::ObservationSchedule::daily(
             self.effective_time(),
             self.expiry_time(),
             self.calendar(),
             true,
+            self.observation_clock_time(),
         ) else {
             return false;
         };
@@ -584,6 +597,8 @@ pub struct AccumulatorChanges {
     pub effective_time: Option<Timestamp>,
     /// Replaces [`expiry_time`](AccumulatorTerms::expiry_time).
     pub expiry_time: Option<Timestamp>,
+    /// Replaces the daily observation clock; see [`TimeOfDay::new`].
+    pub observation_clock_time: Option<TimeOfDay>,
     /// Replaces [`knock_out_observation_times`](AccumulatorTerms::knock_out_observation_times).
     pub knock_out_observation_times: Option<Option<Vec<Timestamp>>>,
 }
@@ -615,6 +630,9 @@ impl Accumulator {
             terminated: changes.terminated.unwrap_or(self.terminated()),
             effective_time: changes.effective_time.unwrap_or(self.effective_time()),
             expiry_time: changes.expiry_time.unwrap_or(self.expiry_time()),
+            observation_clock_time: changes
+                .observation_clock_time
+                .unwrap_or(self.observation_clock_time()),
             knock_out_observation_times: changes.knock_out_observation_times.unwrap_or_else(|| {
                 self.knock_out_observation_times()
                     .map(<[Timestamp]>::to_vec)

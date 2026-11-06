@@ -6,7 +6,7 @@ fn day(month: u32, date: u32) -> Timestamp {
 fn terms(end: Timestamp) -> AccumulatorTerms {
     AccumulatorTerms {
         accumulated_quantity: Some(0.0),
-        ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end)
+        ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end, (end).time_of_day())
     }
 }
 fn market(spot: f64, at: Timestamp, sigma: f64, rate: f64, dividend: f64) -> PricingContext {
@@ -444,10 +444,15 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
             TradingCalendar::default()
         };
         let option = option.replace_calendar(calendar).unwrap();
-        let observations =
-            ObservationSchedule::fixed_interval(day(1, 2), end, 1, option.calendar())
-                .unwrap()
-                .len();
+        let observations = ObservationSchedule::fixed_interval(
+            day(1, 2),
+            end,
+            1,
+            option.calendar(),
+            (day(1, 2)).time_of_day(),
+        )
+        .unwrap()
+        .len();
         let exposure = 100.0 * (3.0 + observations as f64 * acceleration.max(1.0));
         let values = engines.map(|e| e.price(&option, &context).unwrap());
         assert!(
@@ -701,10 +706,15 @@ fn greeks_converge_under_spatial_refinement_and_smaller_bumps() {
             },
         )
         .unwrap();
-        let observations =
-            ObservationSchedule::fixed_interval(day(1, 5), end, 1, option.calendar())
-                .unwrap()
-                .len();
+        let observations = ObservationSchedule::fixed_interval(
+            day(1, 5),
+            end,
+            1,
+            option.calendar(),
+            (day(1, 5)).time_of_day(),
+        )
+        .unwrap()
+        .len();
         let exposure = 100.0 * (3.0 + observations as f64 * acceleration.max(1.0));
         for (greek, order, absolute, relative) in [
             (Greek::Delta, 1, 1e-6, 0.005),
@@ -742,6 +752,7 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
             2.0,
             start,
             day(1, 7),
+            (day(1, 7)).time_of_day(),
         ))
         .unwrap();
         assert_eq!(option.accumulated_quantity(), None);

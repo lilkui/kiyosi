@@ -3,6 +3,7 @@
 import math
 import unittest
 from datetime import datetime
+from datetime import time as clock_time
 
 from kiyosi import ComputationFailureError, pricing
 from kiyosi.instruments import (
@@ -76,6 +77,9 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 [
                     (
                         SnowballOption(
+                            observation_clock_time=clock_time()
+                            if mode == "every_trading_day"
+                            else None,
                             maturity_coupon_rate=0.06,
                             initial_spot=100,
                             upper_strike=100,
@@ -91,6 +95,9 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     ),
                     (
                         PhoenixOption(
+                            observation_clock_time=clock_time()
+                            if mode == "every_trading_day"
+                            else None,
                             coupon_rate=0.08,
                             initial_spot=100,
                             upper_strike=100,
@@ -106,6 +113,9 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     ),
                     (
                         TernarySnowballOption(
+                            observation_clock_time=clock_time()
+                            if mode == "every_trading_day"
+                            else None,
                             maturity_coupon_rate=0.06,
                             minimum_coupon_rate=0.02,
                             **common,
@@ -173,6 +183,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
 
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         note = SnowballOption(
+            observation_clock_time=clock_time(),
             maturity_coupon_rate=0,
             initial_spot=100,
             knock_in_level=75,
@@ -230,6 +241,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             for state in ("no_event", "knocked_in"):
                 with self.subTest(engine=type(engine).__name__, state=state):
                     note = SnowballOption(
+                        observation_clock_time=clock_time(),
                         maturity_coupon_rate=0.06,
                         initial_spot=100,
                         knock_in_level=75,
@@ -296,6 +308,9 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             }
             for mode in ("at_expiry", "every_trading_day"):
                 snowball = SnowballOption(
+                    observation_clock_time=clock_time()
+                    if mode == "every_trading_day"
+                    else None,
                     **terms,
                     initial_spot=100,
                     knock_in_level=90,
@@ -364,6 +379,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 observations=observations,
             ),
             SnowballOption(
+                observation_clock_time=clock_time(),
                 **common,
                 **strikes,
                 maturity_coupon_rate=5,
@@ -373,6 +389,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                 observations=observations,
             ),
             TernarySnowballOption(
+                observation_clock_time=clock_time(),
                 **common,
                 maturity_coupon_rate=5,
                 minimum_coupon_rate=-1,
@@ -386,6 +403,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             self.check_autocallable(note, cashflow_market(100, FIRST), 0.99)
         for barrier, expected in ((100, 0.99), (math.nextafter(100, 200), 1)):
             note = PhoenixOption(
+                observation_clock_time=clock_time(),
                 **common,
                 **strikes,
                 coupon_rate=-0.365,
@@ -412,6 +430,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             "expiry_time": END,
         }
         snowball = SnowballOption(
+            observation_clock_time=clock_time(),
             **common,
             maturity_coupon_rate=5,
             observations=autocallable_observations(
@@ -419,6 +438,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
             ),
         )
         phoenix = PhoenixOption(
+            observation_clock_time=clock_time(),
             **common,
             coupon_rate=-0.365,
             observations=autocallable_observations(

@@ -3,6 +3,7 @@
 import math
 import unittest
 from datetime import datetime, timedelta
+from datetime import time as clock_time
 
 from kiyosi import pricing
 from kiyosi.instruments import (
@@ -118,6 +119,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
         calendar = sse_calendar()
         dates = list(
             monthly_schedule(
+                observation_clock_time=clock_time(),
                 start_time=start,
                 end_time=end,
                 first_observation_month=1,
@@ -127,6 +129,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
         if dates[-1] != end:
             dates.append(end)
         note = SnowballOption(
+            observation_clock_time=clock_time(),
             calendar=calendar,
             maturity_coupon_rate=0.2,
             initial_spot=100,
@@ -270,6 +273,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
     def test_projection_preserves_exact_current_event_barrier_comparisons(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = PhoenixOption(
+            observation_clock_time=clock_time(),
             coupon_rate=0.08,
             initial_spot=100,
             knock_in_level=80,
@@ -313,6 +317,7 @@ class AutocallableAccuracyTests(unittest.TestCase):
             return math.expm1(0.04 * time) / time
 
         option = TernarySnowballOption(
+            observation_clock_time=clock_time(),
             maturity_coupon_rate=carry_rate(end),
             minimum_coupon_rate=carry_rate(end),
             knock_in_level=75,

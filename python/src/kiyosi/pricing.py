@@ -272,6 +272,7 @@ Solve a Phoenix coupon in its existing per-period units:
 >>> from kiyosi.instruments import PhoenixOption
 >>> phoenix = PhoenixOption(coupon_per_period=0.01, initial_spot=100,
 ...     knock_in_level=80, upper_strike=100, lower_strike=100,
+...     observation_clock_time=option.expiry_time.time(),
 ...     effective_time=option.effective_time, expiry_time=option.expiry_time,
 ...     observations=[observation])
 >>> target = coupon_engine.price(phoenix.with_coupon(0.02), context)

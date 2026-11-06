@@ -4,6 +4,7 @@ import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from datetime import time as clock_time
 from functools import partial
 
 from kiyosi import (
@@ -48,7 +49,13 @@ def contract(**changes):
         ),
     }
     fields.update(changes)
-    return SnowballOption(**fields)
+    return SnowballOption(
+        observation_clock_time=clock_time()
+        if fields.get("knock_in_observation_mode", "every_trading_day")
+        == "every_trading_day"
+        else None,
+        **fields,
+    )
 
 
 def market(spot=100, valuation=START, volatility=0.3, rate=0.04, dividend=0.01):

@@ -2,6 +2,7 @@
 
 import unittest
 from datetime import datetime
+from datetime import time as clock_time
 
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
 from kiyosi import instruments as ins
@@ -118,6 +119,7 @@ def terminal_cases():
         ),
         (
             ins.Accumulator(
+                observation_clock_time=clock_time(),
                 **dates,
                 strike=100,
                 knock_out_level=120,
@@ -134,6 +136,7 @@ def terminal_cases():
         ),
         (
             ins.RangeAccrualOption(
+                observation_clock_time=clock_time(),
                 **dates,
                 calendar=all_days_calendar(),
                 notional=1000,
@@ -197,7 +200,12 @@ def terminal_cases():
     cases.extend(
         [
             (
-                ins.SnowballOption(**common, **loss, maturity_coupon_rate=0.06),
+                ins.SnowballOption(
+                    observation_clock_time=None,
+                    **common,
+                    **loss,
+                    maturity_coupon_rate=0.06,
+                ),
                 notes,
                 1.06,
             ),
@@ -208,6 +216,7 @@ def terminal_cases():
             ),
             (
                 ins.TernarySnowballOption(
+                    observation_clock_time=None,
                     **common,
                     maturity_coupon_rate=0.06,
                     minimum_coupon_rate=-0.02,
@@ -220,6 +229,7 @@ def terminal_cases():
             ),
             (
                 ins.PhoenixOption(
+                    observation_clock_time=None,
                     **dates,
                     **loss,
                     coupon_rate=0.08,

@@ -4,6 +4,46 @@ use crate::{Error, Result};
 
 const MICROS_PER_DAY: i64 = 86_400_000_000;
 
+/// Represents a timezone-free clock time with microsecond precision.
+///
+/// Shared and distinct values support concurrent reads. See [`Self::new`].
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct TimeOfDay(u64);
+
+impl TimeOfDay {
+    /// Creates a clock time without leap-second support.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] unless hour is 0..=23, minute and second
+    /// are 0..=59, and microsecond is `0..=999_999`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Date, TimeOfDay};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let close = TimeOfDay::new(15, 0, 0, 123_456)?;
+    /// let observation = Date::new(2025, 1, 2)?.at_time(close);
+    /// assert_eq!(observation.time_of_day(), close);
+    /// assert_eq!(close.micros_since_midnight(), 54_000_123_456);
+    /// # Ok(()) }
+    /// ```
+    pub fn new(hour: u32, minute: u32, second: u32, microsecond: u32) -> Result<Self> {
+        if hour > 23 || minute > 59 || second > 59 || microsecond > 999_999 {
+            return Err(Error::InvalidInput("invalid time components".into()));
+        }
+        Ok(Self(
+            u64::from((hour * 60 + minute) * 60 + second) * 1_000_000 + u64::from(microsecond),
+        ))
+    }
+
+    /// Returns microseconds since midnight; see [`Self::new`].
+    pub fn micros_since_midnight(self) -> u64 {
+        self.0
+    }
+}
+
 /// Represents a proleptic Gregorian date in years -32767 through 32767.
 ///
 /// See [`Self::new`] for construction.
@@ -96,6 +136,15 @@ impl Date {
     pub fn start_of_day(self) -> Timestamp {
         Timestamp(i64::from(self.0.num_days_from_ce()) * MICROS_PER_DAY)
     }
+
+    /// Combines this date with a clock time; see [`TimeOfDay::new`].
+    #[expect(
+        clippy::cast_possible_wrap,
+        reason = "A validated clock time is less than one day."
+    )]
+    pub fn at_time(self, time: TimeOfDay) -> Timestamp {
+        Timestamp(self.start_of_day().0 + time.0 as i64)
+    }
 }
 
 /// Represents a date and time with microsecond resolution.
@@ -123,14 +172,7 @@ impl Timestamp {
     /// # Ok(()) }
     /// ```
     pub fn new(date: Date, hour: u32, minute: u32, second: u32, microsecond: u32) -> Result<Self> {
-        if hour > 23 || minute > 59 || second > 59 || microsecond > 999_999 {
-            return Err(Error::InvalidInput("invalid time components".into()));
-        }
-        Ok(Self(
-            date.start_of_day().0
-                + i64::from((hour * 60 + minute) * 60 + second) * 1_000_000
-                + i64::from(microsecond),
-        ))
+        Ok(date.at_time(TimeOfDay::new(hour, minute, second, microsecond)?))
     }
 
     pub(crate) fn on_date(self, date: Date) -> Self {
@@ -181,6 +223,11 @@ impl Timestamp {
     /// Returns microseconds since midnight on [`Self::date`].
     pub fn micros_since_midnight(self) -> u64 {
         self.0.rem_euclid(MICROS_PER_DAY) as u64
+    }
+
+    /// Returns the clock time without its date; see [`TimeOfDay::new`].
+    pub fn time_of_day(self) -> TimeOfDay {
+        TimeOfDay(self.micros_since_midnight())
     }
 
     #[expect(

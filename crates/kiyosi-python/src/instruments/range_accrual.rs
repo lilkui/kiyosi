@@ -25,6 +25,8 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 ///     Inclusive finite upper spot boundary, above the lower boundary.
 /// effective_time : datetime.datetime
 ///     Inclusive contract start.
+/// observation_clock_time : datetime.time
+///     Required daily observation time, without timezone information.
 /// expiry_time : datetime.datetime
 ///     Inclusive expiry time.
 /// realized_hit_count : int or None, optional
@@ -37,7 +39,8 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 /// ------
 /// InvalidInputError
 ///     If amounts, bounds or history are invalid, or expiry is not after
-///     effective_time, or the expiry date is closed in the calendar.
+///     effective_time, the expiry date is closed in the calendar, or the
+///     observation schedule is empty.
 ///     Pricing checks the inclusive contract life and history
 ///     against elapsed observations.
 ///
@@ -45,7 +48,8 @@ fn history(value: &Bound<'_, PyAny>) -> PyResult<Option<i32>> {
 /// -----
 /// Observe trading times in (effective_time, expiry_time]. Bounds are
 /// inclusive. Payment is notional times annual coupon times Actual/365 Fixed
-/// life times the fraction of observations inside the range.
+/// life times the fraction of observations inside the range. Payment is at expiry;
+/// a completed observation schedule still has a discounted future payment.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct RangeAccrualOption(pub kiyosi::RangeAccrualOption);
@@ -84,7 +88,7 @@ impl RangeAccrualOption {
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation or field name is invalid.
-    #[pyo3(signature = (*, notional=crate::conversions::OMITTED, annual_coupon_rate=crate::conversions::OMITTED, lower_bound=crate::conversions::OMITTED, upper_bound=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, realized_hit_count=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, notional=crate::conversions::OMITTED, annual_coupon_rate=crate::conversions::OMITTED, lower_bound=crate::conversions::OMITTED, upper_bound=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, realized_hit_count=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
         reason = "explicit Python replacement fields"
@@ -101,6 +105,7 @@ impl RangeAccrualOption {
             &Bound<'_, PyAny>,
         >,
         #[pyo3(from_py_with = crate::conversions::supplied)] expiry_time: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] observation_clock_time: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = crate::conversions::supplied)] realized_hit_count: Option<
             &Bound<'_, PyAny>,
         >,
@@ -120,6 +125,9 @@ impl RangeAccrualOption {
                 .map(crate::conversions::timestamp)
                 .transpose()?,
             expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
+            observation_clock_time: observation_clock_time
+                .map(crate::conversions::clock_time)
+                .transpose()?,
             realized_hit_count: realized_hit_count
                 .map(|value| {
                     if value.is_none() {
@@ -134,7 +142,7 @@ impl RangeAccrualOption {
     }
     #[new]
     #[expect(clippy::too_many_arguments, reason = "explicit Python contract terms")]
-    #[pyo3(signature = (*, notional, annual_coupon_rate, lower_bound, upper_bound, effective_time, expiry_time, realized_hit_count=None, calendar=TradingCalendar::default()))]
+    #[pyo3(signature = (*, notional, annual_coupon_rate, lower_bound, upper_bound, effective_time, expiry_time, observation_clock_time, realized_hit_count=None, calendar=TradingCalendar::default()))]
     fn new(
         notional: &Bound<'_, PyAny>,
         annual_coupon_rate: &Bound<'_, PyAny>,
@@ -142,6 +150,7 @@ impl RangeAccrualOption {
         upper_bound: &Bound<'_, PyAny>,
         effective_time: &Bound<'_, PyAny>,
         expiry_time: &Bound<'_, PyAny>,
+        observation_clock_time: &Bound<'_, PyAny>,
         realized_hit_count: Option<&Bound<'_, PyAny>>,
         calendar: TradingCalendar,
     ) -> PyResult<Self> {
@@ -152,6 +161,7 @@ impl RangeAccrualOption {
             real(upper_bound)?,
             timestamp(effective_time)?,
             timestamp(expiry_time)?,
+            crate::conversions::clock_time(observation_clock_time)?,
         );
         if let Some(value) = realized_hit_count {
             terms.realized_hit_count = history(value)?;
@@ -187,6 +197,12 @@ impl RangeAccrualOption {
         };
         Ok(Self(domain(self.0.replace_history(count))?))
     }
+    /// Returns the explicitly specified daily observation clock time.
+    #[getter]
+    fn observation_clock_time<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        crate::conversions::python_clock_time(py, self.0.observation_clock_time())
+    }
+
     /// Returns an owned copy of the contract's observation calendar.
     #[getter]
     fn calendar(&self) -> TradingCalendar {

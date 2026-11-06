@@ -625,8 +625,16 @@ fn generic_statistics_keep_existing_monte_carlo_estimators_available() {
         ..settings()
     };
     let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
-    let accumulator =
-        Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, end)).unwrap();
+    let accumulator = Accumulator::new(AccumulatorTerms::new(
+        100.0,
+        110.0,
+        1.0,
+        2.0,
+        start,
+        end,
+        (end).time_of_day(),
+    ))
+    .unwrap();
     let note = BinarySnowballOption::new(BinarySnowballTerms::new(
         0.1,
         start,

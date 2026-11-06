@@ -37,6 +37,7 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
                 date(1, 1),
                 date(4, 1),
                 autocallable_observations(&[date(4, 1)], &[110.0], Some(&[anchor]), None)?,
+                Some((date(4, 1)).time_of_day()),
             ))?;
             let original = note.clone();
             let quote = engine.price(&note, &context)?;
@@ -105,6 +106,7 @@ fn ternary_coupon_solver_intersects_bounds_with_valid_maturity_coupons() -> Resu
             date(1, 1),
             date(4, 1),
             autocallable_observations(&[date(4, 1)], &[110.0], Some(&[0.05]), None)?,
+            Some((date(4, 1)).time_of_day()),
         ))?;
         let solved = implied_snowball_coupon(
             engine,
@@ -262,6 +264,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
         date(1, 1),
         date(4, 1),
         records.clone(),
+        Some((date(4, 1)).time_of_day()),
     ))
     .unwrap();
     let ternary = TernarySnowballOption::new(TernarySnowballTerms::new(
@@ -271,6 +274,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
         date(1, 1),
         date(4, 1),
         records,
+        Some((date(4, 1)).time_of_day()),
     ))
     .unwrap();
 
@@ -301,6 +305,7 @@ fn all_products_recover_prices_with_daily_knock_in_and_signed_coupons() {
             Some(&[95.0, 95.0]),
         )
         .unwrap(),
+        Some((date(4, 1)).time_of_day()),
     ))
     .unwrap();
     for coupon in [-0.05, 0.18] {
@@ -588,6 +593,7 @@ fn named_presets_reuse_the_same_coupon_contract() {
             date(1, 1),
             date(4, 1),
             vec![date(2, 3), date(4, 1)],
+            (!matches!(preset, SnowballPreset::European)).then_some(date(4, 1).time_of_day()),
         )
         .expand(preset)
         .unwrap();
@@ -679,6 +685,7 @@ fn terminal_quotes_match_independent_analytics_and_validate_replacements_before_
         date(1, 1),
         date(4, 1),
         note.observations().to_vec(),
+        Some((date(4, 1)).time_of_day()),
     ))
     .unwrap();
     let quote = engine.price(&ternary, &context).unwrap();
@@ -752,6 +759,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         date(1, 1),
         date(4, 1),
         records,
+        Some((date(4, 1)).time_of_day()),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let phoenix = PhoenixOption::new(terms).unwrap();
@@ -780,6 +788,7 @@ fn terminal_unpaid_phoenix_and_knocked_in_notes_have_no_coupon_exposure() {
         date(1, 1),
         date(4, 1),
         records,
+        Some((date(4, 1)).time_of_day()),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = SnowballOption::new(terms).unwrap();
@@ -820,6 +829,7 @@ fn coupon_endpoints_can_change_daily_knock_in_layers() {
             None,
         )
         .unwrap(),
+        Some((date(1, 13)).time_of_day()),
     );
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let note = SnowballOption::new(terms).unwrap();

@@ -125,7 +125,13 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
     let model = BlackScholesMertonParameters::new(0.0, 0.0, 1e-12)?;
     let context = PricingContext::new(model, 100.0, start)?;
     let range = RangeAccrualOption::new(RangeAccrualTerms::new(
-        1000.0, 0.12, 90.0, 110.0, start, end,
+        1000.0,
+        0.12,
+        90.0,
+        110.0,
+        start,
+        end,
+        (end).time_of_day(),
     ))?
     .replace_history(Some(0))?;
     let at_expiry = context.replace(PricingContextChanges {
@@ -139,7 +145,15 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
     assert_eq!(daily.replace_history(None)?.calendar(), daily.calendar());
     assert_eq!(daily.replace(Default::default())?, daily);
 
-    let accumulator = Accumulator::new(AccumulatorTerms::new(90.0, 200.0, 1.0, 1.0, start, end))?;
+    let accumulator = Accumulator::new(AccumulatorTerms::new(
+        90.0,
+        200.0,
+        1.0,
+        1.0,
+        start,
+        end,
+        (end).time_of_day(),
+    ))?;
     let sampling = MonteCarloSettings {
         path_count: 32,
         seed: Some(42),
@@ -162,6 +176,7 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
         start,
         end,
         vec![AutocallableObservation::new(end, 110.0)?],
+        Some((end).time_of_day()),
     ))?;
     let daily = note.replace_calendar(TradingCalendar::all_days()).unwrap();
     assert_eq!(
@@ -299,7 +314,13 @@ fn built_in_pricing_requires_valuation_within_inclusive_contract_life() -> Resul
         check!(
             AnalyticRangeAccrualEngine,
             RangeAccrualOption::new(RangeAccrualTerms::new(
-                100.0, coupon, 90.0, 110.0, start, end
+                100.0,
+                coupon,
+                90.0,
+                110.0,
+                start,
+                end,
+                (end).time_of_day()
             ))?
         );
     }
@@ -548,7 +569,15 @@ fn model_scalar_rate_queries_match_curve_representations() -> Result<()> {
 fn terminated_accumulators_have_no_remaining_cashflows() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = Date::new(2025, 1, 10)?.start_of_day();
-    let option = Accumulator::new(AccumulatorTerms::new(90.0, 110.0, 1.0, 2.0, start, end))?;
+    let option = Accumulator::new(AccumulatorTerms::new(
+        90.0,
+        110.0,
+        1.0,
+        2.0,
+        start,
+        end,
+        (end).time_of_day(),
+    ))?;
     let settled = option.replace(AccumulatorChanges {
         terminated: Some(true),
         ..Default::default()
@@ -1000,7 +1029,7 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
             .observation_times(),
         &[closed]
     );
-    let mut terms = AccumulatorTerms::new(90.0, 110.0, 1.0, 2.0, start, end);
+    let mut terms = AccumulatorTerms::new(90.0, 110.0, 1.0, 2.0, start, end, (end).time_of_day());
     terms.knock_out_observation_times = Some(vec![closed]);
     assert!(matches!(
         Accumulator::new(terms.clone()),
@@ -1039,7 +1068,15 @@ fn contractual_calendars_are_validated_before_pricing() -> Result<()> {
             .calendar(),
         note.calendar()
     );
-    let mut terms = RangeAccrualTerms::new(100.0, 0.1, 80.0, 120.0, start, closed);
+    let mut terms = RangeAccrualTerms::new(
+        100.0,
+        0.1,
+        80.0,
+        120.0,
+        start,
+        closed,
+        (closed).time_of_day(),
+    );
     assert!(matches!(
         RangeAccrualOption::new(terms.clone()),
         Err(Error::InvalidInput(_))
@@ -1113,7 +1150,15 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
         125.0,
         start.add_days(2)?,
     )?;
-    let mut terms = AccumulatorTerms::new(100.0, 120.0, 1.0, 2.0, start, expiry);
+    let mut terms = AccumulatorTerms::new(
+        100.0,
+        120.0,
+        1.0,
+        2.0,
+        start,
+        expiry,
+        (expiry).time_of_day(),
+    );
     terms.accumulated_quantity = Some(3.0);
     let accumulator = Accumulator::new(terms)?;
     let settled = accumulator.replace(AccumulatorChanges {
@@ -1200,7 +1245,15 @@ fn accumulator_termination_requires_a_strictly_prior_knock_out_observation() -> 
     let model = BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?;
     let mc = MonteCarloAccumulatorEngine::default();
     for times in [None, Some(vec![start.add_days(2)?]), Some(vec![])] {
-        let mut terms = AccumulatorTerms::new(100.0, 120.0, 1.0, 2.0, start, expiry);
+        let mut terms = AccumulatorTerms::new(
+            100.0,
+            120.0,
+            1.0,
+            2.0,
+            start,
+            expiry,
+            (expiry).time_of_day(),
+        );
         terms.knock_out_observation_times = times.clone();
         let original = Accumulator::new(terms)?;
         let settled = original.replace(AccumulatorChanges {
@@ -1268,6 +1321,7 @@ fn snowball_coupon_diagnostics_identify_the_supplied_field() -> Result<()> {
             start,
             end,
             observations.clone(),
+            Some((end).time_of_day()),
         ));
         let minimum = TernarySnowballOption::new(TernarySnowballTerms::new(
             0.1,
@@ -1276,6 +1330,7 @@ fn snowball_coupon_diagnostics_identify_the_supplied_field() -> Result<()> {
             start,
             end,
             observations.clone(),
+            Some((end).time_of_day()),
         ));
         for (error, field) in [
             (binary.unwrap_err(), "maturity_coupon_rate"),
@@ -1723,6 +1778,7 @@ fn accumulator_history_replacement_updates_quantity_and_termination() -> Result<
         2.0,
         start,
         start.add_days(9)?,
+        (start.add_days(9)?).time_of_day(),
     ))?;
     let settled = original.replace_history(AccumulatorHistoryChanges {
         accumulated_quantity: Some(Some(3.0)),

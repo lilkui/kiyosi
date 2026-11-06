@@ -59,6 +59,7 @@ fn quadrature_covers_drift_below_future_knock_out() {
         date(1, 1),
         end,
         autocallable_observations(&[end], &[110.0], Some(&[0.2]), None).unwrap(),
+        Some((end).time_of_day()),
     ))
     .unwrap();
     let context = PricingContext::new(
@@ -131,9 +132,17 @@ fn binary_has_no_knock_in_and_pays_signed_flat_maturity_coupon() {
 
 #[test]
 fn ternary_strict_knock_in_pays_floor_and_rejects_floor_above_coupon() {
-    let mut terms =
-        TernarySnowballTerms::new(0.06, -0.02, 80.0, date(1, 1), date(4, 1), observations());
+    let mut terms = TernarySnowballTerms::new(
+        0.06,
+        -0.02,
+        80.0,
+        date(1, 1),
+        date(4, 1),
+        observations(),
+        Some((date(4, 1)).time_of_day()),
+    );
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+    terms.observation_clock_time = None;
     terms.principal_ratio = 0.5;
     let note = TernarySnowballOption::new(terms.clone()).unwrap();
     let engine = QuadratureAutocallableEngine::default();
@@ -161,6 +170,7 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
         date(1, 1),
         date(4, 1),
         dates.clone(),
+        Some((date(4, 1)).time_of_day()),
     );
     let cases = [
         (
@@ -256,16 +266,25 @@ fn every_preset_expands_to_explicit_validated_terms_and_prices() {
             date(1, 1),
             date(4, 1),
             autocallable_observations(&dates, &levels, Some(&coupons), None).unwrap(),
+            Some((date(4, 1)).time_of_day()),
         );
         explicit.knock_in_observation_mode = mode;
+        explicit.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
+            .then_some(explicit.expiry_time.time_of_day());
         let expected = SnowballOption::new(explicit).unwrap();
-        let actual = base.clone().expand(preset).unwrap();
+        let mut input = base.clone();
+        input.observation_clock_time = expected.observation_clock_time();
+        let actual = input.expand(preset).unwrap();
         for (a, b) in actual.observations().iter().zip(expected.observations()) {
             assert_eq!(a.time(), b.time());
             assert!((a.knock_out_level() - b.knock_out_level()).abs() < 1e-14);
             assert!((a.coupon_rate() - b.coupon_rate()).abs() < 1e-14);
         }
         assert_eq!(actual.terms().knock_in_observation_mode, mode);
+        assert_eq!(
+            actual.observation_clock_time(),
+            expected.observation_clock_time()
+        );
         assert!((actual.terms().maturity_coupon_rate - maturity).abs() < 1e-14);
         assert_eq!(actual.terms().upper_strike, upper);
         assert_eq!(actual.terms().lower_strike, lower);
@@ -295,10 +314,18 @@ fn fixed_coupon_variants_match_independent_terminal_digital_portfolios() {
             let mut binary =
                 BinarySnowballTerms::new(0.06, date(1, 1), date(4, 1), records.clone());
             binary.principal_ratio = 0.25;
-            let mut ternary =
-                TernarySnowballTerms::new(0.06, -0.02, 80.0, date(1, 1), date(4, 1), records);
+            let mut ternary = TernarySnowballTerms::new(
+                0.06,
+                -0.02,
+                80.0,
+                date(1, 1),
+                date(4, 1),
+                records,
+                Some((date(4, 1)).time_of_day()),
+            );
             ternary.principal_ratio = 0.25;
             ternary.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+            ternary.observation_clock_time = None;
             let context = market(spot, date(1, 1));
             let above = 1.0 - probability_below(spot, 110.0, time);
             let expected_binary =
@@ -396,9 +423,17 @@ fn fixed_variants_keep_history_analysis_and_failure_guarantees() {
         ))
         .unwrap(),
     );
-    let mut terms =
-        TernarySnowballTerms::new(0.06, -0.02, 80.0, date(1, 1), date(4, 1), observations());
+    let mut terms = TernarySnowballTerms::new(
+        0.06,
+        -0.02,
+        80.0,
+        date(1, 1),
+        date(4, 1),
+        observations(),
+        Some((date(4, 1)).time_of_day()),
+    );
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+    terms.observation_clock_time = None;
     check(&TernarySnowballOption::new(terms).unwrap());
 }
 
@@ -417,6 +452,7 @@ fn ternary_daily_layers_converge_and_retain_recovered_knock_in_history() {
             None,
         )
         .unwrap(),
+        Some((date(4, 1)).time_of_day()),
     );
     let context = market(100.0, date(1, 1));
     let mut modes = Vec::new();
@@ -425,6 +461,8 @@ fn ternary_daily_layers_converge_and_retain_recovered_knock_in_history() {
         KnockInObservationMode::EveryTradingDay,
     ] {
         terms.knock_in_observation_mode = mode;
+        terms.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
+            .then_some(terms.expiry_time.time_of_day());
         let note = TernarySnowballOption::new(terms.clone()).unwrap();
         let prices: Vec<_> = [(512, 8.0), (1024, 8.0), (1024, 10.0)]
             .into_iter()
@@ -468,6 +506,7 @@ fn preset_validation_uses_expanded_terms_and_preserves_inputs() {
         date(1, 1),
         date(4, 1),
         vec![date(2, 3), date(4, 1)],
+        Some((date(4, 1)).time_of_day()),
     );
     let snapshot = base.clone();
     for preset in [
@@ -520,8 +559,15 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
             BinarySnowballOption::new(binary).unwrap_err(),
             Error::InvalidInput(_)
         ));
-        let ternary =
-            TernarySnowballTerms::new(0.06, value, 80.0, date(1, 1), date(4, 1), observations());
+        let ternary = TernarySnowballTerms::new(
+            0.06,
+            value,
+            80.0,
+            date(1, 1),
+            date(4, 1),
+            observations(),
+            Some((date(4, 1)).time_of_day()),
+        );
         assert!(matches!(
             TernarySnowballOption::new(ternary).unwrap_err(),
             Error::InvalidInput(_)
@@ -549,7 +595,8 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
                 80.0,
                 date(1, 1),
                 date(4, 1),
-                bad
+                bad,
+                Some((date(4, 1)).time_of_day())
             ))
             .unwrap_err(),
             Error::InvalidInput(_)
@@ -561,8 +608,15 @@ fn fixed_variants_validate_numeric_schedule_and_history_inputs_at_construction()
         BinarySnowballOption::new(binary).unwrap_err(),
         Error::InvalidInput(_)
     ));
-    let mut ternary =
-        TernarySnowballTerms::new(0.06, 0.02, 0.0, date(1, 1), date(4, 1), Vec::new());
+    let mut ternary = TernarySnowballTerms::new(
+        0.06,
+        0.02,
+        0.0,
+        date(1, 1),
+        date(4, 1),
+        Vec::new(),
+        Some((date(4, 1)).time_of_day()),
+    );
     // Schedule validation precedes knock-in validation.
     assert!(matches!(
         TernarySnowballOption::new(ternary.clone()).unwrap_err(),

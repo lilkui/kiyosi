@@ -37,7 +37,9 @@ pub(crate) fn initial<T: AutocallableTerms>(
                 coupon
                     + note.terminal(
                         context.spot_price(),
-                        knocked_in || note.view().below_knock_in(context.spot_price()),
+                        knocked_in
+                            || note.observes_knock_in(context.valuation_time())
+                                && note.view().below_knock_in(context.spot_price()),
                     ),
             )
         } else {
@@ -63,16 +65,11 @@ pub(crate) fn future_event_times<T: AutocallableTerms>(
         .collect();
     if daily {
         times.extend(
-            crate::ObservationSchedule::daily(
-                note.effective_time(),
-                note.expiry_time(),
-                note.calendar(),
-                true,
-            )?
-            .times()
-            .iter()
-            .copied()
-            .filter(|&time| time > context.valuation_time()),
+            note.daily_observation_schedule()?
+                .times()
+                .iter()
+                .copied()
+                .filter(|&time| time > context.valuation_time()),
         );
     }
     times.push(note.expiry_time());
@@ -91,7 +88,7 @@ pub(crate) fn validate<T: AutocallableTerms>(
             "valuation must be within contract life".into(),
         ));
     }
-    note.prior(context.valuation_time(), note.calendar())?;
+    note.prior(context.valuation_time())?;
     Ok(())
 }
 
@@ -114,12 +111,23 @@ pub(crate) fn fixed_value<T: AutocallableTerms>(
     knocked_in: bool,
 ) -> Option<f64> {
     let t = note.view();
-    if let Some(d) = t.downside() {
-        if d.lower_strike != d.upper_strike || !knocked_in && t.maturity_coupon_rate() != 0.0 {
+    let pending_knock_in = if t.daily_knock_in() {
+        note.daily_observation_schedule()
+            .ok()?
+            .times()
+            .iter()
+            .any(|&time| time > context.valuation_time())
+    } else {
+        t.knock_in.is_some() && context.valuation_time() < note.expiry_time()
+    };
+    if knocked_in || pending_knock_in {
+        if let Some(d) = t.downside() {
+            if d.lower_strike != d.upper_strike || !knocked_in && t.maturity_coupon_rate() != 0.0 {
+                return None;
+            }
+        } else if !knocked_in && note.knock_in_affects_payoff() {
             return None;
         }
-    } else if !knocked_in && note.knock_in_affects_payoff() {
-        return None;
     }
     let discount = |date: Timestamp| {
         context

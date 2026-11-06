@@ -1,5 +1,6 @@
 import unittest
 from datetime import date, datetime
+from datetime import time as clock_time
 
 from kiyosi import InvalidInputError
 from kiyosi.market import (
@@ -38,6 +39,7 @@ class CustomCalendarTests(unittest.TestCase):
         self.assertEqual(
             list(
                 fixed_interval_schedule(
+                    observation_clock_time=clock_time(),
                     start_time=datetime(2026, 10, 9),
                     end_time=datetime(2026, 10, 11),
                     interval_days=1,

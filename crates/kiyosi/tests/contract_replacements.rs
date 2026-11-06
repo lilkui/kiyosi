@@ -496,6 +496,7 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = Accumulator::new(AccumulatorTerms {
+        observation_clock_time: (end).time_of_day(),
         calendar: TradingCalendar::default(),
         option_type: OptionType::Call,
         strike: 100.0,
@@ -518,6 +519,12 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
     check_field!(original, AccumulatorChanges, strike, 105.0);
     check_field!(original, AccumulatorChanges, knock_out_level, 125.0);
     check_field!(original, AccumulatorChanges, daily_quantity, 2.0);
+    check_field!(
+        original,
+        AccumulatorChanges,
+        observation_clock_time,
+        TimeOfDay::new(15, 0, 0, 123_456).unwrap()
+    );
     check_field!(original, AccumulatorChanges, acceleration_factor, 3.0);
     check_field!(
         original,
@@ -578,6 +585,7 @@ fn range_accrual_option_replacements_preserve_omissions_and_validate_each_field(
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = RangeAccrualOption::new(RangeAccrualTerms {
+        observation_clock_time: (end).time_of_day(),
         calendar: TradingCalendar::default(),
         notional: 1000.0,
         annual_coupon_rate: 0.12,
@@ -604,6 +612,12 @@ fn range_accrual_option_replacements_preserve_omissions_and_validate_each_field(
     );
     check_field!(original, RangeAccrualOptionChanges, lower_bound, 85.0);
     check_field!(original, RangeAccrualOptionChanges, upper_bound, 115.0);
+    check_field!(
+        original,
+        RangeAccrualOptionChanges,
+        observation_clock_time,
+        TimeOfDay::new(15, 0, 0, 123_456).unwrap()
+    );
     check_field!(
         original,
         RangeAccrualOptionChanges,
@@ -644,6 +658,7 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = SnowballOption::new(SnowballTerms {
+        observation_clock_time: Some((end).time_of_day()),
         calendar: TradingCalendar::default(),
         maturity_coupon_rate: 0.1,
         initial_spot: 100.0,
@@ -708,6 +723,13 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
     check_field!(
         original,
         SnowballOptionChanges,
+        observation_clock_time,
+        Some(TimeOfDay::new(15, 0, 0, 123_456).unwrap()),
+        terms().observation_clock_time
+    );
+    check_field!(
+        original,
+        SnowballOptionChanges,
         barrier_state,
         Some(AutocallableBarrierState::KnockedOut),
         terms().barrier_state
@@ -762,6 +784,7 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = PhoenixOption::new(PhoenixTerms {
+        observation_clock_time: Some((end).time_of_day()),
         calendar: TradingCalendar::default(),
         coupon: PhoenixCoupon::Annual(0.1),
         initial_spot: 100.0,
@@ -822,6 +845,13 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
         knock_in_observation_mode,
         KnockInObservationMode::AtExpiry,
         terms().knock_in_observation_mode
+    );
+    check_field!(
+        original,
+        PhoenixOptionChanges,
+        observation_clock_time,
+        Some(TimeOfDay::new(15, 0, 0, 123_456).unwrap()),
+        terms().observation_clock_time
     );
     check_field!(
         original,
@@ -960,6 +990,7 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
     let start = Date::new(2025, 1, 1).unwrap().start_of_day();
     let end = Date::new(2026, 1, 1).unwrap().start_of_day();
     let original = TernarySnowballOption::new(TernarySnowballTerms {
+        observation_clock_time: Some((end).time_of_day()),
         calendar: TradingCalendar::default(),
         maturity_coupon_rate: 0.1,
         minimum_coupon_rate: 0.02,
@@ -1006,6 +1037,13 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
         knock_in_observation_mode,
         KnockInObservationMode::AtExpiry,
         terms().knock_in_observation_mode
+    );
+    check_field!(
+        original,
+        TernarySnowballOptionChanges,
+        observation_clock_time,
+        Some(TimeOfDay::new(15, 0, 0, 123_456).unwrap()),
+        terms().observation_clock_time
     );
     check_field!(
         original,

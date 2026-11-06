@@ -19,8 +19,10 @@ fn terms() -> PhoenixTerms {
             Some(&[90.0, 90.0]),
         )
         .unwrap(),
+        Some((date(4, 1)).time_of_day()),
     );
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+    terms.observation_clock_time = None;
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     terms
 }
@@ -140,6 +142,7 @@ fn phoenix_validation_defaults_and_history_share_core_categories() {
     ));
     let mut t = terms();
     t.knock_in_observation_mode = KnockInObservationMode::EveryTradingDay;
+    t.observation_clock_time = Some(t.expiry_time.time_of_day());
     t.barrier_state = None;
     let note = PhoenixOption::new(t).unwrap();
     let engine = QuadratureAutocallableEngine::default();
@@ -284,6 +287,8 @@ fn phoenix_daily_layers_converge_with_conditional_coupons() {
         let mut t = terms();
         t.knock_in_level = 95.0;
         t.knock_in_observation_mode = mode;
+        t.observation_clock_time = (mode == KnockInObservationMode::EveryTradingDay)
+            .then_some(t.expiry_time.time_of_day());
         t.observations = autocallable_observations(
             &[date(2, 3), date(3, 3), date(4, 1)],
             &[110.0, 108.0, 105.0],

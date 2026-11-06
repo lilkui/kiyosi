@@ -30,10 +30,12 @@
 //! preserving it on success and failure, like `replace`. Both validate independently
 //! of [`PricingContext`].
 //! See [`RangeAccrualOption::replace_calendar`] for a weekend-expiry construction example.
-//! Explicit observations use their exact timestamps. Implicit daily observations use
-//! the expiry clock time; snowballs and accumulators include the effective instant,
+//! Explicit observations use their exact timestamps. Automatically generated observations
+//! require an explicit [`TimeOfDay`]; snowballs and accumulators include the effective instant,
 //! while range accruals exclude it. Events strictly before valuation require history;
-//! events at valuation use the current spot. Finite-difference grids return
+//! events at valuation use the current spot. Maturity settlement does not add daily
+//! observations. Range accruals require a nonempty observation schedule and discount
+//! their coupon to expiry even after the last observation. Finite-difference grids return
 //! [`Error::ComputationFailure`] when distinct event timestamps cannot be represented
 //! as distinct floating-point year fractions.
 //!
@@ -214,7 +216,9 @@ pub use risk::coupon::{
 };
 pub use risk::implied::{ImpliedVolatilitySettings, implied_volatility};
 pub use risk::numerical::numerical_greeks;
-pub use time::{BusinessDayConvention, Date, ObservationSchedule, Timestamp, TradingCalendar};
+pub use time::{
+    BusinessDayConvention, Date, ObservationSchedule, TimeOfDay, Timestamp, TradingCalendar,
+};
 
 /// Package version, shared with the Python bindings.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

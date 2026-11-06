@@ -5,6 +5,7 @@ import pickle
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
+from datetime import time as clock_time
 
 from kiyosi import InvalidInputError
 from kiyosi.market import (
@@ -129,6 +130,7 @@ class CalendarTests(unittest.TestCase):
 
     def test_schedule_endpoints_clamping_offsets_and_empty_results(self):
         fixed = fixed_interval_schedule(
+            observation_clock_time=clock_time(),
             start_time=datetime(2025, 1, 3),
             end_time=datetime(2025, 1, 7),
             interval_days=1,
@@ -136,6 +138,7 @@ class CalendarTests(unittest.TestCase):
         self.assertEqual(fixed.times, [datetime(2025, 1, 6), datetime(2025, 1, 7)])
         self.assertEqual(
             monthly_schedule(
+                observation_clock_time=clock_time(),
                 start_time=datetime(2025, 1, 1),
                 end_time=datetime(2025, 3, 1),
                 first_observation_month=1,
@@ -144,6 +147,7 @@ class CalendarTests(unittest.TestCase):
         )
         self.assertEqual(
             monthly_schedule(
+                observation_clock_time=clock_time(),
                 start_time=datetime(2025, 1, 31),
                 end_time=datetime(2025, 4, 30),
                 first_observation_month=1,
@@ -152,6 +156,7 @@ class CalendarTests(unittest.TestCase):
         )
         self.assertEqual(
             monthly_schedule(
+                observation_clock_time=clock_time(),
                 start_time=datetime(2024, 1, 31),
                 end_time=datetime(2024, 3, 31),
                 first_observation_month=1,
@@ -161,6 +166,7 @@ class CalendarTests(unittest.TestCase):
         )
         self.assertEqual(
             monthly_schedule(
+                observation_clock_time=clock_time(),
                 start_time=datetime(2025, 1, 2),
                 end_time=datetime(2025, 4, 2),
                 first_observation_month=2,
@@ -176,18 +182,25 @@ class CalendarTests(unittest.TestCase):
                 with self.subTest(start_time=start, end_time=end, interval=interval):
                     self.assertEqual(
                         fixed_interval_schedule(
-                            start_time=start, end_time=end, interval_days=interval
+                            observation_clock_time=clock_time(),
+                            start_time=start,
+                            end_time=end,
+                            interval_days=interval,
                         ).times,
                         [],
                     )
             self.assertEqual(
                 monthly_schedule(
-                    start_time=start, end_time=end, first_observation_month=2**31 - 1
+                    observation_clock_time=clock_time(),
+                    start_time=start,
+                    end_time=end,
+                    first_observation_month=2**31 - 1,
                 ).times,
                 [],
             )
         self.assertEqual(
             fixed_interval_schedule(
+                observation_clock_time=clock_time(),
                 start_time=datetime(9999, 12, 30),
                 end_time=datetime(9999, 12, 31),
                 interval_days=1,
@@ -201,12 +214,14 @@ class CalendarTests(unittest.TestCase):
         calendar = custom_calendar(base=all_days_calendar(), closed_dates=closed)
         for schedule in (
             monthly_schedule(
+                observation_clock_time=clock_time(),
                 start_time=datetime(2025, 1, 1),
                 end_time=datetime(2025, 4, 2),
                 first_observation_month=1,
                 calendar=calendar,
             ),
             fixed_interval_schedule(
+                observation_clock_time=clock_time(),
                 start_time=datetime(2025, 1, 1),
                 end_time=datetime(2025, 4, 2),
                 interval_days=31,
@@ -216,6 +231,7 @@ class CalendarTests(unittest.TestCase):
             self.assertEqual(schedule.times, [datetime(2025, 4, 1)])
         self.assertEqual(
             fixed_interval_schedule(
+                observation_clock_time=clock_time(),
                 start_time=datetime(2025, 1, 1),
                 end_time=datetime(2025, 3, 31),
                 interval_days=1,
@@ -226,6 +242,7 @@ class CalendarTests(unittest.TestCase):
 
     def test_schedule_iteration_indexing_and_owning_copies(self):
         schedule = fixed_interval_schedule(
+            observation_clock_time=clock_time(),
             start_time=datetime(2025, 1, 1),
             end_time=datetime(2025, 1, 5),
             interval_days=1,
@@ -270,6 +287,7 @@ class CalendarTests(unittest.TestCase):
 
     def test_schedule_indices_reject_booleans_and_nonintegers(self):
         schedule = fixed_interval_schedule(
+            observation_clock_time=clock_time(),
             start_time=datetime(2025, 1, 1),
             end_time=datetime(2025, 1, 5),
             interval_days=1,
@@ -288,6 +306,7 @@ class CalendarTests(unittest.TestCase):
 
     def test_schedule_slices_follow_sequence_semantics_and_own_their_results(self):
         schedule = fixed_interval_schedule(
+            observation_clock_time=clock_time(),
             start_time=datetime(2025, 1, 1),
             end_time=datetime(2025, 1, 5),
             interval_days=1,
@@ -329,10 +348,20 @@ class CalendarTests(unittest.TestCase):
         ):
             for value in (0, -1, minimum):
                 with self.assertRaises(InvalidInputError) as error:
-                    factory(start_time=start, end_time=end, **{field: value})
+                    factory(
+                        observation_clock_time=clock_time(),
+                        start_time=start,
+                        end_time=end,
+                        **{field: value},
+                    )
                 self.assertIs(type(error.exception), InvalidInputError)
                 with self.assertRaises(InvalidInputError) as error:
-                    factory(start_time=end, end_time=start, **{field: value})
+                    factory(
+                        observation_clock_time=clock_time(),
+                        start_time=end,
+                        end_time=start,
+                        **{field: value},
+                    )
                 self.assertIs(type(error.exception), InvalidInputError)
         for operation in (
             weekdays_calendar().trading_days_between,
@@ -360,18 +389,43 @@ class CalendarTests(unittest.TestCase):
         ):
             for value in (Index(), IndexOnly()):
                 self.assertEqual(
-                    factory(start_time=start, end_time=end, **{field: value}).times,
-                    factory(start_time=start, end_time=end, **{field: 1}).times,
+                    factory(
+                        observation_clock_time=clock_time(),
+                        start_time=start,
+                        end_time=end,
+                        **{field: value},
+                    ).times,
+                    factory(
+                        observation_clock_time=clock_time(),
+                        start_time=start,
+                        end_time=end,
+                        **{field: 1},
+                    ).times,
                 )
             for value in (True, 1.0, 1.5, "1", None):
                 with self.assertRaises(TypeError):
-                    factory(start_time=start, end_time=end, **{field: value})
+                    factory(
+                        observation_clock_time=clock_time(),
+                        start_time=start,
+                        end_time=end,
+                        **{field: value},
+                    )
             for value in (-(2**bits) - 1, 2**bits):
                 with self.assertRaises(OverflowError):
-                    factory(start_time=start, end_time=end, **{field: value})
+                    factory(
+                        observation_clock_time=clock_time(),
+                        start_time=start,
+                        end_time=end,
+                        **{field: value},
+                    )
             for value in (date(2025, 1, 1), "2025-01-01", True):
                 with self.assertRaises(TypeError):
-                    factory(start_time=value, end_time=end, **{field: 1})
+                    factory(
+                        observation_clock_time=clock_time(),
+                        start_time=value,
+                        end_time=end,
+                        **{field: 1},
+                    )
         with self.assertRaises(ValueError):
             weekdays_calendar().adjust(start.date(), "modified_following")
         with self.assertRaises(TypeError):
@@ -412,6 +466,7 @@ class CalendarTests(unittest.TestCase):
 
         with self.assertRaises(ConversionFailure):
             fixed_interval_schedule(
+                observation_clock_time=clock_time(),
                 start_time=datetime(2025, 1, 1),
                 end_time=datetime(2025, 2, 1),
                 interval_days=BrokenInteger(),

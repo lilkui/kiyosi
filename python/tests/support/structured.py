@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from datetime import time as clock_time
 from functools import cache
 
 from kiyosi import instruments
@@ -23,6 +24,7 @@ def contract(row):
     }
     if row["instrument"] == "Accumulator":
         return instruments.Accumulator(
+            observation_clock_time=clock_time(),
             **common,
             **{
                 key: number(key)
@@ -53,6 +55,9 @@ def contract(row):
         common.update(
             knock_in_level=number("knock_in_level"),
             knock_in_observation_mode=inputs["knock_in_mode"],
+            observation_clock_time=clock_time()
+            if inputs["knock_in_mode"] == "every_trading_day"
+            else None,
         )
     if row["instrument"] in ("SnowballOption", "PhoenixOption"):
         common.update(

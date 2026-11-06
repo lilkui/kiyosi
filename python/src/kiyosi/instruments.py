@@ -21,9 +21,11 @@ with weekend observations or a weekend expiry that requires a trading day must
 receive the appropriate calendar at construction; replacement cannot repair a
 constructor rejection. Replacement, coupon shifts and pickle
 preserve the contract calendar.
-Explicit observations use their supplied times; daily observations use the expiry
-clock time. Snowballs and accumulators include the effective instant; range accruals
-exclude it. Explicit accumulator knock-out observations do not add quantity;
+Explicit observations use their supplied timestamps. Automatic observations require
+``observation_clock_time``, a timezone-free ``datetime.time`` with microsecond precision.
+They are filtered against the full contract bounds. Snowballs and accumulators
+include the effective instant; range accruals exclude it. Maturity settlement adds
+no daily observation. Range accruals require a nonempty observation schedule. Explicit accumulator knock-out observations do not add quantity;
 coincident events check knock-out before accumulating. Constructors validate terms and contractual calendar compatibility, including
 explicit observation dates and required trading-day expiries. Pricing validates
 consistency with the market snapshot and supplied history.
@@ -64,7 +66,10 @@ settlement without changing the original contract. Rust uses the same operation
 with ``AccumulatorHistoryChanges`` to replace quantity, termination or both;
 omitted fields retain their values.
 Plain snowball, Phoenix and ternary snowball constructors default knock-in
-monitoring to ``"every_trading_day"``, matching Rust terms.
+monitoring to ``"every_trading_day"``, matching Rust terms, and require an explicit
+``observation_clock_time``. Expiry-only monitoring requires that clock to be None.
+Replacing daily monitoring with ``"at_expiry"`` clears its clock; switching to daily
+monitoring requires the clock in the same replacement.
 
 ``BinaryBarrierOption``, ``TouchOption`` and ``DoubleTouchOption`` have keyword-only
 constructors, like other contracts. Binary barriers and single-touch contracts

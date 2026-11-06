@@ -55,7 +55,7 @@ impl MonteCarloAccumulatorEngine {
     /// # fn main() -> Result<()> {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
-    ///     start, Date::new(2025, 2, 3)?.start_of_day()))?.replace_history(3.0)?;
+    ///     start, Date::new(2025, 2, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?.replace_history(3.0)?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 110.0, start.into())?;
     /// let engine = MonteCarloAccumulatorEngine::new(MonteCarloSettings {

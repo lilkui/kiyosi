@@ -5,6 +5,7 @@ import inspect
 import math
 import unittest
 from datetime import UTC, datetime
+from datetime import time as clock_time
 
 from kiyosi import InvalidInputError
 from kiyosi.instruments import (
@@ -75,6 +76,7 @@ class AutocallablePresetTests(unittest.TestCase):
                 coupon_per_period=0.01, **terms(observation_times=dates), **extra
             )
             expected = PhoenixOption(
+                observation_clock_time=None,
                 coupon_per_period=0.01,
                 **phoenix_fields(
                     barrier_state=None,
@@ -110,7 +112,11 @@ class AutocallablePresetTests(unittest.TestCase):
             self.assertIs(signature.parameters[key].default, Ellipsis)
         for key in ("coupon_rate", "coupon_per_period"):
             fields = {key: -0.01}
-            note = PhoenixOption(**fields, **phoenix_fields())
+            note = PhoenixOption(
+                observation_clock_time=None,
+                **fields,
+                **phoenix_fields(),
+            )
             unused = (
                 "coupon_rate" if key == "coupon_per_period" else "coupon_per_period"
             )
@@ -131,22 +137,41 @@ class AutocallablePresetTests(unittest.TestCase):
             )
             forwarded = {"coupon_rate": Ellipsis, "coupon_per_period": Ellipsis}
             forwarded.update(fields)
-            self.assertEqual(PhoenixOption(**forwarded, **phoenix_fields()), note)
+            self.assertEqual(
+                PhoenixOption(
+                    observation_clock_time=None,
+                    **forwarded,
+                    **phoenix_fields(),
+                ),
+                note,
+            )
             with self.assertRaises(AttributeError):
                 setattr(note, key, 0.02)
         for fields in ({}, {"coupon_rate": 0.1, "coupon_per_period": 0.01}):
             with self.subTest(fields=fields), self.assertRaises(TypeError):
-                PhoenixOption(**fields, **phoenix_fields())
+                PhoenixOption(
+                    observation_clock_time=None,
+                    **fields,
+                    **phoenix_fields(),
+                )
         for key in ("coupon_rate", "coupon_per_period"):
             for value in (True, "0.01", None):
                 with self.subTest(key=key, value=value), self.assertRaises(TypeError):
-                    PhoenixOption(**{key: value}, **phoenix_fields())
+                    PhoenixOption(
+                        observation_clock_time=None,
+                        **{key: value},
+                        **phoenix_fields(),
+                    )
             for value in (math.nan, math.inf, -math.inf):
                 with (
                     self.subTest(key=key, value=value),
                     self.assertRaises(InvalidInputError),
                 ):
-                    PhoenixOption(**{key: value}, **phoenix_fields())
+                    PhoenixOption(
+                        observation_clock_time=None,
+                        **{key: value},
+                        **phoenix_fields(),
+                    )
 
     def test_shared_fixed_coupon_and_downside_boundary_scenarios_in_all_engines(self):
         for factory, extra, barrier in (
@@ -220,8 +245,16 @@ class AutocallablePresetTests(unittest.TestCase):
                         ),
                         0,
                     )
-        annual = PhoenixOption(coupon_rate=0.365, **phoenix_fields())
-        fixed = PhoenixOption(coupon_per_period=0.01, **phoenix_fields())
+        annual = PhoenixOption(
+            observation_clock_time=None,
+            coupon_rate=0.365,
+            **phoenix_fields(),
+        )
+        fixed = PhoenixOption(
+            observation_clock_time=None,
+            coupon_per_period=0.01,
+            **phoenix_fields(),
+        )
         engine = QuadratureAutocallableEngine()
         self.assertAlmostEqual(
             engine.price(annual, market(110, MIDDLE)), 1 + 0.365 * 33 / 365
@@ -266,6 +299,7 @@ class AutocallablePresetTests(unittest.TestCase):
         )
         for factory, extra, rates in cases:
             note = factory(
+                observation_clock_time=clock_time(),
                 first_coupon_rate=0.2,
                 second_coupon_rate=0.05,
                 first_stage_end_time=MIDDLE,
@@ -291,9 +325,14 @@ class AutocallablePresetTests(unittest.TestCase):
             "second_coupon_rate": -0.02,
             "first_stage_end_time": datetime(2025, 2, 1),
         }
-        note = early_profit_snowball(**fields, **terms(observation_times=[END]))
+        note = early_profit_snowball(
+            observation_clock_time=clock_time(),
+            **fields,
+            **terms(observation_times=[END]),
+        )
         self.assertEqual(note.knock_out_coupon_rates, [-0.02])
         increasing = butterfly_snowball(
+            observation_clock_time=clock_time(),
             first_coupon_rate=-0.02,
             second_coupon_rate=0,
             third_coupon_rate=0.2,
@@ -306,11 +345,14 @@ class AutocallablePresetTests(unittest.TestCase):
         for cutoff in (datetime(2024, 12, 31), END, datetime(2025, 4, 2)):
             with self.assertRaises(InvalidInputError):
                 early_profit_snowball(
-                    **(fields | {"first_stage_end_time": cutoff}), **terms()
+                    observation_clock_time=clock_time(),
+                    **(fields | {"first_stage_end_time": cutoff}),
+                    **terms(),
                 )
         for cutoff in (datetime(2025, 1, 31), datetime(2025, 2, 1), END):
             with self.assertRaises(InvalidInputError):
                 butterfly_snowball(
+                    observation_clock_time=clock_time(),
                     **fields,
                     third_coupon_rate=0.01,
                     second_stage_end_time=cutoff,
@@ -323,11 +365,14 @@ class AutocallablePresetTests(unittest.TestCase):
                     self.assertRaises(InvalidInputError),
                 ):
                     early_profit_snowball(
-                        **(fields | {key: value}), **terms(observation_times=[END])
+                        observation_clock_time=clock_time(),
+                        **(fields | {key: value}),
+                        **terms(observation_times=[END]),
                     )
         for value in (math.nan, math.inf, -math.inf):
             with self.assertRaises(InvalidInputError):
                 butterfly_snowball(
+                    observation_clock_time=clock_time(),
                     **fields,
                     third_coupon_rate=value,
                     second_stage_end_time=datetime(2025, 3, 1),
@@ -336,7 +381,9 @@ class AutocallablePresetTests(unittest.TestCase):
         for value in (True, "2025-02-01", datetime(2025, 2, 1, tzinfo=UTC)):
             with self.assertRaises(TypeError):
                 early_profit_snowball(
-                    **(fields | {"first_stage_end_time": value}), **terms()
+                    observation_clock_time=clock_time(),
+                    **(fields | {"first_stage_end_time": value}),
+                    **terms(),
                 )
 
     def test_preset_representation_and_domain_errors_use_native_categories(self):

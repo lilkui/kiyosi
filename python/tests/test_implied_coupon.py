@@ -6,6 +6,7 @@ import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from datetime import time as clock_time
 from typing import get_args
 
 import QuantLib as ql
@@ -62,6 +63,7 @@ class ImpliedCouponTests(unittest.TestCase):
                 (0.4047152283389133, 0.002630147007026187, 0.40290962591640395),
             ):
                 note = instruments.TernarySnowballOption(
+                    observation_clock_time=clock_time(),
                     maturity_coupon_rate=maturity,
                     minimum_coupon_rate=minimum,
                     knock_in_level=80,
@@ -120,6 +122,7 @@ class ImpliedCouponTests(unittest.TestCase):
                 self.assertEqual(note.maturity_coupon_rate, maturity)
                 self.assertEqual(note.minimum_coupon_rate, minimum)
             boundary = instruments.TernarySnowballOption(
+                observation_clock_time=clock_time(),
                 maturity_coupon_rate=0.05,
                 minimum_coupon_rate=0.05,
                 knock_in_level=80,
@@ -151,6 +154,7 @@ class ImpliedCouponTests(unittest.TestCase):
             snowball(observations=observations, maturity_coupon_rate=0.06),
             binary(observations=observations),
             instruments.TernarySnowballOption(
+                observation_clock_time=None,
                 maturity_coupon_rate=0.06,
                 minimum_coupon_rate=-0.2,
                 knock_in_level=80,
@@ -352,6 +356,7 @@ class ImpliedCouponTests(unittest.TestCase):
                     fields.update(
                         knock_in_level=80,
                         knock_in_observation_mode="every_trading_day",
+                        observation_clock_time=clock_time(),
                     )
                 if kind == "SnowballOption":
                     fields.update(
@@ -365,6 +370,9 @@ class ImpliedCouponTests(unittest.TestCase):
                 return getattr(instruments, kind)(**fields)
             fields = {
                 "coupon_rate": coupon,
+                "observation_clock_time": None
+                if kind == "european_snowball"
+                else clock_time(),
                 "initial_spot": 100,
                 "knock_in_level": 80,
                 "knock_out_level": 110,
@@ -618,6 +626,7 @@ class ImpliedCouponTests(unittest.TestCase):
                 ),
             )
         ternary = instruments.TernarySnowballOption(
+            observation_clock_time=None,
             maturity_coupon_rate=0.06,
             minimum_coupon_rate=0.02,
             knock_in_level=80,

@@ -5,6 +5,7 @@ import math
 import pickle
 import unittest
 from datetime import UTC, date, datetime
+from datetime import time as clock_time
 
 from kiyosi import ComputationFailureError, InvalidInputError
 from kiyosi.instruments import (
@@ -61,7 +62,7 @@ def accumulator(**changes):
         "expiry_time": time(7, 15),
     }
     fields.update(changes)
-    return Accumulator(**fields)
+    return Accumulator(observation_clock_time=clock_time(15), **fields)
 
 
 def accumulator_engines():
@@ -97,7 +98,10 @@ class TimestampTests(unittest.TestCase):
                 lambda value=value: RateTermStructure.flat(0.02, reference_time=value),
                 lambda value=value: autocallable_observations([value], [110]),
                 lambda value=value: fixed_interval_schedule(
-                    start_time=value, end_time=time(7, 15), interval_days=1
+                    observation_clock_time=clock_time(),
+                    start_time=value,
+                    end_time=time(7, 15),
+                    interval_days=1,
                 ),
             ):
                 with self.subTest(value=value), self.assertRaises(TypeError):
@@ -148,6 +152,7 @@ class TimestampTests(unittest.TestCase):
             return datetime(2025, month, day, hour, 11, 12, 123456)
 
         schedule = monthly_schedule(
+            observation_clock_time=clock_time(10, 11, 12, 123456),
             start_time=clock(1, 31, 10),
             end_time=clock(3, 31, 15),
             first_observation_month=1,
@@ -155,7 +160,10 @@ class TimestampTests(unittest.TestCase):
         self.assertEqual(schedule.times, [clock(2, 28, 10), clock(3, 31, 10)])
         self.assertEqual(pickle.loads(pickle.dumps(schedule)), schedule)
         fixed = fixed_interval_schedule(
-            start_time=clock(1, 3, 10), end_time=clock(1, 7, 9), interval_days=1
+            observation_clock_time=clock_time(10, 11, 12, 123456),
+            start_time=clock(1, 3, 10),
+            end_time=clock(1, 7, 9),
+            interval_days=1,
         )
         self.assertEqual(list(fixed), [clock(1, 6, 10)])
         option = BarrierOption(
@@ -201,6 +209,7 @@ class TimestampTests(unittest.TestCase):
         self,
     ):
         option = RangeAccrualOption(
+            observation_clock_time=clock_time(15),
             notional=1000,
             annual_coupon_rate=0.12,
             lower_bound=1,
@@ -224,7 +233,7 @@ class TimestampTests(unittest.TestCase):
                 market(time(6, 15, 1), 100),
             )
 
-    def test_daily_history_uses_expiry_clock_and_inclusive_start(self):
+    def test_daily_history_uses_observation_clock_and_inclusive_start(self):
         option = accumulator()
         for engine in accumulator_engines():
             with self.subTest(engine=type(engine).__name__):
@@ -236,6 +245,7 @@ class TimestampTests(unittest.TestCase):
                 single = option.replace(effective_time=time(7, 15))
                 self.assertEqual(engine.price(single, market(time(7, 15))), 5)
         note = SnowballOption(
+            observation_clock_time=clock_time(15),
             maturity_coupon_rate=0.06,
             initial_spot=100,
             knock_in_level=80,
@@ -274,6 +284,7 @@ class TimestampTests(unittest.TestCase):
 
     def test_autocallable_explicit_events_do_not_trigger_daily_knock_in(self):
         note = SnowballOption(
+            observation_clock_time=clock_time(15),
             maturity_coupon_rate=0.12,
             initial_spot=100,
             knock_in_level=80,
@@ -340,6 +351,7 @@ class TimestampTests(unittest.TestCase):
         first = datetime(9998, 1, 1, 10, microsecond=1)
         last = first.replace(microsecond=2)
         note = PhoenixOption(
+            observation_clock_time=None,
             coupon_per_period=0.01,
             initial_spot=100,
             knock_in_level=1,

@@ -215,7 +215,8 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
         0.0,
         start,
         end,
-        observations.clone()
+        observations.clone(),
+        Some((end).time_of_day())
     ))?);
     note!(PhoenixOption::new(PhoenixTerms::new(
         0.1,
@@ -225,7 +226,8 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
         0.0,
         start,
         end,
-        observations.clone()
+        observations.clone(),
+        Some((end).time_of_day())
     ))?);
     note!(BinarySnowballOption::new(BinarySnowballTerms::new(
         0.1,
@@ -239,9 +241,18 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
         80.0,
         start,
         end,
-        observations
+        observations,
+        Some((end).time_of_day())
     ))?);
-    let accumulator = Accumulator::new(AccumulatorTerms::new(90.0, 120.0, 1.0, 2.0, start, end))?;
+    let accumulator = Accumulator::new(AccumulatorTerms::new(
+        90.0,
+        120.0,
+        1.0,
+        2.0,
+        start,
+        end,
+        (end).time_of_day(),
+    ))?;
     verify(
         &accumulator,
         &context,
@@ -253,7 +264,13 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
         ],
     )?;
     let range = RangeAccrualOption::new(RangeAccrualTerms::new(
-        1000.0, 0.1, 100.0, 110.0, start, end,
+        1000.0,
+        0.1,
+        100.0,
+        110.0,
+        start,
+        end,
+        (end).time_of_day(),
     ))?;
     verify(
         &range,
@@ -465,7 +482,7 @@ fn deterministic_structured_events_keep_monitoring_modes_and_settlement_units() 
             &MonteCarloAutocallableEngine::default(),
         ],
     )?;
-    let mut terms = AccumulatorTerms::new(90.0, 105.0, 1.0, 2.0, start, end);
+    let mut terms = AccumulatorTerms::new(90.0, 105.0, 1.0, 2.0, start, end, (end).time_of_day());
     terms.calendar = TradingCalendar::all_days();
     terms.knock_out_observation_times = Some(vec![middle]);
     let accumulator = Accumulator::new(terms)?;
@@ -495,9 +512,11 @@ fn deterministic_structured_events_keep_monitoring_modes_and_settlement_units() 
         start,
         end,
         autocallable_observations(&[start.add_days(30)?, end], &[300.0, 300.0], None, None)?,
+        Some((end).time_of_day()),
     );
     terms.calendar = TradingCalendar::all_days();
     terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+    terms.observation_clock_time = None;
     let expiry_only = SnowballOption::new(terms)?;
     verify(
         &expiry_only,

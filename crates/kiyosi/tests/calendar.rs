@@ -121,25 +121,55 @@ fn sse_history_forecast_and_fallback_follow_calendar_rules() {
 #[test]
 fn schedules_exclude_start_adjust_merge_and_clamp_months() {
     let weekdays = TradingCalendar::default();
-    let fixed =
-        ObservationSchedule::fixed_interval(time(2025, 1, 3), time(2025, 1, 7), 1, &weekdays)
-            .unwrap();
+    let fixed = ObservationSchedule::fixed_interval(
+        time(2025, 1, 3),
+        time(2025, 1, 7),
+        1,
+        &weekdays,
+        (time(2025, 1, 3)).time_of_day(),
+    )
+    .unwrap();
     assert_eq!(fixed.times(), &[time(2025, 1, 6), time(2025, 1, 7)]);
-    let monthly =
-        ObservationSchedule::monthly(time(2025, 1, 31), time(2025, 4, 30), 1, &weekdays).unwrap();
+    let monthly = ObservationSchedule::monthly(
+        time(2025, 1, 31),
+        time(2025, 4, 30),
+        1,
+        &weekdays,
+        (time(2025, 1, 31)).time_of_day(),
+    )
+    .unwrap();
     assert_eq!(
         monthly.times(),
         &[time(2025, 2, 28), time(2025, 3, 31), time(2025, 4, 30)]
     );
-    let monthly =
-        ObservationSchedule::monthly(time(2025, 1, 1), time(2025, 3, 1), 1, &weekdays).unwrap();
+    let monthly = ObservationSchedule::monthly(
+        time(2025, 1, 1),
+        time(2025, 3, 1),
+        1,
+        &weekdays,
+        (time(2025, 1, 1)).time_of_day(),
+    )
+    .unwrap();
     assert_eq!(monthly.times(), &[time(2025, 2, 3)]);
     let reopening = time(2025, 4, 1);
     let calendar = TradingCalendar::new(move |date| date >= reopening.date(), 252).unwrap();
     for schedule in [
-        ObservationSchedule::monthly(time(2025, 1, 1), time(2025, 4, 2), 1, &calendar).unwrap(),
-        ObservationSchedule::fixed_interval(time(2025, 1, 1), time(2025, 4, 2), 31, &calendar)
-            .unwrap(),
+        ObservationSchedule::monthly(
+            time(2025, 1, 1),
+            time(2025, 4, 2),
+            1,
+            &calendar,
+            (time(2025, 1, 1)).time_of_day(),
+        )
+        .unwrap(),
+        ObservationSchedule::fixed_interval(
+            time(2025, 1, 1),
+            time(2025, 4, 2),
+            31,
+            &calendar,
+            (time(2025, 1, 1)).time_of_day(),
+        )
+        .unwrap(),
     ] {
         assert_eq!(schedule.times(), &[reopening]);
     }
@@ -152,21 +182,37 @@ fn schedule_validation_and_boundaries_preserve_error_timing() {
     let calendar = TradingCalendar::default();
     for interval in [0, -1, i64::MIN] {
         assert!(matches!(
-            ObservationSchedule::fixed_interval(start, end, interval, &calendar).unwrap_err(),
+            ObservationSchedule::fixed_interval(
+                start,
+                end,
+                interval,
+                &calendar,
+                (start).time_of_day()
+            )
+            .unwrap_err(),
             Error::InvalidInput(_)
         ));
         assert!(matches!(
-            ObservationSchedule::fixed_interval(end, start, interval, &calendar).unwrap_err(),
+            ObservationSchedule::fixed_interval(
+                end,
+                start,
+                interval,
+                &calendar,
+                (end).time_of_day()
+            )
+            .unwrap_err(),
             Error::InvalidInput(_)
         ));
     }
     for month in [0, -1, i32::MIN] {
         assert!(matches!(
-            ObservationSchedule::monthly(start, end, month, &calendar).unwrap_err(),
+            ObservationSchedule::monthly(start, end, month, &calendar, (start).time_of_day())
+                .unwrap_err(),
             Error::InvalidInput(_)
         ));
         assert!(matches!(
-            ObservationSchedule::monthly(end, start, month, &calendar).unwrap_err(),
+            ObservationSchedule::monthly(end, start, month, &calendar, (end).time_of_day())
+                .unwrap_err(),
             Error::InvalidInput(_)
         ));
     }
@@ -192,12 +238,12 @@ fn schedule_validation_and_boundaries_preserve_error_timing() {
         &[start, end]
     );
     assert!(
-        ObservationSchedule::fixed_interval(start, start, 1, &calendar)
+        ObservationSchedule::fixed_interval(start, start, 1, &calendar, (start).time_of_day())
             .unwrap()
             .is_empty()
     );
     assert!(
-        ObservationSchedule::monthly(start, start, 1, &calendar)
+        ObservationSchedule::monthly(start, start, 1, &calendar, (start).time_of_day())
             .unwrap()
             .is_empty()
     );
@@ -207,12 +253,18 @@ fn schedule_validation_and_boundaries_preserve_error_timing() {
         (time(32767, 12, 30), time(32767, 12, 31)),
     ] {
         assert!(
-            ObservationSchedule::fixed_interval(start, end, i64::MAX, &calendar)
-                .unwrap()
-                .is_empty()
+            ObservationSchedule::fixed_interval(
+                start,
+                end,
+                i64::MAX,
+                &calendar,
+                (start).time_of_day()
+            )
+            .unwrap()
+            .is_empty()
         );
         assert!(
-            ObservationSchedule::monthly(start, end, i32::MAX, &calendar)
+            ObservationSchedule::monthly(start, end, i32::MAX, &calendar, (start).time_of_day())
                 .unwrap()
                 .is_empty()
         );
@@ -234,14 +286,20 @@ fn closed_calendars_stop_at_domain_and_schedule_bounds() {
     let start = time(32767, 12, 30);
     let end = time(32767, 12, 31);
     assert!(
-        ObservationSchedule::fixed_interval(start, end, 1, &closed)
+        ObservationSchedule::fixed_interval(start, end, 1, &closed, (start).time_of_day())
             .unwrap()
             .is_empty()
     );
     assert!(
-        ObservationSchedule::monthly(time(32767, 11, 30), end, 1, &closed)
-            .unwrap()
-            .is_empty()
+        ObservationSchedule::monthly(
+            time(32767, 11, 30),
+            end,
+            1,
+            &closed,
+            (time(32767, 11, 30)).time_of_day()
+        )
+        .unwrap()
+        .is_empty()
     );
     assert!(matches!(
         closed
@@ -251,7 +309,7 @@ fn closed_calendars_stop_at_domain_and_schedule_bounds() {
     ));
     let end_only = TradingCalendar::new(move |date| date == end.date(), 1).unwrap();
     assert_eq!(
-        ObservationSchedule::fixed_interval(start, end, 1, &end_only)
+        ObservationSchedule::fixed_interval(start, end, 1, &end_only, (start).time_of_day())
             .unwrap()
             .times(),
         &[end]
