@@ -273,16 +273,11 @@ class AmericanTests(unittest.TestCase):
                     self.assertIsNone(
                         getattr(selected, "gamma" if name == "delta" else "delta")
                     )
-            # Fixed bracket avoids the put's unsupported low-volatility exercise boundary.
-            if direction == "put":
-                self.assert_rejection(
-                    UnsupportedOperationError,
-                    implied_volatility,
-                    self.engine,
-                    option,
-                    self.context,
-                    result.price,
-                )
+            self.assertAlmostEqual(
+                implied_volatility(self.engine, option, self.context, result.price),
+                0.2,
+                delta=1e-6,
+            )
             self.assertAlmostEqual(
                 implied_volatility(
                     self.engine,

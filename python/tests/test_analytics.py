@@ -340,7 +340,7 @@ class AnalyticsTests(unittest.TestCase):
         self.assertEqual(self.engine.price(self.option, self.context), quote)
 
     def test_solver_endpoints_curves_and_concurrent_calls(self):
-        for vol in (0.0001, 0.03, 0.2, 1.5, 4):
+        for vol in (0, 0.03, 0.2, 1.5, 4):
             context = self.context.replace(
                 model_parameters=self.context.model_parameters.replace(volatility=vol)
             )

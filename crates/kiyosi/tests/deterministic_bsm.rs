@@ -305,10 +305,7 @@ fn deterministic_payoff_boundaries_leave_greeks_undefined_and_solvers_accept_zer
                 &option,
                 &context,
                 0.0,
-                ImpliedVolatilitySettings {
-                    lower_bound: 0.0,
-                    ..Default::default()
-                }
+                ImpliedVolatilitySettings::default()
             )?,
             0.0
         );

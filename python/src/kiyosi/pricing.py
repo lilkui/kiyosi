@@ -18,7 +18,7 @@ and Sobol uncertainty is absent. Spot and rate Greeks use scalar differences;
 before expiry, volatility Greeks are undefined at zero because symmetric volatility
 bumps leave the model domain. Deterministic payoff and event boundaries also leave
 sensitivities undefined. At expiry the usual terminal Greek rules apply.
-The implied-volatility solver accepts ``lower_bound=0`` and can return an exact
+The implied-volatility solver defaults to ``lower_bound=0`` and can return an exact
 zero-volatility endpoint before restricting a CRR bracket to positive tree widths.
 
 Finite-difference engines support local volatility for European and American

@@ -650,9 +650,7 @@ class DeterministicBsmTests(unittest.TestCase):
                 self.assertEqual(result.status("delta"), "undefined")
                 self.assertEqual(result.status("vega"), "undefined")
                 self.assertEqual(
-                    pricing.implied_volatility(
-                        engine, option, context, 0, lower_bound=0
-                    ),
+                    pricing.implied_volatility(engine, option, context, 0),
                     0,
                 )
                 digital = ins.CashOrNothingOption(

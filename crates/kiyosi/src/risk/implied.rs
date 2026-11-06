@@ -8,7 +8,7 @@ use crate::{
 /// Either tolerance stops iteration; see [`implied_volatility`] for usage.
 #[derive(Clone, Copy, Debug)]
 pub struct ImpliedVolatilitySettings {
-    /// Sets the nonnegative lower volatility bound (default 0.0001 decimal units).
+    /// Sets the nonnegative lower volatility bound (default zero).
     pub lower_bound: f64,
     /// Sets the upper volatility bound, above the lower bound (default 4).
     pub upper_bound: f64,
@@ -22,7 +22,7 @@ pub struct ImpliedVolatilitySettings {
 impl Default for ImpliedVolatilitySettings {
     fn default() -> Self {
         Self {
-            lower_bound: 0.0001,
+            lower_bound: 0.0,
             upper_bound: 4.0,
             price_tolerance: 1e-8,
             parameter_tolerance: 1e-8,

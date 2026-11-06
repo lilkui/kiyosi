@@ -16,7 +16,7 @@ use pyo3::prelude::*;
 /// observed_price : float
 ///     Finite target price in the engine's payment units.
 /// lower_bound : float, optional
-///     Nonnegative finite lower annualized volatility in decimal units; defaults to 0.0001.
+///     Nonnegative finite lower annualized volatility in decimal units; defaults to zero.
 /// upper_bound : float, optional
 ///     Finite upper annualized volatility, above lower_bound; defaults to 4.
 /// price_tolerance : float, optional

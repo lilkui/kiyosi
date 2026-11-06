@@ -251,10 +251,11 @@ fn american_analysis_defaults_selection_solving_and_failure_state() {
     assert_eq!(engine.price(&option, &context).unwrap(), all.price());
     let put = AmericanOption::new(OptionType::Put, 100.0, start, end).unwrap();
     let quote = engine.price(&put, &context).unwrap();
-    assert!(matches!(
-        implied_volatility(&engine, &put, &context, quote, Default::default()).unwrap_err(),
-        Error::UnsupportedOperation(_)
-    ));
+    assert!(
+        (implied_volatility(&engine, &put, &context, quote, Default::default()).unwrap() - 0.2)
+            .abs()
+            < 1e-8
+    );
     assert!(
         (implied_volatility(
             &engine,

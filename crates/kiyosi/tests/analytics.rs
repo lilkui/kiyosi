@@ -560,7 +560,7 @@ fn solver_categories_bounds_and_failure_state_are_stable() {
             defaults.parameter_tolerance,
             defaults.max_iterations
         ),
-        (0.0001, 4.0, 1e-8, 1e-8, 100)
+        (0.0, 4.0, 1e-8, 1e-8, 100)
     );
     let price = engine.price(&option, &context).unwrap();
     for vol in [
@@ -598,7 +598,7 @@ fn solver_categories_bounds_and_failure_state_are_stable() {
             ..defaults
         },
         ImpliedVolatilitySettings {
-            upper_bound: 0.0001,
+            upper_bound: 0.0,
             ..defaults
         },
         ImpliedVolatilitySettings {
