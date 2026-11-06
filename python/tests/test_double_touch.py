@@ -1067,7 +1067,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
             ("spot_shift", None),
             ("volatility_shift", 0.0001),
             ("rate_shift", 0.0001),
-            ("time_shift_days", 1),
+            ("time_shift", timedelta(days=1)),
         ):
             self.assertIs(
                 signature.parameters[name].kind, inspect.Parameter.KEYWORD_ONLY
@@ -1100,7 +1100,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
                 spot_shift=0.01,
                 volatility_shift=0.0001,
                 rate_shift=0.0001,
-                time_shift_days=1,
+                time_shift=timedelta(days=1),
             )
             for name in reference_greeks(100)[0]:
                 self.assertEqual(getattr(default, name), getattr(explicit, name))

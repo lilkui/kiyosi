@@ -496,18 +496,22 @@ class DoubleBarrierTests(unittest.TestCase):
             "spot_shift",
             "volatility_shift",
             "rate_shift",
-            "time_shift_days",
+            "time_shift",
         ):
             self.assert_rejection(
                 InvalidInputError,
                 lambda field=field: numerical_greeks(
-                    engine, option, context, ["delta"], **{field: 0}
+                    engine,
+                    option,
+                    context,
+                    ["delta"],
+                    **{field: timedelta() if field == "time_shift" else 0},
                 ),
             )
             with self.assertRaises(TypeError):
                 numerical_greeks(engine, option, context, ["delta"], **{field: True})
         with self.assertRaises(TypeError):
-            numerical_greeks(engine, option, context, ["delta"], time_shift_days=1.5)
+            numerical_greeks(engine, option, context, ["delta"], time_shift=1.5)
         with self.assertRaises(OverflowError):
             implied_volatility(engine, option, context, quote, max_iterations=2**80)
         self.assert_rejection(

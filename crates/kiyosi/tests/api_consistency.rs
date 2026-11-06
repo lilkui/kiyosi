@@ -261,7 +261,7 @@ fn heston_greeks_check_model_before_request_controls() -> Result<()> {
                     &context,
                     request,
                     NumericalShiftSettings {
-                        time_shift_days: 0,
+                        time_shift: std::time::Duration::ZERO,
                         ..Default::default()
                     }
                 ),
@@ -861,7 +861,10 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
                     ));
                 }
             }
-            for days in [0, -1] {
+            for shift in [
+                std::time::Duration::ZERO,
+                std::time::Duration::from_nanos(1),
+            ] {
                 assert!(matches!(
                     kiyosi::numerical_greeks(
                         engine,
@@ -869,7 +872,7 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
                         &context,
                         request,
                         NumericalShiftSettings {
-                            time_shift_days: days,
+                            time_shift: shift,
                             ..Default::default()
                         }
                     ),
@@ -1593,9 +1596,9 @@ fn settings_diagnostics_identify_invalid_fields() {
             .validate(),
         ),
         (
-            "time_shift_days",
+            "time_shift",
             NumericalShiftSettings {
-                time_shift_days: 0,
+                time_shift: std::time::Duration::ZERO,
                 ..Default::default()
             }
             .validate(),
@@ -1636,22 +1639,12 @@ fn greek_methods_report_estimators_and_active_controls() -> Result<()> {
         (
             QuadratureVanillaEngine::default().greek_method(&option, &context)?,
             GreekMethod::Numerical,
-            &[
-                "spot_shift",
-                "volatility_shift",
-                "rate_shift",
-                "time_shift_days",
-            ][..],
+            &["spot_shift", "volatility_shift", "rate_shift", "time_shift"][..],
         ),
         (
             CoxRossRubinsteinVanillaEngine::default().greek_method(&option, &context)?,
             GreekMethod::Mixed,
-            &[
-                "spot_shift",
-                "volatility_shift",
-                "rate_shift",
-                "time_shift_days",
-            ][..],
+            &["spot_shift", "volatility_shift", "rate_shift", "time_shift"][..],
         ),
         (
             MonteCarloDigitalEngine::default().greek_method(&digital, &context)?,

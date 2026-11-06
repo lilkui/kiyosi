@@ -30,7 +30,7 @@ def price_differences(
     spot_shift=0.01,
     volatility_shift=0.0001,
     rate_shift=0.0001,
-    time_shift_days=1,
+    time_shift=timedelta(days=1),
 ):
     parameters = context.model_parameters
     spot, volatility, rate = (
@@ -45,7 +45,7 @@ def price_differences(
     time = context.valuation_time
     start = datetime.combine(option.effective_time, datetime.min.time())
     end = datetime.combine(option.expiry_time, datetime.min.time())
-    step = timedelta(days=time_shift_days)
+    step = time_shift
     if start < time < end and not isinstance(option, EuropeanOption):
         step = min(step, time - start, end - time)
     before, after = (

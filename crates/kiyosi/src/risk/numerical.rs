@@ -442,8 +442,8 @@ pub(crate) fn complete_greeks(
         }
         let before_width = lower.micros_until(time);
         let after_width = time.micros_until(upper);
-        let mut shift = i64::from(settings.time_shift_days)
-            .saturating_mul(86_400_000_000)
+        let mut shift = settings
+            .time_shift_micros()?
             .min(lower.micros_until(upper).max(0));
         if before_width > 0 && after_width > 0 {
             shift = shift.min(before_width).min(after_width);
@@ -618,7 +618,7 @@ mod tests {
                     spot_shift: Some(0.25),
                     volatility_shift: 0.125,
                     rate_shift: 0.125,
-                    time_shift_days: 1,
+                    time_shift: std::time::Duration::from_secs(86_400),
                 },
                 false,
                 evaluate(&context, request).unwrap(),

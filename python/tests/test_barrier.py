@@ -460,15 +460,15 @@ class BarrierTests(unittest.TestCase):
         context = self.context()
         for field, value, error in (
             ("spot_shift", True, TypeError),
-            ("time_shift_days", 1.5, TypeError),
-            ("time_shift_days", 2**40, OverflowError),
+            ("time_shift", 1.5, TypeError),
+            ("time_shift", 2**40, TypeError),
         ):
             with self.assertRaises(error):
                 numerical_greeks(engine, option, context, "delta", **{field: value})
         for fields in (
             {"spot_shift": 0},
             {"volatility_shift": float("nan")},
-            {"time_shift_days": 0},
+            {"time_shift": timedelta(days=0)},
         ):
             self.assert_rejection(
                 InvalidInputError,

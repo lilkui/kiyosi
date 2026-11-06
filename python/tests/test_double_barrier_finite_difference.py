@@ -768,7 +768,7 @@ class DoubleBarrierFiniteDifferenceTests(unittest.TestCase):
             ("spot_shift", True),
             ("volatility_shift", "0.1"),
             ("rate_shift", object()),
-            ("time_shift_days", 1.5),
+            ("time_shift", 1.5),
         ):
             with self.assertRaises(TypeError):
                 numerical_greeks(engine, instrument, context, "delta", **{name: value})

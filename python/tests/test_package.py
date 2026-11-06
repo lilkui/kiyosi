@@ -6,7 +6,7 @@ import inspect
 import pickle
 import tomllib
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import time as clock_time
 from pathlib import Path
 
@@ -419,14 +419,14 @@ class PackageTests(unittest.TestCase):
                     spot_shift=0.2,
                     volatility_shift=0.001,
                     rate_shift=0.001,
-                    time_shift_days=2,
+                    time_shift=timedelta(days=2),
                 )
                 self.assertEqual(result.price, engine.price(option, context))
                 for control in (
                     "spot_shift",
                     "volatility_shift",
                     "rate_shift",
-                    "time_shift_days",
+                    "time_shift",
                 ):
                     with self.subTest(control=control), self.assertRaises(TypeError):
                         engine.price_with_greeks(

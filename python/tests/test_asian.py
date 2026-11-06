@@ -239,8 +239,8 @@ class AsianTests(unittest.TestCase):
                 ({"greeks": "Delta"}, ValueError),
                 ({"greeks": True}, TypeError),
                 ({"greeks": "delta", "spot_shift": True}, TypeError),
-                ({"greeks": "delta", "time_shift_days": 1.5}, TypeError),
-                ({"greeks": "delta", "time_shift_days": 2**40}, OverflowError),
+                ({"greeks": "delta", "time_shift": 1.5}, TypeError),
+                ({"greeks": "delta", "time_shift": 2**40}, TypeError),
             ):
                 with self.assertRaises(exception):
                     numerical_greeks(engine, option, context, **settings)

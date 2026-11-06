@@ -7,7 +7,10 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     defaults.set_item("spot_shift", shifts.spot_shift)?;
     defaults.set_item("volatility_shift", shifts.volatility_shift)?;
     defaults.set_item("rate_shift", shifts.rate_shift)?;
-    defaults.set_item("time_shift_days", shifts.time_shift_days)?;
+    defaults.set_item(
+        "time_shift",
+        crate::conversions::python_duration(py, shifts.time_shift)?,
+    )?;
     defaults.set_item("principal_ratio", kiyosi::DEFAULT_PRINCIPAL_RATIO)?;
     defaults.set_item("realized_average", kiyosi::DEFAULT_REALIZED_AVERAGE)?;
     defaults.set_item(

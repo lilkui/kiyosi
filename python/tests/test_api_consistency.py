@@ -598,7 +598,7 @@ class ApiConsistencyTests(unittest.TestCase):
                     self.assertRaises(UnsupportedOperationError),
                 ):
                     numerical_greeks(
-                        engine, option, context, request, time_shift_days=0
+                        engine, option, context, request, time_shift=timedelta(days=0)
                     )
 
     def test_built_in_pricing_requires_valuation_within_inclusive_contract_life(self):
@@ -1128,11 +1128,11 @@ class GreekShiftValidationTests(unittest.TestCase):
                         "spot_shift",
                         "volatility_shift",
                         "rate_shift",
-                        "time_shift_days",
+                        "time_shift",
                     ):
                         invalids = (
-                            (0, -1)
-                            if field == "time_shift_days"
+                            (timedelta(), timedelta(days=-1))
+                            if field == "time_shift"
                             else (0, -1, float("nan"), float("inf"))
                         )
                         for bad in invalids:
@@ -1226,7 +1226,7 @@ class GreekMethodTests(unittest.TestCase):
             "spot_shift",
             "volatility_shift",
             "rate_shift",
-            "time_shift_days",
+            "time_shift",
         ]
         for engine, contract, method, controls in [
             (pricing.AnalyticEuropeanEngine(), option, "native", []),

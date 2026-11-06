@@ -8,7 +8,7 @@ Engine ``price_with_greeks(instrument, context, greeks)`` methods use the engine
 estimator and default controls. They accept no bump arguments. Configure scalar
 finite differences explicitly through ``numerical_greeks(engine, instrument,
 context, greeks, spot_shift=..., volatility_shift=..., rate_shift=...,
-time_shift_days=...)``. All numerical controls are validated there.
+time_shift=...)``. All numerical controls are validated there.
 
 BSM ``volatility=0`` uses exact deterministic valuation in each supported engine,
 including American exercise, continuous or scheduled touches, and structured-product
@@ -150,7 +150,8 @@ Numerical bump controls are keyword-only and discoverable through
 ``inspect.signature(numerical_greeks)``. ``spot_shift=None`` selects the smaller
 of 0.01 spot units and 1% of spot, except American Monte Carlo before expiry uses
 8% of spot. Volatility and rate shifts default to 0.0001 decimal units; time
-shifts use one calendar day.
+shifts use ``datetime.timedelta(days=1)`` by default. Supply a smaller positive
+``timedelta`` to check intraday convergence or keep the stencil between observations.
 These are sampling steps: Greek outputs are unscaled partial derivatives,
 with time measured in Actual/365 Fixed years and volatility and rates in decimals.
 Rust ``NumericalShiftSettings`` supplies the same defaults. Its
@@ -352,9 +353,7 @@ GreekMethod = Literal[
     "terminal",
     "unsupported",
 ]
-GreekControl = Literal[
-    "spot_shift", "volatility_shift", "rate_shift", "time_shift_days"
-]
+GreekControl = Literal["spot_shift", "volatility_shift", "rate_shift", "time_shift"]
 
 CouponQuoteConvention = Literal["shift_maturity_coupon", "preserve_maturity_coupon"]
 FiniteDifferenceScheme = Literal[

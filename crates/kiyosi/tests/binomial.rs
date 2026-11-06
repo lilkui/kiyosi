@@ -363,7 +363,7 @@ fn settings_flat_curve_validation_and_unstable_trees_preserve_inputs() {
             ..Default::default()
         },
         NumericalShiftSettings {
-            time_shift_days: 0,
+            time_shift: std::time::Duration::ZERO,
             ..Default::default()
         },
     ] {

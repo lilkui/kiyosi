@@ -287,8 +287,10 @@ pub struct NumericalShiftSettings {
     pub volatility_shift: f64,
     /// Sets the positive risk-free and dividend rate bump (default 0.0001 decimal units).
     pub rate_shift: f64,
-    /// Sets the positive time bump in calendar days (default 1).
-    pub time_shift_days: i32,
+    /// Sets a positive time bump in whole microseconds (default one calendar day).
+    ///
+    /// Use sub-day durations to check intraday convergence; see [`crate::numerical_greeks`].
+    pub time_shift: std::time::Duration,
 }
 impl Default for NumericalShiftSettings {
     fn default() -> Self {
@@ -296,7 +298,7 @@ impl Default for NumericalShiftSettings {
             spot_shift: None,
             volatility_shift: 1e-4,
             rate_shift: 1e-4,
-            time_shift_days: 1,
+            time_shift: std::time::Duration::from_secs(86_400),
         }
     }
 }
@@ -320,7 +322,7 @@ impl NumericalShiftSettings {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for nonpositive or non-finite explicit spot,
-    /// volatility or rate bumps, or a nonpositive calendar-day bump.
+    /// volatility or rate bumps, or a zero or sub-microsecond time bump.
     /// Leaves the settings unchanged. Automatic spot bumps are resolved by the engine;
     /// representability of numerical stencils is checked during pricing.
     ///
@@ -341,12 +343,17 @@ impl NumericalShiftSettings {
         ] {
             crate::error::finite(value, true, name)?;
         }
-        if self.time_shift_days <= 0 {
+        self.time_shift_micros()?;
+        Ok(())
+    }
+
+    pub(crate) fn time_shift_micros(self) -> Result<i64> {
+        if self.time_shift.is_zero() || self.time_shift.subsec_nanos() % 1000 != 0 {
             return Err(Error::InvalidInput(
-                "time_shift_days must be positive".into(),
+                "time_shift must be positive with whole-microsecond precision".into(),
             ));
         }
-        Ok(())
+        Ok(i64::try_from(self.time_shift.as_micros()).unwrap_or(i64::MAX))
     }
 }
 
@@ -394,12 +401,9 @@ impl GreekMethod {
         match self {
             Self::Native | Self::Unsupported => &[],
             Self::NativeWithSpotControl | Self::Terminal => &["spot_shift"],
-            Self::Numerical | Self::Mixed => &[
-                "spot_shift",
-                "volatility_shift",
-                "rate_shift",
-                "time_shift_days",
-            ],
+            Self::Numerical | Self::Mixed => {
+                &["spot_shift", "volatility_shift", "rate_shift", "time_shift"]
+            }
         }
     }
 

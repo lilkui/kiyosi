@@ -225,7 +225,7 @@ class AmericanMonteCarloTests(unittest.TestCase):
             "spot_shift": 8,
             "volatility_shift": 0.02,
             "rate_shift": 0.01,
-            "time_shift_days": 2,
+            "time_shift": timedelta(days=2),
         }
         for sampling in ("pseudo_random", "sobol"):
             for antithetic in (False, True):
@@ -317,11 +317,9 @@ class AmericanMonteCarloTests(unittest.TestCase):
                 )
         for value in (True, 1.5, 2.0):
             with self.assertRaises(TypeError):
-                numerical_greeks(
-                    engine, option, context, "theta", time_shift_days=value
-                )
-        with self.assertRaises(OverflowError):
-            numerical_greeks(engine, option, context, "theta", time_shift_days=2**31)
+                numerical_greeks(engine, option, context, "theta", time_shift=value)
+        with self.assertRaises(TypeError):
+            numerical_greeks(engine, option, context, "theta", time_shift=2**31)
         curve = RateTermStructure(
             reference_time=START,
             times=[END, END + (END - START)],

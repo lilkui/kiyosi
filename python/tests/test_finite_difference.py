@@ -290,7 +290,7 @@ class FiniteDifferenceTests(unittest.TestCase):
                 {"spot_shift": 0},
                 {"volatility_shift": math.nan},
                 {"rate_shift": math.inf},
-                {"time_shift_days": 0},
+                {"time_shift": timedelta(days=0)},
             ):
                 self.assert_rejection(
                     InvalidInputError,
@@ -311,16 +311,14 @@ class FiniteDifferenceTests(unittest.TestCase):
                 {"spot_shift": True},
                 {"volatility_shift": None},
                 {"rate_shift": "1"},
-                {"time_shift_days": True},
-                {"time_shift_days": 1.5},
+                {"time_shift": True},
+                {"time_shift": 1.5},
                 {"unknown": 1},
             ):
                 with self.assertRaises(TypeError):
                     numerical_greeks(engine, option, context, "delta", **settings)
-            with self.assertRaises(OverflowError):
-                numerical_greeks(
-                    engine, option, context, "delta", time_shift_days=2**31
-                )
+            with self.assertRaises(TypeError):
+                numerical_greeks(engine, option, context, "delta", time_shift=2**31)
             with self.assertRaises(TypeError):
                 engine.price_with_greeks(option, context)
             with self.assertRaises(TypeError):

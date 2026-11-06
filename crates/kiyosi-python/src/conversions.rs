@@ -1,7 +1,33 @@
 use crate::error::domain;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDate, PyDateAccess, PyDateTime, PyFloat, PyTime, PyTimeAccess};
+use pyo3::types::{
+    PyBool, PyDate, PyDateAccess, PyDateTime, PyDelta, PyDeltaAccess, PyFloat, PyTime, PyTimeAccess,
+};
+
+pub(crate) fn duration(value: &Bound<'_, PyAny>) -> PyResult<std::time::Duration> {
+    let value = value.cast::<PyDelta>()?;
+    let seconds = i64::from(value.get_days()) * 86_400 + i64::from(value.get_seconds());
+    let seconds = u64::try_from(seconds)
+        .map_err(|_| crate::error::InvalidInputError::new_err("time_shift must be positive"))?;
+    Ok(std::time::Duration::new(
+        seconds,
+        value.get_microseconds().unsigned_abs() * 1000,
+    ))
+}
+
+pub(crate) fn python_duration(
+    py: Python<'_>,
+    value: std::time::Duration,
+) -> PyResult<Bound<'_, PyDelta>> {
+    PyDelta::new(
+        py,
+        i32::try_from(value.as_secs() / 86_400)?,
+        i32::try_from(value.as_secs() % 86_400)?,
+        i32::try_from(value.subsec_micros())?,
+        false,
+    )
+}
 
 pub(crate) fn instrument<'a, 'py, T>(value: &'a Bound<'py, PyAny>) -> PyResult<T>
 where

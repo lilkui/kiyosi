@@ -67,6 +67,7 @@ class QuantLibProfileTests(unittest.TestCase):
 
     def test_loader_rejects_invalid_budgets(self):
         profile = oracle.load_fixture("numerical_engines.json")["profiles"][0]
+        profile.pop("shifts")
         with TemporaryDirectory() as directory:
             path = Path(directory) / "profiles.json"
             for field in ("tolerances", "numerical_tolerances"):

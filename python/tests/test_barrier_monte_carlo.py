@@ -374,7 +374,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
             {"spot_shift": True},
             {"volatility_shift": True},
             {"rate_shift": True},
-            {"time_shift_days": True},
+            {"time_shift": True},
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):
@@ -388,7 +388,7 @@ class BarrierMonteCarloTests(unittest.TestCase):
             "delta",
             volatility_shift=0.001,
             rate_shift=0.001,
-            time_shift_days=2,
+            time_shift=timedelta(days=2),
         )
         self.assertEqual(controlled.price, expected.price)
         h = (100 + 0.01) - 100

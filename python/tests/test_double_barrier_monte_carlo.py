@@ -448,7 +448,7 @@ class DoubleBarrierMonteCarloTests(unittest.TestCase):
             {"spot_shift": True},
             {"volatility_shift": True},
             {"rate_shift": True},
-            {"time_shift_days": True},
+            {"time_shift": True},
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):

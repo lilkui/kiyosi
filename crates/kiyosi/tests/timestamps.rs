@@ -780,3 +780,54 @@ fn finite_difference_rejects_unresolvable_microsecond_events() {
             < 1e-12
     );
 }
+#[test]
+fn subday_time_bumps_converge_to_intraday_theta() -> Result<()> {
+    use std::time::Duration;
+    let date = Date::new(2025, 1, 2)?;
+    let start = Timestamp::new(date, 11, 0, 0, 0)?;
+    let now = Timestamp::new(date, 12, 0, 0, 0)?;
+    let end = Timestamp::new(date, 13, 0, 0, 0)?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
+        100.0,
+        now,
+    )?;
+    let request = GreeksRequest::new([Greek::Theta]);
+    let exact = AnalyticEuropeanEngine
+        .price_with_greeks(&option, &context, request)?
+        .require(Greek::Theta)?;
+    let mut errors = Vec::new();
+    for seconds in [60, 1] {
+        let value = numerical_greeks(
+            &AnalyticEuropeanEngine,
+            &option,
+            &context,
+            request,
+            NumericalShiftSettings {
+                time_shift: Duration::from_secs(seconds),
+                ..Default::default()
+            },
+        )?
+        .require(Greek::Theta)?;
+        errors.push((value - exact).abs());
+    }
+    assert!(errors[1] < errors[0]);
+    assert!(errors[1] < exact.abs() * 1e-7);
+    for shift in [Duration::ZERO, Duration::from_nanos(1), Duration::MAX] {
+        assert!(matches!(
+            NumericalShiftSettings {
+                time_shift: shift,
+                ..Default::default()
+            }
+            .validate(),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    NumericalShiftSettings {
+        time_shift: Duration::from_micros(1),
+        ..Default::default()
+    }
+    .validate()?;
+    Ok(())
+}

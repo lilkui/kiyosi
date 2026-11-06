@@ -1,7 +1,7 @@
 """Typed Python interfaces for the native contracts, market data, and pricing API."""
 
 from collections.abc import Iterable, Iterator
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from numbers import Real as _RealNumber
 from types import EllipsisType
 from typing import Literal, Never, Self, SupportsIndex, overload
@@ -1578,7 +1578,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift_days: SupportsIndex = ...,
+    time_shift: timedelta = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1595,7 +1595,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift_days: SupportsIndex = ...,
+    time_shift: timedelta = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1607,7 +1607,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift_days: SupportsIndex = ...,
+    time_shift: timedelta = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1621,7 +1621,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift_days: SupportsIndex = ...,
+    time_shift: timedelta = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1633,7 +1633,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift_days: SupportsIndex = ...,
+    time_shift: timedelta = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1649,7 +1649,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift_days: SupportsIndex = ...,
+    time_shift: timedelta = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1661,7 +1661,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift_days: SupportsIndex = ...,
+    time_shift: timedelta = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1673,7 +1673,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift_days: SupportsIndex = ...,
+    time_shift: timedelta = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1685,7 +1685,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift_days: SupportsIndex = ...,
+    time_shift: timedelta = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1701,7 +1701,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift_days: SupportsIndex = ...,
+    time_shift: timedelta = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1713,7 +1713,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift_days: SupportsIndex = ...,
+    time_shift: timedelta = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1727,7 +1727,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift_days: SupportsIndex = ...,
+    time_shift: timedelta = ...,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1739,7 +1739,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift_days: SupportsIndex = ...,
+    time_shift: timedelta = ...,
 ) -> PricingResult: ...
 
 class GeometricAveragePriceOption:

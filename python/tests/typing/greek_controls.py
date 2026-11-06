@@ -1,5 +1,6 @@
 """Native Greek controls stay callable when engines are substituted."""
 
+from datetime import timedelta
 from typing import assert_type
 
 from kiyosi import PricingResult
@@ -30,6 +31,13 @@ def common_controls(option: EuropeanOption, context: PricingContext) -> None:
         MonteCarloVanillaEngine(),
     ):
         assert_type(
-            numerical_greeks(engine, option, context, "delta", spot_shift=0.001),
+            numerical_greeks(
+                engine,
+                option,
+                context,
+                "delta",
+                spot_shift=0.001,
+                time_shift=timedelta(seconds=1),
+            ),
             PricingResult,
         )

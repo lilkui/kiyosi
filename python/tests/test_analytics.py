@@ -233,7 +233,7 @@ class AnalyticsTests(unittest.TestCase):
             "spot_shift",
             "volatility_shift",
             "rate_shift",
-            "time_shift_days",
+            "time_shift",
         ):
             for bad in (True, "1", complex(1)) + (
                 () if field == "spot_shift" else (None,)
@@ -250,7 +250,7 @@ class AnalyticsTests(unittest.TestCase):
             spot_shift=0.001,
             volatility_shift=0.001,
             rate_shift=0.001,
-            time_shift_days=2,
+            time_shift=timedelta(days=2),
         )
         spot = self.context.spot_price
         h = (spot + 0.001) - spot

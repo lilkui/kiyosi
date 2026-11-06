@@ -4,7 +4,7 @@ import importlib
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
 from fractions import Fraction
 from functools import partial
 
@@ -337,7 +337,7 @@ class AmericanTests(unittest.TestCase):
             {"spot_shift": 0},
             {"volatility_shift": float("nan")},
             {"rate_shift": -1},
-            {"time_shift_days": 0},
+            {"time_shift": timedelta(days=0)},
         ):
             self.assert_rejection(
                 InvalidInputError,
@@ -350,17 +350,17 @@ class AmericanTests(unittest.TestCase):
         for settings in (
             {"spot_shift": True},
             {"volatility_shift": "0.01"},
-            {"time_shift_days": 1.5},
-            {"time_shift_days": True},
+            {"time_shift": 1.5},
+            {"time_shift": True},
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):
                 numerical_greeks(
                     self.engine, self.option, self.context, "delta", **settings
                 )
-        with self.assertRaises(OverflowError):
+        with self.assertRaises(TypeError):
             numerical_greeks(
-                self.engine, self.option, self.context, "delta", time_shift_days=2**31
+                self.engine, self.option, self.context, "delta", time_shift=2**31
             )
         for settings in (
             {"max_iterations": True},

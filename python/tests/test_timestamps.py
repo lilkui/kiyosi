@@ -4,7 +4,7 @@ import inspect
 import math
 import pickle
 import unittest
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from datetime import time as clock_time
 
 from kiyosi import ComputationFailureError, InvalidInputError
@@ -35,6 +35,7 @@ from kiyosi.pricing import (
     MonteCarloAutocallableEngine,
     QuadratureAccumulatorEngine,
     QuadratureAutocallableEngine,
+    numerical_greeks,
 )
 
 
@@ -76,6 +77,46 @@ def accumulator_engines():
 
 
 class TimestampTests(unittest.TestCase):
+    def test_subday_time_bumps_converge_to_intraday_theta(self):
+        option = EuropeanOption(
+            option_type="call",
+            strike=100,
+            effective_time=time(2, 11),
+            expiry_time=time(2, 13),
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0,
+                dividend_yield=0,
+                volatility=0.2,
+            ),
+            spot_price=100,
+            valuation_time=time(2, 12),
+        )
+        engine = AnalyticEuropeanEngine()
+        exact = engine.price_with_greeks(option, context, "theta").require("theta")
+        errors = [
+            abs(
+                numerical_greeks(
+                    engine,
+                    option,
+                    context,
+                    "theta",
+                    time_shift=timedelta(seconds=seconds),
+                ).require("theta")
+                - exact
+            )
+            for seconds in (60, 1)
+        ]
+        self.assertLess(errors[1], errors[0])
+        self.assertLess(errors[1], abs(exact) * 1e-7)
+        for shift in (timedelta(), timedelta(microseconds=-1)):
+            with self.subTest(shift=shift), self.assertRaises(InvalidInputError):
+                numerical_greeks(engine, option, context, "theta", time_shift=shift)
+        for shift in (True, 1, 0.001, None):
+            with self.subTest(shift=shift), self.assertRaises(TypeError):
+                numerical_greeks(engine, option, context, "theta", time_shift=shift)
+
     def test_time_inputs_reject_dates_timezones_and_lost_precision(self):
         class NanosecondTime(datetime):
             nanosecond = 1

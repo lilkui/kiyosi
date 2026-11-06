@@ -345,6 +345,10 @@ def load_fixture(name):
         for record in config.get(collection, []):
             for field, values in config.get(defaults_key, {}).items():
                 record[field] = dict(values, **record.get(field, {}))
+            if "time_shift_days" in record.get("shifts", {}):
+                record["shifts"]["time_shift"] = timedelta(
+                    days=record["shifts"].pop("time_shift_days")
+                )
             if collection == "profiles" or defaults_key in config:
                 validate_budgets(record)
     if "scenarios" in config:

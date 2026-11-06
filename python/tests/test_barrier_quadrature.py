@@ -428,14 +428,14 @@ class BarrierQuadratureTests(unittest.TestCase):
             constructor(unknown=8)
         for changes in (
             {"spot_shift": True},
-            {"time_shift_days": 1.5},
-            {"time_shift_days": True},
+            {"time_shift": 1.5},
+            {"time_shift": True},
             {"unknown": 1},
         ):
             with self.assertRaises(TypeError):
                 numerical_greeks(engine, option(), market(), "delta", **changes)
-        with self.assertRaises(OverflowError):
-            numerical_greeks(engine, option(), market(), "delta", time_shift_days=2**31)
+        with self.assertRaises(TypeError):
+            numerical_greeks(engine, option(), market(), "delta", time_shift=2**31)
         mismatch = EuropeanOption(
             option_type="call", strike=100, effective_time=START, expiry_time=END
         )

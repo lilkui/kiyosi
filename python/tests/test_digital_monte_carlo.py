@@ -206,7 +206,7 @@ class DigitalNumericalTests(unittest.TestCase):
                     spot_shift=0.1,
                     volatility_shift=0.001,
                     rate_shift=0.001,
-                    time_shift_days=2,
+                    time_shift=timedelta(days=2),
                 )
                 self.assertEqual(controlled.price, engine.price(option, market()))
                 self.assertEqual(controlled.status("rho"), "available")

@@ -239,7 +239,7 @@ class AsianMonteCarloTests(unittest.TestCase):
                         spot_shift=0.1,
                         volatility_shift=0.001,
                         rate_shift=0.001,
-                        time_shift_days=2,
+                        time_shift=timedelta(days=2),
                     )
                     self.assertEqual(controlled.price, result.price)
                     self.assertAlmostEqual(
@@ -435,8 +435,8 @@ class AsianMonteCarloTests(unittest.TestCase):
                 ({"greeks": "Delta"}, ValueError),
                 ({"greeks": True}, TypeError),
                 ({"greeks": "delta", "spot_shift": True}, TypeError),
-                ({"greeks": "delta", "time_shift_days": 1.5}, TypeError),
-                ({"greeks": "delta", "time_shift_days": 2**40}, OverflowError),
+                ({"greeks": "delta", "time_shift": 1.5}, TypeError),
+                ({"greeks": "delta", "time_shift": 2**40}, TypeError),
             ):
                 with self.assertRaises(exception):
                     numerical_greeks(engine, instrument, context, **settings)

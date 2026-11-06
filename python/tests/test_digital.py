@@ -311,7 +311,7 @@ class DigitalTests(unittest.TestCase):
                 "spot_shift",
                 "volatility_shift",
                 "rate_shift",
-                "time_shift_days",
+                "time_shift",
             ):
                 for value in (True, "1") + (() if field == "spot_shift" else (None,)):
                     with self.assertRaises(TypeError):
@@ -325,15 +325,19 @@ class DigitalTests(unittest.TestCase):
                         option,
                         self.context,
                         "delta",
-                        **{field: value},
+                        **{
+                            field: timedelta(days=value)
+                            if field == "time_shift"
+                            else value
+                        },
                     )
             with self.assertRaises(TypeError):
                 numerical_greeks(
-                    self.engine, option, self.context, "delta", time_shift_days=1.5
+                    self.engine, option, self.context, "delta", time_shift=1.5
                 )
-            with self.assertRaises(OverflowError):
+            with self.assertRaises(TypeError):
                 numerical_greeks(
-                    self.engine, option, self.context, "delta", time_shift_days=2**40
+                    self.engine, option, self.context, "delta", time_shift=2**40
                 )
             for settings in (
                 {"lower_bound": -0.1},

@@ -417,7 +417,10 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
             ));
         }
     }
-    for days in [0, -1] {
+    for shift in [
+        std::time::Duration::ZERO,
+        std::time::Duration::from_nanos(1),
+    ] {
         assert!(matches!(
             numerical_greeks(
                 &AnalyticEuropeanEngine,
@@ -425,7 +428,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
                 &context,
                 request,
                 NumericalShiftSettings {
-                    time_shift_days: days,
+                    time_shift: shift,
                     ..Default::default()
                 }
             )
@@ -825,7 +828,7 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
         &context,
         GreeksRequest::new([Greek::Theta]),
         NumericalShiftSettings {
-            time_shift_days: i32::MAX,
+            time_shift: std::time::Duration::from_secs(86_400 * u64::from(i32::MAX.unsigned_abs())),
             ..Default::default()
         },
     )
