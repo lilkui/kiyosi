@@ -55,8 +55,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v7
-      - run: uv run --no-project --with ruff -- ruff check python tools/generate_sse_calendar.py
-      - run: uv run --no-project --with ruff -- ruff format --check python tools/generate_sse_calendar.py
+      - run: uv run --no-project --with ruff -- ruff check python examples/python tools/generate_sse_calendar.py
+      - run: uv run --no-project --with ruff -- ruff format --check python examples/python tools/generate_sse_calendar.py
       - run: uv run --no-project --with ty -- ty check --extra-search-path python/src --error unused-ignore-comment python/src python/tests/typing
 
   distributions:
