@@ -2119,6 +2119,7 @@ class AnalyticDoubleTouchEngine:
     ) -> PricingResult: ...
 
 class BinaryBarrierOption:
+    @overload
     def __init__(
         self,
         *,
@@ -2128,8 +2129,25 @@ class BinaryBarrierOption:
         expiry_time: datetime,
         barrier_level: _Real,
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
-        payoff_type: Literal["cash", "asset"],
-        payout: _Real | None = None,
+        payoff_type: Literal["cash"],
+        payout: _Real,
+        observation_mode: Literal["continuous", "scheduled"] = ...,
+        observation_times: Iterable[datetime] = ...,
+        touch_state: Literal["untouched", "touched"] | None = None,
+        calendar: TradingCalendar = ...,
+    ) -> None: ...
+    @overload
+    def __init__(
+        self,
+        *,
+        option_type: Literal["call", "put"],
+        strike: _Real,
+        effective_time: datetime,
+        expiry_time: datetime,
+        barrier_level: _Real,
+        barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
+        payoff_type: Literal["asset"],
+        payout: None = None,
         observation_mode: Literal["continuous", "scheduled"] = ...,
         observation_times: Iterable[datetime] = ...,
         touch_state: Literal["untouched", "touched"] | None = None,
@@ -2189,6 +2207,7 @@ class BinaryBarrierOption:
     def strike(self) -> float: ...
 
 class TouchOption:
+    @overload
     def __init__(
         self,
         *,
@@ -2196,8 +2215,24 @@ class TouchOption:
         expiry_time: datetime,
         barrier_level: _Real,
         barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
-        payoff_type: Literal["cash", "asset"],
-        payout: _Real | None = None,
+        payoff_type: Literal["cash"],
+        payout: _Real,
+        settlement_timing: Literal["at_hit", "at_expiry"] = ...,
+        observation_mode: Literal["continuous", "scheduled"] = ...,
+        observation_times: Iterable[datetime] = ...,
+        touch_state: Literal["untouched", "touched"] | None = None,
+        calendar: TradingCalendar = ...,
+    ) -> None: ...
+    @overload
+    def __init__(
+        self,
+        *,
+        effective_time: datetime,
+        expiry_time: datetime,
+        barrier_level: _Real,
+        barrier_type: Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"],
+        payoff_type: Literal["asset"],
+        payout: None = None,
         settlement_timing: Literal["at_hit", "at_expiry"] = ...,
         observation_mode: Literal["continuous", "scheduled"] = ...,
         observation_times: Iterable[datetime] = ...,

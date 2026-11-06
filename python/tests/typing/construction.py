@@ -12,8 +12,8 @@ from kiyosi.instruments import (
     TouchOption,
 )
 
-BinaryBarrierOption()  # ty: ignore[missing-argument]
-TouchOption()  # ty: ignore[missing-argument]
+BinaryBarrierOption()  # ty: ignore[no-matching-overload]
+TouchOption()  # ty: ignore[no-matching-overload]
 DoubleTouchOption()  # ty: ignore[missing-argument]
 
 
@@ -153,6 +153,78 @@ def binary_and_touch_constructors() -> None:
         barrier_type="knock_in",
         payout=None,  # ty: ignore[invalid-argument-type]
     )
+
+
+def binary_and_touch_payoff_choices() -> None:
+    start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
+    BinaryBarrierOption(
+        option_type="call",
+        strike=100,
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=120,
+        barrier_type="up_and_in",
+        payoff_type="asset",
+    )
+    BinaryBarrierOption(
+        option_type="call",
+        strike=100,
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=120,
+        barrier_type="up_and_in",
+        payoff_type="cash",  # ty: ignore[invalid-argument-type]
+    )
+    BinaryBarrierOption(
+        option_type="call",
+        strike=100,
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=120,
+        barrier_type="up_and_in",
+        payoff_type="cash",
+        payout=None,
+    )  # ty: ignore[no-matching-overload]
+    BinaryBarrierOption(
+        option_type="call",
+        strike=100,
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=120,
+        barrier_type="up_and_in",
+        payoff_type="asset",
+        payout=10,
+    )  # ty: ignore[no-matching-overload]
+    TouchOption(
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=120,
+        barrier_type="up_and_in",
+        payoff_type="asset",
+    )
+    TouchOption(
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=120,
+        barrier_type="up_and_in",
+        payoff_type="cash",  # ty: ignore[invalid-argument-type]
+    )
+    TouchOption(
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=120,
+        barrier_type="up_and_in",
+        payoff_type="cash",
+        payout=None,
+    )  # ty: ignore[no-matching-overload]
+    TouchOption(
+        effective_time=start,
+        expiry_time=end,
+        barrier_level=120,
+        barrier_type="up_and_in",
+        payoff_type="asset",
+        payout=10,
+    )  # ty: ignore[no-matching-overload]
 
 
 def settlement_replacement_types(

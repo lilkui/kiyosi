@@ -26,6 +26,7 @@ class BinaryTouchConstructionTests(unittest.TestCase):
             with self.subTest(contract=cls.__name__):
                 cash = cls(**common, **extra, payoff_type="cash", payout=10)
                 for fields, error in (
+                    ({"payoff_type": "cash"}, TypeError),
                     ({"payoff_type": "cash", "payout": None}, TypeError),
                     ({"payoff_type": "asset", "payout": 10}, TypeError),
                     ({"payoff_type": "unknown"}, ValueError),

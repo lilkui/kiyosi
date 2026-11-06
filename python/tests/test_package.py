@@ -510,6 +510,16 @@ class PackageTests(unittest.TestCase):
                         "coupon_per_period",
                     ):
                         self.assertIs(parameter.default, Ellipsis)
+                    elif (
+                        factory
+                        in (
+                            instruments.BinaryBarrierOption,
+                            instruments.TouchOption,
+                        )
+                        and name == "payout"
+                    ):
+                        self.assertIsNone(parameter.default)
+                        self.assertIsNone(default)
                     else:
                         self.assertEqual(
                             parameter.default is inspect.Parameter.empty,
