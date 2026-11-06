@@ -140,7 +140,13 @@ fn structured_contract_calendars_control_observations_and_survive_replacement() 
     })?;
     let price = AnalyticRangeAccrualEngine.price(&range, &at_expiry)?;
     assert!((price - 360.0 / 365.0).abs() < 1e-12);
-    let daily = range.replace_calendar(TradingCalendar::all_days()).unwrap();
+    let daily = range
+        .replace(RangeAccrualOptionChanges {
+            calendar: Some(TradingCalendar::all_days()),
+            realized_hit_count: Some(range.realized_hit_count()),
+            ..Default::default()
+        })
+        .unwrap();
     assert!((AnalyticRangeAccrualEngine.price(&daily, &at_expiry)? - price / 3.0).abs() < 1e-12);
     assert_eq!(daily.replace_history(None)?.calendar(), daily.calendar());
     assert_eq!(daily.replace(Default::default())?, daily);
@@ -1170,6 +1176,8 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
     })?;
     let active = accumulator.replace(AccumulatorChanges {
         knock_out_level: Some(150.0),
+        accumulated_quantity: Some(accumulator.accumulated_quantity()),
+        terminated: Some(accumulator.terminated()),
         ..Default::default()
     })?;
     let mc = MonteCarloAccumulatorEngine::default();

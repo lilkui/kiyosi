@@ -16,7 +16,13 @@
 //! Contract constructors validate terms and contractual calendar compatibility; pricing validates
 //! valuation dates and required prior history. All built-in
 //! contracts support validated immutable `replace` operations; omitted terms and
-//! history remain unchanged. See [`BarrierOption::replace`] for an exotic example.
+//! history remain unchanged when their observation terms are retained. Known history
+//! must be explicitly replaced or cleared when terms defining historical events change:
+//! barrier levels/direction, observation times, averaging start, range bounds or daily
+//! monitoring and accumulation rules. Accumulators require both quantity and termination
+//! choices. Reasserting the same history explicitly is allowed. Calendar-only helpers
+//! reject changes affecting known daily history; use `replace` with an explicit history
+//! choice. Payoff-only changes retain history. See [`BarrierOption::replace`] for an exotic example.
 //! Contract effective and expiry timestamps are inclusive and preserve microseconds.
 //! European vanilla pricing permits pre-effective valuation. Other built-in
 //! contracts reject valuation outside their life, including range accruals.

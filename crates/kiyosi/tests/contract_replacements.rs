@@ -1,12 +1,132 @@
 use kiyosi::*;
 
+#[test]
+fn reactivation_with_changed_accumulation_rules_requires_explicit_quantity() -> Result<()> {
+    let start = Date::new(2025, 1, 6)?.start_of_day();
+    let mut terms = AccumulatorTerms::new(
+        100.0,
+        120.0,
+        1.0,
+        2.0,
+        start,
+        start.add_days(2)?,
+        start.time_of_day(),
+    );
+    terms.accumulated_quantity = Some(3.0);
+    terms.terminated = true;
+    let settled = Accumulator::new(terms)?;
+    assert!(matches!(
+        settled.replace(AccumulatorChanges {
+            terminated: Some(false),
+            daily_quantity: Some(2.0),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    let reactivated = settled.replace(AccumulatorChanges {
+        terminated: Some(false),
+        daily_quantity: Some(2.0),
+        accumulated_quantity: Some(Some(0.0)),
+        ..Default::default()
+    })?;
+    assert!(!reactivated.terminated());
+    assert_eq!(reactivated.accumulated_quantity(), Some(0.0));
+    assert!(
+        settled
+            .replace(AccumulatorChanges {
+                daily_quantity: Some(2.0),
+                ..Default::default()
+            })?
+            .terminated()
+    );
+    assert!(settled.terminated());
+    assert_eq!(settled.accumulated_quantity(), Some(3.0));
+    Ok(())
+}
+
+macro_rules! history_changes {
+    ($original:ident, BarrierOptionChanges) => {
+        BarrierOptionChanges {
+            touch_state: Some($original.touch_state()),
+            ..Default::default()
+        }
+    };
+    ($original:ident, DoubleBarrierOptionChanges) => {
+        DoubleBarrierOptionChanges {
+            touch_state: Some($original.touch_state()),
+            ..Default::default()
+        }
+    };
+    ($original:ident, BinaryBarrierOptionChanges) => {
+        BinaryBarrierOptionChanges {
+            touch_state: Some($original.touch_state()),
+            ..Default::default()
+        }
+    };
+    ($original:ident, TouchOptionChanges) => {
+        TouchOptionChanges {
+            touch_state: Some($original.touch_state()),
+            ..Default::default()
+        }
+    };
+    ($original:ident, DoubleTouchOptionChanges) => {
+        DoubleTouchOptionChanges {
+            touch_state: Some($original.touch_state()),
+            ..Default::default()
+        }
+    };
+    ($original:ident, RangeAccrualOptionChanges) => {
+        RangeAccrualOptionChanges {
+            realized_hit_count: Some($original.realized_hit_count()),
+            ..Default::default()
+        }
+    };
+    ($original:ident, AveragePriceOptionChanges) => {
+        AveragePriceOptionChanges {
+            realized_average: Some($original.realized_average()),
+            ..Default::default()
+        }
+    };
+    ($original:ident, SnowballOptionChanges) => {
+        SnowballOptionChanges {
+            barrier_state: Some($original.barrier_state()),
+            ..Default::default()
+        }
+    };
+    ($original:ident, PhoenixOptionChanges) => {
+        PhoenixOptionChanges {
+            barrier_state: Some($original.barrier_state()),
+            ..Default::default()
+        }
+    };
+    ($original:ident, BinarySnowballOptionChanges) => {
+        BinarySnowballOptionChanges {
+            barrier_state: Some($original.barrier_state()),
+            ..Default::default()
+        }
+    };
+    ($original:ident, TernarySnowballOptionChanges) => {
+        TernarySnowballOptionChanges {
+            barrier_state: Some($original.barrier_state()),
+            ..Default::default()
+        }
+    };
+    ($original:ident, AccumulatorChanges) => {
+        AccumulatorChanges {
+            accumulated_quantity: Some($original.accumulated_quantity()),
+            terminated: Some($original.terminated()),
+            ..Default::default()
+        }
+    };
+}
+
 macro_rules! check_field {
     ($original:ident, $changes:ident, $field:ident, $value:expr) => {
         check_field!($original, $changes, $field, $value, $field());
     };
     ($original:ident, $changes:ident, $field:ident, $value:expr, $($getter:tt)+) => {
         let changed = $original.replace($changes {
-            $field: Some($value), ..Default::default()
+            $field: Some($value), ..history_changes!($original, $changes)
         }).unwrap();
         assert_eq!(changed.$($getter)+, $value);
     };
@@ -32,6 +152,13 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
     })
     .unwrap();
     let saved = original.clone();
+    assert!(matches!(
+        original.replace(BarrierOptionChanges {
+            barrier_level: Some(125.0),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(
         original.replace(BarrierOptionChanges::default()).unwrap(),
         original
@@ -81,6 +208,7 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
         .replace(BarrierOptionChanges {
             observation_mode: Some(ObservationMode::Scheduled),
             observation_times: Some(vec![end]),
+            touch_state: Some(original.touch_state()),
             ..Default::default()
         })
         .unwrap();
@@ -89,6 +217,7 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
     assert!(matches!(
         original.replace(BarrierOptionChanges {
             observation_times: Some(vec![end]),
+            touch_state: Some(original.touch_state()),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -124,6 +253,13 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
     })
     .unwrap();
     let saved = original.clone();
+    assert!(matches!(
+        original.replace(DoubleBarrierOptionChanges {
+            upper_barrier: Some(125.0),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(
         original
             .replace(DoubleBarrierOptionChanges::default())
@@ -181,6 +317,7 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
         .replace(DoubleBarrierOptionChanges {
             observation_mode: Some(ObservationMode::Scheduled),
             observation_times: Some(vec![end]),
+            touch_state: Some(original.touch_state()),
             ..Default::default()
         })
         .unwrap();
@@ -189,6 +326,7 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
     assert!(matches!(
         original.replace(DoubleBarrierOptionChanges {
             observation_times: Some(vec![end]),
+            touch_state: Some(original.touch_state()),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -224,6 +362,13 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
     )
     .unwrap();
     let saved = original.clone();
+    assert!(matches!(
+        original.replace(BinaryBarrierOptionChanges {
+            barrier_level: Some(125.0),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(
         original
             .replace(BinaryBarrierOptionChanges::default())
@@ -280,6 +425,7 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
         .replace(BinaryBarrierOptionChanges {
             observation_mode: Some(ObservationMode::Scheduled),
             observation_times: Some(vec![end]),
+            touch_state: Some(original.touch_state()),
             ..Default::default()
         })
         .unwrap();
@@ -288,6 +434,7 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
     assert!(matches!(
         original.replace(BinaryBarrierOptionChanges {
             observation_times: Some(vec![end]),
+            touch_state: Some(original.touch_state()),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -322,6 +469,13 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     )
     .unwrap();
     let saved = original.clone();
+    assert!(matches!(
+        original.replace(TouchOptionChanges {
+            barrier_level: Some(125.0),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(
         original.replace(TouchOptionChanges::default()).unwrap(),
         original
@@ -375,6 +529,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
         .replace(TouchOptionChanges {
             observation_mode: Some(ObservationMode::Scheduled),
             observation_times: Some(vec![end]),
+            touch_state: Some(original.touch_state()),
             ..Default::default()
         })
         .unwrap();
@@ -383,6 +538,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
     assert!(matches!(
         original.replace(TouchOptionChanges {
             observation_times: Some(vec![end]),
+            touch_state: Some(original.touch_state()),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -418,6 +574,13 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
     )
     .unwrap();
     let saved = original.clone();
+    assert!(matches!(
+        original.replace(DoubleTouchOptionChanges {
+            upper_barrier: Some(125.0),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(
         original
             .replace(DoubleTouchOptionChanges::default())
@@ -469,6 +632,7 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
         .replace(DoubleTouchOptionChanges {
             observation_mode: Some(ObservationMode::Scheduled),
             observation_times: Some(vec![end]),
+            touch_state: Some(original.touch_state()),
             ..Default::default()
         })
         .unwrap();
@@ -477,6 +641,7 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
     assert!(matches!(
         original.replace(DoubleTouchOptionChanges {
             observation_times: Some(vec![end]),
+            touch_state: Some(original.touch_state()),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
@@ -511,6 +676,13 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
     })
     .unwrap();
     let saved = original.clone();
+    assert!(matches!(
+        original.replace(AccumulatorChanges {
+            daily_quantity: Some(2.0),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(
         original.replace(AccumulatorChanges::default()).unwrap(),
         original
@@ -561,7 +733,7 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
     let cleared = original
         .replace(AccumulatorChanges {
             knock_out_observation_times: Some(None),
-            ..Default::default()
+            ..history_changes!(original, AccumulatorChanges)
         })
         .unwrap();
     assert_eq!(
@@ -597,6 +769,13 @@ fn range_accrual_option_replacements_preserve_omissions_and_validate_each_field(
     })
     .unwrap();
     let saved = original.clone();
+    assert!(matches!(
+        original.replace(RangeAccrualOptionChanges {
+            lower_bound: Some(85.0),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(
         original
             .replace(RangeAccrualOptionChanges::default())
@@ -674,6 +853,13 @@ fn snowball_option_replacements_preserve_omissions_and_validate_each_field() {
     })
     .unwrap();
     let saved = original.clone();
+    assert!(matches!(
+        original.replace(SnowballOptionChanges {
+            observations: Some(vec![AutocallableObservation::new(end, 115.0).unwrap()]),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(
         original.replace(SnowballOptionChanges::default()).unwrap(),
         original
@@ -800,6 +986,13 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
     })
     .unwrap();
     let saved = original.clone();
+    assert!(matches!(
+        original.replace(PhoenixOptionChanges {
+            observations: Some(vec![AutocallableObservation::new(end, 115.0).unwrap()]),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(
         original.replace(PhoenixOptionChanges::default()).unwrap(),
         original
@@ -920,6 +1113,13 @@ fn binary_snowball_option_replacements_preserve_omissions_and_validate_each_fiel
     })
     .unwrap();
     let saved = original.clone();
+    assert!(matches!(
+        original.replace(BinarySnowballOptionChanges {
+            observations: Some(vec![AutocallableObservation::new(end, 115.0).unwrap()]),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(
         original
             .replace(BinarySnowballOptionChanges::default())
@@ -1004,6 +1204,13 @@ fn ternary_snowball_option_replacements_preserve_omissions_and_validate_each_fie
     })
     .unwrap();
     let saved = original.clone();
+    assert!(matches!(
+        original.replace(TernarySnowballOptionChanges {
+            observations: Some(vec![AutocallableObservation::new(end, 115.0).unwrap()]),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(
         original
             .replace(TernarySnowballOptionChanges::default())
@@ -1104,6 +1311,14 @@ fn geometric_average_price_option_replacements_preserve_omissions_and_validate_e
     let original =
         GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None).unwrap();
     let saved = original.clone();
+    let known = original.replace_history(Some(100.0)).unwrap();
+    assert!(matches!(
+        known.replace(AveragePriceOptionChanges {
+            averaging_start_time: Some(start.add_days(1).unwrap()),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(
         original
             .replace(AveragePriceOptionChanges::default())
@@ -1121,6 +1336,7 @@ fn geometric_average_price_option_replacements_preserve_omissions_and_validate_e
         .replace(AveragePriceOptionChanges {
             effective_time: Some(Date::new(2025, 1, 2).unwrap().start_of_day()),
             averaging_start_time: Some(Date::new(2025, 1, 2).unwrap().start_of_day()),
+            realized_average: Some(original.realized_average()),
             ..Default::default()
         })
         .unwrap();
@@ -1164,6 +1380,14 @@ fn arithmetic_average_price_option_replacements_preserve_omissions_and_validate_
         ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)
             .unwrap();
     let saved = original.clone();
+    let known = original.replace_history(Some(100.0)).unwrap();
+    assert!(matches!(
+        known.replace(AveragePriceOptionChanges {
+            averaging_start_time: Some(start.add_days(1).unwrap()),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
     assert_eq!(
         original
             .replace(AveragePriceOptionChanges::default())
@@ -1181,6 +1405,7 @@ fn arithmetic_average_price_option_replacements_preserve_omissions_and_validate_
         .replace(AveragePriceOptionChanges {
             effective_time: Some(Date::new(2025, 1, 2).unwrap().start_of_day()),
             averaging_start_time: Some(Date::new(2025, 1, 2).unwrap().start_of_day()),
+            realized_average: Some(original.realized_average()),
             ..Default::default()
         })
         .unwrap();

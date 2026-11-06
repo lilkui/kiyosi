@@ -69,6 +69,34 @@ impl Monitoring {
             ..self.clone()
         }
     }
+    pub(crate) fn validate_replacement_history(
+        &self,
+        updated: &Self,
+        supplied: bool,
+        upper_changed: bool,
+    ) -> Result<()> {
+        super::validate_history_replacement(
+            self.touch_state.is_some(),
+            supplied,
+            upper_changed
+                || (
+                    self.effective_time,
+                    self.expiry_time,
+                    self.barrier_level,
+                    self.barrier_type.is_up(),
+                    self.observation_mode,
+                    &self.schedule,
+                ) != (
+                    updated.effective_time,
+                    updated.expiry_time,
+                    updated.barrier_level,
+                    updated.barrier_type.is_up(),
+                    updated.observation_mode,
+                    &updated.schedule,
+                ),
+            "touch_state",
+        )
+    }
     pub(crate) fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
         validate_schedule(&self.schedule, &calendar)?;
         let mut updated = self.clone();

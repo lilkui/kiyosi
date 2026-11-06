@@ -210,6 +210,7 @@ class MonteCarloStatisticsTests(unittest.TestCase):
         for name, factory, original in contracts()[-2:]:
             option = original.replace(
                 observation_mode="scheduled",
+                touch_state=original.touch_state,
                 observation_times=[START + timedelta(days=182), END],
             )
             with self.subTest(product=name):

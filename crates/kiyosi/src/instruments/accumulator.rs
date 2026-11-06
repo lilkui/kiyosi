@@ -200,12 +200,16 @@ impl Accumulator {
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// with known history unless the history is explicitly replaced or cleared.
+    /// See the [crate-level history contract](crate).
+    ///
     /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.
     pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
-        let mut updated = self.clone();
-        updated.terms.calendar = calendar;
-        updated.validate_calendar()?;
-        Ok(updated)
+        self.replace(AccumulatorChanges {
+            calendar: Some(calendar),
+            ..Default::default()
+        })
     }
 
     fn validate_calendar(&self) -> Result<()> {
@@ -623,10 +627,16 @@ impl Accumulator {
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// with known history unless the history is explicitly replaced or cleared.
+    /// See the [crate-level history contract](crate).
+    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: AccumulatorChanges) -> Result<Self> {
-        Self::new(AccumulatorTerms {
+        let history_supplied =
+            changes.accumulated_quantity.is_some() && changes.terminated.is_some();
+        let updated = Self::new(AccumulatorTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
@@ -648,6 +658,47 @@ impl Accumulator {
                 self.knock_out_observation_times()
                     .map(<[Timestamp]>::to_vec)
             }),
-        })
+        })?;
+        let daily_schedule = |option: &Self| {
+            ObservationSchedule::daily(
+                option.effective_time(),
+                option.expiry_time(),
+                option.calendar(),
+                true,
+                option.observation_clock_time(),
+            )
+        };
+        super::validate_history_replacement(
+            self.accumulated_quantity().is_some() || self.terminated(),
+            history_supplied,
+            (
+                self.option_type(),
+                self.knock_out_level(),
+                self.effective_time(),
+                self.expiry_time(),
+                self.observation_clock_time(),
+                self.knock_out_observation_times(),
+            ) != (
+                updated.option_type(),
+                updated.knock_out_level(),
+                updated.effective_time(),
+                updated.expiry_time(),
+                updated.observation_clock_time(),
+                updated.knock_out_observation_times(),
+            ) || !(self.terminated() && updated.terminated())
+                && (
+                    self.strike(),
+                    self.daily_quantity(),
+                    self.acceleration_factor(),
+                ) != (
+                    updated.strike(),
+                    updated.daily_quantity(),
+                    updated.acceleration_factor(),
+                )
+                || self.calendar() != updated.calendar()
+                    && daily_schedule(self)? != daily_schedule(&updated)?,
+            "accumulated_quantity and terminated",
+        )?;
+        Ok(updated)
     }
 }

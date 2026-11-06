@@ -813,12 +813,42 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// with known history unless the history is explicitly replaced or cleared.
+    /// See the [crate-level history contract](crate).
+    ///
     /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.
     pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
         let mut updated = self.clone();
         updated.0.set_calendar(calendar);
         updated.view().validate_calendar()?;
+        self.validate_replacement_history(&updated, false)?;
         Ok(updated)
+    }
+
+    fn validate_replacement_history(&self, updated: &Self, supplied: bool) -> Result<()> {
+        let old = self.view();
+        let new = updated.view();
+        let knock_in = |view: &sealed::View<'_>| {
+            view.knock_in
+                .map(|ki| (ki.level, ki.observation_mode, ki.observation_clock_time))
+        };
+        super::validate_history_replacement(
+            self.barrier_state().is_some(),
+            supplied,
+            (old.effective_time, old.expiry_time, knock_in(&old))
+                != (new.effective_time, new.expiry_time, knock_in(&new))
+                || old.daily_knock_in()
+                    && old.calendar != new.calendar
+                    && self.daily_observation_schedule()?
+                        != updated.daily_observation_schedule()?
+                || !old
+                    .observations
+                    .iter()
+                    .map(|r| (r.time, r.knock_out_level))
+                    .eq(new.observations.iter().map(|r| (r.time, r.knock_out_level))),
+            "barrier_state",
+        )
     }
 
     /// Borrows the contract's monitoring calendar; see [`Self::replace_calendar`].
@@ -1370,10 +1400,15 @@ impl SnowballOption {
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// with known history unless the history is explicitly replaced or cleared.
+    /// See the [crate-level history contract](crate).
+    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: SnowballOptionChanges) -> Result<Self> {
-        Self::new(SnowballTerms {
+        let history_supplied = changes.barrier_state.is_some();
+        let updated = Self::new(SnowballTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             maturity_coupon_rate: changes
                 .maturity_coupon_rate
@@ -1398,7 +1433,9 @@ impl SnowballOption {
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
-        })
+        })?;
+        self.validate_replacement_history(&updated, history_supplied)?;
+        Ok(updated)
     }
 }
 
@@ -1443,10 +1480,15 @@ impl PhoenixOption {
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// with known history unless the history is explicitly replaced or cleared.
+    /// See the [crate-level history contract](crate).
+    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: PhoenixOptionChanges) -> Result<Self> {
-        Self::new(PhoenixTerms {
+        let history_supplied = changes.barrier_state.is_some();
+        let updated = Self::new(PhoenixTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             coupon: changes.coupon.unwrap_or(self.0.coupon),
             initial_spot: changes.initial_spot.unwrap_or(self.0.initial_spot),
@@ -1469,7 +1511,9 @@ impl PhoenixOption {
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
-        })
+        })?;
+        self.validate_replacement_history(&updated, history_supplied)?;
+        Ok(updated)
     }
 }
 
@@ -1502,10 +1546,15 @@ impl BinarySnowballOption {
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// with known history unless the history is explicitly replaced or cleared.
+    /// See the [crate-level history contract](crate).
+    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: BinarySnowballOptionChanges) -> Result<Self> {
-        Self::new(BinarySnowballTerms {
+        let history_supplied = changes.barrier_state.is_some();
+        let updated = Self::new(BinarySnowballTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             maturity_coupon_rate: changes
                 .maturity_coupon_rate
@@ -1517,7 +1566,9 @@ impl BinarySnowballOption {
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
-        })
+        })?;
+        self.validate_replacement_history(&updated, history_supplied)?;
+        Ok(updated)
     }
 }
 
@@ -1558,10 +1609,15 @@ impl TernarySnowballOption {
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// with known history unless the history is explicitly replaced or cleared.
+    /// See the [crate-level history contract](crate).
+    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: TernarySnowballOptionChanges) -> Result<Self> {
-        Self::new(TernarySnowballTerms {
+        let history_supplied = changes.barrier_state.is_some();
+        let updated = Self::new(TernarySnowballTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             maturity_coupon_rate: changes
                 .maturity_coupon_rate
@@ -1586,7 +1642,9 @@ impl TernarySnowballOption {
             observations: changes
                 .observations
                 .unwrap_or_else(|| self.0.observations.clone()),
-        })
+        })?;
+        self.validate_replacement_history(&updated, history_supplied)?;
+        Ok(updated)
     }
 }
 

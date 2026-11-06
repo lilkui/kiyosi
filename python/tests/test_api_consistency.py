@@ -179,7 +179,11 @@ class ApiConsistencyTests(unittest.TestCase):
                 "Accumulator",
                 accumulator,
                 accumulator.replace(terminated=True),
-                accumulator.replace(knock_out_level=150),
+                accumulator.replace(
+                    knock_out_level=150,
+                    accumulated_quantity=accumulator.accumulated_quantity,
+                    terminated=accumulator.terminated,
+                ),
                 75,
             ),
             (
@@ -187,9 +191,10 @@ class ApiConsistencyTests(unittest.TestCase):
                 note,
                 note.replace_history(barrier_state="knocked_out"),
                 note.replace(
+                    barrier_state=note.barrier_state,
                     observations=ins.autocallable_observations(
                         [datetime(2025, 1, 2), valuation, end], [150, 150, 150]
-                    )
+                    ),
                 ),
                 1,
             ),
@@ -497,7 +502,10 @@ class ApiConsistencyTests(unittest.TestCase):
         engine = pricing.AnalyticRangeAccrualEngine()
         price = engine.price(accrual, expiry)
         self.assertAlmostEqual(price, 360 / 365, delta=1e-12)
-        daily = accrual.replace(calendar=market.all_days_calendar())
+        daily = accrual.replace(
+            calendar=market.all_days_calendar(),
+            realized_hit_count=accrual.realized_hit_count,
+        )
         self.assertAlmostEqual(engine.price(daily, expiry), price / 3, delta=1e-12)
         accumulator = ins.Accumulator(
             observation_clock_time=clock_time(),

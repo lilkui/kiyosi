@@ -31,7 +31,12 @@ explicit observation dates and required trading-day expiries. Pricing validates
 consistency with the market snapshot and supplied history.
 History describes events strictly before valuation; a current observation
 is evaluated from the current spot. ``replace()`` replaces constructor terms on every contract. Omitted terms and
-history are preserved; supplied terms are validated together in Rust.
+history are preserved when their observation terms are retained; supplied terms are validated together in Rust.
+Changing event-defining terms with known history requires an explicit history value
+or None to clear it: barrier levels/direction, observation times, averaging start,
+range bounds and daily monitoring/accumulation rules. Accumulators require both
+``accumulated_quantity`` and ``terminated``. Reasserting existing history explicitly
+is allowed. Changes affecting only future payoff amounts retain history.
 For example, ``barrier.replace(strike=105)`` preserves monitoring and history,
 and changing monitoring to scheduled requires supplying the observation times in the same call.
 Phoenix replacements accept at most one coupon choice and can change coupon units.

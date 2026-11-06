@@ -541,10 +541,15 @@ impl BinaryBarrierOption {
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// with known history unless the history is explicitly replaced or cleared.
+    /// See the [crate-level history contract](crate).
+    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged. [`BinaryPayoff`] selects settlement explicitly.
     /// See [`Self::cash`] for a construction example.
     pub fn replace(&self, changes: BinaryBarrierOptionChanges) -> Result<Self> {
+        let history_supplied = changes.touch_state.is_some();
         let terms = BinaryBarrierTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
@@ -559,13 +564,19 @@ impl BinaryBarrierOption {
                 .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
-        match changes.payoff.unwrap_or_else(|| {
+        let updated = match changes.payoff.unwrap_or_else(|| {
             self.payout()
                 .map_or(BinaryPayoff::Asset, BinaryPayoff::Cash)
         }) {
             BinaryPayoff::Cash(payout) => Self::cash(terms, payout),
             BinaryPayoff::Asset => Self::asset(terms),
-        }
+        }?;
+        self.monitoring.validate_replacement_history(
+            &updated.monitoring,
+            history_supplied,
+            false,
+        )?;
+        Ok(updated)
     }
 }
 
@@ -605,10 +616,15 @@ impl TouchOption {
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// with known history unless the history is explicitly replaced or cleared.
+    /// See the [crate-level history contract](crate).
+    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged. [`BinaryPayoff`] selects settlement explicitly.
     /// See [`Self::cash`] for a construction example.
     pub fn replace(&self, changes: TouchOptionChanges) -> Result<Self> {
+        let history_supplied = changes.touch_state.is_some();
         let terms = TouchOptionTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             effective_time: changes.effective_time.unwrap_or(self.effective_time()),
@@ -624,12 +640,18 @@ impl TouchOption {
                 .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
-        match changes.payoff.unwrap_or_else(|| {
+        let updated = match changes.payoff.unwrap_or_else(|| {
             self.payout()
                 .map_or(BinaryPayoff::Asset, BinaryPayoff::Cash)
         }) {
             BinaryPayoff::Cash(payout) => Self::cash(terms, payout),
             BinaryPayoff::Asset => Self::asset(terms),
-        }
+        }?;
+        self.monitoring.validate_replacement_history(
+            &updated.monitoring,
+            history_supplied,
+            false,
+        )?;
+        Ok(updated)
     }
 }

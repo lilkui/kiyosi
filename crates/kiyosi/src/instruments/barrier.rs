@@ -371,6 +371,10 @@ impl BarrierOption {
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// with known history unless the history is explicitly replaced or cleared.
+    /// See the [crate-level history contract](crate).
+    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     ///
@@ -391,7 +395,8 @@ impl BarrierOption {
     /// # Ok(()) }
     /// ```
     pub fn replace(&self, changes: BarrierOptionChanges) -> Result<Self> {
-        Self::new(BarrierOptionTerms {
+        let history_supplied = changes.touch_state.is_some();
+        let updated = Self::new(BarrierOptionTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
@@ -406,6 +411,12 @@ impl BarrierOption {
                 .observation_times
                 .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
-        })
+        })?;
+        self.monitoring.validate_replacement_history(
+            &updated.monitoring,
+            history_supplied,
+            false,
+        )?;
+        Ok(updated)
     }
 }

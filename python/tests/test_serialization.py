@@ -381,6 +381,8 @@ class SerializationTests(unittest.TestCase):
                 option = original.replace(
                     expiry_time=times[-1],
                     knock_out_observation_times=times,
+                    accumulated_quantity=original.accumulated_quantity,
+                    terminated=original.terminated,
                     calendar=m.all_days_calendar(),
                 )
             elif isinstance(
@@ -395,6 +397,7 @@ class SerializationTests(unittest.TestCase):
                 option = original.replace(
                     expiry_time=times[-1],
                     observations=observations,
+                    barrier_state=original.barrier_state,
                     calendar=m.all_days_calendar(),
                 )
             else:

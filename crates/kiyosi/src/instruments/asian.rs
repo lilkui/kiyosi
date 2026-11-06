@@ -178,10 +178,15 @@ macro_rules! average_option {
             ///
             /// # Errors
             ///
+            /// Returns [`Error::InvalidInput`] when historical observation terms change
+            /// with known history unless the history is explicitly replaced or cleared.
+            /// See the [crate-level history contract](crate).
+            ///
             /// Reuses constructor validation for the resulting contract. Failure leaves
             /// this value unchanged.
             pub fn replace(&self, changes: AveragePriceOptionChanges) -> Result<Self> {
-                Self::new(
+                let history_supplied = changes.realized_average.is_some();
+                let updated = Self::new(
                     changes.option_type.unwrap_or(self.option_type()),
                     changes.strike.unwrap_or(self.strike()),
                     changes.effective_time.unwrap_or(self.effective_time()),
@@ -190,7 +195,14 @@ macro_rules! average_option {
                         .unwrap_or(self.averaging_start_time()),
                     changes.expiry_time.unwrap_or(self.expiry_time()),
                     changes.realized_average.unwrap_or(self.realized_average()),
-                )
+                )?;
+                super::validate_history_replacement(
+                    self.realized_average().is_some(),
+                    history_supplied,
+                    self.averaging_start_time() != updated.averaging_start_time(),
+                    "realized_average",
+                )?;
+                Ok(updated)
             }
             /// Creates an average-price contract with explicit history.
             ///

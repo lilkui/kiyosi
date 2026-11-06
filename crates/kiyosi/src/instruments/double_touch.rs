@@ -289,10 +289,15 @@ impl DoubleTouchOption {
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// with known history unless the history is explicitly replaced or cleared.
+    /// See the [crate-level history contract](crate).
+    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: DoubleTouchOptionChanges) -> Result<Self> {
-        Self::cash(
+        let history_supplied = changes.touch_state.is_some();
+        let updated = Self::cash(
             DoubleTouchOptionTerms {
                 calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
                 effective_time: changes.effective_time.unwrap_or(self.effective_time()),
@@ -310,6 +315,12 @@ impl DoubleTouchOption {
                 touch_state: changes.touch_state.unwrap_or(self.touch_state()),
             },
             changes.payout.unwrap_or(self.payout()),
-        )
+        )?;
+        self.monitoring.validate_replacement_history(
+            &updated.monitoring,
+            history_supplied,
+            self.upper_barrier().to_bits() != updated.upper_barrier().to_bits(),
+        )?;
+        Ok(updated)
     }
 }

@@ -330,10 +330,15 @@ impl DoubleBarrierOption {
     ///
     /// # Errors
     ///
+    /// Returns [`crate::Error::InvalidInput`] when historical observation terms change
+    /// with known history unless the history is explicitly replaced or cleared.
+    /// See the [crate-level history contract](crate).
+    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: DoubleBarrierOptionChanges) -> Result<Self> {
-        Self::new(DoubleBarrierOptionTerms {
+        let history_supplied = changes.touch_state.is_some();
+        let updated = Self::new(DoubleBarrierOptionTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             option_type: changes.option_type.unwrap_or(self.option_type()),
             strike: changes.strike.unwrap_or(self.strike()),
@@ -349,6 +354,12 @@ impl DoubleBarrierOption {
                 .observation_times
                 .unwrap_or_else(|| self.observation_times().to_vec()),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
-        })
+        })?;
+        self.lower.monitoring.validate_replacement_history(
+            &updated.lower.monitoring,
+            history_supplied,
+            self.upper_barrier().to_bits() != updated.upper_barrier().to_bits(),
+        )?;
+        Ok(updated)
     }
 }

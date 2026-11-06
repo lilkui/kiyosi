@@ -119,6 +119,10 @@ impl RangeAccrualOption {
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// with known history unless the history is explicitly replaced or cleared.
+    /// See the [crate-level history contract](crate).
+    ///
     /// Returns [`crate::Error::InvalidInput`] if expiry falls on a closed date
     /// or the resulting daily observation schedule is empty.
     ///
@@ -141,10 +145,10 @@ impl RangeAccrualOption {
     /// # Ok(()) }
     /// ```
     pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
-        let mut updated = self.clone();
-        updated.terms.calendar = calendar;
-        updated.validate_calendar()?;
-        Ok(updated)
+        self.replace(RangeAccrualOptionChanges {
+            calendar: Some(calendar),
+            ..Default::default()
+        })
     }
 
     fn validate_calendar(&self) -> Result<()> {
@@ -325,10 +329,15 @@ impl RangeAccrualOption {
     ///
     /// # Errors
     ///
+    /// Returns [`Error::InvalidInput`] when historical observation terms change
+    /// with known history unless the history is explicitly replaced or cleared.
+    /// See the [crate-level history contract](crate).
+    ///
     /// Reuses constructor validation for the resulting contract. Failure leaves
     /// this value unchanged.
     pub fn replace(&self, changes: RangeAccrualOptionChanges) -> Result<Self> {
-        Self::new(RangeAccrualTerms {
+        let history_supplied = changes.realized_hit_count.is_some();
+        let updated = Self::new(RangeAccrualTerms {
             calendar: changes.calendar.unwrap_or_else(|| self.calendar().clone()),
             notional: changes.notional.unwrap_or(self.notional()),
             annual_coupon_rate: changes
@@ -344,6 +353,35 @@ impl RangeAccrualOption {
             realized_hit_count: changes
                 .realized_hit_count
                 .unwrap_or(self.realized_hit_count()),
-        })
+        })?;
+        let daily_schedule = |option: &Self| {
+            crate::ObservationSchedule::daily(
+                option.effective_time(),
+                option.expiry_time(),
+                option.calendar(),
+                false,
+                option.observation_clock_time(),
+            )
+        };
+        super::validate_history_replacement(
+            self.realized_hit_count().is_some(),
+            history_supplied,
+            (
+                self.lower_bound(),
+                self.upper_bound(),
+                self.effective_time(),
+                self.expiry_time(),
+                self.observation_clock_time(),
+            ) != (
+                updated.lower_bound(),
+                updated.upper_bound(),
+                updated.effective_time(),
+                updated.expiry_time(),
+                updated.observation_clock_time(),
+            ) || self.calendar() != updated.calendar()
+                && daily_schedule(self)? != daily_schedule(&updated)?,
+            "realized_hit_count",
+        )?;
+        Ok(updated)
     }
 }

@@ -234,6 +234,80 @@ NULLABLE = {
 
 
 class ContractReplacementTests(unittest.TestCase):
+    def test_reactivation_with_changed_rules_requires_explicit_quantity(self):
+        active = next(
+            value for value in contracts() if isinstance(value, i.Accumulator)
+        )
+        settled = active.replace_history(terminated=True)
+        with self.assertRaises(InvalidInputError):
+            settled.replace(terminated=False, daily_quantity=2)
+        reactivated = settled.replace(
+            terminated=False, daily_quantity=2, accumulated_quantity=0
+        )
+        self.assertFalse(reactivated.terminated)
+        self.assertEqual(reactivated.accumulated_quantity, 0)
+        self.assertTrue(settled.replace(daily_quantity=2).terminated)
+        self.assertTrue(settled.terminated)
+        self.assertEqual(settled.accumulated_quantity, 3)
+
+    def test_event_changes_require_an_explicit_history_choice(self):
+        for original in contracts():
+            if hasattr(original, "realized_average"):
+                original = original.replace_history(realized_average=100)
+            history = {
+                field: getattr(original, field)
+                for field in (
+                    "touch_state",
+                    "barrier_state",
+                    "realized_average",
+                    "realized_hit_count",
+                    "accumulated_quantity",
+                    "terminated",
+                )
+                if hasattr(original, field)
+            }
+            if hasattr(original, "barrier_level"):
+                updates = {"barrier_level": original.barrier_level + 5}
+            elif hasattr(original, "lower_barrier"):
+                updates = {"lower_barrier": original.lower_barrier - 5}
+            elif isinstance(original, i.Accumulator):
+                updates = {"daily_quantity": original.daily_quantity + 1}
+            elif isinstance(original, i.RangeAccrualOption):
+                updates = {"lower_bound": original.lower_bound - 5}
+            elif hasattr(original, "averaging_start_time"):
+                from datetime import timedelta
+
+                updates = {
+                    "averaging_start_time": original.averaging_start_time
+                    + timedelta(days=1)
+                }
+            else:
+                updates = {
+                    "observations": [
+                        r.replace(knock_out_level=r.knock_out_level + 5)
+                        for r in original.observations
+                    ]
+                }
+            with self.subTest(contract=type(original).__name__):
+                saved = original.replace()
+                with self.assertRaises(InvalidInputError):
+                    original.replace(**updates)
+                kept = original.replace(**updates, **history)
+                self.assertEqual(
+                    {field: getattr(kept, field) for field in history}, history
+                )
+                cleared_history = {
+                    field: False if field == "terminated" else None for field in history
+                }
+                cleared = original.replace(**updates, **cleared_history)
+                self.assertEqual(
+                    {field: getattr(cleared, field) for field in history},
+                    cleared_history,
+                )
+                unknown = original.replace(**cleared_history)
+                self.assertEqual(unknown.replace(**updates), cleared)
+                self.assertEqual(original, saved)
+
     def test_every_field_replaces_without_mutating_omitted_terms_or_history(self):
         from kiyosi._serialization import _reduce
 
@@ -281,6 +355,16 @@ class ContractReplacementTests(unittest.TestCase):
                         (i.GeometricAveragePriceOption, i.ArithmeticAveragePriceOption),
                     ):
                         updates["averaging_start_time"] = value
+                    for field in (
+                        "touch_state",
+                        "barrier_state",
+                        "realized_average",
+                        "realized_hit_count",
+                        "accumulated_quantity",
+                        "terminated",
+                    ):
+                        if hasattr(original, field):
+                            updates.setdefault(field, getattr(original, field))
                     changed = original.replace(**updates)
                     if (
                         isinstance(original, i.DoubleTouchOption)
@@ -309,7 +393,7 @@ class ContractReplacementTests(unittest.TestCase):
                         self.assertEqual(changed, factory(**expected))
                     if name in NULLABLE:
                         self.assertIsNone(
-                            getattr(original.replace(**{name: None}), name)
+                            getattr(original.replace(**(updates | {name: None})), name)
                         )
                     self.assertEqual(original, factory(**initial))
 
@@ -392,7 +476,9 @@ class ContractReplacementTests(unittest.TestCase):
                     with self.assertRaises(InvalidInputError):
                         original.replace(observation_times=[END])
                     scheduled = original.replace(
-                        observation_mode="scheduled", observation_times=[END]
+                        observation_mode="scheduled",
+                        observation_times=[END],
+                        touch_state=original.touch_state,
                     )
                     self.assertEqual(scheduled.observation_times, [END])
                     self.assertEqual(scheduled.observation_mode, "scheduled")
@@ -404,7 +490,11 @@ class ContractReplacementTests(unittest.TestCase):
             value for value in contracts() if isinstance(value, i.PhoenixOption)
         )
         records = [i.AutocallableObservation(END, 115)]
-        changed = note.replace(observations=records, coupon_per_period=0.02)
+        changed = note.replace(
+            observations=records,
+            coupon_per_period=0.02,
+            barrier_state=note.barrier_state,
+        )
         records.clear()
         self.assertEqual(changed.knock_out_levels, [115])
         self.assertEqual(changed.coupon_per_period, 0.02)

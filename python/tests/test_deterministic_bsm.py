@@ -419,7 +419,9 @@ class DeterministicBsmTests(unittest.TestCase):
         engine = pricing.FiniteDifferenceBinaryBarrierEngine()
         self.assertAlmostEqual(engine.price(continuous, context), 7 / 1.05, delta=1e-10)
         scheduled = continuous.replace(
-            observation_mode="scheduled", observation_times=[end]
+            observation_mode="scheduled",
+            observation_times=[end],
+            touch_state=continuous.touch_state,
         )
         self.assertEqual(engine.price(scheduled, context), 0)
 

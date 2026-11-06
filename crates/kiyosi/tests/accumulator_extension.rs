@@ -415,7 +415,14 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             None,
         )
         .unwrap();
-        let holiday_option = option.replace_calendar(holidays).unwrap();
+        let holiday_option = option
+            .replace(AccumulatorChanges {
+                calendar: Some(holidays),
+                accumulated_quantity: Some(option.accumulated_quantity()),
+                terminated: Some(option.terminated()),
+                ..Default::default()
+            })
+            .unwrap();
         let result = monte_carlo
             .price_with_statistics(&holiday_option, &context)
             .unwrap();

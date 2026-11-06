@@ -292,7 +292,9 @@ class ObservationClockTests(unittest.TestCase):
                 }
             ),
         )
-        expiry = daily.replace(knock_in_observation_mode="at_expiry")
+        expiry = daily.replace(
+            knock_in_observation_mode="at_expiry", barrier_state=daily.barrier_state
+        )
         expected = 1 + 0.12 * 9 / (365 * 24)
         for engine in (
             MonteCarloAutocallableEngine(path_count=128, seed=42),

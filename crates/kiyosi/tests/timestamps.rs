@@ -500,6 +500,7 @@ fn off_clock_maturity_settles_without_additional_knock_in_in_every_engine() -> R
     terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
     let daily = SnowballOption::new(terms)?;
     let at_expiry = daily.replace(SnowballOptionChanges {
+        barrier_state: Some(daily.barrier_state()),
         knock_in_observation_mode: Some(KnockInObservationMode::AtExpiry),
         ..Default::default()
     })?;

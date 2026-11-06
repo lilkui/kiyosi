@@ -333,7 +333,9 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                     ):
                         prices = [
                             engine.price(
-                                note.replace(calendar=calendar),
+                                note.replace(
+                                    calendar=calendar, barrier_state=note.barrier_state
+                                ),
                                 PricingContext(
                                     model_parameters=parameters,
                                     spot_price=100,
