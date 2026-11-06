@@ -58,6 +58,7 @@ For autocallables, ``barrier_state=None`` means unknown history;
 ``barrier_state="no_event"`` records known absence of prior events. Accumulators
 use ``accumulated_quantity=None`` for unknown history and require an explicit
 quantity after a strictly prior accumulation or knock-out observation; zero means no outstanding units.
+Active accumulators reject positive quantity before a strictly prior accumulation observation.
 Set ``terminated=True`` for a previously settled accumulator knock-out. Pricing
 requires a knock-out observation strictly before valuation, including for
 terminated contracts; an empty knock-out schedule cannot have this history. Its remaining price

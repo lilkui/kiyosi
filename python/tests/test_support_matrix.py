@@ -1,7 +1,7 @@
 """CPU product/engine dispatch and terminal contracts through the public API."""
 
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import time as clock_time
 
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
@@ -120,7 +120,8 @@ def terminal_cases():
         (
             ins.Accumulator(
                 observation_clock_time=clock_time(),
-                **dates,
+                effective_time=dates["effective_time"] - timedelta(days=1),
+                expiry_time=dates["expiry_time"],
                 strike=100,
                 knock_out_level=120,
                 daily_quantity=1,

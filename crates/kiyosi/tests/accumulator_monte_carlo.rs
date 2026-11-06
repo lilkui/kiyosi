@@ -35,14 +35,14 @@ fn current_events_settle_before_sampling_with_strict_acceleration() {
         assert_eq!(estimate.confidence_interval(), Some((expected, expected)));
     }
     assert_eq!(
-        engine.price(&option, &market(110.0, day(1, 1))).unwrap(),
+        engine.price(&option, &market(110.0, day(1, 2))).unwrap(),
         30.0
     );
 }
 
 #[test]
 fn scalar_price_survives_confidence_interval_overflow() {
-    let start = day(1, 1);
+    let start = Date::new(2024, 12, 31).unwrap().start_of_day();
     let end = day(1, 2);
     let option = Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(1.0),
@@ -52,7 +52,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.01, 0.0, 1.0).unwrap(),
         100.0,
-        start,
+        day(1, 1),
     )
     .unwrap();
     let engine = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
@@ -92,7 +92,7 @@ fn simulated_cashflows_match_quadrature_with_sampling_error() {
             100.25,
             Timestamp::new(day(1, 3).date(), 12, 0, 0, 0).unwrap(),
         ),
-        (day(2, 3), 99.0, day(1, 1)),
+        (day(2, 3), 99.0, day(1, 2)),
         (
             day(2, 3),
             111.0,
@@ -121,7 +121,7 @@ fn simulated_cashflows_match_quadrature_with_sampling_error() {
 #[test]
 fn counts_pair_uncertainty_sobol_and_threads_preserve_the_same_samples() {
     let option = option(day(2, 3));
-    let context = market(100.25, day(1, 1));
+    let context = market(100.25, day(1, 2));
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         for antithetic in [false, true] {
             for path_count in [1, 2, 4, 1024] {
@@ -292,7 +292,7 @@ fn trading_midnights_intraday_history_and_calendar_control_purchases() {
         (day(1, 3), TradingCalendar::all_days(), -110.0),
         (
             day(1, 3),
-            TradingCalendar::new(|d| d == day(1, 6).date(), 252).unwrap(),
+            TradingCalendar::new(|d| d == day(1, 1).date() || d == day(1, 6).date(), 252).unwrap(),
             -50.0,
         ),
     ] {
@@ -380,13 +380,13 @@ fn validation_precedes_settlement_and_failures_preserve_reuse() {
         ),
         (
             option.replace_history(f64::MAX).unwrap(),
-            market(111.0, day(1, 1)),
+            market(111.0, day(1, 2)),
             (|error| matches!(error, Error::ComputationFailure(_))) as fn(Error) -> bool,
         ),
     ] {
         assert!(category(engine.price(&contract, &context).unwrap_err()));
     }
-    let context = market(110.0, day(1, 1));
+    let context = market(110.0, day(1, 2));
     for settings in [
         MonteCarloSettings {
             path_count: 0,
@@ -478,7 +478,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
     .unwrap();
     let option = option(day(1, 6));
     for spot in [100.0, 110.0] {
-        let context = market(spot, day(1, 1));
+        let context = market(spot, day(1, 2));
         let result = engine
             .price_with_greeks(&option, &context, GreeksRequest::all())
             .unwrap();
@@ -525,16 +525,16 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
     let zero_rates = PricingContext::new(
         BlackScholesMertonParameters::new(0.0, 0.0, 0.2).unwrap(),
         90.0,
-        day(1, 1),
+        day(1, 2),
     )
     .unwrap();
     for (contract, context, expected) in [
-        (option.clone(), market(110.0, day(1, 1)), 30.0),
+        (option.clone(), market(110.0, day(1, 2)), 30.0),
         (option.clone(), expired, -50.0),
         (fixed.clone(), zero_rates, -30.0),
         (
             fixed.replace_history(0.0).unwrap(),
-            market(100.25, day(1, 1)),
+            market(100.25, day(1, 2)),
             0.0,
         ),
     ] {
@@ -572,7 +572,7 @@ fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
     let option = option(end)
         .replace_calendar(TradingCalendar::all_days())
         .unwrap();
-    let context = market(100.25, day(1, 1));
+    let context = market(100.25, day(1, 2));
     let engine = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
         path_count: 2,
         seed: Some(42),
@@ -602,6 +602,8 @@ fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
         end,
         (end).time_of_day(),
     ))
+    .unwrap()
+    .replace_history(0.0)
     .unwrap();
     assert_eq!(engine.price(&zero, &context).unwrap(), 0.0);
 }

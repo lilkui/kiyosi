@@ -37,6 +37,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         note = contract(
             datetime(2025, 1, 2), knock_out=200, acceleration=1, daily=0, quantity=1
         )
+        note = note.replace(effective_time=START - timedelta(days=1))
         context = market(spot=100, valuation=START, volatility=1, rate=0.01, dividend=0)
         engine = MC(path_count=2, seed=0, thread_count=1)
         quantity = 6e307
@@ -67,7 +68,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             ),
             (
                 contract(),
-                market(99, START),
+                market(99, START + timedelta(days=1)),
                 pricing.QuadratureAccumulatorEngine().price,
             ),
             (contract(), market(111), pricing.QuadratureAccumulatorEngine().price),
@@ -274,7 +275,9 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         )
         self.assertAlmostEqual(sigma, 0.2, delta=1e-6)
         for spot in (100, 110):
-            boundary = engine.price_with_greeks(note, market(spot, START), greeks="all")
+            boundary = engine.price_with_greeks(
+                note, market(spot, START + timedelta(days=1)), greeks="all"
+            )
             for greek in (
                 "delta",
                 "gamma",
@@ -317,7 +320,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
             ),
             (
                 contract(quantity=sys.float_info.max),
-                market(111, START),
+                market(111, START + timedelta(days=1)),
                 ComputationFailureError,
             ),
         ):
@@ -358,9 +361,13 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                 ),
             )
         for instrument, fixed, expected in (
-            (note, market(110, START), 30),
+            (note, market(110, START + timedelta(days=1)), 30),
             (note, market(90, note.expiry_time), -50),
-            (contract(daily=0), market(90, START, rate=0, dividend=0), -30),
+            (
+                contract(daily=0),
+                market(90, START + timedelta(days=1), rate=0, dividend=0),
+                -30,
+            ),
             (contract(daily=0, quantity=0), context, 0),
             (contract(knock_out=100, acceleration=0, quantity=0), context, 0),
         ):
@@ -383,13 +390,13 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                     engine, note, context, quote
                 ),
             )
-        self.assertEqual(engine.price(note, market(110, START)), 30)
+        self.assertEqual(engine.price(note, market(110, START + timedelta(days=1))), 30)
         self.assertEqual(note.accumulated_quantity, 3)
 
     def test_sobol_dimension_limit_preserves_known_settlements(self):
         engine = MC(path_count=2, seed=42, sampling="sobol")
         note = contract(datetime(2090, 1, 2))
-        context = market(valuation=START)
+        context = market(valuation=START + timedelta(days=1))
         note = note.replace(calendar=all_days_calendar())
         self.assert_rejection(InvalidInputError, lambda: engine.price(note, context))
         result = engine.price_with_statistics(note, context.replace(spot_price=110))

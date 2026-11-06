@@ -200,7 +200,7 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
     }
     assert_eq!(
         engine
-            .price(&option, &market(110.0, day(1, 1), 0.2, 0.04, 0.01))
+            .price(&option, &market(110.0, day(1, 2), 0.2, 0.04, 0.01))
             .unwrap(),
         30.0
     );
@@ -549,7 +549,7 @@ fn analytic_availability_and_implied_volatility_follow_shared_contract() {
         .unwrap()
         .replace_history(3.0)
         .unwrap();
-    let boundary = market(100.0, day(1, 1), 0.2, 0.04, 0.01);
+    let boundary = market(100.0, day(1, 2), 0.2, 0.04, 0.01);
     let result = engine
         .price_with_greeks(&option, &boundary, GreeksRequest::all())
         .unwrap();
@@ -759,6 +759,15 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
         let first = if start == day(1, 4) { day(1, 6) } else { start };
         let current = market(100.0, first, 0.2, 0.0, 0.0);
         assert!(engine.price(&option, &current).is_ok());
+        for valuation in [start, first] {
+            assert!(matches!(
+                engine.price(
+                    &option.replace_history(3.0).unwrap(),
+                    &market(100.0, valuation, 0.2, 0.0, 0.0),
+                ),
+                Err(Error::InvalidInput(_))
+            ));
+        }
         let prior = current
             .replace(PricingContextChanges {
                 valuation_time: Some(Timestamp::new(first.date(), 12, 0, 0, 0).unwrap()),

@@ -165,7 +165,7 @@ fn terminal_events_respect_direction_schedule_and_inclusive_knock_out() {
     }
     for direction in [OptionType::Call, OptionType::Put] {
         let mut t = terms(direction, Some(Vec::new()));
-        t.effective_time = day(6);
+        t.effective_time = day(3);
         t.daily_quantity = 0.25;
         t.acceleration_factor = 0.5;
         t.accumulated_quantity = Some(0.5);

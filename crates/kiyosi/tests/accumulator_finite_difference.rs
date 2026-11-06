@@ -152,7 +152,7 @@ fn settlement_thresholds_history_replacement_and_expiry_greeks_are_exact() {
         }
     }
     assert_eq!(
-        engine.price(&option, &market(110.0, day(1, 1))).unwrap(),
+        engine.price(&option, &market(110.0, day(1, 2))).unwrap(),
         30.0
     );
     for value in [-1.0, f64::NAN, f64::INFINITY] {
@@ -224,12 +224,12 @@ fn validation_order_domains_and_failures_preserve_engine_and_inputs() {
     .unwrap();
     assert!(matches!(
         clipped
-            .price(&option, &market(100.0, day(1, 1)))
+            .price(&option, &market(100.0, day(1, 2)))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
     assert_eq!(
-        clipped.price(&option, &market(110.0, day(1, 1))).unwrap(),
+        clipped.price(&option, &market(110.0, day(1, 2))).unwrap(),
         30.0
     );
     let explicit = FiniteDifferenceAccumulatorEngine::new(FiniteDifferenceSettings {
@@ -240,7 +240,7 @@ fn validation_order_domains_and_failures_preserve_engine_and_inputs() {
     .unwrap();
     assert!(matches!(
         explicit
-            .price(&option, &market(100.0, day(1, 1)))
+            .price(&option, &market(100.0, day(1, 2)))
             .unwrap_err(),
         Error::InvalidInput(_)
     ));
@@ -403,7 +403,7 @@ fn spline_and_mixed_greeks_match_independent_public_repricing() {
         );
     }
     let boundary = engine
-        .price_with_greeks(&option, &market(100.0, day(1, 1)), GreeksRequest::all())
+        .price_with_greeks(&option, &market(100.0, day(1, 2)), GreeksRequest::all())
         .unwrap();
     for greek in [
         Greek::Delta,
@@ -431,7 +431,15 @@ fn node_curves_price_fixed_holdings_and_only_future_cashflows_require_coverage()
     let option = Accumulator::new(AccumulatorTerms {
         daily_quantity: 0.0,
         accumulated_quantity: Some(2.0),
-        ..AccumulatorTerms::new(100.0, 399.0, 0.0, 1.0, day(1, 1), end, (end).time_of_day())
+        ..AccumulatorTerms::new(
+            100.0,
+            399.0,
+            0.0,
+            1.0,
+            Date::new(2024, 12, 31).unwrap().start_of_day(),
+            end,
+            (end).time_of_day(),
+        )
     })
     .unwrap();
     let engine = FiniteDifferenceAccumulatorEngine::new(FiniteDifferenceSettings {
@@ -577,7 +585,7 @@ fn implied_volatility_recovers_quotes_and_preserves_solver_failures_and_identifi
         .unwrap_err(),
         Error::NonConvergence(_)
     ));
-    for context in [market(110.0, day(1, 1)), market(90.0, day(1, 6))] {
+    for context in [market(110.0, day(1, 2)), market(90.0, day(1, 6))] {
         assert!(matches!(
             implied_volatility(
                 &engine,
@@ -608,7 +616,7 @@ fn implied_volatility_recovers_quotes_and_preserves_solver_failures_and_identifi
         let context = PricingContext::new(
             BlackScholesMertonParameters::new(0.0, 0.0, 0.2).unwrap(),
             90.0,
-            day(1, 1),
+            day(1, 2),
         )
         .unwrap();
         assert!(matches!(

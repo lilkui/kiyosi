@@ -3,7 +3,7 @@
 import json
 import math
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import time as clock_time
 from pathlib import Path
 
@@ -63,7 +63,8 @@ def contracts():
     result = {
         "accumulator": ins.Accumulator(
             observation_clock_time=clock_time(),
-            **dates,
+            effective_time=START - timedelta(days=1),
+            expiry_time=END,
             strike=100,
             knock_out_level=110,
             daily_quantity=1,

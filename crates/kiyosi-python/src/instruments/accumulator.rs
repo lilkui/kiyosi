@@ -25,6 +25,7 @@ use pyo3::types::PyAny;
 /// accumulated_quantity : float or None, optional
 ///     Outstanding quantity strictly before valuation. None means unknown; zero means no units.
 ///     Explicit history is required after any prior accumulation or knock-out observation.
+///     Pricing rejects positive quantity before a strictly prior accumulation unless terminated.
 /// terminated : bool, optional
 ///     Whether a prior knock-out has settled; defaults to False. Pricing requires
 ///     a knock-out observation strictly before valuation. Stored quantity

@@ -110,7 +110,8 @@ impl From<Option<f64>> for AccumulatorHistoryChanges {
 /// Pricing rejects this state unless a knock-out observation strictly precedes valuation.
 /// Accrued quantity is ignored for terminated contracts. History is caller asserted,
 /// and is required after any strictly prior accumulation or knock-out observation. `None` means unknown;
-/// an explicit zero records no outstanding units. No quantity is inferred from elapsed dates.
+/// an explicit zero records no outstanding units. Active contracts reject positive quantity
+/// before a strictly prior accumulation observation. No quantity is inferred from elapsed dates.
 /// Shared reads and owning replacements support concurrent use; see [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct Accumulator {
@@ -333,6 +334,16 @@ impl Accumulator {
         if self.terminated() && !had_knock_out {
             return Err(Error::InvalidInput(
                 "termination predates knock-out observations".into(),
+            ));
+        }
+        if !self.terminated()
+            && !had_accumulation
+            && self
+                .accumulated_quantity()
+                .is_some_and(|quantity| quantity > 0.0)
+        {
+            return Err(Error::InvalidInput(
+                "accumulated_quantity predates accumulation observations".into(),
             ));
         }
         let has_prior = had_accumulation || had_knock_out;

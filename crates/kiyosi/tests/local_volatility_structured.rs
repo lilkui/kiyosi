@@ -101,7 +101,7 @@ fn constant_surface_matches_accumulator_directions_schedules_and_rate_curves() {
                         },
                         1.0,
                         2.0,
-                        date(1, 1),
+                        date(1, 1).add_days(-1).unwrap(),
                         end,
                         (end).time_of_day(),
                     )
@@ -212,7 +212,15 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
     let settled = PricingContext::new(short, 120.0, start).unwrap();
     let acc = Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(3.0),
-        ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, end, (end).time_of_day())
+        ..AccumulatorTerms::new(
+            100.0,
+            110.0,
+            1.0,
+            2.0,
+            start.add_days(-1).unwrap(),
+            end,
+            (end).time_of_day(),
+        )
     })
     .unwrap();
     let acc_engine = FiniteDifferenceAccumulatorEngine::default();
@@ -328,7 +336,15 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
     );
     let acc = Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(3.0),
-        ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, end, (end).time_of_day())
+        ..AccumulatorTerms::new(
+            100.0,
+            110.0,
+            1.0,
+            2.0,
+            start.add_days(-1).unwrap(),
+            end,
+            (end).time_of_day(),
+        )
     })
     .unwrap();
     let acc_engine = FiniteDifferenceAccumulatorEngine::default();
@@ -439,7 +455,15 @@ fn skewed_multievent_prices_supply_fixed_surface_delta_and_gamma() {
     let end = date(4, 1);
     let acc = Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(3.0),
-        ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, end, (end).time_of_day())
+        ..AccumulatorTerms::new(
+            100.0,
+            110.0,
+            1.0,
+            2.0,
+            start.add_days(-1).unwrap(),
+            end,
+            (end).time_of_day(),
+        )
     })
     .unwrap();
     let acc_engine = FiniteDifferenceAccumulatorEngine::new(FiniteDifferenceSettings {
@@ -497,7 +521,15 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
     // Python verifies the full evidence in local_volatility_structured.json.
     let acc = Accumulator::new(AccumulatorTerms {
         accumulated_quantity: Some(3.0),
-        ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, start, end, (end).time_of_day())
+        ..AccumulatorTerms::new(
+            100.0,
+            110.0,
+            1.0,
+            2.0,
+            start.add_days(-1).unwrap(),
+            end,
+            (end).time_of_day(),
+        )
     })
     .unwrap();
     let price = FiniteDifferenceAccumulatorEngine::new(settings)

@@ -109,7 +109,9 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                     result,
                     None if min(abs(spot - 100), abs(spot - 110)) <= 0.01 else quantity,
                 )
-        self.assertEqual(engine.price(option, market(110, START)), 30)
+        self.assertEqual(
+            engine.price(option, market(110, START + timedelta(days=1))), 30
+        )
         for value in (-1, math.nan, math.inf):
             self.assert_rejection(
                 InvalidInputError,
@@ -187,7 +189,9 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         engine = pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=110)
         self.assert_rejection(InvalidInputError, engine.price, option, context)
         # Immediate settlement needs no spatial domain.
-        self.assertEqual(engine.price(option, market(110, START)), 30)
+        self.assertEqual(
+            engine.price(option, market(110, START + timedelta(days=1))), 30
+        )
         self.assert_rejection(
             InvalidInputError,
             engine.price_with_greeks,
@@ -292,7 +296,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             self.assertIsNone(native.speed)
         for spot in (100, 110):
             boundary = engine.price_with_greeks(
-                option, market(spot, START), greeks="all"
+                option, market(spot, START + timedelta(days=1)), greeks="all"
             )
             for greek in (
                 "delta",
@@ -343,7 +347,9 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
                 risk_free_rate=risk, dividend_yield=dividend
             )
         )
-        option = contract(end, knock_out=399, daily=0, quantity=2)
+        option = contract(end, knock_out=399, daily=0, quantity=2).replace(
+            effective_time=START - timedelta(days=1)
+        )
         engine = pricing.FiniteDifferenceAccumulatorEngine(
             asset_upper_boundary=400, time_step_count=800
         )
@@ -395,7 +401,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             parameter_tolerance=1e-30,
         )
         for instrument, scenario in (
-            (option, market(110, START)),
+            (option, market(110, START + timedelta(days=1))),
             (option, market(90, option.expiry_time)),
             (contract(daily=0, quantity=0), market()),
             (contract(daily=0), market(90, rate=0, dividend=0)),
