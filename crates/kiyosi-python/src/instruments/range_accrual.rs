@@ -243,19 +243,4 @@ impl RangeAccrualOption {
     fn realized_hit_count(&self) -> Option<i32> {
         self.0.realized_hit_count()
     }
-
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        Ok(format!(
-            "RangeAccrualOption(notional={:?}, annual_coupon_rate={:?}, lower_bound={:?}, upper_bound={:?}, effective_time={}, expiry_time={}, realized_hit_count={}, calendar={})",
-            self.notional(),
-            self.annual_coupon_rate(),
-            self.lower_bound(),
-            self.upper_bound(),
-            self.effective_time(py)?.repr()?,
-            self.expiry_time(py)?.repr()?,
-            self.realized_hit_count()
-                .map_or_else(|| "None".into(), |n| n.to_string()),
-            crate::representation::calendar(py, self.0.calendar())?
-        ))
-    }
 }

@@ -292,6 +292,24 @@ class SerializationTests(unittest.TestCase):
         self.assertIn("standard_error=", repr(estimate))
         self.assertEqual(repr(pickle.loads(pickle.dumps(estimate))), repr(estimate))
 
+    def test_range_accrual_repr_identifies_observation_clock(self):
+        morning = i.RangeAccrualOption(
+            notional=1000,
+            annual_coupon_rate=0.12,
+            lower_bound=90,
+            upper_bound=110,
+            effective_time=START,
+            expiry_time=END,
+            observation_clock_time=clock_time(9, 0, 0, 123456),
+        )
+        afternoon = morning.replace(observation_clock_time=clock_time(15, 0, 0, 654321))
+        for option in (morning, afternoon):
+            self.assertIn(
+                f"observation_clock_time={option.observation_clock_time!r}",
+                repr(option),
+            )
+        self.assertNotEqual(repr(morning), repr(afternoon))
+
     def test_repr_bounds_large_surfaces_and_handles_extreme_curve_shifts(self):
         from datetime import timedelta
 
