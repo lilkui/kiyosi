@@ -549,6 +549,14 @@ class PackageTests(unittest.TestCase):
             ),
         ):
             with self.subTest(contract=cls.__name__):
+                self.assertIs(
+                    inspect.signature(cls).parameters["observation_clock_time"].default,
+                    inspect.Parameter.empty,
+                )
+                with self.assertRaises(TypeError):
+                    cls(**common, **extra)
+                with self.assertRaises(kiyosi.InvalidInputError):
+                    cls(observation_clock_time=None, **common, **extra)
                 note = cls(observation_clock_time=clock_time(), **common, **extra)
                 self.assertEqual(note.knock_in_observation_mode, "every_trading_day")
                 default = (
@@ -567,11 +575,22 @@ class PackageTests(unittest.TestCase):
                     ),
                 )
                 self.assertNotEqual(
-                    note, cls(**common, **extra, knock_in_observation_mode="at_expiry")
+                    note,
+                    cls(
+                        observation_clock_time=None,
+                        **common,
+                        **extra,
+                        knock_in_observation_mode="at_expiry",
+                    ),
                 )
                 for invalid in (None, True, "invalid"):
                     with self.assertRaises((TypeError, ValueError)):
-                        cls(**common, **extra, knock_in_observation_mode=invalid)
+                        cls(
+                            observation_clock_time=None,
+                            **common,
+                            **extra,
+                            knock_in_observation_mode=invalid,
+                        )
 
     def test_binary_and_touch_constructors_require_explicit_terms(self):
         for cls in (

@@ -250,7 +250,9 @@ class ObservationClockTests(unittest.TestCase):
 
     def test_monitoring_replacement_requires_clock_and_clears_inactive_clock(self):
         expiry = SnowballOption(
-            knock_in_observation_mode="at_expiry", **snowball_terms()
+            observation_clock_time=None,
+            knock_in_observation_mode="at_expiry",
+            **snowball_terms(),
         )
         self.assertIsNone(expiry.observation_clock_time)
         with self.assertRaises(InvalidInputError):
