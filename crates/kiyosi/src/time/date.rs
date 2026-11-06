@@ -230,11 +230,29 @@ impl Timestamp {
         TimeOfDay(self.micros_since_midnight())
     }
 
+    /// Returns the signed Actual/365 Fixed year fraction from this instant to `end`.
+    ///
+    /// Includes elapsed microseconds and counts every day as 1/365 of a year,
+    /// including leap days. Earlier endpoints return negative fractions; equal
+    /// endpoints return zero. The result rounds to [`f64`] precision.
+    /// Both timestamps must use the same caller-selected time basis.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Date, Timestamp};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Timestamp::new(Date::new(2025, 1, 1)?, 15, 0, 0, 123_456)?;
+    /// let end = start.add_days(365)?;
+    /// assert_eq!(start.years_until(end), 1.0);
+    /// assert_eq!(end.years_until(start), -1.0);
+    /// # Ok(()) }
+    /// ```
     #[expect(
         clippy::cast_precision_loss,
         reason = "Elapsed microseconds intentionally round to fractional f64 years."
     )]
-    pub(crate) fn years_until(self, end: Self) -> f64 {
+    pub fn years_until(self, end: Self) -> f64 {
         (end.0 - self.0) as f64 / (365.0 * MICROS_PER_DAY as f64)
     }
 

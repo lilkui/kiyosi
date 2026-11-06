@@ -28,6 +28,22 @@ fn public_day_arithmetic_preserves_clocks_and_checks_bounds() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn public_year_fractions_preserve_intraday_time_and_direction() -> Result<()> {
+    let start = Timestamp::new(Date::new(2024, 2, 28)?, 23, 59, 59, 999_999)?;
+    let next = Date::new(2024, 2, 29)?.start_of_day();
+    let microsecond_years = 1.0 / (365.0 * 86_400.0 * 1_000_000.0);
+    assert_eq!(start.years_until(next), microsecond_years);
+    assert_eq!(next.years_until(start), -microsecond_years);
+    assert_eq!(start.years_until(start), 0.0);
+    assert_eq!(start.years_until(start.add_days(365)?), 1.0);
+    let last = Timestamp::new(Date::new(32767, 12, 31)?, 23, 59, 59, 999_999)?;
+    let first = Date::new(-32767, 1, 1)?.start_of_day();
+    assert!(first.years_until(last).is_finite());
+    assert_eq!(first.years_until(last), -last.years_until(first));
+    Ok(())
+}
+
 fn time(day: u32, hour: u32, microsecond: u32) -> Timestamp {
     Timestamp::new(Date::new(2025, 1, day).unwrap(), hour, 0, 0, microsecond).unwrap()
 }
