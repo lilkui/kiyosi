@@ -21,6 +21,13 @@ with weekend observations or a weekend expiry that requires a trading day must
 receive the appropriate calendar at construction; replacement cannot repair a
 constructor rejection. Replacement, coupon shifts and pickle
 preserve the contract calendar.
+Inspect a range accrual's ``observation_schedule``, an accumulator's
+``accumulation_schedule`` and ``knock_out_observation_schedule``, or an
+autocallable's ``knock_in_observation_schedule`` for owned whole-life schedules.
+Daily knock-in and accumulation include the effective instant; range accruals
+exclude it. Expiry-only knock-in returns one observation; binary snowballs
+return None because they have no knock-in. Schedules retain their timestamps
+independently of their contract and are not filtered by history.
 Explicit observations use their supplied timestamps. Automatic observations require
 ``observation_clock_time``, a timezone-free ``datetime.time`` with microsecond precision.
 They are filtered against the full contract bounds. Snowballs and accumulators

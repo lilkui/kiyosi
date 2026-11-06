@@ -32,6 +32,10 @@
 //! Barrier and touch contracts, range accruals, accumulators and autocallables own their observation calendars
 //! (weekdays by default). Set `terms.calendar` before construction to validate
 //! observations against a custom calendar. Constructors validate immediately.
+//! Inspect [`RangeAccrualOption::observation_schedule`],
+//! [`Accumulator::accumulation_schedule`], [`Accumulator::knock_out_observation_schedule`]
+//! and [`AutocallableNote::knock_in_observation_schedule`] for owned whole-life
+//! schedules using the same contractual observation rules as pricing.
 //! `replace_calendar` amends an existing validated contract and borrows the original,
 //! preserving it on success and failure, like `replace`. Both validate independently
 //! of [`PricingContext`].

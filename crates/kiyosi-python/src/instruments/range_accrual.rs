@@ -203,6 +203,15 @@ impl RangeAccrualOption {
         crate::conversions::python_clock_time(py, self.0.observation_clock_time())
     }
 
+    /// Returns an owned schedule of daily range observations, excluding the effective instant.
+    ///
+    /// Applies the contract calendar and clock through expiry, independently of
+    /// supplied history. Payment adds no observation.
+    #[getter]
+    fn observation_schedule(&self) -> PyResult<crate::schedule::ObservationSchedule> {
+        domain(self.0.observation_schedule()).map(crate::schedule::ObservationSchedule)
+    }
+
     /// Returns an owned copy of the contract's observation calendar.
     #[getter]
     fn calendar(&self) -> TradingCalendar {

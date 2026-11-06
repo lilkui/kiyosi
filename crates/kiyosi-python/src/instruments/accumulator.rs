@@ -256,6 +256,24 @@ impl Accumulator {
         crate::conversions::python_clock_time(py, self.0.observation_clock_time())
     }
 
+    /// Returns an owned schedule of daily accumulation opportunities.
+    ///
+    /// Includes the effective instant when it matches the contract clock and
+    /// calendar; expiry adds no observation. Coincident knock-out can prevent accumulation.
+    #[getter]
+    fn accumulation_schedule(&self) -> PyResult<crate::schedule::ObservationSchedule> {
+        domain(self.0.accumulation_schedule()).map(crate::schedule::ObservationSchedule)
+    }
+
+    /// Returns an owned schedule resolving daily or explicit knock-out monitoring.
+    ///
+    /// An empty explicit list disables knock-out. Supplied history does not
+    /// filter this whole-life schedule.
+    #[getter]
+    fn knock_out_observation_schedule(&self) -> PyResult<crate::schedule::ObservationSchedule> {
+        domain(self.0.knock_out_observation_schedule()).map(crate::schedule::ObservationSchedule)
+    }
+
     /// Returns an owned copy of the contract's observation calendar.
     #[getter]
     fn calendar(&self) -> TradingCalendar {

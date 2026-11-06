@@ -907,6 +907,50 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
             })
     }
 
+    /// Returns an owned knock-in schedule, or `None` for products without knock-in.
+    ///
+    /// Daily monitoring includes the effective instant at the contractual clock
+    /// on open dates. Expiry-only monitoring returns exactly the expiry instant.
+    /// History does not filter this whole-life schedule. Knock-out and coupon
+    /// observations remain available through [`Self::observations`].
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`crate::ObservationSchedule`] validation and time-range errors.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from custom calendar predicates.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{AutocallableObservation, Date, SnowballOption, SnowballTerms, TimeOfDay};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 6)?.start_of_day();
+    /// let end = start.add_days(2)?;
+    /// let note = SnowballOption::new(SnowballTerms::new(
+    ///     0.1, 100.0, 80.0, 100.0, 0.0, start, end,
+    ///     vec![AutocallableObservation::new(end, 110.0)?], Some(TimeOfDay::new(0, 0, 0, 0)?)))?;
+    /// assert_eq!(note.knock_in_observation_schedule()?.map(|s| s.len()), Some(3));
+    /// # Ok(()) }
+    /// ```
+    pub fn knock_in_observation_schedule(&self) -> Result<Option<crate::ObservationSchedule>> {
+        match self.view().knock_in {
+            None => Ok(None),
+            Some(ki) if ki.observation_mode == KnockInObservationMode::AtExpiry => {
+                crate::ObservationSchedule::new(
+                    vec![self.expiry_time()],
+                    self.effective_time(),
+                    self.expiry_time(),
+                    self.calendar(),
+                )
+                .map(Some)
+            }
+            Some(_) => self.daily_observation_schedule().map(Some),
+        }
+    }
+
     pub(crate) fn daily_observation_schedule(&self) -> Result<crate::ObservationSchedule> {
         match self.observation_clock_time() {
             Some(clock) => crate::ObservationSchedule::daily(

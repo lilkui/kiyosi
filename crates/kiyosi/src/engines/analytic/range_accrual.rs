@@ -65,13 +65,7 @@ impl AnalyticRangeAccrualEngine {
         crate::instruments::monitoring::validate_life(option, context)?;
         let valuation = context.valuation_time();
         let expiry = option.expiry_time();
-        let schedule = crate::ObservationSchedule::daily(
-            option.effective_time(),
-            option.expiry_time(),
-            option.calendar(),
-            false,
-            option.observation_clock_time(),
-        )?;
+        let schedule = option.observation_schedule()?;
         let dates = schedule.times();
         let first = dates.partition_point(|date| *date < valuation);
         if (first != 0 && option.realized_hit_count().is_none())
@@ -157,14 +151,7 @@ impl PricingEngine<RangeAccrualOption> for AnalyticRangeAccrualEngine {
         context: &PricingContext,
     ) -> bool {
         option.annual_coupon_rate() != 0.0
-            && crate::ObservationSchedule::daily(
-                option.effective_time(),
-                option.expiry_time(),
-                option.calendar(),
-                false,
-                option.observation_clock_time(),
-            )
-            .map_or(true, |schedule| {
+            && option.observation_schedule().map_or(true, |schedule| {
                 schedule
                     .times()
                     .iter()

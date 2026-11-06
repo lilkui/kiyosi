@@ -155,15 +155,7 @@ impl RangeAccrualOption {
         if !self.calendar().is_trading_day(self.expiry_time().date()) {
             return Err(Error::InvalidInput("expiry must be a trading day".into()));
         }
-        if crate::ObservationSchedule::daily(
-            self.effective_time(),
-            self.expiry_time(),
-            self.calendar(),
-            false,
-            self.observation_clock_time(),
-        )?
-        .is_empty()
-        {
+        if self.observation_schedule()?.is_empty() {
             return Err(Error::InvalidInput(
                 "range accrual requires at least one observation".into(),
             ));
@@ -216,6 +208,41 @@ impl RangeAccrualOption {
     pub fn observation_clock_time(&self) -> TimeOfDay {
         self.terms.observation_clock_time
     }
+    /// Returns an owned schedule of the contract's daily range observations.
+    ///
+    /// Excludes the effective instant, includes observations through expiry and
+    /// applies the contractual clock and calendar. Payment adds no observation.
+    /// The returned schedule is independent of this contract and its history.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`crate::ObservationSchedule`] time-range errors.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from custom calendar predicates.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Date, RangeAccrualOption, RangeAccrualTerms, TimeOfDay};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 6)?.start_of_day();
+    /// let clock = TimeOfDay::new(0, 0, 0, 0)?;
+    /// let option = RangeAccrualOption::new(RangeAccrualTerms::new(
+    ///     1000.0, 0.12, 90.0, 110.0, start, start.add_days(2)?, clock))?;
+    /// assert_eq!(option.observation_schedule()?.times(), &[start.add_days(1)?, start.add_days(2)?]);
+    /// # Ok(()) }
+    /// ```
+    pub fn observation_schedule(&self) -> Result<crate::ObservationSchedule> {
+        crate::ObservationSchedule::daily(
+            self.effective_time(),
+            self.expiry_time(),
+            self.calendar(),
+            false,
+            self.observation_clock_time(),
+        )
+    }
     /// Returns hits strictly before valuation; see [`Self::new`].
     pub fn realized_hit_count(&self) -> Option<i32> {
         self.terms.realized_hit_count
@@ -242,14 +269,7 @@ impl OptionContract for RangeAccrualOption {
             .as_bsm()
             .is_ok_and(|model| model.volatility() == 0.0)
             && self.annual_coupon_rate() != 0.0
-            && crate::ObservationSchedule::daily(
-                self.effective_time(),
-                self.expiry_time(),
-                self.calendar(),
-                false,
-                self.observation_clock_time(),
-            )
-            .is_ok_and(|schedule| {
+            && self.observation_schedule().is_ok_and(|schedule| {
                 schedule
                     .times()
                     .iter()
@@ -280,13 +300,7 @@ impl OptionContract for RangeAccrualOption {
         before: Timestamp,
         after: Timestamp,
     ) -> bool {
-        let Ok(schedule) = crate::ObservationSchedule::daily(
-            self.effective_time(),
-            self.expiry_time(),
-            self.calendar(),
-            false,
-            self.observation_clock_time(),
-        ) else {
+        let Ok(schedule) = self.observation_schedule() else {
             return false;
         };
         !schedule
@@ -354,15 +368,7 @@ impl RangeAccrualOption {
                 .realized_hit_count
                 .unwrap_or(self.realized_hit_count()),
         })?;
-        let daily_schedule = |option: &Self| {
-            crate::ObservationSchedule::daily(
-                option.effective_time(),
-                option.expiry_time(),
-                option.calendar(),
-                false,
-                option.observation_clock_time(),
-            )
-        };
+
         super::validate_history_replacement(
             self.realized_hit_count().is_some(),
             history_supplied,
@@ -379,7 +385,7 @@ impl RangeAccrualOption {
                 updated.expiry_time(),
                 updated.observation_clock_time(),
             ) || self.calendar() != updated.calendar()
-                && daily_schedule(self)? != daily_schedule(&updated)?,
+                && self.observation_schedule()? != updated.observation_schedule()?,
             "realized_hit_count",
         )?;
         Ok(updated)

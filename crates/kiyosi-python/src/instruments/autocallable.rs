@@ -50,6 +50,15 @@ macro_rules! autocallable_properties {
                     .map(AutocallableObservation)
                     .collect()
             }
+            /// Returns an owned whole-life knock-in schedule, or None without knock-in.
+            ///
+            /// Daily monitoring includes the effective instant at the contractual clock
+            /// on open dates. Expiry-only monitoring returns just expiry. Observations
+            /// for knock-out and coupons remain available through observations.
+            #[getter]
+            fn knock_in_observation_schedule(&self) -> PyResult<Option<crate::schedule::ObservationSchedule>> {
+                Ok(domain(self.0.knock_in_observation_schedule())?.map(crate::schedule::ObservationSchedule))
+            }
             /// Returns a copy of the contractual observation times.
             #[getter]
             fn observation_times<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {

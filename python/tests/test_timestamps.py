@@ -11,16 +11,19 @@ from kiyosi import ComputationFailureError, InvalidInputError
 from kiyosi.instruments import (
     Accumulator,
     BarrierOption,
+    BinarySnowballOption,
     EuropeanOption,
     PhoenixOption,
     RangeAccrualOption,
     SnowballOption,
+    TernarySnowballOption,
     autocallable_observations,
 )
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     RateTermStructure,
+    custom_calendar,
     fixed_interval_schedule,
     monthly_schedule,
     weekdays_calendar,
@@ -77,6 +80,84 @@ def accumulator_engines():
 
 
 class TimestampTests(unittest.TestCase):
+    def test_contract_schedules_expose_effective_observations(self):
+        calendar = custom_calendar(
+            base=weekdays_calendar(), closed_dates=[date(2025, 1, 7)]
+        )
+        clock = clock_time(15, microsecond=123456)
+        start = datetime(2025, 1, 6, 15, microsecond=123456)
+        last = datetime(2025, 1, 8, 15, microsecond=123456)
+        expiry = datetime(2025, 1, 8, 17)
+        life = {"effective_time": start, "expiry_time": expiry, "calendar": calendar}
+        accrual = RangeAccrualOption(
+            notional=1000,
+            annual_coupon_rate=0.12,
+            lower_bound=90,
+            upper_bound=110,
+            observation_clock_time=clock,
+            **life,
+        )
+        schedule = accrual.observation_schedule
+        del accrual
+        self.assertEqual(list(schedule), [last])
+        accumulator = Accumulator(
+            strike=90,
+            knock_out_level=120,
+            daily_quantity=1,
+            acceleration_factor=2,
+            observation_clock_time=clock,
+            **life,
+        )
+        self.assertEqual(list(accumulator.accumulation_schedule), [start, last])
+        self.assertEqual(
+            accumulator.knock_out_observation_schedule,
+            accumulator.accumulation_schedule,
+        )
+        for explicit in ([], [datetime(2025, 1, 6, 16)]):
+            changed = accumulator.replace(knock_out_observation_times=explicit)
+            self.assertEqual(list(changed.knock_out_observation_schedule), explicit)
+            self.assertEqual(list(changed.accumulation_schedule), [start, last])
+        observations = autocallable_observations([expiry], [110])
+        terms = dict(
+            initial_spot=100,
+            knock_in_level=80,
+            upper_strike=100,
+            lower_strike=0,
+            observation_clock_time=clock,
+            observations=observations,
+            **life,
+        )
+        notes = [
+            SnowballOption(maturity_coupon_rate=0.1, **terms),
+            PhoenixOption(coupon_rate=0.1, **terms),
+            TernarySnowballOption(
+                maturity_coupon_rate=0.1,
+                minimum_coupon_rate=0.02,
+                knock_in_level=80,
+                observation_clock_time=clock,
+                observations=observations,
+                **life,
+            ),
+        ]
+        for note in notes:
+            with self.subTest(note=type(note).__name__):
+                self.assertEqual(
+                    list(note.knock_in_observation_schedule), [start, last]
+                )
+                expiry_only = note.replace(knock_in_observation_mode="at_expiry")
+                self.assertEqual(
+                    list(expiry_only.knock_in_observation_schedule), [expiry]
+                )
+                exported = note.knock_in_observation_schedule.times
+                exported.clear()
+                self.assertEqual(
+                    list(note.knock_in_observation_schedule), [start, last]
+                )
+        binary = BinarySnowballOption(
+            maturity_coupon_rate=0.1, observations=observations, **life
+        )
+        self.assertIsNone(binary.knock_in_observation_schedule)
+
     def test_subday_time_bumps_converge_to_intraday_theta(self):
         option = EuropeanOption(
             option_type="call",

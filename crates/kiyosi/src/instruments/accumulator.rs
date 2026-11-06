@@ -313,6 +313,67 @@ impl Accumulator {
         self.terms.observation_clock_time
     }
 
+    /// Returns an owned schedule of daily accumulation opportunities.
+    ///
+    /// Includes the effective instant when it matches the contractual clock and
+    /// calendar. Expiry adds no observation. A coincident knock-out can prevent
+    /// accumulation; history and spot do not change this contractual schedule.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`ObservationSchedule`] time-range errors.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from custom calendar predicates.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Accumulator, AccumulatorTerms, Date, TimeOfDay};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let start = Date::new(2025, 1, 6)?.start_of_day();
+    /// let option = Accumulator::new(AccumulatorTerms::new(
+    ///     90.0, 120.0, 1.0, 2.0, start, start.add_days(2)?, TimeOfDay::new(0, 0, 0, 0)?))?;
+    /// assert_eq!(option.accumulation_schedule()?.times()[0], start);
+    /// assert_eq!(option.knock_out_observation_schedule()?, option.accumulation_schedule()?);
+    /// # Ok(()) }
+    /// ```
+    pub fn accumulation_schedule(&self) -> Result<ObservationSchedule> {
+        ObservationSchedule::daily(
+            self.effective_time(),
+            self.expiry_time(),
+            self.calendar(),
+            true,
+            self.observation_clock_time(),
+        )
+    }
+
+    /// Returns an owned schedule resolving daily or explicit knock-out monitoring.
+    ///
+    /// An absent explicit list uses [`Self::accumulation_schedule`]; an empty
+    /// list disables knock-out. See that method for an example. The schedule
+    /// covers the whole contract life independently of supplied history.
+    ///
+    /// # Errors
+    ///
+    /// Propagates [`ObservationSchedule`] validation and time-range errors.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from custom calendar predicates.
+    pub fn knock_out_observation_schedule(&self) -> Result<ObservationSchedule> {
+        match self.knock_out_observation_times() {
+            None => self.accumulation_schedule(),
+            Some(times) => ObservationSchedule::new(
+                times.to_vec(),
+                self.effective_time(),
+                self.expiry_time(),
+                self.calendar(),
+            ),
+        }
+    }
+
     pub(crate) fn validate_pricing(&self, context: &PricingContext) -> Result<()> {
         let valuation = context.valuation_time();
         if valuation < self.effective_time() || valuation > self.expiry_time() {
@@ -320,16 +381,11 @@ impl Accumulator {
                 "valuation must be within contract life".into(),
             ));
         }
-        let had_accumulation = crate::ObservationSchedule::daily(
-            self.effective_time(),
-            self.expiry_time(),
-            self.calendar(),
-            true,
-            self.observation_clock_time(),
-        )?
-        .times()
-        .iter()
-        .any(|&time| time < valuation);
+        let had_accumulation = self
+            .accumulation_schedule()?
+            .times()
+            .iter()
+            .any(|&time| time < valuation);
         let had_knock_out = self
             .knock_out_observation_times()
             .map_or(had_accumulation, |times| {
@@ -363,15 +419,7 @@ impl Accumulator {
         &self,
         context: &PricingContext,
     ) -> Result<Vec<Timestamp>> {
-        let mut times = crate::ObservationSchedule::daily(
-            self.effective_time(),
-            self.expiry_time(),
-            self.calendar(),
-            true,
-            self.observation_clock_time(),
-        )?
-        .times()
-        .to_vec();
+        let mut times = self.accumulation_schedule()?.times().to_vec();
         times.extend(self.knock_out_observation_times().unwrap_or(&[]));
         times.push(self.expiry_time());
         times.retain(|&time| time > context.valuation_time());
@@ -387,13 +435,7 @@ impl Accumulator {
         {
             return false;
         }
-        let Ok(schedule) = crate::ObservationSchedule::daily(
-            self.effective_time(),
-            self.expiry_time(),
-            self.calendar(),
-            true,
-            self.observation_clock_time(),
-        ) else {
+        let Ok(schedule) = self.accumulation_schedule() else {
             return true;
         };
         schedule.times().iter().any(|&time| {
@@ -570,13 +612,7 @@ impl OptionContract for Accumulator {
         if self.terminated() {
             return true;
         }
-        let Ok(schedule) = crate::ObservationSchedule::daily(
-            self.effective_time(),
-            self.expiry_time(),
-            self.calendar(),
-            true,
-            self.observation_clock_time(),
-        ) else {
+        let Ok(schedule) = self.accumulation_schedule() else {
             return false;
         };
         !schedule
@@ -659,15 +695,7 @@ impl Accumulator {
                     .map(<[Timestamp]>::to_vec)
             }),
         })?;
-        let daily_schedule = |option: &Self| {
-            ObservationSchedule::daily(
-                option.effective_time(),
-                option.expiry_time(),
-                option.calendar(),
-                true,
-                option.observation_clock_time(),
-            )
-        };
+
         super::validate_history_replacement(
             self.accumulated_quantity().is_some() || self.terminated(),
             history_supplied,
@@ -696,7 +724,7 @@ impl Accumulator {
                     updated.acceleration_factor(),
                 )
                 || self.calendar() != updated.calendar()
-                    && daily_schedule(self)? != daily_schedule(&updated)?,
+                    && self.accumulation_schedule()? != updated.accumulation_schedule()?,
             "accumulated_quantity and terminated",
         )?;
         Ok(updated)

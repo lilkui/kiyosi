@@ -2014,6 +2014,8 @@ class DoubleBarrierOption:
 
 class RangeAccrualOption:
     @property
+    def observation_schedule(self) -> ObservationSchedule: ...
+    @property
     def observation_clock_time(self) -> time: ...
     def replace(
         self,
@@ -2536,6 +2538,8 @@ def autocallable_observations(
 
 class SnowballOption:
     @property
+    def knock_in_observation_schedule(self) -> ObservationSchedule: ...
+    @property
     def observation_clock_time(self) -> time | None: ...
     def replace(
         self,
@@ -2623,6 +2627,8 @@ class SnowballOption:
     def calendar(self) -> TradingCalendar: ...
 
 class PhoenixOption:
+    @property
+    def knock_in_observation_schedule(self) -> ObservationSchedule: ...
     @property
     def observation_clock_time(self) -> time | None: ...
     @overload
@@ -2775,6 +2781,8 @@ class PhoenixOption:
     def calendar(self) -> TradingCalendar: ...
 
 class BinarySnowballOption:
+    @property
+    def knock_in_observation_schedule(self) -> None: ...
     def replace(
         self,
         *,
@@ -2836,6 +2844,8 @@ class BinarySnowballOption:
     def calendar(self) -> TradingCalendar: ...
 
 class TernarySnowballOption:
+    @property
+    def knock_in_observation_schedule(self) -> ObservationSchedule: ...
     @property
     def observation_clock_time(self) -> time | None: ...
     def replace(
@@ -3036,6 +3046,10 @@ def loss_capped_snowball(
 ) -> SnowballOption: ...
 
 class Accumulator:
+    @property
+    def accumulation_schedule(self) -> ObservationSchedule: ...
+    @property
+    def knock_out_observation_schedule(self) -> ObservationSchedule: ...
     @property
     def observation_clock_time(self) -> time: ...
     def replace(
