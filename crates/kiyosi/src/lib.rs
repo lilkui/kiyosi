@@ -85,8 +85,9 @@
 //! Handles returned by [`PricingEngine::prepare_request`] support sequential use
 //! within the calling thread and need not be `Send` or `Sync`. Concurrent requests
 //! prepare independent handles from the same engine.
-//! Custom calendar predicates must also uphold [`TradingCalendar`]'s determinism
-//! contract; panics in user predicates retain native Rust behavior.
+//! Custom calendar predicates must return stable answers for the lifetime of the
+//! calendar and all clones, as required by [`TradingCalendar`]; panics in user
+//! predicates retain native Rust behavior.
 //! User-supplied [`PricingEngine`] implementations retain their own
 //! thread-safety and operational-failure contracts.
 //! Calls are synchronous, with no cancellation or signal polling. Domain

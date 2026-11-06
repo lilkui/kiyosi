@@ -32,8 +32,12 @@ struct CalendarOverrides {
 /// Owns a trading-day predicate and positive annualization basis.
 ///
 /// Defaults to [`Self::weekdays`] with a 252-day basis.
-/// All instances support shared concurrent reads. Custom predicates must be deterministic
-/// throughout each operation and safe for concurrent invocation; query order/count is unspecified.
+/// All instances support shared concurrent reads. Custom predicates must return the same
+/// answer for each date throughout the lifetime of the calendar and every clone, and be
+/// safe for concurrent invocation; query order/count is unspecified. Reading a clock or
+/// shared mutable state that changes these answers violates this contract, including
+/// changes between operations. Amend calendars with [`Self::custom`] or create a new
+/// predicate from an owned, immutable snapshot; contracts retain their original calendar.
 /// Clones retain ownership of predicates and overrides. Overrides compare by base,
 /// normalized date lists and annualization basis; empty overrides retain the base kind.
 /// Predicate calendars compare by shared predicate identity, not by evaluating their
@@ -117,13 +121,31 @@ impl TradingCalendar {
 
     /// Creates a calendar from an owned predicate and positive annualization basis.
     ///
-    /// The predicate must satisfy [`TradingCalendar`]'s determinism contract.
+    /// The predicate must satisfy [`TradingCalendar`]'s lifetime-stability and concurrency contract.
     /// Predicate panics propagate when the calendar is queried.
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for a nonpositive basis.
     /// See [`Self::custom`] for date overrides without a custom predicate.
+    ///
+    /// # Examples
+    ///
+    /// Captures a fixed holiday and amends a clone without changing the original calendar:
+    ///
+    /// ```rust
+    /// use kiyosi::{Date, TradingCalendar};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let holiday = Date::new(2025, 1, 1)?;
+    /// let calendar = TradingCalendar::new(move |date| date != holiday, 365)?;
+    /// let additional_holiday = Date::new(2025, 1, 2)?;
+    /// let amended = TradingCalendar::custom(
+    ///     calendar.clone(), vec![additional_holiday], vec![], None)?;
+    /// assert!(!calendar.is_trading_day(holiday));
+    /// assert!(calendar.is_trading_day(additional_holiday));
+    /// assert!(!amended.is_trading_day(additional_holiday));
+    /// # Ok(()) }
+    /// ```
     pub fn new(
         predicate: impl Fn(Date) -> bool + Send + Sync + 'static,
         basis: i32,
