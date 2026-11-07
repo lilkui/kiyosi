@@ -161,7 +161,7 @@ impl DoubleBarrierOption {
     /// Time consistency is checked during pricing. The original is preserved on every outcome.
     ///
     /// Preserves validated monitoring terms through [`BarrierOption::replace_history`].
-    /// Preserves the history timestamp. Use [`Self::replace`] with
+    /// Retains the timestamp while history is known. Use [`Self::replace`] with
     /// [`DoubleBarrierOptionChanges::history_time`] to refresh the snapshot.
     ///
     /// # Examples
@@ -178,6 +178,8 @@ impl DoubleBarrierOption {
     /// assert_eq!(option.touch_state(), None);
     /// # Ok(()) }
     /// ```
+    ///
+    /// Clearing the final history payload also clears its timestamp.
     #[must_use]
     pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
@@ -388,6 +390,11 @@ impl DoubleBarrierOption {
             history_supplied,
             self.upper_barrier().to_bits() != updated.upper_barrier().to_bits(),
         )?;
-        updated.with_history_time(changes.history_time.unwrap_or(self.history_time()))
+        let history_time = super::replacement_history_time(
+            self.history_time(),
+            changes.history_time,
+            history_supplied && updated.touch_state().is_none(),
+        );
+        updated.with_history_time(history_time)
     }
 }

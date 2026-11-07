@@ -9,6 +9,18 @@ pub(crate) mod monitoring;
 pub(crate) mod range_accrual;
 pub(crate) mod vanilla;
 
+#[expect(
+    clippy::option_option,
+    reason = "Omission, clearing and an explicit timestamp are distinct replacement choices."
+)]
+pub(crate) fn replacement_history_time(
+    current: Option<crate::Timestamp>,
+    replacement: Option<Option<crate::Timestamp>>,
+    cleared: bool,
+) -> Option<crate::Timestamp> {
+    replacement.unwrap_or(if cleared { None } else { current })
+}
+
 pub(crate) fn validate_history_replacement(
     known: bool,
     supplied: bool,

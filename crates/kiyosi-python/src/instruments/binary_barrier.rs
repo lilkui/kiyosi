@@ -289,11 +289,10 @@ binary_properties!(
     ) -> PyResult<Self> {
         let history_time = history_time
             .map(crate::conversions::optional_timestamp)
-            .transpose()?
-            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+            .transpose()?;
 
         let changes = kiyosi::BinaryBarrierOptionChanges {
-            history_time: Some(history_time),
+            history_time,
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
                 .transpose()?,
@@ -462,11 +461,10 @@ binary_properties!(
     ) -> PyResult<Self> {
         let history_time = history_time
             .map(crate::conversions::optional_timestamp)
-            .transpose()?
-            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+            .transpose()?;
 
         let changes = kiyosi::TouchOptionChanges {
-            history_time: Some(history_time),
+            history_time,
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
                 .transpose()?,

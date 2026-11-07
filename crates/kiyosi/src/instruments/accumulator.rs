@@ -247,7 +247,7 @@ impl Accumulator {
     /// Omitted fields retain their values. A quantity alone (`f64` or `Option<f64>`)
     /// replaces only quantity; `None` restores unknown quantity. Time consistency
     /// is checked at pricing. The original is unchanged on success and failure.
-    /// Preserves the history timestamp; refresh it with [`Self::replace`] and
+    /// Retains the timestamp while history is known; refresh it with [`Self::replace`] and
     /// [`AccumulatorChanges::history_time`] alongside the history fields.
     ///
     /// # Errors
@@ -273,6 +273,8 @@ impl Accumulator {
     /// assert_eq!(QuadratureAccumulatorEngine::default().price(&settled, &context)?, 0.0);
     /// # Ok(()) }
     /// ```
+    ///
+    /// Clearing the final history payload also clears its timestamp.
     pub fn replace_history(&self, changes: impl Into<AccumulatorHistoryChanges>) -> Result<Self> {
         let changes = changes.into();
         self.replace(AccumulatorChanges {
@@ -785,6 +787,13 @@ impl Accumulator {
                     ),
             "accumulated_quantity and knock_out_settled",
         )?;
-        updated.with_history_time(changes.history_time.unwrap_or(self.history_time))
+        let history_time = super::replacement_history_time(
+            self.history_time,
+            changes.history_time,
+            (changes.accumulated_quantity.is_some() || changes.knock_out_settled.is_some())
+                && updated.accumulated_quantity().is_none()
+                && updated.knock_out_settled().is_none(),
+        );
+        updated.with_history_time(history_time)
     }
 }

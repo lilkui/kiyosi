@@ -17,6 +17,9 @@ macro_rules! autocallable_properties {
 
             /// Returns a validated replacement without changing this value.
             ///
+            /// Clearing the final history payload clears an omitted history_time.
+            /// An explicitly supplied history_time is validated and retained.
+            ///
             /// Parameters
             /// ----------
             /// barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
@@ -46,14 +49,14 @@ macro_rules! autocallable_properties {
             ) -> PyResult<Self> {
                 let history_time = history_time
                     .map(crate::conversions::optional_timestamp)
-                    .transpose()?
-                    .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+                    .transpose()?;
 
-                let history = match barrier_state {
-                    Some(value) => state(value)?,
-                    None => self.0.barrier_state(),
+                let updated = match barrier_state {
+                    Some(value) => domain(self.0.replace_history(state(value)?))?,
+                    None => self.0.clone(),
                 };
-                Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(self.0.replace_history(history))?, history_time))?))
+                let history_time = history_time.unwrap_or(kiyosi::OptionContract::history_time(&updated));
+                Ok(Self(domain(kiyosi::OptionContract::with_history_time(updated, history_time))?))
             }
             /// Returns an owned copy of the contract's monitoring calendar.
             #[getter]
@@ -760,11 +763,10 @@ snowball_properties! {
     ) -> PyResult<Self> {
         let history_time = history_time
             .map(crate::conversions::optional_timestamp)
-            .transpose()?
-            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+            .transpose()?;
 
         let changes = kiyosi::SnowballOptionChanges {
-            history_time: Some(history_time),
+            history_time,
             calendar: calendar.map(|v| v.extract::<TradingCalendar>().map(|v| v.0)).transpose()?,
             maturity_coupon_rate: maturity_coupon_rate.map(crate::conversions::real).transpose()?,
             initial_spot: initial_spot.map(crate::conversions::real).transpose()?,
@@ -954,11 +956,10 @@ snowball_properties! {
     ) -> PyResult<Self> {
         let history_time = history_time
             .map(crate::conversions::optional_timestamp)
-            .transpose()?
-            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+            .transpose()?;
 
         let changes = kiyosi::BinarySnowballOptionChanges {
-            history_time: Some(history_time),
+            history_time,
             calendar: calendar.map(|v| v.extract::<TradingCalendar>().map(|v| v.0)).transpose()?,
             maturity_coupon_rate: maturity_coupon_rate.map(crate::conversions::real).transpose()?,
             barrier_state: barrier_state.map(crate::instruments::autocallable::state).transpose()?,
@@ -1120,11 +1121,10 @@ snowball_properties! {
     ) -> PyResult<Self> {
         let history_time = history_time
             .map(crate::conversions::optional_timestamp)
-            .transpose()?
-            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+            .transpose()?;
 
         let changes = kiyosi::TernarySnowballOptionChanges {
-            history_time: Some(history_time),
+            history_time,
             calendar: calendar.map(|v| v.extract::<TradingCalendar>().map(|v| v.0)).transpose()?,
             maturity_coupon_rate: maturity_coupon_rate.map(crate::conversions::real).transpose()?,
             minimum_coupon_rate: minimum_coupon_rate.map(crate::conversions::real).transpose()?,
@@ -1348,11 +1348,10 @@ autocallable_properties! {
     ) -> PyResult<Self> {
         let history_time = history_time
             .map(crate::conversions::optional_timestamp)
-            .transpose()?
-            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+            .transpose()?;
 
         let changes = kiyosi::PhoenixOptionChanges {
-            history_time: Some(history_time),
+            history_time,
             calendar: calendar.map(|v| v.extract::<TradingCalendar>().map(|v| v.0)).transpose()?,
             coupon: match (coupon_rate.filter(|v| !v.is_none()), coupon_per_period.filter(|v| !v.is_none())) {
                 (None, None) if coupon_rate.is_some() || coupon_per_period.is_some() => {

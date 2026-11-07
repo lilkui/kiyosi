@@ -68,6 +68,7 @@ impl Monitoring {
     pub(crate) fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
             touch_state,
+            history_time: touch_state.and(self.history_time),
             ..self.clone()
         }
     }

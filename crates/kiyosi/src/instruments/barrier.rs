@@ -212,7 +212,7 @@ impl BarrierOption {
     /// Returns an owning copy with replaced history, leaving the original unchanged.
     ///
     /// Time consistency is checked during pricing. `None` restores unknown history.
-    /// Preserves the history timestamp. Use [`Self::replace`] with
+    /// Retains the timestamp while history is known. Use [`Self::replace`] with
     /// [`BarrierOptionChanges::history_time`] to refresh the payload and timestamp together.
     ///
     /// Preserves the validated terms; typed history cannot invalidate construction.
@@ -233,6 +233,8 @@ impl BarrierOption {
     /// assert_eq!(AnalyticBarrierEngine.price(&known, &context)?, 0.0);
     /// # Ok(()) }
     /// ```
+    ///
+    /// Clearing the final history payload also clears its timestamp.
     #[must_use]
     pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
@@ -440,6 +442,11 @@ impl BarrierOption {
             history_supplied,
             false,
         )?;
-        updated.with_history_time(changes.history_time.unwrap_or(self.history_time()))
+        let history_time = super::replacement_history_time(
+            self.history_time(),
+            changes.history_time,
+            history_supplied && updated.touch_state().is_none(),
+        );
+        updated.with_history_time(history_time)
     }
 }

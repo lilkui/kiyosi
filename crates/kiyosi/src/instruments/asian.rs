@@ -240,7 +240,12 @@ macro_rules! average_option {
                     self.averaging_start_time() != updated.averaging_start_time(),
                     "realized_average",
                 )?;
-                updated.with_history_time(changes.history_time.unwrap_or(self.history_time()))
+                let history_time = super::replacement_history_time(
+                    self.history_time(),
+                    changes.history_time,
+                    history_supplied && updated.realized_average().is_none(),
+                );
+                updated.with_history_time(history_time)
             }
             /// Creates an average-price contract with explicit history.
             ///
@@ -286,7 +291,7 @@ macro_rules! average_option {
                     realized_average.into(),
                 )?))
             }
-            /// Returns a copy with a replaced average, preserving its history timestamp.
+            /// Returns a copy with a replaced average and matching history timestamp.
             ///
             /// Use [`Self::replace`] with [`AveragePriceOptionChanges::history_time`] and
             /// [`AveragePriceOptionChanges::realized_average`] to refresh a dated snapshot.
@@ -313,19 +318,16 @@ macro_rules! average_option {
             /// assert!((AnalyticGeometricAveragePriceEngine.price(&seasoned, &context)? - 5.0).abs() < 1e-12);
             /// # Ok(()) }
             /// ```
+            ///
+            /// Clearing the final history payload also clears its timestamp.
             pub fn replace_history(
                 &self,
                 realized_average: impl Into<Option<f64>>,
             ) -> Result<Self> {
-                Self::new(
-                    self.option_type(),
-                    self.strike(),
-                    self.effective_time(),
-                    self.averaging_start_time(),
-                    self.expiry_time(),
-                    realized_average,
-                )
-                .and_then(|updated| updated.with_history_time(self.history_time()))
+                self.replace(AveragePriceOptionChanges {
+                    realized_average: Some(realized_average.into()),
+                    ..Default::default()
+                })
             }
             /// Returns the direction; see [`Self::new`].
             pub fn option_type(&self) -> OptionType {

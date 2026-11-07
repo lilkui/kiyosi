@@ -43,6 +43,97 @@ def engine(instrument):
 
 
 class HistoryTests(unittest.TestCase):
+    def test_clearing_history_clears_only_implicit_timestamps_in_every_family(self):
+        names = (
+            "touch_state",
+            "barrier_state",
+            "realized_average",
+            "realized_hit_count",
+            "accumulated_quantity",
+            "knock_out_settled",
+        )
+        for original in contracts():
+            if hasattr(original, "realized_average"):
+                original = original.replace_history(realized_average=100)
+            original = original.replace(history_time=AT)
+            fields = {name: None for name in names if hasattr(original, name)}
+            for method in ("replace", "replace_history"):
+                with self.subTest(contract=type(original).__name__, method=method):
+                    replace = getattr(original, method)
+                    cleared = replace(**fields)
+                    self.assertIsNone(cleared.history_time)
+                    self.assertTrue(
+                        all(getattr(cleared, name) is None for name in fields)
+                    )
+                    self.assertEqual(replace(), original)
+                    self.assertEqual(
+                        replace(**{name: ... for name in fields}), original
+                    )
+                    kept = replace(**fields, history_time=AT)
+                    self.assertEqual(kept.history_time, AT)
+                    self.assertEqual(kept.replace_history(), kept)
+                    with self.assertRaises(InvalidInputError):
+                        replace(
+                            **fields,
+                            history_time=original.expiry_time + timedelta(days=1),
+                        )
+                    self.assertEqual(original.history_time, AT)
+                    self.assertEqual(pickle.loads(pickle.dumps(cleared)), cleared)
+
+    def test_cleared_average_can_shorten_expiry_before_its_old_snapshot(self):
+        start, at, end = (
+            datetime(2025, 1, 2),
+            datetime(2025, 2, 1),
+            datetime(2026, 1, 2),
+        )
+        expiry = datetime(2025, 1, 15)
+        for cls in (i.ArithmeticAveragePriceOption, i.GeometricAveragePriceOption):
+            original = cls(
+                option_type="call",
+                strike=100,
+                effective_time=start,
+                averaging_start_time=start,
+                expiry_time=end,
+                realized_average=100,
+                history_time=at,
+            )
+            with self.subTest(contract=cls.__name__):
+                cleared = original.replace_history(realized_average=None)
+                self.assertEqual(
+                    cleared.replace(expiry_time=expiry).expiry_time, expiry
+                )
+                self.assertIsNone(
+                    original.replace(
+                        realized_average=None, expiry_time=expiry
+                    ).history_time
+                )
+                with self.assertRaises(InvalidInputError):
+                    original.replace(
+                        realized_average=None, expiry_time=expiry, history_time=at
+                    )
+                self.assertEqual(original.history_time, at)
+
+    def test_partial_accumulator_history_clears_retain_the_shared_timestamp(self):
+        original = next(
+            option for option in contracts() if isinstance(option, i.Accumulator)
+        ).replace_history(
+            accumulated_quantity=0, knock_out_settled=False, history_time=AT
+        )
+        for first, last in (
+            ("accumulated_quantity", "knock_out_settled"),
+            ("knock_out_settled", "accumulated_quantity"),
+        ):
+            for method in ("replace", "replace_history"):
+                with self.subTest(first=first, method=method):
+                    partial = getattr(original, method)(**{first: None})
+                    self.assertEqual(partial.history_time, AT)
+                    self.assertEqual(getattr(partial, last), getattr(original, last))
+                    self.assertIsNone(
+                        getattr(partial, method)(**{last: None}).history_time
+                    )
+        self.assertEqual(original.accumulated_quantity, 0)
+        self.assertFalse(original.knock_out_settled)
+
     def test_dated_average_refresh_updates_value_and_time_atomically(self):
         start = datetime(2025, 1, 2)
         at, end = start + timedelta(days=4), start + timedelta(days=10)

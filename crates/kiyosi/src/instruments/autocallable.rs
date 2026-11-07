@@ -910,18 +910,20 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     ///
     /// `None` clears history; `Some(AutocallableBarrierState::NoEvent)` records no prior event.
     /// See [`Self::new`] for an example. Time consistency is checked during pricing.
-    /// Preserves the history timestamp. Use the product's `replace` method and change
+    /// Retains the timestamp while history is known. Use the product's `replace` method and change
     /// struct to refresh history and its required timestamp together; see the [history example](crate).
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for a knock-in state on a binary snowball.
     /// Other terms retain their validated values; this note remains unchanged.
+    ///
+    /// Clearing the final history payload also clears its timestamp.
     pub fn replace_history(&self, barrier_state: Option<AutocallableBarrierState>) -> Result<Self> {
         self.view().validate_history(barrier_state)?;
         let mut terms = self.0.clone();
         terms.set_history(barrier_state);
-        Ok(Self(terms, self.1))
+        Ok(Self(terms, barrier_state.and(self.1)))
     }
     /// Borrows validated payoff terms, including the contractual calendar. See [`Self::new`].
     pub fn terms(&self) -> &T {
@@ -1549,7 +1551,12 @@ impl SnowballOption {
                 .unwrap_or_else(|| self.0.observations.clone()),
         })?;
         self.validate_replacement_history(&updated, history_supplied)?;
-        updated.with_history_time(changes.history_time.unwrap_or(self.1))
+        let history_time = super::replacement_history_time(
+            self.1,
+            changes.history_time,
+            history_supplied && updated.barrier_state().is_none(),
+        );
+        updated.with_history_time(history_time)
     }
 }
 
@@ -1653,7 +1660,12 @@ impl PhoenixOption {
                 .unwrap_or_else(|| self.0.observations.clone()),
         })?;
         self.validate_replacement_history(&updated, history_supplied)?;
-        updated.with_history_time(changes.history_time.unwrap_or(self.1))
+        let history_time = super::replacement_history_time(
+            self.1,
+            changes.history_time,
+            history_supplied && updated.barrier_state().is_none(),
+        );
+        updated.with_history_time(history_time)
     }
 }
 
@@ -1710,7 +1722,12 @@ impl BinarySnowballOption {
                 .unwrap_or_else(|| self.0.observations.clone()),
         })?;
         self.validate_replacement_history(&updated, history_supplied)?;
-        updated.with_history_time(changes.history_time.unwrap_or(self.1))
+        let history_time = super::replacement_history_time(
+            self.1,
+            changes.history_time,
+            history_supplied && updated.barrier_state().is_none(),
+        );
+        updated.with_history_time(history_time)
     }
 }
 
@@ -1788,7 +1805,12 @@ impl TernarySnowballOption {
                 .unwrap_or_else(|| self.0.observations.clone()),
         })?;
         self.validate_replacement_history(&updated, history_supplied)?;
-        updated.with_history_time(changes.history_time.unwrap_or(self.1))
+        let history_time = super::replacement_history_time(
+            self.1,
+            changes.history_time,
+            history_supplied && updated.barrier_state().is_none(),
+        );
+        updated.with_history_time(history_time)
     }
 }
 

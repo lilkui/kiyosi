@@ -186,8 +186,10 @@ impl BinaryBarrierOption {
     ///
     /// See [`crate::BarrierOption::replace_history`] for an example and time consistency rules.
     ///
-    /// Preserves the validated monitoring and payoff terms and history timestamp.
+    /// Preserves the validated monitoring and payoff terms.
     /// Use [`Self::replace`] with [`BinaryBarrierOptionChanges::history_time`] to refresh the snapshot.
+    ///
+    /// Clearing the final history payload also clears its timestamp.
     #[must_use]
     pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
@@ -351,8 +353,10 @@ impl TouchOption {
     ///
     /// See [`crate::BarrierOption::replace_history`] for examples and time consistency rules.
     ///
-    /// Preserves the validated monitoring and payoff terms and history timestamp.
+    /// Preserves the validated monitoring and payoff terms.
     /// Use [`Self::replace`] with [`TouchOptionChanges::history_time`] to refresh the snapshot.
+    ///
+    /// Clearing the final history payload also clears its timestamp.
     #[must_use]
     pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
@@ -598,7 +602,12 @@ impl BinaryBarrierOption {
             history_supplied,
             false,
         )?;
-        updated.with_history_time(changes.history_time.unwrap_or(self.history_time()))
+        let history_time = super::replacement_history_time(
+            self.history_time(),
+            changes.history_time,
+            history_supplied && updated.touch_state().is_none(),
+        );
+        updated.with_history_time(history_time)
     }
 }
 
@@ -677,6 +686,11 @@ impl TouchOption {
             history_supplied,
             false,
         )?;
-        updated.with_history_time(changes.history_time.unwrap_or(self.history_time()))
+        let history_time = super::replacement_history_time(
+            self.history_time(),
+            changes.history_time,
+            history_supplied && updated.touch_state().is_none(),
+        );
+        updated.with_history_time(history_time)
     }
 }

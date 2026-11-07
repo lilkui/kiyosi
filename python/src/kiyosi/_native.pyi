@@ -7146,6 +7146,9 @@ class GeometricAveragePriceOption:
     ) -> Self:
         """Return a validated replacement without changing this value.
 
+        Clearing the final history payload clears an omitted history_time.
+        An explicitly supplied history_time is validated and retained.
+
         Parameters
         ----------
         realized_average : float or None, optional
@@ -7379,6 +7382,9 @@ class ArithmeticAveragePriceOption:
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement without changing this value.
+
+        Clearing the final history payload clears an omitted history_time.
+        An explicitly supplied history_time is validated and retained.
 
         Parameters
         ----------
@@ -7657,6 +7663,9 @@ class BarrierOption:
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Returns a validated replacement without changing this value.
+
+        Clearing the final history payload clears an omitted history_time.
+        An explicitly supplied history_time is validated and retained.
 
         Parameters
         ----------
@@ -7972,6 +7981,9 @@ class DoubleBarrierOption:
     ) -> Self:
         """Returns a validated replacement without changing this value.
 
+        Clearing the final history payload clears an omitted history_time.
+        An explicitly supplied history_time is validated and retained.
+
         Parameters
         ----------
         touch_state : {'untouched', 'touched'} or None, optional
@@ -8183,6 +8195,9 @@ class RangeAccrualOption:
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement without changing this value.
+
+        Clearing the final history payload clears an omitted history_time.
+        An explicitly supplied history_time is validated and retained.
 
         Parameters
         ----------
@@ -8671,6 +8686,9 @@ class BinaryBarrierOption:
     ) -> Self:
         """Returns a validated replacement without changing this value.
 
+        Clearing the final history payload clears an omitted history_time.
+        An explicitly supplied history_time is validated and retained.
+
         Parameters
         ----------
         touch_state : {'untouched', 'touched'} or None, optional
@@ -8903,6 +8921,9 @@ class TouchOption:
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Returns a validated replacement without changing this value.
+
+        Clearing the final history payload clears an omitted history_time.
+        An explicitly supplied history_time is validated and retained.
 
         Parameters
         ----------
@@ -9441,6 +9462,9 @@ class DoubleTouchOption:
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Returns a validated replacement without changing this value.
+
+        Clearing the final history payload clears an omitted history_time.
+        An explicitly supplied history_time is validated and retained.
 
         Parameters
         ----------
@@ -10118,6 +10142,9 @@ class SnowballOption:
     ) -> SnowballOption:
         """Returns a validated replacement without changing this value.
 
+        Clearing the final history payload clears an omitted history_time.
+        An explicitly supplied history_time is validated and retained.
+
         Parameters
         ----------
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
@@ -10559,6 +10586,9 @@ class PhoenixOption:
     ) -> PhoenixOption:
         """Returns a validated replacement without changing this value.
 
+        Clearing the final history payload clears an omitted history_time.
+        An explicitly supplied history_time is validated and retained.
+
         Parameters
         ----------
         barrier_state : {'no_event', 'knocked_in', 'knocked_out'} or None, optional
@@ -10786,6 +10816,9 @@ class BinarySnowballOption:
         history_time: datetime | None | EllipsisType = ...,
     ) -> BinarySnowballOption:
         """Returns a validated replacement without changing this value.
+
+        Clearing the final history payload clears an omitted history_time.
+        An explicitly supplied history_time is validated and retained.
 
         Parameters
         ----------
@@ -11019,6 +11052,9 @@ class TernarySnowballOption:
         history_time: datetime | None | EllipsisType = ...,
     ) -> TernarySnowballOption:
         """Returns a validated replacement without changing this value.
+
+        Clearing the final history payload clears an omitted history_time.
+        An explicitly supplied history_time is validated and retained.
 
         Parameters
         ----------
@@ -11842,6 +11878,9 @@ class Accumulator:
         history_time: datetime | None | EllipsisType = ...,
     ) -> Self:
         """Return a validated replacement without changing this value.
+
+        Clearing the final history payload clears an omitted history_time.
+        An explicitly supplied history_time is validated and retained.
 
         Parameters
         ----------

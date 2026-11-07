@@ -178,12 +178,14 @@ impl RangeAccrualOption {
 
     /// Returns an owning copy with replaced history; `None` restores unknown. See [`Self::new`].
     ///
-    /// Preserves the history timestamp. Refresh both fields with [`Self::replace`]
+    /// Retains the timestamp while history is known. Refresh both fields with [`Self::replace`]
     /// and [`RangeAccrualOptionChanges::history_time`]; supplied history requires a timestamp at pricing.
     ///
     /// # Errors
     ///
     /// Reuses [`Self::new`] validation. The original is unchanged on success and failure.
+    ///
+    /// Clearing the final history payload also clears its timestamp.
     pub fn replace_history(&self, realized_hit_count: Option<i32>) -> Result<Self> {
         self.replace(RangeAccrualOptionChanges {
             realized_hit_count: Some(realized_hit_count),
@@ -416,6 +418,11 @@ impl RangeAccrualOption {
                     ),
             "realized_hit_count",
         )?;
-        updated.with_history_time(changes.history_time.unwrap_or(self.history_time))
+        let history_time = super::replacement_history_time(
+            self.history_time,
+            changes.history_time,
+            history_supplied && updated.realized_hit_count().is_none(),
+        );
+        updated.with_history_time(history_time)
     }
 }

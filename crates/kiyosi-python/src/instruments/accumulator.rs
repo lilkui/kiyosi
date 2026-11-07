@@ -170,11 +170,10 @@ impl Accumulator {
     ) -> PyResult<Self> {
         let history_time = history_time
             .map(crate::conversions::optional_timestamp)
-            .transpose()?
-            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+            .transpose()?;
 
         let changes = kiyosi::AccumulatorChanges {
-            history_time: Some(history_time),
+            history_time,
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
                 .transpose()?,
@@ -257,6 +256,9 @@ impl Accumulator {
     }
     /// Return a validated replacement without changing this value.
     ///
+    /// Clearing the final history payload clears an omitted history_time.
+    /// An explicitly supplied history_time is validated and retained.
+    ///
     /// Parameters
     /// ----------
     /// accumulated_quantity : float or None, optional
@@ -293,10 +295,10 @@ impl Accumulator {
     ) -> PyResult<Self> {
         let history_time = history_time
             .map(crate::conversions::optional_timestamp)
-            .transpose()?
-            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+            .transpose()?;
 
-        let changes = kiyosi::AccumulatorHistoryChanges {
+        let changes = kiyosi::AccumulatorChanges {
+            history_time,
             accumulated_quantity: accumulated_quantity
                 .map(|value| {
                     if value.is_none() {
@@ -307,11 +309,9 @@ impl Accumulator {
                 })
                 .transpose()?,
             knock_out_settled: knock_out_settled.map(settlement).transpose()?,
+            ..Default::default()
         };
-        Ok(Self(domain(kiyosi::OptionContract::with_history_time(
-            domain(self.0.replace_history(changes))?,
-            history_time,
-        ))?))
+        Ok(Self(domain(self.0.replace(changes))?))
     }
 
     /// Returns the explicitly specified daily observation clock time.

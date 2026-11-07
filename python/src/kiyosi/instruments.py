@@ -81,7 +81,10 @@ for inspection and replacement;
 binary and touch constructors require explicit ``payoff_type="cash"`` or
 ``"asset"``. Replacements preserve this kind unless ``payoff_type`` is supplied.
 Cash settlement requires a positive payout; ``payout=None`` cannot switch its kind.
-``replace_history()`` updates only prior history on path-dependent contracts.
+``replace_history()`` updates prior history on path-dependent contracts.
+Clearing the final history payload clears an omitted ``history_time``. Explicit
+timestamps are validated and retained. Partial accumulator clears retain the
+timestamp while either history field remains known.
 Asian averages use ``realized_average=None`` for unknown history; supplied averages
 must be finite and positive. History is required strictly after averaging starts.
 ``replace()`` and ``replace_history()`` return new contracts and expose named

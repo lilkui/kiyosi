@@ -26,7 +26,10 @@
 //! Known history must be explicitly replaced or cleared when terms defining past events change:
 //! barrier levels/direction, observation times, averaging start, range bounds or daily
 //! monitoring and accumulation rules. Accumulators require both quantity and knock-out settlement
-//! choices. Reasserting the same history explicitly is allowed. Calendar-only helpers
+//! choices. Clearing the final history payload clears an omitted history timestamp;
+//! an explicitly supplied timestamp is validated and retained. Partial accumulator
+//! clears retain the timestamp while either history field remains known.
+//! Reasserting the same history explicitly is allowed. Calendar-only helpers
 //! reject changes affecting known daily history; use `replace` with an explicit history
 //! choice. Payoff-only changes retain history. See [`BarrierOption::replace`] for an exotic example.
 //! Switching barrier or touch monitoring to continuous clears omitted observation times.

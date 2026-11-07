@@ -138,11 +138,10 @@ impl RangeAccrualOption {
     ) -> PyResult<Self> {
         let history_time = history_time
             .map(crate::conversions::optional_timestamp)
-            .transpose()?
-            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+            .transpose()?;
 
         let changes = kiyosi::RangeAccrualOptionChanges {
-            history_time: Some(history_time),
+            history_time,
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
                 .transpose()?,
@@ -210,6 +209,9 @@ impl RangeAccrualOption {
 
     /// Return a validated replacement without changing this value.
     ///
+    /// Clearing the final history payload clears an omitted history_time.
+    /// An explicitly supplied history_time is validated and retained.
+    ///
     /// Parameters
     /// ----------
     /// realized_hit_count : int or None, optional
@@ -240,16 +242,14 @@ impl RangeAccrualOption {
     ) -> PyResult<Self> {
         let history_time = history_time
             .map(crate::conversions::optional_timestamp)
-            .transpose()?
-            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+            .transpose()?;
 
-        let count = match realized_hit_count {
-            Some(value) => history(value)?,
-            None => self.0.realized_hit_count(),
-        };
-        Ok(Self(domain(kiyosi::OptionContract::with_history_time(
-            domain(self.0.replace_history(count))?,
-            history_time,
+        Ok(Self(domain(self.0.replace(
+            kiyosi::RangeAccrualOptionChanges {
+                history_time,
+                realized_hit_count: realized_hit_count.map(history).transpose()?,
+                ..Default::default()
+            },
         ))?))
     }
     /// Returns the explicitly specified daily observation clock time.

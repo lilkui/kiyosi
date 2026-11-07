@@ -100,11 +100,10 @@ macro_rules! average_option {
     ) -> PyResult<Self> {
         let history_time = history_time
             .map(crate::conversions::optional_timestamp)
-            .transpose()?
-            .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+            .transpose()?;
 
         let changes = kiyosi::AveragePriceOptionChanges {
-            history_time: Some(history_time),
+            history_time,
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
             effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
@@ -125,6 +124,9 @@ macro_rules! average_option {
                     timestamp(effective_time)?, timestamp(averaging_start_time)?, timestamp(expiry_time)?, realized_average))?, history_time))?))
             }
             /// Return a validated replacement without changing this value.
+            ///
+            /// Clearing the final history payload clears an omitted history_time.
+            /// An explicitly supplied history_time is validated and retained.
             ///
             /// Parameters
             /// ----------
@@ -154,11 +156,13 @@ macro_rules! average_option {
             ) -> PyResult<Self> {
                 let history_time = history_time
                     .map(crate::conversions::optional_timestamp)
-                    .transpose()?
-                    .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+                    .transpose()?;
 
-                let realized = realized_average.map(history).transpose()?.unwrap_or(self.0.realized_average());
-                Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(self.0.replace_history(realized))?, history_time))?))
+                Ok(Self(domain(self.0.replace(kiyosi::AveragePriceOptionChanges {
+                    history_time,
+                    realized_average: realized_average.map(history).transpose()?,
+                    ..Default::default()
+                }))?))
             }
             /// Return call or put payoff direction.
             #[getter]

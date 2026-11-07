@@ -212,8 +212,10 @@ impl DoubleTouchOption {
     ///
     /// Preserves validated monitoring terms without reconstructing the contract.
     /// The original value remains unchanged.
-    /// Preserves the history timestamp. Use [`Self::replace`] with
+    /// Retains the timestamp while history is known. Use [`Self::replace`] with
     /// [`DoubleTouchOptionChanges::history_time`] to refresh the snapshot.
+    ///
+    /// Clearing the final history payload also clears its timestamp.
     #[must_use]
     pub fn replace_history(&self, touch_state: Option<BarrierTouchState>) -> Self {
         Self {
@@ -339,6 +341,11 @@ impl DoubleTouchOption {
             history_supplied,
             self.upper_barrier().to_bits() != updated.upper_barrier().to_bits(),
         )?;
-        updated.with_history_time(changes.history_time.unwrap_or(self.history_time()))
+        let history_time = super::replacement_history_time(
+            self.history_time(),
+            changes.history_time,
+            history_supplied && updated.touch_state().is_none(),
+        );
+        updated.with_history_time(history_time)
     }
 }

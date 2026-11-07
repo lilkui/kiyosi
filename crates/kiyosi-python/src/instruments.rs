@@ -16,6 +16,9 @@ macro_rules! monitoring_properties {
             }
             /// Returns a validated replacement without changing this value.
             ///
+            /// Clearing the final history payload clears an omitted history_time.
+            /// An explicitly supplied history_time is validated and retained.
+            ///
             /// Parameters
             /// ----------
             /// touch_state : {'untouched', 'touched'} or None, optional
@@ -51,14 +54,14 @@ macro_rules! monitoring_properties {
             ) -> pyo3::PyResult<Self> {
                 let history_time = history_time
                     .map(crate::conversions::optional_timestamp)
-                    .transpose()?
-                    .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
+                    .transpose()?;
 
-                let state = match touch_state {
-                    Some(value) => $crate::instruments::barrier::history(value)?,
-                    None => self.0.touch_state(),
+                let updated = match touch_state {
+                    Some(value) => self.0.replace_history($crate::instruments::barrier::history(value)?),
+                    None => self.0.clone(),
                 };
-                Ok(Self(crate::error::domain(kiyosi::OptionContract::with_history_time(self.0.replace_history(state), history_time))?))
+                let history_time = history_time.unwrap_or(kiyosi::OptionContract::history_time(&updated));
+                Ok(Self(crate::error::domain(kiyosi::OptionContract::with_history_time(updated, history_time))?))
             }
             /// Returns the inclusive contract start.
             #[getter]
