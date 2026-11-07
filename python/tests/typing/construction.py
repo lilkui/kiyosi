@@ -9,6 +9,8 @@ from kiyosi.instruments import (
     BinaryBarrierOption,
     DoubleTouchOption,
     PhoenixOption,
+    SnowballOption,
+    TernarySnowballOption,
     TouchOption,
 )
 
@@ -38,13 +40,12 @@ def phoenix_choices() -> None:
     )
     assert_type(
         PhoenixOption(
-            observation_clock_time=clock_time(),
             coupon_per_period=0.01,
             initial_spot=100,
             knock_in_level=80,
             upper_strike=100,
             lower_strike=0,
-            knock_in_observation_mode="every_trading_day",
+            knock_in_observation_mode="at_expiry",
             effective_time=start,
             expiry_time=end,
             observations=observations,
@@ -234,3 +235,34 @@ def settlement_replacement_types(
     assert_type(binary.replace(payout=10), BinaryBarrierOption)
     assert_type(touch.replace(payout=None), TouchOption)
     assert_type(touch.replace(payout=10), TouchOption)
+
+
+def expiry_only_snowballs() -> None:
+    start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
+    observations = [AutocallableObservation(end, 110)]
+    assert_type(
+        SnowballOption(
+            maturity_coupon_rate=0.1,
+            initial_spot=100,
+            knock_in_level=80,
+            upper_strike=100,
+            lower_strike=0,
+            effective_time=start,
+            expiry_time=end,
+            observations=observations,
+            knock_in_observation_mode="at_expiry",
+        ),
+        SnowballOption,
+    )
+    assert_type(
+        TernarySnowballOption(
+            maturity_coupon_rate=0.1,
+            minimum_coupon_rate=0.02,
+            knock_in_level=80,
+            effective_time=start,
+            expiry_time=end,
+            observations=observations,
+            knock_in_observation_mode="at_expiry",
+        ),
+        TernarySnowballOption,
+    )
