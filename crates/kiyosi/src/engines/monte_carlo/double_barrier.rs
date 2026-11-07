@@ -118,14 +118,14 @@ impl MonteCarloDoubleBarrierEngine {
         option: &DoubleBarrierOption,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        let (result, error) = self.engine.native(
+        let (result, error, seed) = self.engine.native(
             Contract::Double(option),
             context,
             GreeksRequest::new([]),
             Default::default(),
             true,
         )?;
-        MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings())
+        MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings(), seed)
     }
 
     /// Returns requested delta/gamma using the price's normal samples.

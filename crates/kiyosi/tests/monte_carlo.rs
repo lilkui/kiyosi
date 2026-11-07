@@ -57,8 +57,10 @@ fn uncertainty_status_explains_missing_estimates() -> Result<()> {
         assert_eq!(result.uncertainty_status(), expected);
         assert_eq!(result.standard_error().is_some(), expected == Available);
     }
-    assert!(MonteCarloEstimate::from_statistics(10.0, None, Available).is_err());
-    assert!(MonteCarloEstimate::from_statistics(10.0, Some(0.0), UnsupportedSampling).is_err());
+    assert!(MonteCarloEstimate::from_statistics(10.0, None, Available, None).is_err());
+    assert!(
+        MonteCarloEstimate::from_statistics(10.0, Some(0.0), UnsupportedSampling, None).is_err()
+    );
     Ok(())
 }
 
@@ -1063,9 +1065,11 @@ fn estimate_reconstruction_validates_statistics_and_preserves_reporting() {
         10.0,
         Some(2.0),
         kiyosi::MonteCarloUncertaintyStatus::Available,
+        Some(u64::MAX),
     )
     .unwrap();
     assert_eq!(estimate.price(), 10.0);
+    assert_eq!(estimate.seed(), Some(u64::MAX));
     assert_eq!(estimate.standard_error(), Some(2.0));
     assert_eq!(
         estimate.confidence_interval(),
@@ -1075,7 +1079,8 @@ fn estimate_reconstruction_validates_statistics_and_preserves_reporting() {
         MonteCarloEstimate::from_statistics(
             10.0,
             None,
-            kiyosi::MonteCarloUncertaintyStatus::InsufficientObservations
+            kiyosi::MonteCarloUncertaintyStatus::InsufficientObservations,
+            None,
         )
         .unwrap()
         .confidence_interval(),
@@ -1091,7 +1096,8 @@ fn estimate_reconstruction_validates_statistics_and_preserves_reporting() {
             MonteCarloEstimate::from_statistics(
                 price,
                 error,
-                kiyosi::MonteCarloUncertaintyStatus::Available
+                kiyosi::MonteCarloUncertaintyStatus::Available,
+                None,
             ),
             Err(Error::ComputationFailure(_))
         ));

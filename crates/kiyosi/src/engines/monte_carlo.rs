@@ -250,9 +250,9 @@ mod tests {
                             antithetic,
                         };
                         let payoff = |normals: &[f64]| Ok([normals[0], normals[1] * 1e150]);
-                        let (means, unused_pairs) =
+                        let (means, unused_pairs, _) =
                             path_samples(settings, 2, false, payoff).unwrap();
-                        let (samples, pairs) = path_samples(settings, 2, true, payoff).unwrap();
+                        let (samples, pairs, _) = path_samples(settings, 2, true, payoff).unwrap();
                         for i in 0..2 {
                             assert_eq!(means[i].count, path_count as usize);
                             assert_eq!(means[i].scale.to_bits(), samples[i].scale.to_bits());
@@ -427,7 +427,7 @@ fn validate_step_count(step_count: i32, minimum: i32) -> Result<()> {
     Ok(())
 }
 
-/// Owns a Monte Carlo price and its optional sampling uncertainty.
+/// Owns a Monte Carlo price, its optional sampling uncertainty and replay seed.
 ///
 /// Uses unbiased sample variance and a two-sided asymptotic 95% normal confidence interval
 /// for pseudorandom draws, or independent pair means with even antithetic counts;
@@ -444,6 +444,7 @@ pub struct MonteCarloEstimate {
     standard_error: Option<f64>,
     confidence_interval: Option<(f64, f64)>,
     uncertainty_status: MonteCarloUncertaintyStatus,
+    seed: Option<u64>,
 }
 
 /// Explains uncertainty availability; see [`MonteCarloEstimate::uncertainty_status`].
@@ -474,7 +475,9 @@ impl MonteCarloUncertaintyStatus {
 impl MonteCarloEstimate {
     /// Creates an estimate from a finite mean, optional standard error and its status.
     ///
-    /// Computes the asymptotic 95% normal interval when uncertainty is available.
+    /// Records the supplied sampling seed without drawing randomness. Use `None`
+    /// when no sampling occurred. Computes the asymptotic 95% normal interval
+    /// when uncertainty is available.
     /// See [`MonteCarloVanillaEngine::price_with_statistics`] for reporting units.
     ///
     /// # Errors
@@ -485,6 +488,7 @@ impl MonteCarloEstimate {
         price: f64,
         standard_error: Option<f64>,
         uncertainty_status: MonteCarloUncertaintyStatus,
+        seed: Option<u64>,
     ) -> Result<Self> {
         if !price.is_finite()
             || standard_error.is_some_and(|error| !error.is_finite() || error < 0.0)
@@ -507,6 +511,7 @@ impl MonteCarloEstimate {
             standard_error,
             confidence_interval,
             uncertainty_status,
+            seed,
         })
     }
 
@@ -514,6 +519,7 @@ impl MonteCarloEstimate {
         price: f64,
         standard_error: Option<f64>,
         settings: MonteCarloSettings,
+        seed: Option<u64>,
     ) -> Result<Self> {
         let status = if standard_error.is_some() {
             MonteCarloUncertaintyStatus::Available
@@ -524,7 +530,7 @@ impl MonteCarloEstimate {
         } else {
             MonteCarloUncertaintyStatus::InsufficientObservations
         };
-        Self::from_statistics(price, standard_error, status)
+        Self::from_statistics(price, standard_error, status, seed)
     }
 
     /// Returns availability or the reason sampling uncertainty is absent.
@@ -535,12 +541,20 @@ impl MonteCarloEstimate {
     /// use kiyosi::{MonteCarloEstimate, MonteCarloUncertaintyStatus};
     /// # fn main() -> kiyosi::Result<()> {
     /// let result = MonteCarloEstimate::from_statistics(10.0, None,
-    ///     MonteCarloUncertaintyStatus::InsufficientObservations)?;
+    ///     MonteCarloUncertaintyStatus::InsufficientObservations, None)?;
     /// assert_eq!(result.uncertainty_status().name(), "insufficient_observations");
     /// # Ok(()) }
     /// ```
     pub fn uncertainty_status(&self) -> MonteCarloUncertaintyStatus {
         self.uncertainty_status
+    }
+
+    /// Returns the seed used to draw samples, or `None` when no sampling occurred.
+    ///
+    /// Replay with the same engine controls and inputs in the same build. See
+    /// [`MonteCarloVanillaEngine::price_with_statistics`] for an example.
+    pub fn seed(&self) -> Option<u64> {
+        self.seed
     }
 
     /// Returns the finite sample mean. See [`MonteCarloVanillaEngine::price_with_statistics`].
@@ -799,6 +813,11 @@ impl MonteCarloVanillaEngine {
     /// let estimate = engine.price_with_statistics(&option, &context)?;
     /// assert!(estimate.standard_error().is_some_and(|error| error > 0.0));
     /// assert!(estimate.confidence_interval().is_some());
+    /// assert_eq!(estimate.seed(), Some(42));
+    /// let replay = MonteCarloVanillaEngine::new(MonteCarloSettings {
+    ///     seed: estimate.seed(), ..engine.sampling_settings()
+    /// })?;
+    /// assert_eq!(replay.price_with_statistics(&option, &context)?, estimate);
     /// # Ok(()) }
     /// ```
     pub fn price_with_statistics(
@@ -807,7 +826,7 @@ impl MonteCarloVanillaEngine {
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
         context.bsm_parameters()?;
-        let (sample, pairs, log_discount) = self.sample(option, context, true)?;
+        let (sample, pairs, log_discount, seed) = self.sample(option, context, true)?;
         estimate(
             self.settings,
             sample,
@@ -815,6 +834,7 @@ impl MonteCarloVanillaEngine {
             log_discount,
             context.valuation_time() == option.expiry_time()
                 || crate::engines::deterministic::enabled(context),
+            seed,
         )
     }
 
@@ -823,7 +843,7 @@ impl MonteCarloVanillaEngine {
         option: &EuropeanOption,
         context: &PricingContext,
         statistics: bool,
-    ) -> Result<(Moments, Moments, f64)> {
+    ) -> Result<(Moments, Moments, f64, Option<u64>)> {
         let model = context.bsm_parameters()?;
         context.validate_curve_horizon(option.expiry_time())?;
         let rate = model.flat_risk_free_rate()?;
@@ -843,7 +863,7 @@ impl MonteCarloVanillaEngine {
                 (sign * (context.spot_price() - option.strike())).max(0.0),
                 false,
             );
-            return Ok((sample, Moments::default(), 0.0));
+            return Ok((sample, Moments::default(), 0.0, None));
         }
         let sigma = model.volatility();
         if sigma == 0.0 {
@@ -856,7 +876,7 @@ impl MonteCarloVanillaEngine {
                 )?,
                 false,
             );
-            return Ok((sample, Moments::default(), 0.0));
+            return Ok((sample, Moments::default(), 0.0, None));
         }
         let drift = (rate - dividend - 0.5 * sigma * sigma) * time;
         let diffusion = sigma * time.sqrt();
@@ -864,7 +884,7 @@ impl MonteCarloVanillaEngine {
             return Err(unstable());
         }
         let moneyness = log_ratio(context.spot_price(), option.strike());
-        let (total, pairs) = terminal_samples(self.settings, statistics, |normal| {
+        let (total, pairs, seed) = terminal_samples(self.settings, statistics, |normal| {
             let increment = diffusion.mul_add(normal, drift);
             let terminal = context.spot_price() * increment.exp();
             if !terminal.is_finite() || terminal <= 0.0 {
@@ -880,7 +900,7 @@ impl MonteCarloVanillaEngine {
         })?;
         let [total] = total;
         let [pairs] = pairs;
-        Ok((total, pairs, -rate * time))
+        Ok((total, pairs, -rate * time, Some(seed)))
     }
 }
 
@@ -909,7 +929,7 @@ impl PricingEngine for MonteCarloVanillaEngine {
     }
     fn price(&self, option: &EuropeanOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
-        let (sample, _, log_discount) = self.sample(option, context, false)?;
+        let (sample, _, log_discount, _) = self.sample(option, context, false)?;
         scaled_value(sample.scale, sample.mean, log_discount)
     }
 }
@@ -924,6 +944,7 @@ fn estimate(
     pairs: Moments,
     log_discount: f64,
     known: bool,
+    seed: Option<u64>,
 ) -> Result<MonteCarloEstimate> {
     let price = scaled_value(sample.scale, sample.mean, log_discount)?;
     let uncertainty = if settings.antithetic { pairs } else { sample };
@@ -941,14 +962,14 @@ fn estimate(
     } else {
         None
     };
-    MonteCarloEstimate::from_sampling(price, standard_error, settings)
+    MonteCarloEstimate::from_sampling(price, standard_error, settings, seed)
 }
 
 fn terminal_samples<const N: usize>(
     settings: MonteCarloSettings,
     statistics: bool,
     payoff: impl Fn(f64) -> Result<[f64; N]> + Sync,
-) -> Result<([Moments; N], [Moments; N])> {
+) -> Result<([Moments; N], [Moments; N], u64)> {
     path_samples(settings, 1, statistics, |normals| payoff(normals[0]))
 }
 
@@ -957,18 +978,18 @@ pub(crate) fn path_means<const N: usize>(
     dimensions: usize,
     statistics: bool,
     payoff: impl Fn(&[f64]) -> Result<[f64; N]> + Sync,
-) -> Result<([f64; N], Option<f64>)> {
-    let (moments, pairs) = path_samples(settings, dimensions, statistics, payoff)?;
+) -> Result<([f64; N], Option<f64>, u64)> {
+    let (moments, pairs, seed) = path_samples(settings, dimensions, statistics, payoff)?;
     let mut means = [0.0; N];
     for (mean, moment) in means.iter_mut().zip(&moments) {
         *mean = scaled_value(moment.scale, moment.mean, 0.0)?;
     }
     let standard_error = if statistics {
-        estimate(settings, moments[0], pairs[0], 0.0, false)?.standard_error()
+        estimate(settings, moments[0], pairs[0], 0.0, false, Some(seed))?.standard_error()
     } else {
         None
     };
-    Ok((means, standard_error))
+    Ok((means, standard_error, seed))
 }
 
 #[expect(
@@ -980,7 +1001,7 @@ fn path_samples<const N: usize>(
     dimensions: usize,
     statistics: bool,
     payoff: impl Fn(&[f64]) -> Result<[f64; N]> + Sync,
-) -> Result<([Moments; N], [Moments; N])> {
+) -> Result<([Moments; N], [Moments; N], u64)> {
     let seed = settings.resolved_seed()?;
     let paths = settings.path_count as usize;
     let samples = if settings.antithetic {
@@ -1049,7 +1070,7 @@ fn path_samples<const N: usize>(
             }
         }
     }
-    Ok((total, pairs))
+    Ok((total, pairs, seed))
 }
 
 fn sample_normal(

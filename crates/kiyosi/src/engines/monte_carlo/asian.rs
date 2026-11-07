@@ -251,13 +251,17 @@ impl MonteCarloAsianEngine {
         geometric: bool,
         request: GreeksRequest,
         statistics: bool,
-    ) -> Result<(PricingResult, Option<f64>)> {
+    ) -> Result<(PricingResult, Option<f64>, Option<u64>)> {
         let tau = o.validate(context)?;
         let known_error = (statistics
             && self.settings.sampling == MonteCarloSampling::PseudoRandom)
             .then_some(0.0);
         if tau == 0.0 {
-            return Ok((PricingResult::new(o.settlement(context)?)?, known_error));
+            return Ok((
+                PricingResult::new(o.settlement(context)?)?,
+                known_error,
+                None,
+            ));
         }
         let model = context.bsm_parameters()?;
         if geometric
@@ -275,6 +279,7 @@ impl MonteCarloAsianEngine {
                     o, context, geometric,
                 )?)?,
                 known_error,
+                None,
             ));
         }
         let valuation = context.valuation_time();
@@ -331,7 +336,7 @@ impl MonteCarloAsianEngine {
             } else {
                 0.0
             };
-            return Ok((result([price, first, 0.0], request)?, known_error));
+            return Ok((result([price, first, 0.0], request)?, known_error, None));
         }
         let drift = if single && !flat {
             carry_between(0.0, tau)? - 0.5 * sigma * sigma * tau
@@ -361,7 +366,7 @@ impl MonteCarloAsianEngine {
             lead_width_ratio: 0.0,
             interval_forward: 0.0,
         };
-        let (means, standard_error) = if geometric || single {
+        let (means, standard_error, seed) = if geometric || single {
             if !drift.is_finite() || !p.width.is_finite() {
                 return Err(crate::engines::monte_carlo::unstable());
             }
@@ -414,7 +419,7 @@ impl MonteCarloAsianEngine {
                 |normals| p.arithmetic(normals, lead > 0.0, &interval_drifts, request),
             )?
         };
-        Ok((result(means, request)?, standard_error))
+        Ok((result(means, request)?, standard_error, Some(seed)))
     }
 }
 
@@ -524,9 +529,9 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
         context.bsm_parameters()?;
-        let (result, error) =
+        let (result, error, seed) =
             self.native(&option.0, context, true, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings())
+        MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings(), seed)
     }
     fn prepare_request(
         &self,
@@ -600,9 +605,9 @@ impl PricingEngine<ArithmeticAveragePriceOption> for MonteCarloAsianEngine {
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
         context.bsm_parameters()?;
-        let (result, error) =
+        let (result, error, seed) =
             self.native(&option.0, context, false, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings())
+        MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings(), seed)
     }
     fn prepare_request(
         &self,

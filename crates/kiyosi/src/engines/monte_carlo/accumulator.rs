@@ -96,7 +96,7 @@ impl MonteCarloAccumulatorEngine {
     /// Allocation exhaustion follows the allocator's behavior (normally process abort).
     pub fn price(&self, option: &Accumulator, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
-        let (sample, _, _) = self.sample(option, context, false)?;
+        let (sample, _, _, _) = self.sample(option, context, false)?;
         scaled_value(sample.scale, sample.mean, 0.0)
     }
 
@@ -129,8 +129,8 @@ impl MonteCarloAccumulatorEngine {
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
         context.bsm_parameters()?;
-        let (sample, pairs, known) = self.sample(option, context, true)?;
-        estimate(self.settings, sample, pairs, 0.0, known)
+        let (sample, pairs, known, seed) = self.sample(option, context, true)?;
+        estimate(self.settings, sample, pairs, 0.0, known, seed)
     }
 
     fn sample(
@@ -138,7 +138,7 @@ impl MonteCarloAccumulatorEngine {
         option: &Accumulator,
         context: &PricingContext,
         statistics: bool,
-    ) -> Result<(Moments, Moments, bool)> {
+    ) -> Result<(Moments, Moments, bool, Option<u64>)> {
         let model = context.bsm_parameters()?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
@@ -148,7 +148,7 @@ impl MonteCarloAccumulatorEngine {
                 crate::engines::deterministic::accumulator(option, context)?,
                 false,
             );
-            return Ok((sample, Moments::default(), true));
+            return Ok((sample, Moments::default(), true, None));
         }
         option.validate_pricing(context)?;
         let (quantity, settlement) = option.initial(context);
@@ -158,7 +158,7 @@ impl MonteCarloAccumulatorEngine {
             }
             let mut moments = Moments::default();
             moments.add(value, false);
-            return Ok((moments, moments, true));
+            return Ok((moments, moments, true, None));
         }
         if !quantity.is_finite() {
             return Err(unstable());
@@ -202,7 +202,7 @@ impl MonteCarloAccumulatorEngine {
             previous = date;
         }
         let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
-        let ([moments], [pairs]) =
+        let ([moments], [pairs], seed) =
             path_samples(self.settings, steps.len(), statistics, |normals| {
                 let mut spot = initial_spot;
                 let mut log_return = 0.0;
@@ -240,7 +240,7 @@ impl MonteCarloAccumulatorEngine {
                     terminal_log_discount,
                 )?])
             })?;
-        Ok((moments, pairs, false))
+        Ok((moments, pairs, false, Some(seed)))
     }
 
     /// Computes requested finite-difference Greeks with shared normal draws.

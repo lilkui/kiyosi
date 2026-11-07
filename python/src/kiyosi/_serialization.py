@@ -114,6 +114,7 @@ def _reduce(
                 "price": value.price,
                 "standard_error": value.standard_error,
                 "uncertainty_status": value.uncertainty_status,
+                "seed": value.seed,
             },
         )
     rate_fields = {

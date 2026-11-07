@@ -3,7 +3,7 @@
 import math
 import pickle
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
 from kiyosi import ComputationFailureError, InvalidInputError, UnsupportedOperationError
 from kiyosi import instruments as i
@@ -66,6 +66,81 @@ def engine(factory, **changes):
 
 
 class MonteCarloStatisticsTests(unittest.TestCase):
+    def test_reported_seeds_replay_unseeded_and_configured_estimates(self):
+        cases = (
+            *contracts(),
+            (
+                "vanilla",
+                p.MonteCarloVanillaEngine,
+                i.EuropeanOption(option_type="call", strike=100, **LIFE),
+            ),
+            (
+                "snowball",
+                p.MonteCarloAutocallableEngine,
+                i.standard_snowball(
+                    coupon_rate=0.1,
+                    initial_spot=100,
+                    knock_in_level=80,
+                    knock_out_level=110,
+                    observation_times=[END],
+                    observation_clock_time=time(),
+                    **LIFE,
+                ),
+            ),
+            (
+                "accumulator",
+                p.MonteCarloAccumulatorEngine,
+                i.Accumulator(
+                    strike=100,
+                    knock_out_level=120,
+                    daily_quantity=1,
+                    acceleration_factor=2,
+                    observation_clock_time=time(),
+                    **LIFE,
+                ),
+            ),
+        )
+        snapshot = context()
+        deterministic = snapshot.replace(
+            model_parameters=snapshot.model_parameters.replace(volatility=0)
+        )
+        for name, factory, option in cases:
+            for sampling in ("pseudo_random", "sobol"):
+                for configured in (None, 2**64 - 1):
+                    with self.subTest(product=name, sampling=sampling, seed=configured):
+                        sampler = engine(
+                            factory,
+                            path_count=256,
+                            seed=configured,
+                            sampling=sampling,
+                            antithetic=True,
+                        )
+                        estimate = sampler.price_with_statistics(option, snapshot)
+                        self.assertIsNotNone(estimate.seed)
+                        self.assertGreaterEqual(estimate.seed, 0)
+                        self.assertLessEqual(estimate.seed, 2**64 - 1)
+                        if configured is not None:
+                            self.assertEqual(estimate.seed, configured)
+                        self.assertEqual(sampler.seed, configured)
+                        replay = engine(
+                            factory,
+                            path_count=256,
+                            seed=estimate.seed,
+                            sampling=sampling,
+                            antithetic=True,
+                            thread_count=4,
+                        )
+                        self.assertEqual(
+                            replay.price_with_statistics(option, snapshot), estimate
+                        )
+                        self.assertEqual(replay.price(option, snapshot), estimate.price)
+                        restored = pickle.loads(pickle.dumps(estimate))
+                        self.assertEqual(restored, estimate)
+                        self.assertEqual(restored.seed, estimate.seed)
+                        self.assertIsNone(
+                            sampler.price_with_statistics(option, deterministic).seed
+                        )
+
     def test_statistics_preserve_prices_and_uncertainty_across_products_and_threads(
         self,
     ):

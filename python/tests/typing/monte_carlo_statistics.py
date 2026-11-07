@@ -38,6 +38,7 @@ def sampling_estimates(
         MonteCarloUncertaintyStatus,
     )
     assert_type(asian.price_with_statistics(geometric, context), MonteCarloEstimate)
+    assert_type(asian.price_with_statistics(geometric, context).seed, int | None)
     assert_type(asian.price_with_statistics(arithmetic, context), MonteCarloEstimate)
     assert_type(
         MonteCarloBarrierEngine().price_with_statistics(barrier, context),

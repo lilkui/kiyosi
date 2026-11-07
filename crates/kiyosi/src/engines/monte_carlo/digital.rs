@@ -101,9 +101,14 @@ impl MonteCarloDigitalEngine {
         option: &DigitalOption,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        let (result, standard_error) =
+        let (result, standard_error, seed) =
             self.native(option, context, GreeksRequest::new([]), true)?;
-        MonteCarloEstimate::from_sampling(result.price(), standard_error, self.sampling_settings())
+        MonteCarloEstimate::from_sampling(
+            result.price(),
+            standard_error,
+            self.sampling_settings(),
+            seed,
+        )
     }
 
     /// Returns requested likelihood-ratio delta/gamma from the price's normal draws.
@@ -179,7 +184,7 @@ impl MonteCarloDigitalEngine {
         context: &PricingContext,
         request: GreeksRequest,
         statistics: bool,
-    ) -> Result<(PricingResult, Option<f64>)> {
+    ) -> Result<(PricingResult, Option<f64>, Option<u64>)> {
         self.validate_applicability(context)?;
         if crate::engines::deterministic::enabled(context) {
             let error = (statistics && self.settings.sampling == MonteCarloSampling::PseudoRandom)
@@ -191,6 +196,7 @@ impl MonteCarloDigitalEngine {
                     context,
                 )?)?,
                 error,
+                None,
             ));
         }
         let valuation = context.valuation_time();
@@ -216,7 +222,7 @@ impl MonteCarloDigitalEngine {
             })?;
             let error = (statistics && self.settings.sampling == MonteCarloSampling::PseudoRandom)
                 .then_some(0.0);
-            return Ok((result, error));
+            return Ok((result, error, None));
         }
         let model = context.bsm_parameters()?;
         context.validate_curve_horizon(option.expiry_time())?;
@@ -245,7 +251,7 @@ impl MonteCarloDigitalEngine {
         }
         let log_spot = spot.ln();
         let log_width = sigma.ln() + root.ln();
-        let (means, standard_error) = path_means(self.settings, 1, statistics, |normals| {
+        let (means, standard_error, seed) = path_means(self.settings, 1, statistics, |normals| {
             let normal = normals[0];
             // Standardization retains exercise when the terminal spot rounds to strike.
             let distance = d2 + normal;
@@ -282,7 +288,7 @@ impl MonteCarloDigitalEngine {
         if request.has(Greek::Gamma) {
             result.set(request, Greek::Gamma, means[2])?;
         }
-        Ok((result, standard_error))
+        Ok((result, standard_error, Some(seed)))
     }
 }
 

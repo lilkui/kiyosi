@@ -654,3 +654,101 @@ fn generic_statistics_keep_existing_monte_carlo_estimators_available() {
         assert!(estimate.standard_error().is_some());
     }
 }
+
+#[test]
+fn reported_seeds_replay_unseeded_and_configured_estimates() -> Result<()> {
+    fn check<I, E: PricingEngine<I>>(
+        build: impl Fn(MonteCarloSettings) -> Result<E>,
+        option: &I,
+    ) -> Result<()> {
+        let context = market();
+        let deterministic = context.replace(PricingContextChanges {
+            model_parameters: Some(BlackScholesMertonParameters::new(0.05, 0.02, 0.0)?.into()),
+            ..Default::default()
+        })?;
+        for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
+            for seed in [None, Some(u64::MAX)] {
+                let settings = MonteCarloSettings {
+                    path_count: 256,
+                    sampling,
+                    seed,
+                    thread_count: 1,
+                    antithetic: true,
+                };
+                let original = build(settings)?;
+                let estimate = original.price_with_statistics(option, &context)?;
+                let actual = estimate
+                    .seed()
+                    .expect("sampled estimate must identify its draws");
+                if let Some(seed) = seed {
+                    assert_eq!(actual, seed);
+                }
+                let replay = build(MonteCarloSettings {
+                    seed: Some(actual),
+                    thread_count: 4,
+                    ..settings
+                })?;
+                assert_eq!(replay.price_with_statistics(option, &context)?, estimate);
+                assert_eq!(replay.price(option, &context)?, estimate.price());
+                assert_eq!(
+                    original
+                        .price_with_statistics(option, &deterministic)?
+                        .seed(),
+                    None
+                );
+            }
+        }
+        Ok(())
+    }
+    let (start, end) = dates();
+    let vanilla = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    check(MonteCarloVanillaEngine::new, &vanilla)?;
+    check(
+        MonteCarloDigitalEngine::new,
+        &DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?,
+    )?;
+    check(
+        MonteCarloAsianEngine::new,
+        &GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)?,
+    )?;
+    check(
+        MonteCarloAsianEngine::new,
+        &ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)?,
+    )?;
+    check(
+        MonteCarloBarrierEngine::new,
+        &BarrierOption::new(BarrierOptionTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            120.0,
+            BarrierType::UpAndOut,
+        ))?,
+    )?;
+    check(
+        MonteCarloDoubleBarrierEngine::new,
+        &DoubleBarrierOption::new(DoubleBarrierOptionTerms::new(
+            OptionType::Call,
+            100.0,
+            start,
+            end,
+            80.0,
+            120.0,
+            DoubleBarrierType::KnockOut,
+        ))?,
+    )?;
+    let clock = TimeOfDay::new(0, 0, 0, 0)?;
+    check(
+        MonteCarloAutocallableEngine::new,
+        &SnowballPresetTerms::new(0.1, 100.0, 80.0, 110.0, start, end, vec![end], Some(clock))
+            .expand(SnowballPreset::Standard)?,
+    )?;
+    check(
+        MonteCarloAccumulatorEngine::new,
+        &Accumulator::new(AccumulatorTerms::new(
+            100.0, 120.0, 1.0, 2.0, start, end, clock,
+        ))?,
+    )?;
+    Ok(())
+}

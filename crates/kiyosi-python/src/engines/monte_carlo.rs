@@ -387,12 +387,20 @@ sampling_settings!(
 /// antithetic pair means. The interval is an asymptotic 95% normal confidence interval.
 /// Uncertainty is absent for Sobol, insufficient independent samples and odd
 /// antithetic counts; known pseudorandom settlements have zero uncertainty.
+/// The seed property identifies the actual draws, including for unseeded engines;
+/// None means no sampling occurred. Replay requires the same inputs, engine
+/// controls and build.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(PartialEq)]
 pub(crate) struct MonteCarloEstimate(kiyosi::MonteCarloEstimate);
 
 #[pymethods]
 impl MonteCarloEstimate {
+    /// Return the sampling seed, or None when no sampling occurred.
+    #[getter]
+    fn seed(&self) -> Option<u64> {
+        self.0.seed()
+    }
     /// Return the finite price in contract payment units.
     #[getter]
     fn price(&self) -> f64 {
@@ -850,11 +858,12 @@ impl MonteCarloAsianEngine {
 }
 
 #[pyfunction]
-#[pyo3(signature = (*, price, standard_error, uncertainty_status))]
+#[pyo3(signature = (*, price, standard_error, uncertainty_status, seed=None))]
 pub(crate) fn _monte_carlo_estimate(
     price: &Bound<'_, PyAny>,
     standard_error: Option<&Bound<'_, PyAny>>,
     uncertainty_status: &str,
+    seed: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<MonteCarloEstimate> {
     let status = match uncertainty_status {
         "available" => kiyosi::MonteCarloUncertaintyStatus::Available,
@@ -876,6 +885,8 @@ pub(crate) fn _monte_carlo_estimate(
             crate::conversions::real(price)?,
             standard_error.map(crate::conversions::real).transpose()?,
             status,
+            seed.map(|value| crate::conversions::integer_index(value)?.extract::<u64>())
+                .transpose()?,
         ),
     )?))
 }

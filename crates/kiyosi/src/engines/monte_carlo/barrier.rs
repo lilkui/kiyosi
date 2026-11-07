@@ -125,14 +125,14 @@ impl MonteCarloBarrierEngine {
         option: &BarrierOption,
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
-        let (result, error) = self.native(
+        let (result, error, seed) = self.native(
             Contract::Single(option),
             context,
             GreeksRequest::new([]),
             Default::default(),
             true,
         )?;
-        MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings())
+        MonteCarloEstimate::from_sampling(result.price(), error, self.sampling_settings(), seed)
     }
 
     /// Returns requested delta/gamma using the price's normal samples.
@@ -216,7 +216,7 @@ impl MonteCarloBarrierEngine {
         request: GreeksRequest,
         shifts: NumericalShiftSettings,
         statistics: bool,
-    ) -> Result<(PricingResult, Option<f64>)> {
+    ) -> Result<(PricingResult, Option<f64>, Option<u64>)> {
         let option = match contract {
             Contract::Single(option) => option,
             Contract::Double(option) => &option.lower,
@@ -238,7 +238,7 @@ impl MonteCarloBarrierEngine {
             };
             let error = (statistics && self.settings.sampling == MonteCarloSampling::PseudoRandom)
                 .then_some(0.0);
-            return Ok((PricingResult::new(value)?, error));
+            return Ok((PricingResult::new(value)?, error, None));
         }
         let time = context.valuation_time();
         let expiry = option.expiry_time();
@@ -272,12 +272,12 @@ impl MonteCarloBarrierEngine {
             {
                 return AnalyticEuropeanEngine
                     .price_with_greeks(option.vanilla(), context, request)
-                    .map(|result| (result, error));
+                    .map(|result| (result, error, None));
             }
             let mut result = PricingResult::new(value)?;
             result.set(request, Greek::Delta, 0.0)?;
             result.set(request, Greek::Gamma, 0.0)?;
-            return Ok((result, error));
+            return Ok((result, error, None));
         }
         let model = context.bsm_parameters()?;
         context.validate_curve_horizon(expiry)?;
@@ -333,7 +333,7 @@ impl MonteCarloBarrierEngine {
         };
         let delta = request.has(Greek::Delta);
         let gamma = request.has(Greek::Gamma);
-        let (means, error) = path_means(self.settings, steps.len(), statistics, |normals| {
+        let (means, error, seed) = path_means(self.settings, steps.len(), statistics, |normals| {
             let mut terminal = 0.0;
             let mut touched = false;
             let mut knocked_out = 0.0;
@@ -549,7 +549,7 @@ impl MonteCarloBarrierEngine {
         let mut result = PricingResult::new(values[0])?;
         result.set(request, Greek::Delta, values[1])?;
         result.set(request, Greek::Gamma, values[2])?;
-        Ok((result, error))
+        Ok((result, error, Some(seed)))
     }
 }
 

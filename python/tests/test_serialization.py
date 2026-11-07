@@ -510,3 +510,18 @@ class SerializationTests(unittest.TestCase):
                     "expiry_time": END,
                 },
             )
+
+    def test_estimate_reconstruction_validates_sampling_seeds(self):
+        from kiyosi import _native
+
+        fields = {"price": 10, "standard_error": 0, "uncertainty_status": "available"}
+        for seed in (None, 0, 2**64 - 1):
+            estimate = _native._monte_carlo_estimate(**fields, seed=seed)
+            self.assertEqual(estimate.seed, seed)
+            self.assertEqual(pickle.loads(pickle.dumps(estimate)), estimate)
+        for seed in (True, 1.5, "42"):
+            with self.subTest(seed=seed), self.assertRaises(TypeError):
+                _native._monte_carlo_estimate(**fields, seed=seed)
+        for seed in (-1, 2**64):
+            with self.subTest(seed=seed), self.assertRaises(OverflowError):
+                _native._monte_carlo_estimate(**fields, seed=seed)

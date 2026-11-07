@@ -104,7 +104,7 @@ impl MonteCarloAutocallableEngine {
         context: &PricingContext,
     ) -> Result<f64> {
         context.bsm_parameters()?;
-        let (sample, _, _) = self.sample(option, context, false)?;
+        let (sample, _, _, _) = self.sample(option, context, false)?;
         scaled_value(sample.scale, sample.mean, 0.0)
     }
 
@@ -141,8 +141,8 @@ impl MonteCarloAutocallableEngine {
         context: &PricingContext,
     ) -> Result<MonteCarloEstimate> {
         context.bsm_parameters()?;
-        let (sample, pairs, known) = self.sample(note, context, true)?;
-        estimate(self.settings, sample, pairs, 0.0, known)
+        let (sample, pairs, known, seed) = self.sample(note, context, true)?;
+        estimate(self.settings, sample, pairs, 0.0, known, seed)
     }
 
     fn sample<T: AutocallableTerms>(
@@ -150,7 +150,7 @@ impl MonteCarloAutocallableEngine {
         note: &AutocallableNote<T>,
         context: &PricingContext,
         statistics: bool,
-    ) -> Result<(Moments, Moments, bool)> {
+    ) -> Result<(Moments, Moments, bool, Option<u64>)> {
         let model = context.bsm_parameters()?;
         let rate = model.flat_risk_free_rate()?;
         let dividend = model.flat_dividend_yield()?;
@@ -160,7 +160,7 @@ impl MonteCarloAutocallableEngine {
                 crate::engines::deterministic::autocallable(note, context)?,
                 false,
             );
-            return Ok((sample, Moments::default(), true));
+            return Ok((sample, Moments::default(), true, None));
         }
         validate(note, context)?;
         let state = initial(note, context);
@@ -172,7 +172,7 @@ impl MonteCarloAutocallableEngine {
             }
             let mut moments = Moments::default();
             moments.add(value, false);
-            return Ok((moments, moments, true));
+            return Ok((moments, moments, true, None));
         }
         context.validate_curve_horizon(note.expiry_time())?;
         let terms = note.view();
@@ -218,7 +218,7 @@ impl MonteCarloAutocallableEngine {
             previous = date;
         }
         let terminal_log_discount = steps.last().ok_or_else(unstable)?.2;
-        let ([moments], [pairs]) =
+        let ([moments], [pairs], seed) =
             path_samples(self.settings, steps.len(), statistics, |normals| {
                 let mut spot = initial_spot;
                 let mut log_return = 0.0;
@@ -268,7 +268,7 @@ impl MonteCarloAutocallableEngine {
                     Err(unstable())
                 }
             })?;
-        Ok((moments, pairs, false))
+        Ok((moments, pairs, false, Some(seed)))
     }
 
     /// Computes requested finite-difference Greeks with shared normal draws.

@@ -64,6 +64,9 @@ Save or pickle that returned engine to replay draws within the same build;
 Every Monte Carlo engine exposes ``price_with_statistics`` for its supported
 contracts; vanilla statistics require European options. It returns the same
 seeded price as ``price`` and also computes and validates sampling uncertainty.
+``estimate.seed`` records the actual sampling seed, even when ``engine.seed`` is None.
+Rebuild an engine with that seed and the same controls to replay the estimate
+within the same build. No-sampling valuations report ``estimate.seed=None``.
 ``estimate.uncertainty_status`` explains its availability: ``"available"``,
 ``"unsupported_sampling"`` for Sobol, ``"insufficient_observations"``, or
 ``"incomplete_antithetic_pair"`` for an odd antithetic path count.
