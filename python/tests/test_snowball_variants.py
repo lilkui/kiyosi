@@ -1,5 +1,6 @@
 """Snowball variants through the installed Rust public API."""
 
+import inspect
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -30,6 +31,26 @@ from test_snowball import END, START, autocallable_observations, market, structu
 
 
 class SnowballVariantTests(unittest.TestCase):
+    def test_european_snowball_signature_defaults_can_be_forwarded(self):
+        factory = instruments.european_snowball
+        signature = inspect.signature(factory)
+        self.assertIsNone(signature.parameters["observation_clock_time"].default)
+        fields = {
+            "coupon_rate": 0.12,
+            "initial_spot": 100,
+            "knock_in_level": 80,
+            "knock_out_level": 110,
+            "observation_times": [END],
+            "effective_time": START,
+            "expiry_time": END,
+        }
+        expected = factory(**fields)
+        bound = signature.bind(**fields)
+        bound.apply_defaults()
+        self.assertEqual(factory(**bound.arguments), expected)
+        self.assertIsNone(expected.observation_clock_time)
+        self.assertEqual(expected.knock_in_observation_mode, "at_expiry")
+
     def test_quadrature_covers_drift_into_future_knock_out(self):
         end = datetime(2026, 1, 1)
         note = BinarySnowballOption(

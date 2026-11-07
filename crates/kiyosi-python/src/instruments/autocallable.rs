@@ -333,7 +333,7 @@ pub(crate) fn autocallable_observations(
 }
 
 macro_rules! snowball_preset {
-    ($name:ident, $clock:ident $(= $clock_default:expr)?, $coupon:ident => $coupon_doc:literal, $level:ident => $level_doc:literal,
+    ($name:ident, $clock:ident $(= $clock_default:tt)?, $coupon:ident => $coupon_doc:literal, $level:ident => $level_doc:literal,
      [$($extra:ident => $extra_doc:literal => $convert:ident),*], $preset:expr,
      $summary:literal, $monitoring:literal, $notes:literal) => {
         #[doc = $summary]
