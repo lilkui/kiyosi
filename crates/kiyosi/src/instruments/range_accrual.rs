@@ -260,9 +260,10 @@ impl OptionContract for RangeAccrualOption {
     fn history_time(&self) -> Option<Timestamp> {
         self.history_time
     }
-    fn with_history_time(mut self, time: Option<Timestamp>) -> Self {
+    fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
+        crate::instruments::validate_history_time_bounds(&self, time)?;
         self.history_time = time;
-        self
+        Ok(self)
     }
 
     fn effective_time(&self) -> Timestamp {
@@ -330,6 +331,8 @@ impl OptionContract for RangeAccrualOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct RangeAccrualOptionChanges {
+    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
+    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned observation calendar; see [`RangeAccrualOption::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`notional`](RangeAccrualTerms::notional).
@@ -403,6 +406,6 @@ impl RangeAccrualOption {
                 && self.observation_schedule()? != updated.observation_schedule()?,
             "realized_hit_count",
         )?;
-        Ok(updated.with_history_time(self.history_time))
+        updated.with_history_time(changes.history_time.unwrap_or(self.history_time))
     }
 }

@@ -48,7 +48,7 @@ macro_rules! autocallable_properties {
                     Some(value) => state(value)?,
                     None => self.0.barrier_state(),
                 };
-                Ok(Self(kiyosi::OptionContract::with_history_time(domain(self.0.replace_history(history))?, history_time)))
+                Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(self.0.replace_history(history))?, history_time))?))
             }
             /// Returns an owned copy of the contract's monitoring calendar.
             #[getter]
@@ -450,7 +450,7 @@ macro_rules! snowball_preset {
             }
             terms.principal_ratio = principal_ratio;
             terms.calendar = calendar.0;
-            Ok(SnowballOption(kiyosi::OptionContract::with_history_time(domain(terms.expand($preset))?, history_time)))
+            Ok(SnowballOption(domain(kiyosi::OptionContract::with_history_time(domain(terms.expand($preset))?, history_time))?))
         }
     };
     (@type real) => { "float" };
@@ -710,6 +710,7 @@ snowball_properties! {
             .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
 
         let changes = kiyosi::SnowballOptionChanges {
+            history_time: Some(history_time),
             calendar: calendar.map(|v| v.extract::<TradingCalendar>().map(|v| v.0)).transpose()?,
             maturity_coupon_rate: maturity_coupon_rate.map(crate::conversions::real).transpose()?,
             initial_spot: initial_spot.map(crate::conversions::real).transpose()?,
@@ -724,7 +725,7 @@ snowball_properties! {
             expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
             observations: observations.map(crate::instruments::autocallable::records).transpose()?,
         };
-        Ok(Self(kiyosi::OptionContract::with_history_time(domain(self.0.replace(changes))?, history_time)))
+        Ok(Self(domain(self.0.replace(changes))?))
     }
 ,
     #[new]
@@ -764,7 +765,7 @@ snowball_properties! {
         }
         terms.principal_ratio = principal_ratio;
         terms.calendar = calendar.0;
-        Ok(Self(kiyosi::OptionContract::with_history_time(domain(kiyosi::SnowballOption::new(terms))?, history_time)))
+        Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(kiyosi::SnowballOption::new(terms))?, history_time))?))
     },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
@@ -893,6 +894,7 @@ snowball_properties! {
             .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
 
         let changes = kiyosi::BinarySnowballOptionChanges {
+            history_time: Some(history_time),
             calendar: calendar.map(|v| v.extract::<TradingCalendar>().map(|v| v.0)).transpose()?,
             maturity_coupon_rate: maturity_coupon_rate.map(crate::conversions::real).transpose()?,
             barrier_state: barrier_state.map(crate::instruments::autocallable::state).transpose()?,
@@ -901,7 +903,7 @@ snowball_properties! {
             expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
             observations: observations.map(crate::instruments::autocallable::records).transpose()?,
         };
-        Ok(Self(kiyosi::OptionContract::with_history_time(domain(self.0.replace(changes))?, history_time)))
+        Ok(Self(domain(self.0.replace(changes))?))
     }
 ,
     #[new]
@@ -929,7 +931,7 @@ snowball_properties! {
         }
         terms.principal_ratio = principal_ratio;
         terms.calendar = calendar.0;
-        Ok(Self(kiyosi::OptionContract::with_history_time(domain(kiyosi::BinarySnowballOption::new(terms))?, history_time)))
+        Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(kiyosi::BinarySnowballOption::new(terms))?, history_time))?))
     },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
@@ -1048,6 +1050,7 @@ snowball_properties! {
             .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
 
         let changes = kiyosi::TernarySnowballOptionChanges {
+            history_time: Some(history_time),
             calendar: calendar.map(|v| v.extract::<TradingCalendar>().map(|v| v.0)).transpose()?,
             maturity_coupon_rate: maturity_coupon_rate.map(crate::conversions::real).transpose()?,
             minimum_coupon_rate: minimum_coupon_rate.map(crate::conversions::real).transpose()?,
@@ -1060,7 +1063,7 @@ snowball_properties! {
             expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
             observations: observations.map(crate::instruments::autocallable::records).transpose()?,
         };
-        Ok(Self(kiyosi::OptionContract::with_history_time(domain(self.0.replace(changes))?, history_time)))
+        Ok(Self(domain(self.0.replace(changes))?))
     }
 ,
     #[new]
@@ -1096,7 +1099,7 @@ snowball_properties! {
         }
         terms.principal_ratio = principal_ratio;
         terms.calendar = calendar.0;
-        Ok(Self(kiyosi::OptionContract::with_history_time(domain(kiyosi::TernarySnowballOption::new(terms))?, history_time)))
+        Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(kiyosi::TernarySnowballOption::new(terms))?, history_time))?))
     },
     /// Return copied annual knock-out coupons in observation order.
     #[getter]
@@ -1262,6 +1265,7 @@ autocallable_properties! {
             .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
 
         let changes = kiyosi::PhoenixOptionChanges {
+            history_time: Some(history_time),
             calendar: calendar.map(|v| v.extract::<TradingCalendar>().map(|v| v.0)).transpose()?,
             coupon: match (coupon_rate.filter(|v| !v.is_none()), coupon_per_period.filter(|v| !v.is_none())) {
                 (None, None) => None,
@@ -1281,7 +1285,7 @@ autocallable_properties! {
             expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
             observations: observations.map(crate::instruments::autocallable::records).transpose()?,
         };
-        Ok(Self(kiyosi::OptionContract::with_history_time(domain(self.0.replace(changes))?, history_time)))
+        Ok(Self(domain(self.0.replace(changes))?))
     }
 ,
     #[new]
@@ -1330,7 +1334,7 @@ autocallable_properties! {
         }
         terms.principal_ratio = principal_ratio;
         terms.calendar = calendar.0;
-        Ok(Self(kiyosi::OptionContract::with_history_time(domain(kiyosi::PhoenixOption::new(terms))?, history_time)))
+        Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(kiyosi::PhoenixOption::new(terms))?, history_time))?))
     },
     /// Returns a note with the quoted coupon in its existing annual or per-period units.
     ///
@@ -1474,7 +1478,7 @@ macro_rules! phoenix_preset {
             }
             terms.principal_ratio = principal_ratio;
             terms.calendar = calendar.0;
-            Ok(PhoenixOption(kiyosi::OptionContract::with_history_time(domain(terms.expand($preset))?, history_time)))
+            Ok(PhoenixOption(domain(kiyosi::OptionContract::with_history_time(domain(terms.expand($preset))?, history_time))?))
         }
     };
 }

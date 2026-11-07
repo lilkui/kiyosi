@@ -145,6 +145,7 @@ monitoring_properties!(
             .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
 
         let changes = kiyosi::DoubleBarrierOptionChanges {
+            history_time: Some(history_time),
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
                 .transpose()?,
@@ -173,10 +174,7 @@ monitoring_properties!(
                 .map(crate::instruments::barrier::history)
                 .transpose()?,
         };
-        Ok(Self(kiyosi::OptionContract::with_history_time(
-            domain(self.0.replace(changes))?,
-            history_time,
-        )))
+        Ok(Self(domain(self.0.replace(changes))?))
     },
     #[new]
     #[pyo3(signature = (*, option_type, strike, effective_time, expiry_time, lower_barrier, upper_barrier, barrier_type, rebate=kiyosi::BarrierOptionTerms::DEFAULT_REBATE, rebate_timing=kiyosi::RebateTiming::default(), observation_mode=kiyosi::ObservationMode::default(), observation_times=Vec::new(), touch_state=None, calendar=TradingCalendar::default(), history_time=None))]
@@ -215,10 +213,10 @@ monitoring_properties!(
         terms.observation_times = observation_times;
         terms.touch_state = touch_state;
         terms.calendar = calendar.0;
-        Ok(Self(kiyosi::OptionContract::with_history_time(
+        Ok(Self(domain(kiyosi::OptionContract::with_history_time(
             domain(kiyosi::DoubleBarrierOption::new(terms))?,
             history_time,
-        )))
+        ))?))
     },
     /// Return call or put payoff direction.
     #[getter]

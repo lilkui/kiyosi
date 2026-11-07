@@ -217,7 +217,7 @@ macro_rules! average_option {
                     self.averaging_start_time() != updated.averaging_start_time(),
                     "realized_average",
                 )?;
-                Ok(updated.with_history_time(self.history_time()))
+                updated.with_history_time(changes.history_time.unwrap_or(self.history_time()))
             }
             /// Creates an average-price contract with explicit history.
             ///
@@ -295,7 +295,7 @@ macro_rules! average_option {
                     self.expiry_time(),
                     realized_average,
                 )
-                .map(|updated| updated.with_history_time(self.history_time()))
+                .and_then(|updated| updated.with_history_time(self.history_time()))
             }
             /// Returns the direction; see [`Self::new`].
             pub fn option_type(&self) -> OptionType {
@@ -326,9 +326,10 @@ macro_rules! average_option {
             fn history_time(&self) -> Option<Timestamp> {
                 self.0.history_time
             }
-            fn with_history_time(mut self, time: Option<Timestamp>) -> Self {
+            fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
+                crate::instruments::validate_history_time_bounds(&self, time)?;
                 self.0.history_time = time;
-                self
+                Ok(self)
             }
 
             fn effective_time(&self) -> Timestamp {
@@ -394,6 +395,8 @@ average_option!(
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AveragePriceOptionChanges {
+    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
+    pub history_time: Option<Option<Timestamp>>,
     /// Replaces [`option_type`](GeometricAveragePriceOption::option_type).
     pub option_type: Option<OptionType>,
     /// Replaces [`strike`](GeometricAveragePriceOption::strike).

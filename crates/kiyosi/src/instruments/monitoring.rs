@@ -274,9 +274,10 @@ impl OptionContract for Monitoring {
     fn history_time(&self) -> Option<Timestamp> {
         self.history_time
     }
-    fn with_history_time(mut self, time: Option<Timestamp>) -> Self {
+    fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
+        crate::instruments::validate_history_time_bounds(&self, time)?;
         self.history_time = time;
-        self
+        Ok(self)
     }
 
     fn effective_time(&self) -> Timestamp {

@@ -132,6 +132,7 @@ impl RangeAccrualOption {
             .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
 
         let changes = kiyosi::RangeAccrualOptionChanges {
+            history_time: Some(history_time),
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
                 .transpose()?,
@@ -158,10 +159,7 @@ impl RangeAccrualOption {
                 })
                 .transpose()?,
         };
-        Ok(Self(kiyosi::OptionContract::with_history_time(
-            domain(self.0.replace(changes))?,
-            history_time,
-        )))
+        Ok(Self(domain(self.0.replace(changes))?))
     }
     #[new]
     #[expect(clippy::too_many_arguments, reason = "explicit Python contract terms")]
@@ -194,10 +192,10 @@ impl RangeAccrualOption {
             terms.realized_hit_count = history(value)?;
         }
         terms.calendar = calendar.0;
-        Ok(Self(kiyosi::OptionContract::with_history_time(
+        Ok(Self(domain(kiyosi::OptionContract::with_history_time(
             domain(kiyosi::RangeAccrualOption::new(terms))?,
             history_time,
-        )))
+        ))?))
     }
 
     /// Return a validated replacement without changing this value.
@@ -234,10 +232,10 @@ impl RangeAccrualOption {
             Some(value) => history(value)?,
             None => self.0.realized_hit_count(),
         };
-        Ok(Self(kiyosi::OptionContract::with_history_time(
+        Ok(Self(domain(kiyosi::OptionContract::with_history_time(
             domain(self.0.replace_history(count))?,
             history_time,
-        )))
+        ))?))
     }
     /// Returns the explicitly specified daily observation clock time.
     #[getter]

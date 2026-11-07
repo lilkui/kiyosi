@@ -18,28 +18,75 @@ fn check<I: OptionContract + Clone>(
         Err(Error::InvalidInput(_))
     ));
     let original = option.clone();
-    let dated = option.with_history_time(Some(market.valuation_time()));
+    let dated = option.with_history_time(Some(market.valuation_time()))?;
     assert_eq!(original.history_time(), None);
     assert_eq!(dated.history_time(), Some(market.valuation_time()));
     assert!(engine.price(&dated, market)?.is_finite());
     let future = dated
         .clone()
-        .with_history_time(Some(market.valuation_time().add_days(1)?));
+        .with_history_time(Some(market.valuation_time().add_days(1)?))?;
     assert!(matches!(
         engine.price(&future, market),
         Err(Error::InvalidInput(_))
     ));
-    let invalid = dated
-        .clone()
-        .with_history_time(Some(dated.effective_time().add_days(-1)?));
+    for invalid in [
+        dated.effective_time().add_days(-1)?,
+        dated.expiry_time().add_days(1)?,
+    ] {
+        assert!(matches!(
+            dated.clone().with_history_time(Some(invalid)),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    for boundary in [dated.effective_time(), dated.expiry_time()] {
+        assert_eq!(
+            dated
+                .clone()
+                .with_history_time(Some(boundary))?
+                .history_time(),
+            Some(boundary)
+        );
+    }
     assert!(matches!(
-        engine.price(&invalid, market),
+        engine.price(&dated.with_history_time(None)?, market),
         Err(Error::InvalidInput(_))
     ));
+    Ok(())
+}
+
+#[test]
+fn history_time_and_contract_life_are_replaced_together() -> Result<()> {
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let end = start.add_days(8)?;
+    let at = start.add_days(4)?;
+    let option = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        120.0,
+        BarrierType::UpAndOut,
+    ))?
+    .replace_history(Some(BarrierTouchState::Untouched))
+    .with_history_time(Some(at))?;
+    let expiry = start.add_days(1)?;
+    let changes = BarrierOptionChanges {
+        expiry_time: Some(expiry),
+        touch_state: Some(Some(BarrierTouchState::Untouched)),
+        ..Default::default()
+    };
     assert!(matches!(
-        engine.price(&dated.with_history_time(None), market),
+        option.replace(changes.clone()),
         Err(Error::InvalidInput(_))
     ));
+    let replaced = option.replace(BarrierOptionChanges {
+        history_time: Some(Some(expiry)),
+        ..changes
+    })?;
+    assert_eq!(replaced.history_time(), Some(expiry));
+    assert_eq!(replaced.expiry_time(), expiry);
+    assert_eq!(option.history_time(), Some(at));
+    assert_eq!(option.expiry_time(), end);
     Ok(())
 }
 
@@ -192,7 +239,7 @@ fn discrete_history_reuses_between_events_and_requires_refresh_after_them() -> R
     let mut terms =
         RangeAccrualTerms::new(100.0, 0.1, 90.0, 110.0, start, end, event.time_of_day());
     terms.realized_hit_count = Some(1);
-    let option = RangeAccrualOption::new(terms)?.with_history_time(Some(at));
+    let option = RangeAccrualOption::new(terms)?.with_history_time(Some(at))?;
     let market = PricingContext::new(BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?, 100.0, at)?;
     let engine = AnalyticRangeAccrualEngine;
     let price = engine.price(&option, &market)?;
@@ -217,7 +264,7 @@ fn discrete_history_reuses_between_events_and_requires_refresh_after_them() -> R
     ));
     let refreshed = option
         .replace_history(Some(2))?
-        .with_history_time(Some(rolled.valuation_time()));
+        .with_history_time(Some(rolled.valuation_time()))?;
     assert_eq!(engine.price(&refreshed, &rolled)?, price);
     assert_eq!(option.history_time(), Some(at));
     let backwards = market.replace(PricingContextChanges {
@@ -239,7 +286,7 @@ fn continuous_history_rejects_reuse_but_numerical_time_risk_keeps_it_frozen() ->
     let market = context(at)?;
     let option =
         GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, Some(100.0))?
-            .with_history_time(Some(at));
+            .with_history_time(Some(at))?;
     let engine = AnalyticGeometricAveragePriceEngine;
     let result = engine.price_with_greeks(&option, &market, GreeksRequest::new([Greek::Theta]))?;
     assert!(result.require(Greek::Theta)?.is_finite());
@@ -256,7 +303,7 @@ fn continuous_history_rejects_reuse_but_numerical_time_risk_keeps_it_frozen() ->
             .price(
                 &option
                     .clone()
-                    .with_history_time(Some(rolled.valuation_time())),
+                    .with_history_time(Some(rolled.valuation_time()))?,
                 &rolled
             )?
             .is_finite()
@@ -281,11 +328,11 @@ fn settled_history_must_already_be_possible_at_its_own_timestamp() -> Result<()>
         TimeOfDay::new(15, 0, 0, 0)?,
     );
     terms.knock_out_settled = Some(true);
-    let settled = Accumulator::new(terms)?.with_history_time(Some(start));
+    let settled = Accumulator::new(terms)?.with_history_time(Some(start))?;
     let engine = QuadratureAccumulatorEngine::default();
     assert!(matches!(
         engine.price(
-            &settled.clone().with_history_time(Some(at.add_days(1)?)),
+            &settled.clone().with_history_time(Some(at.add_days(1)?))?,
             &market
         ),
         Err(Error::InvalidInput(_))
@@ -295,7 +342,7 @@ fn settled_history_must_already_be_possible_at_its_own_timestamp() -> Result<()>
         Err(Error::InvalidInput(_))
     ));
     assert_eq!(
-        engine.price(&settled.with_history_time(Some(at)), &market)?,
+        engine.price(&settled.with_history_time(Some(at))?, &market)?,
         0.0
     );
     let note = BinarySnowballOption::new(BinarySnowballTerms::new(
@@ -305,14 +352,14 @@ fn settled_history_must_already_be_possible_at_its_own_timestamp() -> Result<()>
         vec![AutocallableObservation::new(start.add_days(1)?, 110.0)?],
     ))?
     .replace_history(Some(AutocallableBarrierState::KnockedOut))?
-    .with_history_time(Some(start));
+    .with_history_time(Some(start))?;
     let engine = QuadratureAutocallableEngine::default();
     assert!(matches!(
         engine.price(&note, &market),
         Err(Error::InvalidInput(_))
     ));
     assert_eq!(
-        engine.price(&note.with_history_time(Some(at)), &market)?,
+        engine.price(&note.with_history_time(Some(at))?, &market)?,
         0.0
     );
     Ok(())

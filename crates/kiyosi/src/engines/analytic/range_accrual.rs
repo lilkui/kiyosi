@@ -53,7 +53,7 @@ impl AnalyticRangeAccrualEngine {
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 1, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?.replace_history(Some(1))?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     95.0, option.expiry_time().into())?;
-    /// let option = option.with_history_time(Some(context.valuation_time()));
+    /// let option = option.with_history_time(Some(context.valuation_time()))?;
     /// assert!((AnalyticRangeAccrualEngine.price(&option, &context)? - 240.0 / 365.0).abs() < 1e-12);
     /// # Ok(()) }
     /// ```

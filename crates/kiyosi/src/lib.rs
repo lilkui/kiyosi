@@ -91,6 +91,7 @@
 //! # History snapshots
 //!
 //! Supplied history requires [`OptionContract::with_history_time`] before pricing.
+//! Its timestamp is validated against the contract life when supplied.
 //! It describes events strictly before that instant. Discrete history can be reused
 //! between observations; unaccounted observations require a fresh snapshot. Continuous
 //! barrier and Asian history require the same instant, except resolved barrier monitoring.
@@ -106,14 +107,14 @@
 //! let mut terms = RangeAccrualTerms::new(100.0, 0.1, 90.0, 110.0,
 //!     start, end, TimeOfDay::new(15, 0, 0, 0)?);
 //! terms.realized_hit_count = Some(1);
-//! let option = RangeAccrualOption::new(terms)?.with_history_time(Some(at));
+//! let option = RangeAccrualOption::new(terms)?.with_history_time(Some(at))?;
 //! let context = PricingContext::new(BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?, 100.0, at)?;
 //! let price = AnalyticRangeAccrualEngine.price(&option, &context)?;
 //! let later = context.replace(PricingContextChanges {
 //!     valuation_time: Some(at.add_days(1)?), ..Default::default()
 //! })?;
 //! assert!(matches!(AnalyticRangeAccrualEngine.price(&option, &later), Err(Error::InvalidInput(_))));
-//! let refreshed = option.replace_history(Some(2))?.with_history_time(Some(later.valuation_time()));
+//! let refreshed = option.replace_history(Some(2))?.with_history_time(Some(later.valuation_time()))?;
 //! assert_eq!(AnalyticRangeAccrualEngine.price(&refreshed, &later)?, price);
 //! # Ok(()) }
 //! ```

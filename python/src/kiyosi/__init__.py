@@ -32,6 +32,7 @@ values raise ``TypeError`` and values outside the target integer range raise
 ``OverflowError``.
 
 Supplied contract history requires an explicit ``history_time`` when pricing.
+History timestamps must fall within the contract life and are validated when supplied.
 History covers events strictly before that timestamp; pricing rejects stale rolls
 across observations. Continuously accumulated history requires the same instant.
 Set the timestamp alongside updated history with ``replace_history``. Numerical

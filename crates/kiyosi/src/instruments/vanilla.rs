@@ -142,14 +142,17 @@ pub trait OptionContract {
     ///
     /// Built-in path-dependent contracts require dated history at pricing. Reuse across
     /// observations is rejected; continuously accumulated history requires the same instant.
-    /// Dates outside the contract life or after valuation are rejected at pricing. Contracts without history
-    /// retain their value. See the [crate-level history example](crate).
-    #[must_use]
-    fn with_history_time(self, _time: Option<Timestamp>) -> Self
+    /// Dates after valuation are rejected at pricing. Contracts without history retain their value.
+    /// See the [crate-level history example](crate).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for a history timestamp outside the contract life.
+    fn with_history_time(self, _time: Option<Timestamp>) -> Result<Self>
     where
         Self: Sized,
     {
-        self
+        Ok(self)
     }
 
     /// Returns the earliest valuation time, or `None` when pre-effective valuation is valid.

@@ -94,6 +94,7 @@ macro_rules! average_option {
             .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
 
         let changes = kiyosi::AveragePriceOptionChanges {
+            history_time: Some(history_time),
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
             effective_time: effective_time.map(crate::conversions::timestamp).transpose()?,
@@ -101,7 +102,7 @@ macro_rules! average_option {
             expiry_time: expiry_time.map(crate::conversions::timestamp).transpose()?,
             realized_average: realized_average.map(history).transpose()?,
         };
-        Ok(Self(kiyosi::OptionContract::with_history_time(domain(self.0.replace(changes))?, history_time)))
+        Ok(Self(domain(self.0.replace(changes))?))
     }
             #[new]
             #[pyo3(signature = (*, option_type, strike, effective_time, averaging_start_time, expiry_time, realized_average=kiyosi::DEFAULT_REALIZED_AVERAGE, history_time=None))]
@@ -110,8 +111,8 @@ macro_rules! average_option {
                 expiry_time: &Bound<'_, PyAny>, #[pyo3(from_py_with = history)] realized_average: Option<f64>,
                 #[pyo3(from_py_with = crate::conversions::optional_timestamp)] history_time: Option<kiyosi::Timestamp>,
             ) -> PyResult<Self> {
-                Ok(Self(kiyosi::OptionContract::with_history_time(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
-                    timestamp(effective_time)?, timestamp(averaging_start_time)?, timestamp(expiry_time)?, realized_average))?, history_time)))
+                Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(kiyosi::$name::new(direction(option_type)?, real(strike)?,
+                    timestamp(effective_time)?, timestamp(averaging_start_time)?, timestamp(expiry_time)?, realized_average))?, history_time))?))
             }
             /// Return a validated replacement without changing this value.
             ///
@@ -142,7 +143,7 @@ macro_rules! average_option {
                     .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
 
                 let realized = realized_average.map(history).transpose()?.unwrap_or(self.0.realized_average());
-                Ok(Self(kiyosi::OptionContract::with_history_time(domain(self.0.replace_history(realized))?, history_time)))
+                Ok(Self(domain(kiyosi::OptionContract::with_history_time(domain(self.0.replace_history(realized))?, history_time))?))
             }
             /// Return call or put payoff direction.
             #[getter]

@@ -379,7 +379,7 @@ macro_rules! monitoring_accessors {
             pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
                 let mut updated = self.clone();
                 updated.monitoring = updated.monitoring.replace_calendar(calendar)?;
-                Ok(updated.with_history_time(self.history_time()))
+                updated.with_history_time(self.history_time())
             }
             /// Borrows the contract's observation calendar; see [`Self::replace_calendar`].
             pub fn calendar(&self) -> &TradingCalendar {
@@ -426,9 +426,9 @@ macro_rules! monitoring_accessors {
             fn history_time(&self) -> Option<Timestamp> {
                 self.monitoring.history_time()
             }
-            fn with_history_time(mut self, time: Option<Timestamp>) -> Self {
-                self.monitoring = self.monitoring.with_history_time(time);
-                self
+            fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
+                self.monitoring = self.monitoring.with_history_time(time)?;
+                Ok(self)
             }
 
             fn effective_time(&self) -> Timestamp {
@@ -517,6 +517,8 @@ impl TouchOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct BinaryBarrierOptionChanges {
+    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
+    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned observation calendar; see [`BinaryBarrierOption::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`option_type`](BinaryBarrierTerms::option_type).
@@ -586,7 +588,7 @@ impl BinaryBarrierOption {
             history_supplied,
             false,
         )?;
-        Ok(updated.with_history_time(self.history_time()))
+        updated.with_history_time(changes.history_time.unwrap_or(self.history_time()))
     }
 }
 
@@ -595,6 +597,8 @@ impl BinaryBarrierOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct TouchOptionChanges {
+    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
+    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned observation calendar; see [`TouchOption::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`effective_time`](TouchOptionTerms::effective_time).
@@ -663,6 +667,6 @@ impl TouchOption {
             history_supplied,
             false,
         )?;
-        Ok(updated.with_history_time(self.history_time()))
+        updated.with_history_time(changes.history_time.unwrap_or(self.history_time()))
     }
 }

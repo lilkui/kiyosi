@@ -101,7 +101,7 @@ impl DoubleBarrierOption {
     pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
         let mut updated = self.clone();
         updated.lower = updated.lower.replace_calendar(calendar)?;
-        Ok(updated.with_history_time(self.history_time()))
+        updated.with_history_time(self.history_time())
     }
 
     /// Borrows the contract's observation calendar; see [`Self::replace_calendar`].
@@ -269,9 +269,9 @@ impl OptionContract for DoubleBarrierOption {
     fn history_time(&self) -> Option<Timestamp> {
         self.lower.history_time()
     }
-    fn with_history_time(mut self, time: Option<Timestamp>) -> Self {
-        self.lower = self.lower.with_history_time(time);
-        self
+    fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
+        self.lower = self.lower.with_history_time(time)?;
+        Ok(self)
     }
 
     fn effective_time(&self) -> Timestamp {
@@ -305,6 +305,8 @@ impl OptionContract for DoubleBarrierOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct DoubleBarrierOptionChanges {
+    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
+    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned observation calendar; see [`DoubleBarrierOption::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`option_type`](DoubleBarrierOptionTerms::option_type).
@@ -373,6 +375,6 @@ impl DoubleBarrierOption {
             history_supplied,
             self.upper_barrier().to_bits() != updated.upper_barrier().to_bits(),
         )?;
-        Ok(updated.with_history_time(self.history_time()))
+        updated.with_history_time(changes.history_time.unwrap_or(self.history_time()))
     }
 }

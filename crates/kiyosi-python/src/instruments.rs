@@ -29,6 +29,8 @@ macro_rules! monitoring_properties {
             ///
             /// Raises
             /// ------
+            /// InvalidInputError
+            ///     If history_time falls outside the contract life.
             /// TypeError
             ///     If a field is unknown or touch_state is not a string, None or Ellipsis.
             /// ValueError
@@ -51,7 +53,7 @@ macro_rules! monitoring_properties {
                     Some(value) => $crate::instruments::barrier::history(value)?,
                     None => self.0.touch_state(),
                 };
-                Ok(Self(kiyosi::OptionContract::with_history_time(self.0.replace_history(state), history_time)))
+                Ok(Self(crate::error::domain(kiyosi::OptionContract::with_history_time(self.0.replace_history(state), history_time))?))
             }
             /// Returns the inclusive contract start.
             #[getter]

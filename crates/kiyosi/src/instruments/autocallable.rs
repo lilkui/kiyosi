@@ -617,7 +617,7 @@ impl<T: SnowballCouponTerms> AutocallableNote<T> {
             self.0
                 .with_shifted_coupons(first_observation_coupon, convention),
         )
-        .map(|updated| updated.with_history_time(self.1))
+        .and_then(|updated| updated.with_history_time(self.1))
     }
 }
 
@@ -830,7 +830,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         updated.0.set_calendar(calendar);
         updated.view().validate_calendar()?;
         self.validate_replacement_history(&updated, false)?;
-        Ok(updated.with_history_time(self.1))
+        updated.with_history_time(self.1)
     }
 
     fn validate_replacement_history(&self, updated: &Self, supplied: bool) -> Result<()> {
@@ -1080,9 +1080,10 @@ impl<T: AutocallableTerms> OptionContract for AutocallableNote<T> {
     fn history_time(&self) -> Option<Timestamp> {
         self.1
     }
-    fn with_history_time(mut self, time: Option<Timestamp>) -> Self {
+    fn with_history_time(mut self, time: Option<Timestamp>) -> Result<Self> {
+        crate::instruments::validate_history_time_bounds(&self, time)?;
         self.1 = time;
-        self
+        Ok(self)
     }
 
     fn effective_time(&self) -> Timestamp {
@@ -1430,6 +1431,8 @@ impl sealed::View<'_> {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct SnowballOptionChanges {
+    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
+    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned monitoring calendar; see [`AutocallableNote::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`maturity_coupon_rate`](SnowballTerms::maturity_coupon_rate).
@@ -1501,7 +1504,7 @@ impl SnowballOption {
                 .unwrap_or_else(|| self.0.observations.clone()),
         })?;
         self.validate_replacement_history(&updated, history_supplied)?;
-        Ok(updated.with_history_time(self.1))
+        updated.with_history_time(changes.history_time.unwrap_or(self.1))
     }
 }
 
@@ -1510,6 +1513,8 @@ impl SnowballOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct PhoenixOptionChanges {
+    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
+    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned monitoring calendar; see [`AutocallableNote::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`coupon`](PhoenixTerms::coupon).
@@ -1602,7 +1607,7 @@ impl PhoenixOption {
                 .unwrap_or_else(|| self.0.observations.clone()),
         })?;
         self.validate_replacement_history(&updated, history_supplied)?;
-        Ok(updated.with_history_time(self.1))
+        updated.with_history_time(changes.history_time.unwrap_or(self.1))
     }
 }
 
@@ -1611,6 +1616,8 @@ impl PhoenixOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct BinarySnowballOptionChanges {
+    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
+    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned monitoring calendar; see [`AutocallableNote::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`maturity_coupon_rate`](BinarySnowballTerms::maturity_coupon_rate).
@@ -1657,7 +1664,7 @@ impl BinarySnowballOption {
                 .unwrap_or_else(|| self.0.observations.clone()),
         })?;
         self.validate_replacement_history(&updated, history_supplied)?;
-        Ok(updated.with_history_time(self.1))
+        updated.with_history_time(changes.history_time.unwrap_or(self.1))
     }
 }
 
@@ -1666,6 +1673,8 @@ impl BinarySnowballOption {
 /// For nullable fields, `Some(None)` clears the value.
 #[derive(Clone, Debug, Default)]
 pub struct TernarySnowballOptionChanges {
+    /// Replaces or clears the history timestamp; see [`OptionContract::with_history_time`].
+    pub history_time: Option<Option<Timestamp>>,
     /// Replaces the owned monitoring calendar; see [`AutocallableNote::replace_calendar`].
     pub calendar: Option<TradingCalendar>,
     /// Replaces [`maturity_coupon_rate`](TernarySnowballTerms::maturity_coupon_rate).
@@ -1733,7 +1742,7 @@ impl TernarySnowballOption {
                 .unwrap_or_else(|| self.0.observations.clone()),
         })?;
         self.validate_replacement_history(&updated, history_supplied)?;
-        Ok(updated.with_history_time(self.1))
+        updated.with_history_time(changes.history_time.unwrap_or(self.1))
     }
 }
 

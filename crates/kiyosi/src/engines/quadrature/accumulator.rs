@@ -38,7 +38,7 @@ impl QuadratureAccumulatorEngine {
     ///     })?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     90.0, option.expiry_time().into())?;
-    /// let option = option.with_history_time(Some(context.valuation_time()));
+    /// let option = option.with_history_time(Some(context.valuation_time()))?;
     /// let engine = QuadratureAccumulatorEngine::new(QuadratureSettings::default())?;
     /// assert_eq!(engine.settings().asset_step_count, 512);
     /// assert_eq!(engine.price(&option, &context)?, -50.0);

@@ -62,7 +62,7 @@ impl MonteCarloAccumulatorEngine {
     ///     })?;
     /// let context = PricingContext::new(
     ///     BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?, 110.0, start.add_days(1)?)?;
-    /// let option = option.with_history_time(Some(context.valuation_time()));
+    /// let option = option.with_history_time(Some(context.valuation_time()))?;
     /// let engine = MonteCarloAccumulatorEngine::new(MonteCarloSettings {
     ///     seed: Some(42), path_count: 4096, ..Default::default()
     /// })?;

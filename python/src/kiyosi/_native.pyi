@@ -7554,6 +7554,8 @@ class BarrierOption:
 
         Raises
         ------
+        InvalidInputError
+            If history_time falls outside the contract life.
         TypeError
             If a field is unknown or touch_state is not a string, None or Ellipsis.
         ValueError
@@ -7851,6 +7853,8 @@ class DoubleBarrierOption:
 
         Raises
         ------
+        InvalidInputError
+            If history_time falls outside the contract life.
         TypeError
             If a field is unknown or touch_state is not a string, None or Ellipsis.
         ValueError
@@ -8518,6 +8522,8 @@ class BinaryBarrierOption:
 
         Raises
         ------
+        InvalidInputError
+            If history_time falls outside the contract life.
         TypeError
             If a field is unknown or touch_state is not a string, None or Ellipsis.
         ValueError
@@ -8734,6 +8740,8 @@ class TouchOption:
 
         Raises
         ------
+        InvalidInputError
+            If history_time falls outside the contract life.
         TypeError
             If a field is unknown or touch_state is not a string, None or Ellipsis.
         ValueError
@@ -9255,6 +9263,8 @@ class DoubleTouchOption:
 
         Raises
         ------
+        InvalidInputError
+            If history_time falls outside the contract life.
         TypeError
             If a field is unknown or touch_state is not a string, None or Ellipsis.
         ValueError

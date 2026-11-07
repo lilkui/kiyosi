@@ -164,6 +164,7 @@ impl Accumulator {
             .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
 
         let changes = kiyosi::AccumulatorChanges {
+            history_time: Some(history_time),
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
                 .transpose()?,
@@ -201,10 +202,7 @@ impl Accumulator {
                 })
                 .transpose()?,
         };
-        Ok(Self(kiyosi::OptionContract::with_history_time(
-            domain(self.0.replace(changes))?,
-            history_time,
-        )))
+        Ok(Self(domain(self.0.replace(changes))?))
     }
     #[new]
     #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, observation_clock_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None, knock_out_settled=kiyosi::AccumulatorTerms::DEFAULT_KNOCK_OUT_SETTLED, calendar=TradingCalendar::default(), history_time=None))]
@@ -242,10 +240,10 @@ impl Accumulator {
         terms.knock_out_observation_times =
             knock_out_observation_times.map(timestamps).transpose()?;
         terms.calendar = calendar.0;
-        Ok(Self(kiyosi::OptionContract::with_history_time(
+        Ok(Self(domain(kiyosi::OptionContract::with_history_time(
             domain(kiyosi::Accumulator::new(terms))?,
             history_time,
-        )))
+        ))?))
     }
     /// Return a validated replacement without changing this value.
     ///
@@ -295,10 +293,10 @@ impl Accumulator {
                 .transpose()?,
             knock_out_settled: knock_out_settled.map(settlement).transpose()?,
         };
-        Ok(Self(kiyosi::OptionContract::with_history_time(
+        Ok(Self(domain(kiyosi::OptionContract::with_history_time(
             domain(self.0.replace_history(changes))?,
             history_time,
-        )))
+        ))?))
     }
 
     /// Returns the explicitly specified daily observation clock time.

@@ -82,11 +82,12 @@ monitoring_properties!(
         Ok(Self(domain(kiyosi::DoubleTouchOption::cash(
             terms, payout,
         ))?))
-        .map(|value: Self| {
-            Self(kiyosi::OptionContract::with_history_time(
+        .and_then(|value: Self| {
+            domain(kiyosi::OptionContract::with_history_time(
                 value.0,
                 history_time,
             ))
+            .map(Self)
         })
     },
     /// Returns a validated replacement without changing this contract.
@@ -171,6 +172,7 @@ monitoring_properties!(
             .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
 
         let changes = kiyosi::DoubleTouchOptionChanges {
+            history_time: Some(history_time),
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
                 .transpose()?,
@@ -197,10 +199,7 @@ monitoring_properties!(
                 .transpose()?,
             payout: payout.map(crate::conversions::real).transpose()?,
         };
-        Ok(Self(kiyosi::OptionContract::with_history_time(
-            domain(self.0.replace(changes))?,
-            history_time,
-        )))
+        Ok(Self(domain(self.0.replace(changes))?))
     },
     /// Return positive finite lower trigger; equality counts as a touch.
     #[getter]

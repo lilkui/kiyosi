@@ -35,11 +35,7 @@ pub(crate) fn validate_history_time(
     let time = option.history_time().ok_or_else(|| {
         crate::Error::InvalidInput("supplied history requires history_time".into())
     })?;
-    if time < option.effective_time() || time > option.expiry_time() {
-        return Err(crate::Error::InvalidInput(
-            "history_time is outside contract life".into(),
-        ));
-    }
+    validate_history_time_bounds(option, Some(time))?;
     let valuation = context.history_anchor.unwrap_or(context.valuation_time());
     if time > valuation {
         return Err(crate::Error::InvalidInput(
@@ -54,6 +50,18 @@ pub(crate) fn validate_history_time(
                 "history_time does not cover this valuation; replace and date the history".into(),
             ));
         }
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_history_time_bounds(
+    option: &impl crate::OptionContract,
+    time: Option<crate::Timestamp>,
+) -> crate::Result<()> {
+    if time.is_some_and(|time| time < option.effective_time() || time > option.expiry_time()) {
+        return Err(crate::Error::InvalidInput(
+            "history_time is outside contract life".into(),
+        ));
     }
     Ok(())
 }

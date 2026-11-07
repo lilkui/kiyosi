@@ -8,7 +8,7 @@ fn verify<I: OptionContract + Clone>(
 ) -> Result<()> {
     let dated = option
         .clone()
-        .with_history_time(Some(context.valuation_time()));
+        .with_history_time(Some(context.valuation_time()))?;
     let option = &dated;
     for engine in engines {
         assert!((engine.price(option, context)? - expected).abs() < 1e-10);

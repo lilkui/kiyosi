@@ -189,11 +189,12 @@ binary_properties!(
             kiyosi::BinaryPayoff::Cash(payout) => kiyosi::BinaryBarrierOption::cash(terms, payout),
             kiyosi::BinaryPayoff::Asset => kiyosi::BinaryBarrierOption::asset(terms),
         })?))
-        .map(|value: Self| {
-            Self(kiyosi::OptionContract::with_history_time(
+        .and_then(|value: Self| {
+            domain(kiyosi::OptionContract::with_history_time(
                 value.0,
                 history_time,
             ))
+            .map(Self)
         })
     },
     /// Returns a validated replacement without changing this contract.
@@ -277,6 +278,7 @@ binary_properties!(
             .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
 
         let changes = kiyosi::BinaryBarrierOptionChanges {
+            history_time: Some(history_time),
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
                 .transpose()?,
@@ -301,10 +303,7 @@ binary_properties!(
                 .transpose()?,
             payoff: replace_payoff(self.0.payout(), payoff_type, payout)?,
         };
-        Ok(Self(kiyosi::OptionContract::with_history_time(
-            domain(self.0.replace(changes))?,
-            history_time,
-        )))
+        Ok(Self(domain(self.0.replace(changes))?))
     },
     /// Return call or put payoff direction.
     #[getter]
@@ -359,11 +358,12 @@ binary_properties!(
             kiyosi::BinaryPayoff::Cash(payout) => kiyosi::TouchOption::cash(terms, payout),
             kiyosi::BinaryPayoff::Asset => kiyosi::TouchOption::asset(terms),
         })?))
-        .map(|value: Self| {
-            Self(kiyosi::OptionContract::with_history_time(
+        .and_then(|value: Self| {
+            domain(kiyosi::OptionContract::with_history_time(
                 value.0,
                 history_time,
             ))
+            .map(Self)
         })
     },
     /// Returns a validated replacement without changing this contract.
@@ -446,6 +446,7 @@ binary_properties!(
             .unwrap_or(kiyosi::OptionContract::history_time(&self.0));
 
         let changes = kiyosi::TouchOptionChanges {
+            history_time: Some(history_time),
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
                 .transpose()?,
@@ -471,10 +472,7 @@ binary_properties!(
                 .transpose()?,
             payoff: replace_payoff(self.0.payout(), payoff_type, payout)?,
         };
-        Ok(Self(kiyosi::OptionContract::with_history_time(
-            domain(self.0.replace(changes))?,
-            history_time,
-        )))
+        Ok(Self(domain(self.0.replace(changes))?))
     },
     /// Return whether touching activates payment.
     #[getter]

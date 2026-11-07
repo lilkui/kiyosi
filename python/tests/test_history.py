@@ -98,17 +98,62 @@ class HistoryTests(unittest.TestCase):
                     )
                 with self.assertRaises(InvalidInputError):
                     selected.price(dated.replace(history_time=None), context())
-                with self.assertRaises(InvalidInputError):
-                    selected.price(
-                        dated.replace(
-                            history_time=original.effective_time
-                            - timedelta(microseconds=1)
-                        ),
-                        context(),
+                for invalid in (
+                    original.effective_time - timedelta(microseconds=1),
+                    original.expiry_time + timedelta(microseconds=1),
+                ):
+                    with self.assertRaises(InvalidInputError):
+                        dated.replace(history_time=invalid)
+                    with self.assertRaises(InvalidInputError):
+                        dated.replace_history(history_time=invalid)
+                for boundary in (original.effective_time, original.expiry_time):
+                    self.assertEqual(
+                        dated.replace(history_time=boundary).history_time, boundary
                     )
+                self.assertEqual(dated.history_time, AT)
                 for bad in (True, AT.date(), AT.replace(tzinfo=UTC)):
                     with self.assertRaises(TypeError):
                         original.replace(history_time=bad)
+
+    def test_history_construction_rejects_timestamps_outside_contract_life(self):
+        start, end = datetime(2025, 1, 2), datetime(2025, 1, 10)
+        terms = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_time": start,
+            "expiry_time": end,
+            "barrier_level": 120,
+            "barrier_type": "up_and_out",
+            "touch_state": "untouched",
+        }
+        for at in (start - timedelta(microseconds=1), end + timedelta(microseconds=1)):
+            with self.assertRaises(InvalidInputError):
+                i.BarrierOption(**terms, history_time=at)
+        for at in (start, end):
+            self.assertEqual(i.BarrierOption(**terms, history_time=at).history_time, at)
+
+    def test_history_time_and_contract_life_are_replaced_together(self):
+        start, end = datetime(2025, 1, 2), datetime(2025, 1, 10)
+        option = i.BarrierOption(
+            option_type="call",
+            strike=100,
+            effective_time=start,
+            expiry_time=end,
+            barrier_level=120,
+            barrier_type="up_and_out",
+            touch_state="untouched",
+            history_time=AT,
+        )
+        expiry = start + timedelta(days=1)
+        with self.assertRaises(InvalidInputError):
+            option.replace(expiry_time=expiry, touch_state="untouched")
+        replaced = option.replace(
+            expiry_time=expiry, touch_state="untouched", history_time=expiry
+        )
+        self.assertEqual(replaced.history_time, expiry)
+        self.assertEqual(replaced.expiry_time, expiry)
+        self.assertEqual(option.history_time, AT)
+        self.assertEqual(option.expiry_time, end)
 
     def test_discrete_history_reuses_between_events_and_requires_refresh_after_them(
         self,
