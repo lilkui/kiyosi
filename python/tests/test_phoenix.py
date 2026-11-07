@@ -88,9 +88,20 @@ class PhoenixTests(unittest.TestCase):
                     ),
                     note,
                 )
+                self.assertEqual(note.replace(), note)
                 self.assertEqual(
-                    note.replace(coupon_rate=None, coupon_per_period=None), note
+                    note.replace(coupon_rate=Ellipsis, coupon_per_period=Ellipsis), note
                 )
+                for update in (
+                    {"coupon_rate": None},
+                    {"coupon_per_period": None},
+                    {"coupon_rate": None, "coupon_per_period": None},
+                    {"coupon_rate": None, "coupon_per_period": Ellipsis},
+                    {"coupon_rate": Ellipsis, "coupon_per_period": None},
+                ):
+                    with self.subTest(update=update), self.assertRaises(TypeError):
+                        note.replace(**update)
+                self.assertEqual(PhoenixOption(**fields), note)
                 for operation in (PhoenixOption, note.replace):
                     with self.assertRaises(TypeError):
                         operation(

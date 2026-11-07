@@ -92,6 +92,9 @@ def phoenix_replacements(note: PhoenixOption) -> None:
     assert_type(note.replace(coupon_rate=0.1, coupon_per_period=None), PhoenixOption)
     assert_type(note.replace(coupon_per_period=0.01, coupon_rate=None), PhoenixOption)
     note.replace(coupon_rate=0.1, coupon_per_period=0.01)  # ty: ignore[no-matching-overload]
+    note.replace(coupon_rate=None)  # ty: ignore[no-matching-overload]
+    note.replace(coupon_per_period=None)  # ty: ignore[no-matching-overload]
+    note.replace(coupon_rate=None, coupon_per_period=None)  # ty: ignore[no-matching-overload]
 
 
 def binary_and_touch_constructors() -> None:

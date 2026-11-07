@@ -66,8 +66,9 @@ For example, ``barrier.replace(strike=105)`` preserves monitoring and history,
 and changing monitoring to scheduled requires supplying the observation times in the same call.
 Changing barrier or touch monitoring to continuous clears omitted observation times.
 Explicit times must agree with the selected mode; scheduled monitoring requires nonempty times.
-Phoenix replacements accept at most one non-None coupon choice and can change coupon units.
-None leaves a coupon choice unspecified, so both coupon properties can be forwarded.
+Phoenix replacements accept one concrete coupon choice and can change coupon units.
+None is accepted only alongside a concrete alternative, so both coupon properties
+can be forwarded. Omit both choices, or pass Ellipsis, to retain the coupon.
 Double-touch contracts expose ``barrier_type="knock_in"`` or ``"knock_out"``
 for inspection and replacement;
 binary and touch constructors require explicit ``payoff_type="cash"`` or

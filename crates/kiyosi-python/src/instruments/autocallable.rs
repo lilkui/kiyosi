@@ -1200,9 +1200,11 @@ autocallable_properties! {
     /// Parameters
     /// ----------
     /// coupon_rate : float, optional
-    ///     Replacement value; None, omission or Ellipsis leaves this coupon choice unspecified.
+    ///     Absolute annual rate; omission or Ellipsis retains the coupon.
+    ///     None requires a concrete coupon_per_period value.
     /// coupon_per_period : float, optional
-    ///     Replacement value; None, omission or Ellipsis leaves this coupon choice unspecified.
+    ///     Fixed per-period proportion; omission or Ellipsis retains the coupon.
+    ///     None requires a concrete coupon_rate value.
     /// initial_spot : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// knock_in_level : float, optional
@@ -1238,7 +1240,8 @@ autocallable_properties! {
     /// KiyosiError
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
-    ///     If a representation or field name is invalid, or both coupon choices have values.
+    ///     If a representation or field name is invalid, both coupon choices have values,
+    ///     or an explicit None coupon has no concrete alternative.
     #[pyo3(signature = (*, coupon_rate=crate::conversions::OMITTED, coupon_per_period=crate::conversions::OMITTED, initial_spot=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, upper_strike=crate::conversions::OMITTED, lower_strike=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observations=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED, history_time=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
     fn replace(
@@ -1269,6 +1272,9 @@ autocallable_properties! {
             history_time: Some(history_time),
             calendar: calendar.map(|v| v.extract::<TradingCalendar>().map(|v| v.0)).transpose()?,
             coupon: match (coupon_rate.filter(|v| !v.is_none()), coupon_per_period.filter(|v| !v.is_none())) {
+                (None, None) if coupon_rate.is_some() || coupon_per_period.is_some() => {
+                    return Err(PyTypeError::new_err("None coupon updates require a concrete alternative"));
+                }
                 (None, None) => None,
                 (Some(value), None) => Some(kiyosi::PhoenixCoupon::Annual(crate::conversions::real(value)?)),
                 (None, Some(value)) => Some(kiyosi::PhoenixCoupon::PerPeriod(crate::conversions::real(value)?)),

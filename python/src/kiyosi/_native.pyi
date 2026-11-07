@@ -10022,9 +10022,11 @@ class PhoenixOption:
         Parameters
         ----------
         coupon_rate : float, optional
-            Replacement value; None, omission or Ellipsis leaves this coupon choice unspecified.
+            Absolute annual rate; omission or Ellipsis retains the coupon.
+            None requires a concrete coupon_per_period value.
         coupon_per_period : float, optional
-            Replacement value; None, omission or Ellipsis leaves this coupon choice unspecified.
+            Fixed per-period proportion; omission or Ellipsis retains the coupon.
+            None requires a concrete coupon_rate value.
         initial_spot : float, optional
             Replacement value; omission or Ellipsis retains the current field.
         knock_in_level : float, optional
@@ -10060,7 +10062,8 @@ class PhoenixOption:
         KiyosiError
             If the resulting contract fails core validation; the original is unchanged.
         TypeError
-            If a representation or field name is invalid, or both coupon choices have values."""
+            If a representation or field name is invalid, both coupon choices have values,
+            or an explicit None coupon has no concrete alternative."""
 
     @overload
     def replace(
@@ -10090,9 +10093,11 @@ class PhoenixOption:
         Parameters
         ----------
         coupon_rate : float, optional
-            Replacement value; None, omission or Ellipsis leaves this coupon choice unspecified.
+            Absolute annual rate; omission or Ellipsis retains the coupon.
+            None requires a concrete coupon_per_period value.
         coupon_per_period : float, optional
-            Replacement value; None, omission or Ellipsis leaves this coupon choice unspecified.
+            Fixed per-period proportion; omission or Ellipsis retains the coupon.
+            None requires a concrete coupon_rate value.
         initial_spot : float, optional
             Replacement value; omission or Ellipsis retains the current field.
         knock_in_level : float, optional
@@ -10128,14 +10133,15 @@ class PhoenixOption:
         KiyosiError
             If the resulting contract fails core validation; the original is unchanged.
         TypeError
-            If a representation or field name is invalid, or both coupon choices have values."""
+            If a representation or field name is invalid, both coupon choices have values,
+            or an explicit None coupon has no concrete alternative."""
 
     @overload
     def replace(
         self,
         *,
-        coupon_rate: None | EllipsisType = ...,
-        coupon_per_period: None | EllipsisType = ...,
+        coupon_rate: EllipsisType = ...,
+        coupon_per_period: EllipsisType = ...,
         initial_spot: _Real | EllipsisType = ...,
         knock_in_level: _Real | EllipsisType = ...,
         upper_strike: _Real | EllipsisType = ...,
@@ -10158,9 +10164,11 @@ class PhoenixOption:
         Parameters
         ----------
         coupon_rate : float, optional
-            Replacement value; None, omission or Ellipsis leaves this coupon choice unspecified.
+            Absolute annual rate; omission or Ellipsis retains the coupon.
+            None requires a concrete coupon_per_period value.
         coupon_per_period : float, optional
-            Replacement value; None, omission or Ellipsis leaves this coupon choice unspecified.
+            Fixed per-period proportion; omission or Ellipsis retains the coupon.
+            None requires a concrete coupon_rate value.
         initial_spot : float, optional
             Replacement value; omission or Ellipsis retains the current field.
         knock_in_level : float, optional
@@ -10196,7 +10204,8 @@ class PhoenixOption:
         KiyosiError
             If the resulting contract fails core validation; the original is unchanged.
         TypeError
-            If a representation or field name is invalid, or both coupon choices have values."""
+            If a representation or field name is invalid, both coupon choices have values,
+            or an explicit None coupon has no concrete alternative."""
 
     @overload
     def __init__(
