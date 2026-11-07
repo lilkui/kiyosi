@@ -142,7 +142,9 @@ class PackageTests(unittest.TestCase):
         )
 
     def test_replacements_expose_declared_keyword_fields(self):
-        stub = ast.parse((Path(kiyosi.__file__).parent / "_native.pyi").read_text())
+        stub = ast.parse(
+            (Path(kiyosi.__file__).parent / "_native.pyi").read_text(encoding="utf-8")
+        )
         for node in stub.body:
             if not isinstance(node, ast.ClassDef):
                 continue
@@ -232,7 +234,9 @@ class PackageTests(unittest.TestCase):
         )
 
     def test_greek_methods_expose_declared_keyword_controls(self):
-        stub = ast.parse((Path(kiyosi.__file__).parent / "_native.pyi").read_text())
+        stub = ast.parse(
+            (Path(kiyosi.__file__).parent / "_native.pyi").read_text(encoding="utf-8")
+        )
         for node in stub.body:
             if not isinstance(node, ast.ClassDef) or not node.name.endswith("Engine"):
                 continue
@@ -503,7 +507,9 @@ class PackageTests(unittest.TestCase):
                 )
 
     def test_constructors_and_factories_match_declared_keywords(self):
-        stub = ast.parse((Path(kiyosi.__file__).parent / "_native.pyi").read_text())
+        stub = ast.parse(
+            (Path(kiyosi.__file__).parent / "_native.pyi").read_text(encoding="utf-8")
+        )
         factories = [pricing.implied_volatility]
         for module in (instruments, market):
             for node in stub.body:
@@ -687,7 +693,7 @@ class PackageTests(unittest.TestCase):
 
     def test_engine_constructors_expose_keyword_only_signatures(self):
         package = Path(kiyosi.__file__).parent
-        stub = ast.parse((package / "_native.pyi").read_text())
+        stub = ast.parse((package / "_native.pyi").read_text(encoding="utf-8"))
         for node in stub.body:
             if not isinstance(node, ast.ClassDef) or not node.name.endswith("Engine"):
                 continue
@@ -777,6 +783,36 @@ class PackageTests(unittest.TestCase):
                 EuropeanOption(**(terms | fields))
             self.assertNotIsInstance(error.exception, kiyosi.KiyosiError)
 
+    def test_stub_docstrings_match_native_api(self):
+        package = Path(kiyosi.__file__).parent
+        stub = ast.parse((package / "_native.pyi").read_text(encoding="utf-8"))
+        for node in stub.body:
+            if not isinstance(node, (ast.ClassDef, ast.FunctionDef)):
+                continue
+            if node.name.startswith("_"):
+                continue
+            runtime = getattr(_native, node.name)
+            declarations = [(node.name, node, runtime)]
+            if isinstance(node, ast.ClassDef):
+                declarations.extend(
+                    (
+                        f"{node.name}.{member.name}",
+                        member,
+                        getattr(runtime, member.name),
+                    )
+                    for member in node.body
+                    if isinstance(member, ast.FunctionDef)
+                    and not member.name.startswith("_")
+                )
+            for name, declaration, value in declarations:
+                with self.subTest(symbol=name, line=declaration.lineno):
+                    self.assertIsNotNone(ast.get_docstring(declaration))
+                    self.assertEqual(
+                        ast.get_docstring(declaration),
+                        inspect.getdoc(value),
+                        "Rebuild the extension and run tools/sync_python_docstrings.py",
+                    )
+
     def test_installed_version_and_typed_exports(self):
         workspace = Path(__file__).resolve().parents[2]
         version = tomllib.loads((workspace / "Cargo.toml").read_text())["workspace"][
@@ -786,7 +822,7 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(importlib.metadata.version("kiyosi"), version)
         package = Path(kiyosi.__file__).parent
         self.assertTrue((package / "py.typed").is_file())
-        stub = ast.parse((package / "_native.pyi").read_text())
+        stub = ast.parse((package / "_native.pyi").read_text(encoding="utf-8"))
         declarations = {
             node.name: node
             for node in stub.body
