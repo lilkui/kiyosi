@@ -41,8 +41,9 @@ return None because they have no knock-in. Schedules retain their timestamps
 independently of their contract and are not filtered by history.
 Explicit observations use their supplied timestamps. Automatic observations require
 ``observation_clock_time``, a timezone-free ``datetime.time`` with microsecond precision.
-Snowball, ternary snowball and Phoenix constructors require a clock for daily
-knock-in monitoring; expiry-only monitoring permits omission or None.
+Snowball, ternary snowball and Phoenix constructors require the
+``observation_clock_time`` keyword: supply a clock for daily knock-in monitoring
+or None for expiry-only monitoring.
 They are filtered against the full contract bounds. Snowballs and accumulators
 include the effective instant; range accruals exclude it. Maturity settlement adds
 no daily observation. Range accruals require a nonempty observation schedule. Explicit accumulator knock-out observations do not add quantity;
@@ -113,7 +114,7 @@ with ``AccumulatorHistoryChanges`` to replace quantity, knock-out settlement or 
 omitted fields retain their values.
 Plain snowball, Phoenix and ternary snowball constructors default knock-in
 monitoring to ``"every_trading_day"``, matching Rust terms. Daily monitoring requires
-an explicit ``observation_clock_time``; expiry-only monitoring allows an omitted clock or None.
+the ``observation_clock_time`` keyword; supply None for expiry-only monitoring.
 Replacing daily monitoring with ``"at_expiry"`` clears its clock; switching to daily
 monitoring requires the clock in the same replacement.
 
