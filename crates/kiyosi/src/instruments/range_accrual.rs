@@ -390,20 +390,26 @@ impl RangeAccrualOption {
         super::validate_history_replacement(
             self.realized_hit_count().is_some(),
             history_supplied,
-            (
-                self.lower_bound(),
-                self.upper_bound(),
-                self.effective_time(),
-                self.expiry_time(),
-                self.observation_clock_time(),
-            ) != (
-                updated.lower_bound(),
-                updated.upper_bound(),
-                updated.effective_time(),
-                updated.expiry_time(),
-                updated.observation_clock_time(),
-            ) || self.calendar() != updated.calendar()
-                && self.observation_schedule()? != updated.observation_schedule()?,
+            self.history_time.is_none() && self.expiry_time() != updated.expiry_time()
+                || (
+                    self.lower_bound(),
+                    self.upper_bound(),
+                    self.effective_time(),
+                    self.observation_clock_time(),
+                ) != (
+                    updated.lower_bound(),
+                    updated.upper_bound(),
+                    updated.effective_time(),
+                    updated.observation_clock_time(),
+                )
+                || self.calendar() != updated.calendar()
+                    && super::historical_times(
+                        self.observation_schedule()?.times(),
+                        self.history_time,
+                    ) != super::historical_times(
+                        updated.observation_schedule()?.times(),
+                        self.history_time,
+                    ),
             "realized_hit_count",
         )?;
         updated.with_history_time(changes.history_time.unwrap_or(self.history_time))

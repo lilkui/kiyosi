@@ -843,17 +843,25 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
         super::validate_history_replacement(
             self.barrier_state().is_some(),
             supplied,
-            (old.effective_time, old.expiry_time, knock_in(&old))
-                != (new.effective_time, new.expiry_time, knock_in(&new))
+            self.1.is_none() && old.expiry_time != new.expiry_time
+                || (old.effective_time, knock_in(&old)) != (new.effective_time, knock_in(&new))
                 || old.daily_knock_in()
                     && old.calendar != new.calendar
-                    && self.daily_observation_schedule()?
-                        != updated.daily_observation_schedule()?
+                    && super::historical_times(self.daily_observation_schedule()?.times(), self.1)
+                        != super::historical_times(
+                            updated.daily_observation_schedule()?.times(),
+                            self.1,
+                        )
                 || !old
                     .observations
                     .iter()
+                    .filter(|r| self.1.is_none_or(|at| r.time < at))
                     .map(|r| (r.time, r.knock_out_level))
-                    .eq(new.observations.iter().map(|r| (r.time, r.knock_out_level))),
+                    .eq(new
+                        .observations
+                        .iter()
+                        .filter(|r| self.1.is_none_or(|at| r.time < at))
+                        .map(|r| (r.time, r.knock_out_level))),
             "barrier_state",
         )
     }

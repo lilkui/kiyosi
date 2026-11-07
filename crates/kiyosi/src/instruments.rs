@@ -23,6 +23,13 @@ pub(crate) fn validate_history_replacement(
     Ok(())
 }
 
+pub(crate) fn historical_times(
+    times: &[crate::Timestamp],
+    history_time: Option<crate::Timestamp>,
+) -> &[crate::Timestamp] {
+    &times[..history_time.map_or(times.len(), |at| times.partition_point(|&time| time < at))]
+}
+
 pub(crate) fn validate_history_time(
     option: &impl crate::OptionContract,
     known: bool,

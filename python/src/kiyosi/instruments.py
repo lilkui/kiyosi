@@ -53,9 +53,11 @@ further observations. Numerical time sensitivities hold history fixed internally
 History describes events strictly before valuation; a current observation
 is evaluated from the current spot. ``replace()`` replaces constructor terms on every contract. Omitted terms and
 history are preserved when their observation terms are retained; supplied terms are validated together in Rust.
-Changing event-defining terms with known history requires an explicit history value
-or None to clear it: barrier levels/direction, observation times, averaging start,
-range bounds and daily monitoring/accumulation rules. Accumulators require both
+Schedule, expiry and calendar edits confined to events at or after ``history_time``
+preserve dated history. Changing terms that affect past observations requires an
+explicit history value or None to clear it. Such terms include barrier levels/direction,
+observation times, averaging start, range bounds and daily monitoring/accumulation rules.
+Accumulators require both
 ``accumulated_quantity`` and ``knock_out_settled``. Reasserting existing history explicitly
 is allowed. Changes affecting only future payoff amounts retain history.
 For example, ``barrier.replace(strike=105)`` preserves monitoring and history,

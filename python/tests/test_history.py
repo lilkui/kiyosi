@@ -9,6 +9,7 @@ from kiyosi import InvalidInputError
 from kiyosi import instruments as i
 from kiyosi import market as m
 from kiyosi import pricing as p
+from kiyosi.market import custom_calendar
 from test_contract_replacements import contracts
 
 AT = datetime(2025, 1, 6, 12)
@@ -42,6 +43,87 @@ def engine(instrument):
 
 
 class HistoryTests(unittest.TestCase):
+    def test_dated_history_survives_future_schedule_edits(self):
+        past, future = datetime(2025, 1, 3), datetime(2025, 1, 8)
+        for original in contracts():
+            with self.subTest(contract=type(original).__name__):
+                if hasattr(original, "touch_state"):
+                    original = original.replace(
+                        observation_mode="scheduled",
+                        observation_times=[past, original.expiry_time],
+                        touch_state=original.touch_state,
+                        history_time=AT,
+                    )
+                    updated = original.replace(
+                        observation_times=[past, AT, future, original.expiry_time]
+                    )
+                    self.assertEqual(
+                        updated.observation_times,
+                        [past, AT, future, original.expiry_time],
+                    )
+                    self.assertEqual(updated.touch_state, original.touch_state)
+                    with self.assertRaises(InvalidInputError):
+                        original.replace(
+                            observation_times=[future, original.expiry_time]
+                        )
+                elif hasattr(original, "observations"):
+                    record = original.observations[0]
+                    original = original.replace(
+                        observations=[
+                            record.replace(time=past),
+                            record.replace(time=original.expiry_time),
+                        ],
+                        barrier_state=original.barrier_state,
+                        history_time=AT,
+                    )
+                    updated = original.replace(
+                        observations=[
+                            original.observations[0],
+                            record.replace(time=AT),
+                            record.replace(time=future),
+                            original.observations[-1],
+                        ]
+                    )
+                    self.assertEqual(
+                        updated.observation_times,
+                        [past, AT, future, original.expiry_time],
+                    )
+                    self.assertEqual(updated.barrier_state, original.barrier_state)
+                    with self.assertRaises(InvalidInputError):
+                        original.replace(observations=original.observations[1:])
+                else:
+                    continue
+                self.assertEqual(updated.history_time, AT)
+                self.assertEqual(
+                    original.observation_times, [past, original.expiry_time]
+                )
+                extended = original.replace(
+                    expiry_time=original.expiry_time + timedelta(days=1)
+                )
+                self.assertEqual(extended.history_time, AT)
+
+    def test_dated_daily_history_survives_future_calendar_edits(self):
+        for original in contracts():
+            if not hasattr(original, "calendar") or hasattr(
+                original, "observation_mode"
+            ):
+                continue
+            if isinstance(original, i.BinarySnowballOption):
+                continue
+            original = original.replace(history_time=AT)
+            with self.subTest(contract=type(original).__name__):
+                future_calendar = custom_calendar(
+                    base=original.calendar, closed_dates=[datetime(2025, 1, 8).date()]
+                )
+                updated = original.replace(calendar=future_calendar)
+                self.assertEqual(updated.history_time, AT)
+                self.assertEqual(updated.calendar, future_calendar)
+                past_calendar = custom_calendar(
+                    base=original.calendar, closed_dates=[datetime(2025, 1, 3).date()]
+                )
+                with self.assertRaises(InvalidInputError):
+                    original.replace(calendar=past_calendar)
+
     def test_settled_history_must_be_possible_at_its_own_timestamp(self):
         start, end = datetime(2025, 1, 2), datetime(2025, 1, 10)
         option = i.Accumulator(

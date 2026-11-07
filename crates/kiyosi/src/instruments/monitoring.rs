@@ -94,20 +94,19 @@ impl Monitoring {
             self.touch_state.is_some(),
             supplied,
             upper_changed
+                || self.history_time.is_none() && self.expiry_time != updated.expiry_time
                 || (
                     self.effective_time,
-                    self.expiry_time,
                     self.barrier_level,
                     self.barrier_type.is_up(),
                     self.observation_mode,
-                    &self.schedule,
+                    super::historical_times(self.schedule.times(), self.history_time),
                 ) != (
                     updated.effective_time,
-                    updated.expiry_time,
                     updated.barrier_level,
                     updated.barrier_type.is_up(),
                     updated.observation_mode,
-                    &updated.schedule,
+                    super::historical_times(updated.schedule.times(), self.history_time),
                 ),
             "touch_state",
         )

@@ -19,7 +19,9 @@
 //! valuation dates and required prior history. All built-in
 //! contracts support validated immutable `replace` operations; omitted terms and
 //! history remain unchanged when their observation terms are retained. Known history
-//! must be explicitly replaced or cleared when terms defining historical events change:
+//! with a timestamp is retained when schedule, expiry or calendar edits affect only
+//! events at or after that timestamp.
+//! Known history must be explicitly replaced or cleared when terms defining past events change:
 //! barrier levels/direction, observation times, averaging start, range bounds or daily
 //! monitoring and accumulation rules. Accumulators require both quantity and knock-out settlement
 //! choices. Reasserting the same history explicitly is allowed. Calendar-only helpers
