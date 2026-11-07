@@ -51,7 +51,7 @@ impl fmt::Display for Error {
             | Self::ComputationFailure(message)
             | Self::RootNotBracketed(message)
             | Self::NonConvergence(message) => f.write_str(message),
-            Self::Io(_) => f.write_str("I/O operation failed"),
+            Self::Io(error) => error.fmt(f),
         }
     }
 }
@@ -139,6 +139,7 @@ mod tests {
         impl std::error::Error for EntropyFailure {}
         let native = io::Error::new(io::ErrorKind::Interrupted, EntropyFailure(17));
         let error = Error::from(native);
+        assert_eq!(error.to_string(), "entropy source 17 interrupted");
         let Error::Io(native) = error else {
             panic!("native I/O cause was lost")
         };
