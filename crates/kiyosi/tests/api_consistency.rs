@@ -671,7 +671,7 @@ fn greek_status_distinguishes_requests_support_and_stencils() -> Result<()> {
             ..Default::default()
         },
     )?;
-    assert_eq!(result.status(Greek::Delta), GreekStatus::Undefined);
+    assert_eq!(result.status(Greek::Delta), GreekStatus::StencilUnavailable);
     let heston = context.replace(PricingContextChanges {
         model_parameters: Some(
             HestonParameters::new(0.05, 0.02, 0.04, 0.04, 1.5, 0.3, -0.7)?.into(),
@@ -1829,5 +1829,59 @@ fn accumulator_history_replacement_updates_quantity_and_termination() -> Result<
         terminated: Some(false),
     })?;
     assert!(QuadratureAccumulatorEngine::default().price(&active, &context)? > 0.0);
+    Ok(())
+}
+
+#[test]
+fn smaller_volatility_bumps_recover_unavailable_stencils() -> Result<()> {
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let option = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.0, 0.0, 0.000_05)?,
+        100.0,
+        start,
+    )?;
+    let request = GreeksRequest::new([Greek::Vega]);
+    let unavailable = numerical_greeks(
+        &AnalyticEuropeanEngine,
+        &option,
+        &context,
+        request,
+        Default::default(),
+    )?;
+    assert_eq!(
+        unavailable.status(Greek::Vega),
+        GreekStatus::StencilUnavailable
+    );
+    assert_eq!(unavailable.get(Greek::Vega), None);
+    let recovered = numerical_greeks(
+        &AnalyticEuropeanEngine,
+        &option,
+        &context,
+        request,
+        NumericalShiftSettings {
+            volatility_shift: 0.000_01,
+            ..Default::default()
+        },
+    )?;
+    let exact = AnalyticEuropeanEngine.price_with_greeks(&option, &context, request)?;
+    assert_eq!(recovered.status(Greek::Vega), GreekStatus::Available);
+    assert!((recovered.require(Greek::Vega)? - exact.require(Greek::Vega)?).abs() < 1e-7);
+    let zero = context.replace(PricingContextChanges {
+        model_parameters: Some(BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?.into()),
+        ..Default::default()
+    })?;
+    assert_eq!(
+        numerical_greeks(
+            &AnalyticEuropeanEngine,
+            &option,
+            &zero,
+            request,
+            Default::default()
+        )?
+        .status(Greek::Vega),
+        GreekStatus::Undefined
+    );
     Ok(())
 }

@@ -1377,7 +1377,9 @@ class PricingResult:
     def require(self, measure: Greek) -> float: ...
     def status(
         self, measure: Greek
-    ) -> Literal["available", "not_requested", "unsupported", "undefined"]: ...
+    ) -> Literal[
+        "available", "not_requested", "unsupported", "undefined", "stencil_unavailable"
+    ]: ...
     @property
     def requested(self) -> list[Greek]: ...
     @property
@@ -3222,6 +3224,7 @@ def _pricing_result(
     *,
     requested: Iterable[Greek] | None = None,
     supported: Iterable[Greek] | None = None,
+    unavailable_stencils: Iterable[Greek] | None = None,
 ) -> PricingResult: ...
 def _monte_carlo_estimate(
     *,

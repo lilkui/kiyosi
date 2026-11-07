@@ -67,8 +67,9 @@ Vega and volga are ∂V/∂σ and ∂²V/∂σ²; vanna and zomma are
 `PricingResult` leaves unavailable or
 unrequested sensitivities as None; `require` raises if one is absent.
 Use ``result.status("delta")`` to distinguish ``"available"``, ``"not_requested"``,
-``"unsupported"`` (outside the engine/model coverage) and ``"undefined"``
-(supported but unavailable at this valuation or numerical stencil). The
+``"unsupported"`` (outside the engine/model coverage), ``"undefined"``
+(a derivative undefined at this valuation) and ``"stencil_unavailable"``
+(a numerical stencil that may be recovered by changing controls). The
 ``requested`` and ``supported`` properties return owned lists of Greek names.
 Rho and dividend rho are ∂V/∂r and ∂V/∂q for parallel decimal shifts of the
 continuously compounded risk-free and dividend-yield curves, respectively,

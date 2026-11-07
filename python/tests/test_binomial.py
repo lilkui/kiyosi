@@ -218,7 +218,7 @@ class BinomialTests(unittest.TestCase):
             result.require("speed") * context.spot_price**2, 0, delta=1e-8
         )
         explicit = numerical_greeks(engine, option, context, "speed", spot_shift=0.01)
-        self.assertEqual(explicit.status("speed"), "undefined")
+        self.assertEqual(explicit.status("speed"), "stencil_unavailable")
 
     def assert_rejection(self, expected_error, operation, *args, **kwargs):
         with self.assertRaises(expected_error) as error:

@@ -112,16 +112,18 @@ impl PricingResult {
     fn dividend_rho(&self) -> Option<f64> {
         self.0.get(kiyosi::Greek::DividendRho)
     }
-    /// Return available, not_requested, unsupported or undefined for a Greek.
+    /// Return available, not_requested, unsupported, undefined or stencil_unavailable.
     ///
     /// Unsupported means the engine/model does not implement the measure; undefined
-    /// means a supported measure cannot be evaluated at this valuation or stencil.
+    /// means a derivative is undefined at this valuation. An unavailable numerical
+    /// stencil reports stencil_unavailable; changing controls may recover the measure.
     fn status(&self, measure: &Bound<'_, PyAny>) -> PyResult<&'static str> {
         Ok(match self.0.status(greek(measure)?) {
             kiyosi::GreekStatus::Available => "available",
             kiyosi::GreekStatus::NotRequested => "not_requested",
             kiyosi::GreekStatus::Unsupported => "unsupported",
             kiyosi::GreekStatus::Undefined => "undefined",
+            kiyosi::GreekStatus::StencilUnavailable => "stencil_unavailable",
         })
     }
     /// Return requested Greek names in the library's stable measure order.
@@ -173,12 +175,13 @@ pub(crate) use coupon::{implied_phoenix_coupon, implied_snowball_coupon};
 pub(crate) use implied::implied_volatility;
 
 #[pyfunction]
-#[pyo3(signature = (price, greeks, *, requested=None, supported=None))]
+#[pyo3(signature = (price, greeks, *, requested=None, supported=None, unavailable_stencils=None))]
 pub(crate) fn _pricing_result(
     price: &Bound<'_, PyAny>,
     greeks: &Bound<'_, pyo3::types::PyDict>,
     requested: Option<&Bound<'_, PyAny>>,
     supported: Option<&Bound<'_, PyAny>>,
+    unavailable_stencils: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PricingResult> {
     let mut result = domain(kiyosi::PricingResult::new(crate::conversions::real(price)?))?;
     for (name, value) in greeks.iter() {
@@ -192,7 +195,15 @@ pub(crate) fn _pricing_result(
         .map(greeks_request)
         .transpose()?
         .unwrap_or(result.supported());
-    Ok(PricingResult(result.with_request(requested, supported)))
+    let unavailable = unavailable_stencils
+        .map(greeks_request)
+        .transpose()?
+        .unwrap_or(kiyosi::GreeksRequest::new([]));
+    Ok(PricingResult(
+        result
+            .with_request(requested, supported)
+            .with_unavailable_stencils(unavailable),
+    ))
 }
 
 /// Compute numerical BSM Greeks through any supported built-in scalar engine.
@@ -218,7 +229,8 @@ pub(crate) fn _pricing_result(
 /// -------
 /// PricingResult
 ///     Numerical sensitivities with request and availability metadata. An unavailable
-///     stencil has status "undefined". Units match native price_with_greeks.
+///     numerical stencil has status "stencil_unavailable"; undefined derivatives
+///     retain "undefined". Units match native price_with_greeks.
 ///
 /// Raises
 /// ------

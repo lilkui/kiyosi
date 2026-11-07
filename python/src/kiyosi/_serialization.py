@@ -95,6 +95,11 @@ def _reduce(
                 "price": value.price,
                 "requested": value.requested,
                 "supported": value.supported,
+                "unavailable_stencils": [
+                    name
+                    for name in value.requested
+                    if value.status(name) == "stencil_unavailable"
+                ],
                 "greeks": {
                     name: result
                     for name, result in values.items()

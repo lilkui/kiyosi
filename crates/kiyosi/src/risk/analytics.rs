@@ -126,20 +126,25 @@ pub enum GreekStatus {
     NotRequested,
     /// Records a requested measure outside the engine/model's supported set.
     Unsupported,
-    /// Records a supported request unavailable at this valuation or numerical stencil.
+    /// Records a derivative undefined at this valuation; see [`PricingResult::status`].
     Undefined,
+    /// Records an unavailable numerical stencil; changing controls may recover the measure.
+    ///
+    /// See [`PricingResult::with_unavailable_stencils`].
+    StencilUnavailable,
 }
 
 /// Owns a finite price and optional finite Greeks.
 ///
 /// Missing measures use `None`, never zero; [`Self::status`] distinguishes
-/// unrequested, unsupported and undefined sensitivities.
+/// unrequested, unsupported, undefined and numerically unavailable sensitivities.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PricingResult {
     price: f64,
     values: [Option<f64>; Greek::ALL.len()],
     requested: GreeksRequest,
     supported: GreeksRequest,
+    unavailable_stencils: GreeksRequest,
 }
 impl PricingResult {
     /// Returns the finite price; see [`crate::AnalyticEuropeanEngine`].
@@ -174,6 +179,8 @@ impl PricingResult {
             GreekStatus::Available
         } else if !self.supported.has(greek) {
             GreekStatus::Unsupported
+        } else if self.unavailable_stencils.has(greek) {
+            GreekStatus::StencilUnavailable
         } else {
             GreekStatus::Undefined
         }
@@ -199,6 +206,38 @@ impl PricingResult {
         for greek in Greek::ALL {
             if !requested.has(greek) || !supported.has(greek) {
                 self.values[greek as usize] = None;
+                self.unavailable_stencils.0[greek as usize] = false;
+            }
+        }
+        self
+    }
+    /// Marks absent, requested, supported measures as lacking a numerical stencil.
+    ///
+    /// Does not change finite values, the request or engine support. Adding a value
+    /// with [`Self::with_greek`] clears its stencil status.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use kiyosi::{Greek, GreeksRequest, GreekStatus, PricingResult};
+    /// # fn main() -> kiyosi::Result<()> {
+    /// let request = GreeksRequest::new([Greek::Vega]);
+    /// let result = PricingResult::new(10.0)?
+    ///     .with_request(request, GreeksRequest::all())
+    ///     .with_unavailable_stencils(request);
+    /// assert_eq!(result.status(Greek::Vega), GreekStatus::StencilUnavailable);
+    /// assert_eq!(result.with_greek(Greek::Vega, 2.0)?.status(Greek::Vega), GreekStatus::Available);
+    /// # Ok(()) }
+    /// ```
+    #[must_use]
+    pub fn with_unavailable_stencils(mut self, measures: GreeksRequest) -> Self {
+        for greek in Greek::ALL {
+            if measures.has(greek)
+                && self.requested.has(greek)
+                && self.supported.has(greek)
+                && !self.has(greek)
+            {
+                self.unavailable_stencils.0[greek as usize] = true;
             }
         }
         self
@@ -235,6 +274,7 @@ impl PricingResult {
             values: [None; Greek::ALL.len()],
             requested: GreeksRequest::new([]),
             supported: GreeksRequest::all(),
+            unavailable_stencils: GreeksRequest::new([]),
         })
     }
 
@@ -266,6 +306,7 @@ impl PricingResult {
             self.requested.0[greek as usize] = true;
             self.supported.0[greek as usize] = true;
             self.values[greek as usize] = Some(value);
+            self.unavailable_stencils.0[greek as usize] = false;
         }
         Ok(())
     }

@@ -595,7 +595,11 @@ fn complete_greeks(
             result.set(request, Greek::Gamma, gamma)?;
         }
     }
-    Ok(result)
+    Ok(if option.at_spot_discontinuity(context, 0.0) {
+        result
+    } else {
+        result.with_unavailable_stencils(request)
+    })
 }
 
 fn analysis<I: OptionContract>(

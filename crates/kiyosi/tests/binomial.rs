@@ -587,5 +587,8 @@ fn one_step_speed_respects_automatic_and_explicit_spot_bumps() {
         },
     )
     .unwrap();
-    assert_eq!(explicit.status(Greek::Speed), GreekStatus::Undefined);
+    assert_eq!(
+        explicit.status(Greek::Speed),
+        GreekStatus::StencilUnavailable
+    );
 }

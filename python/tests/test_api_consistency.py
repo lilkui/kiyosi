@@ -955,6 +955,35 @@ class ApiConsistencyTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(TypeError):
                 option.replace_history(terminated=invalid)
 
+    def test_smaller_volatility_bumps_recover_unavailable_stencils(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        option = ins.EuropeanOption(
+            option_type="call", strike=100, effective_time=start, expiry_time=end
+        )
+        model = market.BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0.00005
+        )
+        context = market.PricingContext(
+            model_parameters=model, spot_price=100, valuation_time=start
+        )
+        engine = pricing.AnalyticEuropeanEngine()
+        unavailable = numerical_greeks(engine, option, context, "vega")
+        self.assertEqual(unavailable.status("vega"), "stencil_unavailable")
+        self.assertIsNone(unavailable.vega)
+        restored = pickle.loads(pickle.dumps(unavailable))
+        self.assertEqual(restored, unavailable)
+        self.assertEqual(restored.status("vega"), "stencil_unavailable")
+        recovered = numerical_greeks(
+            engine, option, context, "vega", volatility_shift=0.00001
+        )
+        exact = engine.price_with_greeks(option, context, "vega")
+        self.assertEqual(recovered.status("vega"), "available")
+        self.assertAlmostEqual(recovered.vega, exact.vega, delta=1e-7)
+        zero = context.replace(model_parameters=model.replace(volatility=0))
+        self.assertEqual(
+            numerical_greeks(engine, option, zero, "vega").status("vega"), "undefined"
+        )
+
     def test_greek_status_distinguishes_requests_support_and_stencils(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         option = ins.EuropeanOption(
@@ -980,7 +1009,7 @@ class ApiConsistencyTests(unittest.TestCase):
         collapsed = numerical_greeks(
             pricing.QuadratureVanillaEngine(), option, context, "delta", spot_shift=400
         )
-        self.assertEqual(collapsed.status("delta"), "undefined")
+        self.assertEqual(collapsed.status("delta"), "stencil_unavailable")
         heston = context.replace(
             model_parameters=market.HestonParameters(
                 risk_free_rate=0.05,

@@ -94,7 +94,7 @@ class ExpiryGreekTests(unittest.TestCase):
             explicit = numerical_greeks(
                 engines[0], option, context, "delta", spot_shift=2 * spot
             )
-            self.assertEqual(explicit.status("delta"), "undefined")
+            self.assertEqual(explicit.status("delta"), "stencil_unavailable")
             active = context.replace(valuation_time=start)
             atm = option.replace(strike=spot)
             exact = engines[0].price_with_greeks(atm, active, ["delta", "gamma"])

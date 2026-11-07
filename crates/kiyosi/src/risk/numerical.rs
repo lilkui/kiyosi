@@ -36,7 +36,11 @@ pub(crate) fn expiry_greeks(
     price: impl Fn(&PricingContext) -> Result<f64>,
 ) -> Result<PricingResult> {
     if context.valuation_time() != option.expiry_time() {
-        return Ok(result);
+        return Ok(if option.at_spot_discontinuity(context, 0.0) {
+            result
+        } else {
+            result.with_unavailable_stencils(GreeksRequest::new([Greek::Delta, Greek::Gamma]))
+        });
     }
     settings.validate()?;
     let request = GreeksRequest::new(
@@ -47,6 +51,15 @@ pub(crate) fn expiry_greeks(
     // Terminal payments no longer depend on volatility or discount rates.
     for greek in [Greek::Vega, Greek::Volga, Greek::Rho, Greek::DividendRho] {
         result.set(request, greek, 0.0)?;
+    }
+    if !option.at_spot_discontinuity(context, 0.0) {
+        result = result.with_unavailable_stencils(GreeksRequest::new([
+            Greek::Delta,
+            Greek::Gamma,
+            Greek::Speed,
+            Greek::Vanna,
+            Greek::Zomma,
+        ]));
     }
     let spot = context.spot_price();
     let h = symmetric_shift(spot, settings.spot_shift_at(spot));
@@ -107,7 +120,9 @@ pub(crate) fn expiry_greeks(
 /// of 0.01 spot units and 1% of spot for every engine, including American Monte Carlo.
 ///
 /// Uses rounded symmetric absolute bumps; collapsed, asymmetric or nonpositive
-/// stencils are unavailable.
+/// stencils have [`crate::GreekStatus::StencilUnavailable`]. A derivative undefined
+/// at the valuation, such as a terminal payoff kink or zero-volatility boundary,
+/// retains [`crate::GreekStatus::Undefined`].
 /// Time rolls stay within permitted valuation dates, curve coverage and neighboring knots, with
 /// right-hand differences at knots. Feasible bumped pricing errors fail the request.
 /// Returns unscaled partial derivatives in the units documented by [`Greek`].
@@ -478,7 +493,25 @@ pub(crate) fn complete_greeks(
             }
         }
     }
-    Ok(result)
+    let spot_undefined = option.at_spot_discontinuity(context, 0.0);
+    let unavailable = GreeksRequest::new(Greek::ALL.into_iter().filter(|&greek| {
+        let spot_derivative = matches!(
+            greek,
+            Greek::Delta
+                | Greek::Gamma
+                | Greek::Speed
+                | Greek::Vanna
+                | Greek::Zomma
+                | Greek::Charm
+                | Greek::Color
+        );
+        let volatility_derivative = matches!(
+            greek,
+            Greek::Vega | Greek::Volga | Greek::Vanna | Greek::Zomma
+        );
+        !(spot_derivative && spot_undefined || volatility_derivative && model.volatility() == 0.0)
+    }));
+    Ok(result.with_unavailable_stencils(unavailable))
 }
 
 #[cfg(test)]

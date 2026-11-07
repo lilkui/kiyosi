@@ -114,7 +114,10 @@ fn automatic_spot_bumps_fit_small_price_units() -> Result<()> {
                 ..Default::default()
             },
         )?;
-        assert_eq!(explicit.status(Greek::Delta), GreekStatus::Undefined);
+        assert_eq!(
+            explicit.status(Greek::Delta),
+            GreekStatus::StencilUnavailable
+        );
         let active = context.replace(PricingContextChanges {
             valuation_time: Some(start),
             ..Default::default()
@@ -181,7 +184,9 @@ fn native_terminal_greeks_honor_spot_bumps_through_trait_and_direct_calls() -> R
                 assert_eq!(direct, generic);
                 match expected {
                     Some(delta) => assert!((direct.require(Greek::Delta)? - delta).abs() < 1e-10),
-                    None => assert_eq!(direct.status(Greek::Delta), GreekStatus::Undefined),
+                    None => {
+                        assert_eq!(direct.status(Greek::Delta), GreekStatus::StencilUnavailable)
+                    }
                 }
             }
             assert!(matches!(
@@ -309,7 +314,10 @@ fn terminal_spot_stencils_respect_payoff_kinks_and_request_metadata() -> Result<
             ..Default::default()
         },
     )?;
-    assert_eq!(crossed.status(Greek::Delta), GreekStatus::Undefined);
+    assert_eq!(
+        crossed.status(Greek::Delta),
+        GreekStatus::StencilUnavailable
+    );
     assert_eq!(crossed.require(Greek::Vega)?, 0.0);
     Ok(())
 }
