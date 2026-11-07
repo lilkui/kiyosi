@@ -680,7 +680,12 @@ class PackageTests(unittest.TestCase):
             with self.subTest(exception=name):
                 exception_type = getattr(kiyosi, name)
                 self.assertIs(exception_type, getattr(_native, name))
-                self.assertEqual(exception_type.__bases__, (kiyosi.KiyosiError,))
+                self.assertEqual(
+                    exception_type.__bases__,
+                    (kiyosi.KiyosiError, ValueError)
+                    if name == "InvalidInputError"
+                    else (kiyosi.KiyosiError,),
+                )
                 self.assertEqual(exception_type.__module__, "kiyosi._native")
                 error = exception_type("diagnostic details")
                 self.assertEqual(str(error), "diagnostic details")
@@ -714,7 +719,7 @@ class PackageTests(unittest.TestCase):
             "effective_time": datetime(2025, 1, 1),
             "expiry_time": datetime(2026, 1, 1),
         }
-        with self.assertRaises(kiyosi.InvalidInputError) as rejection:
+        with self.assertRaises(ValueError) as rejection:
             EuropeanOption(**(terms | {"strike": -1}))
         self.assertIs(type(rejection.exception), kiyosi.InvalidInputError)
         self.assertIsInstance(rejection.exception, kiyosi.KiyosiError)
@@ -779,5 +784,7 @@ class PackageTests(unittest.TestCase):
             self.assertIn(name, kiyosi.__all__)
             self.assertEqual(
                 [ast.unparse(base) for base in declarations[name].bases],
-                ["KiyosiError"],
+                ["KiyosiError", "ValueError"]
+                if name == "InvalidInputError"
+                else ["KiyosiError"],
             )

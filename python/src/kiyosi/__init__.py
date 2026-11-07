@@ -5,7 +5,8 @@ Notes
 Domain failures raise a specific `KiyosiError` subclass:
 `InvalidInputError`, `UnsupportedOperationError`, `ComputationFailureError`,
 `RootNotBracketedError` or `NonConvergenceError`. Catch a subclass for one
-failure category or `KiyosiError` for any domain failure. Validation
+failure category or `KiyosiError` for any domain failure. `InvalidInputError`
+also inherits `ValueError`. Validation
 diagnostics include field names; messages are for humans, not parsing. Representation
 and signature errors use native Python exceptions; reported operational
 failures use `OSError`. Internal Rust panics are separate from domain

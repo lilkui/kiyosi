@@ -107,6 +107,14 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     register_engines(module)?;
     module.add("__version__", kiyosi::VERSION)?;
     module.add("KiyosiError", py.get_type::<error::KiyosiError>())?;
+    // PyO3's exception macro accepts one base; Python supplies multiple inheritance.
+    py.get_type::<error::InvalidInputError>().setattr(
+        "__bases__",
+        (
+            py.get_type::<error::KiyosiError>(),
+            py.get_type::<pyo3::exceptions::PyValueError>(),
+        ),
+    )?;
     module.add(
         "InvalidInputError",
         py.get_type::<error::InvalidInputError>(),
