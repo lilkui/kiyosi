@@ -26,6 +26,8 @@
 //! Contract effective and expiry timestamps are inclusive and preserve microseconds.
 //! European vanilla pricing permits pre-effective valuation. Other built-in
 //! contracts reject valuation outside their life, including range accruals.
+//! Settlement alone may fall on a closed calendar date; explicit observations and
+//! expiry-only knock-in observations require open dates.
 //! Contractual, observation and market times use [`Timestamp`] and share a
 //! caller-selected time basis. Calendars classify dates without moving contract
 //! boundaries. Pure calendar inputs remain [`Date`] values.

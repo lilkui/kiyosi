@@ -212,18 +212,6 @@ fn validation_order_domains_and_failures_preserve_engine_and_inputs() {
             Error::InvalidInput(_)
         ));
     }
-    assert!(matches!(
-        Accumulator::new(AccumulatorTerms::new(
-            100.0,
-            110.0,
-            1.0,
-            2.0,
-            day(1, 1),
-            day(1, 5),
-            (day(1, 5)).time_of_day()
-        )),
-        Err(Error::InvalidInput(_))
-    ));
     let clipped = FiniteDifferenceAccumulatorEngine::new(FiniteDifferenceSettings {
         asset_upper_boundary: Some(110.0),
         ..Default::default()

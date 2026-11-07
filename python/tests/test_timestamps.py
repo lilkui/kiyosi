@@ -80,6 +80,104 @@ def accumulator_engines():
 
 
 class TimestampTests(unittest.TestCase):
+    def test_closed_date_settlement_preserves_open_date_observations(self):
+        start, observation, valuation = time(2, 16), time(3, 15), time(3, 16)
+        calendar = custom_calendar(
+            base=weekdays_calendar(), closed_dates=[date(2025, 1, 6)]
+        )
+        for expiry in (time(4, 16), time(5, 16), time(6, 16)):
+            life = {
+                "effective_time": start,
+                "expiry_time": expiry,
+                "calendar": calendar,
+            }
+            range_option = RangeAccrualOption(
+                notional=1000,
+                annual_coupon_rate=0.12,
+                lower_bound=80,
+                upper_bound=120,
+                observation_clock_time=clock_time(15),
+                realized_hit_count=1,
+                **life,
+            )
+            accumulated = Accumulator(
+                strike=90,
+                knock_out_level=110,
+                daily_quantity=1,
+                acceleration_factor=2,
+                accumulated_quantity=3,
+                observation_clock_time=clock_time(15),
+                **life,
+            )
+            fields = dict(
+                maturity_coupon_rate=0.12,
+                initial_spot=100,
+                knock_in_level=80,
+                upper_strike=100,
+                lower_strike=0,
+                observation_clock_time=clock_time(15),
+                observations=autocallable_observations([observation], [110]),
+                barrier_state="no_event",
+                **life,
+            )
+            note = SnowballOption(**fields)
+            binary = BinarySnowballOption(
+                maturity_coupon_rate=0.12,
+                observations=fields["observations"],
+                barrier_state="no_event",
+                **life,
+            )
+            for schedule in (
+                range_option.observation_schedule,
+                accumulated.accumulation_schedule,
+                accumulated.knock_out_observation_schedule,
+                note.knock_in_observation_schedule,
+            ):
+                self.assertEqual(list(schedule), [observation])
+            with self.assertRaises(InvalidInputError):
+                SnowballOption(
+                    **(
+                        fields
+                        | {
+                            "knock_in_observation_mode": "at_expiry",
+                            "observation_clock_time": None,
+                        }
+                    )
+                )
+            coupon = 0.12 * (expiry - start).total_seconds() / (365 * 86400)
+            for volatility in (0, 0.2):
+                for at in (valuation, expiry):
+                    context = PricingContext(
+                        model_parameters=BlackScholesMertonParameters(
+                            risk_free_rate=0.05, dividend_yield=0, volatility=volatility
+                        ),
+                        spot_price=70,
+                        valuation_time=at,
+                    )
+                    discount = math.exp(
+                        -0.05 * (expiry - at).total_seconds() / (365 * 86400)
+                    )
+                    self.assertAlmostEqual(
+                        AnalyticRangeAccrualEngine().price(range_option, context),
+                        1000 * coupon * discount,
+                        delta=1e-12,
+                    )
+                    for option in (note, binary):
+                        self.assertEqual(pickle.loads(pickle.dumps(option)), option)
+                        for engine in (
+                            QuadratureAutocallableEngine(),
+                            FiniteDifferenceAutocallableEngine(),
+                            MonteCarloAutocallableEngine(),
+                        ):
+                            self.assertAlmostEqual(
+                                engine.price(option, context),
+                                (1 + coupon) * discount,
+                                delta=1e-12,
+                            )
+                    if at == expiry:
+                        for engine in accumulator_engines():
+                            self.assertEqual(engine.price(accumulated, context), -60)
+
     def test_contract_schedules_expose_effective_observations(self):
         calendar = custom_calendar(
             base=weekdays_calendar(), closed_dates=[date(2025, 1, 7)]

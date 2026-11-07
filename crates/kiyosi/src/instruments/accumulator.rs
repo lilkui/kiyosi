@@ -105,6 +105,7 @@ impl From<Option<f64>> for AccumulatorHistoryChanges {
 /// schedule disables knock-out. Calls knock out at or above the barrier,
 /// puts at or below it; knock-out adds no units at its own timestamp. Expiry
 /// accumulates before settlement only when it is a daily observation and does not knock out.
+/// Settlement may fall on a closed date without adding an observation.
 /// Prices exclude previously settled cash flows;
 /// `terminated` records an already settled knock-out and gives zero remaining value.
 /// Pricing rejects this state unless a knock-out observation strictly precedes valuation.
@@ -189,12 +190,12 @@ impl Accumulator {
 
     /// Replaces the owned accumulation calendar; see [`Self::new`] for construction.
     ///
-    /// Defaults to weekdays. Construction and replacement check observations and expiry against
+    /// Defaults to weekdays. Construction and replacement check explicit observations against
     /// this calendar. Other terms are retained.
     ///
     /// Amends an already validated contract; this is not an initial-construction builder.
     /// Set [`AccumulatorTerms::calendar`] before calling [`Self::new`] when the
-    /// terms require a custom calendar, such as a weekend expiry or observation.
+    /// terms require a custom calendar, such as weekend observations.
     /// The original contract remains unchanged on success and failure.
     /// See [`crate::RangeAccrualOption::replace_calendar`] for an initial-calendar example.
     ///
@@ -204,7 +205,7 @@ impl Accumulator {
     /// with known history unless the history is explicitly replaced or cleared.
     /// See the [crate-level history contract](crate).
     ///
-    /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.
+    /// Returns [`crate::Error::InvalidInput`] if explicit observations fall on closed dates.
     pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
         self.replace(AccumulatorChanges {
             calendar: Some(calendar),
@@ -213,9 +214,6 @@ impl Accumulator {
     }
 
     fn validate_calendar(&self) -> Result<()> {
-        if !self.calendar().is_trading_day(self.expiry_time().date()) {
-            return Err(Error::InvalidInput("expiry must be a trading day".into()));
-        }
         if self.knock_out_observation_times().is_some_and(|times| {
             times
                 .iter()

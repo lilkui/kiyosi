@@ -215,10 +215,6 @@ fn settlement_and_current_purchase_preserve_exact_thresholds_and_timing() {
             Error::InvalidInput(_)
         ));
     }
-    assert!(matches!(
-        Accumulator::new(terms(day(1, 5))),
-        Err(Error::InvalidInput(_))
-    ));
     let huge = option.replace_history(f64::MAX).unwrap();
     assert!(matches!(
         engine

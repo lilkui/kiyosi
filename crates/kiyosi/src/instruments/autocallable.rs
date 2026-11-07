@@ -257,7 +257,7 @@ pub struct SnowballTerms {
     pub principal_ratio: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
-    /// Sets the inclusive expiry time, which must be a trading day.
+    /// Sets the inclusive settlement time; expiry-only knock-in requires an open date.
     pub expiry_time: Timestamp,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
@@ -342,7 +342,7 @@ pub struct PhoenixTerms {
     pub principal_ratio: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
-    /// Sets the inclusive expiry time, which must be a trading day.
+    /// Sets the inclusive settlement time; expiry-only knock-in requires an open date.
     pub expiry_time: Timestamp,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
@@ -404,7 +404,7 @@ pub struct BinarySnowballTerms {
     pub principal_ratio: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
-    /// Sets the inclusive expiry time, which must be a trading day.
+    /// Sets the inclusive settlement time, which may fall on a closed date.
     pub expiry_time: Timestamp,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
@@ -458,7 +458,7 @@ pub struct TernarySnowballTerms {
     pub principal_ratio: f64,
     /// Sets the inclusive effective time.
     pub effective_time: Timestamp,
-    /// Sets the inclusive expiry time, which must be a trading day.
+    /// Sets the inclusive settlement time; expiry-only knock-in requires an open date.
     pub expiry_time: Timestamp,
     /// Supplies nonempty, strictly ordered observations within the note life.
     pub observations: Vec<AutocallableObservation>,
@@ -802,12 +802,12 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
 
     /// Replaces the owned monitoring calendar; see [`Self::new`] for construction.
     ///
-    /// Defaults to weekdays. Expiry and observations are validated on replacement; daily monitoring
-    /// uses this calendar. Other terms are retained.
+    /// Defaults to weekdays. Explicit observations and expiry-only knock-in are validated on replacement;
+    /// daily monitoring uses this calendar. Settlement alone may fall on a closed date.
     ///
     /// Amends an already validated contract; this is not an initial-construction builder.
     /// Set [`SnowballTerms::calendar`] before calling [`Self::new`] when the
-    /// terms require a custom calendar, such as a weekend expiry or observation.
+    /// terms require a custom calendar, such as weekend observations.
     /// The original contract remains unchanged on success and failure.
     /// See [`crate::RangeAccrualOption::replace_calendar`] for an initial-calendar example.
     ///
@@ -817,7 +817,7 @@ impl<T: AutocallableTerms> AutocallableNote<T> {
     /// with known history unless the history is explicitly replaced or cleared.
     /// See the [crate-level history contract](crate).
     ///
-    /// Returns [`crate::Error::InvalidInput`] if observations or required expiry fall on closed dates.
+    /// Returns [`crate::Error::InvalidInput`] if explicit or expiry-only knock-in observations fall on closed dates.
     pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
         let mut updated = self.clone();
         updated.0.set_calendar(calendar);
@@ -1256,8 +1256,14 @@ impl sealed::View<'_> {
                 "observation is not a trading day".into(),
             ));
         }
-        if !self.calendar.is_trading_day(self.expiry_time.date()) {
-            return Err(Error::InvalidInput("expiry is not a trading day".into()));
+        if self
+            .knock_in
+            .is_some_and(|ki| ki.observation_mode == KnockInObservationMode::AtExpiry)
+            && !self.calendar.is_trading_day(self.expiry_time.date())
+        {
+            return Err(Error::InvalidInput(
+                "knock-in observation is not a trading day".into(),
+            ));
         }
         Ok(())
     }

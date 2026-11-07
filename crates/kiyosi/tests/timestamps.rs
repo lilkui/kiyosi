@@ -81,6 +81,123 @@ fn accumulator_engines() -> Vec<Box<dyn PricingEngine<Accumulator>>> {
 }
 
 #[test]
+fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
+    let start = time(2, 16, 0);
+    let observation = time(3, 15, 0);
+    let valuation = time(3, 16, 0);
+    let calendar = TradingCalendar::custom(
+        TradingCalendar::weekdays(),
+        vec![time(6, 0, 0).date()],
+        vec![],
+        None,
+    )?;
+    for expiry in [time(4, 16, 0), time(5, 16, 0), time(6, 16, 0)] {
+        let mut terms = RangeAccrualTerms::new(
+            1000.0,
+            0.12,
+            80.0,
+            120.0,
+            start,
+            expiry,
+            observation.time_of_day(),
+        );
+        terms.calendar = calendar.clone();
+        terms.realized_hit_count = Some(1);
+        let range = RangeAccrualOption::new(terms)?;
+        assert_eq!(range.observation_schedule()?.times(), &[observation]);
+
+        let mut terms = AccumulatorTerms::new(
+            90.0,
+            110.0,
+            1.0,
+            2.0,
+            start,
+            expiry,
+            observation.time_of_day(),
+        );
+        terms.calendar = calendar.clone();
+        terms.accumulated_quantity = Some(3.0);
+        let accumulator = Accumulator::new(terms)?;
+        assert_eq!(accumulator.accumulation_schedule()?.times(), &[observation]);
+        assert_eq!(
+            accumulator.knock_out_observation_schedule()?.times(),
+            &[observation]
+        );
+
+        let records = vec![AutocallableObservation::new(observation, 110.0)?];
+        let mut terms = SnowballTerms::new(
+            0.12,
+            100.0,
+            80.0,
+            100.0,
+            0.0,
+            start,
+            expiry,
+            records.clone(),
+            Some(observation.time_of_day()),
+        );
+        terms.calendar = calendar.clone();
+        terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        let note = SnowballOption::new(terms.clone())?;
+        assert_eq!(
+            note.knock_in_observation_schedule()?.unwrap().times(),
+            &[observation]
+        );
+        terms.knock_in_observation_mode = KnockInObservationMode::AtExpiry;
+        terms.observation_clock_time = None;
+        assert!(matches!(
+            SnowballOption::new(terms),
+            Err(Error::InvalidInput(_))
+        ));
+
+        let mut terms = BinarySnowballTerms::new(0.12, start, expiry, records);
+        terms.calendar = calendar.clone();
+        terms.barrier_state = Some(AutocallableBarrierState::NoEvent);
+        let binary = BinarySnowballOption::new(terms)?;
+        let coupon = 0.12 * start.years_until(expiry);
+        for volatility in [0.0, 0.2] {
+            for at in [valuation, expiry] {
+                let context = PricingContext::new(
+                    BlackScholesMertonParameters::new(0.05, 0.0, volatility)?,
+                    70.0,
+                    at,
+                )?;
+                let discount = (-0.05 * at.years_until(expiry)).exp();
+                assert!(
+                    (AnalyticRangeAccrualEngine.price(&range, &context)?
+                        - 1000.0 * coupon * discount)
+                        .abs()
+                        < 1e-12
+                );
+                macro_rules! check_note {
+                    ($option:expr) => {
+                        for engine in [
+                            &QuadratureAutocallableEngine::default() as &dyn PricingEngine<_>,
+                            &FiniteDifferenceAutocallableEngine::default(),
+                            &MonteCarloAutocallableEngine::default(),
+                        ] {
+                            assert!(
+                                (engine.price($option, &context)? - (1.0 + coupon) * discount)
+                                    .abs()
+                                    < 1e-12
+                            );
+                        }
+                    };
+                }
+                check_note!(&note);
+                check_note!(&binary);
+                if at == expiry {
+                    for engine in accumulator_engines() {
+                        assert_eq!(engine.price(&accumulator, &context)?, -60.0);
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn intraday_expiry_and_accrual_preserve_microseconds() {
     let start = time(6, 10, 123_456);
     let expiry = time(6, 15, 654_321);

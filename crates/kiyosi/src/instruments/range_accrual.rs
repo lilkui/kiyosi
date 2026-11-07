@@ -52,6 +52,7 @@ impl RangeAccrualTerms {
 ///
 /// Observes at the specified observation clock time on trading dates in `(effective_time, expiry_time]`.
 /// Pays `notional * annual_coupon_rate * ACT/365 * hits / observations` at expiry.
+/// Settlement may fall on a closed date without adding an observation.
 /// Calendar compatibility is checked on construction; history consistency is checked during pricing. Shared reads are safe.
 /// See [`Self::new`] for an example.
 #[derive(Clone, Debug, PartialEq)]
@@ -65,8 +66,7 @@ impl RangeAccrualOption {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for invalid amounts, bounds or negative
-    /// history, then for nonpositive contract life, a nontrading expiry date or
-    /// an empty daily observation schedule.
+    /// history, then for nonpositive contract life or an empty daily observation schedule.
     /// History relative to valuation is validated by [`crate::AnalyticRangeAccrualEngine::price`].
     ///
     /// # Examples
@@ -109,12 +109,12 @@ impl RangeAccrualOption {
 
     /// Replaces the owned observation calendar; see [`Self::new`] for construction.
     ///
-    /// Defaults to weekdays. Construction and replacement check expiry against this calendar.
-    /// Other terms remain unchanged.
+    /// Defaults to weekdays. Construction and replacement require a nonempty observation schedule.
+    /// Settlement may fall on a closed date. Other terms remain unchanged.
     ///
     /// Amends an already validated contract; this is not an initial-construction builder.
     /// Set [`RangeAccrualTerms::calendar`] before calling [`Self::new`] when the
-    /// terms require a custom calendar, such as a weekend expiry or observation.
+    /// terms require a custom calendar, such as weekend observations.
     /// The original contract remains unchanged on success and failure.
     ///
     /// # Errors
@@ -123,25 +123,23 @@ impl RangeAccrualOption {
     /// with known history unless the history is explicitly replaced or cleared.
     /// See the [crate-level history contract](crate).
     ///
-    /// Returns [`crate::Error::InvalidInput`] if expiry falls on a closed date
-    /// or the resulting daily observation schedule is empty.
+    /// Returns [`crate::Error::InvalidInput`] if the resulting daily observation schedule is empty.
     ///
     /// # Examples
     ///
-    /// Selects an all-days calendar before validating a Saturday expiry:
+    /// Settles on Saturday while observing only on open dates:
     ///
     /// ```rust
-    /// use kiyosi::{Date, Error, RangeAccrualOption, RangeAccrualTerms, TradingCalendar};
+    /// use kiyosi::{Date, RangeAccrualOption, RangeAccrualTerms, TradingCalendar};
     /// # fn main() -> kiyosi::Result<()> {
-    /// let start = Date::new(2025, 1, 3)?.start_of_day();
+    /// let start = Date::new(2025, 1, 2)?.start_of_day();
     /// let expiry = Date::new(2025, 1, 4)?.start_of_day();
-    /// let mut terms = RangeAccrualTerms::new(1000.0, 0.12, 80.0, 120.0, start, expiry, kiyosi::TimeOfDay::new(0, 0, 0, 0)?);
-    /// terms.calendar = TradingCalendar::all_days();
+    /// let terms = RangeAccrualTerms::new(1000.0, 0.12, 80.0, 120.0, start, expiry, kiyosi::TimeOfDay::new(0, 0, 0, 0)?);
     /// let option = RangeAccrualOption::new(terms)?;
-    /// assert!(option.calendar().is_trading_day(expiry.date()));
-    /// // An amendment also validates the existing Saturday expiry.
-    /// assert!(matches!(option.replace_calendar(TradingCalendar::weekdays()),
-    ///     Err(Error::InvalidInput(_))));
+    /// assert_eq!(option.observation_schedule()?.times(), &[start.add_days(1)?]);
+    /// let daily = option.replace_calendar(TradingCalendar::all_days())?;
+    /// assert_eq!(daily.observation_schedule()?.len(), 2);
+    /// assert_eq!(daily.expiry_time(), expiry);
     /// # Ok(()) }
     /// ```
     pub fn replace_calendar(&self, calendar: TradingCalendar) -> Result<Self> {
@@ -152,9 +150,6 @@ impl RangeAccrualOption {
     }
 
     fn validate_calendar(&self) -> Result<()> {
-        if !self.calendar().is_trading_day(self.expiry_time().date()) {
-            return Err(Error::InvalidInput("expiry must be a trading day".into()));
-        }
         if self.observation_schedule()?.is_empty() {
             return Err(Error::InvalidInput(
                 "range accrual requires at least one observation".into(),

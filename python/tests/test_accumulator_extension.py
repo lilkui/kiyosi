@@ -188,8 +188,6 @@ class AccumulatorExtensionTests(unittest.TestCase):
     def test_trading_calendar_validation_precedes_pricing(self):
         with self.assertRaises(InvalidInputError):
             contract(knock_out_observation_times=[datetime(2025, 1, 4)])
-        with self.assertRaises(InvalidInputError):
-            contract(expiry_time=datetime(2025, 1, 5), knock_out_observation_times=[])
         weekend = contract(
             knock_out_observation_times=[datetime(2025, 1, 4)],
             calendar=all_days_calendar(),
@@ -197,7 +195,6 @@ class AccumulatorExtensionTests(unittest.TestCase):
         weekend_expiry = contract(
             expiry_time=datetime(2025, 1, 5),
             knock_out_observation_times=[],
-            calendar=all_days_calendar(),
         )
         for engine in engines():
             with self.subTest(engine=type(engine).__name__):
@@ -210,10 +207,10 @@ class AccumulatorExtensionTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     engine.price(
-                        weekend_expiry.replace(calendar=all_days_calendar()),
+                        weekend_expiry,
                         market(90, datetime(2025, 1, 5)),
                     ),
-                    -50,
+                    -30,
                 )
 
     def test_terminal_events_mirror_directions_and_observe_only_listed_dates(self):

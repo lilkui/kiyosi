@@ -17,7 +17,7 @@ cannot be represented distinctly by its numerical grid.
 Barrier and touch contracts, range accruals, accumulators and autocallable notes own their ``calendar``
 (weekdays by default). Supply the contractual calendar when constructing them or
 use ``replace(calendar=...)`` to amend an existing validated contract. A contract
-with weekend observations or a weekend expiry that requires a trading day must
+with observations on dates closed by the default calendar must
 receive the appropriate calendar at construction; replacement cannot repair a
 constructor rejection. Replacement, coupon shifts and pickle
 preserve the contract calendar.
@@ -34,7 +34,8 @@ They are filtered against the full contract bounds. Snowballs and accumulators
 include the effective instant; range accruals exclude it. Maturity settlement adds
 no daily observation. Range accruals require a nonempty observation schedule. Explicit accumulator knock-out observations do not add quantity;
 coincident events check knock-out before accumulating. Constructors validate terms and contractual calendar compatibility, including
-explicit observation dates and required trading-day expiries. Pricing validates
+explicit observation dates and expiry-only knock-in observations. Settlement-only
+expiry dates may be closed without adding observations. Pricing validates
 consistency with the market snapshot and supplied history.
 History describes events strictly before valuation; a current observation
 is evaluated from the current spot. ``replace()`` replaces constructor terms on every contract. Omitted terms and

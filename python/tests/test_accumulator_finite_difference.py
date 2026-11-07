@@ -125,7 +125,6 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         self.assertEqual(
             option.replace_history(accumulated_quantity=0.25).accumulated_quantity, 0.25
         )
-        self.assert_rejection(InvalidInputError, contract, datetime(2025, 1, 5))
         for instrument, context, expected_error in (
             (
                 option,

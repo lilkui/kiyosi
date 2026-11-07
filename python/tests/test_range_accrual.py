@@ -382,8 +382,12 @@ class RangeAccrualTests(unittest.TestCase):
         self.assertAlmostEqual(
             engine.price(option, context), reference(option, context), delta=1e-12
         )
-        with self.assertRaises(InvalidInputError):
-            contract(calendar=weekdays_calendar(), expiry_time=datetime(2025, 1, 5))
+        sunday = contract(
+            calendar=weekdays_calendar(), expiry_time=datetime(2025, 1, 5)
+        )
+        self.assertAlmostEqual(
+            engine.price(sunday, market()), reference(sunday, market()), delta=1e-12
+        )
         short_curve = RateTermStructure(
             reference_time=START, times=[START + timedelta(days=1)], factors=[0.999]
         )
