@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from datetime import time as clock_time
-from typing import assert_type
+from typing import Literal, assert_type
 
 from kiyosi.instruments import (
     Accumulator,
@@ -22,6 +22,10 @@ DoubleTouchOption()  # ty: ignore[missing-argument]
 
 
 def observation_choices(at: datetime) -> None:
+    assert_type(
+        AutocallableObservation.phoenix(at, 110, coupon_barrier_level=0).kind,
+        Literal["snowball", "phoenix"],
+    )
     assert_type(
         AutocallableObservation.snowball(at, 110, coupon_rate=0),
         AutocallableObservation,

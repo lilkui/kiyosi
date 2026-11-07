@@ -118,12 +118,8 @@ def _reduce(
             },
         )
     if isinstance(value, _native.AutocallableObservation):
-        field = "coupon_barrier_level" if value.coupon_barrier_level else "coupon_rate"
-        factory = (
-            _native.AutocallableObservation.phoenix
-            if value.coupon_barrier_level
-            else _native.AutocallableObservation.snowball
-        )
+        field = "coupon_barrier_level" if value.kind == "phoenix" else "coupon_rate"
+        factory = getattr(_native.AutocallableObservation, value.kind)
         return _restore, (
             factory,
             {

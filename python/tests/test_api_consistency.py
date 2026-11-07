@@ -1844,6 +1844,44 @@ class GreekMethodTests(unittest.TestCase):
 
 
 class ObservationReplacementTests(unittest.TestCase):
+    def test_zero_coupon_observations_preserve_product_identity(self):
+        start, end = datetime(2025, 1, 2), datetime(2026, 1, 2)
+        snowball = ins.AutocallableObservation.snowball(end, 110, coupon_rate=0)
+        phoenix = ins.AutocallableObservation.phoenix(end, 110, coupon_barrier_level=0)
+        self.assertEqual(
+            ins.autocallable_observations([end], [110], coupon_barrier_levels=[0]),
+            [phoenix],
+        )
+        self.assertNotEqual(snowball, phoenix)
+        for record, kind in ((snowball, "snowball"), (phoenix, "phoenix")):
+            with self.subTest(kind=kind):
+                self.assertEqual(record.kind, kind)
+                self.assertEqual(record.replace(knock_out_level=120).kind, kind)
+                restored = pickle.loads(pickle.dumps(record))
+                self.assertEqual(restored, record)
+                self.assertEqual(restored.kind, kind)
+                self.assertIn(f"AutocallableObservation.{kind}(", repr(record))
+        with self.assertRaises(InvalidInputError):
+            snowball.replace(coupon_barrier_level=0)
+        with self.assertRaises(InvalidInputError):
+            phoenix.replace(coupon_rate=0)
+        life = {"effective_time": start, "expiry_time": end}
+        with self.assertRaises(InvalidInputError):
+            ins.BinarySnowballOption(
+                maturity_coupon_rate=0.1, observations=[phoenix], **life
+            )
+        with self.assertRaises(InvalidInputError):
+            ins.PhoenixOption(
+                coupon_rate=0.1,
+                initial_spot=100,
+                knock_in_level=80,
+                upper_strike=100,
+                lower_strike=0,
+                observations=[snowball],
+                observation_clock_time=end.time(),
+                **life,
+            )
+
     def test_observation_replacement_preserves_validity_and_original_values(self):
         time = datetime(2026, 1, 1)
         original = ins.AutocallableObservation.snowball(time, 110, coupon_rate=-0.01)

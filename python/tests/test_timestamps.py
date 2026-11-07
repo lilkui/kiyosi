@@ -240,7 +240,15 @@ class TimestampTests(unittest.TestCase):
         )
         notes = [
             SnowballOption(maturity_coupon_rate=0.1, **terms),
-            PhoenixOption(coupon_rate=0.1, **terms),
+            PhoenixOption(
+                coupon_rate=0.1,
+                **dict(
+                    terms,
+                    observations=autocallable_observations(
+                        [expiry], [110], coupon_barrier_levels=[0]
+                    ),
+                ),
+            ),
             TernarySnowballOption(
                 maturity_coupon_rate=0.1,
                 minimum_coupon_rate=0.02,
@@ -678,7 +686,7 @@ class TimestampTests(unittest.TestCase):
             effective_time=start,
             expiry_time=last,
             observations=autocallable_observations(
-                [first, last], [1000, 1000], knock_out_coupon_rates=[0] * 2
+                [first, last], [1000, 1000], coupon_barrier_levels=[0] * 2
             ),
             knock_in_observation_mode="at_expiry",
         )

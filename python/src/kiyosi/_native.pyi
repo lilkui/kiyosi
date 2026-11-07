@@ -9711,6 +9711,8 @@ class AutocallableObservation:
     -----
     Construct with snowball(..., coupon_rate=...) or phoenix(..., coupon_barrier_level=...).
     A zero knock-out coupon or unconditional Phoenix coupon requires an explicit zero.
+    Observations retain their snowball or Phoenix kind, including at zero. Notes reject
+    observations of the other kind; replacements preserve the kind.
     Numeric terms are validated in Rust on construction. Note construction also
     validates observation ordering, life bounds and product-specific constraints.
     Invalid numeric terms raise InvalidInputError."""
@@ -9727,9 +9729,14 @@ class AutocallableObservation:
 
         Omitted fields or Ellipsis retain their values. Invalid numeric terms raise
         InvalidInputError; representation failures use native Python exceptions.
+        Fields of the other observation kind are rejected, including explicit zero.
         Note construction checks schedule and product-specific constraints."""
 
     def __new__(cls, _token: Never, /) -> Self: ...
+    @property
+    def kind(self) -> Literal["snowball", "phoenix"]:
+        """Returns snowball or phoenix, independently of coupon values."""
+
     @staticmethod
     def snowball(
         time: datetime, knock_out_level: _Real, *, coupon_rate: _Real

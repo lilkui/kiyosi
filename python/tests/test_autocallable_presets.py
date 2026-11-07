@@ -53,7 +53,7 @@ def phoenix_fields(**changes):
         "expiry_time": END,
         "barrier_state": "no_event",
         "observations": autocallable_observations(
-            [MIDDLE, END], [110, 110], knock_out_coupon_rates=[0] * 2
+            [MIDDLE, END], [110, 110], coupon_barrier_levels=[0] * 2
         ),
     }
     fields.update(changes)

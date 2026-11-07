@@ -1051,14 +1051,14 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
         principal_ratio: 1.0,
         effective_time: start,
         expiry_time: end,
-        observations: vec![AutocallableObservation::snowball(end, 110.0, 0.0).unwrap()],
+        observations: vec![AutocallableObservation::phoenix(end, 110.0, 0.0).unwrap()],
     })
     .unwrap();
     let saved = original.clone();
     assert!(matches!(
         original.replace(PhoenixOptionChanges {
             observations: Some(vec![
-                AutocallableObservation::snowball(end, 115.0, 0.0).unwrap()
+                AutocallableObservation::phoenix(end, 115.0, 0.0).unwrap()
             ]),
             ..Default::default()
         }),
@@ -1156,7 +1156,7 @@ fn phoenix_option_replacements_preserve_omissions_and_validate_each_field() {
         original,
         PhoenixOptionChanges,
         observations,
-        vec![AutocallableObservation::snowball(end, 115.0, 0.0).unwrap()],
+        vec![AutocallableObservation::phoenix(end, 115.0, 0.0).unwrap()],
         terms().observations
     );
     assert!(matches!(

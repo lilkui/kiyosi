@@ -984,8 +984,8 @@ fn finite_difference_rejects_unresolvable_microsecond_events() {
             start,
             last,
             vec![
-                AutocallableObservation::snowball(first, 1000.0, 0.0).unwrap(),
-                AutocallableObservation::snowball(last, 1000.0, 0.0).unwrap(),
+                AutocallableObservation::phoenix(first, 1000.0, 0.0).unwrap(),
+                AutocallableObservation::phoenix(last, 1000.0, 0.0).unwrap(),
             ],
             Some((last).time_of_day()),
         )
@@ -1129,7 +1129,7 @@ fn contract_schedules_expose_effective_observations() -> Result<()> {
         0.0,
         start,
         expiry,
-        observations.clone(),
+        vec![AutocallableObservation::phoenix(expiry, 110.0, 0.0)?],
         Some(clock),
     );
     phoenix.calendar = calendar.clone();

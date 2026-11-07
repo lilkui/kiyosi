@@ -626,6 +626,15 @@ class PackageTests(unittest.TestCase):
             ),
         ):
             with self.subTest(contract=cls.__name__):
+                common["observations"] = [
+                    instruments.AutocallableObservation.phoenix(
+                        end, 110, coupon_barrier_level=0
+                    )
+                    if cls is instruments.PhoenixOption
+                    else instruments.AutocallableObservation.snowball(
+                        end, 110, coupon_rate=0
+                    )
+                ]
                 self.assertIs(
                     inspect.signature(cls).parameters["observation_clock_time"].default,
                     inspect.Parameter.empty,

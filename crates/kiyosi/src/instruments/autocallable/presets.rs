@@ -1,7 +1,7 @@
 use super::{
-    AutocallableBarrierState, AutocallableObservation, DEFAULT_PRINCIPAL_RATIO,
-    KnockInObservationMode, PhoenixCoupon, PhoenixOption, PhoenixTerms, SnowballOption,
-    SnowballTerms,
+    AutocallableBarrierState, AutocallableObservation, AutocallableObservationKind,
+    DEFAULT_PRINCIPAL_RATIO, KnockInObservationMode, PhoenixCoupon, PhoenixOption, PhoenixTerms,
+    SnowballOption, SnowballTerms,
 };
 use crate::TradingCalendar;
 use crate::error::finite;
@@ -174,6 +174,7 @@ impl SnowballPresetTerms {
             .observation_times
             .into_iter()
             .map(|date| AutocallableObservation {
+                kind: AutocallableObservationKind::Snowball,
                 time: date,
                 knock_out_level: self.knock_out_level,
                 coupon_rate: self.coupon_rate,
@@ -387,6 +388,7 @@ impl PhoenixPresetTerms {
                 knock_out_level: self.knock_out_level,
                 coupon_rate: 0.0,
                 coupon_barrier_level: coupon_barrier,
+                kind: AutocallableObservationKind::Phoenix,
             })
             .collect();
         let mut terms = PhoenixTerms::new(

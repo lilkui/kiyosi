@@ -144,7 +144,9 @@ def contracts():
         principal_ratio=1,
         effective_time=START,
         expiry_time=END,
-        observations=[i.AutocallableObservation.snowball(END, 110, coupon_rate=0)],
+        observations=[
+            i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
+        ],
     )
     yield i.BinarySnowballOption(
         maturity_coupon_rate=0.1,
@@ -328,6 +330,12 @@ class ContractReplacementTests(unittest.TestCase):
                 if name in ("observation_mode", "observation_times"):
                     continue
                 value = UPDATES.get(name)
+                if name == "observations" and isinstance(original, i.PhoenixOption):
+                    value = [
+                        i.AutocallableObservation.phoenix(
+                            END, 115, coupon_barrier_level=0
+                        )
+                    ]
                 if name == "barrier_type":
                     value = (
                         "knock_out"
@@ -548,7 +556,7 @@ class ContractReplacementTests(unittest.TestCase):
         note = next(
             value for value in contracts() if isinstance(value, i.PhoenixOption)
         )
-        records = [i.AutocallableObservation.snowball(END, 115, coupon_rate=0)]
+        records = [i.AutocallableObservation.phoenix(END, 115, coupon_barrier_level=0)]
         changed = note.replace(
             observations=records,
             coupon_per_period=0.02,

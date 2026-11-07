@@ -217,10 +217,10 @@ pub(crate) fn _repr_previews<'py>(
                 }
                 result.set_item("observations", preview(v.0.observations(), |r| Ok(format!(
                     "AutocallableObservation.{}({}, {:?}, {}={:?})",
-                    if r.coupon_barrier_level() == 0.0 { "snowball" } else { "phoenix" },
+                    if r.kind() == kiyosi::AutocallableObservationKind::Snowball { "snowball" } else { "phoenix" },
                     python_timestamp(py, r.time())?.repr()?, r.knock_out_level(),
-                    if r.coupon_barrier_level() == 0.0 { "coupon_rate" } else { "coupon_barrier_level" },
-                    if r.coupon_barrier_level() == 0.0 { r.coupon_rate() } else { r.coupon_barrier_level() })))?)?;
+                    if r.kind() == kiyosi::AutocallableObservationKind::Snowball { "coupon_rate" } else { "coupon_barrier_level" },
+                    if r.kind() == kiyosi::AutocallableObservationKind::Snowball { r.coupon_rate() } else { r.coupon_barrier_level() })))?)?;
             }
         )+};
     }

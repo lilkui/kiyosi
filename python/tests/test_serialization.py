@@ -140,12 +140,22 @@ def values():
         i.PhoenixOption(
             observation_clock_time=clock_time(),
             coupon_rate=0.1,
-            **common,
+            **dict(
+                common,
+                observations=[
+                    i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
+                ],
+            ),
         ),
         i.PhoenixOption(
             observation_clock_time=clock_time(),
             coupon_per_period=0.01,
-            **common,
+            **dict(
+                common,
+                observations=[
+                    i.AutocallableObservation.phoenix(END, 110, coupon_barrier_level=0)
+                ],
+            ),
         ),
         i.BinarySnowballOption(
             maturity_coupon_rate=0.1, observations=common["observations"], **life
@@ -414,7 +424,14 @@ class SerializationTests(unittest.TestCase):
             ):
                 option = original.replace(
                     expiry_time=times[-1],
-                    observations=observations,
+                    observations=[
+                        i.AutocallableObservation.phoenix(
+                            time, 110, coupon_barrier_level=0
+                        )
+                        for time in times
+                    ]
+                    if isinstance(original, i.PhoenixOption)
+                    else observations,
                     barrier_state=original.barrier_state,
                     calendar=m.all_days_calendar(),
                 )

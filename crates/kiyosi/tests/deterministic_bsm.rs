@@ -230,7 +230,7 @@ fn zero_volatility_prices_agree_across_supported_engines() -> Result<()> {
         0.0,
         start,
         end,
-        observations.clone(),
+        autocallable_observations(&[end], &[120.0], None, Some(&[0.0]))?,
         Some((end).time_of_day())
     ))?);
     note!(BinarySnowballOption::new(BinarySnowballTerms::new(

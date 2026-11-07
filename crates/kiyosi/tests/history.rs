@@ -337,7 +337,7 @@ fn every_path_dependent_family_requires_dated_history() -> Result<()> {
             0.0,
             start,
             end,
-            records.clone(),
+            vec![AutocallableObservation::phoenix(end, 110.0, 0.0)?],
             Some(clock),
         ))?
         .replace_history(state)?,

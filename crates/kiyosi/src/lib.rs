@@ -237,12 +237,13 @@ pub use instruments::asian::{
 };
 pub use instruments::autocallable::{
     AutocallableBarrierState, AutocallableNote, AutocallableObservation,
-    AutocallableObservationChanges, AutocallableTerms, BinarySnowballOption,
-    BinarySnowballOptionChanges, BinarySnowballTerms, DEFAULT_PRINCIPAL_RATIO,
-    KnockInObservationMode, PhoenixCoupon, PhoenixOption, PhoenixOptionChanges, PhoenixPreset,
-    PhoenixPresetTerms, PhoenixTerms, SnowballCouponTerms, SnowballOption, SnowballOptionChanges,
-    SnowballPreset, SnowballPresetTerms, SnowballTerms, TernarySnowballOption,
-    TernarySnowballOptionChanges, TernarySnowballTerms, autocallable_observations,
+    AutocallableObservationChanges, AutocallableObservationKind, AutocallableTerms,
+    BinarySnowballOption, BinarySnowballOptionChanges, BinarySnowballTerms,
+    DEFAULT_PRINCIPAL_RATIO, KnockInObservationMode, PhoenixCoupon, PhoenixOption,
+    PhoenixOptionChanges, PhoenixPreset, PhoenixPresetTerms, PhoenixTerms, SnowballCouponTerms,
+    SnowballOption, SnowballOptionChanges, SnowballPreset, SnowballPresetTerms, SnowballTerms,
+    TernarySnowballOption, TernarySnowballOptionChanges, TernarySnowballTerms,
+    autocallable_observations,
 };
 pub use instruments::barrier::{
     BarrierOption, BarrierOptionChanges, BarrierOptionTerms, BarrierTouchState, BarrierType,

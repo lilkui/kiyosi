@@ -143,7 +143,12 @@ def cases():
         ),
         ins.PhoenixOption(
             observation_clock_time=clock_time(),
-            **note,
+            **dict(
+                note,
+                observations=ins.autocallable_observations(
+                    [END], [120], coupon_barrier_levels=[0]
+                ),
+            ),
             **downside,
             coupon_rate=0.1,
         ),

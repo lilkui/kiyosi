@@ -214,6 +214,8 @@ fn reals(values: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
 /// -----
 /// Construct with snowball(..., coupon_rate=...) or phoenix(..., coupon_barrier_level=...).
 /// A zero knock-out coupon or unconditional Phoenix coupon requires an explicit zero.
+/// Observations retain their snowball or Phoenix kind, including at zero. Notes reject
+/// observations of the other kind; replacements preserve the kind.
 /// Numeric terms are validated in Rust on construction. Note construction also
 /// validates observation ordering, life bounds and product-specific constraints.
 /// Invalid numeric terms raise InvalidInputError.
@@ -283,6 +285,7 @@ impl AutocallableObservation {
     ///
     /// Omitted fields or Ellipsis retain their values. Invalid numeric terms raise
     /// InvalidInputError; representation failures use native Python exceptions.
+    /// Fields of the other observation kind are rejected, including explicit zero.
     /// Note construction checks schedule and product-specific constraints.
     #[pyo3(signature = (*, time=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, coupon_rate=crate::conversions::OMITTED, coupon_barrier_level=crate::conversions::OMITTED))]
     fn replace(
@@ -300,6 +303,14 @@ impl AutocallableObservation {
                 coupon_barrier_level: coupon_barrier_level.map(real).transpose()?,
             },
         ))?))
+    }
+    /// Returns snowball or phoenix, independently of coupon values.
+    #[getter]
+    pub(crate) fn kind(&self) -> &'static str {
+        match self.0.kind() {
+            kiyosi::AutocallableObservationKind::Snowball => "snowball",
+            kiyosi::AutocallableObservationKind::Phoenix => "phoenix",
+        }
     }
     /// Return exact observation time.
     #[getter]
@@ -322,7 +333,8 @@ impl AutocallableObservation {
         self.0.coupon_barrier_level()
     }
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let (kind, field, value) = if self.0.coupon_barrier_level() == 0.0 {
+        let (kind, field, value) = if self.0.kind() == kiyosi::AutocallableObservationKind::Snowball
+        {
             ("snowball", "coupon_rate", self.0.coupon_rate())
         } else {
             (

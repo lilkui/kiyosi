@@ -29,7 +29,18 @@ pub enum AutocallableBarrierState {
     KnockedIn,
 }
 
-/// Associates one observation time with its contractual levels and coupon.
+/// Identifies the product owning an observation, including zero-valued coupon fields.
+///
+/// See [`AutocallableObservation::phoenix`] for construction and inspection.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AutocallableObservationKind {
+    /// Supplies an annual snowball knock-out coupon.
+    Snowball,
+    /// Supplies a Phoenix coupon threshold; the note owns the coupon amount.
+    Phoenix,
+}
+
+/// Associates one observation time with its product kind, levels and coupon.
 ///
 /// Constructors and replacements validate numeric terms. Note construction also
 /// validates ordering, life bounds and product-specific coupon constraints.
@@ -37,6 +48,7 @@ pub enum AutocallableBarrierState {
 /// [`Self::snowball`], [`Self::phoenix`] and [`Self::replace`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AutocallableObservation {
+    kind: AutocallableObservationKind,
     /// Sets the exact observation time.
     time: Timestamp,
     /// Sets the positive inclusive knock-out threshold.
@@ -71,7 +83,13 @@ impl AutocallableObservation {
     /// Returns [`Error::InvalidInput`] for a nonpositive or non-finite knock-out level
     /// or a non-finite coupon rate. See [`Self::phoenix`] for a usage example.
     pub fn snowball(time: Timestamp, knock_out_level: f64, coupon_rate: f64) -> Result<Self> {
-        Self::with_coupons(time, knock_out_level, coupon_rate, 0.0)
+        Self::with_coupons(
+            AutocallableObservationKind::Snowball,
+            time,
+            knock_out_level,
+            coupon_rate,
+            0.0,
+        )
     }
 
     /// Creates a Phoenix observation with a conditional coupon threshold.
@@ -94,6 +112,7 @@ impl AutocallableObservation {
     /// let phoenix = AutocallableObservation::phoenix(time, 110.0, 90.0)?;
     /// assert_eq!(snowball.coupon_rate(), 0.08);
     /// assert_eq!(phoenix.coupon_barrier_level(), 90.0);
+    /// assert_eq!(phoenix.kind(), kiyosi::AutocallableObservationKind::Phoenix);
     /// # Ok(()) }
     /// ```
     pub fn phoenix(
@@ -101,16 +120,24 @@ impl AutocallableObservation {
         knock_out_level: f64,
         coupon_barrier_level: f64,
     ) -> Result<Self> {
-        Self::with_coupons(time, knock_out_level, 0.0, coupon_barrier_level)
+        Self::with_coupons(
+            AutocallableObservationKind::Phoenix,
+            time,
+            knock_out_level,
+            0.0,
+            coupon_barrier_level,
+        )
     }
 
     fn with_coupons(
+        kind: AutocallableObservationKind,
         time: Timestamp,
         knock_out_level: f64,
         coupon_rate: f64,
         coupon_barrier_level: f64,
     ) -> Result<Self> {
         let record = Self {
+            kind,
             time,
             knock_out_level,
             coupon_rate,
@@ -124,7 +151,8 @@ impl AutocallableObservation {
     ///
     /// # Errors
     ///
-    /// Validates numeric terms and rejects mixed snowball and Phoenix coupon fields. The original is preserved
+    /// Validates numeric terms and rejects fields belonging to the other product kind,
+    /// including explicit zero values. The original is preserved
     /// on success and failure; the note validates schedule and product constraints.
     ///
     /// # Examples
@@ -141,7 +169,16 @@ impl AutocallableObservation {
     /// # Ok(()) }
     /// ```
     pub fn replace(&self, changes: AutocallableObservationChanges) -> Result<Self> {
+        if (self.kind == AutocallableObservationKind::Phoenix && changes.coupon_rate.is_some())
+            || (self.kind == AutocallableObservationKind::Snowball
+                && changes.coupon_barrier_level.is_some())
+        {
+            return Err(Error::InvalidInput(
+                "coupon field does not belong to this observation kind".into(),
+            ));
+        }
         Self::with_coupons(
+            self.kind,
             changes.time.unwrap_or(self.time),
             changes.knock_out_level.unwrap_or(self.knock_out_level),
             changes.coupon_rate.unwrap_or(self.coupon_rate),
@@ -149,6 +186,11 @@ impl AutocallableObservation {
                 .coupon_barrier_level
                 .unwrap_or(self.coupon_barrier_level),
         )
+    }
+
+    /// Returns the product kind, independently of coupon values; see [`Self::phoenix`].
+    pub fn kind(&self) -> AutocallableObservationKind {
+        self.kind
     }
 
     /// Returns the exact timestamp; see [`Self::phoenix`].
@@ -175,7 +217,10 @@ impl AutocallableObservation {
         if self.coupon_barrier_level < 0.0 {
             return Err(Error::InvalidInput("negative coupon barrier".into()));
         }
-        if self.coupon_rate != 0.0 && self.coupon_barrier_level != 0.0 {
+        if (self.kind == AutocallableObservationKind::Phoenix && self.coupon_rate != 0.0)
+            || (self.kind == AutocallableObservationKind::Snowball
+                && self.coupon_barrier_level != 0.0)
+        {
             return Err(Error::InvalidInput(
                 "coupon_rate and coupon_barrier_level belong to different products".into(),
             ));
@@ -231,6 +276,11 @@ pub fn autocallable_observations(
         .enumerate()
         .map(|(i, (&time, &level))| {
             AutocallableObservation::with_coupons(
+                if coupons.is_some() {
+                    AutocallableObservationKind::Snowball
+                } else {
+                    AutocallableObservationKind::Phoenix
+                },
                 time,
                 level,
                 coupons.map_or(0.0, |values| values[i]),
@@ -1398,20 +1448,19 @@ impl sealed::View<'_> {
                 },
             )?;
             for r in terms.observations {
-                if r.coupon_rate != 0.0 {
+                if r.kind != AutocallableObservationKind::Phoenix {
                     return Err(Error::InvalidInput(
-                        "Phoenix observations do not accept coupon_rate; set the note coupon"
-                            .into(),
+                        "Phoenix notes require Phoenix observations; set the note coupon".into(),
                     ));
                 }
             }
         } else if terms
             .observations
             .iter()
-            .any(|r| r.coupon_barrier_level != 0.0)
+            .any(|r| r.kind != AutocallableObservationKind::Snowball)
         {
             return Err(Error::InvalidInput(
-                "snowballs do not support conditional observation coupons".into(),
+                "snowball notes require snowball observations".into(),
             ));
         }
         Ok(())

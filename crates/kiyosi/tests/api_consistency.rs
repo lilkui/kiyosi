@@ -2220,6 +2220,58 @@ fn observation_replacement_preserves_validity_and_original_values() -> Result<()
 }
 
 #[test]
+fn zero_coupon_observations_preserve_product_identity() -> Result<()> {
+    let start = Date::new(2025, 1, 2)?.start_of_day();
+    let end = Date::new(2026, 1, 2)?.start_of_day();
+    let snowball = AutocallableObservation::snowball(end, 110.0, 0.0)?;
+    let phoenix = AutocallableObservation::phoenix(end, 110.0, 0.0)?;
+    assert_eq!(
+        autocallable_observations(&[end], &[110.0], None, Some(&[0.0]))?,
+        vec![phoenix]
+    );
+    assert_ne!(snowball, phoenix);
+    assert_eq!(snowball.kind(), AutocallableObservationKind::Snowball);
+    assert_eq!(
+        phoenix.replace(Default::default())?.kind(),
+        AutocallableObservationKind::Phoenix
+    );
+    assert!(matches!(
+        snowball.replace(AutocallableObservationChanges {
+            coupon_barrier_level: Some(0.0),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(matches!(
+        phoenix.replace(AutocallableObservationChanges {
+            coupon_rate: Some(0.0),
+            ..Default::default()
+        }),
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(matches!(
+        BinarySnowballOption::new(BinarySnowballTerms::new(0.1, start, end, vec![phoenix])),
+        Err(Error::InvalidInput(_))
+    ));
+    let terms = PhoenixTerms::new(
+        0.1,
+        100.0,
+        80.0,
+        100.0,
+        0.0,
+        start,
+        end,
+        vec![snowball],
+        Some(end.time_of_day()),
+    );
+    assert!(matches!(
+        PhoenixOption::new(terms),
+        Err(Error::InvalidInput(_))
+    ));
+    Ok(())
+}
+
+#[test]
 fn accumulator_history_replacement_updates_quantity_and_settlement() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let original = Accumulator::new(AccumulatorTerms::new(
