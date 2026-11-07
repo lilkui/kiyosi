@@ -119,7 +119,7 @@ def terminal_cases():
         ),
         (
             ins.Accumulator(
-                terminated=False,
+                knock_out_settled=False,
                 observation_clock_time=clock_time(),
                 effective_time=dates["effective_time"] - timedelta(days=1),
                 expiry_time=dates["expiry_time"],

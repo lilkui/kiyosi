@@ -5,7 +5,7 @@ fn day(month: u32, date: u32) -> Timestamp {
 }
 fn terms(end: Timestamp) -> AccumulatorTerms {
     AccumulatorTerms {
-        terminated: Some(false),
+        knock_out_settled: Some(false),
         accumulated_quantity: Some(0.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end, (end).time_of_day())
     }
@@ -18,24 +18,24 @@ fn termination_history_is_required_after_prior_knock_out_observations() -> Resul
     let mut terms = AccumulatorTerms::new(100.0, 110.0, 1.0, 1.0, start, end, start.time_of_day());
     terms.accumulated_quantity = Some(2.0);
     let option = Accumulator::new(terms)?;
-    assert_eq!(option.terminated(), None);
+    assert_eq!(option.knock_out_settled(), None);
     let active = option.replace_history(AccumulatorHistoryChanges {
-        terminated: Some(Some(false)),
+        knock_out_settled: Some(Some(false)),
         ..Default::default()
     })?;
     let settled = option.replace_history(AccumulatorHistoryChanges {
-        terminated: Some(Some(true)),
+        knock_out_settled: Some(Some(true)),
         ..Default::default()
     })?;
     assert_eq!(
         active.replace_history(AccumulatorHistoryChanges {
-            terminated: Some(None),
+            knock_out_settled: Some(None),
             ..Default::default()
         })?,
         option
     );
-    assert_eq!(active.terminated(), Some(false));
-    assert_eq!(settled.terminated(), Some(true));
+    assert_eq!(active.knock_out_settled(), Some(false));
+    assert_eq!(settled.knock_out_settled(), Some(true));
     let context = market(105.0, day(1, 8), 0.0, 0.0, 0.0);
     for engine in [
         &QuadratureAccumulatorEngine::default() as &dyn PricingEngine<Accumulator>,
@@ -64,7 +64,7 @@ fn termination_history_is_required_after_prior_knock_out_observations() -> Resul
         let no_knock_out = option.replace(AccumulatorChanges {
             knock_out_observation_times: Some(Some(vec![])),
             accumulated_quantity: Some(Some(2.0)),
-            terminated: Some(None),
+            knock_out_settled: Some(None),
             ..Default::default()
         })?;
         assert_eq!(engine.price(&no_knock_out, &context)?, 25.0);
@@ -513,7 +513,7 @@ fn spatial_and_domain_convergence_meet_accuracy_targets() {
             .replace(AccumulatorChanges {
                 calendar: Some(calendar),
                 accumulated_quantity: Some(option.accumulated_quantity()),
-                terminated: Some(option.terminated()),
+                knock_out_settled: Some(option.knock_out_settled()),
                 ..Default::default()
             })
             .unwrap();
@@ -827,7 +827,7 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
             day(1, 7),
             (day(1, 7)).time_of_day(),
         );
-        terms.terminated = Some(false);
+        terms.knock_out_settled = Some(false);
         let option = Accumulator::new(terms).unwrap();
         assert_eq!(option.accumulated_quantity(), None);
         let first = if start == day(1, 4) { day(1, 6) } else { start };

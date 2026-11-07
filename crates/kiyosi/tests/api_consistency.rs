@@ -698,7 +698,7 @@ fn model_scalar_rate_queries_match_curve_representations() -> Result<()> {
 }
 
 #[test]
-fn terminated_accumulators_have_no_remaining_cashflows() -> Result<()> {
+fn settled_accumulators_have_no_remaining_cashflows() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let end = Date::new(2025, 1, 10)?.start_of_day();
     let option = Accumulator::new(AccumulatorTerms::new(
@@ -711,18 +711,21 @@ fn terminated_accumulators_have_no_remaining_cashflows() -> Result<()> {
         (end).time_of_day(),
     ))?;
     let settled = option.replace(AccumulatorChanges {
-        terminated: Some(Some(true)),
+        knock_out_settled: Some(Some(true)),
         ..Default::default()
     })?;
-    assert_eq!(option.terminated(), None);
-    assert_eq!(settled.replace_history(3.0)?.terminated(), Some(true));
+    assert_eq!(option.knock_out_settled(), None);
+    assert_eq!(
+        settled.replace_history(3.0)?.knock_out_settled(),
+        Some(true)
+    );
     assert_eq!(
         settled
             .replace(AccumulatorChanges {
                 strike: Some(95.0),
                 ..Default::default()
             })?
-            .terminated(),
+            .knock_out_settled(),
         Some(true)
     );
     let context = PricingContext::new(
@@ -739,13 +742,13 @@ fn terminated_accumulators_have_no_remaining_cashflows() -> Result<()> {
         assert_eq!(engine.price(&settled, &context)?, 0.0);
         assert_eq!(engine.price(&settled.replace_history(3.0)?, &context)?, 0.0);
         let active = settled.replace(AccumulatorChanges {
-            terminated: Some(Some(false)),
+            knock_out_settled: Some(Some(false)),
             accumulated_quantity: Some(Some(0.0)),
             ..Default::default()
         })?;
         assert!(engine.price(&active, &context)? > 0.0);
         let unknown = settled.replace(AccumulatorChanges {
-            terminated: Some(Some(false)),
+            knock_out_settled: Some(Some(false)),
             ..Default::default()
         })?;
         assert!(matches!(
@@ -1296,16 +1299,16 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
         (expiry).time_of_day(),
     );
     terms.accumulated_quantity = Some(3.0);
-    terms.terminated = Some(false);
+    terms.knock_out_settled = Some(false);
     let accumulator = Accumulator::new(terms)?;
     let settled = accumulator.replace(AccumulatorChanges {
-        terminated: Some(Some(true)),
+        knock_out_settled: Some(Some(true)),
         ..Default::default()
     })?;
     let active = accumulator.replace(AccumulatorChanges {
         knock_out_level: Some(150.0),
         accumulated_quantity: Some(accumulator.accumulated_quantity()),
-        terminated: Some(accumulator.terminated()),
+        knock_out_settled: Some(accumulator.knock_out_settled()),
         ..Default::default()
     })?;
     let mc = MonteCarloAccumulatorEngine::default();
@@ -1378,7 +1381,7 @@ fn structured_engines_require_curve_coverage_only_for_remaining_cashflows() -> R
 }
 
 #[test]
-fn accumulator_termination_requires_a_strictly_prior_knock_out_observation() -> Result<()> {
+fn accumulator_settlement_requires_a_strictly_prior_knock_out_observation() -> Result<()> {
     let start = Date::new(2025, 1, 6)?.start_of_day();
     let expiry = start.add_days(4)?;
     let model = BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?;
@@ -1396,7 +1399,7 @@ fn accumulator_termination_requires_a_strictly_prior_knock_out_observation() -> 
         terms.knock_out_observation_times = times.clone();
         let original = Accumulator::new(terms)?;
         let settled = original.replace(AccumulatorChanges {
-            terminated: Some(Some(true)),
+            knock_out_settled: Some(Some(true)),
             ..Default::default()
         })?;
         let first = times.as_ref().map_or(Some(start), |t| t.first().copied());
@@ -1434,7 +1437,7 @@ fn accumulator_termination_requires_a_strictly_prior_knock_out_observation() -> 
                 assert!(matches!(statistics, Err(Error::InvalidInput(_))));
             }
         }
-        assert_eq!(original.terminated(), None);
+        assert_eq!(original.knock_out_settled(), None);
         assert_eq!(original.accumulated_quantity(), None);
         assert_eq!(original.knock_out_observation_times(), times.as_deref());
     }
@@ -2036,7 +2039,7 @@ fn observation_replacement_preserves_validity_and_original_values() -> Result<()
 }
 
 #[test]
-fn accumulator_history_replacement_updates_quantity_and_termination() -> Result<()> {
+fn accumulator_history_replacement_updates_quantity_and_settlement() -> Result<()> {
     let start = Date::new(2025, 1, 1)?.start_of_day();
     let original = Accumulator::new(AccumulatorTerms::new(
         90.0,
@@ -2049,17 +2052,20 @@ fn accumulator_history_replacement_updates_quantity_and_termination() -> Result<
     ))?;
     let settled = original.replace_history(AccumulatorHistoryChanges {
         accumulated_quantity: Some(Some(3.0)),
-        terminated: Some(Some(true)),
+        knock_out_settled: Some(Some(true)),
     })?;
     assert_eq!(settled.accumulated_quantity(), Some(3.0));
-    assert_eq!(settled.terminated(), Some(true));
+    assert_eq!(settled.knock_out_settled(), Some(true));
     assert_eq!(original.accumulated_quantity(), None);
-    assert_eq!(original.terminated(), None);
-    assert_eq!(settled.replace_history(4.0)?.terminated(), Some(true));
+    assert_eq!(original.knock_out_settled(), None);
+    assert_eq!(
+        settled.replace_history(4.0)?.knock_out_settled(),
+        Some(true)
+    );
     assert_eq!(
         settled
             .replace_history(AccumulatorHistoryChanges {
-                terminated: Some(Some(false)),
+                knock_out_settled: Some(Some(false)),
                 ..Default::default()
             })?
             .accumulated_quantity(),
@@ -2067,7 +2073,7 @@ fn accumulator_history_replacement_updates_quantity_and_termination() -> Result<
     );
     let cleared = settled.replace_history(None)?;
     assert_eq!(cleared.accumulated_quantity(), None);
-    assert_eq!(cleared.terminated(), Some(true));
+    assert_eq!(cleared.knock_out_settled(), Some(true));
     assert_eq!(
         settled.replace_history(AccumulatorHistoryChanges::default())?,
         settled
@@ -2075,11 +2081,11 @@ fn accumulator_history_replacement_updates_quantity_and_termination() -> Result<
     assert!(matches!(
         settled.replace_history(AccumulatorHistoryChanges {
             accumulated_quantity: Some(Some(-1.0)),
-            terminated: Some(Some(false))
+            knock_out_settled: Some(Some(false))
         }),
         Err(Error::InvalidInput(_))
     ));
-    assert_eq!(settled.terminated(), Some(true));
+    assert_eq!(settled.knock_out_settled(), Some(true));
     assert_eq!(settled.accumulated_quantity(), Some(3.0));
     let context = PricingContext::new(
         BlackScholesMertonParameters::new(0.0, 0.0, 0.2)?,
@@ -2092,7 +2098,7 @@ fn accumulator_history_replacement_updates_quantity_and_termination() -> Result<
     );
     let active = settled.replace_history(AccumulatorHistoryChanges {
         accumulated_quantity: Some(Some(0.0)),
-        terminated: Some(Some(false)),
+        knock_out_settled: Some(Some(false)),
     })?;
     assert!(QuadratureAccumulatorEngine::default().price(&active, &context)? > 0.0);
     Ok(())

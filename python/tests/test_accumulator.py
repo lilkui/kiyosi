@@ -42,12 +42,12 @@ class TerminationHistoryTests(unittest.TestCase):
         context = market(
             spot=105, valuation=datetime(2025, 1, 8), volatility=0, rate=0, dividend=0
         )
-        self.assertIsNone(option.terminated)
-        active = option.replace_history(terminated=False)
-        settled = option.replace_history(terminated=True)
-        self.assertIs(active.terminated, False)
-        self.assertIs(settled.terminated, True)
-        self.assertEqual(active.replace_history(terminated=None), option)
+        self.assertIsNone(option.knock_out_settled)
+        active = option.replace_history(knock_out_settled=False)
+        settled = option.replace_history(knock_out_settled=True)
+        self.assertIs(active.knock_out_settled, False)
+        self.assertIs(settled.knock_out_settled, True)
+        self.assertEqual(active.replace_history(knock_out_settled=None), option)
         for value in (option, active, settled):
             self.assertEqual(pickle.loads(pickle.dumps(value)), value)
         for engine in (
@@ -72,12 +72,12 @@ class TerminationHistoryTests(unittest.TestCase):
                 no_knock_out = option.replace(
                     knock_out_observation_times=[],
                     accumulated_quantity=2,
-                    terminated=None,
+                    knock_out_settled=None,
                 )
                 self.assertEqual(engine.price(no_knock_out, context), 25)
         for invalid in (0, 1, "yes"):
             with self.subTest(invalid=invalid), self.assertRaises(TypeError):
-                option.replace_history(terminated=invalid)
+                option.replace_history(knock_out_settled=invalid)
 
 
 def contract(
@@ -89,7 +89,7 @@ def contract(
     calendar=None,
 ):
     return Accumulator(
-        terminated=False,
+        knock_out_settled=False,
         observation_clock_time=clock_time(),
         strike=100,
         knock_out_level=knock_out,
@@ -176,7 +176,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             (datetime(2025, 1, 4), datetime(2025, 1, 6)),
         ):
             option = Accumulator(
-                terminated=False,
+                knock_out_settled=False,
                 observation_clock_time=clock_time(),
                 strike=90,
                 knock_out_level=150,
@@ -257,7 +257,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         ):
             self.assertEqual(replacement, updated)
             self.assertIsNot(replacement, updated)
-        self.assertEqual(updated.replace_history(terminated=False), contract())
+        self.assertEqual(updated.replace_history(knock_out_settled=False), contract())
         self.assertIn("accumulated_quantity=3", repr(updated))
         with self.assertRaises(AttributeError):
             updated.accumulated_quantity = 9

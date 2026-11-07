@@ -173,7 +173,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         option = option.replace(
             calendar=holiday,
             accumulated_quantity=option.accumulated_quantity,
-            terminated=option.terminated,
+            knock_out_settled=option.knock_out_settled,
         )
         self.assertAlmostEqual(
             engine.price(option, context),
@@ -353,7 +353,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
         option = contract(end, knock_out=399, daily=0, quantity=2).replace(
             effective_time=START - timedelta(days=1),
             accumulated_quantity=2,
-            terminated=False,
+            knock_out_settled=False,
         )
         engine = pricing.FiniteDifferenceAccumulatorEngine(
             asset_upper_boundary=400, time_step_count=800

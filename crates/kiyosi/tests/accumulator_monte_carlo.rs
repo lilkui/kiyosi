@@ -6,7 +6,7 @@ fn day(month: u32, day: u32) -> Timestamp {
 
 fn option(end: Timestamp) -> Accumulator {
     Accumulator::new(AccumulatorTerms {
-        terminated: Some(false),
+        knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end, (end).time_of_day())
     })
@@ -46,7 +46,7 @@ fn scalar_price_survives_confidence_interval_overflow() {
     let start = Date::new(2024, 12, 31).unwrap().start_of_day();
     let end = day(1, 2);
     let option = Accumulator::new(AccumulatorTerms {
-        terminated: Some(false),
+        knock_out_settled: Some(false),
         accumulated_quantity: Some(1.0),
         ..AccumulatorTerms::new(100.0, 200.0, 0.0, 1.0, start, end, (end).time_of_day())
     })
@@ -302,7 +302,7 @@ fn trading_midnights_intraday_history_and_calendar_control_purchases() {
             .replace(AccumulatorChanges {
                 calendar: Some(calendar),
                 accumulated_quantity: Some(option.accumulated_quantity()),
-                terminated: Some(option.terminated()),
+                knock_out_settled: Some(option.knock_out_settled()),
                 ..Default::default()
             })
             .unwrap();
@@ -326,7 +326,7 @@ fn antithetic_pair_uses_both_opposite_normals_and_exact_path_counts() {
     let start = day(1, 3);
     let end = day(1, 6);
     let option = Accumulator::new(AccumulatorTerms {
-        terminated: Some(false),
+        knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 1e300, 0.0, 2.0, start, end, (end).time_of_day())
     })
@@ -520,7 +520,7 @@ fn event_greeks_and_fixed_payoff_volatility_identifiability_follow_core_rules() 
         }
     }
     let fixed = Accumulator::new(AccumulatorTerms {
-        terminated: Some(false),
+        knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
             100.0,
@@ -585,7 +585,7 @@ fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
         .replace(AccumulatorChanges {
             calendar: Some(TradingCalendar::all_days()),
             accumulated_quantity: Some(option.accumulated_quantity()),
-            terminated: Some(option.terminated()),
+            knock_out_settled: Some(option.knock_out_settled()),
             ..Default::default()
         })
         .unwrap();
@@ -622,7 +622,7 @@ fn sobol_dimension_limit_uses_future_trading_dates_after_known_settlements() {
     .unwrap()
     .replace_history(AccumulatorHistoryChanges {
         accumulated_quantity: Some(Some(0.0)),
-        terminated: Some(Some(false)),
+        knock_out_settled: Some(Some(false)),
     })
     .unwrap();
     assert_eq!(engine.price(&zero, &context).unwrap(), 0.0);

@@ -96,7 +96,7 @@ def contracts():
         payout=10,
     )
     yield i.Accumulator(
-        terminated=False,
+        knock_out_settled=False,
         observation_clock_time=clock_time(),
         option_type="call",
         strike=100,
@@ -203,7 +203,7 @@ UPDATES = {
     "daily_quantity": 2,
     "acceleration_factor": 3,
     "accumulated_quantity": 4,
-    "terminated": True,
+    "knock_out_settled": True,
     "knock_out_observation_times": [START],
     "notional": 2000,
     "annual_coupon_rate": 0.15,
@@ -230,7 +230,7 @@ NULLABLE = {
     "barrier_state",
     "realized_hit_count",
     "accumulated_quantity",
-    "terminated",
+    "knock_out_settled",
     "knock_out_observation_times",
 }
 
@@ -240,16 +240,16 @@ class ContractReplacementTests(unittest.TestCase):
         active = next(
             value for value in contracts() if isinstance(value, i.Accumulator)
         )
-        settled = active.replace_history(terminated=True)
+        settled = active.replace_history(knock_out_settled=True)
         with self.assertRaises(InvalidInputError):
-            settled.replace(terminated=False, daily_quantity=2)
+            settled.replace(knock_out_settled=False, daily_quantity=2)
         reactivated = settled.replace(
-            terminated=False, daily_quantity=2, accumulated_quantity=0
+            knock_out_settled=False, daily_quantity=2, accumulated_quantity=0
         )
-        self.assertFalse(reactivated.terminated)
+        self.assertFalse(reactivated.knock_out_settled)
         self.assertEqual(reactivated.accumulated_quantity, 0)
-        self.assertTrue(settled.replace(daily_quantity=2).terminated)
-        self.assertTrue(settled.terminated)
+        self.assertTrue(settled.replace(daily_quantity=2).knock_out_settled)
+        self.assertTrue(settled.knock_out_settled)
         self.assertEqual(settled.accumulated_quantity, 3)
 
     def test_event_changes_require_an_explicit_history_choice(self):
@@ -264,7 +264,7 @@ class ContractReplacementTests(unittest.TestCase):
                     "realized_average",
                     "realized_hit_count",
                     "accumulated_quantity",
-                    "terminated",
+                    "knock_out_settled",
                 )
                 if hasattr(original, field)
             }
@@ -361,7 +361,7 @@ class ContractReplacementTests(unittest.TestCase):
                         "realized_average",
                         "realized_hit_count",
                         "accumulated_quantity",
-                        "terminated",
+                        "knock_out_settled",
                     ):
                         if hasattr(original, field):
                             updates.setdefault(field, getattr(original, field))
@@ -443,7 +443,7 @@ class ContractReplacementTests(unittest.TestCase):
                 for field in fields:
                     with self.subTest(field=field), self.assertRaises(TypeError):
                         original.replace(
-                            **{field: 1 if field == "terminated" else True}
+                            **{field: 1 if field == "knock_out_settled" else True}
                         )
                     nullable_payout = field == "payout" and isinstance(
                         original, (i.BinaryBarrierOption, i.TouchOption)

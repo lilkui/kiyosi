@@ -4,7 +4,7 @@ use crate::error::domain;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
-fn termination(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
+fn settlement(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
     if value.is_none() {
         Ok(None)
     } else {
@@ -33,9 +33,9 @@ fn termination(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
 /// accumulated_quantity : float or None, optional
 ///     Outstanding quantity strictly before valuation. None means unknown; zero means no units.
 ///     Explicit history is required after any prior accumulation or knock-out observation.
-///     Pricing rejects positive quantity before a strictly prior accumulation unless terminated.
-/// terminated : bool or None, optional
-///     Prior termination history: None (default) is unknown, False means active,
+///     Pricing rejects positive quantity before a strictly prior accumulation unless already settled.
+/// knock_out_settled : bool or None, optional
+///     Prior knock-out settlement history: None (default) is unknown, False means active,
 ///     and True means settled. Required after a strictly prior knock-out observation.
 ///     True requires a strictly prior knock-out; stored quantity is ignored and
 ///     remaining value is zero.
@@ -66,7 +66,7 @@ fn termination(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
 /// Expiry settles after its event, whether or not it is a knock-out timestamp.
 /// Calls pay quantity * (settlement spot - strike); puts pay its negative.
 /// Intraday history includes that day's earlier accumulation. Record settled
-/// contracts with terminated=True.
+/// contracts with knock_out_settled=True.
 #[pyclass(frozen, eq, module = "kiyosi._native")]
 #[derive(Clone, PartialEq)]
 pub(crate) struct Accumulator(pub(crate) kiyosi::Accumulator);
@@ -89,7 +89,7 @@ impl Accumulator {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// accumulated_quantity : float or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// terminated : bool or None, optional
+    /// knock_out_settled : bool or None, optional
     ///     Records a settled knock-out strictly before valuation.
     /// effective_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -111,7 +111,7 @@ impl Accumulator {
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
     ///     If a representation or field name is invalid.
-    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, knock_out_observation_times=crate::conversions::OMITTED, terminated=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, option_type=crate::conversions::OMITTED, strike=crate::conversions::OMITTED, knock_out_level=crate::conversions::OMITTED, daily_quantity=crate::conversions::OMITTED, acceleration_factor=crate::conversions::OMITTED, accumulated_quantity=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, knock_out_observation_times=crate::conversions::OMITTED, knock_out_settled=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
     #[expect(
         clippy::too_many_arguments,
         reason = "explicit Python replacement fields"
@@ -140,14 +140,14 @@ impl Accumulator {
         #[pyo3(from_py_with = crate::conversions::supplied)] knock_out_observation_times: Option<
             &Bound<'_, PyAny>,
         >,
-        #[pyo3(from_py_with = supplied)] terminated: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] knock_out_settled: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = supplied)] calendar: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let changes = kiyosi::AccumulatorChanges {
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
                 .transpose()?,
-            terminated: terminated.map(termination).transpose()?,
+            knock_out_settled: knock_out_settled.map(settlement).transpose()?,
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
             knock_out_level: knock_out_level.map(crate::conversions::real).transpose()?,
@@ -184,7 +184,7 @@ impl Accumulator {
         Ok(Self(domain(self.0.replace(changes))?))
     }
     #[new]
-    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, observation_clock_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None, terminated=kiyosi::AccumulatorTerms::DEFAULT_TERMINATED, calendar=TradingCalendar::default()))]
+    #[pyo3(signature = (*, strike, knock_out_level, daily_quantity, acceleration_factor, effective_time, expiry_time, observation_clock_time, accumulated_quantity=None, option_type=kiyosi::AccumulatorTerms::DEFAULT_OPTION_TYPE, knock_out_observation_times=None, knock_out_settled=kiyosi::AccumulatorTerms::DEFAULT_KNOCK_OUT_SETTLED, calendar=TradingCalendar::default()))]
     #[expect(clippy::too_many_arguments, reason = "keyword-only contract terms")]
     fn new(
         strike: &Bound<'_, PyAny>,
@@ -197,7 +197,7 @@ impl Accumulator {
         accumulated_quantity: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = direction)] option_type: kiyosi::OptionType,
         knock_out_observation_times: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = termination)] terminated: Option<bool>,
+        #[pyo3(from_py_with = settlement)] knock_out_settled: Option<bool>,
         calendar: TradingCalendar,
     ) -> PyResult<Self> {
         let mut terms = kiyosi::AccumulatorTerms::new(
@@ -209,7 +209,7 @@ impl Accumulator {
             timestamp(expiry_time)?,
             crate::conversions::clock_time(observation_clock_time)?,
         );
-        terms.terminated = terminated;
+        terms.knock_out_settled = knock_out_settled;
         terms.accumulated_quantity = accumulated_quantity.map(real).transpose()?;
         terms.option_type = option_type;
         terms.knock_out_observation_times =
@@ -223,11 +223,11 @@ impl Accumulator {
     /// ----------
     /// accumulated_quantity : float or None, optional
     ///     Outstanding quantity strictly before valuation. None means unknown; zero means no units.
-    ///     Required after a prior observation unless terminated is True.
+    ///     Required after a prior observation unless knock_out_settled is True.
     ///
-    /// terminated : bool or None, optional
+    /// knock_out_settled : bool or None, optional
     ///     None restores unknown history; omission retains the current state. Pricing
-    ///     rejects termination before or at the first knock-out observation.
+    ///     rejects knock-out settlement before or at the first knock-out observation.
     ///
     /// Returns
     /// -------
@@ -238,11 +238,11 @@ impl Accumulator {
     /// ------
     /// KiyosiError
     ///     If replacement terms fail domain validation. The original is unchanged.
-    #[pyo3(signature = (*, accumulated_quantity=crate::conversions::OMITTED, terminated=crate::conversions::OMITTED))]
+    #[pyo3(signature = (*, accumulated_quantity=crate::conversions::OMITTED, knock_out_settled=crate::conversions::OMITTED))]
     fn replace_history(
         &self,
         #[pyo3(from_py_with = supplied)] accumulated_quantity: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = supplied)] terminated: Option<&Bound<'_, PyAny>>,
+        #[pyo3(from_py_with = supplied)] knock_out_settled: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let changes = kiyosi::AccumulatorHistoryChanges {
             accumulated_quantity: accumulated_quantity
@@ -254,7 +254,7 @@ impl Accumulator {
                     }
                 })
                 .transpose()?,
-            terminated: terminated.map(termination).transpose()?,
+            knock_out_settled: knock_out_settled.map(settlement).transpose()?,
         };
         Ok(Self(domain(self.0.replace_history(changes))?))
     }
@@ -337,10 +337,10 @@ impl Accumulator {
     fn accumulated_quantity(&self) -> Option<f64> {
         self.0.accumulated_quantity()
     }
-    /// Return prior termination history, or None if unknown.
+    /// Return prior knock-out settlement history, or None if unknown.
     #[getter]
-    fn terminated(&self) -> Option<bool> {
-        self.0.terminated()
+    fn knock_out_settled(&self) -> Option<bool> {
+        self.0.knock_out_settled()
     }
     /// Return inclusive first contract timestamp.
     #[getter]

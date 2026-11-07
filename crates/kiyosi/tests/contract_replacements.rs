@@ -74,23 +74,23 @@ fn reactivation_with_changed_accumulation_rules_requires_explicit_quantity() -> 
         start.time_of_day(),
     );
     terms.accumulated_quantity = Some(3.0);
-    terms.terminated = Some(true);
+    terms.knock_out_settled = Some(true);
     let settled = Accumulator::new(terms)?;
     assert!(matches!(
         settled.replace(AccumulatorChanges {
-            terminated: Some(Some(false)),
+            knock_out_settled: Some(Some(false)),
             daily_quantity: Some(2.0),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
     ));
     let reactivated = settled.replace(AccumulatorChanges {
-        terminated: Some(Some(false)),
+        knock_out_settled: Some(Some(false)),
         daily_quantity: Some(2.0),
         accumulated_quantity: Some(Some(0.0)),
         ..Default::default()
     })?;
-    assert_eq!(reactivated.terminated(), Some(false));
+    assert_eq!(reactivated.knock_out_settled(), Some(false));
     assert_eq!(reactivated.accumulated_quantity(), Some(0.0));
     assert_eq!(
         settled
@@ -98,10 +98,10 @@ fn reactivation_with_changed_accumulation_rules_requires_explicit_quantity() -> 
                 daily_quantity: Some(2.0),
                 ..Default::default()
             })?
-            .terminated(),
+            .knock_out_settled(),
         Some(true)
     );
-    assert_eq!(settled.terminated(), Some(true));
+    assert_eq!(settled.knock_out_settled(), Some(true));
     assert_eq!(settled.accumulated_quantity(), Some(3.0));
     Ok(())
 }
@@ -176,7 +176,7 @@ macro_rules! history_changes {
     ($original:ident, AccumulatorChanges) => {
         AccumulatorChanges {
             accumulated_quantity: Some($original.accumulated_quantity()),
-            terminated: Some($original.terminated()),
+            knock_out_settled: Some($original.knock_out_settled()),
             ..Default::default()
         }
     };
@@ -735,7 +735,7 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
         knock_out_level: 120.0,
         daily_quantity: 1.0,
         acceleration_factor: 2.0,
-        terminated: Some(false),
+        knock_out_settled: Some(false),
         accumulated_quantity: Some(3.0),
         effective_time: start,
         expiry_time: end,

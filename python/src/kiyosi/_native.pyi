@@ -3074,7 +3074,7 @@ class Accumulator:
         expiry_time: datetime | EllipsisType = ...,
         observation_clock_time: time | EllipsisType = ...,
         knock_out_observation_times: Iterable[datetime] | None | EllipsisType = ...,
-        terminated: bool | None | EllipsisType = ...,
+        knock_out_settled: bool | None | EllipsisType = ...,
         calendar: TradingCalendar | EllipsisType = ...,
     ) -> Self: ...
     def __init__(
@@ -3090,7 +3090,7 @@ class Accumulator:
         accumulated_quantity: _Real | None = None,
         option_type: Literal["call", "put"] = ...,
         knock_out_observation_times: Iterable[datetime] | None = None,
-        terminated: bool | None = ...,
+        knock_out_settled: bool | None = ...,
         calendar: TradingCalendar = ...,
     ) -> None: ...
     @property
@@ -3108,7 +3108,7 @@ class Accumulator:
     @property
     def accumulated_quantity(self) -> float | None: ...
     @property
-    def terminated(self) -> bool | None: ...
+    def knock_out_settled(self) -> bool | None: ...
     @property
     def effective_time(self) -> datetime: ...
     @property
@@ -3117,7 +3117,7 @@ class Accumulator:
         self,
         *,
         accumulated_quantity: _Real | None | EllipsisType = ...,
-        terminated: bool | None | EllipsisType = ...,
+        knock_out_settled: bool | None | EllipsisType = ...,
     ) -> Self: ...
     def __eq__(self, other: object) -> bool: ...
     @property

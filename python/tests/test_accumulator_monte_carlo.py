@@ -40,7 +40,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         note = note.replace(
             effective_time=START - timedelta(days=1),
             accumulated_quantity=note.accumulated_quantity,
-            terminated=note.terminated,
+            knock_out_settled=note.knock_out_settled,
         )
         context = market(spot=100, valuation=START, volatility=1, rate=0.01, dividend=0)
         engine = MC(path_count=2, seed=0, thread_count=1)
@@ -224,7 +224,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
                     note.replace(
                         calendar=calendar,
                         accumulated_quantity=note.accumulated_quantity,
-                        terminated=note.terminated,
+                        knock_out_settled=note.knock_out_settled,
                     ),
                     context,
                 ),
@@ -245,7 +245,9 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         )
         self.assertEqual(
             engine.price(
-                omitted.replace_history(accumulated_quantity=0, terminated=False),
+                omitted.replace_history(
+                    accumulated_quantity=0, knock_out_settled=False
+                ),
                 market(90, omitted.expiry_time),
             ),
             -20,
@@ -411,7 +413,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         note = note.replace(
             calendar=all_days_calendar(),
             accumulated_quantity=note.accumulated_quantity,
-            terminated=note.terminated,
+            knock_out_settled=note.knock_out_settled,
         )
         self.assert_rejection(InvalidInputError, lambda: engine.price(note, context))
         result = engine.price_with_statistics(note, context.replace(spot_price=110))

@@ -144,7 +144,7 @@ class MonteCarloThresholdTests(unittest.TestCase):
                     "expiry_time": end,
                 }
                 option = ins.Accumulator(
-                    terminated=False,
+                    knock_out_settled=False,
                     observation_clock_time=clock_time(),
                     **common,
                     strike=strike,
@@ -158,7 +158,7 @@ class MonteCarloThresholdTests(unittest.TestCase):
                         engine.price(option, context), 15, delta=1e-12
                     )
                     option = ins.Accumulator(
-                        terminated=False,
+                        knock_out_settled=False,
                         observation_clock_time=clock_time(),
                         **common,
                         strike=100,

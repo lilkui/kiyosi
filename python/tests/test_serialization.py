@@ -121,7 +121,7 @@ def values():
             **life,
         ),
         i.Accumulator(
-            terminated=False,
+            knock_out_settled=False,
             observation_clock_time=clock_time(),
             strike=100,
             knock_out_level=110,
@@ -383,7 +383,7 @@ class SerializationTests(unittest.TestCase):
                     expiry_time=times[-1],
                     knock_out_observation_times=times,
                     accumulated_quantity=original.accumulated_quantity,
-                    terminated=original.terminated,
+                    knock_out_settled=original.knock_out_settled,
                     calendar=m.all_days_calendar(),
                 )
             elif isinstance(

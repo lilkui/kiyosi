@@ -43,7 +43,7 @@ history are preserved when their observation terms are retained; supplied terms 
 Changing event-defining terms with known history requires an explicit history value
 or None to clear it: barrier levels/direction, observation times, averaging start,
 range bounds and daily monitoring/accumulation rules. Accumulators require both
-``accumulated_quantity`` and ``terminated``. Reasserting existing history explicitly
+``accumulated_quantity`` and ``knock_out_settled``. Reasserting existing history explicitly
 is allowed. Changes affecting only future payoff amounts retain history.
 For example, ``barrier.replace(strike=105)`` preserves monitoring and history,
 and changing monitoring to scheduled requires supplying the observation times in the same call.
@@ -76,16 +76,16 @@ For autocallables, ``barrier_state=None`` means unknown history;
 ``barrier_state="no_event"`` records known absence of prior events. Accumulators
 use ``accumulated_quantity=None`` for unknown history and require an explicit
 quantity after a strictly prior accumulation or knock-out observation; zero means no outstanding units.
-``terminated=None`` means unknown termination history. After a strictly prior
-knock-out observation, supply ``terminated=False`` for a known active contract
-or ``terminated=True`` for a settled contract, independently of its quantity.
+``knock_out_settled=None`` means unknown knock-out settlement history. After a strictly prior
+knock-out observation, supply ``knock_out_settled=False`` for a known active contract
+or ``knock_out_settled=True`` for a settled contract, independently of its quantity.
 Active accumulators reject positive quantity before a strictly prior accumulation observation.
-Set ``terminated=True`` for a previously settled accumulator knock-out. Pricing
+Set ``knock_out_settled=True`` for a previously settled accumulator knock-out. Pricing
 requires a knock-out observation strictly before valuation, including for
-terminated contracts; an empty knock-out schedule cannot have this history. Its remaining price
-is zero; stored quantity is ignored. ``replace_history(terminated=True)`` records
+settled contracts; an empty knock-out schedule cannot have this history. Its remaining price
+is zero; stored quantity is ignored. ``replace_history(knock_out_settled=True)`` records
 settlement without changing the original contract. Rust uses the same operation
-with ``AccumulatorHistoryChanges`` to replace quantity, termination or both;
+with ``AccumulatorHistoryChanges`` to replace quantity, knock-out settlement or both;
 omitted fields retain their values.
 Plain snowball, Phoenix and ternary snowball constructors default knock-in
 monitoring to ``"every_trading_day"``, matching Rust terms. Daily monitoring requires

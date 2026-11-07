@@ -6,7 +6,7 @@ fn day(date: u32) -> Timestamp {
 
 fn terms(direction: OptionType, dates: Option<Vec<Timestamp>>) -> AccumulatorTerms {
     AccumulatorTerms {
-        terminated: Some(false),
+        knock_out_settled: Some(false),
         option_type: direction,
         accumulated_quantity: Some(3.0),
         knock_out_observation_times: dates,
@@ -256,7 +256,7 @@ fn sparse_knock_out_grid_covers_drift_back_inside_the_barrier() {
         (OptionType::Put, 89.95, 90.0, 0.06, 0.04, -1.0),
     ] {
         let option = Accumulator::new(AccumulatorTerms {
-            terminated: Some(false),
+            knock_out_settled: Some(false),
             option_type: direction,
             accumulated_quantity: Some(3.0),
             knock_out_observation_times: Some(vec![day(15)]),
@@ -343,7 +343,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             Some(vec![day(2), day(3)]),
         ] {
             let option = Accumulator::new(AccumulatorTerms {
-                terminated: Some(false),
+                knock_out_settled: Some(false),
                 option_type: direction,
                 knock_out_observation_times: dates,
                 accumulated_quantity: Some(0.0),
@@ -386,7 +386,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             );
         }
         let option = Accumulator::new(AccumulatorTerms {
-            terminated: Some(false),
+            knock_out_settled: Some(false),
             option_type: direction,
             knock_out_observation_times: Some(vec![day(3)]),
             accumulated_quantity: Some(0.0),
@@ -423,7 +423,7 @@ fn explicit_daily_zero_payoffs_keep_known_statistics_and_skip_grid_validation() 
             .replace(AccumulatorChanges {
                 calendar: Some(holidays),
                 accumulated_quantity: Some(option.accumulated_quantity()),
-                terminated: Some(option.terminated()),
+                knock_out_settled: Some(option.knock_out_settled()),
                 ..Default::default()
             })
             .unwrap();

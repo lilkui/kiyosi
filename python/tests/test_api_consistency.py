@@ -266,7 +266,7 @@ class ApiConsistencyTests(unittest.TestCase):
             valuation_time=valuation,
         )
         accumulator = ins.Accumulator(
-            terminated=False,
+            knock_out_settled=False,
             observation_clock_time=clock_time(),
             strike=100,
             knock_out_level=120,
@@ -289,11 +289,11 @@ class ApiConsistencyTests(unittest.TestCase):
             (
                 "Accumulator",
                 accumulator,
-                accumulator.replace(terminated=True),
+                accumulator.replace(knock_out_settled=True),
                 accumulator.replace(
                     knock_out_level=150,
                     accumulated_quantity=accumulator.accumulated_quantity,
-                    terminated=accumulator.terminated,
+                    knock_out_settled=accumulator.knock_out_settled,
                 ),
                 75,
             ),
@@ -325,7 +325,7 @@ class ApiConsistencyTests(unittest.TestCase):
                         self.assertEqual(estimate.price, 0)
                         self.assertEqual(estimate.standard_error, 0)
 
-    def test_accumulator_termination_requires_a_strictly_prior_knock_out_observation(
+    def test_accumulator_settlement_requires_a_strictly_prior_knock_out_observation(
         self,
     ):
         start, first_explicit, end = (datetime(2025, 1, day) for day in (6, 8, 10))
@@ -347,7 +347,7 @@ class ApiConsistencyTests(unittest.TestCase):
                 expiry_time=end,
                 knock_out_observation_times=times,
             )
-            settled = original.replace_history(terminated=True)
+            settled = original.replace_history(knock_out_settled=True)
             for valuation in (
                 start,
                 first_explicit,
@@ -385,7 +385,7 @@ class ApiConsistencyTests(unittest.TestCase):
                             if family == "MonteCarlo":
                                 with self.assertRaises(InvalidInputError):
                                     engine.price_with_statistics(settled, context)
-            self.assertFalse(original.terminated)
+            self.assertFalse(original.knock_out_settled)
             self.assertIsNone(original.accumulated_quantity)
             self.assertEqual(original.knock_out_observation_times, times)
 
@@ -993,7 +993,7 @@ class ApiConsistencyTests(unittest.TestCase):
             self.assertEqual(option.strike, 100)
             self.assertFalse(any(decimal_context.flags.values()))
 
-    def test_terminated_accumulators_have_no_remaining_cashflows(self):
+    def test_settled_accumulators_have_no_remaining_cashflows(self):
         from kiyosi import InvalidInputError
 
         start, end = datetime(2025, 1, 1), datetime(2025, 1, 10)
@@ -1006,10 +1006,12 @@ class ApiConsistencyTests(unittest.TestCase):
             effective_time=start,
             expiry_time=end,
         )
-        settled = option.replace_history(terminated=True)
-        self.assertFalse(option.terminated)
-        self.assertTrue(settled.replace(strike=95).terminated)
-        self.assertTrue(settled.replace_history(accumulated_quantity=3).terminated)
+        settled = option.replace_history(knock_out_settled=True)
+        self.assertFalse(option.knock_out_settled)
+        self.assertTrue(settled.replace(strike=95).knock_out_settled)
+        self.assertTrue(
+            settled.replace_history(accumulated_quantity=3).knock_out_settled
+        )
         self.assertEqual(pickle.loads(pickle.dumps(settled)), settled)
         self.assertTrue(
             ins.Accumulator(
@@ -1020,8 +1022,8 @@ class ApiConsistencyTests(unittest.TestCase):
                 acceleration_factor=2,
                 effective_time=start,
                 expiry_time=end,
-                terminated=True,
-            ).terminated
+                knock_out_settled=True,
+            ).knock_out_settled
         )
         context = market.PricingContext(
             model_parameters=market.BlackScholesMertonParameters(
@@ -1045,11 +1047,13 @@ class ApiConsistencyTests(unittest.TestCase):
                     0,
                 )
                 active = settled.replace_history(
-                    terminated=False, accumulated_quantity=0
+                    knock_out_settled=False, accumulated_quantity=0
                 )
                 self.assertGreater(engine.price(active, context), 0)
                 with self.assertRaises(InvalidInputError):
-                    engine.price(settled.replace_history(terminated=False), context)
+                    engine.price(
+                        settled.replace_history(knock_out_settled=False), context
+                    )
                 result = engine.price_with_greeks(settled, context, "all")
                 for greek in (
                     "delta",
@@ -1063,7 +1067,7 @@ class ApiConsistencyTests(unittest.TestCase):
                     pricing.implied_volatility(engine, settled, context, 0)
         for invalid in (0, 1, "yes"):
             with self.subTest(invalid=invalid), self.assertRaises(TypeError):
-                option.replace_history(terminated=invalid)
+                option.replace_history(knock_out_settled=invalid)
 
     def test_smaller_volatility_bumps_recover_unavailable_stencils(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)

@@ -161,7 +161,7 @@ class ObservationClockTests(unittest.TestCase):
         engine = QuadratureAccumulatorEngine()
         self.assertEqual(engine.price(empty, context(terms["effective_time"], 105)), 0)
         observed = empty.replace(
-            effective_time=START, accumulated_quantity=3, terminated=False
+            effective_time=START, accumulated_quantity=3, knock_out_settled=False
         )
         self.assertEqual(engine.price(observed, context(END, 105)), 15)
         self.assertEqual(pickle.loads(pickle.dumps(observed)), observed)

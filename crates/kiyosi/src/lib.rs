@@ -21,7 +21,7 @@
 //! history remain unchanged when their observation terms are retained. Known history
 //! must be explicitly replaced or cleared when terms defining historical events change:
 //! barrier levels/direction, observation times, averaging start, range bounds or daily
-//! monitoring and accumulation rules. Accumulators require both quantity and termination
+//! monitoring and accumulation rules. Accumulators require both quantity and knock-out settlement
 //! choices. Reasserting the same history explicitly is allowed. Calendar-only helpers
 //! reject changes affecting known daily history; use `replace` with an explicit history
 //! choice. Payoff-only changes retain history. See [`BarrierOption::replace`] for an exotic example.

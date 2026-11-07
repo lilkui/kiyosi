@@ -101,7 +101,7 @@ class TimestampTests(unittest.TestCase):
                 **life,
             )
             accumulated = Accumulator(
-                terminated=False,
+                knock_out_settled=False,
                 strike=90,
                 knock_out_level=110,
                 daily_quantity=1,
@@ -549,7 +549,7 @@ class TimestampTests(unittest.TestCase):
             effective_time=time(3, 9),
             expiry_time=time(6, 15),
             accumulated_quantity=3,
-            terminated=False,
+            knock_out_settled=False,
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
