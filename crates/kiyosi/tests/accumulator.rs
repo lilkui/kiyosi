@@ -5,9 +5,71 @@ fn day(month: u32, date: u32) -> Timestamp {
 }
 fn terms(end: Timestamp) -> AccumulatorTerms {
     AccumulatorTerms {
+        terminated: Some(false),
         accumulated_quantity: Some(0.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end, (end).time_of_day())
     }
+}
+
+#[test]
+fn termination_history_is_required_after_prior_knock_out_observations() -> Result<()> {
+    let start = day(1, 6);
+    let end = day(1, 10);
+    let mut terms = AccumulatorTerms::new(100.0, 110.0, 1.0, 1.0, start, end, start.time_of_day());
+    terms.accumulated_quantity = Some(2.0);
+    let option = Accumulator::new(terms)?;
+    assert_eq!(option.terminated(), None);
+    let active = option.replace_history(AccumulatorHistoryChanges {
+        terminated: Some(Some(false)),
+        ..Default::default()
+    })?;
+    let settled = option.replace_history(AccumulatorHistoryChanges {
+        terminated: Some(Some(true)),
+        ..Default::default()
+    })?;
+    assert_eq!(
+        active.replace_history(AccumulatorHistoryChanges {
+            terminated: Some(None),
+            ..Default::default()
+        })?,
+        option
+    );
+    assert_eq!(active.terminated(), Some(false));
+    assert_eq!(settled.terminated(), Some(true));
+    let context = market(105.0, day(1, 8), 0.0, 0.0, 0.0);
+    for engine in [
+        &QuadratureAccumulatorEngine::default() as &dyn PricingEngine<Accumulator>,
+        &FiniteDifferenceAccumulatorEngine::default(),
+        &MonteCarloAccumulatorEngine::default(),
+    ] {
+        assert!(matches!(
+            engine.price(&option, &context),
+            Err(Error::InvalidInput(_))
+        ));
+        assert_eq!(engine.price(&active, &context)?, 25.0);
+        assert_eq!(engine.price(&settled, &context)?, 0.0);
+        let initial = context.replace(PricingContextChanges {
+            valuation_time: Some(start),
+            ..Default::default()
+        })?;
+        assert!(
+            engine
+                .price(&option.replace_history(None)?, &initial)
+                .is_ok()
+        );
+        assert!(matches!(
+            engine.price(&settled, &initial),
+            Err(Error::InvalidInput(_))
+        ));
+        let no_knock_out = option.replace(AccumulatorChanges {
+            knock_out_observation_times: Some(Some(vec![])),
+            accumulated_quantity: Some(Some(2.0)),
+            terminated: Some(None),
+            ..Default::default()
+        })?;
+        assert_eq!(engine.price(&no_knock_out, &context)?, 25.0);
+    }
+    Ok(())
 }
 fn market(spot: f64, at: Timestamp, sigma: f64, rate: f64, dividend: f64) -> PricingContext {
     PricingContext::new(
@@ -748,7 +810,7 @@ fn greeks_converge_under_spatial_refinement_and_smaller_bumps() {
 fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
     let engine = QuadratureAccumulatorEngine::default();
     for start in [day(1, 2), day(1, 4)] {
-        let option = Accumulator::new(AccumulatorTerms::new(
+        let mut terms = AccumulatorTerms::new(
             90.0,
             150.0,
             1.0,
@@ -756,8 +818,9 @@ fn unknown_history_requires_an_explicit_quantity_after_a_prior_observation() {
             start,
             day(1, 7),
             (day(1, 7)).time_of_day(),
-        ))
-        .unwrap();
+        );
+        terms.terminated = Some(false);
+        let option = Accumulator::new(terms).unwrap();
         assert_eq!(option.accumulated_quantity(), None);
         let first = if start == day(1, 4) { day(1, 6) } else { start };
         let current = market(100.0, first, 0.2, 0.0, 0.0);

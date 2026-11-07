@@ -121,6 +121,7 @@ def values():
             **life,
         ),
         i.Accumulator(
+            terminated=False,
             observation_clock_time=clock_time(),
             strike=100,
             knock_out_level=110,

@@ -96,6 +96,7 @@ def contracts():
         payout=10,
     )
     yield i.Accumulator(
+        terminated=False,
         observation_clock_time=clock_time(),
         option_type="call",
         strike=100,
@@ -229,6 +230,7 @@ NULLABLE = {
     "barrier_state",
     "realized_hit_count",
     "accumulated_quantity",
+    "terminated",
     "knock_out_observation_times",
 }
 
@@ -296,9 +298,7 @@ class ContractReplacementTests(unittest.TestCase):
                 self.assertEqual(
                     {field: getattr(kept, field) for field in history}, history
                 )
-                cleared_history = {
-                    field: False if field == "terminated" else None for field in history
-                }
+                cleared_history = {field: None for field in history}
                 cleared = original.replace(**updates, **cleared_history)
                 self.assertEqual(
                     {field: getattr(cleared, field) for field in history},

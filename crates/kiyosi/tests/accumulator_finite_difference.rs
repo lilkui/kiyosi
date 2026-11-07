@@ -5,6 +5,7 @@ fn day(month: u32, date: u32) -> Timestamp {
 }
 fn option(end: Timestamp) -> Accumulator {
     Accumulator::new(AccumulatorTerms {
+        terminated: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0, day(1, 1), end, (end).time_of_day())
     })
@@ -424,6 +425,7 @@ fn node_curves_price_fixed_holdings_and_only_future_cashflows_require_coverage()
     let model = BlackScholesMertonParameters::new(risk, dividend, 0.2).unwrap();
     let context = PricingContext::new(model, 100.0, day(1, 1)).unwrap();
     let option = Accumulator::new(AccumulatorTerms {
+        terminated: Some(false),
         daily_quantity: 0.0,
         accumulated_quantity: Some(2.0),
         ..AccumulatorTerms::new(
@@ -485,6 +487,7 @@ fn node_curves_price_fixed_holdings_and_only_future_cashflows_require_coverage()
 #[test]
 fn speed_propagates_nonfinite_shifted_prices_without_changing_inputs() {
     let option = Accumulator::new(AccumulatorTerms {
+        terminated: Some(false),
         accumulated_quantity: Some(f64::MAX),
         ..AccumulatorTerms::new(
             100.0,
@@ -595,6 +598,7 @@ fn implied_volatility_recovers_quotes_and_preserves_solver_failures_and_identifi
     }
     for quantity in [0.0, 3.0] {
         let option = Accumulator::new(AccumulatorTerms {
+            terminated: Some(false),
             daily_quantity: 0.0,
             accumulated_quantity: Some(quantity),
             ..AccumulatorTerms::new(

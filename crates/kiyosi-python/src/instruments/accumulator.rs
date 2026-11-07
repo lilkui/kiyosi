@@ -4,6 +4,14 @@ use crate::error::domain;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
+fn termination(value: &Bound<'_, PyAny>) -> PyResult<Option<bool>> {
+    if value.is_none() {
+        Ok(None)
+    } else {
+        crate::conversions::boolean(value).map(Some)
+    }
+}
+
 /// Accumulates purchases or sales daily, settling at scheduled knock-out or expiry.
 ///
 /// Parameters
@@ -26,10 +34,11 @@ use pyo3::types::PyAny;
 ///     Outstanding quantity strictly before valuation. None means unknown; zero means no units.
 ///     Explicit history is required after any prior accumulation or knock-out observation.
 ///     Pricing rejects positive quantity before a strictly prior accumulation unless terminated.
-/// terminated : bool, optional
-///     Whether a prior knock-out has settled; defaults to False. Pricing requires
-///     a knock-out observation strictly before valuation. Stored quantity
-///     is ignored and remaining value is zero when True.
+/// terminated : bool or None, optional
+///     Prior termination history: None (default) is unknown, False means active,
+///     and True means settled. Required after a strictly prior knock-out observation.
+///     True requires a strictly prior knock-out; stored quantity is ignored and
+///     remaining value is zero.
 /// option_type : {'call', 'put'}, optional
 ///     Call accumulates purchases (the default); put accumulates sales.
 /// knock_out_observation_times : iterable of datetime.datetime or None, optional
@@ -80,7 +89,7 @@ impl Accumulator {
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// accumulated_quantity : float or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
-    /// terminated : bool, optional
+    /// terminated : bool or None, optional
     ///     Records a settled knock-out strictly before valuation.
     /// effective_time : datetime.datetime, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
@@ -138,7 +147,7 @@ impl Accumulator {
             calendar: calendar
                 .map(|v| v.extract::<TradingCalendar>().map(|v| v.0))
                 .transpose()?,
-            terminated: terminated.map(crate::conversions::boolean).transpose()?,
+            terminated: terminated.map(termination).transpose()?,
             option_type: option_type.map(crate::conversions::direction).transpose()?,
             strike: strike.map(crate::conversions::real).transpose()?,
             knock_out_level: knock_out_level.map(crate::conversions::real).transpose()?,
@@ -188,7 +197,7 @@ impl Accumulator {
         accumulated_quantity: Option<&Bound<'_, PyAny>>,
         #[pyo3(from_py_with = direction)] option_type: kiyosi::OptionType,
         knock_out_observation_times: Option<&Bound<'_, PyAny>>,
-        #[pyo3(from_py_with = crate::conversions::boolean)] terminated: bool,
+        #[pyo3(from_py_with = termination)] terminated: Option<bool>,
         calendar: TradingCalendar,
     ) -> PyResult<Self> {
         let mut terms = kiyosi::AccumulatorTerms::new(
@@ -216,8 +225,8 @@ impl Accumulator {
     ///     Outstanding quantity strictly before valuation. None means unknown; zero means no units.
     ///     Required after a prior observation unless terminated is True.
     ///
-    /// terminated : bool, optional
-    ///     Records a settled knock-out; omission retains the current state. Pricing
+    /// terminated : bool or None, optional
+    ///     None restores unknown history; omission retains the current state. Pricing
     ///     rejects termination before or at the first knock-out observation.
     ///
     /// Returns
@@ -245,7 +254,7 @@ impl Accumulator {
                     }
                 })
                 .transpose()?,
-            terminated: terminated.map(crate::conversions::boolean).transpose()?,
+            terminated: terminated.map(termination).transpose()?,
         };
         Ok(Self(domain(self.0.replace_history(changes))?))
     }
@@ -328,9 +337,9 @@ impl Accumulator {
     fn accumulated_quantity(&self) -> Option<f64> {
         self.0.accumulated_quantity()
     }
-    /// Return whether a prior termination has settled.
+    /// Return prior termination history, or None if unknown.
     #[getter]
-    fn terminated(&self) -> bool {
+    fn terminated(&self) -> Option<bool> {
         self.0.terminated()
     }
     /// Return inclusive first contract timestamp.

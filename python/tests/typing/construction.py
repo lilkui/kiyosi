@@ -5,6 +5,7 @@ from datetime import time as clock_time
 from typing import assert_type
 
 from kiyosi.instruments import (
+    Accumulator,
     AutocallableObservation,
     BinaryBarrierOption,
     DoubleTouchOption,
@@ -17,6 +18,13 @@ from kiyosi.instruments import (
 BinaryBarrierOption()  # ty: ignore[no-matching-overload]
 TouchOption()  # ty: ignore[no-matching-overload]
 DoubleTouchOption()  # ty: ignore[missing-argument]
+
+
+def accumulator_history(option: Accumulator) -> None:
+    assert_type(option.terminated, bool | None)
+    assert_type(option.replace_history(terminated=None), Accumulator)
+    assert_type(option.replace(terminated=False), Accumulator)
+    option.replace_history(terminated=0)  # ty: ignore[invalid-argument-type]
 
 
 def phoenix_choices() -> None:

@@ -117,6 +117,7 @@ fn closed_date_settlement_preserves_open_date_observations() -> Result<()> {
         );
         terms.calendar = calendar.clone();
         terms.accumulated_quantity = Some(3.0);
+        terms.terminated = Some(false);
         let accumulator = Accumulator::new(terms)?;
         assert_eq!(accumulator.accumulation_schedule()?.times(), &[observation]);
         assert_eq!(
@@ -504,7 +505,10 @@ fn daily_clock_controls_current_history_and_does_not_add_expiry_units() -> Resul
             engine.price(&option, &market(time(6, 15, 123_457), 105.0)),
             Err(Error::InvalidInput(_))
         ));
-        let seasoned = option.replace_history(1.0)?;
+        let seasoned = option.replace_history(AccumulatorHistoryChanges {
+            accumulated_quantity: Some(Some(1.0)),
+            terminated: Some(Some(false)),
+        })?;
         assert_eq!(
             engine.price(&seasoned, &market(time(6, 18, 0), 105.0))?,
             5.0
@@ -832,6 +836,7 @@ fn autocallable_explicit_events_do_not_trigger_daily_knock_in() {
 #[test]
 fn nontrading_dates_do_not_trigger_daily_knock_out_or_suppress_vega() {
     let option = Accumulator::new(AccumulatorTerms {
+        terminated: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
             100.0,

@@ -13,33 +13,34 @@ fn reactivation_with_changed_accumulation_rules_requires_explicit_quantity() -> 
         start.time_of_day(),
     );
     terms.accumulated_quantity = Some(3.0);
-    terms.terminated = true;
+    terms.terminated = Some(true);
     let settled = Accumulator::new(terms)?;
     assert!(matches!(
         settled.replace(AccumulatorChanges {
-            terminated: Some(false),
+            terminated: Some(Some(false)),
             daily_quantity: Some(2.0),
             ..Default::default()
         }),
         Err(Error::InvalidInput(_))
     ));
     let reactivated = settled.replace(AccumulatorChanges {
-        terminated: Some(false),
+        terminated: Some(Some(false)),
         daily_quantity: Some(2.0),
         accumulated_quantity: Some(Some(0.0)),
         ..Default::default()
     })?;
-    assert!(!reactivated.terminated());
+    assert_eq!(reactivated.terminated(), Some(false));
     assert_eq!(reactivated.accumulated_quantity(), Some(0.0));
-    assert!(
+    assert_eq!(
         settled
             .replace(AccumulatorChanges {
                 daily_quantity: Some(2.0),
                 ..Default::default()
             })?
-            .terminated()
+            .terminated(),
+        Some(true)
     );
-    assert!(settled.terminated());
+    assert_eq!(settled.terminated(), Some(true));
     assert_eq!(settled.accumulated_quantity(), Some(3.0));
     Ok(())
 }
@@ -668,7 +669,7 @@ fn accumulator_replacements_preserve_omissions_and_validate_each_field() {
         knock_out_level: 120.0,
         daily_quantity: 1.0,
         acceleration_factor: 2.0,
-        terminated: false,
+        terminated: Some(false),
         accumulated_quantity: Some(3.0),
         effective_time: start,
         expiry_time: end,

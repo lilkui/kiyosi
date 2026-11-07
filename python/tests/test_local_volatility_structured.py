@@ -62,6 +62,7 @@ def contracts():
     }
     result = {
         "accumulator": ins.Accumulator(
+            terminated=False,
             observation_clock_time=clock_time(),
             effective_time=START - timedelta(days=1),
             expiry_time=END,

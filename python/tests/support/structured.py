@@ -24,6 +24,7 @@ def contract(row):
     }
     if row["instrument"] == "Accumulator":
         return instruments.Accumulator(
+            terminated=False,
             observation_clock_time=clock_time(),
             **common,
             **{

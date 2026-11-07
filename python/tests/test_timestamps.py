@@ -101,6 +101,7 @@ class TimestampTests(unittest.TestCase):
                 **life,
             )
             accumulated = Accumulator(
+                terminated=False,
                 strike=90,
                 knock_out_level=110,
                 daily_quantity=1,
@@ -545,7 +546,10 @@ class TimestampTests(unittest.TestCase):
 
     def test_nontrading_dates_do_not_trigger_daily_knock_out_or_suppress_vega(self):
         option = accumulator(
-            effective_time=time(3, 9), expiry_time=time(6, 15), accumulated_quantity=3
+            effective_time=time(3, 9),
+            expiry_time=time(6, 15),
+            accumulated_quantity=3,
+            terminated=False,
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(

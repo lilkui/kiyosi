@@ -20,8 +20,9 @@ pub struct AccumulatorTerms {
     pub acceleration_factor: f64,
     /// Caller-asserted quantity strictly before valuation; `None` means unknown.
     pub accumulated_quantity: Option<f64>,
-    /// Records a settled knock-out strictly before valuation; no remaining cash flows are valued.
-    pub terminated: bool,
+    /// Records prior knock-out history: `None` is unknown, `Some(false)` is active,
+    /// and `Some(true)` is settled with no remaining cash flows. See [`Accumulator::replace_history`].
+    pub terminated: Option<bool>,
     /// Inclusive effective time for daily observations at the specified observation clock time.
     pub effective_time: Timestamp,
     /// Maturity settlement time.
@@ -38,8 +39,8 @@ impl AccumulatorTerms {
     /// Supplies unknown accrued quantity; see [`Self::new`].
     pub const DEFAULT_ACCUMULATED_QUANTITY: Option<f64> = None;
 
-    /// Supplies an active contract; see [`Self::new`].
-    pub const DEFAULT_TERMINATED: bool = false;
+    /// Supplies unknown termination history; see [`Self::new`].
+    pub const DEFAULT_TERMINATED: Option<bool> = None;
 
     /// Creates call terms with unknown history and daily knock-out; see [`Accumulator::new`].
     pub fn new(
@@ -76,8 +77,8 @@ impl AccumulatorTerms {
 pub struct AccumulatorHistoryChanges {
     /// Replaces outstanding quantity; `Some(None)` restores unknown history.
     pub accumulated_quantity: Option<Option<f64>>,
-    /// Replaces the caller-asserted settled knock-out state.
-    pub terminated: Option<bool>,
+    /// Replaces prior knock-out history; `Some(None)` restores unknown history.
+    pub terminated: Option<Option<bool>>,
 }
 
 impl From<f64> for AccumulatorHistoryChanges {
@@ -107,10 +108,13 @@ impl From<Option<f64>> for AccumulatorHistoryChanges {
 /// accumulates before settlement only when it is a daily observation and does not knock out.
 /// Settlement may fall on a closed date without adding an observation.
 /// Prices exclude previously settled cash flows;
-/// `terminated` records an already settled knock-out and gives zero remaining value.
+/// `terminated: Some(true)` records an already settled knock-out and gives zero remaining value.
 /// Pricing rejects this state unless a knock-out observation strictly precedes valuation.
 /// Accrued quantity is ignored for terminated contracts. History is caller asserted,
-/// and is required after any strictly prior accumulation or knock-out observation. `None` means unknown;
+/// and is required after any strictly prior accumulation or knock-out observation.
+/// Termination history is required after a strictly prior knock-out observation:
+/// `None` means unknown, `Some(false)` means active and `Some(true)` means settled.
+/// For accrued quantity, `None` means unknown;
 /// an explicit zero records no outstanding units. Active contracts reject positive quantity
 /// before a strictly prior accumulation observation. No quantity is inferred from elapsed dates.
 /// Shared reads and owning replacements support concurrent use; see [`Self::new`].
@@ -135,17 +139,19 @@ impl Accumulator {
     /// # Examples
     ///
     /// ```rust
-    /// use kiyosi::{Accumulator, AccumulatorTerms, Date, OptionType};
+    /// use kiyosi::{Accumulator, AccumulatorHistoryChanges, AccumulatorTerms, Date, OptionType};
     /// # fn main() -> kiyosi::Result<()> {
     /// let option = Accumulator::new(AccumulatorTerms::new(100.0, 110.0, 1.0, 2.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), Date::new(2025, 2, 3)?.start_of_day(), kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?;
-    /// let seasoned = option.replace_history(3.0)?;
+    /// let seasoned = option.replace_history(AccumulatorHistoryChanges {
+    ///     accumulated_quantity: Some(Some(3.0)), terminated: Some(Some(false)),
+    /// })?;
     /// assert_eq!(seasoned.accumulated_quantity(), Some(3.0));
     /// assert_eq!(option.accumulated_quantity(), None);
     /// let settled = option.replace(kiyosi::AccumulatorChanges {
-    ///     terminated: Some(true), ..Default::default()
+    ///     terminated: Some(Some(true)), ..Default::default()
     /// })?;
-    /// assert!(settled.terminated());
+    /// assert_eq!(settled.terminated(), Some(true));
     /// let end = Date::new(2025, 2, 3)?.start_of_day();
     /// let mut terms = AccumulatorTerms::new(100.0, 90.0, 1.0, 2.0,
     ///     Date::new(2025, 1, 1)?.start_of_day(), end, kiyosi::TimeOfDay::new(0, 0, 0, 0)?);
@@ -248,11 +254,11 @@ impl Accumulator {
     /// let start = Date::new(2025, 1, 1)?.start_of_day();
     /// let option = Accumulator::new(AccumulatorTerms::new(90.0, 110.0, 1.0, 2.0, start, start.add_days(9)?, kiyosi::TimeOfDay::new(0, 0, 0, 0)?))?;
     /// let settled = option.replace_history(AccumulatorHistoryChanges {
-    ///     terminated: Some(true), ..Default::default()
+    ///     terminated: Some(Some(true)), ..Default::default()
     /// })?;
-    /// assert!(settled.terminated());
-    /// assert!(!option.terminated());
-    /// assert!(settled.replace_history(3.0)?.terminated());
+    /// assert_eq!(settled.terminated(), Some(true));
+    /// assert_eq!(option.terminated(), None);
+    /// assert_eq!(settled.replace_history(3.0)?.terminated(), Some(true));
     /// # Ok(()) }
     /// ```
     pub fn replace_history(&self, changes: impl Into<AccumulatorHistoryChanges>) -> Result<Self> {
@@ -294,8 +300,8 @@ impl Accumulator {
     pub fn accumulated_quantity(&self) -> Option<f64> {
         self.terms.accumulated_quantity
     }
-    /// Returns whether a prior knock-out has settled; see [`Self::replace`].
-    pub fn terminated(&self) -> bool {
+    /// Returns prior termination history, or `None` if unknown; see [`Self::replace_history`].
+    pub fn terminated(&self) -> Option<bool> {
         self.terms.terminated
     }
     /// Returns the inclusive effective time; see [`Self::new`].
@@ -389,12 +395,17 @@ impl Accumulator {
             .map_or(had_accumulation, |times| {
                 times.iter().any(|&time| time < valuation)
             });
-        if self.terminated() && !had_knock_out {
+        if self.terminated() == Some(true) && !had_knock_out {
             return Err(Error::InvalidInput(
                 "termination predates knock-out observations".into(),
             ));
         }
-        if !self.terminated()
+        if had_knock_out && self.terminated().is_none() {
+            return Err(Error::InvalidInput(
+                "prior termination state is required".into(),
+            ));
+        }
+        if self.terminated() != Some(true)
             && !had_accumulation
             && self
                 .accumulated_quantity()
@@ -405,7 +416,7 @@ impl Accumulator {
             ));
         }
         let has_prior = had_accumulation || had_knock_out;
-        if has_prior && !self.terminated() && self.accumulated_quantity().is_none() {
+        if has_prior && self.terminated() != Some(true) && self.accumulated_quantity().is_none() {
             return Err(Error::InvalidInput(
                 "prior accumulated quantity is required".into(),
             ));
@@ -427,7 +438,7 @@ impl Accumulator {
     }
 
     pub(crate) fn accrues(&self, context: &PricingContext) -> bool {
-        if self.terminated()
+        if self.terminated() == Some(true)
             || self.daily_quantity() == 0.0
             || context.valuation_time() >= self.expiry_time()
         {
@@ -483,7 +494,7 @@ impl Accumulator {
     }
 
     pub(crate) fn initial(&self, context: &PricingContext) -> (f64, Option<f64>) {
-        if self.terminated() {
+        if self.terminated() == Some(true) {
             return (0.0, Some(0.0));
         }
         let mut quantity = self.accumulated_quantity().unwrap_or(0.0);
@@ -517,7 +528,7 @@ impl Accumulator {
         reason = "An acceleration factor of exactly one removes payoff dependence on the strike."
     )]
     pub(crate) fn volatility_affects_price(&self, context: &PricingContext) -> bool {
-        if self.terminated() {
+        if self.terminated() == Some(true) {
             return false;
         }
         if self.observes_knock_out(context.valuation_time())
@@ -572,7 +583,7 @@ impl OptionContract for Accumulator {
         reason = "An acceleration factor of exactly one removes the strike discontinuity."
     )]
     fn at_spot_discontinuity(&self, context: &PricingContext, radius: f64) -> bool {
-        if self.terminated() {
+        if self.terminated() == Some(true) {
             return false;
         }
         if context
@@ -607,7 +618,7 @@ impl OptionContract for Accumulator {
         before: Timestamp,
         after: Timestamp,
     ) -> bool {
-        if self.terminated() {
+        if self.terminated() == Some(true) {
             return true;
         }
         let Ok(schedule) = self.accumulation_schedule() else {
@@ -641,7 +652,7 @@ pub struct AccumulatorChanges {
     /// Replaces [`accumulated_quantity`](AccumulatorTerms::accumulated_quantity).
     pub accumulated_quantity: Option<Option<f64>>,
     /// Replaces [`terminated`](AccumulatorTerms::terminated).
-    pub terminated: Option<bool>,
+    pub terminated: Option<Option<bool>>,
     /// Replaces [`effective_time`](AccumulatorTerms::effective_time).
     pub effective_time: Option<Timestamp>,
     /// Replaces [`expiry_time`](AccumulatorTerms::expiry_time).
@@ -656,7 +667,7 @@ impl Accumulator {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
-    /// Set `terminated: Some(true)` to record a settled knock-out without changing
+    /// Set `terminated: Some(Some(true))` to record a settled knock-out without changing
     /// the stored accrued quantity. See [`Accumulator::new`] for construction examples.
     ///
     /// # Errors
@@ -695,7 +706,7 @@ impl Accumulator {
         })?;
 
         super::validate_history_replacement(
-            self.accumulated_quantity().is_some() || self.terminated(),
+            self.accumulated_quantity().is_some() || self.terminated().is_some(),
             history_supplied,
             (
                 self.option_type(),
@@ -711,7 +722,7 @@ impl Accumulator {
                 updated.expiry_time(),
                 updated.observation_clock_time(),
                 updated.knock_out_observation_times(),
-            ) || !(self.terminated() && updated.terminated())
+            ) || !(self.terminated() == Some(true) && updated.terminated() == Some(true))
                 && (
                     self.strike(),
                     self.daily_quantity(),

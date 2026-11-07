@@ -245,7 +245,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         )
         self.assertEqual(
             engine.price(
-                omitted.replace_history(accumulated_quantity=0),
+                omitted.replace_history(accumulated_quantity=0, terminated=False),
                 market(90, omitted.expiry_time),
             ),
             -20,

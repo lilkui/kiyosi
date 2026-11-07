@@ -1,4 +1,5 @@
 import math
+import pickle
 import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -26,6 +27,59 @@ from support.terminal import assert_terminal_greeks
 START = datetime(2025, 1, 1)
 
 
+class TerminationHistoryTests(unittest.TestCase):
+    def test_termination_history_is_required_after_prior_knock_out_observations(self):
+        option = Accumulator(
+            strike=100,
+            knock_out_level=110,
+            daily_quantity=1,
+            acceleration_factor=1,
+            effective_time=datetime(2025, 1, 6),
+            expiry_time=datetime(2025, 1, 10),
+            observation_clock_time=clock_time(),
+            accumulated_quantity=2,
+        )
+        context = market(
+            spot=105, valuation=datetime(2025, 1, 8), volatility=0, rate=0, dividend=0
+        )
+        self.assertIsNone(option.terminated)
+        active = option.replace_history(terminated=False)
+        settled = option.replace_history(terminated=True)
+        self.assertIs(active.terminated, False)
+        self.assertIs(settled.terminated, True)
+        self.assertEqual(active.replace_history(terminated=None), option)
+        for value in (option, active, settled):
+            self.assertEqual(pickle.loads(pickle.dumps(value)), value)
+        for engine in (
+            pricing.QuadratureAccumulatorEngine(),
+            pricing.FiniteDifferenceAccumulatorEngine(),
+            pricing.MonteCarloAccumulatorEngine(),
+        ):
+            with self.subTest(engine=type(engine).__name__):
+                with self.assertRaises(InvalidInputError):
+                    engine.price(option, context)
+                self.assertEqual(engine.price(active, context), 25)
+                self.assertEqual(engine.price(settled, context), 0)
+                initial = context.replace(valuation_time=option.effective_time)
+                self.assertEqual(
+                    engine.price(
+                        option.replace_history(accumulated_quantity=None), initial
+                    ),
+                    25,
+                )
+                with self.assertRaises(InvalidInputError):
+                    engine.price(settled, initial)
+                no_knock_out = option.replace(
+                    knock_out_observation_times=[],
+                    accumulated_quantity=2,
+                    terminated=None,
+                )
+                self.assertEqual(engine.price(no_knock_out, context), 25)
+        for invalid in (0, 1, "yes"):
+            with self.subTest(invalid=invalid), self.assertRaises(TypeError):
+                option.replace_history(terminated=invalid)
+
+
 def contract(
     end=datetime(2025, 2, 3),
     knock_out=110,
@@ -35,6 +89,7 @@ def contract(
     calendar=None,
 ):
     return Accumulator(
+        terminated=False,
         observation_clock_time=clock_time(),
         strike=100,
         knock_out_level=knock_out,
@@ -121,6 +176,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
             (datetime(2025, 1, 4), datetime(2025, 1, 6)),
         ):
             option = Accumulator(
+                terminated=False,
                 observation_clock_time=clock_time(),
                 strike=90,
                 knock_out_level=150,
@@ -201,7 +257,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         ):
             self.assertEqual(replacement, updated)
             self.assertIsNot(replacement, updated)
-        self.assertEqual(updated, contract())
+        self.assertEqual(updated.replace_history(terminated=False), contract())
         self.assertIn("accumulated_quantity=3", repr(updated))
         with self.assertRaises(AttributeError):
             updated.accumulated_quantity = 9

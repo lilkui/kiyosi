@@ -266,6 +266,7 @@ class ApiConsistencyTests(unittest.TestCase):
             valuation_time=valuation,
         )
         accumulator = ins.Accumulator(
+            terminated=False,
             observation_clock_time=clock_time(),
             strike=100,
             knock_out_level=120,
@@ -1060,7 +1061,7 @@ class ApiConsistencyTests(unittest.TestCase):
                     self.assertEqual(result.require(greek), 0)
                 with self.assertRaises(UnsupportedOperationError):
                     pricing.implied_volatility(engine, settled, context, 0)
-        for invalid in (None, 0, 1, "yes"):
+        for invalid in (0, 1, "yes"):
             with self.subTest(invalid=invalid), self.assertRaises(TypeError):
                 option.replace_history(terminated=invalid)
 

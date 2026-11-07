@@ -18,6 +18,7 @@ def contract(**changes):
         observation_clock_time=clock_time(),
         **(
             {
+                "terminated": False,
                 "strike": 100,
                 "knock_out_level": 110,
                 "daily_quantity": 1,

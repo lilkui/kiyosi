@@ -89,6 +89,7 @@ fn constant_surface_matches_accumulator_directions_schedules_and_rate_curves() {
         for direction in [OptionType::Call, OptionType::Put] {
             for schedule in [None, Some(vec![date(2, 3), end]), Some(vec![])] {
                 let option = Accumulator::new(AccumulatorTerms {
+                    terminated: Some(false),
                     option_type: direction,
                     accumulated_quantity: Some(3.0),
                     knock_out_observation_times: schedule,
@@ -211,6 +212,7 @@ fn coverage_follows_remaining_exposure_and_unsupported_requests_precede_settleme
     let live = PricingContext::new(short.clone(), 101.0, start).unwrap();
     let settled = PricingContext::new(short, 120.0, start).unwrap();
     let acc = Accumulator::new(AccumulatorTerms {
+        terminated: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
             100.0,
@@ -335,6 +337,7 @@ fn event_thresholds_and_expiry_preserve_absent_spot_greeks() {
         None
     );
     let acc = Accumulator::new(AccumulatorTerms {
+        terminated: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
             100.0,
@@ -454,6 +457,7 @@ fn skewed_multievent_prices_supply_fixed_surface_delta_and_gamma() {
     let start = date(1, 1);
     let end = date(4, 1);
     let acc = Accumulator::new(AccumulatorTerms {
+        terminated: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
             100.0,
@@ -520,6 +524,7 @@ fn skewed_multievent_prices_match_independent_quantlib_paths() {
     // Frozen QL path means and five-SE + measured time-bias + FD budgets;
     // Python verifies the full evidence in local_volatility_structured.json.
     let acc = Accumulator::new(AccumulatorTerms {
+        terminated: Some(false),
         accumulated_quantity: Some(3.0),
         ..AccumulatorTerms::new(
             100.0,
