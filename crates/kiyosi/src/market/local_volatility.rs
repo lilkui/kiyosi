@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{Error, Rate, RateTermStructure, Result, Timestamp, error::finite};
 
 /// Owns a local-volatility table in absolute time and spot coordinates.
@@ -5,14 +7,14 @@ use crate::{Error, Rate, RateTermStructure, Result, Timestamp, error::finite};
 /// Rows correspond to times and columns to spots. Local volatility interpolates
 /// bilinearly using Actual/365 Fixed year fractions. Extrapolation in the spot
 /// dimension holds the nearest endpoint volatility constant; time extrapolation
-/// is rejected. The first time is the reference. Storage is immutable and borrowed
-/// accessors remain valid for this surface's lifetime. See [`Self::new`].
+/// is rejected. The first time is the reference. Clones share immutable table storage;
+/// borrowed accessors remain valid for this surface's lifetime. See [`Self::new`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct LocalVolatilitySurface {
-    times: Vec<Timestamp>,
-    years: Vec<f64>,
-    spots: Vec<f64>,
-    values: Vec<f64>,
+    times: Arc<[Timestamp]>,
+    years: Arc<[f64]>,
+    spots: Arc<[f64]>,
+    values: Arc<[f64]>,
     maximum: f64,
 }
 
@@ -75,10 +77,10 @@ impl LocalVolatilitySurface {
         let values: Vec<_> = values.into_iter().flatten().collect();
         let maximum = values.iter().copied().fold(0.0, f64::max);
         Ok(Self {
-            times,
-            years,
-            spots,
-            values,
+            times: times.into(),
+            years: years.into(),
+            spots: spots.into(),
+            values: values.into(),
             maximum,
         })
     }

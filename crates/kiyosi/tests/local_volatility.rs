@@ -161,6 +161,15 @@ fn context_replacement_checks_coverage_and_preserves_absolute_surface() {
         0.3,
         1e-14,
     );
+    drop(c);
+    let ModelParameters::LocalVolatility(model) = later.model_parameters() else {
+        panic!()
+    };
+    close(
+        model.surface().volatility(dates().0, 140.0).unwrap(),
+        0.4,
+        1e-14,
+    );
 }
 
 #[test]
