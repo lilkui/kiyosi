@@ -47,7 +47,8 @@ range bounds and daily monitoring/accumulation rules. Accumulators require both
 is allowed. Changes affecting only future payoff amounts retain history.
 For example, ``barrier.replace(strike=105)`` preserves monitoring and history,
 and changing monitoring to scheduled requires supplying the observation times in the same call.
-Phoenix replacements accept at most one coupon choice and can change coupon units.
+Phoenix replacements accept at most one non-None coupon choice and can change coupon units.
+None leaves a coupon choice unspecified, so both coupon properties can be forwarded.
 Double-touch contracts expose ``barrier_type="knock_in"`` or ``"knock_out"``
 for inspection and replacement;
 binary and touch constructors require explicit ``payoff_type="cash"`` or

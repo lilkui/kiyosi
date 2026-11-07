@@ -117,10 +117,6 @@ def _reduce(
         else getattr(value, rate_fields.get(name, name))
         for name in signature(factory).parameters
     }
-    if isinstance(value, _native.PhoenixOption):
-        for name in ("coupon_rate", "coupon_per_period"):
-            if fields[name] is None:
-                del fields[name]
     return _restore, (factory, fields)
 
 
@@ -147,6 +143,10 @@ def _repr(value: Any) -> str:
     else:
         factory, fields = args
         fields = fields.copy()
+        if isinstance(value, _native.PhoenixOption):
+            for coupon_name in ("coupon_rate", "coupon_per_period"):
+                if fields[coupon_name] is None:
+                    del fields[coupon_name]
         if fields.get("calendar") == _native.weekdays_calendar():
             fields.pop("calendar")
         suffix = ""

@@ -1074,7 +1074,7 @@ snowball_properties! {
 /// ----------
 /// coupon_rate : float, optional
 ///     Finite signed annual coupon rate. Supply exactly one of coupon_rate
-///     and coupon_per_period; omission or Ellipsis leaves a choice unspecified.
+///     and coupon_per_period; omission, None or Ellipsis leaves a choice unspecified.
 /// coupon_per_period : float, optional
 ///     Finite signed fixed coupon proportion per qualifying observation,
 ///     without day accrual. The unused coupon property returns None.
@@ -1130,9 +1130,9 @@ autocallable_properties! {
     /// Parameters
     /// ----------
     /// coupon_rate : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Replacement value; None, omission or Ellipsis leaves this coupon choice unspecified.
     /// coupon_per_period : float, optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Replacement value; None, omission or Ellipsis leaves this coupon choice unspecified.
     /// initial_spot : float, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// knock_in_level : float, optional
@@ -1168,7 +1168,7 @@ autocallable_properties! {
     /// KiyosiError
     ///     If the resulting contract fails core validation; the original is unchanged.
     /// TypeError
-    ///     If a representation or field name is invalid, or both coupon choices are supplied.
+    ///     If a representation or field name is invalid, or both coupon choices have values.
     #[pyo3(signature = (*, coupon_rate=crate::conversions::OMITTED, coupon_per_period=crate::conversions::OMITTED, initial_spot=crate::conversions::OMITTED, knock_in_level=crate::conversions::OMITTED, upper_strike=crate::conversions::OMITTED, lower_strike=crate::conversions::OMITTED, knock_in_observation_mode=crate::conversions::OMITTED, observation_clock_time=crate::conversions::OMITTED, barrier_state=crate::conversions::OMITTED, principal_ratio=crate::conversions::OMITTED, effective_time=crate::conversions::OMITTED, expiry_time=crate::conversions::OMITTED, observations=crate::conversions::OMITTED, calendar=crate::conversions::OMITTED))]
     #[expect(clippy::too_many_arguments, reason = "explicit Python replacement fields")]
     fn replace(
@@ -1190,7 +1190,7 @@ autocallable_properties! {
     ) -> PyResult<Self> {
         let changes = kiyosi::PhoenixOptionChanges {
             calendar: calendar.map(|v| v.extract::<TradingCalendar>().map(|v| v.0)).transpose()?,
-            coupon: match (coupon_rate, coupon_per_period) {
+            coupon: match (coupon_rate.filter(|v| !v.is_none()), coupon_per_period.filter(|v| !v.is_none())) {
                 (None, None) => None,
                 (Some(value), None) => Some(kiyosi::PhoenixCoupon::Annual(crate::conversions::real(value)?)),
                 (None, Some(value)) => Some(kiyosi::PhoenixCoupon::PerPeriod(crate::conversions::real(value)?)),
@@ -1230,7 +1230,7 @@ autocallable_properties! {
         #[pyo3(from_py_with = real)] principal_ratio: f64,
         calendar: TradingCalendar,
     ) -> PyResult<Self> {
-        let coupon = match (coupon_rate, coupon_per_period) {
+        let coupon = match (coupon_rate.filter(|v| !v.is_none()), coupon_per_period.filter(|v| !v.is_none())) {
             (Some(value), None) => kiyosi::PhoenixCoupon::Annual(real(value)?),
             (None, Some(value)) => kiyosi::PhoenixCoupon::PerPeriod(real(value)?),
             _ => return Err(PyTypeError::new_err(

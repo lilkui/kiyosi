@@ -1,5 +1,6 @@
 """Phoenix contracts and quadrature through the installed Rust public API."""
 
+import inspect
 import math
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -69,6 +70,35 @@ def contract(**changes):
 
 
 class PhoenixTests(unittest.TestCase):
+    def test_coupon_properties_roundtrip_through_construction_and_replacement(self):
+        for note in (contract(), contract().replace(coupon_per_period=0.01)):
+            with self.subTest(
+                coupon=note.coupon_rate, per_period=note.coupon_per_period
+            ):
+                fields = {
+                    name: getattr(note, name)
+                    for name in inspect.signature(PhoenixOption).parameters
+                }
+                self.assertEqual(PhoenixOption(**fields), note)
+                self.assertEqual(
+                    note.replace(
+                        coupon_rate=note.coupon_rate,
+                        coupon_per_period=note.coupon_per_period,
+                    ),
+                    note,
+                )
+                self.assertEqual(
+                    note.replace(coupon_rate=None, coupon_per_period=None), note
+                )
+                for operation in (PhoenixOption, note.replace):
+                    with self.assertRaises(TypeError):
+                        operation(
+                            **dict(fields, coupon_rate=0.1, coupon_per_period=0.01)
+                        )
+        fields.update(coupon_rate=None, coupon_per_period=None)
+        with self.assertRaises(TypeError):
+            PhoenixOption(**fields)
+
     def test_current_conditional_coupon_and_settlement_boundaries(self):
         engine = QuadratureAutocallableEngine()
         for coupon in (0.365, -0.365):

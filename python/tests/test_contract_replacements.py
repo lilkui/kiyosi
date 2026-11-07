@@ -448,10 +448,17 @@ class ContractReplacementTests(unittest.TestCase):
                     nullable_payout = field == "payout" and isinstance(
                         original, (i.BinaryBarrierOption, i.TouchOption)
                     )
+                    nullable_coupon = isinstance(
+                        original, i.PhoenixOption
+                    ) and field in (
+                        "coupon_rate",
+                        "coupon_per_period",
+                    )
                     if (
                         field not in NULLABLE
                         and field != "realized_average"
                         and not nullable_payout
+                        and not nullable_coupon
                     ):
                         error = (
                             InvalidInputError
