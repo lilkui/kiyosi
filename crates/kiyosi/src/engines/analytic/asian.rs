@@ -150,6 +150,18 @@ fn divided_exprel_increment_ratio(x: f64, y: f64, h: f64) -> f64 {
 }
 
 impl TurnbullWakemanArithmeticAveragePriceEngine {
+    fn require_flat(context: &PricingContext) -> Result<()> {
+        let model = context.bsm_parameters()?;
+        if model.risk_free_curve().exact_flat_rate().is_none()
+            || model.dividend_curve().exact_flat_rate().is_none()
+        {
+            return Err(Error::UnsupportedOperation(
+                "Turnbull-Wakeman requires flat rates".into(),
+            ));
+        }
+        Ok(())
+    }
+
     /// Prices the arithmetic approximation, settling realized history at expiry.
     ///
     /// See [`AnalyticGeometricAveragePriceEngine::price`] for the market setup.
@@ -190,13 +202,7 @@ impl TurnbullWakemanArithmeticAveragePriceEngine {
             return o.settlement(context);
         }
         let model = context.bsm_parameters()?;
-        if model.risk_free_curve().exact_flat_rate().is_none()
-            || model.dividend_curve().exact_flat_rate().is_none()
-        {
-            return Err(Error::UnsupportedOperation(
-                "Turnbull-Wakeman requires flat rates".into(),
-            ));
-        }
+        Self::require_flat(context)?;
         o.coverage(context)?;
         if crate::engines::deterministic::enabled(context) {
             return crate::engines::deterministic::average(o, context, false);
@@ -349,6 +355,22 @@ impl PricingEngine<GeometricAveragePriceOption> for AnalyticGeometricAveragePric
     }
 }
 impl PricingEngine<ArithmeticAveragePriceOption> for TurnbullWakemanArithmeticAveragePriceEngine {
+    fn greek_method(
+        &self,
+        option: &ArithmeticAveragePriceOption,
+        context: &PricingContext,
+    ) -> Result<crate::GreekMethod> {
+        self.validate_applicability(context)?;
+        if context.valuation_time() != option.expiry_time() {
+            Self::require_flat(context)?;
+        }
+        Ok(crate::GreekMethod::for_valuation(
+            option,
+            context,
+            crate::GreekMethod::Numerical,
+        ))
+    }
+
     fn price(
         &self,
         option: &ArithmeticAveragePriceOption,

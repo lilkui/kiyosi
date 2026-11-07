@@ -31,6 +31,18 @@ impl Default for MonteCarloAsianEngine {
 }
 
 impl MonteCarloAsianEngine {
+    fn require_geometric_flat_rates(context: &PricingContext) -> Result<()> {
+        let model = context.bsm_parameters()?;
+        if model.risk_free_curve().exact_flat_rate().is_none()
+            || model.dividend_curve().exact_flat_rate().is_none()
+        {
+            return Err(Error::UnsupportedOperation(
+                "geometric Asian Monte Carlo requires flat rates".into(),
+            ));
+        }
+        Ok(())
+    }
+
     /// Returns a replayable engine, drawing a seed only when none is configured.
     ///
     /// All other controls, including any integration or exercise grid, are preserved.
@@ -264,13 +276,8 @@ impl MonteCarloAsianEngine {
             ));
         }
         let model = context.bsm_parameters()?;
-        if geometric
-            && (model.risk_free_curve().exact_flat_rate().is_none()
-                || model.dividend_curve().exact_flat_rate().is_none())
-        {
-            return Err(Error::UnsupportedOperation(
-                "geometric Asian Monte Carlo requires flat rates".into(),
-            ));
+        if geometric {
+            Self::require_geometric_flat_rates(context)?;
         }
         o.coverage(context)?;
         if crate::engines::deterministic::enabled(context) {
@@ -512,6 +519,9 @@ impl PricingEngine<GeometricAveragePriceOption> for MonteCarloAsianEngine {
         <Self as PricingEngine<GeometricAveragePriceOption>>::validate_applicability(
             self, context,
         )?;
+        if context.valuation_time() != option.expiry_time() {
+            Self::require_geometric_flat_rates(context)?;
+        }
         Ok(crate::GreekMethod::for_valuation(
             option,
             context,

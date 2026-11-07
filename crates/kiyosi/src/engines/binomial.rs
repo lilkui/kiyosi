@@ -427,6 +427,10 @@ fn native(
 macro_rules! vanilla_pricing {
     ($option:ty, $american:expr) => {
         impl PricingEngine<$option> for CoxRossRubinsteinVanillaEngine {
+            fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+                flat_rates(context).map(|_| ())
+            }
+
             fn greek_method(
                 &self,
                 option: &$option,
@@ -613,6 +617,10 @@ impl CoxRossRubinsteinDigitalEngine {
 }
 
 impl PricingEngine<DigitalOption> for CoxRossRubinsteinDigitalEngine {
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        flat_rates(context).map(|_| ())
+    }
+
     fn greek_method(
         &self,
         option: &DigitalOption,

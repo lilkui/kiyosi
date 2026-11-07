@@ -412,6 +412,10 @@ impl BjerksundStenslandVanillaEngine {
 }
 
 impl PricingEngine<AmericanOption> for BjerksundStenslandVanillaEngine {
+    fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
+        Self::require_flat(context)
+    }
+
     fn price(&self, option: &AmericanOption, context: &PricingContext) -> Result<f64> {
         context.bsm_parameters()?;
         Self::price(self, option, context)

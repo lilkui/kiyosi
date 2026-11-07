@@ -1414,6 +1414,82 @@ class SettingsDiagnosticTests(unittest.TestCase):
 
 
 class GreekMethodTests(unittest.TestCase):
+    def test_greek_methods_check_curve_support_without_rejecting_asian_settlement(self):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        life = {"effective_time": start, "expiry_time": end}
+        european = ins.EuropeanOption(option_type="call", strike=100, **life)
+        american = ins.AmericanOption(option_type="put", strike=100, **life)
+        digital = ins.CashOrNothingOption(
+            option_type="call", strike=100, payout=10, **life
+        )
+        geometric = ins.GeometricAveragePriceOption(
+            option_type="call", strike=100, averaging_start_time=start, **life
+        )
+        arithmetic = ins.ArithmeticAveragePriceOption(
+            option_type="call", strike=100, averaging_start_time=start, **life
+        )
+        mc = pricing.MonteCarloAsianEngine(path_count=16, seed=42, thread_count=1)
+        curve = market.RateTermStructure(
+            reference_time=start,
+            times=[start + timedelta(days=180), end],
+            factors=[0.98, 0.94],
+        )
+        context = market.PricingContext(
+            model_parameters=market.BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        for engine, option, method in [
+            (pricing.CoxRossRubinsteinVanillaEngine(), european, "mixed"),
+            (pricing.CoxRossRubinsteinVanillaEngine(), american, "mixed"),
+            (pricing.CoxRossRubinsteinDigitalEngine(), digital, "native"),
+            (pricing.BjerksundStenslandVanillaEngine(), american, "numerical"),
+            (mc, geometric, "native"),
+            (
+                pricing.TurnbullWakemanArithmeticAveragePriceEngine(),
+                arithmetic,
+                "numerical",
+            ),
+        ]:
+            with self.subTest(
+                engine=type(engine).__name__, option=type(option).__name__
+            ):
+                self.assertEqual(engine.greek_method(option, context), method)
+                self.assertTrue(math.isfinite(engine.price(option, context)))
+                for dividend in (False, True):
+                    for volatility in (0, 0.2):
+                        unsupported = context.replace(
+                            model_parameters=market.BlackScholesMertonParameters(
+                                risk_free_rate=0.05 if dividend else curve,
+                                dividend_yield=curve if dividend else 0.02,
+                                volatility=volatility,
+                            )
+                        )
+                        with self.assertRaises(UnsupportedOperationError):
+                            engine.price(option, unsupported)
+                        with self.assertRaises(UnsupportedOperationError):
+                            engine.greek_method(option, unsupported)
+                        with self.assertRaises(UnsupportedOperationError):
+                            engine.active_greek_controls(option, unsupported)
+        curved = context.replace(
+            model_parameters=context.model_parameters.replace(risk_free_rate=curve)
+        )
+        self.assertEqual(mc.greek_method(arithmetic, curved), "native")
+        self.assertTrue(math.isfinite(mc.price(arithmetic, curved)))
+        analytic = pricing.AnalyticGeometricAveragePriceEngine()
+        self.assertEqual(analytic.greek_method(geometric, curved), "numerical")
+        self.assertTrue(math.isfinite(analytic.price(geometric, curved)))
+        terminal = curved.replace(valuation_time=end)
+        for engine, option in (
+            (mc, geometric),
+            (pricing.TurnbullWakemanArithmeticAveragePriceEngine(), arithmetic),
+        ):
+            option = option.replace_history(realized_average=110)
+            self.assertEqual(engine.greek_method(option, terminal), "terminal")
+            self.assertEqual(engine.price(option, terminal), 10)
+
     def test_greek_methods_report_estimators_and_active_controls(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
         life = {"effective_time": start, "expiry_time": end}

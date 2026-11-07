@@ -1850,6 +1850,144 @@ fn greek_methods_report_estimators_and_active_controls() -> Result<()> {
 }
 
 #[test]
+fn greek_methods_check_curve_support_without_rejecting_asian_settlement() -> Result<()> {
+    fn check<I: OptionContract>(
+        engine: &impl PricingEngine<I>,
+        option: &I,
+        context: &PricingContext,
+        curve: &RateTermStructure,
+        method: GreekMethod,
+    ) -> Result<()> {
+        assert_eq!(engine.greek_method(option, context)?, method);
+        assert!(engine.price(option, context)?.is_finite());
+        for dividend in [false, true] {
+            for volatility in [0.0, 0.2] {
+                let model = BlackScholesMertonParameters::new(
+                    if dividend {
+                        Rate::Flat(0.05)
+                    } else {
+                        curve.clone().into()
+                    },
+                    if dividend {
+                        curve.clone().into()
+                    } else {
+                        Rate::Flat(0.02)
+                    },
+                    volatility,
+                )?;
+                let unsupported = context.replace(PricingContextChanges {
+                    model_parameters: Some(model.into()),
+                    ..Default::default()
+                })?;
+                assert!(matches!(
+                    engine.price(option, &unsupported),
+                    Err(Error::UnsupportedOperation(_))
+                ));
+                assert!(matches!(
+                    engine.greek_method(option, &unsupported),
+                    Err(Error::UnsupportedOperation(_))
+                ));
+            }
+        }
+        Ok(())
+    }
+    let start = Date::new(2025, 1, 1)?.start_of_day();
+    let end = start.add_days(365)?;
+    let curve = RateTermStructure::new(start, vec![start.add_days(180)?, end], vec![0.98, 0.94])?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.05, 0.02, 0.2)?,
+        100.0,
+        start,
+    )?;
+    let european = EuropeanOption::new(OptionType::Call, 100.0, start, end)?;
+    let american = AmericanOption::new(OptionType::Put, 100.0, start, end)?;
+    let digital = DigitalOption::cash_or_nothing(OptionType::Call, 100.0, 10.0, start, end)?;
+    let geometric =
+        GeometricAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)?;
+    let arithmetic =
+        ArithmeticAveragePriceOption::new(OptionType::Call, 100.0, start, start, end, None)?;
+    let mc = MonteCarloAsianEngine::new(MonteCarloSettings {
+        path_count: 16,
+        seed: Some(42),
+        thread_count: 1,
+        ..Default::default()
+    })?;
+    check(
+        &CoxRossRubinsteinVanillaEngine::default(),
+        &european,
+        &context,
+        &curve,
+        GreekMethod::Mixed,
+    )?;
+    check(
+        &CoxRossRubinsteinVanillaEngine::default(),
+        &american,
+        &context,
+        &curve,
+        GreekMethod::Mixed,
+    )?;
+    check(
+        &CoxRossRubinsteinDigitalEngine::default(),
+        &digital,
+        &context,
+        &curve,
+        GreekMethod::Native,
+    )?;
+    check(
+        &BjerksundStenslandVanillaEngine,
+        &american,
+        &context,
+        &curve,
+        GreekMethod::Numerical,
+    )?;
+    check(&mc, &geometric, &context, &curve, GreekMethod::Native)?;
+    check(
+        &TurnbullWakemanArithmeticAveragePriceEngine,
+        &arithmetic,
+        &context,
+        &curve,
+        GreekMethod::Numerical,
+    )?;
+
+    let curved = PricingContext::new(
+        BlackScholesMertonParameters::new(curve, 0.02, 0.2)?,
+        100.0,
+        start,
+    )?;
+    assert_eq!(mc.greek_method(&arithmetic, &curved)?, GreekMethod::Native);
+    assert!(mc.price(&arithmetic, &curved)?.is_finite());
+    assert_eq!(
+        AnalyticGeometricAveragePriceEngine.greek_method(&geometric, &curved)?,
+        GreekMethod::Numerical
+    );
+    assert!(
+        AnalyticGeometricAveragePriceEngine
+            .price(&geometric, &curved)?
+            .is_finite()
+    );
+    let terminal = curved.replace(PricingContextChanges {
+        valuation_time: Some(end),
+        ..Default::default()
+    })?;
+    let geometric = geometric.replace_history(110.0)?;
+    let arithmetic = arithmetic.replace_history(110.0)?;
+    assert_eq!(
+        mc.greek_method(&geometric, &terminal)?,
+        GreekMethod::Terminal
+    );
+    assert_eq!(mc.price(&geometric, &terminal)?, 10.0);
+    assert_eq!(
+        TurnbullWakemanArithmeticAveragePriceEngine.greek_method(&arithmetic, &terminal)?,
+        GreekMethod::Terminal
+    );
+    assert_eq!(
+        TurnbullWakemanArithmeticAveragePriceEngine.price(&arithmetic, &terminal)?,
+        10.0
+    );
+    Ok(())
+}
+
+#[test]
 fn observation_replacement_preserves_validity_and_original_values() -> Result<()> {
     let time = Date::new(2026, 1, 1)?.start_of_day();
     let original = AutocallableObservation::with_coupons(time, 110.0, -0.01, 90.0)?;
