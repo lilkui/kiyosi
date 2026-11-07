@@ -39,8 +39,8 @@ return None because they have no knock-in. Schedules retain their timestamps
 independently of their contract and are not filtered by history.
 Explicit observations use their supplied timestamps. Automatic observations require
 ``observation_clock_time``, a timezone-free ``datetime.time`` with microsecond precision.
-Snowball, ternary snowball and Phoenix constructors require this keyword; supply
-None explicitly for expiry-only knock-in monitoring.
+Snowball, ternary snowball and Phoenix constructors require a clock for daily
+knock-in monitoring; expiry-only monitoring permits omission or None.
 They are filtered against the full contract bounds. Snowballs and accumulators
 include the effective instant; range accruals exclude it. Maturity settlement adds
 no daily observation. Range accruals require a nonempty observation schedule. Explicit accumulator knock-out observations do not add quantity;
