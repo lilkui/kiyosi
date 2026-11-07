@@ -538,6 +538,7 @@ impl BinaryBarrierOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
+    /// Switching to continuous monitoring clears omitted observation times; explicit times must match the mode.
     /// See [`BinaryBarrierOption::cash`] for construction examples.
     ///
     /// # Errors
@@ -560,9 +561,9 @@ impl BinaryBarrierOption {
             barrier_level: changes.barrier_level.unwrap_or(self.barrier_level()),
             barrier_type: changes.barrier_type.unwrap_or(self.barrier_type()),
             observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
-            observation_times: changes
-                .observation_times
-                .unwrap_or_else(|| self.observation_times().to_vec()),
+            observation_times: self
+                .monitoring
+                .replacement_times(changes.observation_mode, changes.observation_times),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
         let updated = match changes.payoff.unwrap_or_else(|| {
@@ -613,6 +614,7 @@ impl TouchOption {
     /// Returns a validated replacement, preserving omitted terms and the original.
     ///
     /// Calendar compatibility is validated here; valuation-relative history checks occur at pricing time.
+    /// Switching to continuous monitoring clears omitted observation times; explicit times must match the mode.
     /// See [`TouchOption::cash`] for construction examples.
     ///
     /// # Errors
@@ -636,9 +638,9 @@ impl TouchOption {
                 .settlement_timing
                 .unwrap_or(self.settlement_timing()),
             observation_mode: changes.observation_mode.unwrap_or(self.observation_mode()),
-            observation_times: changes
-                .observation_times
-                .unwrap_or_else(|| self.observation_times().to_vec()),
+            observation_times: self
+                .monitoring
+                .replacement_times(changes.observation_mode, changes.observation_times),
             touch_state: changes.touch_state.unwrap_or(self.touch_state()),
         };
         let updated = match changes.payoff.unwrap_or_else(|| {

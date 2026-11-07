@@ -82,7 +82,7 @@ monitoring_properties!(
     /// observation_mode : {'continuous', 'scheduled'}, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// observation_times : Iterable[datetime.datetime], optional
-    ///     Replacement value; omission or Ellipsis retains the current field.
+    ///     Omission clears times when switching to continuous monitoring; otherwise retains them.
     /// touch_state : {'untouched', 'touched'} or None, optional
     ///     Replacement value; omission or Ellipsis retains the current field.
     /// calendar : TradingCalendar, optional

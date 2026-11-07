@@ -25,6 +25,8 @@
 //! choices. Reasserting the same history explicitly is allowed. Calendar-only helpers
 //! reject changes affecting known daily history; use `replace` with an explicit history
 //! choice. Payoff-only changes retain history. See [`BarrierOption::replace`] for an exotic example.
+//! Switching barrier or touch monitoring to continuous clears omitted observation times.
+//! Explicit times must agree with the selected mode; scheduled monitoring requires nonempty times.
 //! Contract effective and expiry timestamps are inclusive and preserve microseconds.
 //! European vanilla and digital pricing permits pre-effective valuation. Other built-in
 //! contracts reject valuation outside their life, including range accruals.

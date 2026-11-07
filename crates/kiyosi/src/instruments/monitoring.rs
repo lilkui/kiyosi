@@ -69,6 +69,19 @@ impl Monitoring {
             ..self.clone()
         }
     }
+    pub(crate) fn replacement_times(
+        &self,
+        mode: Option<ObservationMode>,
+        times: Option<Vec<Timestamp>>,
+    ) -> Vec<Timestamp> {
+        times.unwrap_or_else(|| {
+            if mode == Some(ObservationMode::Continuous) {
+                Vec::new()
+            } else {
+                self.observation_times().to_vec()
+            }
+        })
+    }
     pub(crate) fn validate_replacement_history(
         &self,
         updated: &Self,

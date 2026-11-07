@@ -1,5 +1,66 @@
 use kiyosi::*;
 
+macro_rules! check_monitoring_switch {
+    ($original:ident, $scheduled:ident, $changes:ident) => {
+        assert_eq!($scheduled.replace($changes::default()).unwrap(), $scheduled);
+        assert!(matches!(
+            $scheduled.replace($changes {
+                observation_mode: Some(ObservationMode::Continuous),
+                ..Default::default()
+            }),
+            Err(Error::InvalidInput(_))
+        ));
+        for times in [None, Some(vec![])] {
+            let continuous = $scheduled
+                .replace($changes {
+                    observation_mode: Some(ObservationMode::Continuous),
+                    observation_times: times,
+                    touch_state: Some($scheduled.touch_state()),
+                    ..Default::default()
+                })
+                .unwrap();
+            assert_eq!(continuous, $original);
+        }
+        let cleared = $scheduled
+            .replace($changes {
+                observation_mode: Some(ObservationMode::Continuous),
+                touch_state: Some(None),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(cleared.touch_state(), None);
+        assert!(cleared.observation_times().is_empty());
+        assert_eq!(
+            $scheduled
+                .replace_history(None)
+                .replace($changes {
+                    observation_mode: Some(ObservationMode::Continuous),
+                    ..Default::default()
+                })
+                .unwrap(),
+            cleared
+        );
+        assert!(matches!(
+            $scheduled.replace($changes {
+                observation_mode: Some(ObservationMode::Continuous),
+                observation_times: Some($scheduled.observation_times().to_vec()),
+                touch_state: Some($scheduled.touch_state()),
+                ..Default::default()
+            }),
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(matches!(
+            $scheduled.replace($changes {
+                observation_times: Some(vec![]),
+                touch_state: Some($scheduled.touch_state()),
+                ..Default::default()
+            }),
+            Err(Error::InvalidInput(_))
+        ));
+        assert_eq!($scheduled.observation_times(), &[$original.expiry_time()]);
+    };
+}
+
 #[test]
 fn reactivation_with_changed_accumulation_rules_requires_explicit_quantity() -> Result<()> {
     let start = Date::new(2025, 1, 6)?.start_of_day();
@@ -215,6 +276,7 @@ fn barrier_option_replacements_preserve_omissions_and_validate_each_field() {
         .unwrap();
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
     assert_eq!(scheduled.observation_times(), &[end]);
+    check_monitoring_switch!(original, scheduled, BarrierOptionChanges);
     assert!(matches!(
         original.replace(BarrierOptionChanges {
             observation_times: Some(vec![end]),
@@ -324,6 +386,7 @@ fn double_barrier_option_replacements_preserve_omissions_and_validate_each_field
         .unwrap();
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
     assert_eq!(scheduled.observation_times(), &[end]);
+    check_monitoring_switch!(original, scheduled, DoubleBarrierOptionChanges);
     assert!(matches!(
         original.replace(DoubleBarrierOptionChanges {
             observation_times: Some(vec![end]),
@@ -432,6 +495,7 @@ fn binary_barrier_option_replacements_preserve_omissions_and_validate_each_field
         .unwrap();
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
     assert_eq!(scheduled.observation_times(), &[end]);
+    check_monitoring_switch!(original, scheduled, BinaryBarrierOptionChanges);
     assert!(matches!(
         original.replace(BinaryBarrierOptionChanges {
             observation_times: Some(vec![end]),
@@ -536,6 +600,7 @@ fn touch_option_replacements_preserve_omissions_and_validate_each_field() {
         .unwrap();
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
     assert_eq!(scheduled.observation_times(), &[end]);
+    check_monitoring_switch!(original, scheduled, TouchOptionChanges);
     assert!(matches!(
         original.replace(TouchOptionChanges {
             observation_times: Some(vec![end]),
@@ -639,6 +704,7 @@ fn double_touch_option_replacements_preserve_omissions_and_validate_each_field()
         .unwrap();
     assert_eq!(scheduled.observation_mode(), ObservationMode::Scheduled);
     assert_eq!(scheduled.observation_times(), &[end]);
+    check_monitoring_switch!(original, scheduled, DoubleTouchOptionChanges);
     assert!(matches!(
         original.replace(DoubleTouchOptionChanges {
             observation_times: Some(vec![end]),

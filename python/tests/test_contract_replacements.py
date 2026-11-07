@@ -490,6 +490,57 @@ class ContractReplacementTests(unittest.TestCase):
                     self.assertEqual(scheduled.observation_times, [END])
                     self.assertEqual(scheduled.observation_mode, "scheduled")
 
+    def test_monitoring_switch_clears_only_omitted_times_and_requires_history(self):
+        for original in contracts():
+            if not hasattr(original, "observation_mode"):
+                continue
+            with self.subTest(contract=type(original).__name__):
+                scheduled = original.replace(
+                    observation_mode="scheduled",
+                    observation_times=[END],
+                    touch_state=original.touch_state,
+                )
+                self.assertEqual(scheduled.replace(), scheduled)
+                self.assertEqual(
+                    scheduled.replace(observation_mode="scheduled"), scheduled
+                )
+                with self.assertRaises(InvalidInputError):
+                    scheduled.replace(observation_mode="continuous")
+                for fields in (
+                    {},
+                    {"observation_times": []},
+                    {"observation_times": ...},
+                ):
+                    continuous = scheduled.replace(
+                        observation_mode="continuous",
+                        touch_state=scheduled.touch_state,
+                        **fields,
+                    )
+                    self.assertEqual(continuous, original)
+                cleared = scheduled.replace(
+                    observation_mode="continuous", touch_state=None
+                )
+                self.assertIsNone(cleared.touch_state)
+                self.assertEqual(cleared.observation_times, [])
+                self.assertEqual(
+                    scheduled.replace_history(touch_state=None).replace(
+                        observation_mode="continuous"
+                    ),
+                    cleared,
+                )
+                with self.assertRaises(InvalidInputError):
+                    scheduled.replace(
+                        observation_mode="continuous",
+                        observation_times=[END],
+                        touch_state=scheduled.touch_state,
+                    )
+                with self.assertRaises(InvalidInputError):
+                    scheduled.replace(
+                        observation_times=[], touch_state=scheduled.touch_state
+                    )
+                self.assertEqual(scheduled.observation_mode, "scheduled")
+                self.assertEqual(scheduled.observation_times, [END])
+
     def test_replaced_sequences_are_owned_and_phoenix_coupon_choices_are_exclusive(
         self,
     ):
