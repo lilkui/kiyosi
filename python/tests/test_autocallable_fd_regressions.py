@@ -756,7 +756,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                         note, context, ["theta", "charm", "color"]
                     )
                     for value in (result.theta, result.charm, result.color):
-                        self.assertEqual(value is not None, state == "knocked_in")
+                        self.assertIsNotNone(value)
 
     def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(self):
         import math

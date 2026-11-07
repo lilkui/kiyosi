@@ -236,7 +236,7 @@ class AnalyticsTests(unittest.TestCase):
             "time_shift",
         ):
             for bad in (True, "1", complex(1)) + (
-                () if field == "spot_shift" else (None,)
+                () if field in ("spot_shift", "time_shift") else (None,)
             ):
                 with self.subTest(field=field, bad=bad), self.assertRaises(TypeError):
                     numerical_greeks(

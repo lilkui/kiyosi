@@ -299,7 +299,7 @@ class BarrierTests(unittest.TestCase):
                 greeks="all",
             )
             for greek in ("theta", "charm", "color"):
-                self.assertIsNone(getattr(result, greek))
+                self.assertTrue(math.isfinite(result.require(greek)))
             self.assertIsNotNone(result.delta)
         option = BarrierOption(**self.terms(touch_state="untouched", rebate=7))
         result = engine.price_with_greeks(option, self.context(120), greeks="all")

@@ -433,7 +433,7 @@ class BinaryBarrierTests(unittest.TestCase):
             greeks="all",
         )
         self.assertTrue(
-            all(getattr(result, g) is None for g in ("theta", "charm", "color"))
+            all(math.isfinite(result.require(g)) for g in ("theta", "charm", "color"))
         )
         self.assertIsNotNone(result.delta)
 

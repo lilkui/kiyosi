@@ -326,7 +326,7 @@ fn shared_sample_greeks_and_implied_volatility_preserve_inputs() {
         )),
         volatility_shift: 0.02,
         rate_shift: 0.01,
-        time_shift: std::time::Duration::from_secs(172_800),
+        time_shift: Some(std::time::Duration::from_secs(172_800)),
     };
     for sampling in [MonteCarloSampling::PseudoRandom, MonteCarloSampling::Sobol] {
         for antithetic in [false, true] {

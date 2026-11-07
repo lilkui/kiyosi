@@ -267,7 +267,7 @@ fn heston_greeks_check_model_before_request_controls() -> Result<()> {
                     &context,
                     request,
                     NumericalShiftSettings {
-                        time_shift: std::time::Duration::ZERO,
+                        time_shift: Some(std::time::Duration::ZERO),
                         ..Default::default()
                     }
                 ),
@@ -1008,7 +1008,7 @@ fn greek_shift_validation_is_independent_of_estimator_and_valuation_time() -> Re
                         &context,
                         request,
                         NumericalShiftSettings {
-                            time_shift: shift,
+                            time_shift: Some(shift),
                             ..Default::default()
                         }
                     ),
@@ -1737,7 +1737,7 @@ fn settings_diagnostics_identify_invalid_fields() {
         (
             "time_shift",
             NumericalShiftSettings {
-                time_shift: std::time::Duration::ZERO,
+                time_shift: Some(std::time::Duration::ZERO),
                 ..Default::default()
             }
             .validate(),

@@ -308,7 +308,9 @@ class DigitalTests(unittest.TestCase):
                 "rate_shift",
                 "time_shift",
             ):
-                for value in (True, "1") + (() if field == "spot_shift" else (None,)):
+                for value in (True, "1") + (
+                    () if field in ("spot_shift", "time_shift") else (None,)
+                ):
                     with self.assertRaises(TypeError):
                         numerical_greeks(
                             self.engine, option, self.context, "delta", **{field: value}

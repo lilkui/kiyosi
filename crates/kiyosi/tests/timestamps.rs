@@ -928,7 +928,7 @@ fn subday_time_bumps_converge_to_intraday_theta() -> Result<()> {
             &context,
             request,
             NumericalShiftSettings {
-                time_shift: Duration::from_secs(seconds),
+                time_shift: Some(Duration::from_secs(seconds)),
                 ..Default::default()
             },
         )?
@@ -940,7 +940,7 @@ fn subday_time_bumps_converge_to_intraday_theta() -> Result<()> {
     for shift in [Duration::ZERO, Duration::from_nanos(1), Duration::MAX] {
         assert!(matches!(
             NumericalShiftSettings {
-                time_shift: shift,
+                time_shift: Some(shift),
                 ..Default::default()
             }
             .validate(),
@@ -948,7 +948,7 @@ fn subday_time_bumps_converge_to_intraday_theta() -> Result<()> {
         ));
     }
     NumericalShiftSettings {
-        time_shift: Duration::from_micros(1),
+        time_shift: Some(Duration::from_micros(1)),
         ..Default::default()
     }
     .validate()?;

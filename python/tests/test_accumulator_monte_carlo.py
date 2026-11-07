@@ -282,7 +282,7 @@ class AccumulatorMonteCarloTests(unittest.TestCase):
         ):
             self.assertTrue(math.isfinite(result.require(greek)))
         for greek in ("theta", "charm", "color"):
-            self.assertIsNone(getattr(result, greek))
+            self.assertTrue(math.isfinite(result.require(greek)))
         sigma = pricing.implied_volatility(
             engine, note, context, result.price, lower_bound=0.1, upper_bound=0.3
         )

@@ -360,10 +360,12 @@ pub struct NumericalShiftSettings {
     pub volatility_shift: f64,
     /// Sets the positive risk-free and dividend rate bump (default 0.0001 decimal units).
     pub rate_shift: f64,
-    /// Sets a positive time bump in whole microseconds (default one calendar day).
+    /// Sets a positive time bump in whole microseconds, or `None` for automatic selection.
     ///
-    /// Use sub-day durations to check intraday convergence; see [`crate::numerical_greeks`].
-    pub time_shift: std::time::Duration,
+    /// Automatic selection starts at one day and shortens the bump to avoid observations.
+    /// Explicit bumps retain their size within life and curve bounds.
+    /// See [`crate::numerical_greeks`] for convergence checks.
+    pub time_shift: Option<std::time::Duration>,
 }
 impl Default for NumericalShiftSettings {
     fn default() -> Self {
@@ -371,7 +373,7 @@ impl Default for NumericalShiftSettings {
             spot_shift: None,
             volatility_shift: 1e-4,
             rate_shift: 1e-4,
-            time_shift: std::time::Duration::from_secs(86_400),
+            time_shift: None,
         }
     }
 }
@@ -421,12 +423,15 @@ impl NumericalShiftSettings {
     }
 
     pub(crate) fn time_shift_micros(self) -> Result<i64> {
-        if self.time_shift.is_zero() || self.time_shift.subsec_nanos() % 1000 != 0 {
+        let shift = self
+            .time_shift
+            .unwrap_or(std::time::Duration::from_secs(86_400));
+        if shift.is_zero() || shift.subsec_nanos() % 1000 != 0 {
             return Err(Error::InvalidInput(
                 "time_shift must be positive with whole-microsecond precision".into(),
             ));
         }
-        Ok(i64::try_from(self.time_shift.as_micros()).unwrap_or(i64::MAX))
+        Ok(i64::try_from(shift.as_micros()).unwrap_or(i64::MAX))
     }
 }
 

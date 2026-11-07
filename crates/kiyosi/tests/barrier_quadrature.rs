@@ -332,7 +332,7 @@ fn settings_applicability_and_numerical_failures_leave_inputs_unchanged() {
             ..Default::default()
         },
         NumericalShiftSettings {
-            time_shift: std::time::Duration::ZERO,
+            time_shift: Some(std::time::Duration::ZERO),
             ..Default::default()
         },
     ] {

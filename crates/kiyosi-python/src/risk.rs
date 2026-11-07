@@ -221,8 +221,9 @@ pub(crate) fn _pricing_result(
 ///     Positive absolute spot bump, or None for the engine/product default.
 /// volatility_shift, rate_shift : float, optional
 ///     Positive decimal-unit bumps. Defaults come from the Rust core.
-/// time_shift : datetime.timedelta, optional
-///     Positive bump with microsecond precision, default one day. Use smaller
+/// time_shift : datetime.timedelta or None, optional
+///     Positive explicit bump, or None for an automatic bump up to one day
+///     shortened to avoid observations. Use smaller
 ///     durations to check convergence for intraday valuations and between observations.
 ///
 /// Returns
@@ -244,7 +245,7 @@ pub(crate) fn _pricing_result(
 ///     If system entropy or worker creation fails. Monte Carlo draws are pinned
 ///     within the request, matching the Rust numerical_greeks operation.
 #[pyfunction]
-#[pyo3(signature = (engine, instrument, context, greeks, *, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift=crate::conversions::OMITTED))]
+#[pyo3(signature = (engine, instrument, context, greeks, *, spot_shift=None, volatility_shift=kiyosi::NumericalShiftSettings::default().volatility_shift, rate_shift=kiyosi::NumericalShiftSettings::default().rate_shift, time_shift=None))]
 #[expect(
     clippy::too_many_arguments,
     reason = "explicit Python numerical controls"
@@ -258,7 +259,7 @@ pub(crate) fn numerical_greeks(
     spot_shift: Option<&Bound<'_, PyAny>>,
     #[pyo3(from_py_with = crate::conversions::real)] volatility_shift: f64,
     #[pyo3(from_py_with = crate::conversions::real)] rate_shift: f64,
-    #[pyo3(from_py_with = crate::conversions::supplied)] time_shift: Option<&Bound<'_, PyAny>>,
+    time_shift: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PricingResult> {
     let result = crate::registration::evaluate(py, engine, instrument, context, || {
         Ok(crate::engines::NumericalGreeksRequest {
@@ -267,10 +268,7 @@ pub(crate) fn numerical_greeks(
                 spot_shift: spot_shift.map(crate::conversions::real).transpose()?,
                 volatility_shift,
                 rate_shift,
-                time_shift: time_shift
-                    .map(crate::conversions::duration)
-                    .transpose()?
-                    .unwrap_or(kiyosi::NumericalShiftSettings::default().time_shift),
+                time_shift: time_shift.map(crate::conversions::duration).transpose()?,
             },
         })
     })?;

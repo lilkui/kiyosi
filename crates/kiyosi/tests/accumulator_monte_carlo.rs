@@ -241,7 +241,7 @@ fn shared_sample_greeks_and_volatility_solves_preserve_inputs() {
         assert!(result.has(greek));
     }
     for greek in [Greek::Theta, Greek::Charm, Greek::Color] {
-        assert!(!result.has(greek));
+        assert!(result.require(greek).unwrap().is_finite());
     }
     let sigma = implied_volatility(
         &engine,

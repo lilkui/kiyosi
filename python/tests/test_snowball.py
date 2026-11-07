@@ -408,7 +408,7 @@ class SnowballTests(unittest.TestCase):
         self.assertEqual(engine.price(daily, market(90, END)), 0.9)
         # Midnight KI is strict; intraday spot does not create a historical breach.
         daily = daily.replace_history(barrier_state="no_event")
-        for when, has_theta in ((datetime(2025, 1, 2, 12), False),):
+        for when, has_theta in ((datetime(2025, 1, 2, 12), True),):
             result = engine.price_with_greeks(daily, market(80, when), "theta")
             self.assertEqual(result.theta is not None, has_theta)
 

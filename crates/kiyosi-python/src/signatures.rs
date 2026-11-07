@@ -9,7 +9,10 @@ pub(crate) fn register(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult
     defaults.set_item("rate_shift", shifts.rate_shift)?;
     defaults.set_item(
         "time_shift",
-        crate::conversions::python_duration(py, shifts.time_shift)?,
+        shifts
+            .time_shift
+            .map(|shift| crate::conversions::python_duration(py, shift))
+            .transpose()?,
     )?;
     defaults.set_item("principal_ratio", kiyosi::DEFAULT_PRINCIPAL_RATIO)?;
     defaults.set_item("realized_average", kiyosi::DEFAULT_REALIZED_AVERAGE)?;

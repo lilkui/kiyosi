@@ -104,6 +104,43 @@ def reference(option, context):
 
 
 class RangeAccrualTests(unittest.TestCase):
+    def test_automatic_time_bumps_recover_daily_risk_without_crossing_observations(
+        self,
+    ):
+        option = RangeAccrualOption(
+            notional=1000,
+            annual_coupon_rate=0.12,
+            lower_bound=90,
+            upper_bound=110,
+            effective_time=START,
+            expiry_time=datetime(2025, 1, 5),
+            observation_clock_time=clock_time(15),
+            realized_hit_count=1,
+        )
+        context = market(datetime(2025, 1, 2, 12), rate=0.04, dividend=0, volatility=0)
+        engine = AnalyticRangeAccrualEngine()
+        request = ["theta", "charm", "color"]
+        auto = engine.price_with_greeks(option, context, request)
+        self.assertAlmostEqual(auto.require("theta"), 0.04 * auto.price, delta=1e-9)
+        self.assertEqual(auto.require("charm"), 0)
+        self.assertEqual(auto.require("color"), 0)
+        self.assertEqual(
+            auto, numerical_greeks(engine, option, context, request, time_shift=None)
+        )
+        explicit = numerical_greeks(
+            engine,
+            option,
+            context,
+            request,
+            time_shift=timedelta(days=1),
+        )
+        self.assertEqual(explicit.status("theta"), "stencil_unavailable")
+        at_observation = context.replace(valuation_time=datetime(2025, 1, 2, 15))
+        self.assertEqual(
+            engine.price_with_greeks(option, at_observation, request).status("theta"),
+            "stencil_unavailable",
+        )
+
     def test_dividend_coverage_ends_at_the_last_observation(self):
         start = datetime(2025, 1, 2, 16)
         last = datetime(2025, 1, 3, 9)

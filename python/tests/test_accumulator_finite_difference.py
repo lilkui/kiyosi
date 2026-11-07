@@ -319,7 +319,7 @@ class AccumulatorFiniteDifferenceTests(unittest.TestCase):
             market(90, datetime(2025, 1, 5, 23, 59, 59)),
             greeks="all",
         )
-        self.assertIsNone(sunday.theta)
+        self.assertTrue(math.isfinite(sunday.require("theta")))
         small = engine.price_with_greeks(
             option,
             market(90, volatility=0.0001),

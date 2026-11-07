@@ -1067,7 +1067,7 @@ class AnalyticDoubleTouchTests(unittest.TestCase):
             ("spot_shift", None),
             ("volatility_shift", 0.0001),
             ("rate_shift", 0.0001),
-            ("time_shift", timedelta(days=1)),
+            ("time_shift", None),
         ):
             self.assertIs(
                 signature.parameters[name].kind, inspect.Parameter.KEYWORD_ONLY

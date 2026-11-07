@@ -428,7 +428,7 @@ fn selections_expiry_and_validation_timing_preserve_availability() {
                 &context,
                 request,
                 NumericalShiftSettings {
-                    time_shift: shift,
+                    time_shift: Some(shift),
                     ..Default::default()
                 }
             )
@@ -828,7 +828,9 @@ fn numerical_stencils_keep_feasible_measures_and_fail_on_feasible_pricing_errors
         &context,
         GreeksRequest::new([Greek::Theta]),
         NumericalShiftSettings {
-            time_shift: std::time::Duration::from_secs(86_400 * u64::from(i32::MAX.unsigned_abs())),
+            time_shift: Some(std::time::Duration::from_secs(
+                86_400 * u64::from(i32::MAX.unsigned_abs()),
+            )),
             ..Default::default()
         },
     )

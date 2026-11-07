@@ -29,6 +29,49 @@ fn market(at: impl Into<Timestamp>, spot: f64) -> PricingContext {
 }
 
 #[test]
+fn automatic_time_bumps_recover_daily_risk_without_crossing_observations() -> Result<()> {
+    let clock = TimeOfDay::new(15, 0, 0, 0)?;
+    let mut terms = RangeAccrualTerms::new(1000.0, 0.12, 90.0, 110.0, day(1), day(5), clock);
+    terms.realized_hit_count = Some(1);
+    let option = RangeAccrualOption::new(terms)?;
+    let context = PricingContext::new(
+        BlackScholesMertonParameters::new(0.04, 0.0, 0.0)?,
+        100.0,
+        day(2).date().at_time(TimeOfDay::new(12, 0, 0, 0)?),
+    )?;
+    let request = GreeksRequest::new([Greek::Theta, Greek::Charm, Greek::Color]);
+    let auto = AnalyticRangeAccrualEngine.price_with_greeks(&option, &context, request)?;
+    assert!((auto.require(Greek::Theta)? - 0.04 * auto.price()).abs() < 1e-9);
+    assert_eq!(auto.require(Greek::Charm)?, 0.0);
+    assert_eq!(auto.require(Greek::Color)?, 0.0);
+    let explicit = numerical_greeks(
+        &AnalyticRangeAccrualEngine,
+        &option,
+        &context,
+        request,
+        NumericalShiftSettings {
+            time_shift: Some(std::time::Duration::from_secs(86_400)),
+            ..Default::default()
+        },
+    )?;
+    assert_eq!(
+        explicit.status(Greek::Theta),
+        GreekStatus::StencilUnavailable
+    );
+    let at_observation = context.replace(PricingContextChanges {
+        valuation_time: Some(day(2).date().at_time(clock)),
+        ..Default::default()
+    })?;
+    assert_eq!(
+        AnalyticRangeAccrualEngine
+            .price_with_greeks(&option, &at_observation, request,)?
+            .status(Greek::Theta),
+        GreekStatus::StencilUnavailable
+    );
+    Ok(())
+}
+
+#[test]
 fn dividend_coverage_ends_at_the_last_observation() -> Result<()> {
     let start = Timestamp::new(day(2).date(), 16, 0, 0, 0)?;
     let last = Timestamp::new(day(3).date(), 9, 0, 0, 0)?;

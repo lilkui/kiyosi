@@ -158,7 +158,8 @@ Numerical bump controls are keyword-only and discoverable through
 ``inspect.signature(numerical_greeks)``. ``spot_shift=None`` selects the smaller
 of 0.01 spot units and 1% of spot, except American Monte Carlo before expiry uses
 8% of spot. Volatility and rate shifts default to 0.0001 decimal units; time
-shifts use ``datetime.timedelta(days=1)`` by default. Supply a smaller positive
+shifts default to None: an automatic bump of at most one day, shortened to stay
+between observations. Supply a positive
 ``timedelta`` to check intraday convergence or keep the stencil between observations.
 These are sampling steps: Greek outputs are unscaled partial derivatives,
 with time measured in Actual/365 Fixed years and volatility and rates in decimals.

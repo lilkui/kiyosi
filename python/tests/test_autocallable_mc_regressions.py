@@ -259,7 +259,7 @@ class AutocallableMonteCarloRegressionTests(unittest.TestCase):
                         note, context, ["theta", "charm", "color"]
                     )
                     for value in (result.theta, result.charm, result.color):
-                        self.assertEqual(value is not None, state == "knocked_in")
+                        self.assertIsNotNone(value)
 
     def test_fixed_implied_volatility_preserves_non_finite_pricing_errors(self):
         start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)

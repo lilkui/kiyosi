@@ -1587,7 +1587,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift: timedelta = ...,
+    time_shift: timedelta | None = None,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1604,7 +1604,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift: timedelta = ...,
+    time_shift: timedelta | None = None,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1616,7 +1616,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift: timedelta = ...,
+    time_shift: timedelta | None = None,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1630,7 +1630,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift: timedelta = ...,
+    time_shift: timedelta | None = None,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1642,7 +1642,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift: timedelta = ...,
+    time_shift: timedelta | None = None,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1658,7 +1658,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift: timedelta = ...,
+    time_shift: timedelta | None = None,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1670,7 +1670,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift: timedelta = ...,
+    time_shift: timedelta | None = None,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1682,7 +1682,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift: timedelta = ...,
+    time_shift: timedelta | None = None,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1694,7 +1694,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift: timedelta = ...,
+    time_shift: timedelta | None = None,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1710,7 +1710,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift: timedelta = ...,
+    time_shift: timedelta | None = None,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1722,7 +1722,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift: timedelta = ...,
+    time_shift: timedelta | None = None,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1736,7 +1736,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift: timedelta = ...,
+    time_shift: timedelta | None = None,
 ) -> PricingResult: ...
 @overload
 def numerical_greeks(
@@ -1748,7 +1748,7 @@ def numerical_greeks(
     spot_shift: _Real | None = None,
     volatility_shift: _Real = ...,
     rate_shift: _Real = ...,
-    time_shift: timedelta = ...,
+    time_shift: timedelta | None = None,
 ) -> PricingResult: ...
 
 class GeometricAveragePriceOption:

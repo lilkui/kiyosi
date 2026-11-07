@@ -152,7 +152,7 @@ fn greeks_do_not_cross_touch_discontinuities_or_history_regimes() {
             GreeksRequest::all(),
         )
         .unwrap();
-    assert!(!result.has(Greek::Theta));
+    assert!(result.require(Greek::Theta).unwrap().is_finite());
     assert!(result.has(Greek::Vega));
 }
 
@@ -462,7 +462,7 @@ fn scheduled_requests_recover_volatility_and_support_concurrent_reads() {
     let result = engine
         .price_with_greeks(&option, &context, GreeksRequest::all())
         .unwrap();
-    assert!(!result.has(Greek::Theta));
+    assert!(result.require(Greek::Theta).unwrap().is_finite());
     let settings = ImpliedVolatilitySettings {
         lower_bound: 0.15,
         upper_bound: 0.25,

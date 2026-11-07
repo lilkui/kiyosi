@@ -293,7 +293,7 @@ class TimestampTests(unittest.TestCase):
         for shift in (timedelta(), timedelta(microseconds=-1)):
             with self.subTest(shift=shift), self.assertRaises(InvalidInputError):
                 numerical_greeks(engine, option, context, "theta", time_shift=shift)
-        for shift in (True, 1, 0.001, None):
+        for shift in (True, 1, 0.001):
             with self.subTest(shift=shift), self.assertRaises(TypeError):
                 numerical_greeks(engine, option, context, "theta", time_shift=shift)
 

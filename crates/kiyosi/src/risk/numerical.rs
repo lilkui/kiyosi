@@ -124,7 +124,9 @@ pub(crate) fn expiry_greeks(
 /// at the valuation, such as a terminal payoff kink or zero-volatility boundary,
 /// retains [`crate::GreekStatus::Undefined`].
 /// Time rolls stay within permitted valuation dates, curve coverage and neighboring knots, with
-/// right-hand differences at knots. Feasible bumped pricing errors fail the request.
+/// right-hand differences at knots. Automatic time bumps start at one day and are halved
+/// until their stencil avoids observations, down to one microsecond. Explicit time bumps
+/// are not shortened for observations. Feasible bumped pricing errors fail the request.
 /// Returns unscaled partial derivatives in the units documented by [`Greek`].
 /// Volatility and rates use decimals; valuation time uses Actual/365 Fixed years.
 /// Dividend rho shifts the dividend curve in parallel using `settings.rate_shift`.
@@ -463,8 +465,16 @@ pub(crate) fn complete_greeks(
         if before_width > 0 && after_width > 0 {
             shift = shift.min(before_width).min(after_width);
         }
-        let before = time.add_micros(-shift.min(before_width))?;
-        let after = time.add_micros(shift.min(after_width))?;
+        let mut before = time.add_micros(-shift.min(before_width))?;
+        let mut after = time.add_micros(shift.min(after_width))?;
+        while settings.time_shift.is_none()
+            && shift > 1
+            && !option.time_stencil_available(context, before, after)
+        {
+            shift /= 2;
+            before = time.add_micros(-shift.min(before_width))?;
+            after = time.add_micros(shift.min(after_width))?;
+        }
         if before != after && option.time_stencil_available(context, before, after) {
             let years = before.years_until(after);
             let prices = if want(Greek::Theta) {
@@ -651,7 +661,7 @@ mod tests {
                     spot_shift: Some(0.25),
                     volatility_shift: 0.125,
                     rate_shift: 0.125,
-                    time_shift: std::time::Duration::from_secs(86_400),
+                    time_shift: Some(std::time::Duration::from_secs(86_400)),
                 },
                 false,
                 evaluate(&context, request).unwrap(),
