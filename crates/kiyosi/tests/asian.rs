@@ -45,9 +45,47 @@ fn continuous_asian_prices_match_existing_independent_references() {
 }
 
 macro_rules! contract_tests {
-    ($module:ident, $option:ident, $engine:ident) => {
+    ($module:ident, $option:ident, $engine:ident, $refreshed_price:expr) => {
         mod $module {
             use super::*;
+            #[test]
+            fn dated_history_refresh_updates_average_and_time_atomically() -> Result<()> {
+                let start = Date::new(2025, 1, 2)?.start_of_day();
+                let at = start.add_days(4)?;
+                let end = start.add_days(10)?;
+                let original =
+                    $option::new(OptionType::Call, 100.0, start, start, end, Some(100.0))?
+                        .with_history_time(Some(at))?;
+                let market = PricingContext::new(
+                    BlackScholesMertonParameters::new(0.0, 0.0, 0.0)?,
+                    100.0,
+                    at,
+                )?;
+                let later = market.replace(PricingContextChanges {
+                    valuation_time: Some(at.add_days(1)?),
+                    ..Default::default()
+                })?;
+                let refreshed = original.replace(AveragePriceOptionChanges {
+                    realized_average: Some(Some(104.0)),
+                    history_time: Some(Some(later.valuation_time())),
+                    ..Default::default()
+                })?;
+                assert_eq!(refreshed.realized_average(), Some(104.0));
+                assert_eq!(refreshed.history_time(), Some(later.valuation_time()));
+                assert!(($engine.price(&refreshed, &later)? - $refreshed_price).abs() < 1e-12);
+                assert!(matches!(
+                    original.replace(AveragePriceOptionChanges {
+                        realized_average: Some(Some(104.0)),
+                        history_time: Some(Some(end.add_days(1)?)),
+                        ..Default::default()
+                    }),
+                    Err(Error::InvalidInput(_))
+                ));
+                assert_eq!(original.realized_average(), Some(100.0));
+                assert_eq!(original.history_time(), Some(at));
+                assert_eq!($engine.price(&original, &market)?, 0.0);
+                Ok(())
+            }
             #[test]
             fn construction_replacement_and_validation() {
                 let (start, end) = dates();
@@ -319,12 +357,14 @@ macro_rules! contract_tests {
 contract_tests!(
     geometric,
     GeometricAveragePriceOption,
-    AnalyticGeometricAveragePriceEngine
+    AnalyticGeometricAveragePriceEngine,
+    (104.0_f64 * 100.0).sqrt() - 100.0
 );
 contract_tests!(
     arithmetic,
     ArithmeticAveragePriceOption,
-    TurnbullWakemanArithmeticAveragePriceEngine
+    TurnbullWakemanArithmeticAveragePriceEngine,
+    2.0
 );
 
 #[test]

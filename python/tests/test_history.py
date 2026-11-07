@@ -43,6 +43,41 @@ def engine(instrument):
 
 
 class HistoryTests(unittest.TestCase):
+    def test_dated_average_refresh_updates_value_and_time_atomically(self):
+        start = datetime(2025, 1, 2)
+        at, end = start + timedelta(days=4), start + timedelta(days=10)
+        market = context(at, volatility=0)
+        later = market.replace(valuation_time=at + timedelta(days=1))
+        for cls, expected in (
+            (i.GeometricAveragePriceOption, math.sqrt(104 * 100) - 100),
+            (i.ArithmeticAveragePriceOption, 2),
+        ):
+            with self.subTest(contract=cls.__name__):
+                original = cls(
+                    option_type="call",
+                    strike=100,
+                    effective_time=start,
+                    averaging_start_time=start,
+                    expiry_time=end,
+                    realized_average=100,
+                    history_time=at,
+                )
+                refreshed = original.replace(
+                    realized_average=104, history_time=later.valuation_time
+                )
+                self.assertEqual(refreshed.realized_average, 104)
+                self.assertEqual(refreshed.history_time, later.valuation_time)
+                self.assertAlmostEqual(
+                    engine(original).price(refreshed, later), expected, delta=1e-12
+                )
+                with self.assertRaises(InvalidInputError):
+                    original.replace(
+                        realized_average=104, history_time=end + timedelta(days=1)
+                    )
+                self.assertEqual(original.realized_average, 100)
+                self.assertEqual(original.history_time, at)
+                self.assertEqual(engine(original).price(original, market), 0)
+
     def test_dated_history_survives_future_schedule_edits(self):
         past, future = datetime(2025, 1, 3), datetime(2025, 1, 8)
         for original in contracts():

@@ -97,7 +97,9 @@
 //! It describes events strictly before that instant. Discrete history can be reused
 //! between observations; unaccounted observations require a fresh snapshot. Continuous
 //! barrier and Asian history require the same instant, except resolved barrier monitoring.
-//! Replacements preserve the stamp. Numerical time sensitivities freeze observed history
+//! Refresh history and its timestamp together with the contract's `replace` method and
+//! change struct. `replace_history` replaces only the payload and preserves its timestamp.
+//! Numerical time sensitivities freeze observed history
 //! internally while moving hypothetical valuation; caller inputs remain unchanged.
 //!
 //! ```rust
@@ -116,7 +118,10 @@
 //!     valuation_time: Some(at.add_days(1)?), ..Default::default()
 //! })?;
 //! assert!(matches!(AnalyticRangeAccrualEngine.price(&option, &later), Err(Error::InvalidInput(_))));
-//! let refreshed = option.replace_history(Some(2))?.with_history_time(Some(later.valuation_time()))?;
+//! let refreshed = option.replace(RangeAccrualOptionChanges {
+//!     realized_hit_count: Some(Some(2)), history_time: Some(Some(later.valuation_time())),
+//!     ..Default::default()
+//! })?;
 //! assert_eq!(AnalyticRangeAccrualEngine.price(&refreshed, &later)?, price);
 //! # Ok(()) }
 //! ```

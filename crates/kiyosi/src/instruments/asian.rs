@@ -182,7 +182,7 @@ macro_rules! average_option {
         ///
         /// Owns validated continuously monitored averaging terms; a zero-length window fixes once at expiry.
         ///
-        /// See [`Self::new`] for construction and [`Self::replace_history`] for history updates.
+        /// See [`Self::new`] for construction and [`Self::replace`] for dated history updates.
         #[derive(Clone, Debug, PartialEq)]
         pub struct $name(pub(crate) AverageTerms);
         impl $name {
@@ -199,6 +199,29 @@ macro_rules! average_option {
             ///
             /// Reuses constructor validation for the resulting contract. Failure leaves
             /// this value unchanged.
+            ///
+            /// # Examples
+            ///
+            /// Refreshes an observed average and its timestamp together for a valuation roll:
+            ///
+            /// ```rust
+            /// use kiyosi::{AveragePriceOptionChanges, Date, GeometricAveragePriceOption,
+            ///     OptionContract, OptionType};
+            /// # fn main() -> kiyosi::Result<()> {
+            /// let start = Date::new(2025, 1, 2)?.start_of_day();
+            /// let at = start.add_days(4)?;
+            /// let original = GeometricAveragePriceOption::new(OptionType::Call,
+            ///     100.0, start, start, start.add_days(10)?, Some(100.0))?
+            ///     .with_history_time(Some(at))?;
+            /// let refreshed = original.replace(AveragePriceOptionChanges {
+            ///     realized_average: Some(Some(104.0)),
+            ///     history_time: Some(Some(at.add_days(1)?)), ..Default::default()
+            /// })?;
+            /// assert_eq!(refreshed.history_time(), Some(at.add_days(1)?));
+            /// assert_eq!(refreshed.realized_average(), Some(104.0));
+            /// assert_eq!(original.history_time(), Some(at));
+            /// # Ok(()) }
+            /// ```
             pub fn replace(&self, changes: AveragePriceOptionChanges) -> Result<Self> {
                 let history_supplied = changes.realized_average.is_some();
                 let updated = Self::new(
@@ -263,7 +286,10 @@ macro_rules! average_option {
                     realized_average.into(),
                 )?))
             }
-            /// Returns an owning copy with replaced history, preserving all other terms.
+            /// Returns a copy with a replaced average, preserving its history timestamp.
+            ///
+            /// Use [`Self::replace`] with [`AveragePriceOptionChanges::history_time`] and
+            /// [`AveragePriceOptionChanges::realized_average`] to refresh a dated snapshot.
             ///
             /// # Errors
             ///
