@@ -607,6 +607,7 @@ fn explicit_implicit_and_damped_schemes_preserve_supported_payoffs() {
             FiniteDifferenceScheme::Rannacher,
         ] {
             let engine = FiniteDifferenceBinaryBarrierEngine::new(FiniteDifferenceSettings {
+                spot_shift: None,
                 asset_step_count: 100,
                 time_step_count: 2000,
                 scheme,
@@ -630,6 +631,7 @@ fn continuous_binary_domains_retain_configured_nodes_and_explicit_stability() {
     .unwrap();
     let make = |upper, scheme| {
         FiniteDifferenceBinaryBarrierEngine::new(FiniteDifferenceSettings {
+            spot_shift: None,
             asset_step_count: 800,
             time_step_count: 2000,
             scheme,

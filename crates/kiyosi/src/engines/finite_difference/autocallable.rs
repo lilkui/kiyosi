@@ -79,7 +79,7 @@ impl FiniteDifferenceAutocallableEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let shifts = crate::NumericalShiftSettings::default();
+        let shifts = self.settings.greek_shifts();
         analysis(option, context, self.settings, request, shifts, native)
     }
 }
@@ -106,6 +106,12 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
         ))
     }
 
+    fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+        self.settings
+            .greek_shifts()
+            .spot_shift_at(context.spot_price())
+    }
+
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         local_volatility::validate_model(context)
     }
@@ -118,7 +124,6 @@ impl<T: AutocallableTerms> PricingEngine<AutocallableNote<T>>
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let _shifts = crate::NumericalShiftSettings::default();
         self.price_with_greeks(option, context, request)
     }
     fn volatility_affects_price(

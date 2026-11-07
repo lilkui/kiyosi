@@ -58,7 +58,9 @@ impl FiniteDifferenceBarrierEngine {
     ///     start, Date::new(2026, 1, 1)?.start_of_day(), 120.0, BarrierType::UpAndOut))?;
     /// let context = PricingContext::new(BlackScholesMertonParameters::new(0.04, 0.01, 0.2)?,
     ///     100.0, start.into())?;
-    /// let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings::default())?;
+    /// let engine = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
+    ///     spot_shift: Some(0.001), ..Default::default()
+    /// })?;
     /// assert_eq!(engine.settings().asset_step_count, 800);
     /// let result = engine.price_with_greeks(&option, &context,
     ///     GreeksRequest::new([Greek::Delta]))?;
@@ -72,7 +74,7 @@ impl FiniteDifferenceBarrierEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let shifts = crate::NumericalShiftSettings::default();
+        let shifts = self.settings.greek_shifts();
         analysis(option, context, self.settings, request, shifts)
     }
 }
@@ -98,6 +100,12 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
         ))
     }
 
+    fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+        self.settings
+            .greek_shifts()
+            .spot_shift_at(context.spot_price())
+    }
+
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         local_volatility::validate_model(context)
     }
@@ -110,7 +118,6 @@ impl PricingEngine<BarrierOption> for FiniteDifferenceBarrierEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let _shifts = crate::NumericalShiftSettings::default();
         self.price_with_greeks(option, context, request)
     }
     fn volatility_affects_price(&self, option: &BarrierOption, context: &PricingContext) -> bool {
@@ -248,7 +255,7 @@ impl FiniteDifferenceDoubleBarrierEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let shifts = crate::NumericalShiftSettings::default();
+        let shifts = self.settings.greek_shifts();
         analysis(option, context, self.settings, request, shifts)
     }
 }
@@ -273,6 +280,12 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
         ))
     }
 
+    fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+        self.settings
+            .greek_shifts()
+            .spot_shift_at(context.spot_price())
+    }
+
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
         local_volatility::validate_model(context)
     }
@@ -285,7 +298,6 @@ impl PricingEngine<DoubleBarrierOption> for FiniteDifferenceDoubleBarrierEngine 
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let _shifts = crate::NumericalShiftSettings::default();
         self.price_with_greeks(option, context, request)
     }
     fn volatility_affects_price(

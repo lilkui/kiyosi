@@ -233,6 +233,7 @@ fn standard_crank_nicolson_matches_one_unsmoothed_step() {
     let option = EuropeanOption::new(OptionType::Call, 100.0, start, end).unwrap();
     let context = market(100.0, 0.0, 0.0, 0.2);
     let settings = FiniteDifferenceSettings {
+        spot_shift: None,
         asset_step_count: 3,
         time_step_count: 1,
         scheme: FiniteDifferenceScheme::CrankNicolson,

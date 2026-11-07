@@ -75,7 +75,6 @@ impl FiniteDifferenceBinaryBarrierEngine {
     where
         Self: PricingEngine<I>,
     {
-        let _shifts = crate::NumericalShiftSettings::default();
         <Self as PricingEngine<I>>::price_with_greeks(self, option, context, request)
     }
 }
@@ -103,6 +102,12 @@ macro_rules! binary_pricing {
                 ))
             }
 
+            fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+                self.settings
+                    .greek_shifts()
+                    .spot_shift_at(context.spot_price())
+            }
+
             fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
                 local_volatility::validate_model(context)
             }
@@ -122,7 +127,7 @@ macro_rules! binary_pricing {
                 context: &PricingContext,
                 request: GreeksRequest,
             ) -> Result<PricingResult> {
-                let shifts = crate::NumericalShiftSettings::default();
+                let shifts = self.settings.greek_shifts();
                 request.validate()?;
                 shifts.validate()?;
                 local_volatility::validate_request(context, request)?;
@@ -214,7 +219,6 @@ impl FiniteDifferenceDoubleTouchEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let _shifts = crate::NumericalShiftSettings::default();
         <Self as PricingEngine<DoubleTouchOption>>::price_with_greeks(
             self, option, context, request,
         )

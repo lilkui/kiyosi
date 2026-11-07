@@ -324,6 +324,7 @@ fn scheduled_damping_restarts_equal_implicit_half_steps_without_new_fixings() {
         .into_iter()
         .map(|(scheme, steps)| {
             FiniteDifferenceDoubleBarrierEngine::new(FiniteDifferenceSettings {
+                spot_shift: None,
                 asset_step_count: 200,
                 time_step_count: steps,
                 scheme,
@@ -355,6 +356,7 @@ fn scheduled_explicit_stability_preserves_the_uniform_grid_boundary() {
     t.observation_times = vec![t.expiry_time];
     let option = DoubleBarrierOption::new(t).unwrap();
     let engine = FiniteDifferenceDoubleBarrierEngine::new(FiniteDifferenceSettings {
+        spot_shift: None,
         asset_step_count: 200,
         time_step_count: 1600,
         scheme: FiniteDifferenceScheme::ExplicitEuler,
@@ -451,6 +453,7 @@ fn narrow_interim_event_cells_remain_positive_and_converge() {
         ] {
             for (index, count) in [800, 1600, 3200].into_iter().enumerate() {
                 let engine = FiniteDifferenceDoubleBarrierEngine::new(FiniteDifferenceSettings {
+                    spot_shift: None,
                     asset_step_count: count,
                     time_step_count: 2000,
                     scheme,

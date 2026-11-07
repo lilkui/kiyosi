@@ -50,12 +50,15 @@ macro_rules! fd_engine {
         ///     Continuous up and double barriers fix their own upper grid edge;
         ///     this bound is inactive for that grid. Local-volatility knock-in
         ///     vanilla components and scheduled monitoring use the full domain.
+        /// spot_shift : float or None, optional
+        ///     Positive absolute spot bump for native Greek availability and terminal
+        ///     stencils. None selects the automatic bump; prices and grids are unchanged.
         ///
         /// Raises
         /// ------
         /// InvalidInputError
         ///     If asset_step_count is below 3, time_step_count is below 1, or an
-        ///     explicit upper boundary is nonpositive or non-finite. Boundary coverage
+        ///     explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
         ///     and explicit-Euler stability are checked during pricing.
         ///
         /// Notes
@@ -102,18 +105,20 @@ macro_rules! fd_engine {
             engine_methods!(
                 $name,
                 #[new]
-                #[pyo3(signature = (*, asset_step_count=kiyosi::$name::default().settings().asset_step_count, time_step_count=kiyosi::$name::default().settings().time_step_count, scheme=kiyosi::$name::default().settings().scheme, asset_upper_boundary=None))]
+                #[pyo3(signature = (*, asset_step_count=kiyosi::$name::default().settings().asset_step_count, time_step_count=kiyosi::$name::default().settings().time_step_count, scheme=kiyosi::$name::default().settings().scheme, asset_upper_boundary=None, spot_shift=None))]
                 fn new(
                     #[pyo3(from_py_with = integer)] asset_step_count: i32,
                     #[pyo3(from_py_with = integer)] time_step_count: i32,
                     #[pyo3(from_py_with = scheme)] scheme: kiyosi::FiniteDifferenceScheme,
                     asset_upper_boundary: Option<&Bound<'_, PyAny>>,
+                    spot_shift: Option<&Bound<'_, PyAny>>,
                 ) -> PyResult<Self> {
                     Ok(Self(domain(kiyosi::$name::new(kiyosi::FiniteDifferenceSettings {
                         asset_step_count,
                         time_step_count,
                         scheme,
                         asset_upper_boundary: asset_upper_boundary.map(real).transpose()?,
+                        spot_shift: spot_shift.map(real).transpose()?,
                     }))?))
                 },
                 /// Return the configured number of spatial intervals.
@@ -140,6 +145,11 @@ macro_rules! fd_engine {
                 #[getter]
                 fn asset_upper_boundary(&self) -> Option<f64> {
                     self.0.settings().asset_upper_boundary
+                },
+                /// Returns the native Greek spot bump, or None for automatic selection.
+                #[getter]
+                fn spot_shift(&self) -> Option<f64> {
+                    self.0.settings().spot_shift
                 },
                 /// Return the price without changing the instrument or context.
                 ///

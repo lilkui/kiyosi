@@ -73,6 +73,11 @@ pub struct FiniteDifferenceSettings {
     /// double barrier makes this bound inactive for the barrier grid. Local-volatility
     /// knock-in vanilla components and scheduled monitoring use the full domain.
     pub asset_upper_boundary: Option<f64>,
+    /// Sets a positive absolute spot bump for native Greek availability and terminal stencils.
+    ///
+    /// `None` uses the shared automatic bump. Prices and spatial grids are unchanged.
+    /// See [`FiniteDifferenceBarrierEngine::price_with_greeks`] for usage.
+    pub spot_shift: Option<f64>,
 }
 
 impl Default for FiniteDifferenceSettings {
@@ -82,6 +87,7 @@ impl Default for FiniteDifferenceSettings {
             time_step_count: 400,
             scheme: Default::default(),
             asset_upper_boundary: None,
+            spot_shift: None,
         }
     }
 }
@@ -92,7 +98,7 @@ impl FiniteDifferenceSettings {
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`] for fewer than three asset intervals,
-    /// fewer than one time interval, or a nonpositive or non-finite explicit upper bound.
+    /// fewer than one time interval, or a nonpositive or non-finite explicit upper bound or spot bump.
     /// Leaves the settings unchanged. Domain coverage and scheme stability are checked at pricing.
     ///
     /// # Examples
@@ -114,7 +120,15 @@ impl FiniteDifferenceSettings {
         if let Some(boundary) = self.asset_upper_boundary {
             crate::error::finite(boundary, true, "asset_upper_boundary")?;
         }
+        self.greek_shifts().validate()?;
         Ok(())
+    }
+
+    fn greek_shifts(self) -> NumericalShiftSettings {
+        NumericalShiftSettings {
+            spot_shift: self.spot_shift,
+            ..Default::default()
+        }
     }
 }
 
@@ -650,7 +664,7 @@ macro_rules! engine_settings {
             /// # Errors
             ///
             /// Returns [`Error::InvalidInput`] for fewer than three asset steps,
-            /// nonpositive time steps or a nonpositive or non-finite explicit upper boundary.
+            /// nonpositive time steps, or a nonpositive or non-finite upper boundary or spot bump.
             /// Validation precedes storing settings; no grid is allocated here.
             /// See [`Self::price_with_greeks`] for engine-specific usage.
             ///
@@ -817,6 +831,12 @@ macro_rules! vanilla_pricing {
                 ))
             }
 
+            fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+                self.settings
+                    .greek_shifts()
+                    .spot_shift_at(context.spot_price())
+            }
+
             fn validate_applicability(&self, context: &PricingContext) -> Result<()> {
                 local_volatility::validate_model(context)
             }
@@ -850,7 +870,7 @@ macro_rules! vanilla_pricing {
                 context: &PricingContext,
                 request: GreeksRequest,
             ) -> Result<PricingResult> {
-                let settings = crate::NumericalShiftSettings::default();
+                let settings = self.settings.greek_shifts();
                 if context.valuation_time() == option.expiry_time() {
                     request.validate()?;
                     settings.validate()?;
@@ -972,7 +992,7 @@ impl FiniteDifferenceDigitalEngine {
         context: &PricingContext,
         request: GreeksRequest,
     ) -> Result<PricingResult> {
-        let shifts = crate::NumericalShiftSettings::default();
+        let shifts = self.settings.greek_shifts();
         flat_rates(context)?;
         let payoff = Payoff::digital(option);
         analysis(
@@ -1017,6 +1037,12 @@ impl PricingEngine<DigitalOption> for FiniteDifferenceDigitalEngine {
                 crate::GreekMethod::Mixed
             },
         ))
+    }
+
+    fn default_spot_shift(&self, context: &PricingContext) -> f64 {
+        self.settings
+            .greek_shifts()
+            .spot_shift_at(context.spot_price())
     }
 
     fn validate_applicability(&self, context: &PricingContext) -> Result<()> {

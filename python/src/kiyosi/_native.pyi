@@ -2528,12 +2528,15 @@ class FiniteDifferenceAccumulatorEngine:
         Continuous up and double barriers fix their own upper grid edge;
         this bound is inactive for that grid. Local-volatility knock-in
         vanilla components and scheduled monitoring use the full domain.
+    spot_shift : float or None, optional
+        Positive absolute spot bump for native Greek availability and terminal
+        stencils. None selects the automatic bump; prices and grids are unchanged.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -2561,6 +2564,7 @@ class FiniteDifferenceAccumulatorEngine:
         time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
+        spot_shift: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -2593,6 +2597,10 @@ class FiniteDifferenceAccumulatorEngine:
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
         accept spot_shift; use numerical_greeks for configurable scalar differences."""
+
+    @property
+    def spot_shift(self) -> float | None:
+        """Returns the native Greek spot bump, or None for automatic selection."""
 
     def price(self, instrument: Accumulator, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -2681,12 +2689,15 @@ class FiniteDifferenceBarrierEngine:
         Continuous up and double barriers fix their own upper grid edge;
         this bound is inactive for that grid. Local-volatility knock-in
         vanilla components and scheduled monitoring use the full domain.
+    spot_shift : float or None, optional
+        Positive absolute spot bump for native Greek availability and terminal
+        stencils. None selects the automatic bump; prices and grids are unchanged.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -2714,6 +2725,7 @@ class FiniteDifferenceBarrierEngine:
         time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
+        spot_shift: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -2746,6 +2758,10 @@ class FiniteDifferenceBarrierEngine:
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
         accept spot_shift; use numerical_greeks for configurable scalar differences."""
+
+    @property
+    def spot_shift(self) -> float | None:
+        """Returns the native Greek spot bump, or None for automatic selection."""
 
     def price(self, instrument: BarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -2834,12 +2850,15 @@ class FiniteDifferenceDoubleBarrierEngine:
         Continuous up and double barriers fix their own upper grid edge;
         this bound is inactive for that grid. Local-volatility knock-in
         vanilla components and scheduled monitoring use the full domain.
+    spot_shift : float or None, optional
+        Positive absolute spot bump for native Greek availability and terminal
+        stencils. None selects the automatic bump; prices and grids are unchanged.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -2867,6 +2886,7 @@ class FiniteDifferenceDoubleBarrierEngine:
         time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
+        spot_shift: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -2899,6 +2919,10 @@ class FiniteDifferenceDoubleBarrierEngine:
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
         accept spot_shift; use numerical_greeks for configurable scalar differences."""
+
+    @property
+    def spot_shift(self) -> float | None:
+        """Returns the native Greek spot bump, or None for automatic selection."""
 
     def price(self, instrument: DoubleBarrierOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -2987,12 +3011,15 @@ class FiniteDifferenceAutocallableEngine:
         Continuous up and double barriers fix their own upper grid edge;
         this bound is inactive for that grid. Local-volatility knock-in
         vanilla components and scheduled monitoring use the full domain.
+    spot_shift : float or None, optional
+        Positive absolute spot bump for native Greek availability and terminal
+        stencils. None selects the automatic bump; prices and grids are unchanged.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3020,6 +3047,7 @@ class FiniteDifferenceAutocallableEngine:
         time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
+        spot_shift: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -3062,6 +3090,10 @@ class FiniteDifferenceAutocallableEngine:
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
         accept spot_shift; use numerical_greeks for configurable scalar differences."""
+
+    @property
+    def spot_shift(self) -> float | None:
+        """Returns the native Greek spot bump, or None for automatic selection."""
 
     def price(
         self,
@@ -3160,12 +3192,15 @@ class FiniteDifferenceDoubleTouchEngine:
         Continuous up and double barriers fix their own upper grid edge;
         this bound is inactive for that grid. Local-volatility knock-in
         vanilla components and scheduled monitoring use the full domain.
+    spot_shift : float or None, optional
+        Positive absolute spot bump for native Greek availability and terminal
+        stencils. None selects the automatic bump; prices and grids are unchanged.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3193,6 +3228,7 @@ class FiniteDifferenceDoubleTouchEngine:
         time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
+        spot_shift: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -3225,6 +3261,10 @@ class FiniteDifferenceDoubleTouchEngine:
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
         accept spot_shift; use numerical_greeks for configurable scalar differences."""
+
+    @property
+    def spot_shift(self) -> float | None:
+        """Returns the native Greek spot bump, or None for automatic selection."""
 
     def price(self, instrument: DoubleTouchOption, context: PricingContext) -> float:
         """Return the price without changing the instrument or context.
@@ -3313,12 +3353,15 @@ class FiniteDifferenceBinaryBarrierEngine:
         Continuous up and double barriers fix their own upper grid edge;
         this bound is inactive for that grid. Local-volatility knock-in
         vanilla components and scheduled monitoring use the full domain.
+    spot_shift : float or None, optional
+        Positive absolute spot bump for native Greek availability and terminal
+        stencils. None selects the automatic bump; prices and grids are unchanged.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3346,6 +3389,7 @@ class FiniteDifferenceBinaryBarrierEngine:
         time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
+        spot_shift: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -3378,6 +3422,10 @@ class FiniteDifferenceBinaryBarrierEngine:
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
         accept spot_shift; use numerical_greeks for configurable scalar differences."""
+
+    @property
+    def spot_shift(self) -> float | None:
+        """Returns the native Greek spot bump, or None for automatic selection."""
 
     def price(
         self, instrument: BinaryBarrierOption | TouchOption, context: PricingContext
@@ -3619,12 +3667,15 @@ class FiniteDifferenceVanillaEngine:
         Continuous up and double barriers fix their own upper grid edge;
         this bound is inactive for that grid. Local-volatility knock-in
         vanilla components and scheduled monitoring use the full domain.
+    spot_shift : float or None, optional
+        Positive absolute spot bump for native Greek availability and terminal
+        stencils. None selects the automatic bump; prices and grids are unchanged.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3652,6 +3703,7 @@ class FiniteDifferenceVanillaEngine:
         time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
+        spot_shift: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -3684,6 +3736,10 @@ class FiniteDifferenceVanillaEngine:
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
         accept spot_shift; use numerical_greeks for configurable scalar differences."""
+
+    @property
+    def spot_shift(self) -> float | None:
+        """Returns the native Greek spot bump, or None for automatic selection."""
 
     def price(
         self, instrument: EuropeanOption | AmericanOption, context: PricingContext
@@ -3774,12 +3830,15 @@ class FiniteDifferenceDigitalEngine:
         Continuous up and double barriers fix their own upper grid edge;
         this bound is inactive for that grid. Local-volatility knock-in
         vanilla components and scheduled monitoring use the full domain.
+    spot_shift : float or None, optional
+        Positive absolute spot bump for native Greek availability and terminal
+        stencils. None selects the automatic bump; prices and grids are unchanged.
 
     Raises
     ------
     InvalidInputError
         If asset_step_count is below 3, time_step_count is below 1, or an
-        explicit upper boundary is nonpositive or non-finite. Boundary coverage
+        explicit upper boundary or spot_shift is nonpositive or non-finite. Boundary coverage
         and explicit-Euler stability are checked during pricing.
 
     Notes
@@ -3807,6 +3866,7 @@ class FiniteDifferenceDigitalEngine:
         time_step_count: SupportsIndex = ...,
         scheme: _pricing.FiniteDifferenceScheme = ...,
         asset_upper_boundary: _Real | None = None,
+        spot_shift: _Real | None = None,
     ) -> None: ...
     @property
     def asset_step_count(self) -> int:
@@ -3843,6 +3903,10 @@ class FiniteDifferenceDigitalEngine:
 
         Individual requests may use fewer controls. Monte Carlo barrier calls
         accept spot_shift; use numerical_greeks for configurable scalar differences."""
+
+    @property
+    def spot_shift(self) -> float | None:
+        """Returns the native Greek spot bump, or None for automatic selection."""
 
     def price(
         self,

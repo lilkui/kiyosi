@@ -1,9 +1,10 @@
 """Shared FD model contracts through the public Python interface."""
 
 import unittest
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from kiyosi import InvalidInputError, UnsupportedOperationError, pricing
+from kiyosi.instruments import BarrierOption
 from kiyosi.market import (
     BlackScholesMertonParameters,
     LocalVolatilitySurface,
@@ -28,6 +29,58 @@ def representatives():
 
 
 class LocalVolatilityFDContractTests(unittest.TestCase):
+    def test_native_spot_bump_recovers_local_barrier_greeks_without_changing_price(
+        self,
+    ):
+        start, end = datetime(2025, 1, 1), datetime(2026, 1, 1)
+        option = BarrierOption(
+            option_type="call",
+            strike=100,
+            effective_time=start,
+            expiry_time=end,
+            barrier_level=120,
+            barrier_type="up_and_out",
+        )
+        local = context(
+            LocalVolatilitySurface(
+                times=[start, end],
+                spots=[80, 120],
+                values=[[0.2, 0.2], [0.2, 0.2]],
+            )
+        ).replace(spot_price=119.995, valuation_time=start)
+        settings = {"asset_step_count": 200, "time_step_count": 120}
+        automatic = pricing.FiniteDifferenceBarrierEngine(**settings)
+        unavailable = automatic.price_with_greeks(option, local, ["delta", "gamma"])
+        self.assertEqual(unavailable.status("delta"), "stencil_unavailable")
+        controlled = pricing.FiniteDifferenceBarrierEngine(spot_shift=0.001, **settings)
+        result = controlled.price_with_greeks(option, local, ["delta", "gamma"])
+        self.assertEqual(result.price, unavailable.price)
+        self.assertEqual(result.status("gamma"), "available")
+        delta = (
+            controlled.price(option, local.replace(spot_price=119.996))
+            - controlled.price(option, local.replace(spot_price=119.994))
+        ) / 0.002
+        self.assertAlmostEqual(result.require("delta"), delta, delta=1e-6)
+        boundary = controlled.price_with_greeks(
+            option, local.replace(spot_price=120), "delta"
+        )
+        self.assertEqual(boundary.status("delta"), "undefined")
+
+    def test_fd_native_spot_controls_validate_and_survive_reconstruction(self):
+        import pickle
+
+        for _, name in representatives():
+            factory = getattr(pricing, name)
+            with self.subTest(engine=name):
+                engine = factory(spot_shift=0.001)
+                self.assertEqual(engine.spot_shift, 0.001)
+                self.assertEqual(pickle.loads(pickle.dumps(engine)), engine)
+                for invalid in (0, -0.001, float("nan"), float("inf")):
+                    with self.assertRaises(InvalidInputError):
+                        factory(spot_shift=invalid)
+                with self.assertRaises(TypeError):
+                    factory(spot_shift=True)
+
     def test_every_fd_scheme_preserves_constant_surface_bsm_results(self):
         local = context()
         bsm = local.replace(

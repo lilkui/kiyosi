@@ -440,8 +440,8 @@ impl NumericalShiftSettings {
 ///
 /// This describes the calculation path, independently of the requested measures.
 /// A listed control may be unused for a particular request or resolved payoff.
-/// Monte Carlo barrier engines expose native spot control; other listed controls
-/// describe internal defaults. Customize scalar differences with
+/// Finite-difference settings and Monte Carlo barrier calls expose native spot control;
+/// other listed controls describe internal defaults. Customize scalar differences with
 /// [`crate::numerical_greeks`]. See
 /// [`PricingEngine::greek_method`] for an example.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -475,8 +475,8 @@ impl GreekMethod {
 
     /// Returns names of shift controls potentially used by this calculation path.
     ///
-    /// Names correspond to [`NumericalShiftSettings`] fields. Monte Carlo barrier
-    /// engines expose native spot control; other controls use internal defaults.
+    /// Names correspond to [`NumericalShiftSettings`] fields. Finite-difference settings
+    /// and Monte Carlo barrier calls expose native spot control; other controls use internal defaults.
     /// See [`PricingEngine::greek_method`] for an example.
     pub const fn active_controls(self) -> &'static [&'static str] {
         match self {

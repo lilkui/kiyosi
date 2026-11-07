@@ -43,6 +43,69 @@ fn request() -> GreeksRequest {
     GreeksRequest::new([Greek::Delta, Greek::Gamma])
 }
 
+#[test]
+fn native_spot_bump_recovers_local_barrier_greeks_without_changing_price() -> Result<()> {
+    let (start, end) = dates();
+    let context = local(119.995, end, false);
+    let option = BarrierOption::new(BarrierOptionTerms::new(
+        OptionType::Call,
+        100.0,
+        start,
+        end,
+        120.0,
+        BarrierType::UpAndOut,
+    ))?;
+    let settings = FiniteDifferenceSettings {
+        asset_step_count: 200,
+        time_step_count: 120,
+        ..Default::default()
+    };
+    let automatic = FiniteDifferenceBarrierEngine::new(settings)?;
+    let unavailable = automatic.price_with_greeks(&option, &context, request())?;
+    assert_eq!(
+        unavailable.status(Greek::Delta),
+        GreekStatus::StencilUnavailable
+    );
+    let controlled = FiniteDifferenceBarrierEngine::new(FiniteDifferenceSettings {
+        spot_shift: Some(0.001),
+        ..settings
+    })?;
+    let result = controlled.price_with_greeks(&option, &context, request())?;
+    assert_eq!(result.price(), unavailable.price());
+    assert!(result.require(Greek::Gamma)?.is_finite());
+    let up = context.replace(PricingContextChanges {
+        spot_price: Some(119.996),
+        ..Default::default()
+    })?;
+    let down = context.replace(PricingContextChanges {
+        spot_price: Some(119.994),
+        ..Default::default()
+    })?;
+    let delta = (controlled.price(&option, &up)? - controlled.price(&option, &down)?) / 0.002;
+    assert!((result.require(Greek::Delta)? - delta).abs() < 1e-6);
+    let boundary = context.replace(PricingContextChanges {
+        spot_price: Some(120.0),
+        ..Default::default()
+    })?;
+    assert_eq!(
+        controlled
+            .price_with_greeks(&option, &boundary, request())?
+            .status(Greek::Delta),
+        GreekStatus::Undefined
+    );
+    for shift in [0.0, -0.001, f64::NAN, f64::INFINITY] {
+        assert!(matches!(
+            FiniteDifferenceSettings {
+                spot_shift: Some(shift),
+                ..settings
+            }
+            .validate(),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    Ok(())
+}
+
 fn assert_close(actual: &PricingResult, expected: &PricingResult) {
     // Full-domain LV continuation and BSM finite-edge formulas use different meshes.
     for (a, b, tolerance) in [

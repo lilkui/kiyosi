@@ -5,7 +5,9 @@ Greeks and implied volatility, when the model data covers valuation through expi
 Other contracts require valuation within their inclusive life and validate prior history.
 
 Engine ``price_with_greeks(instrument, context, greeks)`` methods use the engine's
-estimator and default controls. Monte Carlo single- and double-barrier engines accept
+estimator and default controls. Finite-difference engines accept a positive
+``spot_shift`` at construction to configure native Greek availability checks
+and terminal stencils, including under local volatility. Monte Carlo single- and double-barrier engines accept
 an optional keyword-only ``spot_shift`` for event checks, at-hit rebate derivatives
 and expiry stencils, retaining their native estimator. Other engines accept no bump arguments. Configure scalar
 finite differences explicitly through ``numerical_greeks(engine, instrument,
